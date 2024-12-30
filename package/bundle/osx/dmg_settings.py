@@ -2,7 +2,7 @@
 
 # Ensure default values are set in defines if they are not already provided
 defines.setdefault('containing_folder', '.')
-defines.setdefault('app_name', 'FreeCAD.app')
+defines.setdefault('app_name', 'AstoCAD.app')
 defines.setdefault('icon_path', 'Contents/Resources/freecad.icns')
 
 
