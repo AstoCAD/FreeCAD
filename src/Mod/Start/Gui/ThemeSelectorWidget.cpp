@@ -97,9 +97,7 @@ ThemeSelectorWidget::ThemeSelectorWidget(QWidget* parent)
     , _buttons {nullptr, nullptr, nullptr}
 {
     setObjectName(QLatin1String("ThemeSelectorWidget"));
-    if (shouldHideClassicTheme()) {
-        preselectThemeFromSystemSettings();
-    }
+    preselectThemeFromSystemSettings();
     setupUi();
     qApp->installEventFilter(this);
 }
@@ -110,11 +108,9 @@ void ThemeSelectorWidget::setupButtons(QBoxLayout* layout)
     if (!layout) {
         return;
     }
-    std::map<Theme, QString> themeMap {{Theme::Classic, tr("FreeCAD Classic")},
-                                       {Theme::Dark, tr("FreeCAD Dark")},
-                                       {Theme::Light, tr("FreeCAD Light")}};
+    std::map<Theme, QString> themeMap {{Theme::Dark, tr("Dark theme")},
+                                       {Theme::Light, tr("Light theme")}};
     std::map<Theme, QIcon> iconMap {
-        {Theme::Classic, QIcon(QLatin1String(":/thumbnails/Theme_thumbnail_classic.png"))},
         {Theme::Light, QIcon(QLatin1String(":/thumbnails/Theme_thumbnail_light.png"))},
         {Theme::Dark, QIcon(QLatin1String(":/thumbnails/Theme_thumbnail_dark.png"))}};
     auto hGrp = App::GetApplication().GetParameterGroupByPath(
@@ -238,7 +234,6 @@ void ThemeSelectorWidget::retranslateUi()
     _titleLabel->setText(QLatin1String("<h2>") + tr("Theme") + QLatin1String("</h2>"));
     _descriptionLabel->setText(tr("Looking for more themes? You can obtain them using "
                                   "<a href=\"freecad:Std_AddonMgr\">Addon Manager</a>."));
-    _buttons[static_cast<int>(Theme::Dark)]->setText(tr("FreeCAD Dark", "Visual theme name"));
-    _buttons[static_cast<int>(Theme::Light)]->setText(tr("FreeCAD Light", "Visual theme name"));
-    _buttons[static_cast<int>(Theme::Classic)]->setText(tr("FreeCAD Classic", "Visual theme name"));
+    _buttons[static_cast<int>(Theme::Dark)]->setText(tr("Dark theme", "Visual theme name"));
+    _buttons[static_cast<int>(Theme::Light)]->setText(tr("Light theme", "Visual theme name"));
 }
