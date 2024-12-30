@@ -4,11 +4,11 @@
 
 # Default values
 SIGNING_KEY_ID="${FREECAD_SIGNING_KEY_ID}"
-KEYCHAIN_PROFILE="FreeCAD"
+KEYCHAIN_PROFILE="AstoCAD"
 CONTAINING_FOLDER="."
-APP_NAME="FreeCAD.app"
-VOLUME_NAME="FreeCAD"
-DMG_NAME="FreeCAD-macOS-$(uname -m).dmg"
+APP_NAME="AstoCAD.app"
+VOLUME_NAME="AstoCAD"
+DMG_NAME="AstoCAD-macOS-$(uname -m).dmg"
 DMG_SETTINGS="dmg_settings.py"
 
 # Function to display usage information
