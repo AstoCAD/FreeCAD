@@ -778,7 +778,7 @@ void StdCmdReportBug::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
     ParameterGrp::handle hURLGrp = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Websites");
-    std::string url = hURLGrp->GetASCII("IssuesPage", "https://github.com/FreeCAD/FreeCAD/issues");
+    std::string url = hURLGrp->GetASCII("IssuesPage", "https://github.com/AstoCAD/FreeCAD/issues");
     hURLGrp->SetASCII("IssuesPage", url.c_str());
     OpenURLInBrowser(url.c_str());
 }
