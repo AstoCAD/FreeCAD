@@ -49,6 +49,7 @@
 #include <Base/Tools.h>
 #include <Gui/Action.h>
 #include <Gui/Application.h>
+#include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
 #include <Gui/Document.h>
 #include <Gui/MainWindow.h>
@@ -73,6 +74,7 @@ StartView::StartView(QWidget* parent)
     , _showOnStartupCheckBox {nullptr}
 {
     setObjectName(QLatin1String("StartView"));
+    setWindowIcon(Gui::BitmapFactory().pixmap("StartCommandIcon"));
     auto hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/Start"
     );
