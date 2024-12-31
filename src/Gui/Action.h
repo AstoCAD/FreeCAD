@@ -233,7 +233,7 @@ class GuiExport RecentFilesAction : public ActionGroup
     Q_OBJECT
 
 public:
-    explicit RecentFilesAction (Command* pcCmd, QObject * parent = nullptr);
+    explicit RecentFilesAction (Command* pcCmd, QObject * parent = nullptr, bool addOpen = false);
     ~RecentFilesAction() override;
 
     void appendFile(const QString&);
@@ -253,6 +253,8 @@ private:
     class Private;
     friend class Private;
     std::unique_ptr<Private> _pimpl;
+
+    bool addOpen;
 
     Q_DISABLE_COPY(RecentFilesAction)
 };
