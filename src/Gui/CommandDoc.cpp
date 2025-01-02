@@ -834,6 +834,35 @@ bool StdCmdSaveAll::isActive()
 
 
 //===========================================================================
+// Std_SaveGroup
+//===========================================================================
+class StdCmdSaveGroup : public Gui::GroupCommand
+{
+public:
+    StdCmdSaveGroup()
+        : GroupCommand("Std_SaveGroup")
+    {
+        sGroup = "File";
+        sMenuText = QT_TR_NOOP("Save");
+        sToolTipText = QT_TR_NOOP("Save the active document.");
+        sWhatsThis = "Std_SaveGroup";
+        sStatusTip = sToolTipText;
+
+        setCheckable(false);
+        setRememberLast(false);
+
+        addCommand("Std_Save");
+        addCommand("Std_SaveAs");
+        addCommand("Std_SaveCopy");
+        addCommand("Std_SaveAll");
+        addCommand(); //separator
+        addCommand("Std_Export");
+    }
+
+    const char* className() const override { return "StdCmdSaveGroup"; }
+};
+
+//===========================================================================
 // Std_Revert
 //===========================================================================
 DEF_STD_CMD_A(StdCmdRevert)
@@ -2051,6 +2080,7 @@ void CreateDocCommands()
     rcCmdMgr.addCommand(new StdCmdSaveAs());
     rcCmdMgr.addCommand(new StdCmdSaveCopy());
     rcCmdMgr.addCommand(new StdCmdSaveAll());
+    rcCmdMgr.addCommand(new StdCmdSaveGroup());
     rcCmdMgr.addCommand(new StdCmdRevert());
     rcCmdMgr.addCommand(new StdCmdProjectInfo());
     rcCmdMgr.addCommand(new StdCmdProjectUtil());
