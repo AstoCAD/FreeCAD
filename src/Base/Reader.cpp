@@ -440,9 +440,15 @@ void Base::XMLReader::readFiles(zipios::ZipInputStream& zipstream) const
                 // less data than the file size would allow.
                 // All what we need to do is to notify the user about the
                 // failure.
-                Base::Console().Error("Reading failed from embedded file: %s\n",
-                                      entry->toString().c_str());
-                FailedFiles.push_back(jt->FileName);
+                if (entry->getSize() == 0) {
+                    Base::Console().Log("Skipped empty embedded file: %s\n",
+                                        entry->toString().c_str());
+                }
+                else {
+                    Base::Console().Error("Reading failed from embedded file: %s\n",
+                                          entry->toString().c_str());
+                    FailedFiles.push_back(jt->FileName);
+                }
             }
             // Go to the next registered file name
             it = jt + 1;
