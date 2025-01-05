@@ -511,7 +511,7 @@ void StartView::recentFileAdded(const QString& filename)
 
 void StartView::retranslateUi()
 {
-    QString title = QCoreApplication::translate("Workbench", "Start");
+    QString title = QString::fromLatin1(" ");
     setWindowTitle(title);
 
     const QLatin1String h1Start("<h1>");
