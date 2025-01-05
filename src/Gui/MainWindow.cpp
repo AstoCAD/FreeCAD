@@ -1117,7 +1117,7 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e)
     return QMainWindow::eventFilter(o, e);
 }
 
-void MainWindow::addWindow(MDIView* view)
+void MainWindow::addWindow(MDIView* view, bool closeButton)
 {
     // make workspace parent of view
     bool isempty = d->mdiArea->subWindowList().isEmpty();
@@ -1141,6 +1141,14 @@ void MainWindow::addWindow(MDIView* view)
         QAction* action = menu->addAction(tr("Close All"));
         connect(action, &QAction::triggered, d->mdiArea, &QMdiArea::closeAllSubWindows);
         d->mdiArea->addSubWindow(child);
+
+        if (!closeButton) {
+            QTabBar* tabBar = d->mdiArea->findChild<QTabBar*>();
+            if (tabBar) {
+                int index = tabBar->count() - 1;
+                tabBar->setTabButton(index, QTabBar::RightSide, nullptr);
+            }
+        }
     }
 
     connect(view, &MDIView::message, this, &MainWindow::showMessage);

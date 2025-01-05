@@ -95,7 +95,7 @@ public:
      * Adds an MDI window \a view to the main window's workspace and adds a new tab
      * to the tab bar.
      */
-    void addWindow(MDIView* view);
+    void addWindow(MDIView* view, bool closeButton = true);
     /**
      * Removes an MDI window from the main window's workspace and its associated tab without
      * deleting the widget. If the main windows does not have such a window nothing happens.
