@@ -543,6 +543,7 @@ ViewProviderSketch::ViewProviderSketch()
     , sketchHandler(nullptr)
     , viewOrientationFactor(1)
     , blockContextMenu(false)
+    , editingCancelled(false)
 {
     PartGui::ViewProviderAttachExtension::initExtension(this);
     PartGui::ViewProviderGridExtension::initExtension(this);
@@ -3326,6 +3327,13 @@ void ViewProviderSketch::setupContextMenu(QMenu* menu, QObject* receiver, const 
 bool ViewProviderSketch::setEdit(int ModNum)
 {
     Q_UNUSED(ModNum)
+
+    // Make a backup of the sketch object in case the user cancel editing.
+    sketchBackup.str("");
+    sketchBackup.clear();
+    getObject()->dumpToStream(sketchBackup, 0);
+    sketchBackup.seekg(0);
+
     // When double-clicking on the item for this sketch the
     // object unsets and sets its edit mode without closing
     // the task panel
@@ -3657,13 +3665,21 @@ void ViewProviderSketch::unsetEdit(int ModNum)
         selection.reset();
         this->detachSelection();
 
-        App::AutoTransaction trans("Sketch recompute");
-        try {
-            // and update the sketch
-            // getSketchObject()->getDocument()->recompute();
-            Gui::Command::updateActive();
+        if (editingCancelled) {
+            App::AutoTransaction trans("Cancel sketch editing");
+            // Restore the object as it was when edit is set.
+            getObject()->restoreFromStream(sketchBackup);
+            getSketchObject()->purgeTouched();
         }
-        catch (...) {
+        else {
+            App::AutoTransaction trans("Sketch recompute");
+            try {
+                // and update the sketch
+                // getSketchObject()->getDocument()->recompute();
+                Gui::Command::updateActive();
+            }
+            catch (...) {
+            }
         }
     }
 
