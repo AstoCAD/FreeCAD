@@ -456,7 +456,6 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
 
     *part << "PartDesign_Body"
           << "PartDesign_CompSketches"
-          << "Sketcher_ValidateSketch"
           << "Part_CheckGeometry"
           << "PartDesign_SubShapeBinder"
           << "PartDesign_Clone";
