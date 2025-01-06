@@ -2709,6 +2709,7 @@ public:
         setRememberLast(false);
 
         addCommand("PartDesign_NewSketch");
+        addCommand("Sketcher_ValidateSketch");
         addCommand("Sketcher_MapSketch");
         addCommand("Sketcher_EditSketch");
     }
