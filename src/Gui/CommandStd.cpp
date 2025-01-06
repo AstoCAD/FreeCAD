@@ -336,6 +336,64 @@ public:
 
     const char* className() const override { return "StdCmdHelpGroup"; }
 };
+
+//===========================================================================
+// Std_ToolsGroup
+//===========================================================================
+class StdCmdToolsGroup : public Gui::GroupCommand
+{
+public:
+    StdCmdToolsGroup()
+        : GroupCommand("Std_ToolsGroup")
+    {
+        sGroup = "File";
+        sMenuText = QT_TR_NOOP("Tools");
+        sToolTipText = QT_TR_NOOP("Opens a Dialog to edit the preferences.");
+        sWhatsThis = "Std_ToolsGroup";
+        sStatusTip = sToolTipText;
+
+        setCheckable(false);
+        setRememberLast(false);
+
+        addCommand("Std_DlgPreferences");
+        addCommand("Std_DlgCustomize");
+        addCommand("Std_DlgParameter");
+        addCommand("Std_AddonManager");
+        addCommand(); //separator
+        addCommand("Std_DemoMode");
+        addCommand("Std_UnitsCalculator");
+        addCommand(); //separator
+        addCommand("Std_ViewScreenShot");
+        addCommand("Std_ViewLoadImage");
+    }
+
+    const char* className() const override { return "StdCmdToolsGroup"; }
+};
+
+//===========================================================================
+// Std_AddonManager - Proxy to python defined Std_AddonMgr
+//===========================================================================
+
+DEF_STD_CMD(StdCmdAddonManager)
+
+StdCmdAddonManager::StdCmdAddonManager()
+  :Command("Std_AddonManager")
+{
+    sGroup        = "Tools";
+    sMenuText     = QT_TR_NOOP("&Addon manager");
+    sToolTipText  = QT_TR_NOOP("Manage external workbenches, macros, and preference packs");
+    sWhatsThis    = "Std_AddonManager";
+    sStatusTip    = sToolTipText;
+    sPixmap       = "AddonManager";
+}
+
+void StdCmdAddonManager::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    doCommand(Gui, "import AddonManager");
+    doCommand(Gui, "AddonManager.CommandAddonManager().Activated()");
+}
+
 //===========================================================================
 // Std_WhatsThis
 //===========================================================================
@@ -1043,9 +1101,19 @@ void CreateStdCommands()
     rcCmdMgr.addCommand(new StdCmdUnitsCalculator());
     rcCmdMgr.addCommand(new StdCmdUserEditMode());
     rcCmdMgr.addCommand(new StdCmdReloadStyleSheet());
-    rcCmdMgr.addCommand(new StdCmdHelpGroup());
+    rcCmdMgr.addCommand(new StdCmdAddonManager());
     //rcCmdMgr.addCommand(new StdCmdDownloadOnlineHelp());
     //rcCmdMgr.addCommand(new StdCmdDescription());
+}
+
+void CreateStdGroupCommands()
+{
+    // command groups are added after because they rely on commands added by other
+    // command documents, such as CreateViewStdCommands.
+    CommandManager& rcCmdMgr = Application::Instance->commandManager();
+
+    rcCmdMgr.addCommand(new StdCmdHelpGroup());
+    rcCmdMgr.addCommand(new StdCmdToolsGroup());
 }
 
 } // namespace Gui
