@@ -75,10 +75,10 @@ void WorkbenchManipulator::addSelectionFilter(Gui::ToolBarItem* toolBar)
 
 void WorkbenchManipulator::addDatums(Gui::ToolBarItem* toolBar)
 {
-    if (auto view = toolBar->findItem("Structure")) {
+    if (auto view = toolBar->findItem("File")) {
         auto add = new Gui::ToolBarItem(); // NOLINT
         add->setCommand("Part_Datums");
-        auto item = view->findItem("Std_Group");
+        auto item = view->findItem("Std_VarSet");
         if (item) {
             view->insertItem(item, add);
         }
