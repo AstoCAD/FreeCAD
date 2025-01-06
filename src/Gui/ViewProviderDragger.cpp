@@ -37,9 +37,11 @@
 #include <Base/Vector3D.h>
 #include <Base/Converter.h>
 
+#include "Action.h"
 #include "Application.h"
 #include "BitmapFactory.h"
 #include "Control.h"
+#include "Command.h"
 #include "Document.h"
 #include "Inventor/Draggers/SoTransformDragger.h"
 #include "Inventor/Draggers/Gizmo.h"
