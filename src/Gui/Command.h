@@ -247,6 +247,7 @@ void CreateWindowStdCommands();
 void CreateStructureCommands();
 void CreateTestCommands();
 void CreateLinkCommands();
+void CreateStdGroupCommands();
 
 
 /** The CommandBase class
