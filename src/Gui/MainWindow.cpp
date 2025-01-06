@@ -1395,6 +1395,7 @@ void MainWindow::onToolBarMenuAboutToShow()
     menu->addSeparator();
 
     Application::Instance->commandManager().getCommandByName("Std_ToggleToolBarLock")->addTo(menu);
+    Application::Instance->commandManager().getCommandByName("Std_DlgToggleTitleToolBarLock")->addTo(menu);
 }
 
 void MainWindow::populateToolBarMenu(QMenu *menu)
