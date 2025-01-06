@@ -34,12 +34,15 @@
 #include <App/Document.h>
 
 #include "Command.h"
+#include "Control.h"
 #include "ActiveObjectList.h"
 #include "Application.h"
 #include "Document.h"
 #include "MDIView.h"
 #include "ViewProviderDocumentObject.h"
 #include "Selection.h"
+
+#include <Gui/TaskView/TaskNewObject.h>
 
 using namespace Gui;
 
@@ -120,74 +123,7 @@ void StdCmdNewPart::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
 
-    // Step 1: Create a dialog for user input
-    QDialog dialog;
-    dialog.setWindowTitle(QObject::tr("Create New Part"));
-
-    QVBoxLayout layout(&dialog);
-
-    QLineEdit partNameEdit;
-    partNameEdit.setPlaceholderText(QObject::tr("Part name"));
-    layout.addWidget(&partNameEdit);
-
-    QCheckBox createBodyCheck(QObject::tr("Create body"));
-    bool createBodyDefault = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/General")
-        ->GetBool("Std_NewPart_CreateBody", true);
-    createBodyCheck.setChecked(createBodyDefault);
-    layout.addWidget(&createBodyCheck);
-
-    QHBoxLayout buttons;
-    QPushButton okButton(QObject::tr("OK"));
-    QPushButton cancelButton(QObject::tr("Cancel"));
-    buttons.addWidget(&okButton);
-    buttons.addWidget(&cancelButton);
-    layout.addLayout(&buttons);
-
-    QObject::connect(&okButton, &QPushButton::clicked, [&]() {
-        dialog.accept();
-    });
-    QObject::connect(&cancelButton, &QPushButton::clicked, [&]() {
-        dialog.reject();
-    });
-
-    if (dialog.exec() != QDialog::Accepted) {
-        return;  // User canceled
-    }
-
-    // Get user input
-    bool createBody = createBodyCheck.isChecked();
-    App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/General")
-        ->SetBool("Std_NewPart_CreateBody", createBody);
-
-    std::string partName = partNameEdit.text().toStdString();
-    if (partName.empty()) {
-        partName = "Part";
-    }
-
-    // Step 2: Create a new document unless the current doc is empty.
-    openCommand(QT_TRANSLATE_NOOP("Command", "Create new part"));
-
-    auto doc = App::GetApplication().getActiveDocument();
-    if (doc->countObjects() != 0) {
-        doCommand(Doc, "App.newDocument('%s')", partName.c_str());
-    }
-
-    doCommand(Doc, "part = App.ActiveDocument.addObject('App::Part', '%s')", partName.c_str());
-    doCommand(Doc, "part.Label = '%s'", partName.c_str());
-    doCommand(Gui::Command::Gui, "Gui.activeView().setActiveObject('%s', part)", PARTKEY);
-
-    // Step 3: Optionally create a body
-    if (createBody) {
-        doCommand(Doc, "body = part.newObject('PartDesign::Body', 'Body')");
-        doCommand(Gui::Command::Gui, "Gui.activeView().setActiveObject('%s', body)", PDBODYKEY);
-
-        // assure the PartDesign workbench
-        if (App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/PartDesign")->GetBool("SwitchToWB", true)) {
-            Gui::Command::assureWorkbench("PartDesignWorkbench");
-        }
-    }
-
-    commitCommand();
+    Gui::Control().showDialog(new Gui::TaskNewObject("App::Part"));
 }
 
 bool StdCmdNewPart::isActive()
@@ -215,60 +151,7 @@ void StdCmdNewAssembly::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
 
-    // Step 1: Create a dialog for user input
-    QDialog dialog;
-    dialog.setWindowTitle(QObject::tr("Create New Assembly"));
-
-    QVBoxLayout layout(&dialog);
-
-    QLineEdit partNameEdit;
-    partNameEdit.setPlaceholderText(QObject::tr("Assembly name"));
-    layout.addWidget(&partNameEdit);
-
-    QHBoxLayout buttons;
-    QPushButton okButton(QObject::tr("OK"));
-    QPushButton cancelButton(QObject::tr("Cancel"));
-    buttons.addWidget(&okButton);
-    buttons.addWidget(&cancelButton);
-    layout.addLayout(&buttons);
-
-    QObject::connect(&okButton, &QPushButton::clicked, [&]() {
-        dialog.accept();
-    });
-    QObject::connect(&cancelButton, &QPushButton::clicked, [&]() {
-        dialog.reject();
-    });
-
-    if (dialog.exec() != QDialog::Accepted) {
-        return;  // User canceled
-    }
-
-    // Get user input
-    std::string partName = partNameEdit.text().toStdString();
-    if (partName.empty()) {
-        partName = "Assembly";
-    }
-
-    // Step 2: Create a new document unless the current doc is empty.
-    openCommand(QT_TRANSLATE_NOOP("Command", "Create new assembly"));
-
-    auto doc = App::GetApplication().getActiveDocument();
-    if (doc->countObjects() != 0) {
-        doCommand(Doc, "App.newDocument('%s')", partName.c_str());
-    }
-
-    doCommand(Doc, "asm = App.ActiveDocument.addObject('Assembly::AssemblyObject', '%s')", partName.c_str());
-    doCommand(Doc, "asm.Label = '%s'", partName.c_str());
-    doCommand(Gui::Command::Gui, "asm.Type = 'Assembly'");
-    doCommand(Gui::Command::Gui, "asm.newObject('Assembly::JointGroup', 'Joints')");
-    doCommand(Gui::Command::Gui, "Gui.ActiveDocument.setEdit(asm)");
-
-    // assure the PartDesign workbench
-    if (App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/Assembly")->GetBool("SwitchToWB", true)) {
-        Gui::Command::assureWorkbench("AssemblyWorkbench");
-    }
-
-    commitCommand();
+    Gui::Control().showDialog(new Gui::TaskNewObject("Assembly::AssemblyObject"));
 }
 
 bool StdCmdNewAssembly::isActive()

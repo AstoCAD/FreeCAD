@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Gui::TaskNewObject</class>
+ <widget class="QWidget" name="Gui::TaskNewObject">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>100</width>
+    <height>100</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Create new</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <layout class="QHBoxLayout" name="hLayout">
+     <item>
+      <widget class="QLabel" name="nameLabel">
+       <property name="text">
+        <string>Name</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="nameLine">
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="1" column="0">
+    <widget class="Gui::PrefCheckBox" name="createBody">
+     <property name="text">
+      <string>Create body</string>
+     </property>
+     <property name="toolTip">
+      <string>If checked, a body will be added to the created Part.</string>
+     </property>
+     <property name="prefEntry" stdset="0">
+      <cstring>NewObjectCreateBody</cstring>
+     </property>
+     <property name="prefPath" stdset="0">
+      <cstring>Commands</cstring>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="Gui::PrefCheckBox" name="addInNewFile">
+     <property name="text">
+      <string>In new file (recommanded)</string>
+     </property>
+     <property name="toolTip">
+      <string>If checked, the object will be created in a new document. We advise to keep one Assembly or Part per document.</string>
+     </property>
+     <property name="prefEntry" stdset="0">
+      <cstring>NewObjectAddInNewFile</cstring>
+     </property>
+     <property name="prefPath" stdset="0">
+      <cstring>Commands</cstring>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="Gui::PrefCheckBox" name="saveFile">
+     <property name="text">
+      <string>Save file</string>
+     </property>
+     <property name="toolTip">
+      <string>If checked, you will be prompted to save the file after validation.</string>
+     </property>
+     <property name="prefEntry" stdset="0">
+      <cstring>NewObjectSaveFile</cstring>
+     </property>
+     <property name="prefPath" stdset="0">
+      <cstring>Commands</cstring>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>Gui::PrefCheckBox</class>
+   <extends>QCheckBox</extends>
+   <header>Gui/PrefWidgets.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
