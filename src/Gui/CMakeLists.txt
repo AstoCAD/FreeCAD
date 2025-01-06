@@ -98,8 +98,9 @@ endif(MSVC)
 
 if(MSVC)
     set(FreeCADGui_LIBS
-         FreeCADApp
-         ${OPENGL_gl_LIBRARY}
+        FreeCADApp
+        ${OPENGL_gl_LIBRARY}
+        dwmapi
     )
 
     if(FREECAD_USE_3DCONNEXION_LEGACY)
@@ -1205,7 +1206,9 @@ SOURCE_GROUP("View3D\\Inventor" FILES ${Inventor_SRCS})
 # The widget sources
 SET(Widget_CPP_SRCS
     ComboLinks.cpp
+    CustomTitleBar.cpp
     FileDialog.cpp
+    FramelessWindow.cpp
     MainWindow.cpp
     MainWindowPy.cpp
     NotificationBox.cpp
@@ -1230,7 +1233,9 @@ SET(Widget_CPP_SRCS
 )
 SET(Widget_HPP_SRCS
     ComboLinks.h
+    CustomTitleBar.h
     FileDialog.h
+    FramelessWindow.h
     MainWindow.h
     MainWindowPy.h
     NotificationBox.h
