@@ -156,8 +156,9 @@ void StdCmdNewPart::activated(int iMsg)
     layout.addWidget(&partNameEdit);
 
     QCheckBox createBodyCheck(QObject::tr("Create body"));
-    bool createBodyDefault = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/General")
-        ->GetBool("Std_NewPart_CreateBody", true);
+    bool createBodyDefault = App::GetApplication()
+                                 .GetParameterGroupByPath("User parameter:BaseApp/Preferences/General")
+                                 ->GetBool("Std_NewPart_CreateBody", true);
     createBodyCheck.setChecked(createBodyDefault);
     layout.addWidget(&createBodyCheck);
 
@@ -168,12 +169,8 @@ void StdCmdNewPart::activated(int iMsg)
     buttons.addWidget(&cancelButton);
     layout.addLayout(&buttons);
 
-    QObject::connect(&okButton, &QPushButton::clicked, [&]() {
-        dialog.accept();
-    });
-    QObject::connect(&cancelButton, &QPushButton::clicked, [&]() {
-        dialog.reject();
-    });
+    QObject::connect(&okButton, &QPushButton::clicked, [&]() { dialog.accept(); });
+    QObject::connect(&cancelButton, &QPushButton::clicked, [&]() { dialog.reject(); });
 
     if (dialog.exec() != QDialog::Accepted) {
         return;  // User canceled
@@ -181,7 +178,8 @@ void StdCmdNewPart::activated(int iMsg)
 
     // Get user input
     bool createBody = createBodyCheck.isChecked();
-    App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/General")
+    App::GetApplication()
+        .GetParameterGroupByPath("User parameter:BaseApp/Preferences/General")
         ->SetBool("Std_NewPart_CreateBody", createBody);
 
     std::string partName = partNameEdit.text().toStdString();
@@ -207,7 +205,9 @@ void StdCmdNewPart::activated(int iMsg)
         doCommand(Gui::Command::Gui, "Gui.activeView().setActiveObject('%s', body)", PDBODYKEY);
 
         // assure the PartDesign workbench
-        if (App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/PartDesign")->GetBool("SwitchToWB", true)) {
+        if (App::GetApplication()
+                .GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/PartDesign")
+                ->GetBool("SwitchToWB", true)) {
             Gui::Command::assureWorkbench("PartDesignWorkbench");
         }
     }
@@ -257,12 +257,8 @@ void StdCmdNewAssembly::activated(int iMsg)
     buttons.addWidget(&cancelButton);
     layout.addLayout(&buttons);
 
-    QObject::connect(&okButton, &QPushButton::clicked, [&]() {
-        dialog.accept();
-    });
-    QObject::connect(&cancelButton, &QPushButton::clicked, [&]() {
-        dialog.reject();
-    });
+    QObject::connect(&okButton, &QPushButton::clicked, [&]() { dialog.accept(); });
+    QObject::connect(&cancelButton, &QPushButton::clicked, [&]() { dialog.reject(); });
 
     if (dialog.exec() != QDialog::Accepted) {
         return;  // User canceled
@@ -282,14 +278,20 @@ void StdCmdNewAssembly::activated(int iMsg)
         doCommand(Doc, "App.newDocument('%s')", partName.c_str());
     }
 
-    doCommand(Doc, "asm = App.ActiveDocument.addObject('Assembly::AssemblyObject', '%s')", partName.c_str());
+    doCommand(
+        Doc,
+        "asm = App.ActiveDocument.addObject('Assembly::AssemblyObject', '%s')",
+        partName.c_str()
+    );
     doCommand(Doc, "asm.Label = '%s'", partName.c_str());
     doCommand(Gui::Command::Gui, "asm.Type = 'Assembly'");
     doCommand(Gui::Command::Gui, "asm.newObject('Assembly::JointGroup', 'Joints')");
     doCommand(Gui::Command::Gui, "Gui.ActiveDocument.setEdit(asm)");
 
     // assure the PartDesign workbench
-    if (App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/Assembly")->GetBool("SwitchToWB", true)) {
+    if (App::GetApplication()
+            .GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/Assembly")
+            ->GetBool("SwitchToWB", true)) {
         Gui::Command::assureWorkbench("AssemblyWorkbench");
     }
 
@@ -305,7 +307,7 @@ bool StdCmdNewAssembly::isActive()
 //===========================================================================
 // Std_NewGroup
 //===========================================================================
-class StdCmdNewGroup : public Gui::GroupCommand
+class StdCmdNewGroup: public Gui::GroupCommand
 {
 public:
     StdCmdNewGroup()
@@ -325,7 +327,10 @@ public:
         addCommand("Std_NewAssembly");
     }
 
-    const char* className() const override { return "StdCmdNewGroup"; }
+    const char* className() const override
+    {
+        return "StdCmdNewGroup";
+    }
 };
 
 //===========================================================================
