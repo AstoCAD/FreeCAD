@@ -78,6 +78,9 @@ void DlgSettingsUI::saveSettings()
     ui->overlayAutoHideCheckBox->onSave();
     ui->mouseClickPassThroughCheckBox->onSave();
     ui->mouseWheelPassThroughCheckBox->onSave();
+
+    // Others
+    ui->framelessWindowCheckBox->onSave();
 }
 
 void DlgSettingsUI::loadSettings()
@@ -104,6 +107,9 @@ void DlgSettingsUI::loadSettings()
     ui->overlayAutoHideCheckBox->onRestore();
     ui->mouseClickPassThroughCheckBox->onRestore();
     ui->mouseWheelPassThroughCheckBox->onRestore();
+
+    // Others
+    ui->framelessWindowCheckBox->onRestore();
 
     loadStyleSheet();
 }

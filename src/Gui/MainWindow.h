@@ -25,10 +25,10 @@
 #define GUI_MAINWINDOW_H
 
 #include <QEvent>
-#include <QMainWindow>
 #include <QMdiArea>
 
 #include "Window.h"
+#include "FramelessWindow.h"
 
 class QMimeData;
 class QUrl;
@@ -68,7 +68,7 @@ public:
  * a status bar and mainly a workspace for the MDI windows.
  * @author Werner Mayer
  */
-class GuiExport MainWindow : public QMainWindow
+class GuiExport MainWindow : public FramelessWindow
 {
     Q_OBJECT
 

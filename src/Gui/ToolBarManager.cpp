@@ -43,6 +43,7 @@
 #include "ToolBarAreaWidget.h"
 #include "Application.h"
 #include "Command.h"
+#include "CustomTitleBar.h"
 #include "MainWindow.h"
 #include "OverlayWidgets.h"
 #include "WidgetFactory.h"
@@ -440,12 +441,26 @@ void ToolBarManager::setupStatusBar()
 
 void ToolBarManager::setupMenuBar()
 {
-    if (auto mb = getMainWindow()->menuBar()) {
+    if (auto ctb = dynamic_cast<CustomTitleBar*>(getMainWindow()->menuWidget())) {
+
+        menuBarLeftAreaWidget = new ToolBarAreaWidget(ctb, ToolBarArea::LeftMenuToolBarArea, hMenuBarLeft, connParam, &menuBarTimer);
+        menuBarLeftAreaWidget->setObjectName(QStringLiteral("MenuBarLeftArea"));
+        static_cast<QHBoxLayout*>(ctb->layout())->insertWidget(1, menuBarLeftAreaWidget);
+        menuBarLeftAreaWidget->show();
+
+        menuBarRightAreaWidget = new ToolBarAreaWidget(ctb, ToolBarArea::RightMenuToolBarArea, hMenuBarRight, connParam, &menuBarTimer);
+        menuBarRightAreaWidget->setObjectName(QStringLiteral("MenuBarRightArea"));
+        static_cast<QHBoxLayout*>(ctb->layout())->insertWidget(3, menuBarRightAreaWidget);
+        menuBarRightAreaWidget->show();
+    }
+    else if (auto mb = getMainWindow()->menuBar()) {
         mb->installEventFilter(this);
+
         menuBarLeftAreaWidget = new ToolBarAreaWidget(mb, ToolBarArea::LeftMenuToolBarArea, hMenuBarLeft, connParam, &menuBarTimer);
         menuBarLeftAreaWidget->setObjectName(QStringLiteral("MenuBarLeftArea"));
         mb->setCornerWidget(menuBarLeftAreaWidget, Qt::TopLeftCorner);
         menuBarLeftAreaWidget->show();
+
         menuBarRightAreaWidget = new ToolBarAreaWidget(mb, ToolBarArea::RightMenuToolBarArea, hMenuBarRight, connParam, &menuBarTimer);
         menuBarRightAreaWidget->setObjectName(QStringLiteral("MenuBarRightArea"));
         mb->setCornerWidget(menuBarRightAreaWidget, Qt::TopRightCorner);
@@ -522,8 +537,10 @@ void ToolBarManager::setupMenuBarTimer()
 {
     menuBarTimer.setSingleShot(true);
     QObject::connect(&menuBarTimer, &QTimer::timeout, [] {
-        if (auto menuBar = getMainWindow()->menuBar()) {
-            menuBar->adjustSize();
+        if (!getMainWindow()->isFrameless()) {
+            if (auto menuBar = getMainWindow()->menuBar()) {
+                menuBar->adjustSize();
+            }
         }
     });
 }
@@ -904,7 +921,8 @@ bool ToolBarManager::addToolBarToArea(QObject *source, QMouseEvent *ev)
         statusBar = nullptr;
     }
 
-    auto menuBar = getMainWindow()->menuBar();
+    QWidget* menuBar = getMainWindow()->isFrameless() ? getMainWindow()->menuWidget() : getMainWindow()->menuBar();
+
     if (!menuBar || !menuBar->isVisible()) {
         if (!statusBar) {
             return false;
@@ -1030,6 +1048,7 @@ bool ToolBarManager::addToolBarToArea(QObject *source, QMouseEvent *ev)
 
 bool ToolBarManager::showContextMenu(QObject *source)
 {
+    bool frameless = getMainWindow()->isFrameless();
     QMenu menu;
     QLayout* layout = nullptr;
     ToolBarAreaWidget* area = nullptr;
@@ -1037,7 +1056,8 @@ bool ToolBarManager::showContextMenu(QObject *source)
         area = statusBarAreaWidget;
         layout = findLayoutOfObject(source, area);
     }
-    else if (getMainWindow()->menuBar() == source) {
+    else if ((frameless && getMainWindow()->menuWidget() == source)
+        || (!frameless && getMainWindow()->menuBar() == source)) {
         area = findToolBarAreaWidget();
         if (!area) {
             return false;
