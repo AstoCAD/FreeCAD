@@ -76,6 +76,7 @@ void DlgSettingsNotificationArea::saveSettings()
     ui->preventNonIntrusiveNotificationsWhenWindowNotActive->onSave();
     ui->developerErrorSubscriptionEnabled->onSave();
     ui->developerWarningSubscriptionEnabled->onSave();
+    ui->buttonTogglesConsoleViews->onSave();
 }
 
 void DlgSettingsNotificationArea::loadSettings()
@@ -99,6 +100,7 @@ void DlgSettingsNotificationArea::loadSettings()
     ui->preventNonIntrusiveNotificationsWhenWindowNotActive->onRestore();
     ui->developerErrorSubscriptionEnabled->onRestore();
     ui->developerWarningSubscriptionEnabled->onRestore();
+    ui->buttonTogglesConsoleViews->onRestore();
 }
 
 void DlgSettingsNotificationArea::changeEvent(QEvent* e)
