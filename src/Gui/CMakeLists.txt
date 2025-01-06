@@ -851,6 +851,9 @@ SET(Task_View_SRCS
     TaskView/TaskImage.cpp
     TaskView/TaskImage.h
     TaskView/TaskImage.ui
+    TaskView/TaskNewObject.cpp
+    TaskView/TaskNewObject.h
+    TaskView/TaskNewObject.ui
     TaskView/TaskSelectLinkProperty.cpp
     TaskView/TaskSelectLinkProperty.h
     TaskView/TaskSelectLinkProperty.ui
@@ -1468,6 +1471,7 @@ if(MSVC)
         TaskView/TaskAppearance.cpp
         TaskView/TaskOrientation.cpp
         TaskView/TaskImage.cpp
+        TaskView/TaskNewObject.cpp
         TaskView/TaskSelectLinkProperty.cpp
         TaskView/TaskSolverMessages.ui
         TaskView/TaskEditControl.cpp
