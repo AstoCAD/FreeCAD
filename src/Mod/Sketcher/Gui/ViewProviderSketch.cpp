@@ -4661,6 +4661,7 @@ void ViewProviderSketch::generateContextMenu()
     int selectedPoints = 0;
     int selectedConstraints = 0;
     int selectedBsplines = 0;
+    int selectedHasInternalAlign = 0;
     int selectedBsplineKnots = 0;
     int selectedOrigin = 0;
     int selectedEndPoints = 0;
@@ -4691,6 +4692,11 @@ void ViewProviderSketch::generateContextMenu()
                         }
                         else if (geo->is<Part::GeomBSplineCurve>()) {
                             ++selectedBsplines;
+                            ++selectedHasInternalAlign;
+                        }
+                        else if (geo->is<Part::GeomEllipse>() || geo->is<Part::GeomArcOfEllipse>()
+                            || geo->is<Part::GeomArcOfHyperbola>() || geo->is<Part::GeomArcOfParabola>()) {
+                            ++selectedHasInternalAlign;
                         }
                         else {
                             ++selectedConics;
@@ -4737,7 +4743,8 @@ void ViewProviderSketch::generateContextMenu()
             && !onlyOrigin) {
             menu << "Sketcher_BSplineInsertKnot"
                  << "Sketcher_BSplineIncreaseDegree"
-                 << "Sketcher_BSplineDecreaseDegree";
+                 << "Sketcher_BSplineDecreaseDegree"
+                 << "Sketcher_CompBSplineShowHideGeometryInformation";
         }
         else if (selectedBsplineKnots > 0 && selectedBsplineKnots == selectedPoints
                  && selectedEdges == 0 && !onlyOrigin) {
@@ -4745,6 +4752,9 @@ void ViewProviderSketch::generateContextMenu()
                 menu << "Sketcher_BSplineIncreaseKnotMultiplicity"
                      << "Sketcher_BSplineDecreaseKnotMultiplicity";
             }
+        }
+        if (selectedHasInternalAlign > 0 && selectedHasInternalAlign == selectedEdges) {
+            menu << "Sketcher_RestoreInternalAlignmentGeometry";
         }
         if (selectedEdges >= 1 && selectedPoints == 0 && selectedBsplines == 0 && !onlyOrigin) {
             menu << "Sketcher_Dimension";
