@@ -40,12 +40,19 @@ void WorkbenchManipulator::modifyMenuBar([[maybe_unused]] Gui::MenuItem* menuBar
 
 void WorkbenchManipulator::modifyToolBars(Gui::ToolBarItem* toolBar)
 {
-    auto tbView = toolBar->findItem("View");
-    if (!tbView) {
+    auto tb = toolBar->findItem("File");
+    if (!tb) {
         return;
     }
 
     auto itemMeasure = new Gui::ToolBarItem();
     itemMeasure->setCommand("Std_Measure");
-    tbView->appendItem(itemMeasure);
+
+    auto item = tb->findItem("Std_ToolsGroup");
+    if (item) {
+        tb->insertItem(item, itemMeasure);
+    }
+    else {
+        tb->appendItem(itemMeasure);
+    }
 }
