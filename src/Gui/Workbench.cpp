@@ -631,9 +631,6 @@ StdWorkbench::~StdWorkbench() = default;
 void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
 {
     if (strcmp(recipient, "View") == 0) {
-        createLinkMenu(item);
-        *item << "Separator";
-
         auto StdViews = new MenuItem;
         StdViews->setCommand("Standard Views");
 
@@ -643,11 +640,11 @@ void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
                   << "Separator" << "Std_ViewRotateLeft" << "Std_ViewRotateRight";
 
         *item << "Std_ViewFitAll" << "Std_ViewFitSelection" << "Std_AlignToSelection"
-              << "Std_DrawStyle" << StdViews << "Separator"
+              << "Separator" << StdViews << "Separator" << "Std_DrawStyle" << "Part_SelectFilter"
               << "Std_ViewDockUndockFullscreen";
 
         if (Gui::Selection().countObjectsOfType<App::DocumentObject>() > 0) {
-            *item << "Separator" << "Std_ToggleVisibility"
+            *item << "Separator" << "Std_ToggleFreeze"
                   << "Std_ToggleSelectability" << "Std_TreeSelection"
                   << "Std_RandomColor" << "Std_ToggleTransparency" << "Separator" << "Std_Delete"
                   << "Std_SendToPythonConsole" << "Std_TransformManip" << "Std_Placement";
@@ -655,13 +652,19 @@ void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
     }
     else if (strcmp(recipient, "Tree") == 0) {
         if (Gui::Selection().countObjectsOfType<App::DocumentObject>() > 0) {
-            *item << "Std_ToggleFreeze" << "Separator"
-                  << "Std_Placement" << "Std_ToggleVisibility" << "Std_ShowSelection"
-                  << "Std_HideSelection"
-                  << "Std_ToggleSelectability" << "Std_TreeSelectAllInstances" << "Separator"
+            *item << "Std_ToggleFreeze";
+            if (Gui::Selection().countObjectsOfType<App::DocumentObject>() > 1) {
+                *item << "Std_ShowSelection"
+                      << "Std_HideSelection";  // useful only for large selection.
+            }
+            *item << "Std_ToggleSelectability";
+            if (Gui::Selection().countObjectsOfType<App::DocumentObject>() == 1) {
+                *item << "Std_TreeSelectAllInstances";  // works only when single object selected
+            }
+            *item << "Separator"
                   << "Std_RandomColor" << "Std_ToggleTransparency" << "Separator"
                   << "Std_Cut" << "Std_Copy" << "Std_Paste" << "Std_Delete"
-                  << "Std_SendToPythonConsole" << "Separator";
+                  << "Std_SendToPythonConsole" << "Std_Placement";
         }
     }
 }
@@ -835,18 +838,10 @@ ToolBarItem* StdWorkbench::setupToolBars() const
     // File
     auto file = new ToolBarItem(root);
     file->setCommand("File");
-    *file << "Std_New" << "Std_Open" << "Std_Save";
-
-    // Edit
-    auto edit = new ToolBarItem(root);
-    edit->setCommand("Edit");
-    *edit << "Std_Undo" << "Std_Redo"
-          << "Separator" << "Std_Refresh";
-
-    // Clipboard
-    auto clipboard = new ToolBarItem(root, ToolBarItem::DefaultVisibility::Hidden);
-    clipboard->setCommand("Clipboard");
-    *clipboard << "Std_Cut" << "Std_Copy" << "Std_Paste";
+    *file << "Std_NewGroup" << "Std_OpenGroup" << "Std_SaveGroup"
+          << "Separator" << "Std_Undo" << "Std_Redo" << "Std_Refresh"
+          << "Separator" << "Std_Group" << "Std_VarSet" << "Std_TextDocument"
+          << "Separator" << "Std_Measure" << "Std_ToolsGroup";
 
     // Workbench switcher
     auto wb = new ToolBarItem(root);
@@ -859,12 +854,6 @@ ToolBarItem* StdWorkbench::setupToolBars() const
     *macro << "Std_DlgMacroRecord" << "Std_DlgMacroExecute"
            << "Std_DlgMacroExecuteDirect";
 
-    // View
-    auto view = new ToolBarItem(root);
-    view->setCommand("View");
-    *view << "Std_ViewFitAll" << "Std_ViewFitSelection" << "Std_ViewGroup" << "Std_AlignToSelection"
-          << "Separator" << "Std_DrawStyle" << "Std_TreeViewActions" << "Std_Measure";
-
     // Individual views
     auto individualViews = new ToolBarItem(root, ToolBarItem::DefaultVisibility::Hidden);
     individualViews->setCommand("Individual Views");
@@ -876,15 +865,10 @@ ToolBarItem* StdWorkbench::setupToolBars() const
                      << "Std_ViewBottom"
                      << "Std_ViewLeft";
 
-    // Structure
-    auto structure = new ToolBarItem(root);
-    structure->setCommand("Structure");
-    *structure << "Std_Part" << "Std_Group" << "Std_LinkActions" << "Std_VarSet";
-
     // Help
     auto help = new ToolBarItem(root);
     help->setCommand("Help");
-    *help << "Std_WhatsThis";
+    *help << "Std_HelpGroup";
 
     return root;
 }
