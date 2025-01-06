@@ -1010,11 +1010,21 @@ void TreeWidget::_updateStatus(bool delay) {
 
 void TreeWidget::contextMenuEvent(QContextMenuEvent* e)
 {
+    // get the current item
+    this->contextItem = itemAt(e->pos());
+    bool isDoc = this->contextItem && this->contextItem->type() == DocumentType;
+
     // ask workbenches and view provider, ...
     MenuItem view;
     Gui::Application::Instance->setupContextMenu("Tree", &view);
 
-    view << "Std_Properties" << "Separator" << "Std_Expressions";
+    if (isDoc) {
+        view << "Std_Expressions";
+    }
+    else {
+        view << "Std_Properties" << "Separator";
+    }
+    view << "Std_Group";
     Workbench::createLinkMenu(&view);
 
     QMenu contextMenu;
@@ -1027,10 +1037,7 @@ void TreeWidget::contextMenuEvent(QContextMenuEvent* e)
             this, &TreeWidget::onActivateDocument);
     MenuManager::getInstance()->setupContextMenu(&view, contextMenu);
 
-    // get the current item
-    this->contextItem = itemAt(e->pos());
-
-    if (this->contextItem && this->contextItem->type() == DocumentType) {
+    if (isDoc) {
         auto docitem = static_cast<DocumentItem*>(this->contextItem);
         App::Document* doc = docitem->document()->getDocument();
 
@@ -1059,7 +1066,7 @@ void TreeWidget::contextMenuEvent(QContextMenuEvent* e)
             if (doc->testStatus(App::Document::SkipRecompute))
                 contextMenu.addAction(this->allowPartialRecomputeAction);
             contextMenu.addAction(this->markRecomputeAction);
-            contextMenu.addAction(this->createGroupAction);
+            //contextMenu.addAction(this->createGroupAction);
         }
         contextMenu.addSeparator();
     }
@@ -1120,25 +1127,27 @@ void TreeWidget::contextMenuEvent(QContextMenuEvent* e)
 
 
     // add a submenu to active a document if two or more exist
-    std::vector<App::Document*> docs = App::GetApplication().getDocuments();
-    if (docs.size() >= 2) {
-        contextMenu.addSeparator();
-        App::Document* activeDoc = App::GetApplication().getActiveDocument();
-        subMenu.setTitle(tr("Activate document"));
-        contextMenu.addMenu(&subMenu);
-        QAction* active = nullptr;
-        for (auto it = docs.begin(); it != docs.end(); ++it) {
-            QString label = QString::fromUtf8((*it)->Label.getValue());
-            QAction* action = subMenuGroup.addAction(label);
-            action->setCheckable(true);
-            action->setStatusTip(tr("Activate document %1").arg(label));
-            action->setData(QByteArray((*it)->getName()));
-            if (*it == activeDoc) active = action;
-        }
+    if (isDoc) {
+        std::vector<App::Document*> docs = App::GetApplication().getDocuments();
+        if (docs.size() >= 2) {
+            contextMenu.addSeparator();
+            App::Document* activeDoc = App::GetApplication().getActiveDocument();
+            subMenu.setTitle(tr("Activate document"));
+            contextMenu.addMenu(&subMenu);
+            QAction* active = nullptr;
+            for (auto it = docs.begin(); it != docs.end(); ++it) {
+                QString label = QString::fromUtf8((*it)->Label.getValue());
+                QAction* action = subMenuGroup.addAction(label);
+                action->setCheckable(true);
+                action->setStatusTip(tr("Activate document %1").arg(label));
+                action->setData(QByteArray((*it)->getName()));
+                if (*it == activeDoc) active = action;
+            }
 
-        if (active)
-            active->setChecked(true);
-        subMenu.addActions(subMenuGroup.actions());
+            if (active)
+                active->setChecked(true);
+            subMenu.addActions(subMenuGroup.actions());
+        }
     }
 
     // add a submenu to present the settings of the tree.

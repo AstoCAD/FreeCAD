@@ -97,11 +97,9 @@ void Workbench::setupContextMenu(const char* recipient, Gui::MenuItem* item) con
             Gui::MDIView *activeView = Gui::Application::Instance->activeView();
 
             if (activeView ) {
-                if (feature && feature->isDerivedFrom<PartDesign::Body>()){
-                    *item   << "Std_ToggleFreeze";
-                }
+                bool docHaveBodies = activeView->getAppDocument()->countObjectsOfType<PartDesign::Body>() > 0;
 
-                if (activeView->getAppDocument()->countObjectsOfType<PartDesign::Body>() > 0) {
+                if (docHaveBodies) {
                     bool addMoveFeature = true;
                     bool addMoveFeatureInTree = (body != nullptr);
                     for (auto sel : selection) {

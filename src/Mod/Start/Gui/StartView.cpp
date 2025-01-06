@@ -207,10 +207,6 @@ void StartView::configureNewFileButtons(QLayout* layout) const
         new NewFileButton({tr("Assembly"),
                            tr("Creates an assembly project"),
                            QLatin1String(":/icons/AssemblyWorkbench.svg")}));
-    auto draft = gsl::owner<NewFileButton*>(
-        new NewFileButton({tr("2D Draft"),
-                           tr("Creates a 2D draft document"),
-                           QLatin1String(":/icons/DraftWorkbench.svg")}));
     auto arch =
         gsl::owner<NewFileButton*>(new NewFileButton({tr("BIM/Architecture"),
                                                       tr("Creates an architectural project"),
@@ -219,7 +215,6 @@ void StartView::configureNewFileButtons(QLayout* layout) const
     // TODO: Ensure all of the required WBs are actually available
     layout->addWidget(partDesign);
     layout->addWidget(assembly);
-    layout->addWidget(draft);
     layout->addWidget(arch);
     layout->addWidget(newEmptyFile);
     layout->addWidget(openFile);
@@ -228,7 +223,6 @@ void StartView::configureNewFileButtons(QLayout* layout) const
     connect(openFile, &QPushButton::clicked, this, &StartView::openExistingFile);
     connect(partDesign, &QPushButton::clicked, this, &StartView::newPartDesignFile);
     connect(assembly, &QPushButton::clicked, this, &StartView::newAssemblyFile);
-    connect(draft, &QPushButton::clicked, this, &StartView::newDraftFile);
     connect(arch, &QPushButton::clicked, this, &StartView::newArchFile);
 }
 
