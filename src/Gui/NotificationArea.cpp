@@ -34,6 +34,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QTreeWidget>
+#include <QDockWidget>
 #include <QWidgetAction>
 #include <memory>
 #include <mutex>
@@ -117,6 +118,8 @@ struct NotificationAreaP
     bool developerErrorSubscriptionEnabled = false;
     bool developerWarningSubscriptionEnabled = false;
     //@}
+
+    bool buttonTogglesConsoleViews = false;
 
     bool missedNotifications = false;
 
@@ -848,9 +851,19 @@ NotificationArea::ParameterObserver::ParameterObserver(NotificationArea* notific
              auto enabled = hGrp->GetBool(string.c_str(), false);
              notificationArea->pImp->developerErrorSubscriptionEnabled = enabled;
          }},
-        {"DeveloperWarningSubscriptionEnabled", [this](const std::string& string) {
+        {"DeveloperWarningSubscriptionEnabled",
+         [this](const std::string& string) {
              auto enabled = hGrp->GetBool(string.c_str(), false);
              notificationArea->pImp->developerWarningSubscriptionEnabled = enabled;
+         }},
+        {"ButtonTogglesConsoleViews", [this](const std::string& string) {
+             auto enabled = hGrp->GetBool(string.c_str(), false);
+             notificationArea->pImp->buttonTogglesConsoleViews = enabled;
+             // A click shows the notifications with the menu, or toggles the console views.
+             // Not yet set while the constructor reads the parameters: it sets the menu then.
+             if (auto menu = notificationArea->pImp->menu) {
+                 notificationArea->setMenu(enabled ? nullptr : menu);
+             }
          }},
     };
     // NOLINTEND
@@ -900,7 +913,35 @@ NotificationArea::NotificationArea(QWidget* parent)
     pImp->parameterObserver = std::make_unique<NotificationArea::ParameterObserver>(this);
 
     pImp->menu = new QMenu(parent);  // NOLINT
-    setMenu(pImp->menu);
+    if (!pImp->buttonTogglesConsoleViews) {
+        setMenu(pImp->menu);
+    }
+    // The preference can change while the application runs: the parameter observer then sets
+    // or removes the menu, and a click only toggles the console views without the menu.
+    connect(this, &QPushButton::clicked, [this]() {
+        if (!pImp->buttonTogglesConsoleViews) {
+            return;
+        }
+        auto* reportView = Gui::getMainWindow()->findChild<QDockWidget*>(
+            QLatin1String("Report view")
+        );
+        auto* pythonConsole = Gui::getMainWindow()->findChild<QDockWidget*>(
+            QLatin1String("Python console")
+        );
+        if (!reportView || !pythonConsole) {
+            return;
+        }
+
+        bool visible = reportView->isVisible() || pythonConsole->isVisible();
+        reportView->setVisible(!visible);
+        pythonConsole->setVisible(!visible);
+
+        setText(QString::number(0));  // no unread notifications
+        if (pImp->missedNotifications) {
+            setIcon(TrayIcon::Normal);
+            pImp->missedNotifications = false;
+        }
+    });
 
     auto na = new NotificationsAction(pImp->menu);  // NOLINT
 
