@@ -136,7 +136,7 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     bspline->setCommand("B-Spline Tools");
     addSketcherWorkbenchBSplines(*bspline);
 
-    Gui::ToolBarItem* visual =
+    /*Gui::ToolBarItem* visual =
         new Gui::ToolBarItem(root, Gui::ToolBarItem::DefaultVisibility::Unavailable);
     visual->setCommand("Visual Helpers");
     addSketcherWorkbenchVisual(*visual);
@@ -144,7 +144,7 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     Gui::ToolBarItem* edittools =
         new Gui::ToolBarItem(root, Gui::ToolBarItem::DefaultVisibility::Unavailable);
     edittools->setCommand("Sketcher Edit Tools");
-    addSketcherWorkbenchEditTools(*edittools);
+    addSketcherWorkbenchEditTools(*edittools);*/
 
     return root;
 }
@@ -278,9 +278,8 @@ inline void SketcherAddWorkbenchSketchEditModeActions(Gui::MenuItem& sketch)
 template<>
 inline void SketcherAddWorkbenchSketchEditModeActions(Gui::ToolBarItem& sketch)
 {
-    sketch << "Sketcher_LeaveSketch"
-           << "Sketcher_ViewSketch"
-           << "Sketcher_ViewSection";
+    sketch << "Sketcher_LeaveGroup"
+           << "Sketcher_Grid";
 }
 
 template<typename T>
