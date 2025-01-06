@@ -96,6 +96,35 @@ Gui--PropertyEditor--PropertyEditor > QWidget > QWidget > QLabel {
   border-radius: 2px;
 }
 
+/* CustomTitleBar ----------------------------------------------------------
+--------------------------------------------------------------------------- */
+Gui--CustomTitleBar {
+  background-color: #F6F6F6;
+}
+
+Gui--CustomTitleBar > QPushButton {
+  background-color: #F6F6F6;
+  border: none;
+  padding: 0px;
+  min-width: 45px;
+}
+
+Gui--CustomTitleBar > #CloseButton:hover {
+  background-color: #E5505F; /* Red hover effect */
+}
+
+Gui--CustomTitleBar > #CloseButton:pressed {
+  background-color: #E2364A; /* Brighter red when pressed */
+}
+
+Gui--CustomTitleBar > QPushButton:hover {
+    background-color: #f0f0f0; /* Dark gray hover effect */
+}
+
+Gui--CustomTitleBar > QPushButton:pressed {
+    background-color: #DEDEDE; /* Lighter gray when pressed */
+}
+
 /*==================================================================================================
 Main window
 ==================================================================================================*/
@@ -901,6 +930,10 @@ QToolBar {
 QToolBar:only-one {
   background-color: transparent;
   /* margin-top: -3px; */
+
+QToolBar:only-one:horizontal {
+  border-bottom: 0px;
+  padding-top: 0px;
 }
 
 QToolBar:horizontal {
@@ -2242,14 +2275,15 @@ QTreeView::branch  {
 }
 
 QTreeView::branch:has-siblings:!adjoins-item  {
+  border-image: url(qss:images_dark-light/branch_vline_Light.svg) 0;
 }
 
 QTreeView::branch:has-siblings:adjoins-item  {
-
+  border-image: url(qss:images_dark-light/branch_more_Light.svg) 0;
 }
 
 QTreeView::branch:!has-children:!has-siblings:adjoins-item  {
-
+  border-image: url(qss:images_dark-light/branch_end_Light.svg) 0;
 }
 
 QTreeView::branch:closed:has-children:has-siblings  {
@@ -2399,6 +2433,10 @@ QListView:focus,
 QTableView:focus,
 QColumnView:focus {
   /* background-color: @ThemeAccentColor2; */
+}
+
+QTreeView::item {
+  background-color: #f0f0f0;
 }
 
 QTreeView::item:pressed,

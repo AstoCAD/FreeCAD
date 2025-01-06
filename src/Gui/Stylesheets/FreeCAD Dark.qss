@@ -96,6 +96,48 @@ Gui--PropertyEditor--PropertyEditor > QWidget > QWidget > QLabel {
   border-radius: 2px;
 }
 
+/* CustomTitleBar ----------------------------------------------------------
+--------------------------------------------------------------------------- */
+Gui--CustomTitleBar {
+  background-color: #0F0F0F;
+}
+
+Gui--CustomTitleBar > QPushButton {
+  background-color: #0F0F0F;
+  border: none;
+  padding: 0px;
+  min-width: 45px;
+}
+
+Gui--CustomTitleBar > #CloseButton {
+  qproperty-icon: url(:/icons/window-close-dark.svg);
+}
+
+Gui--CustomTitleBar > #MinimizeButton {
+  qproperty-icon: url(:/icons/window-minimize-dark.svg);
+}
+
+Gui--CustomTitleBar > #MaximizeButton {
+  qproperty-icon: url(:/icons/window-maximize-dark.svg);
+}
+
+Gui--CustomTitleBar > #CloseButton:hover {
+  background-color: #E81123; /* Red hover effect */
+}
+
+Gui--CustomTitleBar > #CloseButton:pressed {
+  background-color: #8A0A14; /* Brighter red when pressed */
+}
+
+Gui--CustomTitleBar > QPushButton:hover {
+    background-color: #333333; /* Dark gray hover effect */
+}
+
+Gui--CustomTitleBar > QPushButton:pressed {
+    background-color: #555555; /* Lighter gray when pressed */
+}
+
+
 /*==================================================================================================
 Main window
 ==================================================================================================*/
@@ -832,7 +874,7 @@ https://doc.qt.io/qt-5/stylesheet-examples.html#customizing-specific-widgets
 report view
 --------------------------------------------------------------------------- */
 QTextEdit {
-  background-color: #444444;
+  background-color: #363636;
   color: white;
   border-radius: 2px;
   border: 0px solid #020202;
@@ -851,7 +893,7 @@ QTextEdit:selected {
 Python
 --------------------------------------------------------------------------- */
 QPlainTextEdit {
-  background-color: #3c3c3c;
+  background-color: #363636;
   color: white;
   border-radius: 2px;
   border: 0px solid #020202;
@@ -2249,14 +2291,15 @@ QTreeView::branch  {
 }
 
 QTreeView::branch:has-siblings:!adjoins-item  {
+  border-image: url(qss:images_dark-light/branch_vline_Light.svg) 0;
 }
 
 QTreeView::branch:has-siblings:adjoins-item  {
-
+  border-image: url(qss:images_dark-light/branch_more_Light.svg) 0;
 }
 
 QTreeView::branch:!has-children:!has-siblings:adjoins-item  {
-
+  border-image: url(qss:images_dark-light/branch_end_Light.svg) 0;
 }
 
 QTreeView::branch:closed:has-children:has-siblings  {
@@ -2406,6 +2449,10 @@ QListView:focus,
 QTableView:focus,
 QColumnView:focus {
   /* background-color: @ThemeAccentColor2; */
+}
+
+QTreeView::item {
+  background-color: #252525;
 }
 
 QTreeView::item:pressed,
