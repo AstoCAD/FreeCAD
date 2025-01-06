@@ -83,7 +83,7 @@ class AssemblyWorkbench(Workbench):
 
         # build commands list
         cmdList = [
-            "Assembly_CreateAssembly",
+            "Std_NewAssembly",
             "Assembly_Insert",
             "Part_LinkArrays",
             "Assembly_SolveAssembly",
