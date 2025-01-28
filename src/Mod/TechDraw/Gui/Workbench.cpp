@@ -297,7 +297,7 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     *pages << "TechDraw_PageTemplate";
     *pages << "TechDraw_FillTemplateFields";
     *pages << "TechDraw_RedrawPage";
-    *pages << "TechDraw_PrintAll";
+    *pages << "TechDraw_ExportGroup";
 
     Gui::ToolBarItem* views = new Gui::ToolBarItem(root);
     views->setCommand("TechDraw Views");
@@ -352,7 +352,6 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     *extattribs << "TechDraw_ExtensionChangeLineAttributes";
     *extattribs << "TechDraw_ExtensionExtendShortenLineGroup";
     *extattribs << "TechDraw_ExtensionLockUnlockView";
-    *extattribs << "TechDraw_ExtensionPositionSectionView";
     if (separatedTools) {
         *extattribs << "TechDraw_ExtensionAreaAnnotation";
         *extattribs << "TechDraw_ExtensionArcLengthAnnotation";
@@ -378,11 +377,6 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     }
     *extdimensions << "TechDraw_ExtensionInsertPrefixGroup";
     *extdimensions << "TechDraw_ExtensionIncreaseDecreaseGroup";
-
-    Gui::ToolBarItem* file = new Gui::ToolBarItem(root);
-    file->setCommand("TechDraw File Access");
-    *file << "TechDraw_ExportPageSVG";
-    *file << "TechDraw_ExportPageDXF";
 
     Gui::ToolBarItem* decor = new Gui::ToolBarItem(root);
     decor->setCommand("TechDraw Decoration");
@@ -416,7 +410,7 @@ Gui::ToolBarItem* Workbench::setupCommandBars() const
     *pages << "TechDraw_PageTemplate";
     *pages << "TechDraw_FillTemplateFields";
     *pages << "TechDraw_RedrawPage";
-    *pages << "TechDraw_PrintAll";
+    *pages << "TechDraw_ExportGroup";
 
 
     Gui::ToolBarItem* views = new Gui::ToolBarItem(root);
@@ -456,7 +450,6 @@ Gui::ToolBarItem* Workbench::setupCommandBars() const
     *extattribs << "TechDraw_ExtensionChangeLineAttributes";
     *extattribs << "TechDraw_ExtensionExtendShortenLineGroup";
     *extattribs << "TechDraw_ExtensionLockUnlockView";
-    *extattribs << "TechDraw_ExtensionPositionSectionView";
     *extattribs << "TechDraw_ExtensionAreaAnnotation";
     *extattribs << "TechDraw_ExtensionArcLengthAnnotation";
     *extattribs << "TechDraw_ExtensionCustomizeFormat";
@@ -478,11 +471,6 @@ Gui::ToolBarItem* Workbench::setupCommandBars() const
     *extdimensions << "TechDraw_ExtensionCreateLengthArc";
     *extdimensions << "TechDraw_ExtensionInsertPrefixGroup";
     *extdimensions << "TechDraw_ExtensionIncreaseDecreaseGroup";
-
-    Gui::ToolBarItem* file = new Gui::ToolBarItem(root);
-    file->setCommand("TechDraw File Access");
-    *file << "TechDraw_ExportPageSVG";
-    *file << "TechDraw_ExportPageDXF";
 
     Gui::ToolBarItem* decor = new Gui::ToolBarItem(root);
     decor->setCommand("TechDraw Decoration");

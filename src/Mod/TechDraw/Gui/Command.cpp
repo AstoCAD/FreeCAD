@@ -1901,6 +1901,38 @@ void CmdTechDrawExportPageDXF::activated(int iMsg)
 bool CmdTechDrawExportPageDXF::isActive() { return DrawGuiUtil::needPage(this); }
 
 //===========================================================================
+// TechDraw_ExportGroup
+//===========================================================================
+class CmdTechDrawExportGroup : public Gui::GroupCommand
+{
+public:
+    CmdTechDrawExportGroup()
+        : GroupCommand("TechDraw_ExportGroup")
+    {
+        sAppModule = "TechDraw";
+        sGroup = QT_TR_NOOP("TechDraw");
+        sMenuText = QT_TR_NOOP("Print All Pages");
+        sToolTipText = sMenuText;
+        sWhatsThis = "TechDraw_ExportGroup";
+        sStatusTip = sToolTipText;
+        sPixmap = "actions/TechDraw_PrintAll";
+
+        setCheckable(false);
+
+        addCommand("TechDraw_PrintAll");
+        addCommand("TechDraw_ExportPageSVG");
+        addCommand("TechDraw_ExportPageDXF");
+    }
+
+    const char* className() const override
+    {
+        return "CmdTechDrawExportGroup";
+    }
+
+    bool isActive() override { return DrawGuiUtil::needPage(this); }
+};
+
+//===========================================================================
 // TechDraw_ProjectShape
 //===========================================================================
 
@@ -1949,6 +1981,7 @@ void CreateTechDrawCommands()
     rcCmdMgr.addCommand(new CmdTechDrawSymbol());
     rcCmdMgr.addCommand(new CmdTechDrawExportPageSVG());
     rcCmdMgr.addCommand(new CmdTechDrawExportPageDXF());
+    rcCmdMgr.addCommand(new CmdTechDrawExportGroup());
     rcCmdMgr.addCommand(new CmdTechDrawDraftView());
     rcCmdMgr.addCommand(new CmdTechDrawArchView());
     rcCmdMgr.addCommand(new CmdTechDrawSpreadsheetView());
