@@ -40,6 +40,7 @@
 #include <Gui/Application.h>
 #include <Gui/Document.h>
 #include <Gui/MainWindow.h>
+#include <Gui/OverlayManager.h>
 
 #include "TaskView.h"
 #include "TaskDialog.h"
@@ -630,6 +631,8 @@ void TaskView::showDialog(TaskDialog *dlg)
     triggerMinimumSizeHint();
 
     Q_EMIT taskUpdate();
+
+    OverlayManager::instance()->refresh();
 }
 
 void TaskView::removeDialog()
@@ -671,6 +674,9 @@ void TaskView::removeDialog()
 
     tryRestoreWidth();
     triggerMinimumSizeHint();
+
+    clearFocus();
+    OverlayManager::instance()->refresh();
 }
 
 void TaskView::updateWatcher()
