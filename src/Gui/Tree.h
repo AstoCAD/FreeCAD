@@ -55,7 +55,7 @@ GuiExport bool isTreeViewDragging();
 /** Tree view that allows drag & drop of document objects.
  * @author Werner Mayer
  */
-class TreeWidget : public QTreeWidget, public SelectionObserver
+class GuiExport TreeWidget : public QTreeWidget, public SelectionObserver
 {
     Q_OBJECT
 
