@@ -13,6 +13,8 @@ QAbstractItemView {
   border: 1px solid #ababab;
 }
 
+
+
 Gui--PropertyEditor--PropertyEditor {
   qproperty-itemBackground: #ffffff;
   }
@@ -28,15 +30,17 @@ To customize for each overlay docking site, use the following selector
 Gui--OverlayTabWidget#OverlayLeft {}
 */
 
+
 Gui--OverlayTabWidget {
-  qproperty-effectColor: rgba(247, 247, 247, 255);
-  qproperty-effectBlurRadius: 0;
-  qproperty-effectOffsetX: 0;
-  qproperty-effectOffsetY: 0;
+  qproperty-effectColor: rgba(33, 37, 41, 37%);
+  qproperty-effectBlurRadius: 20.0;
+  qproperty-effectOffsetX: 0.0;
+  qproperty-effectOffsetY: 0.0;
   qproperty-effectWidth: 1;
   qproperty-effectHeight: 1;
   qproperty-enableEffect: 1;
 }
+
  Gui--OverlayTabWidget#OverlayBottom {
   qproperty-effectColor: rgba(247, 247, 247, 255);
   qproperty-effectBlurRadius: 0;
