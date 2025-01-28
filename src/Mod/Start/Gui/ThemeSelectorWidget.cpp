@@ -209,10 +209,10 @@ void ThemeSelectorWidget::themeChanged(Theme newTheme)
             prefPackManager->apply("FreeCAD Classic");
             break;
         case Theme::Dark:
-            prefPackManager->apply("FreeCAD Dark");
+            prefPackManager->apply("Dark");
             break;
         case Theme::Light:
-            prefPackManager->apply("FreeCAD Light");
+            prefPackManager->apply("Light");
             break;
     }
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
