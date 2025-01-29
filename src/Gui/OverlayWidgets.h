@@ -94,6 +94,11 @@ public:
      */
     void removeWidget(QDockWidget *widget, QDockWidget *last=nullptr);
 
+    /** resize the area to the size of a widget
+     * @param widget: widget's size to use
+     */
+    void adjustSizeToWidget(QWidget* widget);
+
     /** Set the current dock widget
      * @param widget: an overlay dock widget
      *

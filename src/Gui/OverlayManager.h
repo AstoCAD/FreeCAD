@@ -74,7 +74,7 @@ public:
      * @param widget: optional source widget that triggers the refresh
      * @param refreshStyle: whether to reload stylesheet
      */
-    void refresh(QWidget *widget=nullptr, bool refreshStyle=false);
+    void refresh(QWidget *widget=nullptr, bool refreshStyle=false, bool timer = true);
 
     /// Setup title bar for a QDockWidget
     void setupTitleBar(QDockWidget *);
@@ -144,6 +144,9 @@ public:
 
     /// Float an overlay docked widget
     void floatDockWidget(QDockWidget *);
+
+    /// Ask the overlay area containing this widget to adjust size
+    void adjustSizeOfAreaContaining(QWidget* widget);
 
     /// Return the last widget whose mouse event got intercepted by the overlay manager for mouse pass through
     QWidget *getLastMouseInterceptWidget() const;

@@ -1653,26 +1653,48 @@ void OverlayTabWidget::addWidget(QDockWidget *dock, const QString &title)
 
     dock->setFeatures(dock->features() & ~QDockWidget::DockWidgetFloatable);
     if(count() == 1) {
-        QRect rect = dock->geometry();
-        QSize sizeMain = getMainWindow()->getMdiArea()->size();
-        switch(dockArea) {
-        case Qt::LeftDockWidgetArea:
-        case Qt::RightDockWidgetArea:
-            if (rect.width() > sizeMain.width()/3)
-                rect.setWidth(sizeMain.width()/3);
-            break;
-        case Qt::TopDockWidgetArea:
-        case Qt::BottomDockWidgetArea:
-            if (rect.height() > sizeMain.height()/3)
-                rect.setHeight(sizeMain.height()/3);
-            break;
-        default:
-            break;
-        }
-        setRect(rect);
+        adjustSizeToWidget(dock);
     }
 
     saveTabs();
+}
+
+void OverlayTabWidget::adjustSizeToWidget(QWidget* widget)
+{
+    // Only resize if widget is the only one in the tabwidget
+    if (splitter->count() != 1) {
+        return;
+    }
+
+    QRect rect = geometry();
+    QSize size = widget->size();
+    QSize sizeMain = getMainWindow()->getMdiArea()->size();
+
+    switch (dockArea) {
+    case Qt::LeftDockWidgetArea:
+    case Qt::RightDockWidgetArea: {
+        rect.setWidth(size.width());
+
+        int maxSize = sizeMain.width() * 0.7;
+        if (rect.width() > maxSize) {
+            rect.setWidth(maxSize);
+        }
+        break;
+    }
+    case Qt::TopDockWidgetArea:
+    case Qt::BottomDockWidgetArea: {
+        rect.setHeight(size.height());
+
+        int maxSize = sizeMain.height() * 0.7;
+        if (rect.height() > maxSize) {
+            rect.setHeight(maxSize);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    setRect(rect);
 }
 
 int OverlayTabWidget::dockWidgetIndex(QDockWidget *dock) const
