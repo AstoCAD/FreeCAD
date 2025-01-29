@@ -114,6 +114,7 @@ class GuiExport TaskPanel: public QWidget
 public:
     explicit TaskPanel(QWidget* parent = nullptr);
     ~TaskPanel() override;
+    QSize minimumSizeHint() const override;
 
 public:
     QVBoxLayout* mainLayout;
