@@ -490,7 +490,7 @@ public:
         return true;
     }
 
-    void refresh(QWidget *widget=nullptr, bool refreshStyle=false)
+    void refresh(QWidget *widget=nullptr, bool refreshStyle=false, bool timer=true)
     {
         if(refreshStyle) {
             OverlayStyleSheet::instance()->update();
@@ -508,7 +508,12 @@ public:
                 }
             }
         }
-        _timer.start(OverlayParams::getDockOverlayDelay());
+        if (timer) {
+            _timer.start(OverlayParams::getDockOverlayDelay());
+        }
+        else {
+            onTimer();
+        }
     }
 
     void save()
@@ -1945,9 +1950,9 @@ void OverlayManager::Private::interceptEvent(QWidget *widget, QEvent *ev)
     }
 }
 
-void OverlayManager::refresh(QWidget *widget, bool refreshStyle)
+void OverlayManager::refresh(QWidget *widget, bool refreshStyle, bool timer)
 {
-    d->refresh(widget, refreshStyle);
+    d->refresh(widget, refreshStyle, timer);
 }
 
 void OverlayManager::setMouseTransparent(bool enabled)
@@ -2009,6 +2014,20 @@ void OverlayManager::dragDockWidget(const QPoint &pos,
 void OverlayManager::floatDockWidget(QDockWidget *dock)
 {
     d->floatDockWidget(dock);
+}
+
+void OverlayManager::adjustSizeOfAreaContaining(QWidget* widget)
+{
+    if (!widget) {
+        return;
+    }
+
+    auto tabWidget = findTabWidget(widget);
+    if (!tabWidget) {
+        return;
+    }
+
+    tabWidget->adjustSizeToWidget(widget);
 }
 
 void OverlayManager::registerDockWidget(const QString &name, OverlayTabWidget *widget)
