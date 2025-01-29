@@ -438,6 +438,10 @@ void TaskView::adjustMinimumSizeHint()
 {
     QSize ms = minimumSizeHint();
     setMinimumWidth(ms.width());
+
+    resize(ms.width(), height());
+    OverlayManager::instance()->adjustSizeOfAreaContaining(this);
+    OverlayManager::instance()->refresh(nullptr, false, false);
 }
 
 QSize TaskView::minimumSizeHint() const
@@ -617,8 +621,6 @@ void TaskView::showDialog(TaskDialog *dlg)
     triggerMinimumSizeHint();
 
     Q_EMIT taskUpdate();
-
-    OverlayManager::instance()->refresh();
 }
 
 void TaskView::removeDialog()
