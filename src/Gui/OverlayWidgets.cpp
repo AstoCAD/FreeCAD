@@ -384,17 +384,15 @@ OverlayTabWidget::OverlayTabWidget(QWidget* parent, Qt::DockWidgetArea pos)
             _LeftOverlay = this;
             setTabPosition(QTabWidget::West);
             splitter->setOrientation(Qt::Vertical);
-            cmdHide = Application::Instance->commandManager().getCommandByName(
-                "Std_DockOverlayToggleLeft"
-            );
+            // cmdHide =
+            // Application::Instance->commandManager().getCommandByName("Std_DockOverlayToggleLeft");
             break;
         case Qt::RightDockWidgetArea:
             _RightOverlay = this;
             setTabPosition(QTabWidget::East);
             splitter->setOrientation(Qt::Vertical);
-            cmdHide = Application::Instance->commandManager().getCommandByName(
-                "Std_DockOverlayToggleRight"
-            );
+            // cmdHide =
+            // Application::Instance->commandManager().getCommandByName("Std_DockOverlayToggleRight");
             break;
         case Qt::TopDockWidgetArea:
             _TopOverlay = this;
@@ -426,7 +424,7 @@ OverlayTabWidget::OverlayTabWidget(QWidget* parent, Qt::DockWidgetArea pos)
     actTransparent.setCheckable(true);
     actTransparent.setData(QStringLiteral("OBTN Transparent"));
     actTransparent.setParent(this);
-    addAction(&actTransparent);
+    // addAction(&actTransparent);
 
     actAutoHide.setData(QStringLiteral("OBTN AutoHide"));
 
@@ -447,11 +445,11 @@ OverlayTabWidget::OverlayTabWidget(QWidget* parent, Qt::DockWidgetArea pos)
     autoModeMenu.addAction(&actEditShow);
     autoModeMenu.addAction(&actEditHide);
     autoModeMenu.addAction(&actTaskShow);
-    addAction(&actAutoMode);
+    // addAction(&actAutoMode);
 
     actOverlay.setData(QStringLiteral("OBTN Overlay"));
     actOverlay.setParent(this);
-    addAction(&actOverlay);
+    // addAction(&actOverlay);
 
     if (cmdHide) {
         cmdHide->addTo(this);
@@ -874,7 +872,7 @@ void OverlayTabWidget::restore(ParameterGrp::handle handle)
         setAutoMode(AutoMode::NoAutoMode);
     }
 
-    setTransparent(handle->GetBool("Transparent", getDockArea() == Qt::RightDockWidgetArea));
+    setTransparent(handle->GetBool("Transparent", true));
 
     _sizemap.clear();
     std::string savedSizes = handle->GetASCII("Sizes", "");
@@ -2199,6 +2197,10 @@ void OverlayTitleBar::paintEvent(QPaintEvent*)
     }
     if (!dock) {
         return;
+    }
+
+    if (dock->findChild<TaskView::TaskView*>()) {
+        return;  // Let's not draw the title bar for the taskview.
     }
 
     QPainter painter(this);
