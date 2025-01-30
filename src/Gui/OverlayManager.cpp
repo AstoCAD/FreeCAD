@@ -1022,11 +1022,9 @@ public:
         }
         else if (auto dockWidget = qobject_cast<QDockWidget*>(parent)) {
             const QDockWidget::DockWidgetFeatures features = dockWidget->features();
-
-            actions.append(&_actOverlay);
-            if (features.testFlag(QDockWidget::DockWidgetFloatable)) {
-                actions.append(&_actFloat);
-            }
+            /*actions.append(&_actOverlay);
+            if (features.testFlag(QDockWidget::DockWidgetFloatable))
+                actions.append(&_actFloat);*/
             if (features.testFlag(QDockWidget::DockWidgetClosable)) {
                 actions.append(&_actClose);
             }
