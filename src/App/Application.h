@@ -858,6 +858,8 @@ public:
     /// Gets the base progress indicator instance.
     Base::ProgressIndicator& getProgressIndicator() { return _progressIndicator; }
 
+    static const char* getUserParameterTemplatePath();
+
     friend class App::Document;
 
 protected:
