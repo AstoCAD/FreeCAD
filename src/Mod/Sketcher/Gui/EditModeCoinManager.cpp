@@ -45,6 +45,7 @@
 #include <Base/Exception.h>
 #include <Gui/Inventor/MarkerBitmaps.h>
 #include <Gui/Inventor/SoFCBoundingBox.h>
+#include <Gui/MainWindow.h>
 #include <Mod/Sketcher/App/Constraint.h>
 #include <Mod/Sketcher/App/GeoList.h>
 
@@ -376,7 +377,9 @@ void EditModeCoinManager::ParameterObserver::updateElementSizeParameters(
     int defaultFontSizePixels =
         Client.defaultApplicationFontSizePixels();  // returns height in pixels, not points
 
-    int sketcherfontSize = hGrp->GetInt("EditSketcherFontSize", defaultFontSizePixels);
+    // TODO if it is confirmed to fix, move this to Client with cute attorney so that main accept
+    double dpr = Gui::getMainWindow()->devicePixelRatioF();
+    int sketcherfontSize = hGrp->GetInt("EditSketcherFontSize", defaultFontSizePixels) * dpr;
 
     double dpi = Client.getApplicationLogicalDPIX();
     double devicePixelRatio = Client.getDevicePixelRatio();
