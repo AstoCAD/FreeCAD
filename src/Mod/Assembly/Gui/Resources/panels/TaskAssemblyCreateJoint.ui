@@ -324,7 +324,20 @@
      </property>
     </widget>
    </item>
-   </layout>
+   <item row="13" column="0">
+    <widget class="QCheckBox" name="preservePosCheckbox">
+     <property name="text">
+      <string>Preserve position</string>
+     </property>
+     <property name="toolTip">
+      <string>If checked: An offset is calculated automatically when you select the second component of the joint, joining parts as they are initially positioned.</string>
+     </property>
+     <property name="checked">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
  </widget>
  <customwidgets>
   <customwidget>
