@@ -835,7 +835,7 @@ class Joint:
 
         self.updateJCSPlacements(joint)
 
-    def setJointConnectors(self, joint, refs):
+    def setJointConnectors(self, joint, refs, preservePosition=False):
         # current selection is a vector of strings like "Assembly.Assembly1.Assembly2.Body.Pad.Edge16" including both what selection return as obj_name and obj_sub
         assembly = self.getAssembly(joint)
         isAssembly = assembly.Type == "Assembly"
@@ -851,6 +851,12 @@ class Joint:
             joint.Reference2 = refs[1]
 
             self.ensureUnconnectedIsSecondRef(joint)
+
+            if preservePosition:
+                self.setPreservedPosOffsets(joint)
+            else:
+                joint.Offset1 = App.Placement()
+                joint.Offset2 = App.Placement()
 
             if joint.JointType in JointUsingPreSolve:
                 self.preSolve(joint)
@@ -1088,6 +1094,12 @@ class Joint:
         globalJcsPlc2 = UtilsAssembly.getJcsGlobalPlc(joint.Placement2, joint.Reference2)
 
         return UtilsAssembly.arePlacementZParallel(globalJcsPlc1, globalJcsPlc2)
+
+    def setPreservedPosOffsets(self, joint):
+        jpl1 = UtilsAssembly.getJcsGlobalPlc(joint.Placement1, joint.Reference1)
+        jpl2 = UtilsAssembly.getJcsGlobalPlc(joint.Placement2, joint.Reference2)
+        joint.Offset2 = jpl2.inverse() * jpl1
+        joint.Offset1 = App.Placement()
 
 
 class ViewProviderJoint:
@@ -2061,7 +2073,9 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
         self.updateJointList()
 
         # Then we pass the new list to the joint object
-        self.joint.Proxy.setJointConnectors(self.joint, self.refs)
+        self.joint.Proxy.setJointConnectors(
+            self.joint, self.refs, self.jForm.preservePosCheckbox.isChecked()
+        )
 
         self.updateIsolation()
 
