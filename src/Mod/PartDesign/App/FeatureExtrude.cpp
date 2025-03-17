@@ -482,16 +482,15 @@ App::DocumentObjectExecReturn* FeatureExtrude::buildExtrusion(ExtrudeOptions opt
 
     // Validate parameters
     double L = Length.getValue();
-    if ((method == "Length") && (L < Precision::Confusion())) {
-        return new App::DocumentObjectExecReturn(
-            QT_TRANSLATE_NOOP("Exception", "Length too small"));
-    }
-    double L2 = 0;
-    if ((method == "TwoLengths")) {
-        L2 = Length2.getValue();
-        if (std::abs(L2) < Precision::Confusion()) {
+    double L2 = method == "TwoLengths" ? Length2.getValue() : 0;
+    if (std::abs(L + L2) < Precision::Confusion()) {
+        if (addSubType == Type::Additive) {
             return new App::DocumentObjectExecReturn(
-                QT_TRANSLATE_NOOP("Exception", "Second length too small"));
+                QT_TRANSLATE_NOOP("Exception", "Cannot create a pad with a total length of zero."));
+        }
+        else {
+            return new App::DocumentObjectExecReturn(
+                QT_TRANSLATE_NOOP("Exception", "Cannot create a pocket with a total length of zero."));
         }
     }
 
