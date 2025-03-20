@@ -5474,7 +5474,7 @@ CmdSketcherConstrainDistanceX::CmdSketcherConstrainDistanceX()
     sWhatsThis = "Sketcher_ConstrainDistanceX";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_HorizontalDistance";
-    sAccel = "L";
+    sAccel = "K, L";
     eType = ForEdit;
 
     // Can't do single vertex because its a prefix for 2 vertices
@@ -5775,7 +5775,7 @@ CmdSketcherConstrainDistanceY::CmdSketcherConstrainDistanceY()
     sWhatsThis = "Sketcher_ConstrainDistanceY";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_VerticalDistance";
-    sAccel = "I";
+    sAccel = "K, I";
     eType = ForEdit;
 
     // Can't do single vertex because its a prefix for 2 vertices
