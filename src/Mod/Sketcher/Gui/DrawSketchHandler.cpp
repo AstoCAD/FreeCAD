@@ -417,6 +417,12 @@ std::vector<QPixmap> DrawSketchHandler::suggestedConstraintsPixmaps(
             case Tangent:
                 iconType = QStringLiteral("Constraint_Tangent");
                 break;
+            case Perpendicular:
+                iconType = QStringLiteral("Constraint_Perpendicular");
+                break;
+            case Parallel:
+                iconType = QStringLiteral("Constraint_Parallel");
+                break;
             default:
                 break;
         }
@@ -432,7 +438,7 @@ std::vector<QPixmap> DrawSketchHandler::suggestedConstraintsPixmaps(
     return pixmaps;
 }
 
-DrawSketchHandler::PreselectionData DrawSketchHandler::getPreselectionData()
+DrawSketchHandler::PreselectionData DrawSketchHandler::getPreselectionData() const
 {
     SketchObject* obj = sketchgui->getSketchObject();
 
@@ -493,6 +499,70 @@ bool DrawSketchHandler::isLineCenterAutoConstraint(int GeoId, const Base::Vector
     return false;
 }
 
+bool DrawSketchHandler::isEndPointTangentAutoConstraint(
+    int GeoId,
+    const Base::Vector2d& Pos,
+    const Base::Vector2d& Dir
+) const
+{
+    SketchObject* obj = sketchgui->getSketchObject();
+    double tangDeviation = 0.1 * sketchgui->getScaleFactor();
+
+    Base::Vector3d tmpPos(Pos.x, Pos.y, 0.f);                    // Current cursor point
+    Base::Vector3d tmpDir(Dir.x, Dir.y, 0.f);                    // Direction of line
+    Base::Vector3d tmpStart(Pos.x - Dir.x, Pos.y - Dir.y, 0.f);  // Start point
+
+    auto* geo = obj->getGeometry(GeoId);
+    if (geo->isDerivedFrom<Part::GeomArcOfCircle>()) {
+        auto* arc = static_cast<const Part::GeomArcOfCircle*>(geo);
+
+        Base::Vector3d center = arc->getCenter();
+        double radius = arc->getRadius();
+
+        // ignore if no touch (use dot product)
+        if (tmpDir * (center - tmpPos) > 0 || tmpDir * (center - tmpStart) < 0) {
+            return false;
+        }
+
+        Base::Vector3d projPnt(0.f, 0.f, 0.f);
+        projPnt = projPnt.ProjectToLine(center - tmpPos, tmpDir);
+        double projDist = std::abs(projPnt.Length() - radius);
+
+        // Find if nearest
+        if (projDist < tangDeviation) {
+            return true;
+        }
+        else if (geo->isDerivedFrom<Part::GeomArcOfEllipse>()) {
+            auto* aoe = static_cast<const Part::GeomArcOfEllipse*>(geo);
+            Base::Vector3d center = aoe->getCenter();
+
+            double a = aoe->getMajorRadius();
+            double b = aoe->getMinorRadius();
+            Base::Vector3d majdir = aoe->getMajorAxisDir();
+
+            double cf = sqrt(a * a - b * b);
+
+            Base::Vector3d focus1P = center + cf * majdir;
+            Base::Vector3d focus2P = center - cf * majdir;
+
+            Base::Vector3d norm = Base::Vector3d(Dir.y, -Dir.x).Normalize();
+
+            double distancetoline = norm * (tmpPos - focus1P);  // distance focus1 to line
+
+            // mirror of focus1 with respect to the line
+            Base::Vector3d focus1PMirrored = focus1P + 2 * distancetoline * norm;
+
+            double error = fabs((focus1PMirrored - focus2P).Length() - 2 * a);
+
+            if (error < tangDeviation) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 void DrawSketchHandler::seekPreselectionAutoConstraint(
     std::vector<AutoConstraint>& suggestedConstraints,
     const Base::Vector2d& Pos,
@@ -514,7 +584,14 @@ void DrawSketchHandler::seekPreselectionAutoConstraint(
                 constr.Type = lineCenter ? Sketcher::Symmetric : Sketcher::PointOnObject;
             }
             else {
-                constr.Type = Sketcher::Coincident;
+                if (type == AutoConstraint::VERTEX_NO_TANGENCY) {
+                    constr.Type = Sketcher::Coincident;
+                }
+                else {
+                    bool endPointTangent = false;  // isEndPointTangentAutoConstraint(preSel.geoId,
+                                                   // Pos, Dir);
+                    constr.Type = endPointTangent ? Sketcher::Tangent : Sketcher::Coincident;
+                }
             }
         }
         else if (type == AutoConstraint::CURVE && preSel.posId != PointPos::none) {
@@ -545,8 +622,9 @@ void DrawSketchHandler::seekPreselectionAutoConstraint(
     }
 }
 
-void DrawSketchHandler::seekAlignmentAutoConstraint(
+bool DrawSketchHandler::seekAlignmentAutoConstraint(
     std::vector<AutoConstraint>& suggestedConstraints,
+    const Base::Vector2d& Pos,
     const Base::Vector2d& Dir
 )
 {
@@ -566,21 +644,107 @@ void DrawSketchHandler::seekAlignmentAutoConstraint(
         // Suggest vertical constraint
         constr.Type = Sketcher::Vertical;
     }
+    else {
+        // Check for parallels and perpendiculars
+        // For this we need to find the closest match. So we need to find the closest matching line
+        // to Pos
+        double bestDistance = std::numeric_limits<double>::max();
+        int bestIndex = -1;
+        Sketcher::ConstraintType bestConstraint = Sketcher::None;
+
+        SketchObject* obj = sketchgui->getSketchObject();
+        const std::vector<Part::Geometry*> geomlist = obj->getCompleteGeometry();
+        for (size_t i = 0; i < geomlist.size(); ++i) {
+            auto* geo = geomlist[i];
+
+            if (geo->isDerivedFrom<Part::GeomLineSegment>()) {
+                auto* line = static_cast<const Part::GeomLineSegment*>(geo);
+                Base::Vector3d start = line->getStartPoint();
+                Base::Vector3d end = line->getEndPoint();
+                Base::Vector3d lineDir = end - start;
+
+                // ignore vertical and horizontal lines.
+                if (fabs(lineDir.x) < Precision::Confusion()
+                    || fabs(lineDir.y) < Precision::Confusion()) {
+                    continue;
+                }
+
+                lineDir.Normalize();
+                double lineAngle = atan2(lineDir.y, lineDir.x);
+                angle = atan2(Dir.y, Dir.x);
+
+                Sketcher::ConstraintType candidateConstraint = Sketcher::None;
+                if (std::abs(lineAngle - angle) < angleDevRad
+                    || std::abs(lineAngle - angle + M_PI) < angleDevRad
+                    || std::abs(lineAngle - angle - M_PI) < angleDevRad) {
+                    candidateConstraint = Sketcher::Parallel;
+                }
+                else if (std::abs(lineAngle - angle - M_PI_2) < angleDevRad
+                         || std::abs(lineAngle - angle + M_PI_2) < angleDevRad) {
+                    candidateConstraint = Sketcher::Perpendicular;
+                }
+
+                if (candidateConstraint != Sketcher::None) {
+                    // Compute the distance from Pos to the finite line segment
+                    Base::Vector2d start2d(start.x, start.y);
+                    Base::Vector2d end2d(end.x, end.y);
+                    Base::Vector2d segVec = end2d - start2d;
+                    Base::Vector2d posVec = Pos - start2d;
+
+                    // Project posVec onto segVec to find the projection parameter t
+                    double t = (posVec * segVec) / (segVec * segVec);
+
+                    double distance;
+                    if (t < 0) {
+                        // Closest to start point
+                        distance = (Pos - start2d).Length();
+                    }
+                    else if (t > 1) {
+                        // Closest to end point
+                        distance = (Pos - end2d).Length();
+                    }
+                    else {
+                        // Closest to the projection on the segment
+                        Base::Vector2d projPoint = start2d + t * segVec;
+                        distance = (Pos - projPoint).Length();
+                    }
+
+                    if (distance < bestDistance) {
+                        bestDistance = distance;
+                        bestIndex = static_cast<int>(i);
+                        bestConstraint = candidateConstraint;
+                    }
+                }
+            }
+        }
+
+        if (bestConstraint != Sketcher::None) {
+            AutoConstraint constr;
+            constr.Type = bestConstraint;
+            constr.GeoId = bestIndex;
+            constr.PosId = PointPos::none;  // or set appropriately
+            suggestedConstraints.push_back(constr);
+        }
+    }
 
     if (constr.Type != Sketcher::None) {
         suggestedConstraints.push_back(constr);
+        return true;
     }
+    return false;
 }
 
-void DrawSketchHandler::seekTangentAutoConstraint(
+bool DrawSketchHandler::seekTangentAutoConstraint(
     std::vector<AutoConstraint>& suggestedConstraints,
     const Base::Vector2d& Pos,
     const Base::Vector2d& Dir
 )
 {
     using std::numbers::pi;
+    // This function does not handle endpoint tangencies.
     SketchObject* obj = sketchgui->getSketchObject();
     int tangId = GeoEnum::GeoUndef;
+    PointPos tanPos = PointPos::none;
 
     // Do not consider if distance is more than that.
     // Decrease this value when a candidate is found.
@@ -593,15 +757,24 @@ void DrawSketchHandler::seekTangentAutoConstraint(
     Base::Vector3d tmpDir(Dir.x, Dir.y, 0.f);                    // Direction of line
     Base::Vector3d tmpStart(Pos.x - Dir.x, Pos.y - Dir.y, 0.f);  // Start point
 
+    auto removeCoincidentConstraint = [&](int geoId, PointPos pos) {
+        auto newEnd = std::remove_if(
+            suggestedConstraints.begin(),
+            suggestedConstraints.end(),
+            [geoId, pos](const AutoConstraint& c) {
+                return (c.Type == Coincident && c.GeoId == geoId && c.PosId == pos);
+            }
+        );
+        suggestedConstraints.erase(newEnd, suggestedConstraints.end());
+    };
+
     int i = -1;
     for (auto* geo : geomlist) {
         i++;
 
-        if (geo->is<Part::GeomCircle>()) {
+        if (geo->isDerivedFrom<Part::GeomCircle>()) {
             auto* circle = static_cast<const Part::GeomCircle*>(geo);
-
             Base::Vector3d center = circle->getCenter();
-
             double radius = circle->getRadius();
 
             // ignore if no touch (use dot product)
@@ -619,9 +792,8 @@ void DrawSketchHandler::seekTangentAutoConstraint(
                 tangDeviation = projDist;
             }
         }
-        else if (geo->is<Part::GeomEllipse>()) {
+        else if (geo->isDerivedFrom<Part::GeomEllipse>()) {
             auto* ellipse = static_cast<const Part::GeomEllipse*>(geo);
-
             Base::Vector3d center = ellipse->getCenter();
 
             double a = ellipse->getMajorRadius();
@@ -647,9 +819,8 @@ void DrawSketchHandler::seekTangentAutoConstraint(
                 tangDeviation = error;
             }
         }
-        else if (geo->is<Part::GeomArcOfCircle>()) {
+        else if (geo->isDerivedFrom<Part::GeomArcOfCircle>()) {
             auto* arc = static_cast<const Part::GeomArcOfCircle*>(geo);
-
             Base::Vector3d center = arc->getCenter();
             double radius = arc->getRadius();
 
@@ -663,24 +834,58 @@ void DrawSketchHandler::seekTangentAutoConstraint(
             double projDist = std::abs(projPnt.Length() - radius);
 
             if (projDist < tangDeviation) {
-                double startAngle, endAngle;
-                arc->getRange(startAngle, endAngle, /*emulateCCW=*/true);
+                Base::Vector3d start = arc->getStartPoint();
+                Base::Vector3d end = arc->getEndPoint();
 
-                double angle = atan2(projPnt.y, projPnt.x);
-                while (angle < startAngle) {
-                    angle += 2 * pi;  // Bring it to range of arc
-                }
-
-                // if the point is on correct side of arc
-                if (angle <= endAngle) {  // Now need to check only one side
+                if ((start - tmpPos).Length() < Precision::Confusion()) {
+                    tanPos = PointPos::start;
                     tangId = i;
                     tangDeviation = projDist;
+
+                    // There must be a coincident autoconstraint added before. So we remove it
+                    removeCoincidentConstraint(tangId, tanPos);
+                }
+                else if ((start - tmpStart).Length() < Precision::Confusion()) {
+                    tanPos = PointPos::start;
+                    tangId = i;
+                    tangDeviation = projDist;
+                    // Coincident is added somewhere else so it has to be handled after the geo
+                    // creation.
+                }
+                else if ((end - tmpPos).Length() < Precision::Confusion()) {
+                    tanPos = PointPos::end;
+                    tangId = i;
+                    tangDeviation = projDist;
+
+                    // There must be a coincident autoconstraint added before. So we remove it
+                    removeCoincidentConstraint(tangId, tanPos);
+                }
+                else if ((end - tmpStart).Length() < Precision::Confusion()) {
+                    tanPos = PointPos::end;
+                    tangId = i;
+                    tangDeviation = projDist;
+                    // Coincident is added somewhere else so it has to be handled after the geo
+                    // creation.
+                }
+                else {
+                    double startAngle, endAngle;
+                    arc->getRange(startAngle, endAngle, /*emulateCCW=*/true);
+
+                    double angle = atan2(projPnt.y, projPnt.x);
+                    while (angle < startAngle) {
+                        angle += 2 * pi;  // Bring it to range of arc
+                    }
+
+                    // if the point is on correct side of arc
+                    if (angle <= endAngle) {  // Now need to check only one side
+                        tangId = i;
+                        tangDeviation = projDist;
+                    }
                 }
             }
         }
-        else if (geo->is<Part::GeomArcOfEllipse>()) {
+        else if (geo->isDerivedFrom<Part::GeomArcOfEllipse>()) {
             auto* aoe = static_cast<const Part::GeomArcOfEllipse*>(geo);
-
             Base::Vector3d center = aoe->getCenter();
 
             double a = aoe->getMajorRadius();
@@ -735,9 +940,11 @@ void DrawSketchHandler::seekTangentAutoConstraint(
         AutoConstraint constr;
         constr.Type = Tangent;
         constr.GeoId = tangId;
-        constr.PosId = PointPos::none;
+        constr.PosId = tanPos;
         suggestedConstraints.push_back(constr);
+        return true;
     }
+    return false;
 }
 
 int DrawSketchHandler::seekAutoConstraint(
@@ -756,10 +963,14 @@ int DrawSketchHandler::seekAutoConstraint(
     seekPreselectionAutoConstraint(suggestedConstraints, Pos, Dir, type);
 
     if (Dir.Length() > 1e-8 && type != AutoConstraint::CURVE) {
-        seekAlignmentAutoConstraint(suggestedConstraints, Dir);
-
+        bool tangentCreated = false;
         if (type != AutoConstraint::VERTEX_NO_TANGENCY) {
-            seekTangentAutoConstraint(suggestedConstraints, Pos, Dir);
+            tangentCreated = seekTangentAutoConstraint(suggestedConstraints, Pos, Dir);
+        }
+
+        if (!tangentCreated) {
+            // We don't check for alignment if there is already a tangency.
+            seekAlignmentAutoConstraint(suggestedConstraints, Pos, Dir);
         }
     }
 
@@ -849,6 +1060,22 @@ void DrawSketchHandler::createAutoConstraints(
                         geoId2 != GeoEnum::GeoUndef ? geoId2 : geoId1
                     );
                 } break;
+                case Sketcher::Perpendicular: {
+                    Gui::cmdAppObjectArgs(
+                        sketchgui->getObject(),
+                        "addConstraint(Sketcher.Constraint('Perpendicular',%d, %d)) ",
+                        geoId1,
+                        geoId2
+                    );
+                } break;
+                case Sketcher::Parallel: {
+                    Gui::cmdAppObjectArgs(
+                        sketchgui->getObject(),
+                        "addConstraint(Sketcher.Constraint('Parallel',%d, %d)) ",
+                        geoId1,
+                        geoId2
+                    );
+                } break;
                 case Sketcher::Tangent: {
                     Sketcher::SketchObject* Obj = sketchgui->getSketchObject();
 
@@ -910,9 +1137,11 @@ void DrawSketchHandler::createAutoConstraints(
 
                     Gui::cmdAppObjectArgs(
                         sketchgui->getObject(),
-                        "addConstraint(Sketcher.Constraint('Tangent',%d, %d)) ",
+                        "addConstraint(Sketcher.Constraint('Tangent',%d, %d, %d, %d)) ",
                         geoId1,
-                        cstr.GeoId
+                        (int)posId1,
+                        cstr.GeoId,
+                        (int)cstr.PosId
                     );
                 } break;
                 default:
