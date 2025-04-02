@@ -769,8 +769,22 @@ protected:
                     c->First = (geoId2 != Sketcher::GeoEnum::GeoUndef ? geoId2 : geoId1);
                     AutoConstraints.push_back(std::move(c));
                 } break;
+                case Sketcher::Perpendicular: {
+                    auto c = std::make_unique<Sketcher::Constraint>();
+                    c->Type = Sketcher::Perpendicular;
+                    c->First = geoId1;
+                    c->Second = geoId2;
+                    AutoConstraints.push_back(std::move(c));
+                } break;
+                case Sketcher::Parallel: {
+                    auto c = std::make_unique<Sketcher::Constraint>();
+                    c->Type = Sketcher::Parallel;
+                    c->First = geoId1;
+                    c->Second = geoId2;
+                    AutoConstraints.push_back(std::move(c));
+                } break;
                 case Sketcher::Tangent: {
-                    Sketcher::SketchObject* Obj = sketchgui->getObject<Sketcher::SketchObject>();
+                    auto* Obj = sketchgui->getSketchObject();
 
                     const Part::Geometry* geom1 = Obj->getGeometry(geoId1);
                     const Part::Geometry* geom2 = Obj->getGeometry(geoId2);
@@ -826,15 +840,15 @@ protected:
 
                     auto resultcoincident =
                         std::ranges::find_if(AutoConstraints, [&](const auto& ace) {
-                            return ace->Type == Sketcher::Coincident && ace->First == geoId1
-                                && ace->Second == geoId2;
-                        });
+                        return ace->Type == Sketcher::Coincident && ace->First == geoId1
+                            && ace->Second == geoId2;
+                    });
 
                     auto resultpointonobject =
                         std::ranges::find_if(AutoConstraints, [&](const auto& ace) {
-                            return ace->Type == Sketcher::PointOnObject
-                                && ace->involvesGeoId(geoId1) && ace->involvesGeoId(geoId2);
-                        });
+                        return ace->Type == Sketcher::PointOnObject
+                            && ace->involvesGeoId(geoId1) && ace->involvesGeoId(geoId2);
+                    });
 
                     if (resultcoincident != AutoConstraints.end()
                         && isStartOrEnd((*resultcoincident)->FirstPos)
@@ -843,18 +857,18 @@ protected:
                         (*resultcoincident)->Type = Sketcher::Tangent;
                     }
                     else if (resultpointonobject != AutoConstraints.end()
-                             && isStartOrEnd((*resultpointonobject)->FirstPos)) {
+                        && isStartOrEnd((*resultpointonobject)->FirstPos)) {
                         // endpoint-to-edge tangency
                         (*resultpointonobject)->Type = Sketcher::Tangent;
                     }
                     else if (resultcoincident != AutoConstraints.end()
-                             && (*resultcoincident)->FirstPos == Sketcher::PointPos::mid
-                             && (*resultcoincident)->SecondPos == Sketcher::PointPos::mid && geom1
-                             && geom2
-                             && (geom1->is<Part::GeomCircle>()
-                                 || geom1->is<Part::GeomArcOfCircle>())
-                             && (geom2->is<Part::GeomCircle>()
-                                 || geom2->is<Part::GeomArcOfCircle>())) {
+                        && (*resultcoincident)->FirstPos == Sketcher::PointPos::mid
+                        && (*resultcoincident)->SecondPos == Sketcher::PointPos::mid && geom1
+                        && geom2
+                        && (geom1->is<Part::GeomCircle>()
+                            || geom1->is<Part::GeomArcOfCircle>())
+                        && (geom2->is<Part::GeomCircle>()
+                            || geom2->is<Part::GeomArcOfCircle>())) {
                         // equality
                         auto c = std::make_unique<Sketcher::Constraint>();
                         c->Type = Sketcher::Equal;
@@ -866,7 +880,9 @@ protected:
                         auto c = std::make_unique<Sketcher::Constraint>();
                         c->Type = Sketcher::Tangent;
                         c->First = geoId1;
+                        c->FirstPos = posId1;
                         c->Second = geoId2;
+                        c->SecondPos = ac.PosId;
                         AutoConstraints.push_back(std::move(c));
                     }
                 } break;
@@ -875,6 +891,7 @@ protected:
             }
         }
     }
+
 
     /** @brief Convenience function to automatically add to the SketchObjects (via Python command)
      * all the constraints stored in the AutoConstraints vector. */
