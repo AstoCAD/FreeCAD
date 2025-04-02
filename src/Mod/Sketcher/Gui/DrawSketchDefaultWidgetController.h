@@ -220,6 +220,10 @@ public:
     void addConstraints() override
     {}
 
+    /// function to create constraints based on control information for infinite DSH (polyline).
+    virtual void addStepConstraints()
+    {}
+
     /// function to configure the default widget.
     void configureToolWidget()
     {}
