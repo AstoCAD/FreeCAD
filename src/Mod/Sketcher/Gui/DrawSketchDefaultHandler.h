@@ -755,6 +755,20 @@ protected:
                 c->First = (geoId2 != Sketcher::GeoEnum::GeoUndef ? geoId2 : geoId1);
                 AutoConstraints.push_back(std::move(c));
             } break;
+            case Sketcher::Perpendicular: {
+                auto c = std::make_unique<Sketcher::Constraint>();
+                c->Type = Sketcher::Perpendicular;
+                c->First = geoId1;
+                c->Second = geoId2;
+                AutoConstraints.push_back(std::move(c));
+            } break;
+            case Sketcher::Parallel: {
+                auto c = std::make_unique<Sketcher::Constraint>();
+                c->Type = Sketcher::Parallel;
+                c->First = geoId1;
+                c->Second = geoId2;
+                AutoConstraints.push_back(std::move(c));
+            } break;
             case Sketcher::Tangent: {
                 Sketcher::SketchObject* Obj = sketchgui->getObject<Sketcher::SketchObject>();
 
@@ -851,7 +865,9 @@ protected:
                     auto c = std::make_unique<Sketcher::Constraint>();
                     c->Type = Sketcher::Tangent;
                     c->First = geoId1;
+                    c->FirstPos = posId1;
                     c->Second = geoId2;
+                    c->SecondPos = ac.PosId;
                     AutoConstraints.push_back(std::move(c));
                 }
             } break;
@@ -881,6 +897,7 @@ protected:
             }
         }
     }
+
 
     /** @brief Convenience function to automatically add to the SketchObjects (via Python command)
      * all the constraints stored in the AutoConstraints vector. */
@@ -946,7 +963,7 @@ protected:
         sketchobject->diagnoseAdditionalConstraints(autoConstraints);
 
         if (sketchobject->getLastHasRedundancies()) {
-            Base::Console().warning(
+            Base::Console().message(
                 QT_TRANSLATE_NOOP("Notifications",
                                   "Autoconstraints cause redundancy. Removing them") "\n");
 

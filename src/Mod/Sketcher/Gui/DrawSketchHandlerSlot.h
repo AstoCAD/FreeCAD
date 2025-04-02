@@ -315,14 +315,18 @@ private:
                                       firstCurve + 3);
 
 
-                if (lastCons.Type == Sketcher::Horizontal || lastCons.Type == Sketcher::Vertical) {
+                if (lastCons.Type == Sketcher::Horizontal || lastCons.Type == Sketcher::Vertical
+                    || lastCons.Type == Sketcher::Perpendicular
+                    || lastCons.Type == Sketcher::Parallel) {
                     sugConstraints[1].pop_back();
                 }
             }
             else {
                 // If horizontal/vertical Autoconstraint suggested, applied it on first line
                 // (rather than last arc)
-                if (lastCons.Type == Sketcher::Horizontal || lastCons.Type == Sketcher::Vertical) {
+                if (lastCons.Type == Sketcher::Horizontal || lastCons.Type == Sketcher::Vertical
+                    || lastCons.Type == Sketcher::Perpendicular
+                    || lastCons.Type == Sketcher::Parallel) {
                     sugConstraints[1].back().GeoId = firstCurve + 2;
                 }
             }
@@ -629,7 +633,9 @@ void DSHSlotController::addConstraints()
                                        Sketcher::PointPos::none};
             if (!handler->sugConstraints[1].empty()) {
                 lastCons = handler->sugConstraints[1].back();
-                if (lastCons.Type == Sketcher::Horizontal || lastCons.Type == Sketcher::Vertical) {
+                if (lastCons.Type == Sketcher::Horizontal || lastCons.Type == Sketcher::Vertical
+                    || lastCons.Type == Sketcher::Perpendicular
+                    || lastCons.Type == Sketcher::Parallel) {
                     handler->AutoConstraints.pop_back();
                 }
             }
