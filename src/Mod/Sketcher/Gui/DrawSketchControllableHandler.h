@@ -119,6 +119,11 @@ protected:
     }
     //@}
 
+    void addStepControlConstraints()
+    {
+        toolWidgetManager.addStepConstraints();
+    }
+
 private:
     /** @name functions requiring specialisation */
     //@{
