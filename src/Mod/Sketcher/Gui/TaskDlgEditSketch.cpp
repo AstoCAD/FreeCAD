@@ -52,8 +52,8 @@ TaskDlgEditSketch::TaskDlgEditSketch(ViewProviderSketch* sketchView)
         "User parameter:BaseApp/Preferences/Mod/Sketcher");
     setEscapeButtonEnabled(hGrp->GetBool("LeaveSketchWithEscape", true));
 
-    Content.push_back(ToolSettings);
     Content.push_back(Messages);
+    Content.push_back(ToolSettings);
 
     if (hGrp->GetBool("ShowSolverAdvancedWidget", false)) {
         Content.push_back(SolverAdvanced);
@@ -116,12 +116,27 @@ void TaskDlgEditSketch::open()
 void TaskDlgEditSketch::clicked(int)
 {}
 
-bool TaskDlgEditSketch::accept()
+bool TaskDlgEditSketch::reject()
 {
+    sketchView->editingCancelled = true;
+    deactivate();
+    sketchView->editingCancelled = false;
+
     return true;
 }
 
-bool TaskDlgEditSketch::reject()
+bool TaskDlgEditSketch::accept()
+{
+    std::string document = getDocumentName();
+    deactivate();
+    Gui::Command::doCommand(Gui::Command::Doc,
+                            "App.getDocument('%s').recompute()",
+                            document.c_str());
+
+    return true;
+}
+
+void TaskDlgEditSketch::deactivate()
 {
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/Sketcher");
@@ -138,19 +153,11 @@ bool TaskDlgEditSketch::reject()
     Gui::Command::doCommand(Gui::Command::Gui,
                             "Gui.getDocument('%s').resetEdit()",
                             document.c_str());
-    Gui::Command::doCommand(Gui::Command::Doc,
-                            "App.getDocument('%s').recompute()",
-                            document.c_str());
-
-    return true;
 }
 
 QDialogButtonBox::StandardButtons TaskDlgEditSketch::getStandardButtons() const
 {
-    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-        "User parameter:BaseApp/Preferences/Mod/Sketcher");
-    bool closeButton = hGrp->GetBool("ShowCloseButton", false);
-    return closeButton ? QDialogButtonBox::Close : QDialogButtonBox::NoButton;
+    return QDialogButtonBox::Ok | QDialogButtonBox::Cancel;
 }
 
 void TaskDlgEditSketch::autoClosedOnClosedView()

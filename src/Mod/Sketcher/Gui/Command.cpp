@@ -1201,148 +1201,143 @@ bool CmdSketcherViewSection::isActive()
 }
 
 /* Grid tool */
-class GridSpaceAction: public QWidgetAction
+GridSpaceAction::GridSpaceAction(QObject* parent)
+    : QWidgetAction(parent)
 {
-    Q_DECLARE_TR_FUNCTIONS(GridSpaceAction)
-public:
-    GridSpaceAction(QObject* parent)
-        : QWidgetAction(parent)
-    {
-        setEnabled(false);
-    }
+    setEnabled(false);
+}
 
-    void updateWidget()
-    {
+void GridSpaceAction::updateWidget()
+{
+    auto* sketchView = getView();
+
+    if (sketchView) {
+
+        auto updateCheckBox = [](QCheckBox* checkbox, bool value) {
+            auto checked = checkbox->checkState() == Qt::Checked;
+
+            if (value != checked) {
+                const QSignalBlocker blocker(checkbox);
+                checkbox->setChecked(value);
+            }
+        };
+
+        auto updateCheckBoxFromProperty = [updateCheckBox](QCheckBox* checkbox,
+                                                            App::PropertyBool& property) {
+            auto propvalue = property.getValue();
+
+            updateCheckBox(checkbox, propvalue);
+        };
+
+        updateCheckBoxFromProperty(gridShow, sketchView->ShowGrid);
+
+        updateCheckBoxFromProperty(gridAutoSpacing, sketchView->GridAuto);
+
+        ParameterGrp::handle hGrp = getParameterPath();
+        updateCheckBox(snapToGrid, hGrp->GetBool("SnapToGrid", false));
+
+        gridSizeBox->setValue(sketchView->GridSize.getValue());
+    }
+}
+
+void GridSpaceAction::languageChange()
+{
+    gridShow->setText(tr("Grid"));
+    gridShow->setToolTip(tr("Toggle visibility of the grid."));
+    gridShow->setStatusTip(gridAutoSpacing->toolTip());
+
+    gridAutoSpacing->setText(tr("Grid auto spacing"));
+    gridAutoSpacing->setToolTip(tr("Resize grid automatically depending on zoom."));
+    gridAutoSpacing->setStatusTip(gridAutoSpacing->toolTip());
+
+    sizeLabel->setText(tr("Spacing"));
+    gridSizeBox->setToolTip(tr("Distance between two subsequent grid lines."));
+
+    snapToGrid->setText(tr("Snap to grid"));
+    snapToGrid->setToolTip(
+        tr("New points will snap to the nearest grid line.\nPoints must be set closer than a "
+            "fifth of the grid spacing to a grid line to snap."));
+    snapToGrid->setStatusTip(snapToGrid->toolTip());
+}
+
+QWidget* GridSpaceAction::createWidget(QWidget* parent)
+{
+    gridShow = new QCheckBox();
+
+    gridAutoSpacing = new QCheckBox();
+
+    snapToGrid = new QCheckBox();
+
+    sizeLabel = new QLabel();
+
+    gridSizeBox = new Gui::QuantitySpinBox();
+    gridSizeBox->setProperty("unit", QVariant(QStringLiteral("mm")));
+    gridSizeBox->setObjectName(QStringLiteral("gridSize"));
+    gridSizeBox->setMaximum(99999999.0);
+    gridSizeBox->setMinimum(0.001);
+
+    QWidget* gridSizeW = new QWidget(parent);
+    auto* layout = new QGridLayout(gridSizeW);
+    layout->addWidget(gridShow, 0, 0, 1, 2);
+    layout->addWidget(gridAutoSpacing, 1, 0, 1, 2);
+    layout->addWidget(snapToGrid, 2, 0, 1, 2);
+    layout->addWidget(sizeLabel, 3, 0);
+    layout->addWidget(gridSizeBox, 3, 1);
+
+    languageChange();
+
+    QObject::connect(gridShow, &QCheckBox::stateChanged, [this](int state) {
         auto* sketchView = getView();
 
         if (sketchView) {
-
-            auto updateCheckBox = [](QCheckBox* checkbox, bool value) {
-                auto checked = checkbox->checkState() == Qt::Checked;
-
-                if (value != checked) {
-                    const QSignalBlocker blocker(checkbox);
-                    checkbox->setChecked(value);
-                }
-            };
-
-            auto updateCheckBoxFromProperty = [updateCheckBox](QCheckBox* checkbox,
-                                                               App::PropertyBool& property) {
-                auto propvalue = property.getValue();
-
-                updateCheckBox(checkbox, propvalue);
-            };
-
-            updateCheckBoxFromProperty(gridAutoSpacing, sketchView->GridAuto);
-
-            ParameterGrp::handle hGrp = getParameterPath();
-            updateCheckBox(snapToGrid, hGrp->GetBool("SnapToGrid", false));
-
-            gridSizeBox->setValue(sketchView->GridSize.getValue());
+            auto enable = (state == Qt::Checked);
+            sketchView->ShowGrid.setValue(enable);
         }
-    }
+    });
 
-    void languageChange()
-    {
-        gridAutoSpacing->setText(tr("Grid auto spacing"));
-        gridAutoSpacing->setToolTip(tr("Automatically adjusts the grid spacing based on the zoom level"));
-        gridAutoSpacing->setStatusTip(gridAutoSpacing->toolTip());
+    QObject::connect(gridAutoSpacing, &QCheckBox::stateChanged, [this](int state) {
+        auto* sketchView = getView();
 
-        sizeLabel->setText(tr("Spacing"));
-        gridSizeBox->setToolTip(tr("Distance between two subsequent grid lines"));
-
-        snapToGrid->setText(tr("Snap to grid"));
-        snapToGrid->setToolTip(
-            tr("New points will snap to the nearest grid line.\nPoints must be set closer than a "
-                "fifth of the grid spacing to a grid line to snap."));
-        snapToGrid->setStatusTip(snapToGrid->toolTip());
-    }
-
-protected:
-    QWidget* createWidget(QWidget* parent) override
-    {
-        gridAutoSpacing = new QCheckBox();
-
-        snapToGrid = new QCheckBox();
-
-        sizeLabel = new QLabel();
-
-        gridSizeBox = new Gui::QuantitySpinBox();
-        gridSizeBox->setProperty("unit", QVariant(QStringLiteral("mm")));
-        gridSizeBox->setObjectName(QStringLiteral("gridSize"));
-        gridSizeBox->setMaximum(99999999.0);
-        gridSizeBox->setMinimum(0.001);
-
-        QWidget* gridSizeW = new QWidget(parent);
-        auto* layout = new QGridLayout(gridSizeW);
-        layout->addWidget(gridAutoSpacing, 0, 0, 1, 2);
-        layout->addWidget(snapToGrid, 1, 0, 1, 2);
-        layout->addWidget(sizeLabel, 2, 0);
-        layout->addWidget(gridSizeBox, 2, 1);
-
-        languageChange();
-
-#if QT_VERSION >= QT_VERSION_CHECK(6,7,0)
-        QObject::connect(gridAutoSpacing, &QCheckBox::checkStateChanged, [this](int state) {
-#else
-        QObject::connect(gridAutoSpacing, &QCheckBox::stateChanged, [this](int state) {
-#endif
-            auto* sketchView = getView();
-
-            if (sketchView) {
-                auto enable = (state == Qt::Checked);
-                sketchView->GridAuto.setValue(enable);
-            }
-        });
-        
-#if QT_VERSION >= QT_VERSION_CHECK(6,7,0)
-        QObject::connect(snapToGrid, &QCheckBox::checkStateChanged, [this](int state) {
-            ParameterGrp::handle hGrp = this->getParameterPath();
-            hGrp->SetBool("SnapToGrid", state == Qt::Checked);
-        });
-#else
-        QObject::connect(snapToGrid, &QCheckBox::stateChanged, [this](int state) {
-            ParameterGrp::handle hGrp = this->getParameterPath();
-            hGrp->SetBool("SnapToGrid", state == Qt::Checked);
-        });
-#endif
-
-        QObject::connect(gridSizeBox,
-                         qOverload<double>(&Gui::QuantitySpinBox::valueChanged),
-                         [this](double val) {
-                             auto* sketchView = getView();
-                             if (sketchView) {
-                                 sketchView->GridSize.setValue(val);
-                             }
-                         });
-
-        return gridSizeW;
-    }
-
-private:
-    ViewProviderSketch* getView()
-    {
-        Gui::Document* doc = Gui::Application::Instance->activeDocument();
-
-        if (doc) {
-            return dynamic_cast<SketcherGui::ViewProviderSketch*>(doc->getInEdit());
+        if (sketchView) {
+            auto enable = (state == Qt::Checked);
+            sketchView->GridAuto.setValue(enable);
         }
+    });
 
-        return nullptr;
+    QObject::connect(snapToGrid, &QCheckBox::stateChanged, [this](int state) {
+        ParameterGrp::handle hGrp = this->getParameterPath();
+        hGrp->SetBool("SnapToGrid", state == Qt::Checked);
+    });
+
+    QObject::connect(gridSizeBox,
+                        qOverload<double>(&Gui::QuantitySpinBox::valueChanged),
+                        [this](double val) {
+                            auto* sketchView = getView();
+                            if (sketchView) {
+                                sketchView->GridSize.setValue(val);
+                            }
+                        });
+
+    return gridSizeW;
+}
+
+ViewProviderSketch* GridSpaceAction::getView()
+{
+    Gui::Document* doc = Gui::Application::Instance->activeDocument();
+
+    if (doc) {
+        return dynamic_cast<SketcherGui::ViewProviderSketch*>(doc->getInEdit());
     }
 
-    ParameterGrp::handle getParameterPath()
+    return nullptr;
+}
+
+ParameterGrp::handle GridSpaceAction::getParameterPath()
     {
         return App::GetApplication().GetParameterGroupByPath(
             "User parameter:BaseApp/Preferences/Mod/Sketcher/Snap");
     }
 
-private:
-    QCheckBox* gridAutoSpacing;
-    QCheckBox* snapToGrid;
-    QLabel* sizeLabel;
-    Gui::QuantitySpinBox* gridSizeBox;
-};
 
 class CmdSketcherGrid: public Gui::Command
 {

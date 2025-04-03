@@ -50,7 +50,6 @@
 #include <Mod/Sketcher/App/GeometryFacade.h>
 #include <Mod/Sketcher/App/SketchObject.h>
 
-#include "Command.h"
 #include "TaskSketcherElements.h"
 #include "Utils.h"
 #include "ViewProviderSketch.h"
@@ -1286,6 +1285,12 @@ void TaskSketcherElements::connectSignals()
                      &TaskSketcherElements::onFilterBoxStateChanged);
 #endif
     QObject::connect(
+        ui->settingsButton, &QToolButton::clicked, ui->settingsButton, &QToolButton::showMenu);
+    QObject::connect(std::as_const(ui->settingsButton)->actions()[0],
+                     &QAction::changed,
+                     this,
+                     &TaskSketcherElements::onSettingsExtendedInformationChanged);
+    QObject::connect(
         ui->filterButton, &QToolButton::clicked, ui->filterButton, &QToolButton::showMenu);
 
     //NOLINTBEGIN
@@ -2098,36 +2103,15 @@ void TaskSketcherElements::createSettingsButtonActions()
         action->setChecked(hGrp->GetBool("ExtendedNaming", false));
     }
 
+    ui->settingsButton->addAction(action);
+
     isNamingBoxChecked = hGrp->GetBool("ExtendedNaming", false);
-
-    auto* ssa = new SnapSpaceAction(this);
-    auto* roa = new RenderingOrderAction(this);
-
-    QMenu* myMenu = new QMenu(this);
-    myMenu->addAction(ssa);
-    myMenu->addSeparator();
-    myMenu->addAction(roa);
-    myMenu->addSeparator();
-    myMenu->addAction(action);
-    ui->settingsButton->setMenu(myMenu);
-
-    QObject::connect(myMenu, &QMenu::aboutToShow, [ssa, roa]() {
-        ssa->updateWidget(true);
-        roa->updateWidget();
-    });
-
-    QObject::connect(
-        ui->settingsButton, &QToolButton::clicked, ui->settingsButton, &QToolButton::showMenu);
-    QObject::connect(std::as_const(myMenu)->actions()[4],
-        &QAction::changed,
-        this,
-        &TaskSketcherElements::onSettingsExtendedInformationChanged);
 }
 
 void TaskSketcherElements::onSettingsExtendedInformationChanged()
 {
-    QList<QAction*> acts = ui->settingsButton->menu()->actions();
-    isNamingBoxChecked = acts[4]->isChecked();
+    QList<QAction*> acts = ui->settingsButton->actions();
+    isNamingBoxChecked = acts[0]->isChecked();
 
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/Sketcher/Elements");

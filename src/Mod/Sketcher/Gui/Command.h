@@ -25,6 +25,7 @@
 #define SKETCHERGUI_CommandConstraints_H
 
 #include <QWidgetAction>
+#include <QCoreApplication>
 
 class QCheckBox;
 class QLabel;
@@ -41,9 +42,38 @@ class QuantitySpinBox;
 namespace SketcherGui
 {
 
+class ViewProviderSketch;
+
+class GridSpaceAction: public QWidgetAction
+{
+    Q_DECLARE_TR_FUNCTIONS(SketcherGui::GridSpaceAction)
+public:
+    GridSpaceAction(QObject* parent);
+
+    void updateWidget();
+
+    void languageChange();
+
+protected:
+    QWidget* createWidget(QWidget* parent) override;
+
+private:
+    ViewProviderSketch* getView();
+
+    ParameterGrp::handle getParameterPath();
+
+private:
+    QCheckBox* gridShow;
+    QCheckBox* gridAutoSpacing;
+    QCheckBox* snapToGrid;
+    QLabel* sizeLabel;
+    Gui::QuantitySpinBox* gridSizeBox;
+};
+
+
 class SnapSpaceAction: public QWidgetAction
 {
-    Q_DECLARE_TR_FUNCTIONS(SnapSpaceAction)
+    Q_DECLARE_TR_FUNCTIONS(SketcherGui::SnapSpaceAction)
 public:
     SnapSpaceAction(QObject* parent);
 
@@ -66,7 +96,7 @@ private:
 
 class RenderingOrderAction: public QWidgetAction
 {
-    Q_DECLARE_TR_FUNCTIONS(RenderingOrderAction)
+    Q_DECLARE_TR_FUNCTIONS(SketcherGui::RenderingOrderAction)
 public:
     RenderingOrderAction(QObject* parent);
 
