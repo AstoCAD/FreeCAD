@@ -1194,7 +1194,6 @@ void DockablePlacement::reject()
 
 TaskPlacement::TaskPlacement()
 {
-    this->setButtonPosition(TaskPlacement::South);
     widget = new Placement();
     widget->showDefaultButtons(false);
     addTaskBox(widget);
