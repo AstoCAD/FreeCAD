@@ -42,6 +42,7 @@
 #include <Gui/ViewProviderDocumentObject.h>
 #include <Gui/OverlayManager.h>
 
+#include "BitmapFactory.h"
 #include "TaskView.h"
 #include "TaskDialog.h"
 #include "TaskEditControl.h"
@@ -287,6 +288,11 @@ TaskView::TaskView(QWidget* parent)
     sizePolicy.setHeightForWidth(taskPanel->sizePolicy().hasHeightForWidth());
     taskPanel->setSizePolicy(sizePolicy);
     taskPanel->setScheme(QSint::ActionPanelScheme::defaultScheme());
+
+    // Remove space between OK/Cancel buttons and scrollarea.
+    if (taskPanel->layout()) {
+        taskPanel->layout()->setContentsMargins(0, 0, 0, 0);
+    }
 
     scrollArea->setWidget(taskPanel);
     scrollArea->setWidgetResizable(true);
@@ -626,6 +632,17 @@ void TaskView::showDialog(TaskDialog* dlg)
     // first create the control element, set it up and wire it:
     ActiveCtrl = new TaskEditControl(this);
     ActiveCtrl->buttonBox->setStandardButtons(dlg->getStandardButtons());
+
+    // Replace text with icons for the OK and Cancel buttons
+    if (QPushButton* okButton = ActiveCtrl->buttonBox->button(QDialogButtonBox::Ok)) {
+        okButton->setIcon(Gui::BitmapFactory().pixmap("edit_OK.svg"));
+        okButton->setText(QString::fromLatin1(""));
+    }
+    if (QPushButton* cancelButton = ActiveCtrl->buttonBox->button(QDialogButtonBox::Cancel)) {
+        cancelButton->setIcon(Gui::BitmapFactory().pixmap("edit_Cancel.svg"));
+        cancelButton->setText(QString::fromLatin1(""));
+    }
+
     TaskDialogAttorney::setButtonBox(dlg, ActiveCtrl->buttonBox);
 
     // clang-format off
