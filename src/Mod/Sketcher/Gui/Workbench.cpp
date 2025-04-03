@@ -110,10 +110,10 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     sketcher->setCommand("Sketcher");
     addSketcherWorkbenchSketchActions(*sketcher);
 
-    Gui::ToolBarItem* sketcherEditMode =
+    /*Gui::ToolBarItem* sketcherEditMode =
         new Gui::ToolBarItem(root, Gui::ToolBarItem::DefaultVisibility::Unavailable);
     sketcherEditMode->setCommand("Sketcher edit mode");
-    addSketcherWorkbenchSketchEditModeActions(*sketcherEditMode);
+    addSketcherWorkbenchSketchEditModeActions(*sketcherEditMode);*/
 
     Gui::ToolBarItem* geom =
         new Gui::ToolBarItem(root, Gui::ToolBarItem::DefaultVisibility::Unavailable);
@@ -270,6 +270,7 @@ template<>
 inline void SketcherAddWorkbenchSketchEditModeActions(Gui::MenuItem& sketch)
 {
     sketch << "Sketcher_LeaveSketch"
+           << "Sketcher_CancelSketch"
            << "Sketcher_ViewSketch"
            << "Sketcher_ViewSection"
            << "Sketcher_StopOperation";
