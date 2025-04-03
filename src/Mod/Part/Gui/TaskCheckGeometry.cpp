@@ -1165,7 +1165,6 @@ TaskCheckGeometryDialog::TaskCheckGeometryDialog()
                                      ->GetGroup("CheckGeometry");
     bool expandShapeContent = group->GetBool("ExpandShapeContent", false);
 
-    this->setButtonPosition(TaskDialog::South);
     widget = new TaskCheckGeometryResults();
 
     taskbox = new Gui::TaskView::TaskBox(
