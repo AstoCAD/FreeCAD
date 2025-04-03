@@ -34,11 +34,19 @@ TaskEditControl::TaskEditControl(QWidget *parent)
     : TaskWidget(parent)
 {
     hboxLayout = new QHBoxLayout(this);
+    hboxLayout->setContentsMargins(0, 0, 0, 0);
+    hboxLayout->setSpacing(0);
+
     buttonBox = new QDialogButtonBox(this);
     buttonBox->setStandardButtons(QDialogButtonBox::Cancel|QDialogButtonBox::Ok);
-    buttonBox->setCenterButtons(true);
+    buttonBox->setContentsMargins(0, 0, 0, 0);
+    buttonBox->layout()->setSpacing(0);
 
     hboxLayout->addWidget(buttonBox);
+
+    // Align left
+    auto* spacer = new QSpacerItem(10, 0, QSizePolicy::Expanding, QSizePolicy::Minimum);
+    hboxLayout->addItem(spacer);
 }
 
 TaskEditControl::~TaskEditControl() = default;
