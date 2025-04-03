@@ -377,7 +377,7 @@ bool CmdPartDesignBody::isActive()
 //===========================================================================
 // PartDesign_BodyGroup
 //===========================================================================
-class CmdPartDesignBodyGroup : public Gui::GroupCommand
+class CmdPartDesignBodyGroup: public Gui::GroupCommand
 {
 public:
     CmdPartDesignBodyGroup()
@@ -398,7 +398,10 @@ public:
         addCommand("PartDesign_Clone");
     }
 
-    const char* className() const override { return "PartDesign_BodyGroup"; }
+    const char* className() const override
+    {
+        return "PartDesign_BodyGroup";
+    }
 };
 
 //===========================================================================
