@@ -115,8 +115,10 @@ private:
     static inline int getPreselectCurve(const ViewProviderSketch& vp);
     static inline int getPreselectCross(const ViewProviderSketch& vp);
 
-    static inline void
-    moveConstraint(ViewProviderSketch& vp, int constNum, const Base::Vector2d& toPos);
+    static inline void moveConstraint(ViewProviderSketch& vp,
+                                      int constNum,
+                                      const Base::Vector2d& toPos,
+                                      bool offset = false);
 
     static inline void signalToolChanged(const ViewProviderSketch& vp, const std::string& toolname);
 
@@ -267,7 +269,7 @@ protected:
 
     void setAngleSnapping(bool enable, Base::Vector2d referencePoint = Base::Vector2d(0., 0.));
 
-    void moveConstraint(int constNum, const Base::Vector2d& toPos);
+    void moveConstraint(int constNum, const Base::Vector2d& toPos, bool offset = false);
 
     void signalToolChanged() const;
 
