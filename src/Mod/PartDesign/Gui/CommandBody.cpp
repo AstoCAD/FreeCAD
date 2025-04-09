@@ -302,6 +302,33 @@ bool CmdPartDesignBody::isActive()
 }
 
 //===========================================================================
+// PartDesign_BodyGroup
+//===========================================================================
+class CmdPartDesignBodyGroup : public Gui::GroupCommand
+{
+public:
+    CmdPartDesignBodyGroup()
+        : GroupCommand("PartDesign_BodyGroup")
+    {
+        sAppModule = "PartDesign";
+        sGroup = QT_TR_NOOP("PartDesign");
+        sMenuText = QT_TR_NOOP("Create body");
+        sToolTipText = QT_TR_NOOP("Create a new body and make it active");
+        sWhatsThis = "PartDesign_Body";
+        sStatusTip = sToolTipText;
+        sPixmap = "PartDesign_Body";
+
+        setCheckable(false);
+        setRememberLast(false);
+
+        addCommand("PartDesign_Body");
+        addCommand("PartDesign_Clone");
+    }
+
+    const char* className() const override { return "PartDesign_BodyGroup"; }
+};
+
+//===========================================================================
 // PartDesign_Migrate
 //===========================================================================
 
@@ -987,6 +1014,7 @@ void CreatePartDesignBodyCommands()
     Gui::CommandManager &rcCmdMgr = Gui::Application::Instance->commandManager();
 
     rcCmdMgr.addCommand(new CmdPartDesignBody());
+    rcCmdMgr.addCommand(new CmdPartDesignBodyGroup());
     rcCmdMgr.addCommand(new CmdPartDesignMigrate());
     rcCmdMgr.addCommand(new CmdPartDesignMoveTip());
 

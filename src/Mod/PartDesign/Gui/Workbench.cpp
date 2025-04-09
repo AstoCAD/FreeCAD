@@ -452,11 +452,10 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     Gui::ToolBarItem* part = new Gui::ToolBarItem(root);
     part->setCommand("Part Design Helper");
 
-    *part << "PartDesign_Body"
+    *part << "PartDesign_BodyGroup"
           << "PartDesign_CompSketches"
           << "Part_CheckGeometry"
-          << "PartDesign_SubShapeBinder"
-          << "PartDesign_Clone";
+          << "PartDesign_SubShapeBinder";
 
     part = new Gui::ToolBarItem(root);
     part->setCommand("Part Design Modeling");
