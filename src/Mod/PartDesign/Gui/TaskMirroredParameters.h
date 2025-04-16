@@ -39,6 +39,7 @@ namespace Gui
 class ViewProvider;
 }
 
+
 namespace PartDesignGui
 {
 
@@ -73,7 +74,7 @@ private:
     void getMirrorPlane(App::DocumentObject*& obj, std::vector<std::string>& sub) const;
 
 private:
-    ComboLinks planeLinks;
+    Gui::ComboLinks planeLinks;
     std::unique_ptr<Ui_TaskMirroredParameters> ui;
 };
 

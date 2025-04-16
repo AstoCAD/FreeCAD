@@ -44,8 +44,7 @@
 #include "ui_TaskMultiTransformParameters.h"
 #include "TaskMultiTransformParameters.h"
 #include "TaskMirroredParameters.h"
-#include "TaskLinearPatternParameters.h"
-#include "TaskPolarPatternParameters.h"
+#include "TaskPatternParameters.h"
 #include "TaskScaledParameters.h"
 #include "Utils.h"
 
@@ -230,11 +229,9 @@ void TaskMultiTransformParameters::onTransformEdit()
     if (subFeature->is<PartDesign::Mirrored>()) {
         subTask = new TaskMirroredParameters(this, ui->subFeatureWidget);
     }
-    else if (subFeature->is<PartDesign::LinearPattern>()) {
-        subTask = new TaskLinearPatternParameters(this, ui->subFeatureWidget);
-    }
-    else if (subFeature->is<PartDesign::PolarPattern>()) {
-        subTask = new TaskPolarPatternParameters(this, ui->subFeatureWidget);
+    else if (subFeature->is<PartDesign::LinearPattern>()
+        || subFeature->is<PartDesign::PolarPattern>()) {
+        subTask = new TaskPatternParameters(this, ui->subFeatureWidget);
     }
     else if (subFeature->is<PartDesign::Scaled>()) {
         subTask = new TaskScaledParameters(this, ui->subFeatureWidget);
