@@ -46,6 +46,7 @@ public:
     App::PropertyLength Width;
     App::PropertyLength Height;
     App::PropertyEnumeration Orientation;
+    App::PropertyEnumeration Language;
 
     App::PropertyMap EditableTexts;
 

@@ -45,6 +45,7 @@ set(TechDrawGui_UIC_SRCS
     DlgTemplateField.ui
     mrichtextedit.ui
     TaskActiveView.ui
+    TaskNewPage.ui
     TaskBalloon.ui
     TaskCosmeticLine.ui
     TaskSelectLineAttributes.ui
@@ -192,6 +193,9 @@ SET(TechDrawGui_SRCS
     TaskActiveView.ui
     TaskActiveView.cpp
     TaskActiveView.h
+    TaskNewPage.ui
+    TaskNewPage.cpp
+    TaskNewPage.h
     Grabber3d.cpp
     Grabber3d.h
     TaskDetail.ui
@@ -433,6 +437,7 @@ SET(TechDrawGuiTaskDlgs_SRCS
     TaskSurfaceFinishSymbols.ui
     SymbolChooser.ui
     TaskActiveView.ui
+    TaskNewPage.ui
     TaskDetail.ui
     TaskCosmeticLine.ui
     TaskSelectLineAttributes.ui
