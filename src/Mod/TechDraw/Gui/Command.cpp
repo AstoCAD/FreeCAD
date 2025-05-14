@@ -1962,8 +1962,35 @@ void CmdTechDrawExportPageDXF::activated(int iMsg)
     commitCommand();
 }
 
-
 bool CmdTechDrawExportPageDXF::isActive() { return DrawGuiUtil::needPage(this); }
+
+//===========================================================================
+// TechDraw_ExportPagePDF
+//===========================================================================
+
+DEF_STD_CMD_A(CmdTechDrawExportPagePDF)
+
+CmdTechDrawExportPagePDF::CmdTechDrawExportPagePDF() : Command("TechDraw_ExportPagePDF")
+{
+    sGroup = QT_TR_NOOP("File");
+    sMenuText = QT_TR_NOOP("Export Page as PDF");
+    sToolTipText = sMenuText;
+    sWhatsThis = "TechDraw_ExportPagePDF";
+    sStatusTip = sToolTipText;
+    sPixmap = "actions/TechDraw_ExportPagePDF";
+}
+
+void CmdTechDrawExportPagePDF::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+
+    auto* mvp = qobject_cast<MDIViewPage*>(Gui::getMainWindow()->activeWindow());
+    if (mvp) {
+        mvp->savePDF();
+    }
+}
+
+bool CmdTechDrawExportPagePDF::isActive() { return DrawGuiUtil::needPage(this); }
 
 //===========================================================================
 // TechDraw_ExportGroup
@@ -2048,6 +2075,7 @@ void CreateTechDrawCommands()
     rcCmdMgr.addCommand(new CmdTechDrawSymbol());
     rcCmdMgr.addCommand(new CmdTechDrawExportPageSVG());
     rcCmdMgr.addCommand(new CmdTechDrawExportPageDXF());
+    rcCmdMgr.addCommand(new CmdTechDrawExportPagePDF());
     rcCmdMgr.addCommand(new CmdTechDrawExportGroup());
     rcCmdMgr.addCommand(new CmdTechDrawDraftView());
     rcCmdMgr.addCommand(new CmdTechDrawArchView());
