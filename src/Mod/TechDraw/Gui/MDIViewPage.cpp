@@ -51,6 +51,7 @@
 #include <Gui/Document.h>
 #include <Gui/FileDialog.h>
 #include <Gui/MainWindow.h>
+#include <Gui/MenuManager.h>
 #include <Gui/Selection/Selection.h>
 #include <Gui/Selection/SelectionObject.h>
 #include <Gui/ViewProvider.h>
@@ -59,6 +60,9 @@
 #include <Mod/TechDraw/App/DrawPage.h>
 #include <Mod/TechDraw/App/DrawPagePy.h>
 #include <Mod/TechDraw/App/DrawTemplate.h>
+#include <Mod/TechDraw/App/DrawViewPart.h>
+#include <Mod/TechDraw/App/DrawViewDimension.h>
+#include <Mod/TechDraw/App/DrawViewBalloon.h>
 #include <Mod/TechDraw/App/Preferences.h>
 
 #include "MDIViewPage.h"
@@ -432,16 +436,69 @@ PyObject* MDIViewPage::getPyObject()
 
 void MDIViewPage::contextMenuEvent(QContextMenuEvent* event)
 {
-    //    Base::Console().message("MDIVP::contextMenuEvent() - reason: %d\n", event->reason());
     if (isContextualMenuEnabled) {
-        QMenu menu;
-        menu.addAction(m_toggleFrameAction);
-        menu.addAction(m_toggleKeepUpdatedAction);
-        menu.addAction(m_exportSVGAction);
-        menu.addAction(m_exportDXFAction);
-        menu.addAction(m_exportPDFAction);
-        menu.addAction(m_printAllAction);
-        menu.exec(event->globalPos());
+        Gui::MenuItem view;
+
+        auto selection = Gui::Selection().getSelectionEx();
+
+        if (selection.empty()) {
+            view << "TechDraw_RedrawPage";
+            view << "TechDraw_FillTemplateFields";
+
+            view << "TechDraw_ExportPageSVG";
+            view << "TechDraw_ExportPageDXF";
+            view << "TechDraw_ExportPagePDF";
+            view << "TechDraw_PrintAll";
+        }
+        else {
+            App::DocumentObject* obj = selection.front().getObject();
+            if (/*selection.size() == 1 &&*/ obj->isDerivedFrom<TechDraw::DrawViewPart>()) {
+
+                std::vector<std::string> subNames = selection.front().getSubNames();
+                if (!subNames.empty()) {
+                    std::vector<std::string> edgeNames;
+                    for (auto& s : subNames) {
+                        std::string geomType = DrawUtil::getGeomTypeFromName(s);
+                        if (geomType == "Edge") {
+                            view << "TechDraw_DecorateLine";
+                            view << "Separator";
+                            break;
+                        }
+                        else if (geomType == "Face") {
+                            view << "TechDraw_Hatch";
+                            view << "TechDraw_GeometricHatch";
+                            view << "Separator";
+                            break;
+                        }
+                    }
+                }
+
+                view << "TechDraw_StackTop";
+                view << "TechDraw_StackUp";
+                view << "TechDraw_StackDown";
+                view << "TechDraw_StackBottom";
+                view << "Separator";
+
+                view << "TechDraw_ExtensionLockUnlockView";
+            }
+            else if (obj->isDerivedFrom<TechDraw::DrawViewDimension>()) {
+                view << "TechDraw_ExtensionIncreaseDecimal";
+                view << "TechDraw_ExtensionDecreaseDecimal";
+                view << "TechDraw_ExtensionInsertPrefixGroup";
+                view << "TechDraw_ExtensionCustomizeFormat";
+                view << "TechDraw_HoleShaftFit";
+                view << "TechDraw_DimensionRepair";
+            }
+        }
+
+        view << "Separator";
+        view << "TechDraw_ToggleFrame";
+
+        auto menu = new QMenu(this);
+        Gui::MenuManager::getInstance()->setupContextMenu(&view, *menu);
+        menu->addAction(m_toggleKeepUpdatedAction);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        menu->popup(QCursor::pos());
     }
 }
 
