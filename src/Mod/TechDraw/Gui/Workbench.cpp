@@ -292,7 +292,6 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     Gui::ToolBarItem* pages = new Gui::ToolBarItem(root);
     pages->setCommand("TechDraw Pages");
     *pages << "TechDraw_NewGroup";
-    *pages << "TechDraw_FillTemplateFields";
     *pages << "TechDraw_RedrawPage";
     *pages << "TechDraw_ExportGroup";
 
@@ -305,10 +304,6 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     *views << "TechDraw_DetailView";
     *views << "TechDraw_DraftView";
     *views << "TechDraw_ClipGroup";
-
-    Gui::ToolBarItem* stacking = new Gui::ToolBarItem(root);
-    stacking->setCommand("TechDraw Stacking");
-    *stacking << "TechDraw_StackGroup";
 
     Gui::ToolBarItem* dims = new Gui::ToolBarItem(root);
     dims->setCommand("TechDraw Dimensions");
@@ -340,19 +335,17 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     // *dims << "TechDraw_LinkDimension";
     *dims << "TechDraw_Balloon";
     *dims << "TechDraw_AxoLengthDimension";
-    *dims << "TechDraw_DimensionRepair";
+    *dims << "TechDraw_LandmarkDimension";
 
     Gui::ToolBarItem* extattribs = new Gui::ToolBarItem(root);
     extattribs->setCommand("TechDraw Attributes");
     *extattribs << "TechDraw_ExtensionSelectLineAttributes";
     *extattribs << "TechDraw_ExtensionChangeLineAttributes";
     *extattribs << "TechDraw_ExtensionExtendShortenLineGroup";
-    *extattribs << "TechDraw_ExtensionLockUnlockView";
     if (separatedTools) {
         *extattribs << "TechDraw_ExtensionAreaAnnotation";
         *extattribs << "TechDraw_ExtensionArcLengthAnnotation";
     }
-    *extattribs << "TechDraw_ExtensionCustomizeFormat";
 
     Gui::ToolBarItem* extcenter = new Gui::ToolBarItem(root);
     extcenter->setCommand("TechDraw Centerlines");
@@ -363,16 +356,14 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     *extcenter << "TechDraw_ExtensionDrawCirclesGroup";
     *extcenter << "TechDraw_ExtensionLinePPGroup";
 
-    Gui::ToolBarItem* extdimensions = new Gui::ToolBarItem(root);
-    extdimensions->setCommand("TechDraw Extend Dimensions");
     if (separatedTools) {
+        Gui::ToolBarItem* extdimensions = new Gui::ToolBarItem(root);
+        extdimensions->setCommand("TechDraw Extend Dimensions");
         *extdimensions << "TechDraw_ExtensionCreateChainDimensionGroup";
         *extdimensions << "TechDraw_ExtensionCreateCoordDimensionGroup";
         *extdimensions << "TechDraw_ExtensionChamferDimensionGroup";
         *extdimensions << "TechDraw_ExtensionCreateLengthArc";
     }
-    *extdimensions << "TechDraw_ExtensionInsertPrefixGroup";
-    *extdimensions << "TechDraw_ExtensionIncreaseDecreaseGroup";
 
     Gui::ToolBarItem* decor = new Gui::ToolBarItem(root);
     decor->setCommand("TechDraw Decoration");
@@ -387,11 +378,10 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     *anno << "TechDraw_CosmeticVertexGroup";
     *anno << "TechDraw_CenterLineGroup";
     *anno << "TechDraw_2PointCosmeticLine";
-    *anno << "TechDraw_DecorateLine";
+    *anno << "TechDraw_CosmeticCircle";
     *anno << "TechDraw_ShowAll";
     *anno << "TechDraw_WeldSymbol";
     *anno << "TechDraw_SurfaceFinishSymbols";
-    *anno << "TechDraw_HoleShaftFit";
     return root;
 }
 
