@@ -465,8 +465,7 @@ void MDIViewPage::contextMenuEvent(QContextMenuEvent* event)
                             break;
                         }
                         else if (geomType == "Face") {
-                            view << "TechDraw_Hatch";
-                            view << "TechDraw_GeometricHatch";
+                            view << "TechDraw_HatchFace";
                             view << "Separator";
                             break;
                         }
