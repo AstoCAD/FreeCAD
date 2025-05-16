@@ -29,6 +29,7 @@
 #include <Gui/PropertyPage.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
+class QComboBox;
 
 namespace TechDrawGui {
 class Ui_DlgPrefsTechDrawGeneralImp;
