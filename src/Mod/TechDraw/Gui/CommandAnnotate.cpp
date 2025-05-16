@@ -155,7 +155,7 @@ CmdTechDrawRichTextAnnotation::CmdTechDrawRichTextAnnotation()
     sToolTipText    = sMenuText;
     sWhatsThis      = "TechDraw_RichTextAnnotation";
     sStatusTip      = sToolTipText;
-    sPixmap         = "actions/TechDraw_RichTextAnnotation";
+    sPixmap         = "actions/TechDraw_Annotation";
 }
 
 void CmdTechDrawRichTextAnnotation::activated(int iMsg)
