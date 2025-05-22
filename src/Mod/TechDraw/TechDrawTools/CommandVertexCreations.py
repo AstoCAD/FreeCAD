@@ -38,6 +38,23 @@ import TechDrawTools.TDToolsUtil as Utils
 
 import TechDraw
 
+class CommandVertexGroup:
+    def GetCommands(self):
+        return ("TechDraw_CosmeticVertex", "TechDraw_Midpoints", "TechDraw_Quadrants", "TechDraw_ExtensionVertexAtIntersection", "TechDraw_CommandAddOffsetVertex")
+
+    def GetResources(self):
+        return {
+            "MenuText": QT_TRANSLATE_NOOP("TechDraw_VertexGroup", "Insert Cosmetic Vertex"),
+            "ToolTip": QT_TRANSLATE_NOOP("TechDraw_VertexGroup", "Insert Cosmetic Vertex"),
+        }
+
+    def IsActive(self):
+        if App.ActiveDocument:
+            return Utils.havePage() and Utils.haveView()
+        else:
+            return False
+
+
 class CommandVertexCreationGroup:
     '''Create a drop down toolbar/menubar for vertex creating tools'''
     def Activated(self, index):
@@ -103,3 +120,4 @@ class CommandAddOffsetVertex:
 
 Gui.addCommand('TechDraw_CommandVertexCreationGroup',CommandVertexCreationGroup())
 Gui.addCommand('TechDraw_CommandAddOffsetVertex',CommandAddOffsetVertex())
+Gui.addCommand('TechDraw_VertexGroup', CommandVertexGroup())
