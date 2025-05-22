@@ -1093,6 +1093,79 @@ bool CmdTechDrawExtensionDrawCosmCircle3Points::isActive()
 }
 
 //===========================================================================
+// TechDraw_CirclesGroup
+//===========================================================================
+class CmdTechDrawCircleGroup: public Gui::GroupCommand
+{
+public:
+    CmdTechDrawCircleGroup()
+        : GroupCommand("TechDraw_CirclesGroup")
+    {
+        sAppModule = "TechDraw";
+        sGroup = QT_TR_NOOP("TechDraw");
+        sMenuText = QT_TR_NOOP("Add Cosmetic Circle");
+        sToolTipText = sMenuText;
+        sWhatsThis = "TechDraw_CirclesGroup";
+        sStatusTip = sToolTipText;
+
+        setCheckable(false);
+
+        addCommand("TechDraw_CosmeticCircle");
+        addCommand("TechDraw_ExtensionDrawCosmCircle");
+        addCommand("TechDraw_ExtensionDrawCosmArc");
+        addCommand("TechDraw_ExtensionDrawCosmCircle3Points");
+    }
+
+    const char* className() const override
+    {
+        return "CmdTechDrawCircleGroup";
+    }
+
+    bool isActive() override
+    {
+        bool havePage = DrawGuiUtil::needPage(this);
+        bool haveView = DrawGuiUtil::needView(this, true);
+        return (havePage && haveView);
+    }
+};
+
+//===========================================================================
+// TechDraw_LinesGroup
+//===========================================================================
+class CmdTechDrawLinesGroup: public Gui::GroupCommand
+{
+public:
+    CmdTechDrawLinesGroup()
+        : GroupCommand("TechDraw_LinesGroup")
+    {
+        sAppModule = "TechDraw";
+        sGroup = QT_TR_NOOP("TechDraw");
+        sMenuText = QT_TR_NOOP("Add Cosmetic Line Through 2 Points");
+        sToolTipText = sMenuText;
+        sWhatsThis = "TechDraw_LinesGroup";
+        sStatusTip = sToolTipText;
+
+        setCheckable(false);
+
+        addCommand("TechDraw_2PointCosmeticLine");
+        addCommand("TechDraw_ExtensionLineParallel");
+        addCommand("TechDraw_ExtensionLinePerpendicular");
+    }
+
+    const char* className() const override
+    {
+        return "CmdTechDrawLinesGroup";
+    }
+
+    bool isActive() override
+    {
+        bool havePage = DrawGuiUtil::needPage(this);
+        bool haveView = DrawGuiUtil::needView(this, true);
+        return (havePage && haveView);
+    }
+};
+
+//===========================================================================
 // TechDraw_ExtensionDrawCirclesGroup
 //===========================================================================
 
@@ -2255,4 +2328,6 @@ void CreateTechDrawCommandsExtensions()
     rcCmdMgr.addCommand(new CmdTechDrawExtensionThreadBoltBottom());
     rcCmdMgr.addCommand(new CmdTechDrawExtensionAreaAnnotation());
     rcCmdMgr.addCommand(new CmdTechDrawExtensionArcLengthAnnotation());
+    rcCmdMgr.addCommand(new CmdTechDrawCircleGroup());
+    rcCmdMgr.addCommand(new CmdTechDrawLinesGroup());
 }

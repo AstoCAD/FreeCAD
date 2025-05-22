@@ -306,7 +306,6 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     *views << "TechDraw_ActiveView";
     *views << "TechDraw_SectionGroup";
     *views << "TechDraw_DetailView";
-    *views << "TechDraw_DraftView";
     *views << "TechDraw_ClipGroup";
 
     Gui::ToolBarItem* dims = new Gui::ToolBarItem(root);
@@ -341,24 +340,34 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     *dims << "TechDraw_AxoLengthDimension";
     *dims << "TechDraw_LandmarkDimension";
 
-    Gui::ToolBarItem* extattribs = new Gui::ToolBarItem(root);
-    extattribs->setCommand("TechDraw Attributes");
-    *extattribs << "TechDraw_ExtensionSelectLineAttributes";
-    *extattribs << "TechDraw_ExtensionChangeLineAttributes";
-    *extattribs << "TechDraw_ExtensionExtendShortenLineGroup";
-    if (separatedTools) {
-        *extattribs << "TechDraw_ExtensionAreaAnnotation";
-        *extattribs << "TechDraw_ExtensionArcLengthAnnotation";
-    }
+    Gui::ToolBarItem* anno = new Gui::ToolBarItem(root);
+    anno->setCommand("TechDraw Annotation");
+    *anno << "TechDraw_HatchFace";
+    *anno << "TechDraw_LeaderLine";
+    *anno << "TechDraw_RichTextAnnotation";
+    *anno << "TechDraw_VertexGroup";
+    *anno << "TechDraw_LinesGroup";
+    *anno << "TechDraw_CirclesGroup";
+    *anno << "TechDraw_WeldSymbol";
+    *anno << "TechDraw_SurfaceFinishSymbols";
 
     Gui::ToolBarItem* extcenter = new Gui::ToolBarItem(root);
     extcenter->setCommand("TechDraw Centerlines");
     *extcenter << "TechDraw_ExtensionCircleCenterLinesGroup";
     *extcenter << "TechDraw_ExtensionThreadsGroup";
-    *extcenter << "TechDraw_CommandVertexCreationGroup";
+    *extcenter << "TechDraw_CenterLineGroup";
     //*extcenter << "TechDraw_ExtensionVertexAtIntersection";
-    *extcenter << "TechDraw_ExtensionDrawCirclesGroup";
-    *extcenter << "TechDraw_ExtensionLinePPGroup";
+
+    Gui::ToolBarItem* extattribs = new Gui::ToolBarItem(root);
+    extattribs->setCommand("TechDraw Attributes");
+    *extattribs << "TechDraw_ExtensionSelectLineAttributes";
+    *extattribs << "TechDraw_ExtensionChangeLineAttributes";
+    *extattribs << "TechDraw_ExtensionExtendShortenLineGroup";
+    *extattribs << "TechDraw_ShowAll";
+    if (separatedTools) {
+        *extattribs << "TechDraw_ExtensionAreaAnnotation";
+        *extattribs << "TechDraw_ExtensionArcLengthAnnotation";
+    }
 
     if (separatedTools) {
         Gui::ToolBarItem* extdimensions = new Gui::ToolBarItem(root);
@@ -369,21 +378,6 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
         *extdimensions << "TechDraw_ExtensionCreateLengthArc";
     }
 
-    Gui::ToolBarItem* decor = new Gui::ToolBarItem(root);
-    decor->setCommand("TechDraw Decoration");
-    *decor << "TechDraw_HatchFace";
-
-    Gui::ToolBarItem* anno = new Gui::ToolBarItem(root);
-    anno->setCommand("TechDraw Annotation");
-    *anno << "TechDraw_RichTextAnnotation";
-    *anno << "TechDraw_LeaderLine";
-    *anno << "TechDraw_CosmeticVertexGroup";
-    *anno << "TechDraw_CenterLineGroup";
-    *anno << "TechDraw_2PointCosmeticLine";
-    *anno << "TechDraw_CosmeticCircle";
-    *anno << "TechDraw_ShowAll";
-    *anno << "TechDraw_WeldSymbol";
-    *anno << "TechDraw_SurfaceFinishSymbols";
     return root;
 }
 
