@@ -452,22 +452,25 @@ void MDIViewPage::contextMenuEvent(QContextMenuEvent* event)
         }
         else {
             App::DocumentObject* obj = selection.front().getObject();
-            if (/*selection.size() == 1 &&*/ obj->isDerivedFrom<TechDraw::DrawViewPart>()) {
+            if (/*selection.size() == 1 &&*/ obj->isDerivedFrom<TechDraw::DrawView>()
+                && !obj->isDerivedFrom<TechDraw::DrawViewDimension>()) {
 
-                std::vector<std::string> subNames = selection.front().getSubNames();
-                if (!subNames.empty()) {
-                    std::vector<std::string> edgeNames;
-                    for (auto& s : subNames) {
-                        std::string geomType = DrawUtil::getGeomTypeFromName(s);
-                        if (geomType == "Edge") {
-                            view << "TechDraw_DecorateLine";
-                            view << "Separator";
-                            break;
-                        }
-                        else if (geomType == "Face") {
-                            view << "TechDraw_HatchFace";
-                            view << "Separator";
-                            break;
+                if (/*selection.size() == 1 &&*/ obj->isDerivedFrom<TechDraw::DrawViewPart>()) {
+                    std::vector<std::string> subNames = selection.front().getSubNames();
+                    if (!subNames.empty()) {
+                        std::vector<std::string> edgeNames;
+                        for (auto& s : subNames) {
+                            std::string geomType = DrawUtil::getGeomTypeFromName(s);
+                            if (geomType == "Edge") {
+                                view << "TechDraw_DecorateLine";
+                                view << "Separator";
+                                break;
+                            }
+                            else if (geomType == "Face") {
+                                view << "TechDraw_HatchFace";
+                                view << "Separator";
+                                break;
+                            }
                         }
                     }
                 }
