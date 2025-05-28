@@ -25,6 +25,7 @@
 #include <Mod/TechDraw/App/DrawViewSpreadsheet.h>
 
 #include "QGIViewSpreadsheet.h"
+#include "ViewProviderSpreadsheet.h"
 
 
 using namespace TechDrawGui;
@@ -45,3 +46,11 @@ void QGIViewSpreadsheet::setViewFeature(TechDraw::DrawViewSpreadsheet *obj)
     QGIView::setViewFeature(static_cast<TechDraw::DrawView *>(obj));
 }
 
+void QGIViewSpreadsheet::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event)
+{
+    Q_UNUSED(event);
+    auto vp = static_cast<ViewProviderSpreadsheet*>(getViewProvider(getViewObject()));
+    if (vp) {
+        vp->doubleClicked();
+    }
+}

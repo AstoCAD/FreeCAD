@@ -306,6 +306,7 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     *views << "TechDraw_ActiveView";
     *views << "TechDraw_SectionGroup";
     *views << "TechDraw_DetailView";
+    *views << "TechDraw_SpreadsheetView";
     *views << "TechDraw_ClipGroup";
 
     Gui::ToolBarItem* dims = new Gui::ToolBarItem(root);

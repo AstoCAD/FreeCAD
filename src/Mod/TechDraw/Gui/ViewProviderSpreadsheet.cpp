@@ -23,6 +23,8 @@
 #include "PreCompiled.h"
 
 #include <App/DocumentObject.h>
+#include <Gui/Control.h>
+#include "TaskSpreadsheetView.h"
 #include "ViewProviderSpreadsheet.h"
 
 using namespace TechDrawGui;
@@ -61,4 +63,24 @@ std::vector<App::DocumentObject*> ViewProviderSpreadsheet::claimChildren() const
     }
 
     return temp;
+}
+
+bool ViewProviderSpreadsheet::setEdit(int ModNum)
+{
+    if (ModNum != Gui::ViewProvider::Default) {
+        return Gui::ViewProviderDocumentObject::setEdit(ModNum);
+    }
+    if (Gui::Control().activeDialog()) {
+        return false;  // TaskPanel already open!
+    }
+
+    Gui::Control().showDialog(
+        new TaskDlgSpreadsheetView(getViewObject()->findParentPage(), getViewObject()));
+    return true;
+}
+
+bool ViewProviderSpreadsheet::doubleClicked()
+{
+    setEdit(ViewProvider::Default);
+    return true;
 }
