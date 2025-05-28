@@ -46,6 +46,9 @@ public:
     App::PropertyBool ClaimSheetAsChild;
     std::vector<App::DocumentObject*> claimChildren(void) const override;
 
+    bool doubleClicked() override;
+    bool setEdit(int ModNum) override;
+
     bool useNewSelectionModel() const override {return false;}
 
     TechDraw::DrawViewSpreadsheet* getViewObject() const override;
