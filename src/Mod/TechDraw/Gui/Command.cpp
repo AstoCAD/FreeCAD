@@ -76,6 +76,7 @@
 #include "TaskProjGroup.h"
 #include "TaskProjection.h"
 #include "TaskSectionView.h"
+#include "TaskSpreadsheetView.h"
 #include "ViewProviderPage.h"
 #include "ViewProviderDrawingView.h"
 #include "CommandHelpers.h"
@@ -1815,49 +1816,25 @@ void CmdTechDrawSpreadsheetView::activated(int iMsg)
 
     const std::vector<App::DocumentObject*> spreads =
         getSelection().getObjectsOfType(Spreadsheet::Sheet::getClassTypeId());
-    if (spreads.size() != 1) {
-        QMessageBox::warning(Gui::getMainWindow(), QObject::tr("Wrong selection"),
-                             QObject::tr("Select exactly one spreadsheet object"));
-        return;
-    }
-    std::string SpreadName = spreads.front()->getNameInDocument();
+    Spreadsheet::Sheet* presel = spreads.empty()
+        ? nullptr
+        : static_cast<Spreadsheet::Sheet*>(spreads.front());
 
-    openCommand(QT_TRANSLATE_NOOP("Command", "Create spreadsheet view"));
-    std::string FeatName = getUniqueObjectName("Sheet");
-    doCommand(Doc, "App.activeDocument().addObject('TechDraw::DrawViewSpreadsheet', '%s')",
-              FeatName.c_str());
-    doCommand(Doc, "App.activeDocument().%s.translateLabel('DrawViewSpreadsheet', 'Sheet', '%s')",
-              FeatName.c_str(), FeatName.c_str());
-    doCommand(Doc, "App.activeDocument().%s.Source = App.activeDocument().%s", FeatName.c_str(),
-              SpreadName.c_str());
+    Gui::Control().showDialog(new TaskDlgSpreadsheetView(page, nullptr, presel));
 
-    // look for an owner view in the selection
+
+    /*/ look for an owner view in the selection
     auto baseView = CommandHelpers::firstViewInSelection(this);
     if (baseView) {
         auto baseName = baseView->getNameInDocument();
         doCommand(Doc, "App.activeDocument().%s.Owner = App.activeDocument().%s",
                   FeatName.c_str(), baseName);
-    }
-
-    doCommand(Doc, "App.activeDocument().%s.addView(App.activeDocument().%s)", PageName.c_str(),
-              FeatName.c_str());
-    updateActive();
-    commitCommand();
+    }*/
 }
 
 bool CmdTechDrawSpreadsheetView::isActive()
 {
-    //need a Page and a SpreadSheet::Sheet
-    bool havePage = DrawGuiUtil::needPage(this);
-    bool haveSheet = false;
-    if (havePage) {
-        auto spreadSheetType(Spreadsheet::Sheet::getClassTypeId());
-        auto selSheets = getDocument()->getObjectsOfType(spreadSheetType);
-        if (!selSheets.empty()) {
-            haveSheet = true;
-        }
-    }
-    return (havePage && haveSheet);
+    return DrawGuiUtil::needPage(this);
 }
 
 
