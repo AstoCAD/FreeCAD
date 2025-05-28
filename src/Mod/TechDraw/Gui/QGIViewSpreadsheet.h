@@ -46,6 +46,9 @@ public:
 
     void setViewFeature(TechDraw::DrawViewSpreadsheet *obj);
 
+protected:
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
+
 };
 
 } // end namespace TechDrawGui
