@@ -591,7 +591,6 @@ void CmdTechDrawView::activated(int iMsg)
 
     getDocument()->setStatus(App::Document::Status::SkipRecompute, false);
     doCommand(Doc, "App.activeDocument().%s.recompute()", FeatName.c_str());
-    commitCommand();
 
     // create the rest of the desired views
     Gui::Control().showDialog(new TaskDlgProjGroup(dvp, true));
@@ -1229,7 +1228,6 @@ void CmdTechDrawProjectionGroup::activated(int iMsg)
     getDocument()->setStatus(App::Document::Status::SkipRecompute, false);
 
     doCommand(Doc, "App.activeDocument().%s.Anchor.recompute()", multiViewName.c_str());
-    commitCommand();
     updateActive();
 
     // create the rest of the desired views

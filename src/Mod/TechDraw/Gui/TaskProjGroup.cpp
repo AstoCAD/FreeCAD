@@ -813,6 +813,8 @@ bool TaskProjGroup::accept()
 
     Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
 
+    Gui::Command::commitCommand();
+
     return true;
 }
 
@@ -829,24 +831,11 @@ bool TaskProjGroup::reject()
         return false;
     }
 
-    if (getCreateMode()) {
-        //remove the object completely from the document
-        const char* viewName = view->getNameInDocument();
-        const char* PageName = view->findParentPage()->getNameInDocument();
+    Gui::Command::abortCommand();
 
+    if (!getCreateMode()) {
         if (multiView) {
-            Gui::Command::doCommand(Gui::Command::Gui, "App.activeDocument().%s.purgeProjections()",
-                viewName);
-            Gui::Command::doCommand(Gui::Command::Gui, "App.activeDocument().%s.removeView(App.activeDocument().%s)",
-                PageName, viewName);
-        }
-        Gui::Command::doCommand(Gui::Command::Gui, "App.activeDocument().removeObject('%s')", viewName);
-        Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
-    }
-    else {
-        //set the DPG and its views back to entry state.
-        if (Gui::Command::hasPendingCommand()) {
-            Gui::Command::abortCommand();
+            multiView->autoPositionChildren();
         }
         // Restore views to initial spacing
         if (multiView) {
