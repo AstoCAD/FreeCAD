@@ -113,6 +113,7 @@ void SketcherSettings::saveSettings()
     ui->checkBoxHorVerAuto->onSave();
     ui->checkBoxLineGroup->onSave();
     ui->checkBoxAddExtGeo->onSave();
+    ui->checkBoxMakeInternals->onSave();
 
     enum
     {
@@ -192,8 +193,7 @@ void SketcherSettings::loadSettings()
     ui->checkBoxLineGroup->onRestore();
     setProperty("checkBoxLineGroup", ui->checkBoxLineGroup->isChecked());
     ui->checkBoxAddExtGeo->onRestore();
-    setProperty("checkBoxLineGroup", ui->checkBoxLineGroup->isChecked());
-    ui->checkBoxAddExtGeo->onRestore();
+    ui->checkBoxMakeInternals->onRestore();
 
     // Dimensioning constraints mode
     ui->dimensioningMode->clear();
@@ -599,6 +599,8 @@ void SketcherSettingsAppearance::saveSettings()
     ui->ExternalWidth->onSave();
     ui->ExternalDefiningWidth->onSave();
 
+    ui->InternalFaceColor->onSave();
+
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/Sketcher/View");
     QVariant data = ui->EdgePattern->itemData(ui->EdgePattern->currentIndex());
@@ -653,6 +655,9 @@ void SketcherSettingsAppearance::loadSettings()
     ui->InternalWidth->onRestore();
     ui->ExternalWidth->onRestore();
     ui->ExternalDefiningWidth->onRestore();
+
+    ui->InternalFaceColor->setAllowTransparency(true);
+    ui->InternalFaceColor->onRestore();
 
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/Sketcher/View");
