@@ -64,6 +64,7 @@ using DSHBSplineController =
                                       /*WidgetParametersT =*/WidgetParameters<1, 1>,  // NOLINT
                                       /*WidgetCheckboxesT =*/WidgetCheckboxes<1, 1>,  // NOLINT
                                       /*WidgetComboboxesT =*/WidgetComboboxes<1, 1>,  // NOLINT
+                                      /*WidgetLineEditsT =*/WidgetLineEdits<0, 0>,
                                       ConstructionMethods::BSplineConstructionMethod,
                                       /*bool PFirstComboboxIsConstructionMethod =*/true>;
 

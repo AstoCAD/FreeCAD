@@ -40,6 +40,7 @@
 #include <Mod/Sketcher/App/GeoList.h>
 #include <Mod/Sketcher/App/GeometryFacade.h>
 #include <Mod/Sketcher/App/SolverGeometryExtension.h>
+#include <Mod/Sketcher/App/SketchObject.h>
 
 #include "EditModeGeometryCoinConverter.h"
 #include "EditModeGeometryCoinManager.h"
@@ -410,9 +411,19 @@ void EditModeGeometryCoinManager::updateGeometryColor(const GeoListFacade& geoli
                 // edit->CurveSet->numVertices => [i] indicates number of vertex for line i.
                 int indexes = (editModeScenegraphNodes.CurveSet[l][t]->numVertices[i]);
 
+                bool preselected = (preselectcurve == GeoId);
+
+                auto* obj = viewProvider.getSketchObject();
+                bool isGroupMember = GeoId >= 0 && obj->isInGroup(GeoId, false);
+                if (isGroupMember) {
+                    // We use the same color as group handle.
+                    GeoId = obj->getGroupHandleIfInGroup(GeoId);
+                }
+
                 bool selected =
                     ViewProviderSketchCoinAttorney::isCurveSelected(viewProvider, GeoId);
-                bool preselected = (preselectcurve == GeoId);
+                // if a grouped edge is preselected we still want it to be shown
+                preselected = preselected ? true : (preselectcurve == GeoId);
                 bool constrainedElement = isFullyConstraintElement(GeoId);
                 bool isExternal = GeoId < -1;
 

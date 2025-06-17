@@ -54,6 +54,7 @@ Constraint::Constraint()
     , InternalAlignmentIndex(-1)
     , isInVirtualSpace(false)
     , isActive(true)
+    , isTextHeight(true)
     , elements(3)
 {
     // Initialize a random number generator, to avoid Valgrind false positives.
@@ -143,8 +144,12 @@ unsigned int Constraint::getMemSize() const
 void Constraint::Save(Writer& writer) const
 {
     std::string encodeName = encodeAttribute(Name);
+    std::string encodeText = encodeAttribute(Text);
+    std::string encodeFont = encodeAttribute(Font);
     writer.Stream() << writer.ind() << "<Constrain "
                     << "Name=\"" << encodeName << "\" "
+                    << "Text=\"" << encodeText << "\" "
+                    << "Font=\"" << encodeFont << "\" "
                     << "Type=\"" << (int)Type << "\" ";
     if (this->Type == InternalAlignment) {
         writer.Stream() << "InternalAlignmentType=\"" << (int)AlignmentType << "\" "
@@ -179,6 +184,8 @@ void Constraint::Restore(XMLReader& reader)
 {
     reader.readElement("Constrain");
     Name = reader.getAttribute<const char*>("Name");
+    Text = reader.hasAttribute("Text") ? reader.getAttribute<const char*>("Text") : "";
+    Font = reader.hasAttribute("Font") ? reader.getAttribute<const char*>("Font") : "";
     Type = reader.getAttribute<ConstraintType>("Type");
     Value = reader.getAttribute<double>("Value");
 
@@ -320,6 +327,23 @@ int Constraint::getPosIdAsInt(int index) const
 bool Constraint::hasElement(int index) const
 {
     return index >= 0 && index < elements.size();
+}
+
+bool Constraint::isElementsEmpty() const
+{
+    return elements.empty();
+}
+
+void Constraint::truncateElements(size_t newSize)
+{
+    if (newSize < elements.size()) {
+        elements.resize(newSize);
+    }
+}
+
+void Constraint::pushBackElement(GeoElementId elt)
+{
+    elements.push_back(elt);
 }
 
 void Constraint::setElement(int index, GeoElementId elt)

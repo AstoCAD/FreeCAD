@@ -63,6 +63,8 @@ enum ConstraintType : int
     Block = 17,
     Diameter = 18,
     Weight = 19,
+    Group = 20,
+    Text = 21,
     NumConstraintTypes  // must be the last item!
 };
 
@@ -171,7 +173,10 @@ public:
     int getGeoId(int index) const;
     PointPos getPosId(int index) const;
     int getPosIdAsInt(int index) const;
+    bool isElementsEmpty() const;
+    void truncateElements(size_t newSize);
     bool hasElement(int index) const;
+    void pushBackElement(GeoElementId elt);
     void setElement(int index, GeoElementId elt);
     void setGeoId(int index, int geoId);
     void setPosId(int index, PointPos pos);
@@ -206,7 +211,9 @@ private:
          "SnellsLaw",
          "Block",
          "Diameter",
-         "Weight"}};
+         "Weight",
+         "Group",
+         "Text"}};
     // clang-format on
 
     constexpr static std::array<const char*, InternalAlignmentType::NumInternalAlignmentType>
@@ -227,6 +234,8 @@ public:
     ConstraintType Type;
     InternalAlignmentType AlignmentType;
     std::string Name;
+    std::string Text;
+    std::string Font;
     float LabelDistance;
     float LabelPosition;
     bool isDriving;
@@ -236,6 +245,7 @@ public:
     bool isInVirtualSpace;
 
     bool isActive;
+    bool isTextHeight;
 
 protected:
     boost::uuids::uuid tag;

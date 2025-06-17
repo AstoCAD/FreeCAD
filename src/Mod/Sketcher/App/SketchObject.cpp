@@ -889,6 +889,114 @@ double SketchObject::getDatum(int ConstrId) const
     return this->Constraints[ConstrId]->getValue();
 }
 
+int SketchObject::setTextAndFont(int ConstrId, std::string& newText, std::string& newFont)
+{
+;    // no need to check input data validity as this is an sketchobject managed operation.
+    Base::StateLocker lock(managedoperation, true);
+    
+    // set the changed value for the constraint
+    if (this->Constraints.hasInvalidGeometry()) {
+        return -6;
+    }
+    const std::vector<Constraint*>& vals = this->Constraints.getValues();
+    if (ConstrId < 0 || ConstrId >= int(vals.size())) {
+        return -1;
+    }
+    ConstraintType type = vals[ConstrId]->Type;
+    
+    if (type != Text) {
+        return -1;
+    }
+    
+    // First we replace the old geometries by the new text.
+    auto* constr = vals[ConstrId];
+    if (!constr->hasElement(1)) {
+        return -1;
+    }
+
+    int handleGeoId = constr->getGeoId(0);
+    int firstTextGeoId = constr->getGeoId(1);
+    bool handleLast = handleGeoId > firstTextGeoId;
+    
+    // Check if text is construction or normal geos
+    auto* geo1 = getGeometry(firstTextGeoId);
+    bool isConstruction = GeometryFacade::getConstruction(geo1);
+    
+    // Delete all the old text geos. Not the handle!
+    std::vector<int> geoIdsToDelete;
+    for (int i = 1; constr->hasElement(i); ++i) {
+        geoIdsToDelete.push_back(constr->getGeoId(i));
+        if (handleLast) {
+            --handleGeoId; // handle line is added after all text geos.
+        }
+    }
+    
+    // Clear the old geometry references from the constraint, keeping only the handle.
+    constr->truncateElements(1);
+
+    delGeometries(geoIdsToDelete);
+    
+    auto* line = dynamic_cast<const Part::GeomLineSegment*>(getGeometry(handleGeoId));
+    if (!line) {
+        return -1;
+    }
+    
+    // delGeometries invalidate constr pointer. Luckily the ConstrId is still ok because 
+    // any constraint the user might have added to the text geometries, would be after the text cstr
+    constr = this->Constraints.getValues()[ConstrId];
+    // Generate text geos based on new text/font : 
+    std::vector<std::unique_ptr<Part::Geometry>> newGeos;
+    std::vector<TopoDS_Shape> shapes = Part::makeTextWires(newText, newFont);
+    Part::transformAndConvertToGeometry(newGeos,
+                                    shapes,
+                                    line->getStartPoint(),
+                                    line->getEndPoint(),
+                                    constr->isTextHeight);
+    if (isConstruction) {
+        for (size_t i = 0; i < newGeos.size(); ++i) {
+            Sketcher::GeometryFacade::setConstruction(newGeos[i].get(), isConstruction);
+        }
+    }
+    
+    // Add the geometries to sketch
+    int lastGeoid = getHighestCurveIndex();
+    std::vector<Part::Geometry*> newGeosRawPtrs;
+    newGeosRawPtrs.reserve(newGeos.size());
+    
+    // Populate the raw pointer vector and release ownership from the unique_ptrs.
+    for (auto& geo_ptr : newGeos) {
+        if (isConstruction) {
+            Sketcher::GeometryFacade::setConstruction(geo_ptr.get(), isConstruction);
+        }
+        // Add the raw pointer to the new vector.
+        newGeosRawPtrs.push_back(geo_ptr.get());
+        // Release ownership from the unique_ptr. The SketchObject will now manage this memory.
+        geo_ptr.release(); 
+    }
+    newGeos.clear(); 
+    addGeometry(newGeosRawPtrs);
+    
+    std::string oldText = constr->Text;
+    std::string oldFont = constr->Font;
+    constr->Text = newText;
+    constr->Font = newFont;
+
+    int newLastGeoid = getHighestCurveIndex();
+    // add from lastGeoid + 1  to the newLastGeoid to the text constraint
+    for (int i = lastGeoid + 1; i <= newLastGeoid; ++i) {
+        constr->pushBackElement(GeoElementId(i));
+    }
+    
+    int err = solve();
+
+    if (err) {
+        constr->Text = oldText;
+        constr->Font = oldFont;
+    }
+
+    return err;
+}
+
 int SketchObject::setDriving(int ConstrId, bool isdriving)
 {
     // no need to check input data validity as this is an sketchobject managed operation.
@@ -9513,6 +9621,8 @@ bool SketchObject::evaluateConstraint(const Constraint* constraint) const
         case Angle:
             break;
         case Tangent:
+        case Group:
+        case Text:
             requireSecond = true;
             break;
         case Symmetric:
@@ -9651,6 +9761,59 @@ std::string SketchObject::validateExpression(const App::ObjectIdentifier& path,
         updateGeoHistory();
     }
     return "";
+}
+
+bool SketchObject::isInGroup(int geoId, bool includeHandle) const
+{
+    const std::vector<Sketcher::Constraint*>& vals = Constraints.getValues();
+
+    for (const auto& constr : vals) {
+        if (constr->Type == Group || constr->Type == Text) {
+            // First is the group construction line. We include it or not in our search.
+            int iStart = includeHandle ? 0 : 1;
+            for (int i = iStart; constr->hasElement(i); ++i) {
+                if (constr->getGeoId(i) == geoId) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool SketchObject::isGroupHandle(int geoId) const
+{
+    const std::vector<Sketcher::Constraint*>& vals = Constraints.getValues();
+
+    for (const auto& constr : vals) {
+        if (constr->Type == Group || constr->Type == Text) {
+            if (constr->getGeoId(0) == geoId) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+int SketchObject::getGroupHandleIfInGroup(int geoId)
+{
+    const std::vector<Sketcher::Constraint*>& vals = Constraints.getValues();
+
+    for (const auto& constr : vals) {
+        if (constr->Type == Group || constr->Type == Text) {
+            // First is the group construction line.
+            int groupHandleGeoId = -1;
+            for (int i = 0; constr->hasElement(i); ++i) {
+                if (i == 0) {
+                    groupHandleGeoId = constr->getGeoId(i);
+                }
+                else if (constr->getGeoId(i) == geoId) {
+                    return groupHandleGeoId;
+                }
+            }
+        }
+    }
+    return geoId;
 }
 
 // This function is necessary for precalculation of an angle when adding

@@ -66,6 +66,7 @@
 
 #include "DrawSketchHandler.h"
 #include "EditDatumDialog.h"
+#include "EditTextDialog.h"
 #include "EditModeCoinManager.h"
 #include "SnapManager.h"
 #include "TaskDlgEditSketch.h"
@@ -1279,6 +1280,12 @@ void ViewProviderSketch::editDoubleClicked()
                 EditDatumDialog editDatumDialog(this, id);
                 editDatumDialog.exec();
             }
+            else if (Constr->Type == Sketcher::Text) {
+                Gui::Command::openCommand(
+                    QT_TRANSLATE_NOOP("Command", "Modify Text constraint"));
+                EditTextDialog editTextDialog(this, id);
+                editTextDialog.exec();
+            }
         }
     }
 }
@@ -1537,15 +1544,26 @@ void ViewProviderSketch::initDragging(int geoId, Sketcher::PointPos pos, Gui::Vi
         return; // don't drag externals
     }
 
+    // If we are trying to drag an edge that is in a group, we drag the group handle instead.
+    int oldgeoId = geoId;
+    geoId = getSketchObject()->getGroupHandleIfInGroup(geoId);
+    if (oldgeoId != geoId) {
+        // if replaced then we want to move the edge of the handle, not a point.
+        pos = PointPos::none;
+    }
+
     drag.reset();
     Mode = STATUS_SKETCH_Drag;
     drag.Dragged.push_back(GeoElementId(geoId, pos));
 
     // Adding selected geos that should be dragged as well.
-    for (auto& geoIdi : selection.SelCurvSet) {
+    for (auto geoIdi : selection.SelCurvSet) {
         if (geoIdi < 0) {
             continue; //skip externals
         }
+        
+        // If in a group, we drag the group handle instead.
+        geoIdi = getSketchObject()->getGroupHandleIfInGroup(geoIdi);
 
         if (geoIdi == geoId) {
             // geoId is already added because it was the preselected.
