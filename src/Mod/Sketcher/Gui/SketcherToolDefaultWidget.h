@@ -34,6 +34,7 @@
 
 
 class QComboBox;
+class QLineEdit;
 
 namespace App
 {
@@ -103,6 +104,14 @@ public:
         nCombobox  // Must Always be the last one
     };
 
+    /// LineEdit number/label
+    enum LineEdit
+    {
+        FirstEdit,
+        SecondEdit,
+        nLineEdit  // Must Always be the last one
+    };
+
     explicit SketcherToolDefaultWidget(QWidget* parent = nullptr);
     ~SketcherToolDefaultWidget() override;
 
@@ -150,10 +159,19 @@ public:
     void setComboboxIndex(int comboboxindex, int value);
     void setComboboxLabel(int comboboxindex, const QString& string);
     int getComboboxIndex(int comboboxindex);
+    QString getComboboxCurrentText(int comboboxindex);
+    int setComboboxCurrentText(int comboboxIndex, const QString& text);
     void setComboboxElements(int comboboxindex, const QStringList& names);
     void setComboboxItemIcon(int comboboxindex, int index, QIcon icon);
     void setComboboxPrefEntry(int comboboxindex, const std::string& prefEntry);
     void restoreComboboxPref(int comboboxindex);
+
+    void initNLineEdits(int nlineedit);
+    void setLineEditVisible(int lineeditindex, bool visible);
+    void setLineEditText(int lineeditindex, const QString& text);
+    void setLineEditLabel(int lineeditindex, const QString& string);
+    QString getLineEditText(int lineeditindex);
+    void setLineEditFocus(int lineeditindex);
 
     template<typename F>
     boost::signals2::connection registerParameterTabOrEnterPressed(F&& fn)
@@ -179,6 +197,11 @@ public:
         return signalComboboxSelectionChanged.connect(std::forward<F>(fn));
     }
 
+    template<typename F>
+    boost::signals2::connection registerLineEditTextChanged(F&& fn)
+    {
+        return signalLineEditTextChanged.connect(std::forward<F>(fn));
+    }
 
     // Q_SIGNALS:
 protected Q_SLOTS:
@@ -199,6 +222,8 @@ protected Q_SLOTS:
     void comboBox1_currentIndexChanged(int val);
     void comboBox2_currentIndexChanged(int val);
     void comboBox3_currentIndexChanged(int val);
+    void lineEdit1_textChanged(const QString& text);
+    void lineEdit2_textChanged(const QString& text);
 
 protected:
     void changeEvent(QEvent* ev) override;
@@ -210,6 +235,8 @@ private:
     Gui::PrefCheckBox* getCheckBox(int checkboxindex);
     Gui::PrefComboBox* getComboBox(int comboboxindex);
     QLabel* getComboBoxLabel(int comboboxindex);
+    QLabel* getLineEditLabel(int lineeditindex);
+    QLineEdit* getLineEdit(int lineeditindex);
 
     void setParameterFontStyle(int parameterindex, FontStyle fontStyle);
 
@@ -222,6 +249,7 @@ private:
     boost::signals2::signal<void(int parameterindex, double value)> signalParameterValueChanged;
     boost::signals2::signal<void(int checkboxindex, bool value)> signalCheckboxCheckedChanged;
     boost::signals2::signal<void(int comboindex, int value)> signalComboboxSelectionChanged;
+    boost::signals2::signal<void(int lineeditindex, const QString& text)> signalLineEditTextChanged;
 
     /// lock to block QT slots
     bool blockParameterSlots;
