@@ -453,7 +453,8 @@ inline void SketcherAddWorkbenchGeometries(T& geom)
     SketcherAddWorkspaceRectangles(geom);
     SketcherAddWorkspaceRegularPolygon(geom);
     SketcherAddWorkspaceslots(geom);
-    geom << "Separator"
+    geom << "Sketcher_CreateText"
+         << "Separator"
          << "Sketcher_ToggleConstruction";
     /*<< "Sketcher_CreateText"*/
     /*<< "Sketcher_CreateDraftLine"*/;
@@ -485,6 +486,7 @@ inline void SketcherAddWorkbenchConstraints<Gui::MenuItem>(Gui::MenuItem& cons)
          << "Sketcher_ConstrainEqual"
          << "Sketcher_ConstrainSymmetric"
          << "Sketcher_ConstrainBlock"
+         << "Sketcher_ConstrainGroup"
          << "Separator"
          << "Sketcher_Dimension"
          << "Sketcher_ConstrainDistanceX"
@@ -551,7 +553,8 @@ inline void SketcherAddWorkbenchConstraints<Gui::ToolBarItem>(Gui::ToolBarItem& 
          << "Sketcher_ConstrainTangent"
          << "Sketcher_ConstrainEqual"
          << "Sketcher_ConstrainSymmetric"
-         << "Sketcher_ConstrainBlock";
+         << "Sketcher_ConstrainBlock"
+         << "Sketcher_ConstrainGroup";
 
     cons << "Separator"
          << "Sketcher_CompToggleConstraints";

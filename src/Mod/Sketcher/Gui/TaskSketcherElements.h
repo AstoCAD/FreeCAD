@@ -82,6 +82,7 @@ protected Q_SLOTS:
     void doEqualConstraint();
     void doSymmetricConstraint();
     void doBlockConstraint();
+    void doGroupConstraint();
 
     void doLockConstraint();
     void doHorizontalConstraint();
@@ -131,7 +132,7 @@ public:
 private:
     void slotElementsChanged();
     void updateVisibility();
-    void setItemVisibility(QListWidgetItem* item);
+    void setItemVisibility(QListWidgetItem* item, const std::set<int>& groupedGeoIds);
     void clearWidget();
     void createFilterButtonActions();
     void createSettingsButtonActions();
@@ -141,6 +142,7 @@ public Q_SLOTS:
     void onListWidgetElementsItemPressed(QListWidgetItem* item);
     void onListWidgetElementsItemEntered(QListWidgetItem* item);
     void onListWidgetElementsMouseMoveOnItem(QListWidgetItem* item);
+    void onListWidgetItemActivated(QListWidgetItem* item);
     void onSettingsExtendedInformationChanged();
     void onFilterBoxStateChanged(int val);
     void onListMultiFilterItemChanged(QListWidgetItem* item);
