@@ -28,6 +28,8 @@
 #include <Base/Tools2D.h>
 #include <Mod/Sketcher/App/GeoEnum.h>
 #include <QListWidget>
+#include <QMap>
+#include <QString>
 
 #include "AutoConstraint.h"
 #include "ViewProviderSketchGeometryExtension.h"
@@ -246,6 +248,8 @@ inline void scrollTo(QListWidget* list, int i, bool select)
         list->scrollTo(index, QAbstractItemView::PositionAtCenter);
     }
 }
+
+QMap<QString, QString> findAvailableFontFiles();
 
 }  // namespace SketcherGui
 
