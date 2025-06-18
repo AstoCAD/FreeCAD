@@ -1274,10 +1274,10 @@ private:
                     const auto& constraints = sketchgui->getSketchObject()->Constraints.getValues();
                     for (int i = constraints.size() - 1; i >= 0; --i) {
                         if (constraints[i]->Type == PointOnObject
-                            && ((constraints[i]->First == pointGeoId
-                                 && constraints[i]->Second == prevGeoId)
-                                || (constraints[i]->First == prevGeoId
-                                    && constraints[i]->Second == pointGeoId))) {
+                            && ((constraints[i]->getGeoId(0) == pointGeoId
+                                 && constraints[i]->getGeoId(1) == prevGeoId)
+                                || (constraints[i]->getGeoId(0) == prevGeoId
+                                    && constraints[i]->getGeoId(1) == pointGeoId))) {
                             obj->delConstraint(i);
                             break;
                         }
