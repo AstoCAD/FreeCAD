@@ -60,6 +60,7 @@ SET(SketcherGui_SRCS
     DrawSketchHandlerArcOfHyperbola.h
     DrawSketchHandlerArcOfParabola.h
     DrawSketchHandlerArcSlot.h
+    DrawSketchHandlerSymbol.h
     DrawSketchHandlerText.h
     DrawSketchHandlerBSpline.h
     DrawSketchHandlerPoint.h

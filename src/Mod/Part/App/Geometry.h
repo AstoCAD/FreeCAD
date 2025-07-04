@@ -1324,6 +1324,8 @@ PartExport std::vector<TopoDS_Shape> makeTextWires(std::string& text,
                                         std::string& fontFile,
                                         double height = 1.0,
                                         double tracking = 0.0);
+
+PartExport std::vector<TopoDS_Shape> getShapesFromSVG(const std::string& fileName);
 }
 
 #endif // PART_GEOMETRY_H
