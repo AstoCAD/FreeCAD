@@ -237,6 +237,9 @@ inline void scrollTo(QListWidget* list, int i, bool select)
 // Model TreeWidget helpers
 Gui::TreeWidget* findModelTreeWidget();
 
+
+QMap<QString, QString> findAvailableSymbolFiles();
+
 }  // namespace SketcherGui
 
 /// converts a 2D vector into a 3D vector in the XY plane
