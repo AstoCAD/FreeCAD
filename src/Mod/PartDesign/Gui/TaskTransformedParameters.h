@@ -35,7 +35,7 @@
 #include "TaskTransformedMessages.h"
 #include "ViewProviderTransformed.h"
 
-class QListWidget;
+class QListWidgetItem;
 
 class Ui_TaskTransformedParameters;
 
@@ -92,8 +92,6 @@ public:
     /// Exit the selection mode of the associated task panel
     void exitSelectionMode();
 
-    static void removeItemFromListWidget(QListWidget* widget, const QString& itemstr);
-
 protected:
     /** Setup the standalone UI.
      * Call this in the derived destructor with ViewProvider.
@@ -117,10 +115,6 @@ protected:
     /// feature or with the parent feature (MultiTransform mode)
     App::DocumentObject* getSketchObject() const;
 
-    /** Handle adding/removing of selected features
-     * Returns true if a selected feature was added/removed.
-     */
-    bool originalSelected(const Gui::SelectionChanges& msg);
 
     /// Recompute either this feature or the parent MultiTransform feature
     void recomputeFeature();
@@ -161,11 +155,8 @@ protected:
 private Q_SLOTS:
     virtual void onUpdateView(bool /*unused*/) = 0;
 
-    void onButtonAddFeature(bool checked);
-    void onButtonRemoveFeature(bool checked);
-    void onFeatureDeleted();
-    void indexesMoved();
-    void onModeChanged(int mode_id);
+    void onFeatureItemChanged(QListWidgetItem* item);
+    void onGroupFeaturesToggled(bool checked);
 
 private:
     /** Setup the parameter UI.
@@ -177,10 +168,7 @@ private:
     /// Change translation of the parameter UI
     virtual void retranslateParameterUI(QWidget* widget) = 0;
 
-    void addObject(App::DocumentObject*);
-    void removeObject(App::DocumentObject*);
-    void clearButtons();
-    void checkVisibility();
+    void populateFeatureList();
 
     /// Return the base object of the base transformed object (see getTopTransformedObject())
     // Either through the ViewProvider or the currently active subFeature of the parentTask
@@ -199,8 +187,6 @@ protected:
     enum class SelectionMode
     {
         None,
-        AddFeature,
-        RemoveFeature,
         Reference
     };
 
