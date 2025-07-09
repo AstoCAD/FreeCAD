@@ -25,7 +25,10 @@
 
 #include <QAction>
 #include <QListWidget>
+#include <QListWidgetItem>
+#include <QIcon>
 
+#include <unordered_set>
 
 #include <App/Application.h>
 #include <App/Document.h>
@@ -97,32 +100,10 @@ void TaskTransformedParameters::setupUI()
     QMetaObject::connectSlotsByName(this);
 
     connect(
-        ui->buttonAddFeature,
-        &QToolButton::toggled,
+        ui->listWidgetFeatures,
+        &QListWidget::itemChanged,
         this,
-        &TaskTransformedParameters::onButtonAddFeature
-    );
-    connect(
-        ui->buttonRemoveFeature,
-        &QToolButton::toggled,
-        this,
-        &TaskTransformedParameters::onButtonRemoveFeature
-    );
-
-    // Create context menu
-    auto action = new QAction(tr("Remove"), this);
-    action->setShortcut(Gui::QtTools::deleteKeySequence());
-
-    // display shortcut behind the context menu entry
-    action->setShortcutVisibleInContextMenu(true);
-    ui->listWidgetFeatures->addAction(action);
-    connect(action, &QAction::triggered, this, &TaskTransformedParameters::onFeatureDeleted);
-    ui->listWidgetFeatures->setContextMenuPolicy(Qt::ActionsContextMenu);
-    connect(
-        ui->listWidgetFeatures->model(),
-        &QAbstractListModel::rowsMoved,
-        this,
-        &TaskTransformedParameters::indexesMoved
+        &TaskTransformedParameters::onFeatureItemChanged
     );
 
     connect(ui->checkBoxUpdateView, &QCheckBox::toggled, this, &TaskTransformedParameters::onUpdateView);
@@ -132,35 +113,134 @@ void TaskTransformedParameters::setupUI()
 
     using Mode = PartDesign::Transformed::Mode;
 
-    ui->buttonGroupMode->setId(ui->radioTransformBody, static_cast<int>(Mode::WholeShape));
-    ui->buttonGroupMode->setId(ui->radioTransformToolShapes, static_cast<int>(Mode::Features));
-
-    connect(ui->buttonGroupMode, &QButtonGroup::idClicked, this, &TaskTransformedParameters::onModeChanged);
-
     auto const mode = static_cast<Mode>(pcTransformed->TransformMode.getValue());
-    ui->groupFeatureList->setEnabled(mode == Mode::Features);
-    switch (mode) {
-        case Mode::WholeShape:
-            ui->radioTransformBody->setChecked(true);
-            break;
-        case Mode::Features:
-            ui->radioTransformToolShapes->setChecked(true);
-            break;
-    }
+    bool featuresModeActive = (mode == Mode::Features);
+    ui->groupFeatureList->setChecked(featuresModeActive);
+    ui->listWidgetFeatures->setEnabled(featuresModeActive);
 
-    std::vector<App::DocumentObject*> originals = pcTransformed->Originals.getValues();
-    // Fill data into dialog elements
-    for (auto obj : originals) {
-        if (obj) {
-            auto item = new QListWidgetItem();
-            item->setText(QString::fromUtf8(obj->Label.getValue()));
-            item->setData(Qt::UserRole, QString::fromLatin1(obj->getNameInDocument()));
-            ui->listWidgetFeatures->addItem(item);
-        }
+    // Connect the new GroupBox's toggled signal
+    connect(
+        ui->groupFeatureList,
+        &QGroupBox::toggled,
+        this,
+        &TaskTransformedParameters::onGroupFeaturesToggled
+    );
+
+    // Populate the list *only* if starting in Features mode
+    if (featuresModeActive) {
+        populateFeatureList();
     }
 
     setupParameterUI(ui->featureUI);  // create parameter UI widgets
     this->groupLayout()->addWidget(proxy);
+}
+
+void TaskTransformedParameters::onSelectionChanged(const Gui::SelectionChanges& msg)
+{}
+
+void TaskTransformedParameters::populateFeatureList()
+{
+    blockUpdate = true;  // Prevent itemChanged signals during population
+    ui->listWidgetFeatures->clear();
+
+    auto pcTransformed = getObject<PartDesign::Transformed>();
+    if (!pcTransformed) {
+        blockUpdate = false;
+        return;
+    }
+    auto body = pcTransformed->getFeatureBody();
+    if (!body) {
+        blockUpdate = false;
+        return;
+    }
+
+    std::vector<App::DocumentObject*> currentOriginalsVec = pcTransformed->Originals.getValues();
+    std::unordered_set<std::string> currentOriginalsNames;
+    for (const auto* obj : currentOriginalsVec) {
+        if (obj) {
+            currentOriginalsNames.insert(obj->getNameInDocument());
+        }
+    }
+
+    for (App::DocumentObject* obj : body->Group.getValues()) {
+        if (!obj) {
+            continue;
+        }
+        if (obj == pcTransformed) {
+            break;  // Stop at self
+        }
+
+        auto addSubFeat = freecad_cast<PartDesign::FeatureAddSub*>(obj);
+        if (addSubFeat) {
+            auto item = new QListWidgetItem();
+            item->setText(QString::fromUtf8(obj->Label.getValue()));
+            item->setData(Qt::UserRole, QString::fromLatin1(obj->getNameInDocument()));
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+
+            Gui::ViewProvider* vp = Application::Instance->getViewProvider(obj);
+            if (vp) {
+                QIcon icon = vp->getIcon();  // Get the icon from the ViewProvider
+                if (!icon.isNull()) {
+                    item->setIcon(icon);  // Set the icon on the list item
+                }
+            }
+
+            bool isChecked = currentOriginalsNames.count(obj->getNameInDocument()) > 0;
+            item->setCheckState(isChecked ? Qt::Checked : Qt::Unchecked);
+            ui->listWidgetFeatures->addItem(item);
+        }
+    }
+    blockUpdate = false;  // Re-enable itemChanged signals
+}
+
+void TaskTransformedParameters::onFeatureItemChanged(QListWidgetItem* item)
+{
+    if (blockUpdate || !item) {
+        return;
+    }
+    auto pcTransformed = getObject<PartDesign::Transformed>();
+    if (!pcTransformed) {
+        return;
+    }
+    QString name = item->data(Qt::UserRole).toString();
+    if (name.isEmpty()) {
+        return;
+    }
+    App::DocumentObject* changedObj = pcTransformed->getDocument()->getObject(
+        name.toLatin1().constData()
+    );
+    if (!changedObj) {
+        return;
+    }
+
+    std::vector<App::DocumentObject*> originals = pcTransformed->Originals.getValues();
+    bool isChecked = (item->checkState() == Qt::Checked);
+    auto it = std::ranges::find(originals, changedObj);
+    bool isChanged = false;
+
+    if (isChecked) {
+        if (it == originals.end()) {
+            originals.push_back(changedObj);
+            isChanged = true;
+        }
+    }
+    else {
+        if (it != originals.end()) {
+            originals.erase(it);
+            isChanged = true;
+        }
+    }
+
+    if (isChanged) {
+        setupTransaction();
+        pcTransformed->Originals.setValues(originals);
+        if (ui->checkBoxUpdateView->isChecked()) {
+            recomputeFeature();
+        }
+        else {
+            pcTransformed->touch();
+        }
+    }
 }
 
 void TaskTransformedParameters::slotDeletedObject(const Gui::ViewProviderDocumentObject& Obj)
@@ -179,90 +259,65 @@ void TaskTransformedParameters::changeEvent(QEvent* event)
     }
 }
 
-void TaskTransformedParameters::onSelectionChanged(const Gui::SelectionChanges& msg)
+void TaskTransformedParameters::onGroupFeaturesToggled(bool checked)
 {
-    if (originalSelected(msg)) {
-        exitSelectionMode();
+    auto pcTransformed = getObject<PartDesign::Transformed>();
+    if (!pcTransformed) {
+        return;
     }
-}
 
-void TaskTransformedParameters::clearButtons()
-{
-    if (insideMultiTransform) {
-        parentTask->clearButtons();
+    using Mode = PartDesign::Transformed::Mode;
+    Mode newMode = checked ? Mode::Features : Mode::WholeShape;
+    Mode currentMode = static_cast<Mode>(pcTransformed->TransformMode.getValue());
+
+    ui->listWidgetFeatures->setEnabled(checked);
+
+    bool modeChanged = (newMode != currentMode);
+
+    if (modeChanged) {
+        pcTransformed->TransformMode.setValue(static_cast<long>(newMode));
     }
-    else {
-        ui->buttonAddFeature->setChecked(false);
-        ui->buttonRemoveFeature->setChecked(false);
+
+    if (checked) {  // Switched TO Features mode (or already was)
+        // Populate the list (safe to call even if already populated)
+        populateFeatureList();
+        // Recompute only if mode actually changed to Features
+        if (modeChanged && ui->checkBoxUpdateView->isChecked()) {
+            setupTransaction();
+            recomputeFeature();
+        }
+        else if (modeChanged) {
+            setupTransaction();  // Still need transaction if mode changed
+            pcTransformed->touch();
+        }
+    }
+    else {  // Switched TO WholeShape mode
+        blockUpdate = true;
+        ui->listWidgetFeatures->clear();  // Clear visual list
+        blockUpdate = false;
+
+        // Clear Originals property only if necessary and mode actually changed
+        bool originalsCleared = false;
+        if (modeChanged && !pcTransformed->Originals.getValues().empty()) {
+            pcTransformed->Originals.setValues({});
+            originalsCleared = true;
+        }
+
+        // Recompute if mode changed or originals were cleared
+        if ((modeChanged || originalsCleared) && ui->checkBoxUpdateView->isChecked()) {
+            setupTransaction();
+            recomputeFeature();
+        }
+        else if (modeChanged || originalsCleared) {
+            setupTransaction();  // Need transaction if mode changed or originals cleared
+            pcTransformed->touch();
+        }
     }
 }
 
 int TaskTransformedParameters::getUpdateViewTimeout() const
 {
     return 500;
-}
-
-void TaskTransformedParameters::addObject(App::DocumentObject* obj)
-{
-    QString label = QString::fromUtf8(obj->Label.getValue());
-    QString objectName = QString::fromLatin1(obj->getNameInDocument());
-
-    auto item = new QListWidgetItem();
-    item->setText(label);
-    item->setData(Qt::UserRole, objectName);
-    ui->listWidgetFeatures->addItem(item);
-}
-
-void TaskTransformedParameters::removeObject(App::DocumentObject* obj)
-{
-    QString label = QString::fromUtf8(obj->Label.getValue());
-    removeItemFromListWidget(ui->listWidgetFeatures, label);
-}
-
-bool TaskTransformedParameters::originalSelected(const Gui::SelectionChanges& msg)
-{
-    if (msg.Type == Gui::SelectionChanges::AddSelection
-        && ((selectionMode == SelectionMode::AddFeature)
-            || (selectionMode == SelectionMode::RemoveFeature))) {
-
-        if (strcmp(msg.pDocName, getObject()->getDocument()->getName()) != 0) {
-            return false;
-        }
-
-        PartDesign::Transformed* pcTransformed = getObject();
-        App::DocumentObject* selectedObject = pcTransformed->getDocument()->getObject(msg.pObjectName);
-        if (selectedObject->isDerivedFrom<PartDesign::FeatureAddSub>()) {
-
-            // Do the same like in TaskDlgTransformedParameters::accept() but without doCommand
-            std::vector<App::DocumentObject*> originals = pcTransformed->Originals.getValues();
-            const auto or_iter = std::ranges::find(originals, selectedObject);
-            if (selectionMode == SelectionMode::AddFeature) {
-                if (or_iter == originals.end()) {
-                    originals.push_back(selectedObject);
-                    addObject(selectedObject);
-                }
-                else {
-                    return false;  // duplicate selection
-                }
-            }
-            else {
-                if (or_iter != originals.end()) {
-                    originals.erase(or_iter);
-                    removeObject(selectedObject);
-                }
-                else {
-                    return false;
-                }
-            }
-            setupTransaction();
-            pcTransformed->Originals.setValues(originals);
-            recomputeFeature();
-
-            return true;
-        }
-    }
-
-    return false;
 }
 
 void TaskTransformedParameters::setupTransaction()
@@ -296,103 +351,6 @@ void TaskTransformedParameters::setEnabledTransaction(bool on)
 bool TaskTransformedParameters::isEnabledTransaction() const
 {
     return enableTransaction;
-}
-
-void TaskTransformedParameters::onModeChanged(int mode_id)
-{
-    if (mode_id < 0) {
-        return;
-    }
-
-    auto pcTransformed = getObject<PartDesign::Transformed>();
-    pcTransformed->TransformMode.setValue(mode_id);
-
-    using Mode = PartDesign::Transformed::Mode;
-    Mode const mode = static_cast<Mode>(mode_id);
-
-    ui->groupFeatureList->setEnabled(mode == Mode::Features);
-    if (mode == Mode::WholeShape) {
-        ui->listWidgetFeatures->clear();
-    }
-    setupTransaction();
-    recomputeFeature();
-}
-
-void TaskTransformedParameters::onButtonAddFeature(bool checked)
-{
-    if (checked) {
-        hideObject();
-        showBase();
-        selectionMode = SelectionMode::AddFeature;
-        Gui::Selection().clearSelection();
-    }
-    else {
-        exitSelectionMode();
-    }
-
-    ui->buttonRemoveFeature->setDisabled(checked);
-}
-
-// Make sure only some feature before the given one is visible
-void TaskTransformedParameters::checkVisibility()
-{
-    auto feat = getObject();
-    auto body = feat->getFeatureBody();
-    if (!body) {
-        return;
-    }
-    auto inset = feat->getInListEx(true);
-    inset.emplace(feat);
-    for (auto obj : body->Group.getValues()) {
-        if (!obj->Visibility.getValue() || !obj->isDerivedFrom<PartDesign::Feature>()) {
-            continue;
-        }
-        if (inset.count(obj) > 0) {
-            break;
-        }
-        return;
-    }
-    FCMD_OBJ_SHOW(getBaseObject());
-}
-
-void TaskTransformedParameters::onButtonRemoveFeature(bool checked)
-{
-    if (checked) {
-        checkVisibility();
-        selectionMode = SelectionMode::RemoveFeature;
-        Gui::Selection().clearSelection();
-    }
-    else {
-        exitSelectionMode();
-    }
-
-    ui->buttonAddFeature->setDisabled(checked);
-}
-
-void TaskTransformedParameters::onFeatureDeleted()
-{
-    PartDesign::Transformed* pcTransformed = getObject();
-    std::vector<App::DocumentObject*> originals = pcTransformed->Originals.getValues();
-    int currentRow = ui->listWidgetFeatures->currentRow();
-    if (currentRow < 0) {
-        Base::Console().error("PartDesign Pattern: No feature selected for removing.\n");
-        return;  // no current row selected
-    }
-    originals.erase(originals.begin() + currentRow);
-    setupTransaction();
-    pcTransformed->Originals.setValues(originals);
-    ui->listWidgetFeatures->model()->removeRow(currentRow);
-    recomputeFeature();
-}
-
-void TaskTransformedParameters::removeItemFromListWidget(QListWidget* widget, const QString& itemstr)
-{
-    QList<QListWidgetItem*> items = widget->findItems(itemstr, Qt::MatchExactly);
-    if (!items.empty()) {
-        for (auto item : items) {
-            delete widget->takeItem(widget->row(item));
-        }
-    }
 }
 
 void TaskTransformedParameters::fillAxisCombo(Gui::ComboLinks& combolinks, Part::Part2DObject* sketch)
@@ -568,9 +526,9 @@ void TaskTransformedParameters::showBase()
 void TaskTransformedParameters::exitSelectionMode()
 {
     try {
-        clearButtons();
         selectionMode = SelectionMode::None;
         Gui::Selection().rmvSelectionGate();
+        Gui::Selection().clearSelection();
     }
     catch (Base::Exception& exc) {
         exc.reportException();
@@ -586,29 +544,6 @@ void TaskTransformedParameters::addReferenceSelectionGate(AllowSelectionFlags al
         new NoDependentsSelection(getTopTransformedObject())
     );
     Gui::Selection().addSelectionGate(new CombineSelectionFilterGates(gateRefPtr, gateDepPtr));
-}
-
-void TaskTransformedParameters::indexesMoved()
-{
-    auto model = qobject_cast<QAbstractItemModel*>(sender());
-    if (!model) {
-        return;
-    }
-
-    PartDesign::Transformed* pcTransformed = getObject();
-    std::vector<App::DocumentObject*> originals = pcTransformed->Originals.getValues();
-
-    QByteArray name;
-    int rows = model->rowCount();
-    for (int i = 0; i < rows; i++) {
-        QModelIndex index = model->index(i, 0);
-        name = index.data(Qt::UserRole).toByteArray().constData();
-        originals[i] = pcTransformed->getDocument()->getObject(name.constData());
-    }
-
-    setupTransaction();
-    pcTransformed->Originals.setValues(originals);
-    recomputeFeature();
 }
 
 //**************************************************************************
