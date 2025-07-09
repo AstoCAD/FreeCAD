@@ -1211,6 +1211,7 @@ SOURCE_GROUP("View3D\\Inventor" FILES ${Inventor_SRCS})
 SET(Widget_CPP_SRCS
     ComboLinks.cpp
     CustomTitleBar.cpp
+    ComboLinks.cpp
     FileDialog.cpp
     FramelessWindow.cpp
     MainWindow.cpp
@@ -1237,6 +1238,7 @@ SET(Widget_CPP_SRCS
 SET(Widget_HPP_SRCS
     ComboLinks.h
     CustomTitleBar.h
+    ComboLinks.h
     FileDialog.h
     FramelessWindow.h
     MainWindow.h
