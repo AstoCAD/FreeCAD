@@ -95,6 +95,12 @@ def InitApplications():
     if (os.path.exists(LibPyDir)):
         libpaths.append(LibPyDir)
     LibFcDir = FreeCAD.getLibraryDir()
+
+    print("DEBUG: Raw FreeCAD.getHomePath() repr: {}".format(repr(FreeCAD.getHomePath())))
+    print("DEBUG: Raw LibFcDir repr: {}".format(repr(LibFcDir)))
+    LibFcDir = LibFcDir.split('\0')[0]
+    print("DEBUG: Sanitized LibFcDir: {}".format(repr(LibFcDir)))
+
     LibFcDir = os.path.realpath(LibFcDir)
     if (os.path.exists(LibFcDir) and not LibFcDir in libpaths):
         libpaths.append(LibFcDir)
