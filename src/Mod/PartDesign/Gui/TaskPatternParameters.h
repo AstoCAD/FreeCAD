@@ -27,7 +27,7 @@
 
 #include "TaskTransformedParameters.h"
 #include "ViewProviderTransformed.h"
-
+#include <Mod/PartDesign/App/FeatureLinearPattern.h>
 
 class QTimer;
 class Ui_TaskPatternParameters;
@@ -75,6 +75,7 @@ private:
 
     void updateUI();
     void kickUpdateViewTimer() const;
+    void updateSpacingLabels();
 
     void bindProperties();
 
@@ -82,6 +83,8 @@ private:
     void showOriginAxes(bool show);
     void enterReferenceSelectionMode();
     void exitReferenceSelectionMode();  // Ensure this clears gates etc.
+
+    Base::Vector3d getStartPoint() const;
 
     PartGui::PatternParametersWidget* parametersWidget = nullptr;
     PartGui::PatternParametersWidget* parametersWidget2 = nullptr;
