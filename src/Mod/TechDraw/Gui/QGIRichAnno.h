@@ -78,7 +78,6 @@ public:
                QWidget* widget = nullptr) override;
     QRectF boundingRect() const override;
 
-    void drawBorder() override;
     void updateView(bool update = false) override;
 
     void setTextItem();
@@ -103,8 +102,19 @@ public:
         return m_isExportingSvg;
     }
 
+    void setEditMode(bool enable);
+    QTextDocument* document() const;
+    QTextCursor textCursor() const;
+    void setTextCursor(const QTextCursor& cursor);
+    void updateLayout();
+
+    void refocusAnnotation();
+
     Q_SIGNALS:
     void widthChanged();
+    void textChanged();
+    void selectionChanged();
+    void positionChanged(const QPointF& scenePos);
 
 protected:
     void draw() override;
@@ -112,15 +122,13 @@ protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
-    void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override;
-    void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;
 
     void setLineSpacing(int lineSpacing);
     QFont prefFont(void);
 
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
 
-    QString convertTextSizes(const QString& inHtml) const;
+    QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;
 
     bool m_isExportingPdf;
     bool m_isExportingSvg;
@@ -135,10 +143,16 @@ protected:
     QPointF m_dragStartMouseScenePos;
     QPointF m_initialItemScenePos;   // Scene pos of QGIRichAnno item (center)
     double m_initialTextWidthScene;  // Scene units, from MaxWidth property
-    bool m_frameWasHiddenOnHoverEnter;  // To manage temporary frame visibility
 
     static const double HandleInteractionMargin;  // Margin for grabbing handles (scene units)
     static const double MinTextWidthDocument;     // Minimum resizable width (document units)
+
+    bool m_isEditing;
+    double m_textScaleFactor;
+    double m_lastGoodWidthScene;
+
+private Q_SLOTS:
+    void onContentsChanged();
 };
 
 }  // namespace TechDrawGui
