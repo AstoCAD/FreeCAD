@@ -335,7 +335,6 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     // *dims << "TechDraw_LinkDimension";
     *dims << "TechDraw_Balloon";
     *dims << "TechDraw_AxoLengthDimension";
-    *dims << "TechDraw_LandmarkDimension";
 
     Gui::ToolBarItem* anno = new Gui::ToolBarItem(root);
     anno->setCommand("TechDraw Annotation");
