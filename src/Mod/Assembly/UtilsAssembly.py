@@ -1179,6 +1179,7 @@ def restoreAssemblyPartsPlacements(assembly, initialPlcs):
     for part in assemblyParts:
         if part.Name in initialPlcs:
             part.Placement = initialPlcs[part.Name]
+            part.purgeTouched()
 
 
 def getComAndSize(assembly):
