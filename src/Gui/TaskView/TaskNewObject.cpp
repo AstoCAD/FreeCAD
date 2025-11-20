@@ -125,6 +125,7 @@ bool TaskBoxNewObject::accept()
         Command::doCommand(Gui::Command::Gui, "obj.Type = 'Assembly'");
         Command::doCommand(Gui::Command::Gui, "obj.newObject('Assembly::JointGroup', 'Joints')");
         Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.setEdit(obj)");
+        Command::doCommand(Gui::Command::Gui, "obj.recompute(True)");
 
         // assure the Assembly workbench
         if (App::GetApplication()
