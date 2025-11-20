@@ -30,6 +30,7 @@
 
 
 #include <App/Application.h>
+#include <Base/FileInfo.h>
 #include <Base/Reader.h>
 #include <Base/Writer.h>
 #ifdef _MSC_VER
