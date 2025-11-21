@@ -94,6 +94,7 @@ class AssemblyWorkbench(Workbench):
         ]
 
         cmdListMenuOnly = [
+            "Assembly_LinkSelectLinked",
             "Assembly_ExportASMT",
             "Assembly_SelectJointsOfComponent",
         ]
