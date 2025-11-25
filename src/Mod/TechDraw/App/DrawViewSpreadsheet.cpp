@@ -143,7 +143,6 @@ std::string DrawViewSpreadsheet::getSVGTail()
 std::string DrawViewSpreadsheet::getSheetImage()
 {
     App::DocumentObject* link = Source.getValue();
-    link->recomputeFeature();   //make sure s/s is up to date
 
     std::string scellstart = CellStart.getValue();
     std::string scellend = CellEnd.getValue();
