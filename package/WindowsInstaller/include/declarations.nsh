@@ -26,7 +26,7 @@ Configuration and variables of FreeCAD installer
 #!define APP_DIR_USERDATA "${APP_NAME}${APP_VERSION_MAJOR}.${APP_VERSION_MINOR}"
 !define APP_SHORTCUT_INFO "${APP_NAME} - Your Own 3D Parametric Modeler"
 !define APP_INFO "Install/Uninstall ${APP_NAME}"
-!define APP_WEBPAGE "https://www.freecad.org/"
+!define APP_WEBPAGE "https://www.astocad.com/"
 !define APP_WEBPAGE_INFO "${APP_NAME} Website"
 !define APP_WIKI "https://wiki.freecad.org/Main_Page"
 !define APP_WIKI_INFO "${APP_NAME} Wiki"
@@ -58,7 +58,7 @@ Configuration and variables of FreeCAD installer
 
 !define SETUP_EXE ${ExeFile}
 
-!define SETUP_ICON "icons\FreeCAD.ico"
+!define SETUP_ICON "icons\AstoCAD.ico"
 !define SETUP_HEADERIMAGE "graphics\header.bmp"
 !define SETUP_WIZARDIMAGE "graphics\banner.bmp"
 !define SETUP_UNINSTALLER "Uninstall-${APP_NAME}.exe"

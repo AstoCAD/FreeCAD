@@ -2,7 +2,7 @@ context:
   version: "26.3.0dev"
 
 package:
-  name: freecad
+  name: astocad
   version: "${{ version }}"
 
 source:
