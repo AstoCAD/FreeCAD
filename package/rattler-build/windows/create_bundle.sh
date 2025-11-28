@@ -26,8 +26,8 @@ cp -a ${conda_env}/Library/share ${copy_dir}/share
 # get all the dependency .dlls
 cp -a ${conda_env}/Library/bin/*.dll ${copy_dir}/bin
 # Copy FreeCAD build
-cp -a ${conda_env}/Library/bin/freecad* ${copy_dir}/bin
-cp -a ${conda_env}/Library/bin/FreeCAD* ${copy_dir}/bin
+cp -a ${conda_env}/Library/bin/AstoCAD* ${copy_dir}/bin
+cp -a ${conda_env}/Library/bin/branding.xml ${copy_dir}/bin
 cp -a ${conda_env}/Library/data ${copy_dir}/data
 cp -a ${conda_env}/Library/Ext ${copy_dir}/Ext
 cp -a ${conda_env}/Library/lib ${copy_dir}/lib
@@ -50,17 +50,26 @@ echo 'Prefix = ../lib/qt6' >> ${copy_dir}/bin/qt6.conf
 # convenient shortcuts to run the binaries
 if [ -x /c/ProgramData/chocolatey/tools/shimgen.exe ]; then
     pushd ${copy_dir}
-    /c/ProgramData/chocolatey/tools/shimgen.exe -p bin/freecadcmd.exe -i "$(pwd)/../../../WindowsInstaller/icons/FreeCAD.ico" -o "$(pwd)/FreeCADCmd.exe"
-    /c/ProgramData/chocolatey/tools/shimgen.exe --gui -p bin/freecad.exe -i "$(pwd)/../../../WindowsInstaller/icons/FreeCAD.ico" -o "$(pwd)/FreeCAD.exe"
+    # Ensure you are pointing to AstoCAD.ico. 
+    # Note: You need to make sure AstoCAD.ico exists in WindowsInstaller/icons/ OR 
+    # copy it from your branding folder to here during the script.
+    
+    # Assuming AstoCAD.ico is in the branding folder, let's copy it to a known location first
+    cp ../branding/AstoCAD.ico . 
+    
+    /c/ProgramData/chocolatey/tools/shimgen.exe -p bin/AstoCADcmd.exe -i "$(pwd)/AstoCAD.ico" -o "$(pwd)/AstoCADCmd.exe"
+    /c/ProgramData/chocolatey/tools/shimgen.exe --gui -p bin/AstoCAD.exe -i "$(pwd)/AstoCAD.ico" -o "$(pwd)/AstoCAD.exe"
     popd
 fi
 
-python_version=$("${copy_dir}"/bin/python.exe -c 'import platform; print("py" + platform.python_version_tuple()[0] + platform.python_version_tuple()[1])')
-version_name="FreeCAD_${BUILD_TAG}-Windows-$(uname -m)-${python_version}"
+version_name="AstoCAD_${BUILD_TAG}-Windows-$(uname -m)"
 
 echo -e "################"
 echo -e "version_name:  ${version_name}"
 echo -e "################"
+
+# 1. Install Addons
+"$conda_env/python.exe" ../scripts/install_addons.py "$conda_env"
 
 pixi list -e default > ${copy_dir}/packages.txt
 sed -i '1s/.*/\nLIST OF PACKAGES:/' ${copy_dir}/packages.txt
