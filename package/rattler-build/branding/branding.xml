@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<Branding>
+    <Application>AstoCAD</Application>
+    <WindowTitle>AstoCAD</WindowTitle>
+    <BuildVersionMajor>1</BuildVersionMajor>
+    <BuildVersionMinor>1</BuildVersionMinor>
+    <BuildVersionPoint>0</BuildVersionPoint>
+    <BuildVersionSuffix>dev</BuildVersionSuffix>
+    <MaintainerUrl>https://github.com/PaddleStroke/FreeCAD</MaintainerUrl>
+    <!-- <BuildRepositoryURL>https://github.com/PaddleStroke/FreeCAD</BuildRepositoryURL> -->
+    <CopyrightInfo>© FreeCAD team and AstoCAD, 2001-2025
+AstoCAD is based on the FreeCAD project and released under the terms of the LGPL2.1+ License.
+AstoCAD wouldn't be possible without the FreeCAD community.
+
+          d8888          888             .d8888b.        d8888 8888888b.
+         d88888          888            d88P  Y88b      d88888 888  "Y88b
+        d88P888          888            888    888     d88P888 888    888
+       d88P 888 .d8888b  888888 .d88b.  888           d88P 888 888    888
+      d88P  888 88K      888   d88""88b 888          d88P  888 888    888
+     d88P   888 "Y8888b. 888   888  888 888    888  d88P   888 888    888
+    d8888888888      X88 Y88b. Y88..88P Y88b  d88P d8888888888 888  .d88P
+   d88P     888  88888P'  "Y888 "Y88P"   "Y8888P" d88P     888 8888888P"
+
+      </CopyrightInfo>
+    <LicenseInfo>AstoCAD is based on the FreeCAD project and released under the terms of the LGPL2.1+ License.\n</LicenseInfo>
+    <CreditsInfo>AstoCAD wouldn't be possible without the FreeCAD community.\n</CreditsInfo>
+    <DesktopFileName>com.astocad.desktop</DesktopFileName>
+    <WindowIcon>share/Gui/AstoCAD/AstoCAD.svg</WindowIcon>
+    <ProgramIcons>share/Gui/AstoCAD</ProgramIcons>
+    <SplashScreen>AstoCAD-splash</SplashScreen>
+    <AboutImage>AstoCAD-splash</AboutImage>
+    <SplashTextColor></SplashTextColor>
+    <SplashInfoColor></SplashInfoColor>
+    <ExeName>AstoCAD</ExeName>
+    <ExeVendor>AstoCAD</ExeVendor>
+    <ExeVersion>1.1</ExeVersion>
+    <UserParameterTemplate>share/Gui/AstoCAD/AstoCAD-defaults.cfg</UserParameterTemplate>
+</Branding>
