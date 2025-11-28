@@ -24,7 +24,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event_name == 'schedule' && 'AstoCAD' || github.sha }}
           fetch-depth: 2
           fetch-tags: true
           submodules: 'recursive'
@@ -38,7 +38,7 @@ jobs:
           if [ "${{ github.event_name }}" = "release" ]; then
             export BUILD_TAG="${{ github.event.release.tag_name }}"
           else
-            export BUILD_TAG=weekly-$(date "+%Y.%m.%d")
+            export BUILD_TAG=$(date "+%Y.%m.%d")
             gh release create ${BUILD_TAG} --title "Development Build ${BUILD_TAG}" -F .github/workflows/weekly-build-notes.md --prerelease || true
           fi
           echo "BUILD_TAG=${BUILD_TAG}" >> "$GITHUB_ENV"
@@ -130,7 +130,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event_name == 'schedule' && 'AstoCAD' || github.sha }}
           fetch-depth: 2
           fetch-tags: true
           submodules: 'recursive'
@@ -193,7 +193,7 @@ jobs:
           SIGN_RELEASE: ${{ steps.get_cert.outputs.has_cert }}
           TARGET_PLATFORM: ${{ matrix.target }}
           MAKE_INSTALLER: "true"
-          UPLOAD_RELEASE: "true"
+          UPLOAD_RELEASE: "false"
           BUILD_TAG: ${{ needs.upload_src.outputs.build_tag }}
         run: |
           python3 package/scripts/write_version_info.py ../freecad_version.txt
@@ -207,3 +207,88 @@ jobs:
       #   run: |
       #     security delete-keychain $RUNNER_TEMP/app-signing.keychain-db
       #     rm ~/Library/MobileDevice/Provisioning\ Profiles/build_pp.mobileprovision
+
+      # --- Add AstoCAD FTP Upload ---
+      - name: Upload binaries to AstoCAD server
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          # 1. Move to the rattler-build root
+          cd package/rattler-build
+          
+          # 2. Determine OS-specific Upload Logic and CD into specific folders
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            echo "Installing LFTP for Linux..."
+            sudo apt-get update -qq && sudo apt-get install -y lftp
+            
+            cd linux
+
+            lftp -e "
+            set ssl:verify-certificate no;
+            open $FTP_HOST;
+            user $FTP_USER $FTP_PASSWORD;
+            cd /www/builds/;
+            mput AstoCAD_*.AppImage AstoCAD_*.txt;
+            bye
+            "
+          
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            echo "Installing LFTP for macOS..."
+            brew install lftp
+            
+            cd osx
+
+            lftp -e "
+            set ssl:verify-certificate no;
+            open $FTP_HOST;
+            user $FTP_USER $FTP_PASSWORD;
+            cd /www/builds/;
+            mput AstoCAD_*.dmg AstoCAD_*.txt;
+            bye
+            "
+            
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "Uploading via PowerShell for Windows..."
+
+            # 1. Enter the windows directory (as fixed previously)
+            cd windows
+
+            # 2. Run PowerShell with escaped variables (\$)
+            pwsh -Command "
+            \$files = Get-ChildItem -Path . -Include 'AstoCAD_*.7z', 'AstoCAD_*.exe', 'AstoCAD_*.txt' -Recurse -Depth 0
+
+            if (\$files.Count -eq 0) {
+                Write-Error 'No files found to upload in windows directory'
+                exit 1
+            }
+
+            foreach (\$file in \$files) {
+              \$filename = \$file.Name
+              Write-Host \"Uploading \$filename...\"
+              try {
+                # Use env vars defined in the workflow (FTP_HOST, FTP_USER, etc.)
+                \$ftpUri = \"ftp://\" + \$env:FTP_HOST + \"/www/builds/\" + \$filename
+
+                \$ftpRequest = [System.Net.FtpWebRequest]::Create(\$ftpUri)
+                \$ftpRequest.Credentials = New-Object System.Net.NetworkCredential(\$env:FTP_USER, \$env:FTP_PASSWORD)
+                \$ftpRequest.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
+                \$ftpRequest.UseBinary = \$true
+                \$ftpRequest.KeepAlive = \$false
+                  
+                \$content = [System.IO.File]::ReadAllBytes(\$file.FullName)
+                \$ftpStream = \$ftpRequest.GetRequestStream()
+                \$ftpStream.Write(\$content, 0, \$content.Length)
+                \$ftpStream.Close()
+                \$ftpRequest.GetResponse().Close()
+                Write-Host \"Successfully uploaded \$filename\"
+              } catch {
+                Write-Error \"Failed to upload \$filename : \$_\"
+                exit 1
+              }
+            }
+            "
+          fi
