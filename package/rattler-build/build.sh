@@ -72,5 +72,42 @@ cmake \
 cmake --build build
 cmake --install build
 
-mv ${PREFIX}/bin/FreeCAD ${PREFIX}/bin/freecad || true
-mv ${PREFIX}/bin/FreeCADCmd ${PREFIX}/bin/freecadcmd || true
+# --- START ASTOCAD CHANGES ---
+# 1. Rename Binaries
+mv ${PREFIX}/bin/FreeCAD ${PREFIX}/bin/AstoCAD
+mv ${PREFIX}/bin/FreeCADCmd ${PREFIX}/bin/AstoCADcmd
+# Optional: Symlinks for compatibility
+ln -s AstoCAD ${PREFIX}/bin/freecad
+ln -s AstoCADcmd ${PREFIX}/bin/freecadcmd
+
+# 2. Install Branding
+# Note: $SRC_DIR is the root of the repo.
+BRANDING_DIR="$SRC_DIR/package/rattler-build/branding"
+
+echo "Installing branding from $BRANDING_DIR..."
+
+if [[ ${HOST} =~ .*linux.* ]]; then
+    # 1. Desktop File
+    mkdir -p "${PREFIX}/share/applications"
+    install -m 644 "$BRANDING_DIR/com.astocad.desktop" "${PREFIX}/share/applications/"
+    # Remove original FreeCAD desktop file
+    rm "${PREFIX}/share/applications/org.freecad.FreeCAD.desktop" || true
+
+    # 2. Icons
+    mkdir -p "${PREFIX}/share/icons/hicolor/scalable/apps/"
+    install -m 644 "$BRANDING_DIR/AstoCAD.svg" "${PREFIX}/share/icons/hicolor/scalable/apps/"
+fi
+
+# 3. Branding XML and Configs
+# This puts branding.xml where the binary looks for it
+install -m 644 "$BRANDING_DIR/branding.xml" "${PREFIX}/bin/"
+
+# 4. Defaults Config
+# Ensure the target directory exists
+mkdir -p "${PREFIX}/share/Gui/AstoCAD"
+install -m 644 "$BRANDING_DIR/AstoCAD-defaults.cfg" "${PREFIX}/share/Gui/AstoCAD/"
+
+# 5. Splash screens and other assets
+# Copy everything else from branding to the Gui folder
+cp -r "$BRANDING_DIR/"* "${PREFIX}/share/Gui/AstoCAD/"
+# --- END ASTOCAD CHANGES ---
