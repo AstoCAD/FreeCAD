@@ -15,8 +15,9 @@ find ${conda_env} -name \*.a -delete
 
 mv ${conda_env}/bin ${conda_env}/bin_tmp
 mkdir ${conda_env}/bin
-cp ${conda_env}/bin_tmp/freecad ${conda_env}/bin/
-cp ${conda_env}/bin_tmp/freecadcmd ${conda_env}/bin
+cp ${conda_env}/bin_tmp/AstoCAD ${conda_env}/bin/
+cp ${conda_env}/bin_tmp/AstoCADcmd ${conda_env}/bin/
+cp ${conda_env}/bin_tmp/branding.xml ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/ccx ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/python ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/pip ${conda_env}/bin/
@@ -29,9 +30,9 @@ rm -rf ${conda_env}/bin_tmp
 sed -i '1s|.*|#!/usr/bin/env python|' ${conda_env}/bin/pip
 
 echo -e "\nCopying Icon and Desktop file"
-cp ${conda_env}/share/applications/org.freecad.FreeCAD.desktop AppDir/
-sed -i 's/Exec=FreeCAD/Exec=AppRun/g' AppDir/org.freecad.FreeCAD.desktop
-cp ${conda_env}/share/icons/hicolor/scalable/apps/org.freecad.FreeCAD.svg AppDir/
+cp ${conda_env}/share/applications/com.astocad.desktop AppDir/
+sed -i 's/Exec=astocad/Exec=AppRun/g' AppDir/com.astocad.desktop
+cp ${conda_env}/share/icons/hicolor/scalable/apps/AstoCAD.svg AppDir/
 
 # Remove __pycache__ folders and .pyc files
 find . -path "*/__pycache__/*" -delete
@@ -46,11 +47,14 @@ rm -rf ${conda_env}/lib/cmake/
 find . -name "*.h" -type f -delete
 find . -name "*.cmake" -type f -delete
 
-version_name="FreeCAD_${BUILD_TAG}-Linux-$(uname -m)"
+version_name="AstoCAD_${BUILD_TAG}-Linux-$(uname -m)"
 
 echo -e "\################"
 echo -e "version_name:  ${version_name}"
 echo -e "################"
+
+echo -e "\nInstall additional addons"
+${conda_env}/bin/python ../scripts/install_addons.py ${conda_env}
 
 pixi list -e default > AppDir/packages.txt
 sed -i "1s/.*/\nLIST OF PACKAGES:/" AppDir/packages.txt
