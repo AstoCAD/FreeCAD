@@ -27,7 +27,8 @@ cp -a ${conda_env}/Library/share ${copy_dir}/share
 cp -a ${conda_env}/Library/bin/*.dll ${copy_dir}/bin
 # Copy FreeCAD build
 cp -a ${conda_env}/Library/bin/freecad* ${copy_dir}/bin
-cp -a ${conda_env}/Library/bin/FreeCAD* ${copy_dir}/bin
+cp -a ${conda_env}/Library/bin/AstoCAD* ${copy_dir}/bin
+cp -a ${conda_env}/Library/bin/branding.xml ${copy_dir}/bin
 cp -a ${conda_env}/Library/data ${copy_dir}/data
 cp -a ${conda_env}/Library/Ext ${copy_dir}/Ext
 cp -a ${conda_env}/Library/lib ${copy_dir}/lib
@@ -66,16 +67,23 @@ echo 'Prefix = ../lib/qt6' >> ${copy_dir}/bin/qt6.conf
 # convenient shortcuts to run the binaries
 if [ -x /c/ProgramData/chocolatey/tools/shimgen.exe ]; then
     pushd ${copy_dir}
-    /c/ProgramData/chocolatey/tools/shimgen.exe -p bin/freecadcmd.exe -i "$(pwd)/../../../WindowsInstaller/icons/FreeCAD.ico" -o "$(pwd)/FreeCADCmd.exe"
-    /c/ProgramData/chocolatey/tools/shimgen.exe --gui -p bin/freecad.exe -i "$(pwd)/../../../WindowsInstaller/icons/FreeCAD.ico" -o "$(pwd)/FreeCAD.exe"
+
+    # Go up two levels to find the branding folder (windows -> bundle -> branding)
+    cp ../../branding/AstoCAD.ico .
+
+    /c/ProgramData/chocolatey/tools/shimgen.exe -p bin/AstoCADcmd.exe -i "$(pwd)/AstoCAD.ico" -o "$(pwd)/AstoCADCmd.exe"
+    /c/ProgramData/chocolatey/tools/shimgen.exe --gui -p bin/AstoCAD.exe -i "$(pwd)/AstoCAD.ico" -o "$(pwd)/AstoCAD.exe"
     popd
 fi
 
-version_name="FreeCAD_${BUILD_TAG}-Windows-$(uname -m)"
+version_name="AstoCAD_${BUILD_TAG}-Windows-$(uname -m)"
 
 echo -e "################"
 echo -e "version_name:  ${version_name}"
 echo -e "################"
+
+# 1. Install Addons
+"$conda_env/python.exe" ../scripts/install_addons.py "$(pwd)/${copy_dir}"
 
 pixi list -e default > ${copy_dir}/packages.txt
 sed -i '1s/.*/\nLIST OF PACKAGES:/' ${copy_dir}/packages.txt
@@ -130,7 +138,7 @@ if [[ "${WINDOWS_SIGN_RELEASE:-0}" == "1" ]]; then
     done
 
     # Manually check the important one!
-    signtool verify -pa "$SIGN_DIR/bin/FreeCAD.exe"
+    signtool verify -pa "$SIGN_DIR/bin/AstoCAD.exe"
 
     echo "Signing completed."
   else
@@ -141,7 +149,7 @@ else
 fi
 
 echo "Running FreeCAD command-line smoke test..."
-if ! "$SIGN_DIR/bin/freecadcmd.exe" --safe-mode --version; then
+if ! "$SIGN_DIR/bin/AstoCADcmd.exe" --safe-mode --version; then
   echo "FreeCAD command-line smoke test failed; the Windows bundle cannot start."
   exit 1
 fi

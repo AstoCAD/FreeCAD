@@ -29,6 +29,7 @@
 #include <Base/Tools2D.h>
 #include <Mod/Sketcher/App/GeoEnum.h>
 #include <QListWidget>
+#include <QMap>
 
 #include "AutoConstraint.h"
 #include "ViewProviderSketchGeometryExtension.h"
