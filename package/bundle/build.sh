@@ -92,5 +92,46 @@ cmake \
 cmake --build build/bundle-release
 cmake --install build/bundle-release
 
-mv ${PREFIX}/bin/FreeCAD${EXT} ${PREFIX}/bin/freecad${EXT} || true
-mv ${PREFIX}/bin/FreeCADCmd${EXT} ${PREFIX}/bin/freecadcmd${EXT} || true
+# --- START ASTOCAD CHANGES ---
+# 1. Rename Binaries
+mv "${PREFIX}/bin/FreeCAD${EXT}" "${PREFIX}/bin/AstoCAD${EXT}"
+mv "${PREFIX}/bin/FreeCADCmd${EXT}" "${PREFIX}/bin/AstoCADcmd${EXT}"
+if [[ ${OS} == Windows_NT ]]; then
+    cp "${PREFIX}/bin/AstoCAD.exe" "${PREFIX}/bin/freecad.exe"
+    cp "${PREFIX}/bin/AstoCADcmd.exe" "${PREFIX}/bin/freecadcmd.exe"
+else
+    ln -sf AstoCAD "${PREFIX}/bin/freecad"
+    ln -sf AstoCADcmd "${PREFIX}/bin/freecadcmd"
+fi
+
+# 2. Install Branding
+REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+BRANDING_DIR="$REPO_ROOT/package/bundle/branding"
+
+echo "Installing branding from $BRANDING_DIR..."
+
+if [[ ${HOST} =~ .*linux.* ]]; then
+    # 1. Desktop File
+    mkdir -p "${PREFIX}/share/applications"
+    install -m 644 "$BRANDING_DIR/com.astocad.desktop" "${PREFIX}/share/applications/"
+    # Remove original FreeCAD desktop file
+    rm "${PREFIX}/share/applications/org.freecad.FreeCAD.desktop" || true
+
+    # 2. Icons
+    mkdir -p "${PREFIX}/share/icons/hicolor/scalable/apps/"
+    install -m 644 "$BRANDING_DIR/AstoCAD.svg" "${PREFIX}/share/icons/hicolor/scalable/apps/"
+fi
+
+# 3. Branding XML and Configs
+# This puts branding.xml where the binary looks for it
+install -m 644 "$BRANDING_DIR/branding.xml" "${PREFIX}/bin/"
+
+# 4. Defaults Config
+# Ensure the target directory exists
+mkdir -p "${PREFIX}/share/Gui/AstoCAD"
+install -m 644 "$BRANDING_DIR/AstoCAD-defaults.cfg" "${PREFIX}/share/Gui/AstoCAD/"
+
+# 5. Splash screens and other assets
+# Copy everything else from branding to the Gui folder
+cp -r "$BRANDING_DIR/"* "${PREFIX}/share/Gui/AstoCAD/"
+# --- END ASTOCAD CHANGES ---
