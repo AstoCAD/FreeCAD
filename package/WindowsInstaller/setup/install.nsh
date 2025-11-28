@@ -56,6 +56,8 @@ Section -ProgramFiles SecProgramFiles
   File /r "${FILES_FREECAD}\lib\*.*"
   SetOutPath "$INSTDIR\Mod"
   File /r "${FILES_FREECAD}\Mod\*.*"
+  SetOutPath "$INSTDIR\share"
+  File /r "${FILES_FREECAD}\share\*.*"
   SetOutPath "$INSTDIR"
   File /r "${FILES_THUMBS}"
     
