@@ -34,6 +34,32 @@ cmake ^
 if %ERRORLEVEL% neq 0 exit 1
 
 ninja -C build install
+
+:: --- START ASTOCAD CHANGES ---
+:: Rename binaries
+ren %LIBRARY_PREFIX%\bin\FreeCAD.exe AstoCAD.exe
+ren %LIBRARY_PREFIX%\bin\FreeCADCmd.exe AstoCADcmd.exe
+
+:: Create compatibility links (optional)
+mklink %LIBRARY_PREFIX%\bin\freecad.exe AstoCAD.exe
+mklink %LIBRARY_PREFIX%\bin\freecadcmd.exe AstoCADcmd.exe
+
+:: --- ASTOCAD BRANDING ---
+set BRANDING_DIR=%SRC_DIR%\package\rattler-build\branding
+
+:: Copy branding.xml next to executable
+copy /y "%BRANDING_DIR%\branding.xml" "%LIBRARY_PREFIX%\bin\"
+
+:: Create Gui config folder
+if not exist "%LIBRARY_PREFIX%\share\Gui\AstoCAD" mkdir "%LIBRARY_PREFIX%\share\Gui\AstoCAD"
+
+:: Copy all branding assets
+xcopy /s /y "%BRANDING_DIR%\*" "%LIBRARY_PREFIX%\share\Gui\AstoCAD\"
+
+:: Replace the main Icon (optional, usually handled by resource compiler, but good to have)
+copy /y "%BRANDING_DIR%\AstoCAD.ico" "%SRC_DIR%\src\Main\icon.ico"
+:: --- END ASTOCAD CHANGES ---
+
 if %ERRORLEVEL% neq 0 exit 1
 
 ren %LIBRARY_PREFIX%\bin\FreeCAD.exe freecad.exe
