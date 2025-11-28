@@ -27,7 +27,8 @@ cp -a ${conda_env}/Library/share ${copy_dir}/share
 cp -a ${conda_env}/Library/bin/*.dll ${copy_dir}/bin
 # Copy FreeCAD build
 cp -a ${conda_env}/Library/bin/freecad* ${copy_dir}/bin
-cp -a ${conda_env}/Library/bin/FreeCAD* ${copy_dir}/bin
+cp -a ${conda_env}/Library/bin/AstoCAD* ${copy_dir}/bin
+cp -a ${conda_env}/Library/bin/branding.xml ${copy_dir}/bin
 cp -a ${conda_env}/Library/data ${copy_dir}/data
 cp -a ${conda_env}/Library/Ext ${copy_dir}/Ext
 cp -a ${conda_env}/Library/lib ${copy_dir}/lib
@@ -62,11 +63,14 @@ set +x
 echo '[Paths]' >> ${copy_dir}/bin/qt6.conf
 echo 'Prefix = ../lib/qt6' >> ${copy_dir}/bin/qt6.conf
 
-version_name="FreeCAD_${BUILD_TAG}-Windows-$(uname -m)"
+version_name="AstoCAD_${BUILD_TAG}-Windows-$(uname -m)"
 
 echo -e "################"
 echo -e "version_name:  ${version_name}"
 echo -e "################"
+
+# 1. Install Addons
+"$conda_env/python.exe" ../scripts/install_addons.py "$(pwd)/${copy_dir}"
 
 pixi list -e default > ${copy_dir}/packages.txt
 sed -i '1s/.*/\nLIST OF PACKAGES:/' ${copy_dir}/packages.txt
@@ -124,7 +128,7 @@ if [[ "${WINDOWS_SIGN_RELEASE:-0}" == "1" ]]; then
     done
 
     # Manually check the important one!
-    signtool verify -pa "$SIGN_DIR/bin/FreeCAD.exe"
+    signtool verify -pa "$SIGN_DIR/bin/AstoCAD.exe"
 
     unsigned=0
     for f in "${BINARIES[@]}"; do
@@ -147,7 +151,7 @@ else
 fi
 
 echo "Running FreeCAD command-line smoke test..."
-if ! "$SIGN_DIR/bin/freecadcmd.exe" --safe-mode --version; then
+if ! "$SIGN_DIR/bin/AstoCADcmd.exe" --safe-mode --version; then
   echo "FreeCAD command-line smoke test failed; the Windows bundle cannot start."
   exit 1
 fi

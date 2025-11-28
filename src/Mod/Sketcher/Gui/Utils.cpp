@@ -20,9 +20,13 @@
  ******************************************************************************/
 
 #include <QCursor>
+#include <QDir>
+#include <QDirIterator>
+#include <QFileInfo>
 #include <QLocale>
 #include <QRegularExpression>
 
+#include <App/Application.h>
 #include <App/Transactions.h>
 #include <Base/Quantity.h>
 #include <Base/UnitsApi.h>

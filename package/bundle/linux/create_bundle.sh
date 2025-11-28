@@ -15,8 +15,9 @@ find ${conda_env} -name \*.a -delete
 
 mv ${conda_env}/bin ${conda_env}/bin_tmp
 mkdir ${conda_env}/bin
-cp ${conda_env}/bin_tmp/freecad ${conda_env}/bin/
-cp ${conda_env}/bin_tmp/freecadcmd ${conda_env}/bin
+cp ${conda_env}/bin_tmp/AstoCAD ${conda_env}/bin/
+cp ${conda_env}/bin_tmp/AstoCADcmd ${conda_env}/bin/
+cp ${conda_env}/bin_tmp/branding.xml ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/ccx ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/python ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/pip ${conda_env}/bin/
@@ -31,9 +32,9 @@ ${conda_env}/bin/dot -c
 sed -i '1s|.*|#!/usr/bin/env python|' ${conda_env}/bin/pip
 
 echo -e "\nCopying Icon and Desktop file"
-cp ${conda_env}/share/applications/org.freecad.FreeCAD.desktop AppDir/
-sed -i 's/Exec=FreeCAD/Exec=AppRun/g' AppDir/org.freecad.FreeCAD.desktop
-cp ${conda_env}/share/icons/hicolor/scalable/apps/org.freecad.FreeCAD.svg AppDir/
+cp ${conda_env}/share/applications/com.astocad.desktop AppDir/
+sed -i 's/Exec=astocad/Exec=AppRun/g' AppDir/com.astocad.desktop
+cp ${conda_env}/share/icons/hicolor/scalable/apps/AstoCAD.svg AppDir/
 
 # Remove __pycache__ folders and .pyc files
 find . -path "*/__pycache__/*" -delete
@@ -96,11 +97,14 @@ rm -rf ${conda_env}/x86_64-conda-linux-gnu
 find . -name "*.h" -type f -delete
 find . -name "*.cmake" -type f -delete
 
-version_name="FreeCAD_${BUILD_TAG}-Linux-$(uname -m)"
+version_name="AstoCAD_${BUILD_TAG}-Linux-$(uname -m)"
 
 echo -e "\################"
 echo -e "version_name:  ${version_name}"
 echo -e "################"
+
+echo -e "\nInstall additional addons"
+${conda_env}/bin/python ../scripts/install_addons.py ${conda_env}
 
 pixi list -e default > AppDir/packages.txt
 sed -i "1s/.*/\nLIST OF PACKAGES:/" AppDir/packages.txt
@@ -114,16 +118,36 @@ for po in ./AppDir/locale/*/AppRun.po; do
 done
 
 echo "Running FreeCAD command-line smoke test..."
-if ! "${conda_env}/bin/freecadcmd" --safe-mode --version; then
+if ! "${conda_env}/bin/AstoCADcmd" --safe-mode --version; then
     echo "FreeCAD command-line smoke test failed; the Linux bundle cannot start."
     exit 1
 fi
 
 echo "Running FreeCAD bundled Pivy smoke test..."
-if ! "${conda_env}/bin/freecadcmd" --safe-mode --console "import pivy; from pivy import coin; print(pivy.__file__); print(coin.SoDB.getVersion())"; then
+if ! "${conda_env}/bin/AstoCADcmd" --safe-mode --console "import pivy; from pivy import coin; print(pivy.__file__); print(coin.SoDB.getVersion())"; then
     echo "FreeCAD bundled Pivy smoke test failed; the Linux bundle cannot import the bundled Coin/Pivy runtime."
     exit 1
 fi
+
+echo "Checking that the executables take their libraries from the bundle..."
+# Every library the executables are linked to must be the bundled one, except the C library
+# (glibc), which is never bundled. A library the dynamic loader finds anywhere else (here: the
+# build environment) comes from the host on a user's machine, in another version than the
+# bundled libraries that work with it. The host's libxkbcommon used by the bundled
+# libxkbcommon-x11 crashes on the first key press.
+set +x # the library lists are long
+bundle_root="$(realpath "${conda_env}")"
+glibc_libs='^[[:space:]]*(linux-vdso\.so\.[0-9]+|([^ ]*/)?ld-linux[^ ]*|lib(c|m|mvec|dl|pthread|rt|util|resolv|anl)\.so\.[0-9]+) '
+for exe in AstoCAD AstoCADcmd; do
+    linked_libs="$(ldd "${bundle_root}/bin/${exe}")"
+    foreign_libs="$(echo "${linked_libs}" | grep -v -F "=> ${bundle_root}/" | grep -v -E "${glibc_libs}" || true)"
+    if [ -n "${foreign_libs}" ]; then
+        echo "${exe} takes these libraries from outside the bundle:"
+        echo "${foreign_libs}"
+        exit 1
+    fi
+done
+set -x
 
 curl -LO https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$(uname -m).AppImage
 chmod a+x appimagetool-$(uname -m).AppImage
