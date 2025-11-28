@@ -3,7 +3,7 @@
 set -e
 set -x
 
-conda_env="FreeCAD.app/Contents/Resources"
+conda_env="AstoCAD.app/Contents/Resources"
 
 mkdir -p ${conda_env}
 
@@ -17,6 +17,9 @@ mv ${conda_env}/bin ${conda_env}/bin_tmp
 mkdir ${conda_env}/bin
 cp ${conda_env}/bin_tmp/freecad ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/freecadcmd ${conda_env}/bin
+cp ${conda_env}/bin_tmp/AstoCAD ${conda_env}/bin/
+cp ${conda_env}/bin_tmp/AstoCADcmd ${conda_env}/bin
+cp ${conda_env}/bin_tmp/branding.xml ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/ccx ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/python ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/pip ${conda_env}/bin/
@@ -44,27 +47,30 @@ python ../scripts/fix_macos_lib_paths.py ${conda_env}/lib -r
 # build and install the launcher
 cmake -B build launcher
 cmake --build build
-mkdir -p FreeCAD.app/Contents/MacOS
-cp build/FreeCAD FreeCAD.app/Contents/MacOS/FreeCAD
-
-python_version=$(${conda_env}/bin/python -c 'import platform; print("py" + platform.python_version_tuple()[0] + platform.python_version_tuple()[1])')
+mkdir -p AstoCAD.app/Contents/MacOS
+cp build/FreeCAD AstoCAD.app/Contents/MacOS/AstoCAD
 
 # Add deployment target suffix to artifact name (e.g., "-macOS11" or "-macOS15")
 deploy_target="${MACOS_DEPLOYMENT_TARGET:-11.0}"
 deploy_suffix="-macOS${deploy_target%%.*}"
-version_name="FreeCAD_${BUILD_TAG}-macOS-$(uname -m)${deploy_suffix}-${python_version}"
-application_menu_name="FreeCAD_${BUILD_TAG}"
+
+version_name="AstoCAD_${BUILD_TAG}-${deploy_suffix}-$(uname -m)"
+
+application_menu_name="AstoCAD_${BUILD_TAG}"
 
 echo -e "\################"
 echo -e "version_name:  ${version_name}"
 echo -e "################"
 
+# ... (install addons) ...
+#${conda_env}/bin/python ../scripts/install_addons.py ${conda_env}
+
 cp Info.plist.template ${conda_env}/../Info.plist
 sed -i "s/FREECAD_VERSION/${version_name}/" ${conda_env}/../Info.plist
 sed -i "s/APPLICATION_MENU_NAME/${application_menu_name}/" ${conda_env}/../Info.plist
 
-pixi list -e default > FreeCAD.app/Contents/packages.txt
-sed -i '1s/.*/\nLIST OF PACKAGES:/' FreeCAD.app/Contents/packages.txt
+pixi list -e default > AstoCAD.app/Contents/packages.txt
+sed -i '1s/.*/\nLIST OF PACKAGES:/' AstoCAD.app/Contents/packages.txt
 
 # move plugins into their final location (Library only exists for macOS < 15.0 builds)
 if [ -d "${conda_env}/Library" ]; then
@@ -78,27 +84,27 @@ fi
 
 if [[ "${MACOS_SIGN_RELEASE}" == "true" ]]; then
     # create the signed dmg
-    ../../scripts/macos_sign_and_notarize.zsh -p "FreeCAD" -k ${MACOS_SIGNING_KEY_ID} -o "${version_name}.dmg"
+    ../../scripts/macos_sign_and_notarize.zsh -p "AstoCAD" -k ${MACOS_SIGNING_KEY_ID} -o "${version_name}.dmg"
 else
     # Ad-hoc sign for local builds (required for QuickLook extensions to register)
-    if [ -d "FreeCAD.app/Contents/PlugIns" ]; then
+    if [ -d "AstoCAD.app/Contents/PlugIns" ]; then
         echo "Ad-hoc signing App Extensions with entitlements..."
         codesign --force --sign - \
             --entitlements ../../../src/MacAppBundle/QuickLook/modern/ThumbnailExtension.entitlements \
-            FreeCAD.app/Contents/PlugIns/FreeCADThumbnailExtension.appex
+            AstoCAD.app/Contents/PlugIns/FreeCADThumbnailExtension.appex
         codesign --force --sign - \
             --entitlements ../../../src/MacAppBundle/QuickLook/modern/PreviewExtension.entitlements \
-            FreeCAD.app/Contents/PlugIns/FreeCADPreviewExtension.appex
+            AstoCAD.app/Contents/PlugIns/FreeCADPreviewExtension.appex
     fi
     echo "Ad-hoc signing app bundle..."
-    codesign --force --sign - FreeCAD.app/Contents/packages.txt
-    if [ -f "FreeCAD.app/Contents/Library/QuickLook/QuicklookFCStd.qlgenerator/Contents/MacOS/QuicklookFCStd" ]; then
-        codesign --force --sign - FreeCAD.app/Contents/Library/QuickLook/QuicklookFCStd.qlgenerator/Contents/MacOS/QuicklookFCStd
+    codesign --force --sign - AstoCAD.app/Contents/packages.txt
+    if [ -f "AstoCAD.app/Contents/Library/QuickLook/QuicklookFCStd.qlgenerator/Contents/MacOS/QuicklookFCStd" ]; then
+        codesign --force --sign - AstoCAD.app/Contents/Library/QuickLook/QuicklookFCStd.qlgenerator/Contents/MacOS/QuicklookFCStd
     fi
-    codesign --force --sign - FreeCAD.app
+    codesign --force --sign - AstoCAD.app
 
     # create the dmg
-    dmgbuild -s dmg_settings.py "FreeCAD" "${version_name}.dmg"
+    dmgbuild -s dmg_settings.py "AstoCAD" "${version_name}.dmg"
 fi
 
 # create hash
