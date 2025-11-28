@@ -3,7 +3,7 @@
 set -e
 set -x
 
-conda_env="FreeCAD.app/Contents/Resources"
+conda_env="AstoCAD.app/Contents/Resources"
 
 mkdir -p ${conda_env}
 
@@ -15,8 +15,9 @@ find ${conda_env} -name \*.a -delete
 
 mv ${conda_env}/bin ${conda_env}/bin_tmp
 mkdir ${conda_env}/bin
-cp ${conda_env}/bin_tmp/freecad ${conda_env}/bin/
-cp ${conda_env}/bin_tmp/freecadcmd ${conda_env}/bin
+cp ${conda_env}/bin_tmp/AstoCAD ${conda_env}/bin/
+cp ${conda_env}/bin_tmp/AstoCADcmd ${conda_env}/bin
+cp ${conda_env}/bin_tmp/branding.xml ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/ccx ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/python ${conda_env}/bin/
 cp ${conda_env}/bin_tmp/pip ${conda_env}/bin/
@@ -44,16 +45,19 @@ python ../scripts/fix_macos_lib_paths.py ${conda_env}/lib -r
 # build and install the launcher
 cmake -B build launcher
 cmake --build build
-mkdir -p FreeCAD.app/Contents/MacOS
-cp build/FreeCAD FreeCAD.app/Contents/MacOS/FreeCAD
+mkdir -p AstoCAD.app/Contents/MacOS
+cp build/FreeCAD AstoCAD.app/Contents/MacOS/AstoCAD
 
-python_version=$(${conda_env}/bin/python -c 'import platform; print("py" + platform.python_version_tuple()[0] + platform.python_version_tuple()[1])')
-version_name="FreeCAD_${BUILD_TAG}-macOS-$(uname -m)-${python_version}"
-application_menu_name="FreeCAD_${BUILD_TAG}"
+version_name="AstoCAD_${BUILD_TAG}-macOS-$(uname -m)"
+
+application_menu_name="AstoCAD_${BUILD_TAG}"
 
 echo -e "\################"
 echo -e "version_name:  ${version_name}"
 echo -e "################"
+
+# ... (install addons) ...
+${conda_env}/bin/python ../scripts/install_addons.py ${conda_env}
 
 cp Info.plist.template ${conda_env}/../Info.plist
 sed -i "s/FREECAD_VERSION/${version_name}/" ${conda_env}/../Info.plist
