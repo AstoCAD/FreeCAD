@@ -710,7 +710,7 @@ PyObject* SketchObjectPy::delConstraintsToExternal()
     Py_Return;
 }
 
-PyObject* SketchObjectPy::setTextAndFont(PyObject* args)
+PyObject* SketchObjectPy::setTextAndFont(PyObject* args, PyObject* kwd)
 {
     int constrIndex = -1;
     char* textStr;
