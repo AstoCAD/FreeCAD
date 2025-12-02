@@ -59,7 +59,7 @@ echo -e "version_name:  ${version_name}"
 echo -e "################"
 
 # ... (install addons) ...
-${conda_env}/bin/python ../scripts/install_addons.py ${conda_env}
+#${conda_env}/bin/python ../scripts/install_addons.py ${conda_env}
 
 cp Info.plist.template ${conda_env}/../Info.plist
 sed -i "s/FREECAD_VERSION/${version_name}/" ${conda_env}/../Info.plist

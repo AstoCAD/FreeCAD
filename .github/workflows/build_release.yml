@@ -228,18 +228,28 @@ jobs:
             
           elif [[ "$RUNNER_OS" == "Windows" ]]; then
             echo "Uploading via PowerShell for Windows..."
-            
+
+            # 1. Enter the windows directory (as fixed previously)
             cd windows
 
+            # 2. Run PowerShell with escaped variables (\$)
             pwsh -Command "
-            $files = Get-ChildItem -Path . -Include 'AstoCAD_*.7z', 'AstoCAD_*.txt' -Recurse -Depth 0
+            \$files = Get-ChildItem -Path . -Include 'AstoCAD_*.7z', 'AstoCAD_*.txt' -Recurse -Depth 0
+
+            if (\$files.Count -eq 0) {
+                Write-Error 'No files found to upload in windows directory'
+                exit 1
+            }
+
             foreach (\$file in \$files) {
-              $filename = \$file.Name
+              \$filename = \$file.Name
               Write-Host \"Uploading \$filename...\"
               try {
-                \$ftpUri = \"ftp://${{ secrets.FTP_HOST }}/www/builds/\$filename\"
+                # Use env vars defined in the workflow (FTP_HOST, FTP_USER, etc.)
+                \$ftpUri = \"ftp://\" + \$env:FTP_HOST + \"/www/builds/\" + \$filename
+
                 \$ftpRequest = [System.Net.FtpWebRequest]::Create(\$ftpUri)
-                \$ftpRequest.Credentials = New-Object System.Net.NetworkCredential('${{ secrets.FTP_USER }}', '${{ secrets.FTP_PASSWORD }}')
+                \$ftpRequest.Credentials = New-Object System.Net.NetworkCredential(\$env:FTP_USER, \$env:FTP_PASSWORD)
                 \$ftpRequest.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
                 \$ftpRequest.UseBinary = \$true
                 \$ftpRequest.KeepAlive = \$false
