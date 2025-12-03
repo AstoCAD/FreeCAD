@@ -234,7 +234,7 @@ jobs:
 
             # 2. Run PowerShell with escaped variables (\$)
             pwsh -Command "
-            \$files = Get-ChildItem -Path . -Include 'AstoCAD_*.7z', 'AstoCAD_*.txt' -Recurse -Depth 0
+            \$files = Get-ChildItem -Path . -Include 'AstoCAD_*.7z', 'AstoCAD_*.exe', 'AstoCAD_*.txt' -Recurse -Depth 0
 
             if (\$files.Count -eq 0) {
                 Write-Error 'No files found to upload in windows directory'
