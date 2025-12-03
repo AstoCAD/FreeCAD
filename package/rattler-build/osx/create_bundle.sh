@@ -65,8 +65,8 @@ cp Info.plist.template ${conda_env}/../Info.plist
 sed -i "s/FREECAD_VERSION/${version_name}/" ${conda_env}/../Info.plist
 sed -i "s/APPLICATION_MENU_NAME/${application_menu_name}/" ${conda_env}/../Info.plist
 
-pixi list -e default > FreeCAD.app/Contents/packages.txt
-sed -i '1s/.*/\nLIST OF PACKAGES:/' FreeCAD.app/Contents/packages.txt
+pixi list -e default > AstoCAD.app/Contents/packages.txt
+sed -i '1s/.*/\nLIST OF PACKAGES:/' AstoCAD.app/Contents/packages.txt
 
 # copy the plugin into its final location
 cp -a ${conda_env}/Library ${conda_env}/..
@@ -74,10 +74,10 @@ rm -rf ${conda_env}/Library
 
 if [[ "${SIGN_RELEASE}" == "true" ]]; then
     # create the signed dmg
-    ../../scripts/macos_sign_and_notarize.zsh -p "FreeCAD" -k ${SIGNING_KEY_ID} -o "${version_name}.dmg"
+    ../../scripts/macos_sign_and_notarize.zsh -p "AstoCAD" -k ${SIGNING_KEY_ID} -o "${version_name}.dmg"
 else
     # create the dmg
-    dmgbuild -s dmg_settings.py "FreeCAD" "${version_name}.dmg"
+    dmgbuild -s dmg_settings.py "AstoCAD" "${version_name}.dmg"
 fi
 
 # create hash
