@@ -2453,6 +2453,48 @@ void ViewProviderSketch::onSelectionChanged(const Gui::SelectionChanges& msg)
 bool ViewProviderSketch::detectAndShowPreselection(SoPickedPoint* Point)
 {
     assert(isInEditMode());
+    
+    // Event filter to intercept the delayed tooltip event from Qt
+    class ToolTipFilter : public QObject {
+    public:
+        bool eventFilter(QObject *obj, QEvent *event) override {
+            if (event->type() == QEvent::ToolTip) {
+                // When Qt's idle timer fires, this event is sent.
+                // We intercept it to show the tooltip.
+                QHelpEvent *helpEvent = static_cast<QHelpEvent *>(event);
+                QWidget *widget = qobject_cast<QWidget *>(obj);
+                if (widget && !widget->toolTip().isEmpty()) {
+                    QToolTip::showText(helpEvent->globalPos(), widget->toolTip(), widget);
+                    return true; // Mark as handled so default processing doesn't hide it
+                }
+            }
+            return QObject::eventFilter(obj, event);
+        }
+    };
+    static ToolTipFilter filter;
+
+    auto updateToolTip = [this](const QString& text = QString()) {
+        auto* view = qobject_cast<Gui::View3DInventor*>(this->getActiveView());
+        QWidget* widget = view ? view->getViewer()->getGLWidget() : nullptr;
+
+        if (!widget) return;
+
+        if (text.isEmpty()) {
+            // Hide tooltip and cleanup
+            QToolTip::hideText();
+            widget->removeEventFilter(&filter);
+            widget->setToolTip(QString());
+        } else {
+            // 1. Set the tooltip text on the widget. 
+            // This arm's Qt's internal timer to fire QEvent::ToolTip after the standard delay.
+            widget->setToolTip(text);
+
+            // 2. Install the filter to catch that event.
+            // We remove it first to ensure we don't install it multiple times.
+            widget->removeEventFilter(&filter);
+            widget->installEventFilter(&filter);
+        }
+    };
 
     // Event filter to intercept the delayed tooltip event from Qt
     class ToolTipFilter : public QObject {
