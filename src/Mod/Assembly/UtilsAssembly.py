@@ -377,7 +377,7 @@ def getGlobalPlacement(ref, targetObj=None):
         rootObj = parents[0][0]
         subName = parents[0][1] + subName
 
-    return App.GeoFeature.getGlobalPlacementOf(targetObj, rootObj, subName)
+    return rootObj.getPlacementOf(subName, targetObj)
 
 
 def isThereOneRootAssembly():
