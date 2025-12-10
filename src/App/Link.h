@@ -671,6 +671,8 @@ public:
     bool allowDuplicateLabel() const override;
 
     void onParentLabelChanged(const char* newParentLabel) override;
+    
+    Base::Placement getPlacementOf(const std::string& sub, DocumentObject* targetObj = nullptr) override;
 };
 
 using LinkPython = App::FeaturePythonT<Link>;
@@ -722,6 +724,8 @@ public:
     bool isLink() const override;
 
     App::Link* getLinkGroup() const;
+
+    Base::Placement getPlacementOf(const std::string& sub, DocumentObject* targetObj = nullptr) override;
 };
 
 using LinkElementPython = App::FeaturePythonT<LinkElement>;
