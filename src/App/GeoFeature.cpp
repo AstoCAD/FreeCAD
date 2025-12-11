@@ -328,7 +328,7 @@ Base::Placement GeoFeature::getGlobalPlacement(App::DocumentObject* targetObj,
 Base::Placement GeoFeature::getGlobalPlacement(App::DocumentObject* targetObj,
                                                App::PropertyXLinkSub* prop)
 {
-    if (!targetObj || !prop) {
+    if (!prop) {
         return Base::Placement();
     }
 
