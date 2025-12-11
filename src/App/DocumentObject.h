@@ -27,6 +27,7 @@
 
 #include <App/TransactionalObject.h>
 #include <App/PropertyExpressionEngine.h>
+#include <App/PropertyGeo.h>
 #include <App/PropertyLinks.h>
 #include <App/PropertyStandard.h>
 #include <Base/SmartPtrPy.h>
@@ -713,6 +714,9 @@ public:
     If no targetObj given, the last object found in the subname is used as target.
     */
     virtual Base::Placement getPlacementOf(const std::string& sub, DocumentObject* targetObj = nullptr);
+
+    /* Returns the Placement property to use if any*/
+    App::PropertyPlacement* getPlacementProperty() const;
 
 protected:
     /// recompute only this object
