@@ -1629,10 +1629,10 @@ Base::Placement DocumentObject::getPlacementOf(const std::string& sub, DocumentO
 {
     Base::Placement plc;
     auto* propPlacement = dynamic_cast<App::PropertyPlacement*>(getPropertyByName("Placement"));
-    if (!propPlacement) {
-        return plc;
+    if (propPlacement) {
+        // If the object has no placement (like a Group), plc stays identity so we can proceed.
+        plc = propPlacement->getValue();
     }
-    plc = propPlacement->getValue();
 
     std::vector<std::string> names = Base::Tools::splitSubName(sub);
 
