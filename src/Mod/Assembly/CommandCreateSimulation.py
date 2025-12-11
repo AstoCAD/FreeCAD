@@ -25,8 +25,6 @@ import re
 import os
 import time
 import numpy
-import cv2
-from PIL import Image
 import tempfile
 from pathlib import Path
 
@@ -1058,22 +1056,6 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
 
         file_extension = Path(file_path).suffix.lower()
 
-        # 2. Check for required libraries based on file type
-        if file_extension in [".mp4", ".avi"]:
-            if cv2 is None or numpy is None:
-                App.Console.PrintError(
-                    "Exporting to video requires the 'opencv-python' and 'numpy' libraries.\n"
-                    "Please install them in FreeCAD's Python environment.\n"
-                )
-                return
-        elif file_extension == ".gif":
-            if Image is None:
-                App.Console.PrintError(
-                    "Exporting to GIF requires the 'Pillow' library.\n"
-                    "Please install it in FreeCAD's Python environment (pip install Pillow).\n"
-                )
-                return
-
         # 3. Get parameters
         view = Gui.ActiveDocument.ActiveView
         width, height = view.getSize()
@@ -1132,6 +1114,8 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
     # --- NEW HELPER METHODS for creating animation files ---
     def create_gif(self, output_path, frame_files, fps):
         """Creates an animated GIF from a list of image files using Pillow."""
+        from PIL import Image
+
         pil_images = [Image.open(f) for f in frame_files]
         duration_ms = int(1000 / fps)
         pil_images[0].save(
@@ -1145,6 +1129,8 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
 
     def create_video(self, output_path, frame_files, fps, size):
         """Creates a video file from a list of image files using OpenCV."""
+        import cv2
+
         file_extension = Path(output_path).suffix.lower()
         
         # Select codec based on file type
