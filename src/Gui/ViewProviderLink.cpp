@@ -3201,6 +3201,26 @@ void ViewProviderLink::_setupContextMenu(
         );
     }
 
+    if (ext->getScaleProperty() && !ext->getScaleProperty()->isReadOnly()) {
+        Gui::Document* doc = getDocument();
+        auto prop = ext->getScaleProperty();
+        auto action = menu->addAction(QObject::tr("Mirror link"), [prop, doc] {
+            try {
+                App::AutoTransaction guard(
+                    doc->openCommand(QT_TRANSLATE_NOOP("Command", "Mirror link"))
+                );
+                prop->setValue(prop->getValue() * -1.0);
+                Command::updateActive();
+            }
+            catch (Base::Exception& e) {
+                e.reportException();
+            }
+        });
+        action->setCheckable(true);
+        action->setChecked(prop->getValue() < 0.0);
+        action->setToolTip(QObject::tr("This affect only the selected link. The original object remains unchanged."));
+    }
+
     if (ext->getColoredElementsProperty()) {
         bool found = false;
         const auto actions = menu->actions();
