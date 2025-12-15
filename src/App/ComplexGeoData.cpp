@@ -744,5 +744,4 @@ const std::string ComplexGeoData::dumpElementMap() const
     dumpElementMap(ss);
     return ss.str();
 }
-
 // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
