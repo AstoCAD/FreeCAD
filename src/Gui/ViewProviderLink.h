@@ -353,6 +353,14 @@ public:
 
 
 protected:
+    Base::BoundBox3d _getBoundingBox(
+        const char* subname = nullptr,
+        const Base::Matrix4D* mat = nullptr,
+        bool transform = true,
+        const View3DInventorViewer* view = nullptr,
+        int depth = 0
+    ) const override;
+
     bool setEdit(int ModNum) override;
     void setEditViewer(View3DInventorViewer*, int ModNum) override;
     void unsetEditViewer(View3DInventorViewer*) override;
