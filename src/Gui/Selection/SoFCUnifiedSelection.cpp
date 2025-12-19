@@ -39,6 +39,7 @@
 #include <Inventor/elements/SoDrawStyleElement.h>
 #include <Inventor/elements/SoGLCacheContextElement.h>
 #include <Inventor/elements/SoLazyElement.h>
+#include <Inventor/elements/SoLightModelElement.h>
 #include <Inventor/elements/SoLineWidthElement.h>
 #include <Inventor/elements/SoMaterialBindingElement.h>
 #include <Inventor/elements/SoModelMatrixElement.h>
@@ -58,6 +59,7 @@
 #include <Inventor/nodes/SoMaterialBinding.h>
 #include <Inventor/nodes/SoNormalBinding.h>
 #include <Inventor/nodes/SoPointSet.h>
+#include <Inventor/nodes/SoTransform.h>
 #include <Inventor/threads/SbStorage.h>
 
 
