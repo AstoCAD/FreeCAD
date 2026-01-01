@@ -671,6 +671,14 @@ public:
     {
         return debugMode;
     }
+    inline void setAutoQRThreshold(int val)
+    {
+        GCSsys.autoQRThreshold = val;
+    }
+    inline void setSketchAutoAlgo(bool val)
+    {
+        GCSsys.autoChooseAlgorithm = val;
+    }
     inline void setMaxIter(int maxiter)
     {
         GCSsys.maxIter = maxiter;
