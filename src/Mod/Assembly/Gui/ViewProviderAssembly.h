@@ -290,6 +290,8 @@ private:
         std::set<App::DocumentObject*>& visited
     );
 
+    TaskAssemblyMessages* taskSolver;
+
     fastsignals::connection connectSolverUpdate;
     fastsignals::scoped_connection m_preTransactionConn;
 };
