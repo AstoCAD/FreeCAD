@@ -46,7 +46,6 @@
 #include <ranges>
 
 #include "StartupProcess.h"
-#include "PreferencePackManager.h"
 #include "Application.h"
 #include "AutoSaver.h"
 #include "Dialogs/DlgCheckableMessageBox.h"
@@ -334,18 +333,6 @@ void StartupPostProcess::setQtStyle()
     setStyleFromParameters();
 }
 
-void StartupPostProcess::migrateOldTheme(const std::string& style)
-{
-    auto prefPackManager = Application::Instance->prefPackManager();
-
-    if (style == "FreeCAD Light.qss") {
-        prefPackManager->apply("FreeCAD Light");
-    }
-    else if (style == "FreeCAD Dark.qss") {
-        prefPackManager->apply("FreeCAD Dark");
-    }
-}
-
 void StartupPostProcess::checkOpenGL()
 {
     QWindow window;
@@ -549,11 +536,7 @@ void StartupPostProcess::setStyleSheet()
         }
     }
 
-    // In 1.1 we migrated to a common parametrized stylesheet.
-    // if we detect an old style, we need to reapply the theme pack.
-    migrateOldTheme(style);
-
-    guiApp.setStyleSheet(QString::fromStdString(style), hGrp->GetBool("TiledBackground", false));
+    guiApp.setStyleSheet(QLatin1String(style.c_str()), hGrp->GetBool("TiledBackground", false));
 }
 
 void StartupPostProcess::autoloadModules(const QStringList& wb)
