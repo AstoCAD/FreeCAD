@@ -88,11 +88,13 @@ class AssemblyObject(Part):
         Returns: None"""
         ...
 
-    def undoSolve(self) -> None:
-        """
-        Undo the last solve of the assembly and return part placements to their initial position.
-        """
-        ...
+    @constmethod
+    def undoSolve(self) -> Any:
+        """Undo the last solve of the assembly and return part placements to their initial position.
+
+        undoSolve()
+
+        Returns: None"""
 
     @constmethod
     def ensureIdentityPlacements(self) -> None:
