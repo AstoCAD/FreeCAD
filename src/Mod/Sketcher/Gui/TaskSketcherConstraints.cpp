@@ -1728,6 +1728,7 @@ void TaskSketcherConstraints::slotConstraintsChanged()
     assert(sketchView);
 
     constraintMap.clear();
+    selectionBuffer.clear();
 
     // Build up ListView with the constraints
     const Sketcher::SketchObject* sketch = sketchView->getSketchObject();

@@ -1947,6 +1947,7 @@ void TaskSketcherElements::slotElementsChanged()
 
     ui->listWidgetElements->clear();
     elementMap.clear();
+    selectionBuffer.clear();
 
     using GeometryState = ElementItem::GeometryState;
 
