@@ -2952,8 +2952,8 @@ void ViewProviderSketch::doBoxSelection(const SbVec2s& startPos, const SbVec2s& 
 
     if (!batchSelection.empty()) {
         Gui::Selection().addSelections(
-            getSketchObject()->getDocument()->getName(),
-            getSketchObject()->getNameInDocument(),
+            editDocName.c_str(),
+            editObjName.c_str(),
             batchSelection
         );
     }
@@ -3107,8 +3107,8 @@ bool ViewProviderSketch::selectAll()
 
     if (!batchSelection.empty()) {
         Gui::Selection().addSelections(
-            getSketchObject()->getDocument()->getName(),
-            getSketchObject()->getNameInDocument(),
+            editDocName.c_str(),
+            editObjName.c_str(),
             batchSelection
         );
     }
