@@ -201,9 +201,9 @@ public:
     }
 
     template<typename F>
-    boost::signals2::connection registerLineEditTextChanged(F&& fn)
+    fastsignals::advanced_connection registerLineEditTextChanged(F&& fn)
     {
-        return signalLineEditTextChanged.connect(std::forward<F>(fn));
+        return signalLineEditTextChanged.connect(std::forward<F>(fn), fastsignals::advanced_tag());
     }
 
     // Q_SIGNALS:
