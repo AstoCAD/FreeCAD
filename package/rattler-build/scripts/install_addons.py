@@ -1,6 +1,5 @@
 import json
 import os
-import platform
 import sys
 import freecad
 import FreeCAD as App
@@ -8,7 +7,7 @@ from addonmanager_installer import AddonInstaller
 import Addon
 
 conda_env=os.path.join(os.getcwd(),sys.argv[1])
-if platform.system() != 'Windows':
+if sys.platform != 'win32':
     modspath = os.path.join(conda_env,'Mod')
     prefpackspath = os.path.join(conda_env,'share','Gui','PreferencePacks')
 else:
