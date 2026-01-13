@@ -4501,12 +4501,11 @@ int SketchObject::addSymmetric(
     // of a Symmetry constraint and an Equal constraint, flagging one as redundant.
     if (addSymmetryConstraints) {
         for (auto* geo : symgeos) {
-            if (auto* arc = static_cast<Part::GeomArcOfCircle*>(geo)) {
+            if (auto* arc = dynamic_cast<Part::GeomArcOfCircle*>(geo)) {
                 double start, end;
                 double perturbation = 0.001;
                 arc->getRange(start, end, true);
                 arc->setRange(start + perturbation, end, true);
-
             }
         }
     }
@@ -4716,6 +4715,10 @@ int SketchObject::addSymmetric(
                 }
             }
             // Note bspline has symmetric by the internal aligned circles.
+        }
+
+        if (newconstrVals.size() > constrvals.size()) {
+            Constraints.setValues(std::move(newconstrVals));
         }
     }
 
