@@ -499,70 +499,6 @@ bool DrawSketchHandler::isLineCenterAutoConstraint(int GeoId, const Base::Vector
     return false;
 }
 
-bool DrawSketchHandler::isEndPointTangentAutoConstraint(
-    int GeoId,
-    const Base::Vector2d& Pos,
-    const Base::Vector2d& Dir
-) const
-{
-    SketchObject* obj = sketchgui->getSketchObject();
-    double tangDeviation = 0.1 * sketchgui->getScaleFactor();
-
-    Base::Vector3d tmpPos(Pos.x, Pos.y, 0.f);                    // Current cursor point
-    Base::Vector3d tmpDir(Dir.x, Dir.y, 0.f);                    // Direction of line
-    Base::Vector3d tmpStart(Pos.x - Dir.x, Pos.y - Dir.y, 0.f);  // Start point
-
-    auto* geo = obj->getGeometry(GeoId);
-    if (geo->isDerivedFrom<Part::GeomArcOfCircle>()) {
-        auto* arc = static_cast<const Part::GeomArcOfCircle*>(geo);
-
-        Base::Vector3d center = arc->getCenter();
-        double radius = arc->getRadius();
-
-        // ignore if no touch (use dot product)
-        if (tmpDir * (center - tmpPos) > 0 || tmpDir * (center - tmpStart) < 0) {
-            return false;
-        }
-
-        Base::Vector3d projPnt(0.f, 0.f, 0.f);
-        projPnt = projPnt.ProjectToLine(center - tmpPos, tmpDir);
-        double projDist = std::abs(projPnt.Length() - radius);
-
-        // Find if nearest
-        if (projDist < tangDeviation) {
-            return true;
-        }
-        else if (geo->isDerivedFrom<Part::GeomArcOfEllipse>()) {
-            auto* aoe = static_cast<const Part::GeomArcOfEllipse*>(geo);
-            Base::Vector3d center = aoe->getCenter();
-
-            double a = aoe->getMajorRadius();
-            double b = aoe->getMinorRadius();
-            Base::Vector3d majdir = aoe->getMajorAxisDir();
-
-            double cf = sqrt(a * a - b * b);
-
-            Base::Vector3d focus1P = center + cf * majdir;
-            Base::Vector3d focus2P = center - cf * majdir;
-
-            Base::Vector3d norm = Base::Vector3d(Dir.y, -Dir.x).Normalize();
-
-            double distancetoline = norm * (tmpPos - focus1P);  // distance focus1 to line
-
-            // mirror of focus1 with respect to the line
-            Base::Vector3d focus1PMirrored = focus1P + 2 * distancetoline * norm;
-
-            double error = fabs((focus1PMirrored - focus2P).Length() - 2 * a);
-
-            if (error < tangDeviation) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
 void DrawSketchHandler::seekPreselectionAutoConstraint(
     std::vector<AutoConstraint>& suggestedConstraints,
     const Base::Vector2d& Pos,
@@ -584,14 +520,7 @@ void DrawSketchHandler::seekPreselectionAutoConstraint(
                 constr.Type = lineCenter ? Sketcher::Symmetric : Sketcher::PointOnObject;
             }
             else {
-                if (type == AutoConstraint::VERTEX_NO_TANGENCY) {
-                    constr.Type = Sketcher::Coincident;
-                }
-                else {
-                    bool endPointTangent = false;  // isEndPointTangentAutoConstraint(preSel.geoId,
-                                                   // Pos, Dir);
-                    constr.Type = endPointTangent ? Sketcher::Tangent : Sketcher::Coincident;
-                }
+                constr.Type = Sketcher::Coincident;
             }
         }
         else if (type == AutoConstraint::CURVE && preSel.posId != PointPos::none) {
@@ -907,25 +836,32 @@ bool DrawSketchHandler::seekTangentAutoConstraint(
             double error = fabs((focus1PMirrored - focus2P).Length() - 2 * a);
 
             if (error < tangDeviation) {
-                double startAngle, endAngle;
-                aoe->getRange(startAngle, endAngle, /*emulateCCW=*/true);
+                Base::Vector3d start = aoe->getStartPoint();
+                Base::Vector3d end = aoe->getEndPoint();
 
-                double angle = Base::fmod(
-                    atan2(
-                        -aoe->getMajorRadius()
-                            * ((tmpPos.x - center.x) * majdir.y - (tmpPos.y - center.y) * majdir.x),
-                        aoe->getMinorRadius()
-                            * ((tmpPos.x - center.x) * majdir.x + (tmpPos.y - center.y) * majdir.y)
-                    ) - startAngle,
-                    2.f * pi
-                );
-
-                while (angle < startAngle) {
-                    angle += 2 * pi;  // Bring it to range of arc
+                if ((start - tmpPos).Length() < Precision::Confusion()) {
+                    tanPos = PointPos::start;
+                    tangId = i;
+                    tangDeviation = error;
+                    removeCoincidentConstraint(tangId, tanPos);
                 }
-
-                // if the point is on correct side of arc
-                if (angle <= endAngle) {  // Now need to check only one side
+                else if ((start - tmpStart).Length() < Precision::Confusion()) {
+                    tanPos = PointPos::start;
+                    tangId = i;
+                    tangDeviation = error;
+                }
+                else if ((end - tmpPos).Length() < Precision::Confusion()) {
+                    tanPos = PointPos::end;
+                    tangId = i;
+                    tangDeviation = error;
+                    removeCoincidentConstraint(tangId, tanPos);
+                }
+                else if ((end - tmpStart).Length() < Precision::Confusion()) {
+                    tanPos = PointPos::end;
+                    tangId = i;
+                    tangDeviation = error;
+                }
+                else {
                     tangId = i;
                     tangDeviation = error;
                 }

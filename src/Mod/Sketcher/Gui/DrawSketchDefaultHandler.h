@@ -802,55 +802,51 @@ protected:
 
                 const Part::Geometry* geom1 = Obj->getGeometry(geoId1);
                 const Part::Geometry* geom2 = Obj->getGeometry(geoId2);
-
-                // ellipse tangency support using construction elements (lines)
-                if (geom1 && geom2
-                    && (geom1->is<Part::GeomEllipse>() || geom2->is<Part::GeomEllipse>())) {
-                    if (!geom1->is<Part::GeomEllipse>()) {
-                        std::swap(geoId1, geoId2);
-                    }
-
-                    // geoId1 is the ellipse
-                    geom1 = Obj->getGeometry(geoId1);
-                    geom2 = Obj->getGeometry(geoId2);
-
-                    if (geom2->is<Part::GeomEllipse>() || geom2->is<Part::GeomArcOfEllipse>()
-                        || geom2->is<Part::GeomCircle>() || geom2->is<Part::GeomArcOfCircle>()) {
-                        // in all these cases an intermediate element is needed
-                        // makeTangentToEllipseviaNewPoint(
-                        //     Obj,
-                        //     static_cast<const Part::GeomEllipse*>(geom1),
-                        //     geom2,
-                        //     geoId1,
-                        //     geoId2);
-                        // NOTE: Temporarily deactivated
-                        return false;
-                    }
+                if (!geom1 || !geom2) {
+                    return false;
                 }
 
-                // arc of ellipse tangency support using external elements
-                if (geom1 && geom2
-                    && (geom1->is<Part::GeomArcOfEllipse>() || geom2->is<Part::GeomArcOfEllipse>())) {
-                    if (!geom1->is<Part::GeomArcOfEllipse>()) {
-                        std::swap(geoId1, geoId2);
-                    }
-
-                    // geoId1 is the arc of ellipse
-                    geom1 = Obj->getGeometry(geoId1);
-                    geom2 = Obj->getGeometry(geoId2);
-
-                    if (geom2->is<Part::GeomArcOfEllipse>() || geom2->is<Part::GeomCircle>()
-                        || geom2->is<Part::GeomArcOfCircle>()) {
-                        // in all these cases an intermediate element is needed
-                        // makeTangentToArcOfEllipseviaNewPoint(
-                        //     Obj,
-                        //     static_cast<const Part::GeomArcOfEllipse*>(geom1),
-                        //     geom2,
-                        //     geoId1,
-                        //     geoId2);
-                        // NOTE: Temporarily deactivated
-                        return false;
-                    }
+                // 2026.01.16: Do not use swap as it did before or it breaks resultCoincident.
+                // NOTE: Temporarily deactivated : ellipse tangency support using construction elements
+                if (geom1->is<Part::GeomEllipse>()
+                    && (geom2->is<Part::GeomConic>() || geom2->is<Part::GeomArcOfConic>())) {
+                    // makeTangentToEllipseviaNewPoint(
+                    //     Obj,
+                    //     static_cast<const Part::GeomEllipse*>(geom1),
+                    //     geom2,
+                    //     geoId1,
+                    //     geoId2);
+                    return false;
+                }
+                else if (geom2->is<Part::GeomEllipse>()
+                         && (geom1->is<Part::GeomConic>() || geom1->is<Part::GeomArcOfConic>())) {
+                    // makeTangentToEllipseviaNewPoint(
+                    //     Obj,
+                    //     static_cast<const Part::GeomEllipse*>(geom2),
+                    //     geom1,
+                    //     geoId2,
+                    //     geoId1);
+                    return false;
+                }
+                else if (geom1->is<Part::GeomArcOfEllipse>()
+                         && (geom2->is<Part::GeomConic>() || geom2->is<Part::GeomArcOfConic>())) {
+                    // makeTangentToArcOfEllipseviaNewPoint(
+                    //     Obj,
+                    //     static_cast<const Part::GeomArcOfEllipse*>(geom1),
+                    //     geom2,
+                    //     geoId1,
+                    //     geoId2);
+                    return false;
+                }
+                else if (geom2->is<Part::GeomArcOfEllipse>()
+                         && (geom1->is<Part::GeomConic>() || geom1->is<Part::GeomArcOfConic>())) {
+                    // makeTangentToArcOfEllipseviaNewPoint(
+                    //     Obj,
+                    //     static_cast<const Part::GeomArcOfEllipse*>(geom2),
+                    //     geom1,
+                    //     geoId2,
+                    //     geoId1);
+                    return false;
                 }
 
                 auto resultCoincident = std::ranges::find_if(AutoConstraints, [&](const auto& ace) {
@@ -876,7 +872,7 @@ protected:
                 }
                 else if (resultCoincident != AutoConstraints.end()
                          && (*resultCoincident)->FirstPos == Sketcher::PointPos::mid
-                         && (*resultCoincident)->SecondPos == Sketcher::PointPos::mid && geom1 && geom2
+                         && (*resultCoincident)->SecondPos == Sketcher::PointPos::mid
                          && (geom1->is<Part::GeomCircle>() || geom1->is<Part::GeomArcOfCircle>())
                          && (geom2->is<Part::GeomCircle>() || geom2->is<Part::GeomArcOfCircle>())) {
                     // equality
@@ -890,9 +886,7 @@ protected:
                     auto c = std::make_unique<Sketcher::Constraint>();
                     c->Type = Sketcher::Tangent;
                     c->First = geoId1;
-                    c->FirstPos = posId1;
                     c->Second = geoId2;
-                    c->SecondPos = ac.PosId;
                     AutoConstraints.push_back(std::move(c));
                 }
             } break;
@@ -924,7 +918,6 @@ protected:
             }
         }
     }
-
 
     /** @brief Convenience function to automatically add to the SketchObjects (via Python command)
      * all the constraints stored in the AutoConstraints vector. */
