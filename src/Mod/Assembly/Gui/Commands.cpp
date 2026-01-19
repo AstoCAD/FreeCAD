@@ -71,6 +71,24 @@ void selectObjects(const std::vector<App::DocumentObject*>& objectsToSelect)
     }
 }
 
+void selectObjectsByName(AssemblyObject* assembly, const std::vector<std::string>& names)
+{
+    if (!assembly || names.empty()) {
+        return;
+    }
+
+    std::vector<App::DocumentObject*> objectsToSelect;
+    App::Document* doc = assembly->getDocument();
+
+    for (const auto& name : names) {
+        if (auto* obj = doc->getObject(name.c_str())) {
+            objectsToSelect.push_back(obj);
+        }
+    }
+
+    selectObjects(objectsToSelect);
+}
+
 // ================================================================================
 // Go to Linked Assembly
 // ================================================================================
@@ -163,7 +181,7 @@ void CmdAssemblySelectConflictingConstraints::activated(int iMsg)
 
     // NOTE: The solver currently reports conflicting constraints as redundant.
     // This uses the redundant list until the solver provides a separate conflicting list.
-    selectObjects(assembly->getLastRedundant());
+    selectObjectsByName(assembly, assembly->getLastRedundant());
 }
 
 bool CmdAssemblySelectConflictingConstraints::isActive()
@@ -195,8 +213,8 @@ void CmdAssemblySelectRedundantConstraints::activated(int iMsg)
     if (!assembly) {
         return;
     }
-
-    selectObjects(assembly->getLastRedundant());
+    
+    selectObjectsByName(assembly, assembly->getLastRedundant());
 }
 
 bool CmdAssemblySelectRedundantConstraints::isActive()
@@ -229,7 +247,7 @@ void CmdAssemblySelectMalformedConstraints::activated(int iMsg)
         return;
     }
 
-    selectObjects(assembly->getLastMalformed());
+    selectObjectsByName(assembly, assembly->getLastMalformed());
 }
 
 bool CmdAssemblySelectMalformedConstraints::isActive()
