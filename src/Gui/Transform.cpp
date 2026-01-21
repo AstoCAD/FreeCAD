@@ -468,7 +468,6 @@ void Transform::changeEvent(QEvent* e)
 
 TaskTransform::TaskTransform()
 {
-    this->setButtonPosition(TaskTransform::South);
     dialog = new Transform();
     dialog->showStandardButtons(false);
     addTaskBox(dialog);

@@ -1184,7 +1184,6 @@ void CmdMeshRemoveComponents::activated(int)
     Gui::TaskView::TaskDialog* dlg = Gui::Control().activeDialog();
     if (!dlg) {
         dlg = new MeshGui::TaskRemoveComponents();
-        dlg->setButtonPosition(Gui::TaskView::TaskDialog::South);
     }
     Gui::Control().showDialog(dlg);
 }
