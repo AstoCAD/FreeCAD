@@ -838,6 +838,10 @@ void ViewProviderSketch::setSketchMode(SketchMode mode)
 
 bool ViewProviderSketch::keyPressed(bool pressed, int key)
 {
+    if (getEditingMode() != ViewProviderSketch::Default) {
+        return ViewProvider2DObject::keyPressed(pressed, key);
+    }
+
     switch (key) {
         case SoKeyboardEvent::ESCAPE: {
             // make the handler quit but not the edit mode
@@ -962,6 +966,9 @@ void ViewProviderSketch::getCoordsOnSketchPlane(const SbVec3f& point, const SbVe
 bool ViewProviderSketch::mouseButtonPressed(int Button, bool pressed, const SbVec2s& cursorPos,
                                             const Gui::View3DInventorViewer* viewer)
 {
+    if (getEditingMode() != ViewProviderSketch::Default) {
+        return ViewProvider2DObject::mouseButtonPressed(Button, pressed, cursorPos, viewer);
+    }
     assert(isInEditMode());
 
     // Calculate 3d point to the mouse position
@@ -1327,11 +1334,11 @@ bool ViewProviderSketch::mouseButtonPressed(int Button, bool pressed, const SbVe
 bool ViewProviderSketch::mouseWheelEvent(int delta, const SbVec2s& cursorPos,
                                          const Gui::View3DInventorViewer* viewer)
 {
-    assert(isInEditMode());
+    if (getEditingMode() != ViewProviderSketch::Default) {
+        return ViewProvider2DObject::mouseWheelEvent(delta, cursorPos, viewer);
+    }
 
-    Q_UNUSED(delta);
-    Q_UNUSED(cursorPos);
-    Q_UNUSED(viewer);
+    assert(isInEditMode());
 
     editCoinManager->drawConstraintIcons();
 
@@ -1445,6 +1452,10 @@ void ViewProviderSketch::toggleWireSelelection(int clickedGeoId)
 
 bool ViewProviderSketch::mouseMove(const SbVec2s& cursorPos, Gui::View3DInventorViewer* viewer)
 {
+    if (getEditingMode() != ViewProviderSketch::Default) {
+        return ViewProvider2DObject::mouseMove(cursorPos, viewer);
+    }
+
     // maximum radius for mouse moves when selecting a geometry before switching to drag mode
     const int dragIgnoredDistance = 3;
 
@@ -3593,7 +3604,9 @@ void ViewProviderSketch::setupContextMenu(QMenu* menu, QObject* receiver, const 
 
 bool ViewProviderSketch::setEdit(int ModNum)
 {
-    Q_UNUSED(ModNum)
+    if (ModNum != ViewProviderSketch::Default) {
+        return PartGui::ViewProvider2DObject::setEdit(ModNum);
+    }
 
     // Make a backup of the sketch object in case the user cancel editing.
     sketchBackup.str("");
@@ -3908,7 +3921,9 @@ void ViewProviderSketch::UpdateSolverInformation()
 
 void ViewProviderSketch::unsetEdit(int ModNum)
 {
-    Q_UNUSED(ModNum);
+    if (ModNum != ViewProviderSketch::Default) {
+        return PartGui::ViewProvider2DObject::unsetEdit(ModNum);
+    }
 
     setGridEnabled(false);
     auto gridnode = getGridNode();
@@ -3986,7 +4001,10 @@ void ViewProviderSketch::unsetEdit(int ModNum)
 
 void ViewProviderSketch::setEditViewer(Gui::View3DInventorViewer* viewer, int ModNum)
 {
-    Q_UNUSED(ModNum);
+    if (ModNum != ViewProviderSketch::Default) {
+        return PartGui::ViewProvider2DObject::setEditViewer(viewer, ModNum);
+    }
+
     Base::PyGILStateLocker lock;
     // visibility automation: save camera
     if (!this->TempoVis.getValue().isNone()) {
@@ -4079,6 +4097,10 @@ void ViewProviderSketch::setEditViewer(Gui::View3DInventorViewer* viewer, int Mo
 
 void ViewProviderSketch::unsetEditViewer(Gui::View3DInventorViewer* viewer)
 {
+    if (getEditingMode() != ViewProviderSketch::Default) {
+        return PartGui::ViewProvider2DObject::unsetEditViewer(viewer);
+    }
+
     auto dataPtr = static_cast<VPRender*>(cameraSensor.getData());
     delete dataPtr;
     cameraSensor.setData(nullptr);
