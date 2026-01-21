@@ -61,7 +61,6 @@ using SelectionStyle = Gui::SelectionSingleton::SelectionStyle;
 
 TaskMeasure::TaskMeasure()
 {
-    this->setButtonPosition(TaskMeasure::South);
     auto taskbox = new Gui::TaskView::TaskBox(
         Gui::BitmapFactory().pixmap("umf-measurement"),
         tr("Measurement"),
