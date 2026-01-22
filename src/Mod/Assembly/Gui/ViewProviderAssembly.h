@@ -265,6 +265,7 @@ private:
     );
 
     void slotAboutToOpenTransaction(const std::string& cmdName);
+    void slotActivatedVP(const Gui::ViewProviderDocumentObject* vp, const char* name);
 
     struct ComponentState
     {
@@ -292,6 +293,7 @@ private:
 
     TaskAssemblyMessages* taskSolver;
 
+    fastsignals::connection connectActivatedVP;
     fastsignals::connection connectSolverUpdate;
     fastsignals::scoped_connection m_preTransactionConn;
 };
