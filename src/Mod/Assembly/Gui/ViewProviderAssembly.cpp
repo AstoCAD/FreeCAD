@@ -1424,6 +1424,7 @@ void ViewProviderAssembly::applyIsolationRecursively(
         for (auto* child : part->Group.getValues()) {
             applyIsolationRecursively(child, isolateSet, mode, visited);
         }
+        return;
     }
 
     auto* vp = Gui::Application::Instance->getViewProvider(current);
