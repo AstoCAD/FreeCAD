@@ -73,6 +73,7 @@ public:
      */
     void updateContents();
 
+    void updateParentJoints();
     void synchronizeComponents();
     void synchronizeJoints();
     void handleJointReference(
