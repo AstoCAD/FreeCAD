@@ -168,8 +168,11 @@ void QGCustomText::setTightBounding(bool tight)
     tightBounding = tight;
 }
 
-void QGCustomText::paint ( QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget) {
+void QGCustomText::paint ( QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget)
+{
     QStyleOptionGraphicsItem myOption(*option);
+    // Remove HasFocus state to prevent the dashed rectangle from being drawn
+    myOption.state &= ~QStyle::State_HasFocus;
     myOption.state &= ~QStyle::State_Selected;
 
 //    painter->setPen(Qt::green);

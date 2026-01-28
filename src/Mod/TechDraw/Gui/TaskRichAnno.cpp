@@ -522,36 +522,46 @@ void TaskRichAnno::focusOutEvent(QFocusEvent* event)
 bool TaskRichAnno::eventFilter(QObject* watched, QEvent* event)
 {
     QGVPage* graphicsView = m_view->getViewProviderPage()->getQGVPage();
-    if (watched == graphicsView->viewport() && event->type() == QEvent::MouseButtonPress) {
-
-        if (m_createMode && m_placementMode) {
-            auto mouseEvent = static_cast<QMouseEvent*>(event);
-            QPointF scenePos = graphicsView->mapToScene(mouseEvent->pos());
-            createAndSetupAnnotation(&scenePos);
-            return QWidget::eventFilter(watched, event);
-        }
-
-        // Cast the event to get the mouse position
-        auto mouseEvent = static_cast<QMouseEvent*>(event);
-        QGraphicsItem* item = graphicsView->itemAt(mouseEvent->pos());
-
-        // Walk up the parent chain to see if the click was on our annotation or one of its
-        // children.
-        QGIRichAnno* clickedAnno = nullptr;
-        while (item) {
-            clickedAnno = dynamic_cast<QGIRichAnno*>(item);
-            if (clickedAnno) {
-                break;  // Found an annotation
+    if (watched == graphicsView->viewport()) {
+        if (event->type() == QEvent::Enter) {
+            if (!m_placementMode && m_qgiAnno) {
+                refocusAnnotation();
             }
-            item = item->parentItem();  // Check the parent
         }
 
-        // If we didn't find our specific annotation, the click was "outside".
-        if (clickedAnno != m_qgiAnno) {
-            // Simulate clicking the "OK" button to accept the changes.
-            if (m_btnOK && m_btnOK->isEnabled()) {
-                m_btnOK->click();
-                return true;  // We've handled this event, so stop further processing.
+        if (event->type() == QEvent::MouseButtonPress) {
+            if (m_createMode && m_placementMode) {
+                auto mouseEvent = static_cast<QMouseEvent*>(event);
+                QPointF scenePos = graphicsView->mapToScene(mouseEvent->pos());
+                createAndSetupAnnotation(&scenePos);
+                return QWidget::eventFilter(watched, event);
+            }
+
+            // Cast the event to get the mouse position
+            auto mouseEvent = static_cast<QMouseEvent*>(event);
+            QGraphicsItem* item = graphicsView->itemAt(mouseEvent->pos());
+
+            // Walk up the parent chain to see if the click was on our annotation or one of its
+            // children.
+            QGIRichAnno* clickedAnno = nullptr;
+            while (item) {
+                clickedAnno = dynamic_cast<QGIRichAnno*>(item);
+                if (clickedAnno) {
+                    break;  // Found an annotation
+                }
+                item = item->parentItem();  // Check the parent
+            }
+
+            // If we didn't find our specific annotation, the click was "outside".
+            if (clickedAnno != m_qgiAnno) {
+                // Simulate clicking the "OK" button to accept the changes.
+                if (m_btnOK && m_btnOK->isEnabled()) {
+                    m_btnOK->click();
+                    return true;  // We've handled this event, so stop further processing.
+                }
+            }
+            else if (!m_placementMode && m_qgiAnno) {
+                refocusAnnotation();
             }
         }
     }
@@ -613,14 +623,13 @@ void TaskRichAnno::createAndSetupAnnotation(const QPointF* scenePos)
     ui->dsbMaxWidth->setEnabled(true);
 
     refocusAnnotation();  // Give focus to the new annotation
-
     m_inProgressLock = false;
 }
 
 void TaskRichAnno::createAnnoFeature(const QPointF* scenePos)
 {
 //    Base::Console().message("TRA::createAnnoFeature()");
-    const std::string objectName{QT_TR_NOOP("RichTextAnnotation")};
+    const std::string objectName{QT_TR_NOOP("Annotation")};
     std::string annoName = m_basePage->getDocument()->getUniqueObjectName(objectName.c_str());
     std::string generatedSuffix {annoName.substr(objectName.length())};
     std::string annoType = "TechDraw::DrawRichAnno";
