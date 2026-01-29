@@ -347,6 +347,7 @@ void TaskMeasure::tryUpdate()
         // Initialite the measurement's viewprovider
         initViewObject(_mMeasureObject);
     }
+    _mMeasureObject->purgeTouched();
 }
 
 
@@ -401,6 +402,7 @@ void TaskMeasure::ensureGroup(Measure::MeasureBase* measurement)
     }
 
     group->addObject(measurement);
+    group->purgeTouched();
 }
 
 
