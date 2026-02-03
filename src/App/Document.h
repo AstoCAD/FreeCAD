@@ -31,6 +31,7 @@
 #include <Base/Type.h>
 #include <Base/Handle.h>
 #include <Base/Bitmask.h>
+#include <Base/UnlimitedUnsigned.h>
 
 #include "PropertyContainer.h"
 #include "PropertyLinks.h"
@@ -645,7 +646,11 @@ public:
     void registerLabel(const std ::string& newLabel);
     void unregisterLabel(const std::string& oldLabel);
     bool containsLabel(const std::string& label);
+    std::tuple<std::string, std::string, unsigned int, Base::UnlimitedUnsigned> decomposeLabel(
+        const std::string& label
+    ) const;
     std::string makeUniqueLabel(const std::string& modelLabel);
+    std::string makeUniqueLinkLabel(const std::string& baseLabel);
 
     friend class Application;
     /// because of transaction handling

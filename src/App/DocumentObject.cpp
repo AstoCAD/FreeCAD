@@ -920,6 +920,10 @@ void DocumentObject::onChanged(const Property* prop)
 
     if (prop == &Label && _pDoc && oldLabel != Label.getStrValue()) {
         _pDoc->signalRelabelObject(*this);
+
+        for (auto* obj : getInList()) {
+            obj->onParentLabelChanged(this);
+        }
     }
 
     // set object touched if it is an input property

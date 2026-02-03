@@ -787,6 +787,8 @@ protected:
 
     /// get called when a property status has changed
     void onPropertyStatusChanged(const Property& prop, unsigned long oldStatus) override;
+    /// get called when a parent object had its Label updated
+    virtual void onParentLabelChanged(App::DocumentObject* parent) {};
 
 private:
     void printInvalidLinks() const;
