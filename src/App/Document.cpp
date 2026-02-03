@@ -35,6 +35,7 @@
 #include <vector>
 #include <list>
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <format>
 #include <optional>
@@ -136,6 +137,11 @@ DocumentP::DocumentP()
     StatusBits.set((size_t)Document::Closable, true);
     StatusBits.set((size_t)Document::KeepTrailingDigits, true);
     StatusBits.set((size_t)Document::Restoring, false);
+
+    // Configure Label manager to accept ">" as a trailer.
+    // This allows it to parse "Name <1>" as Base="Name <", Val=1.
+    // It continues to parse "Box001" as Base="Box", Val=1.
+    objectLabelManager.setTrailer(">");
 }
 
 }  // namespace App
@@ -2125,13 +2131,39 @@ bool Document::containsLabel(std::string_view label)
     return d->objectLabelManager.containsName(label);
 }
 
+std::tuple<std::string_view, std::string_view, unsigned int, Base::UnlimitedUnsigned> Document::decomposeLabel(
+    std::string_view label
+) const
+{
+    return d->objectLabelManager.decomposeName(label);
+}
+
 std::string Document::makeUniqueLabel(std::string_view modelLabel)
 {
     if (modelLabel.empty()) {
         return {};
     }
 
+    // An instance label "Name <n>" (see makeUniqueLinkLabel()) takes the next free instance
+    // number, "Name <2>", like a new link to the same object, not a padded "Name <001>".
+    std::string base;
+    std::string instance;
+    if (Base::UniqueNameManager::parseLabelInstance(std::string(modelLabel), base, instance)
+        && !instance.empty()
+        && std::ranges::all_of(instance, [](unsigned char c) { return std::isdigit(c) != 0; })) {
+        return d->objectLabelManager.makeUniqueName(modelLabel);
+    }
+
     return d->objectLabelManager.makeUniqueName(modelLabel, 3);
+}
+
+std::string Document::makeUniqueLinkLabel(std::string_view baseLabel)
+{
+    if (baseLabel.empty()) {
+        return {};
+    }
+
+    return d->objectLabelManager.makeUniqueName(std::string(baseLabel) + " <1>");
 }
 
 bool Document::isAnyRestoring()

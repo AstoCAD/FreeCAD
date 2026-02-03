@@ -1176,6 +1176,15 @@ void DocumentObject::onChanged(const Property* prop)
     if (prop == &Label && _pDoc && oldLabel != Label.getStrValue()) {
         _pDoc->signalRelabelObject(*this);
         oldLabel = Label.getStrValue();
+
+        for (auto* obj : getInListRecursive()) {
+            // An object that links to itself (directly or through a dependency loop) is in
+            // its own in-list. It is not its own parent, and notifying it would let a link
+            // relabel itself from inside this handler again and again (stack overflow).
+            if (obj != this) {
+                obj->onParentLabelChanged(this);
+            }
+        }
     }
 
     bool fineGrained = GetApplication().isFineGrainedRecomputeEnabled();
