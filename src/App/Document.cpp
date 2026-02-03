@@ -122,6 +122,11 @@ DocumentP::DocumentP()
     StatusBits.set((size_t)Document::Closable, true);
     StatusBits.set((size_t)Document::KeepTrailingDigits, true);
     StatusBits.set((size_t)Document::Restoring, false);
+
+    // Configure Label manager to accept ">" as a trailer.
+    // This allows it to parse "Name <1>" as Base="Name <", Val=1.
+    // It continues to parse "Box001" as Base="Box", Val=1.
+    objectLabelManager.setTrailer(">");
 }
 
 }  // namespace App
@@ -2069,6 +2074,13 @@ bool Document::containsLabel(const std::string& label)
     return d->objectLabelManager.containsName(label);
 }
 
+std::tuple<std::string, std::string, unsigned int, Base::UnlimitedUnsigned> Document::decomposeLabel(
+    const std::string& label
+) const
+{
+    return d->objectLabelManager.decomposeName(label);
+}
+
 std::string Document::makeUniqueLabel(const std::string& modelLabel)
 {
     if (modelLabel.empty()) {
@@ -2076,6 +2088,15 @@ std::string Document::makeUniqueLabel(const std::string& modelLabel)
     }
 
     return d->objectLabelManager.makeUniqueName(modelLabel, 3);
+}
+
+std::string Document::makeUniqueLinkLabel(const std::string& baseLabel)
+{
+    if (baseLabel.empty()) {
+        return {};
+    }
+
+    return d->objectLabelManager.makeUniqueName(baseLabel + " <1>");
 }
 
 bool Document::isAnyRestoring()
