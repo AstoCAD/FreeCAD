@@ -31,6 +31,7 @@
 #include <Base/Handle.h>
 #include <Base/Bitmask.h>
 #include <App/MainThreadSignal.h>
+#include <Base/UnlimitedUnsigned.h>
 
 #include "PropertyContainer.h"
 #include "PropertyLinks.h"
@@ -1292,8 +1293,12 @@ public:
     void unregisterLabel(std::string_view oldLabel);
     /// Check if a label exists.
     bool containsLabel(std::string_view label);
+    std::tuple<std::string_view, std::string_view, unsigned int, Base::UnlimitedUnsigned> decomposeLabel(
+        std::string_view label
+    ) const;
     /// Create a unique label based on the given modelLabel.
     std::string makeUniqueLabel(std::string_view modelLabel);
+    std::string makeUniqueLinkLabel(std::string_view baseLabel);
 
     friend class Application;
     // because of transaction handling

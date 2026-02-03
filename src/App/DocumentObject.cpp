@@ -1045,6 +1045,10 @@ void DocumentObject::onChanged(const Property* prop)
 
     if (prop == &Label && _pDoc && oldLabel != Label.getStrValue()) {
         _pDoc->signalRelabelObject(*this);
+
+        for (auto* obj : getInListRecursive()) {
+            obj->onParentLabelChanged(this);
+        }
     }
 
     bool fineGrained = GetApplication().isFineGrainedRecomputeEnabled();
