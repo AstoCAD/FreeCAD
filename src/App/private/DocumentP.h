@@ -68,6 +68,17 @@ namespace App
 using HasherMap = boost::bimap<StringHasherRef, int>;
 class Transaction;
 
+// The object labels. A link instance label "Name <instance>" (see
+// Document::makeUniqueLinkLabel()) is made unique inside its brackets ("Name <2>",
+// "Name <left001>"), so its closing '>' is the suffix. Other labels have no suffix.
+class ObjectLabelManager: public Base::UniqueNameManager
+{
+protected:
+    std::string_view::const_reverse_iterator getNameSuffixStartPosition(
+        std::string_view name
+    ) const override;
+};
+
 // Pimpl class
 struct DocumentP
 {
@@ -76,7 +87,7 @@ struct DocumentP
     std::unordered_set<App::DocumentObject*> touchedObjs;
     std::unordered_map<std::string, DocumentObject*> objectMap;
     Base::UniqueNameManager objectNameManager;
-    Base::UniqueNameManager objectLabelManager;
+    ObjectLabelManager objectLabelManager;
     std::unordered_map<long, DocumentObject*> objectIdMap;
     std::unordered_map<std::string, bool> partialLoadObjects;
     std::vector<DocumentObjectT> pendingRemove;

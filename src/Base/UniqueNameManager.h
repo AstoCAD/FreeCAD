@@ -206,14 +206,6 @@ private:
     // collection. This does not contain entries for singleton names.
     std::map<std::string, unsigned int, std::less<>> duplicateCounts;
 
-    /// @brief Break a uniquified name into its parts
-    /// @param name The name to break up
-    /// @return a tuple(basePrefix, nameSuffix, uniqueDigitCount, uniqueDigitsValue);
-    /// The two latter values will be (0,0) if name is a base name without uniquifying digits.
-    std::tuple<std::string_view, std::string_view, unsigned int, UnlimitedUnsigned> decomposeName(
-        std::string_view name
-    ) const;
-
 public:
     UniqueNameManager() = default;
     virtual ~UniqueNameManager() = default;
@@ -236,11 +228,26 @@ public:
     void removeExactName(std::string_view name);
     /// Test if the given name is already in the collection
     bool containsName(std::string_view name) const;
+    /// @brief Break a uniquified name into its parts
+    /// @param name The name to break up
+    /// @return a tuple(basePrefix, nameSuffix, uniqueDigitCount, uniqueDigitsValue);
+    /// The two latter values will be (0,0) if name is a base name without uniquifying digits.
+    std::tuple<std::string_view, std::string_view, unsigned int, UnlimitedUnsigned> decomposeName(
+        std::string_view name
+    ) const;
+
     /// @brief Empty (clear) out the contents from this collection
     void clear()
     {
         uniqueSeeds.clear();
         duplicateCounts.clear();
     }
+
+    /// Split link labels formated like "Name <Instance>" into "Name" and "Instance".
+    static bool parseLabelInstance(
+        const std::string& fullLabel,
+        std::string& outBase,
+        std::string& outInstance
+    );
 };
 }  // namespace Base

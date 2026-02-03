@@ -223,6 +223,10 @@ std::string unquote(const std::string & input)
             case '"':
                 output += '"';
                 break;
+            case '>':
+                // quote() escapes '>' so that it cannot end the string
+                output += '>';
+                break;
             }
             escaped = false;
         }

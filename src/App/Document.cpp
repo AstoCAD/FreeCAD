@@ -35,6 +35,7 @@
 #include <vector>
 #include <list>
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <format>
 #include <optional>
@@ -136,6 +137,22 @@ DocumentP::DocumentP()
     StatusBits.set((size_t)Document::Closable, true);
     StatusBits.set((size_t)Document::KeepTrailingDigits, true);
     StatusBits.set((size_t)Document::Restoring, false);
+}
+
+std::string_view::const_reverse_iterator ObjectLabelManager::getNameSuffixStartPosition(
+    std::string_view name
+) const
+{
+    // "Name <1>" decomposes into "Name <", 1 and ">", "Box001" into "Box", 1 and "".
+    // Removing or adding the digits keeps a label in or out of the instance pattern, so the
+    // suffix is the same for a unique label and its base label, as the base class requires.
+    std::string base;
+    std::string instance;
+    if (!name.empty() && name.back() == '>'
+        && Base::UniqueNameManager::parseLabelInstance(std::string {name}, base, instance)) {
+        return name.crbegin() + 1;
+    }
+    return name.crbegin();
 }
 
 }  // namespace App
@@ -2125,13 +2142,46 @@ bool Document::containsLabel(std::string_view label)
     return d->objectLabelManager.containsName(label);
 }
 
+std::tuple<std::string_view, std::string_view, unsigned int, Base::UnlimitedUnsigned> Document::decomposeLabel(
+    std::string_view label
+) const
+{
+    return d->objectLabelManager.decomposeName(label);
+}
+
 std::string Document::makeUniqueLabel(std::string_view modelLabel)
 {
     if (modelLabel.empty()) {
         return {};
     }
 
+    // An instance label "Name <n>" (see makeUniqueLinkLabel()) takes the next free instance
+    // number, "Name <2>", like a new link to the same object, not a padded "Name <001>".
+    std::string base;
+    std::string instance;
+    if (Base::UniqueNameManager::parseLabelInstance(std::string(modelLabel), base, instance)
+        && !instance.empty()
+        && std::ranges::all_of(instance, [](unsigned char c) { return std::isdigit(c) != 0; })) {
+        return d->objectLabelManager.makeUniqueName(modelLabel);
+    }
+
     return d->objectLabelManager.makeUniqueName(modelLabel, 3);
+}
+
+std::string Document::makeUniqueLinkLabel(std::string_view baseLabel)
+{
+    if (baseLabel.empty()) {
+        return {};
+    }
+
+    // While no "baseLabel <n>" is in use, makeUniqueName() returns the base label of the
+    // model, without digits ("baseLabel <>"). The first instance is number 1.
+    std::string first = std::string(baseLabel) + " <1>";
+    std::string label = d->objectLabelManager.makeUniqueName(first);
+    if (label == std::string(baseLabel) + " <>") {
+        return first;
+    }
+    return label;
 }
 
 bool Document::isAnyRestoring()
