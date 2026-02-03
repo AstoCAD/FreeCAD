@@ -65,6 +65,9 @@ public:
     // This function returns the linked object, either an AssemblyObject or an AssemblyLink
     App::DocumentObject* getLinkedObject2(bool recurse = true) const;
 
+    void onDocumentRestored()override;
+    void onParentLabelChanged(App::DocumentObject* parent) override;
+
     bool isRigid() const;
 
     /**
@@ -84,8 +87,6 @@ public:
     JointGroup* ensureJointGroup();
     std::vector<App::DocumentObject*> getJoints();
 
-    bool allowDuplicateLabel() const override;
-
     bool isEmpty() const;
     int numberOfComponents() const;
 
@@ -97,7 +98,6 @@ public:
 protected:
     /// get called by the container whenever a property has been changed
     void onChanged(const App::Property* prop) override;
-    void onDocumentRestored() override;
 
 private:
     std::unordered_map<App::DocumentObject*, std::string> objSubPrefixMap;

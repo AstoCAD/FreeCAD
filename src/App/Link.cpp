@@ -20,6 +20,7 @@
  ******************************************************************************/
 
 #include <limits>
+#include <set>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/range.hpp>
@@ -27,6 +28,7 @@
 
 #include <Base/Tools.h>
 #include <Base/Uuid.h>
+#include <Base/UniqueNameManager.h>
 
 #include "Application.h"
 #include "ElementNamingUtils.h"
@@ -2738,6 +2740,198 @@ bool Link::isLink() const
 bool Link::isLinkGroup() const
 {
     return ElementCount.getValue() > 0;
+}
+
+namespace
+{
+// The object named by the instance label of a link. A copy-on-change link that has made its
+// private copy links to that copy, which is kept in a hidden group and replaced whenever it is
+// synced; the label names the source of the copy, as before the copy and for the other links
+// to it.
+App::DocumentObject* getLabelTarget(const App::Link& link)
+{
+    if (link.isLinkMutated()) {
+        if (auto source = link.LinkCopyOnChangeSource.getValue()) {
+            return source->getLinkedObject();
+        }
+    }
+    return link.getLinkedObject();
+}
+}  // namespace
+
+void Link::onChanged(const Property* prop)
+{
+    inherited::onChanged(prop);
+    // After the link extension has handled the change, which makes the new linked object the
+    // copy-on-change source unless it is the link's own copy
+    if (prop == &LinkedObject && !isRestoring()) {
+        updateLabelUtility(this, getLabelTarget(*this));
+    }
+}
+
+void Link::onParentLabelChanged(App::DocumentObject* parent)
+{
+    auto target = getLabelTarget(*this);
+    if (target == parent) {
+        updateLabelUtility(this, target);
+    }
+    // A link to the same object, like a link between this link and its linked object
+    // (this -> parent -> ... -> target), was relabeled. A link is relabeled when it is linked
+    // to another object, which changes the object at the end of this link's chain too, so the
+    // instance label must name the new one. A relabel of the link in between alone is no
+    // reason to replace any other label.
+    else if (parent->getLinkedObject() == target) {
+        updateLabelUtility(this, target, true);
+    }
+}
+
+void Link::onDocumentRestored()
+{
+    LINK_PROPS_SET(LINK_PARAMS_LINK);
+    inherited::onDocumentRestored();
+
+    migrateLabelUtility(this, getLabelTarget(*this));
+}
+
+namespace
+{
+// Set the label migrated while the document is restored. The label references (<<label>>)
+// to the link must follow it, but Label.setValue() does not update them while the document
+// is restoring. The referencing objects depend on the link, so they are restored after it
+// and their expressions are evaluated with the new label.
+void setMigratedLabel(App::DocumentObject* link, const std::string& label)
+{
+    auto changes = PropertyLinkBase::updateLabelReferences(link, label.c_str());
+    link->Label.setValue(label);
+    link->Label.purgeTouched();
+    for (auto& change : changes) {
+        change.first->Paste(*change.second);
+    }
+}
+}  // namespace
+
+void Link::migrateLabelUtility(App::DocumentObject* link, App::DocumentObject* linked)
+{
+    // getLinkedObject() returns the link itself when it has no linked object
+    if (!link || !linked || linked == link || !link->getDocument() || link->isRestoring()) {
+        return;
+    }
+
+    std::string currentLabel = link->Label.getValue();
+    std::string base, inst;
+    if (Base::UniqueNameManager::parseLabelInstance(currentLabel, base, inst)) {
+        return;
+    }
+
+    std::string targetLabel = linked->Label.getValue();
+
+    // Case 1: Handle identical labels (e.g., "SubAssembly" link to "SubAssembly")
+    // We want "SubAssembly <1>", "SubAssembly <2>", etc., not "SubAssembly <SubAssembly>"
+    if (currentLabel == targetLabel) {
+        std::string migrated = link->getDocument()->makeUniqueLinkLabel(targetLabel);
+        setMigratedLabel(link, migrated);
+        return;
+    }
+
+    std::string newInst;
+    const std::string separators {" -_"};
+
+    // Case 2: Standard Numeric Uniqueness (e.g., "Cube001" -> "Cube <1>")
+    // We use decomposeLabel to see if the existing label is just the target + numbers.
+    auto [pref, suff, count, val] = link->getDocument()->decomposeLabel(currentLabel);
+    if (count > 0 && pref == targetLabel && suff.empty()) {
+        newInst = val.toString();
+    }
+    else if (currentLabel.size() > targetLabel.size()
+             && currentLabel.compare(0, targetLabel.size(), targetLabel) == 0
+             && separators.find(currentLabel[targetLabel.size()]) != std::string::npos) {
+        // Case 3: Prefixed custom name, a separate word after the target label (e.g.,
+        // "Cube left" -> "Cube <left>"). A label that only starts with the target label
+        // ("Bolts" or "Armrest" for "Bolt" or "Arm") is one word, kept whole (Case 4).
+        newInst = currentLabel.substr(targetLabel.size());
+        // Clean up separators like "Cube-left" or "Cube left"
+        auto firstPos = newInst.find_first_not_of(separators);
+        newInst = (firstPos != std::string::npos) ? newInst.substr(firstPos) : currentLabel;
+    }
+    else {
+        // Case 4: Totally custom name (e.g., "Coco" -> "Cube <Coco>")
+        newInst = currentLabel;
+    }
+
+    // Apply the migrated label
+    if (!newInst.empty()) {
+        std::string migrated = targetLabel + " <" + newInst + ">";
+        if (link->getDocument()->containsLabel(migrated)) {
+            migrated = link->getDocument()->makeUniqueLabel(migrated);
+        }
+
+        setMigratedLabel(link, migrated);
+    }
+}
+
+void Link::updateLabelUtility(App::DocumentObject* link,
+                              App::DocumentObject* linked,
+                              bool instanceLabelOnly)
+{
+    // getLinkedObject() returns the link itself when it has no linked object.
+    // Deriving the label from itself would append " <n>" again on each call,
+    // and recurse through onParentLabelChanged() if the link is in its own
+    // InList (dependency cycle through another link property).
+    if (!link || !linked || linked == link || !link->getDocument()) {
+        return;
+    }
+    // Undo/redo and transaction rollback restore the link's Label together with its
+    // LinkedObject (and the linked object's Label). Rebuilding the label from the
+    // linked object here would rename the link, e.g. a custom label lost when undoing
+    // the deletion of the linked object. Restoring a document is handled by
+    // migrateLabelUtility() instead.
+    if (link->isRestoring() || link->getDocument()->isPerformingTransaction()) {
+        return;
+    }
+    // An external linked object is resolved when its document is loaded, which can happen
+    // after this link was read but while its document is still restoring, before the
+    // expressions referring to the link by label are restored. Label.setValue() would not
+    // update them (see DocumentObject::onProposedLabelChange()), so leave the label to
+    // migrateLabelUtility(), called from onDocumentRestored() once they are restored.
+    const auto* doc = link->getDocument();
+    if (doc->testStatus(App::Document::Restoring) && !doc->testStatus(App::Document::Importing)) {
+        return;
+    }
+
+    // Setting the label notifies the link's in-list (onParentLabelChanged()). When links
+    // form a cycle (A -> B -> A), that comes back here for this same link and the two
+    // labels are rebuilt from each other until the stack overflows. Without a cycle this
+    // link is never notified again while its own label is being set.
+    thread_local std::set<const App::DocumentObject*> updating;
+    if (!updating.insert(link).second) {
+        return;
+    }
+    struct Guard
+    {
+        const App::DocumentObject* obj;
+        ~Guard()
+        {
+            updating.erase(obj);
+        }
+    } guard {link};
+
+    std::string targetLabel = linked->Label.getValue();
+    std::string currentLabel = link->Label.getValue();
+
+    std::string currentBase, inst;
+    bool isPattern = Base::UniqueNameManager::parseLabelInstance(currentLabel, currentBase, inst);
+
+    if (isPattern) {
+        // Pattern exists. Check if base name (linked object label) matches.
+        if (currentBase != targetLabel) {
+            // The linked object was renamed. We try to keep the same instance number.
+            link->Label.setValue(targetLabel + " <" + inst + ">");
+        }
+    }
+    else if (!instanceLabelOnly) {
+        // Pattern broken or new link: generate fresh label
+        link->Label.setValue(link->getDocument()->makeUniqueLinkLabel(targetLabel));
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////

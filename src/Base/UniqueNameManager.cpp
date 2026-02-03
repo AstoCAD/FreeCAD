@@ -184,3 +184,27 @@ bool Base::UniqueNameManager::containsName(std::string_view name) const
     }
     return baseNameEntry->second[digitCount].contains(digitsValue);
 }
+
+bool Base::UniqueNameManager::parseLabelInstance(
+    const std::string& fullLabel,
+    std::string& outBase,
+    std::string& outInstance
+)
+{
+    if (fullLabel.empty() || fullLabel.back() != '>') {
+        return false;
+    }
+    auto openBracket = fullLabel.rfind('<');
+    if (openBracket == std::string::npos || openBracket == 0) {
+        return false;
+    }
+
+    // Check if space exists before bracket " <"
+    if (fullLabel[openBracket - 1] != ' ') {
+        return false;
+    }
+
+    outBase = fullLabel.substr(0, openBracket - 1);  // trim space
+    outInstance = fullLabel.substr(openBracket + 1, fullLabel.size() - openBracket - 2);
+    return true;
+}

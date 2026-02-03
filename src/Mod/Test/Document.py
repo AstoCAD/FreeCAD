@@ -690,6 +690,37 @@ class DocumentBasicCases(unittest.TestCase):
         self.assertIn("Test", self.Doc.Python.PropertiesList)
         self.assertIn("Test", self.Doc.Link.PropertiesList)
 
+    def testRelabelLinkReferencingItself(self):
+        # A link that references itself through another link property is in its own
+        # in-list. Relabeling it (and so restoring its Label from a file) used to notify
+        # the link that its "parent" was relabeled, the link relabeled itself again and
+        # FreeCAD crashed with a stack overflow.
+        link = self.Doc.addObject("App::Link", "Link")
+        link.addProperty("App::PropertyLinkList", "Refs")
+        link.Refs = [link]
+        link.Label = "Renamed"
+        self.assertEqual(link.Label, "Renamed")
+
+        doc = self.saveAndRestore()
+        # The link instance-label migration may append " <n>" on restore; only the
+        # base label matters here.
+        self.assertTrue(doc.Link.Label.startswith("Renamed"))
+        self.assertEqual(doc.Link.Refs, [doc.Link])
+
+    def testLinksLinkingEachOther(self):
+        # Two links linking each other: setting the second link's LinkedObject rebuilt
+        # its label from the other link, which rebuilt its own label in turn, and so
+        # on until FreeCAD crashed with a stack overflow.
+        a = self.Doc.addObject("App::Link", "A")
+        b = self.Doc.addObject("App::Link", "B")
+        a.LinkedObject = b
+        b.LinkedObject = a
+        self.assertEqual(b.LinkedObject, a)
+        a.Label = "Renamed"
+        self.Doc.recompute()
+        doc = self.saveAndRestore()
+        self.assertEqual(doc.B.LinkedObject, doc.A)
+
     def testNoProxy(self):
         test = self.Doc.addObject("App::DocumentObject", "Object")
         test.addProperty("App::PropertyPythonObject", "Dictionary")
@@ -802,6 +833,331 @@ class DocumentDuplicateLabelCases(unittest.TestCase):
         obj = self.Doc.addObject("App::FeatureTest", "Label")
         copy = self.Doc.copyObject(obj)
         self.assertEqual(copy.Label, "Label001")
+
+
+class DocumentLinkLabelCases(unittest.TestCase):
+    """Link instance labels when the link loses its linked object."""
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("LinkLabelTest")
+
+    def tearDown(self):
+        FreeCAD.closeDocument("LinkLabelTest")
+
+    def testUnlinkKeepsLabel(self):
+        # Without a linked object getLinkedObject() returns the link itself, the
+        # label must not be rebuilt from it ("Cube <1>" -> "Cube <1> <1>")
+        cube = self.Doc.addObject("App::FeatureTest", "Cube")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(cube)
+        label = link.Label
+        link.LinkedObject = None
+        self.assertEqual(link.Label, label)
+        link.setLink(cube)
+        self.Doc.removeObject("Cube")
+        self.assertEqual(link.Label, label)
+
+    def testUnlinkLinkInDependencyCycle(self):
+        # A link that is in its own InList (here through another link property)
+        # recursed through onParentLabelChanged() until the stack overflowed
+        # when its linked object was cleared
+        cube = self.Doc.addObject("App::FeatureTest", "Cube")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(cube)
+        link.addProperty("App::PropertyLink", "Other")
+        link.Other = link
+        label = link.Label
+        link.LinkedObject = None
+        self.assertIsNone(link.LinkedObject)
+        self.assertEqual(link.Label, label)
+
+    def testUndoTargetDeletionKeepsLabel(self):
+        # Undoing the deletion of the linked object restores the link's LinkedObject.
+        # The label must not be rebuilt from the linked object during undo/redo
+        # ("Custom" became "Child <1>").
+        self.Doc.UndoMode = 1
+        child = self.Doc.addObject("App::FeatureTest", "Child")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(child)
+        link.Label = "Custom"
+        self.Doc.clearUndos()
+        self.Doc.openTransaction("Delete child")
+        self.Doc.removeObject("Child")
+        self.Doc.commitTransaction()
+        for _ in range(2):
+            self.Doc.undo()
+            self.assertEqual(link.LinkedObject, self.Doc.getObject("Child"))
+            self.assertEqual(link.Label, "Custom")
+            self.Doc.redo()
+            self.assertIsNone(link.LinkedObject)
+            self.assertEqual(link.Label, "Custom")
+
+    def testUndoTargetRelabelRestoresInstanceLabel(self):
+        # Relabeling the linked object updates the instance label; undo and redo
+        # restore both labels
+        self.Doc.UndoMode = 1
+        child = self.Doc.addObject("App::FeatureTest", "Child")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(child)
+        label = link.Label
+        self.assertEqual(label, "Child <1>")
+        self.Doc.clearUndos()
+        self.Doc.openTransaction("Relabel child")
+        child.Label = "Renamed"
+        self.Doc.commitTransaction()
+        self.assertEqual(link.Label, "Renamed <1>")
+        self.Doc.undo()
+        self.assertEqual(child.Label, "Child")
+        self.assertEqual(link.Label, label)
+        self.Doc.redo()
+        self.assertEqual(child.Label, "Renamed")
+        self.assertEqual(link.Label, "Renamed <1>")
+
+    def testLinkToLinkLabelFollowsRetargetedLink(self):
+        # The instance label of a link to a link names the object at the end of the chain.
+        # Linking the inner link to another object changes that object for the outer link
+        # too ("First <2>" was kept). Undo and redo restore the labels. A custom label is
+        # kept, and a relabel of the inner link alone changes no label.
+        self.Doc.UndoMode = 1
+        first = self.Doc.addObject("App::FeatureTest", "First")
+        second = self.Doc.addObject("App::FeatureTest", "Second")
+        inner = self.Doc.addObject("App::Link", "Inner")
+        inner.setLink(first)
+        outer = self.Doc.addObject("App::Link", "Outer")
+        outer.setLink(inner)
+        custom = self.Doc.addObject("App::Link", "Custom")
+        custom.setLink(inner)
+        custom.Label = "Custom"
+        self.assertEqual(inner.Label, "First <1>")
+        self.assertEqual(outer.Label, "First <2>")
+        self.Doc.clearUndos()
+        self.Doc.openTransaction("Link to second")
+        inner.LinkedObject = second
+        self.Doc.commitTransaction()
+        self.assertEqual(outer.getLinkedObject(), second)
+        self.assertEqual(inner.Label, "Second <1>")
+        self.assertEqual(outer.Label, "Second <2>")
+        self.assertEqual(custom.Label, "Custom")
+        self.Doc.undo()
+        self.assertEqual(inner.LinkedObject, first)
+        self.assertEqual(inner.Label, "First <1>")
+        self.assertEqual(outer.Label, "First <2>")
+        self.Doc.redo()
+        self.assertEqual(inner.LinkedObject, second)
+        self.assertEqual(inner.Label, "Second <1>")
+        self.assertEqual(outer.Label, "Second <2>")
+        inner.Label = "Inner link"
+        self.assertEqual(outer.Label, "Second <2>")
+        self.assertEqual(custom.Label, "Custom")
+        second.Label = "Renamed"
+        self.assertEqual(outer.Label, "Renamed <2>")
+
+    def testCopyOnChangeLinkLabelNamesSource(self):
+        # A copy-on-change link that made its private copy links to that copy, which is
+        # replaced whenever it is synced. The label keeps naming the source and follows its
+        # relabels ("Src001 <1>", then "Src002 <1>", and the relabel was ignored).
+        src = self.Doc.addObject("App::FeaturePython", "Src")
+        src.addProperty("App::PropertyFloat", "Size")
+        src.addProperty("App::PropertyFloat", "Other")
+        src.setPropertyStatus("Size", "CopyOnChange")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(src)
+        link.LinkCopyOnChange = "Tracking"
+        self.Doc.recompute()
+        self.assertEqual(link.Label, "Src <1>")
+        link.Size = 5
+        self.Doc.recompute()
+        copy = link.LinkedObject
+        self.assertNotEqual(copy, src)
+        self.assertEqual(link.LinkCopyOnChangeSource, src)
+        self.assertEqual(link.Label, "Src <1>")
+        src.Other = 2
+        self.Doc.recompute()
+        self.assertNotIn(link.LinkedObject, (src, copy))
+        self.assertEqual(link.Label, "Src <1>")
+        src.Label = "Renamed"
+        self.assertEqual(link.Label, "Renamed <1>")
+
+    def testCopyOnChangeLinkLabelFollowsNewLinkedObject(self):
+        # Linking a copy-on-change link to another object makes it the source
+        src = self.Doc.addObject("App::FeaturePython", "Src")
+        src.addProperty("App::PropertyFloat", "Size")
+        src.setPropertyStatus("Size", "CopyOnChange")
+        other = self.Doc.addObject("App::FeatureTest", "Other")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(src)
+        link.LinkCopyOnChange = "Enabled"
+        self.Doc.recompute()
+        link.LinkedObject = other
+        self.assertEqual(link.LinkCopyOnChangeSource, other)
+        self.assertEqual(link.Label, "Other <1>")
+
+    def testRestoreMigratedLabelKeepsLabelReferences(self):
+        # A link label that is not "<linked label> <instance>" (custom label, or a file
+        # from FreeCAD) is migrated when the document is restored. The expressions that
+        # refer to the link by its label must follow the new label.
+        child = self.Doc.addObject("App::VarSet", "Child")
+        child.addProperty("App::PropertyLength", "Outer")
+        child.Outer = 7
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(child)
+        link.Label = "Custom"
+        user = self.Doc.addObject("App::VarSet", "User")
+        user.addProperty("App::PropertyLength", "Length")
+        user.setExpression("Length", "<<Custom>>.Outer")
+        self.Doc.recompute()
+        with tempfile.TemporaryDirectory() as directory:
+            filename = os.path.join(directory, "LinkLabelTest.FCStd")
+            self.Doc.saveAs(filename)
+            FreeCAD.closeDocument(self.Doc.Name)
+            self.Doc = FreeCAD.openDocument(filename)
+            link = self.Doc.getObject("Link")
+            user = self.Doc.getObject("User")
+            self.assertEqual(link.Label, "Child <Custom>")
+            self.assertEqual(user.ExpressionEngine, [("Length", "<<Child <Custom\\>>>.Outer")])
+            self.Doc.getObject("Child").Outer = 9
+            self.Doc.recompute()
+            self.assertNotIn("Invalid", user.State)
+            self.assertEqual(user.Length, 9)
+            # The new label contains '>', which is escaped in the saved expression
+            self.Doc.save()
+            FreeCAD.closeDocument(self.Doc.Name)
+            self.Doc = FreeCAD.openDocument(filename)
+            user = self.Doc.getObject("User")
+            self.assertEqual(self.Doc.getObject("Link").Label, "Child <Custom>")
+            self.assertEqual(user.ExpressionEngine, [("Length", "<<Child <Custom\\>>>.Outer")])
+            self.Doc.getObject("Child").Outer = 11
+            self.Doc.recompute()
+            self.assertNotIn("Invalid", user.State)
+            self.assertEqual(user.Length, 11)
+
+    def testRestoreMigratedExternalLinkLabelKeepsLabelReferences(self):
+        # A link to an object of another document gets its linked object only when that
+        # document is loaded, while the link's document is still restoring. The label
+        # migrated then must also update the expressions referring to the link by label,
+        # instead of leaving them broken (https://github.com/AstoCAD/FreeCAD/issues/131).
+        with tempfile.TemporaryDirectory() as directory:
+            filename = os.path.join(directory, "LinkLabelTest.FCStd")
+            resname = os.path.join(directory, "LinkLabelTestRes.FCStd")
+            res = FreeCAD.newDocument("LinkLabelTestRes")
+            try:
+                varset = res.addObject("App::VarSet", "VarSet")
+                varset.addProperty("App::PropertyLength", "Outer")
+                varset.Outer = 7
+                res.saveAs(resname)
+                self.Doc.saveAs(filename)
+                link = self.Doc.addObject("App::Link", "Link")
+                link.setLink(varset)
+                # A link labeled like its linked object, as in a file from FreeCAD
+                link.Label = "VarSet"
+                user = self.Doc.addObject("App::VarSet", "User")
+                user.addProperty("App::PropertyLength", "Length")
+                user.setExpression("Length", "<<VarSet>>.Outer")
+                self.Doc.recompute()
+                self.assertEqual(user.Length, 7)
+                res.save()
+                self.Doc.save()
+                FreeCAD.closeDocument(self.Doc.Name)
+                FreeCAD.closeDocument(res.Name)
+                self.Doc = FreeCAD.openDocument(filename)
+                res = FreeCAD.getDocument("LinkLabelTestRes")
+                user = self.Doc.getObject("User")
+                self.assertEqual(self.Doc.getObject("Link").Label, "VarSet <1>")
+                self.assertEqual(user.ExpressionEngine, [("Length", "<<VarSet <1\\>>>.Outer")])
+                res.getObject("VarSet").Outer = 9
+                user.touch()
+                self.Doc.recompute()
+                self.assertNotIn("Invalid", user.State)
+                self.assertEqual(user.Length, 9)
+            finally:
+                if "LinkLabelTestRes" in FreeCAD.listDocuments():
+                    FreeCAD.closeDocument("LinkLabelTestRes")
+
+    def testRestoreMigratedLabelKeepsWordsWhole(self):
+        # A link label that starts with the linked label without a separator is a word of
+        # its own, not the linked label with an instance name ("Bolts" became "Bolt <s>").
+        # The numeric suffix of unique labels and a separate word are instance names.
+        labels = {
+            "Bolt": ("Bolts", "Bolt <Bolts>"),
+            "Arm": ("Armrest", "Arm <Armrest>"),
+            "Nut": ("Nut001", "Nut <1>"),
+            "Cube": ("Cube left", "Cube <left>"),
+        }
+        for index, (target, (label, migrated)) in enumerate(labels.items()):
+            obj = self.Doc.addObject("App::FeatureTest", f"Target{index}")
+            obj.Label = target
+            link = self.Doc.addObject("App::Link", f"Link{index}")
+            link.setLink(obj)
+            link.Label = label
+            self.assertEqual(link.Label, label)
+        with tempfile.TemporaryDirectory() as directory:
+            filename = os.path.join(directory, "LinkLabelTest.FCStd")
+            self.Doc.saveAs(filename)
+            FreeCAD.closeDocument(self.Doc.Name)
+            self.Doc = FreeCAD.openDocument(filename)
+            for index, (label, migrated) in enumerate(labels.values()):
+                with self.subTest(label=label):
+                    self.assertEqual(self.Doc.getObject(f"Link{index}").Label, migrated)
+
+    def testLabelWithGreaterThanInExpression(self):
+        # quote() escapes '>' in a <<label>>, the parser must read it back
+        child = self.Doc.addObject("App::VarSet", "Child")
+        child.addProperty("App::PropertyLength", "Outer")
+        child.Outer = 7
+        child.Label = "Child <1>"
+        user = self.Doc.addObject("App::VarSet", "User")
+        user.addProperty("App::PropertyLength", "Length")
+        user.setExpression("Length", "<<Child <1\\>>>.Outer")
+        self.Doc.recompute()
+        self.assertEqual(user.ExpressionEngine, [("Length", "<<Child <1\\>>>.Outer")])
+        self.assertNotIn("Invalid", user.State)
+        self.assertEqual(user.Length, 7)
+
+    def testDuplicateInstanceLabelTakesNextInstanceNumber(self):
+        # A copied link, or any label set to an instance label already in use, takes the next
+        # instance number ("Cube <2>"), not a padded one ("Cube <001>")
+        params = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document")
+        oldDuplicateLabels = params.GetBool("DuplicateLabels", False)
+        params.SetBool("DuplicateLabels", False)
+        try:
+            cube = self.Doc.addObject("App::FeatureTest", "Cube")
+            link = self.Doc.addObject("App::Link", "Link")
+            link.setLink(cube)
+            self.assertEqual(link.Label, "Cube <1>")
+            copy = self.Doc.copyObject(link)
+            self.assertEqual(copy.Label, "Cube <2>")
+            other = self.Doc.addObject("App::FeatureTest", "Other")
+            other.Label = "Cube <1>"
+            self.assertEqual(other.Label, "Cube <3>")
+            # Other labels keep the padded numbers
+            other.Label = "Cube"
+            self.assertEqual(other.Label, "Cube001")
+        finally:
+            params.SetBool("DuplicateLabels", oldDuplicateLabels)
+
+    def testDuplicateLabelEndingWithGreaterThan(self):
+        # Only an instance label "Name <instance>" is numbered inside its brackets. Other
+        # labels ending with '>' take the digits at the end, like any other label.
+        params = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document")
+        oldDuplicateLabels = params.GetBool("DuplicateLabels", False)
+        params.SetBool("DuplicateLabels", False)
+        try:
+            for label, unique in (
+                ("Foo>", "Foo>001"),
+                ("<Tag>", "<Tag>001"),
+                ("Box<a>", "Box<a>001"),
+                ("x->y>", "x->y>001"),
+                ("Box <a>", "Box <a001>"),
+                ("Box <2>", "Box <3>"),
+            ):
+                first = self.Doc.addObject("App::FeatureTest", "First")
+                first.Label = label
+                self.assertEqual(first.Label, label)
+                second = self.Doc.addObject("App::FeatureTest", "Second")
+                second.Label = label
+                self.assertEqual(second.Label, unique)
+        finally:
+            params.SetBool("DuplicateLabels", oldDuplicateLabels)
 
 
 class DocumentSettingsCases(unittest.TestCase):

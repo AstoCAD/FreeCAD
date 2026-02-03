@@ -245,6 +245,10 @@ void AssemblyLink::onChanged(const App::Property* prop)
         updateParentJoints();
         return;
     }
+
+    else if (prop == &LinkedObject) {
+        App::Link::updateLabelUtility(this, getLinkedObject2());
+    }
     App::Part::onChanged(prop);
 }
 
@@ -252,6 +256,8 @@ void AssemblyLink::onDocumentRestored()
 {
     App::Part::onDocumentRestored();
     updateContents();
+
+    App::Link::migrateLabelUtility(this, getLinkedObject2());
 }
 
 void AssemblyLink::updateParentJoints()
@@ -842,11 +848,6 @@ std::vector<App::DocumentObject*> AssemblyLink::getJoints()
     return jointGroup->getJoints();
 }
 
-bool AssemblyLink::allowDuplicateLabel() const
-{
-    return true;
-}
-
 int AssemblyLink::numberOfComponents() const
 {
     return isRigid() ? 1 : getLinkedAssembly()->numberOfComponents();
@@ -855,4 +856,22 @@ int AssemblyLink::numberOfComponents() const
 bool AssemblyLink::isEmpty() const
 {
     return numberOfComponents() == 0;
+}
+
+void AssemblyLink::onParentLabelChanged(App::DocumentObject* parent)
+{
+    auto* linked = getLinkedObject2();
+    if (!linked) {
+        return;
+    }
+    if (linked == parent) {
+        App::Link::updateLabelUtility(this, linked);
+    }
+    // An assembly link to the same assembly, like the one this link links to, was relabeled.
+    // It is relabeled when it is linked to another assembly, which is then the assembly of
+    // this link too (see App::Link::onParentLabelChanged()).
+    else if (auto* parentLink = freecad_cast<AssemblyLink*>(parent);
+             parentLink && parentLink->getLinkedObject2() == linked) {
+        App::Link::updateLabelUtility(this, linked, true);
+    }
 }
