@@ -205,6 +205,17 @@ void Constraint::Restore(XMLReader& reader)
     Type = reader.getAttribute<ConstraintType>("Type");
     Value = reader.getAttribute<double>("Value");
 
+    // Migration: Check for legacy attributes from your previous branch
+    if (reader.hasAttribute("Text")) {
+        setText(reader.getAttribute<const char*>("Text"));
+    }
+    if (reader.hasAttribute("Font")) {
+        setFont(reader.getAttribute<const char*>("Font"));
+    }
+    if (reader.hasAttribute("IsTextHeight")) {
+        setIsTextHeight(reader.getAttribute<bool>("IsTextHeight"));
+    }
+
     if (this->Type == InternalAlignment) {
         AlignmentType = reader.getAttribute<InternalAlignmentType>("InternalAlignmentType");
 
