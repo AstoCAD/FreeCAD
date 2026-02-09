@@ -4575,6 +4575,11 @@ Sketcher::Constraint* ViewProviderSketch::getConstraint(int constid) const
     return nullptr;
 }
 
+bool ViewProviderSketch::isConstraintActiveInSketch(const Sketcher::Constraint* cstr) const
+{
+    return getSketchObject()->isConstraintActiveInSketch(cstr);
+}
+
 const GeoList ViewProviderSketch::getGeoList() const
 {
     const std::vector<Part::Geometry*> tempGeo =
