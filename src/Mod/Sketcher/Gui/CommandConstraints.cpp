@@ -10485,7 +10485,6 @@ void CmdSketcherConstrainGroup::activated(int iMsg)
     getSelection().clearSelection();
 }
 
-namespace {
 /**
  * @brief Escapes a string for safe embedding within a single-quoted Python string literal.
  *
@@ -10494,7 +10493,7 @@ namespace {
  * @param input The raw string to escape.
  * @return A new string with special characters escaped.
  */
-std::string escapeForPython(const std::string& input)
+std::string SketcherGui::escapeForPython(const std::string& input)
 {
     std::string result;
     // Pre-allocating can be a small optimization if strings are long
@@ -10511,7 +10510,6 @@ std::string escapeForPython(const std::string& input)
     }
     return result;
 }
-} // anonymous namespace
 
 bool SketcherGui::addListConstraint(Sketcher::SketchObject* Obj,
                        std::vector<Sketcher::GeoElementId>& elts,
