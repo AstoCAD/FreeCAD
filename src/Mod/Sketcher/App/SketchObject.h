@@ -353,7 +353,13 @@ public:
     /// get the datum of a Distance or Angle constraint
     double getDatum(int ConstrId) const;
     /// set the text and font of a text constraint
-    int setTextAndFont(int ConstrId, std::string& newText, std::string& newFont, bool isConstruction = false);
+    int setTextAndFont(
+        int ConstrId,
+        std::string& newText,
+        std::string& newFont,
+        bool isHeight,
+        bool isConstruction = false
+    );
     /// set the driving status of this constraint and solve
     int setDriving(int ConstrId, bool isdriving);
     /// get the driving status of this constraint
