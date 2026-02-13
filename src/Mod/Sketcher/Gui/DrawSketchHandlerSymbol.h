@@ -350,32 +350,9 @@ void DSHSymbolController::configureToolWidget()
         handler->pathMap = findAvailableSymbolFiles();
 
         // 2. Populate combobox with friendly names (the keys of the map)
-        QStringList fontNames = handler->pathMap.keys();
-        fontNames.sort(Qt::CaseInsensitive);
-        toolWidget->setComboboxElements(WCombobox::SecondCombo, fontNames);
-
-        // 3. Set a sensible default font
-        QString defaultFontName;
-        if (fontNames.contains(QString::fromUtf8("DejaVu Sans"), Qt::CaseInsensitive)) {
-            defaultFontName = QString::fromUtf8("DejaVu Sans");
-        }
-        else if (fontNames.contains(QString::fromUtf8("Arial"), Qt::CaseInsensitive)) {
-            defaultFontName = QString::fromUtf8("Arial");
-        }
-        else if (!fontNames.isEmpty()) {
-            defaultFontName = fontNames.first();
-        }
-
-        if (!defaultFontName.isEmpty()) {
-            // Find the actual case-sensitive key
-            for (const auto& key : fontNames) {
-                if (key.compare(defaultFontName, Qt::CaseInsensitive) == 0) {
-                    handler->fileName = handler->pathMap.value(key).toStdString();
-                    toolWidget->setComboboxCurrentText(WCombobox::SecondCombo, key);
-                    break;
-                }
-            }
-        }
+        QStringList symbolsNames = handler->pathMap.keys();
+        symbolsNames.sort(Qt::CaseInsensitive);
+        toolWidget->setComboboxElements(WCombobox::SecondCombo, symbolsNames);
 
         onViewParameters[OnViewParameter::First]->setLabelType(Gui::SoDatumLabel::DISTANCEX);
         onViewParameters[OnViewParameter::Second]->setLabelType(Gui::SoDatumLabel::DISTANCEY);
