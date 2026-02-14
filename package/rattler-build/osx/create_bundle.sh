@@ -83,21 +83,21 @@ if [[ "${SIGN_RELEASE}" == "true" ]]; then
     ../../scripts/macos_sign_and_notarize.zsh -p "AstoCAD" -k ${SIGNING_KEY_ID} -o "${version_name}.dmg"
 else
     # Ad-hoc sign for local builds (required for QuickLook extensions to register)
-    if [ -d "FreeCAD.app/Contents/PlugIns" ]; then
+    if [ -d "AstoCAD.app/Contents/PlugIns" ]; then
         echo "Ad-hoc signing App Extensions with entitlements..."
         codesign --force --sign - \
             --entitlements ../../../src/MacAppBundle/QuickLook/modern/ThumbnailExtension.entitlements \
-            FreeCAD.app/Contents/PlugIns/FreeCADThumbnailExtension.appex
+            AstoCAD.app/Contents/PlugIns/FreeCADThumbnailExtension.appex
         codesign --force --sign - \
             --entitlements ../../../src/MacAppBundle/QuickLook/modern/PreviewExtension.entitlements \
-            FreeCAD.app/Contents/PlugIns/FreeCADPreviewExtension.appex
+            AstoCAD.app/Contents/PlugIns/FreeCADPreviewExtension.appex
     fi
     echo "Ad-hoc signing app bundle..."
-    codesign --force --sign - FreeCAD.app/Contents/packages.txt
-    if [ -f "FreeCAD.app/Contents/Library/QuickLook/QuicklookFCStd.qlgenerator/Contents/MacOS/QuicklookFCStd" ]; then
-        codesign --force --sign - FreeCAD.app/Contents/Library/QuickLook/QuicklookFCStd.qlgenerator/Contents/MacOS/QuicklookFCStd
+    codesign --force --sign - AstoCAD.app/Contents/packages.txt
+    if [ -f "AstoCAD.app/Contents/Library/QuickLook/QuicklookFCStd.qlgenerator/Contents/MacOS/QuicklookFCStd" ]; then
+        codesign --force --sign - AstoCAD.app/Contents/Library/QuickLook/QuicklookFCStd.qlgenerator/Contents/MacOS/QuicklookFCStd
     fi
-    codesign --force --sign - FreeCAD.app
+    codesign --force --sign - AstoCAD.app
 
     # create the dmg
     dmgbuild -s dmg_settings.py "AstoCAD" "${version_name}.dmg"
