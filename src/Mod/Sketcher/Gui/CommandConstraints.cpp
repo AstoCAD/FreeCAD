@@ -2065,6 +2065,10 @@ protected:
             //add the geometry to its type vector. Temporarily if not selAllowed
             selVector.push_back(selIdPair);
         }
+        
+        // Remove redundant coincident points from the selection
+        // This ensures box-selecting a junction of multiple lines is treated as 1 point.
+        filterCoincidentPoints();
 
         // See if the selection is valid
         bool selAllowed = makeAppropriateConstraint(Base::Vector2d(0.,0.));
@@ -2072,6 +2076,31 @@ protected:
         if (!selAllowed) {
             clearRefVectors();
         }
+    }
+
+    void filterCoincidentPoints()
+    {
+        if (selPoints.size() < 2) {
+            return;
+        }
+
+        std::vector<SelIdPair> filteredPoints;
+
+        for (const auto& p : selPoints) {
+            bool isRedundant = false;
+            for (const auto& kept : filteredPoints) {
+                if (Obj->arePointsCoincident(p.GeoId, p.PosId, kept.GeoId, kept.PosId)) {
+                    isRedundant = true;
+                    break;
+                }
+            }
+
+            if (!isRedundant) {
+                filteredPoints.push_back(p);
+            }
+        }
+
+        selPoints = std::move(filteredPoints);
     }
 
     void finalizeCommand()
