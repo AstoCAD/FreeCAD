@@ -674,7 +674,6 @@ PyObject* ViewProviderPy::getBoundingBox(PyObject* args, PyObject* kwd)
             &transform,
             View3DInventorPy::type_object(),
             &pyView,
-            &subname,
             &Base::MatrixPy::Type,
             &pyMat,
             &depth
