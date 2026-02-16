@@ -211,8 +211,13 @@ void BomObject::addObjectChildrenToBom(
             }
         }
 
+        // Draft Array Detection
+        auto* baseProp = child->getPropertyByName<App::PropertyLink>("Base");
+        auto* countProp = child->getPropertyByName<App::PropertyInteger>("Count");
+        bool isDraftArray = baseProp && countProp && baseProp->getValue();
+
         if (!child->isDerivedFrom<AssemblyObject>() && !child->isDerivedFrom<App::Part>()
-            && !(child->isDerivedFrom<Part::Feature>() && !onlyParts.getValue())) {
+            && !isDraftArray && !(child->isDerivedFrom<Part::Feature>() && !onlyParts.getValue())) {
             continue;
         }
 
@@ -247,7 +252,16 @@ void BomObject::addObjectChildrenToBom(
         siblings.push_back({child, isMirrored, childRow});
         ++row;
 
-        if ((child->isDerivedFrom<AssemblyObject>() && detailSubAssemblies.getValue())
+        if (isDraftArray) {
+            App::DocumentObject* baseObj = baseProp->getValue();
+            int arrayCount = countProp->getValue();
+
+            // Add the Base Object as a sub-component
+            // We use sub_index + ".1" to represent it is inside the array
+            addObjectToBom(baseObj, row, sub_index + ".1", isObjMirrored(baseObj), arrayCount);
+            row++;
+        }
+        else if ((child->isDerivedFrom<AssemblyObject>() && detailSubAssemblies.getValue())
             || (!child->isDerivedFrom<AssemblyObject>() && child->isDerivedFrom<App::Part>()
                 && detailParts.getValue())) {
             addObjectChildrenToBom(child->getOutList(), row, sub_index);
@@ -274,7 +288,13 @@ bool BomObject::isObjMirrored(App::DocumentObject* obj)
     return accumulatedScale < 0.0;
 }
 
-void BomObject::addObjectToBom(App::DocumentObject* obj, size_t row, std::string index, bool isMirrored)
+void BomObject::addObjectToBom(
+    App::DocumentObject* obj,
+    size_t row,
+    std::string index,
+    bool isMirrored,
+    int quantity
+)
 {
     size_t col = 0;
     for (auto& columnName : columnsNames.getValues()) {
@@ -298,7 +318,7 @@ void BomObject::addObjectToBom(App::DocumentObject* obj, size_t row, std::string
             setCell(App::CellAddress(row, col), obj->getDocument()->getFileName());
         }
         else if (columnName == "Quantity") {
-            setCell(App::CellAddress(row, col), std::to_string(1).c_str());
+            setCell(App::CellAddress(row, col), std::to_string(quantity).c_str());
         }
         else if (columnName.starts_with(".")) {
             // Column names that start with a dot are considered property names
