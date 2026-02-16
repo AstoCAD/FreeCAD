@@ -36,9 +36,11 @@
 #include <Base/Vector3D.h>
 #include <Base/Converter.h>
 
+#include "Action.h"
 #include "Application.h"
 #include "BitmapFactory.h"
 #include "Control.h"
+#include "Command.h"
 #include "Document.h"
 #include "Inventor/Draggers/SoTransformDragger.h"
 #include "Inventor/Draggers/Gizmo.h"
@@ -123,9 +125,6 @@ bool ViewProviderDragger::doubleClicked()
 
 void ViewProviderDragger::setupContextMenu(QMenu* menu, QObject* receiver, const char* member)
 {
-    QIcon iconObject = mergeGreyableOverlayIcons(Gui::BitmapFactory().pixmap("Std_TransformManip.svg"));
-    QAction* act = menu->addAction(iconObject, QObject::tr("Transform"), receiver, member);
-    act->setData(QVariant((int)ViewProvider::Transform));
     ViewProviderDocumentObject::setupContextMenu(menu, receiver, member);
 }
 

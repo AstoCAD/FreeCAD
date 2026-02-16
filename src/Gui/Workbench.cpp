@@ -630,6 +630,8 @@ StdWorkbench::~StdWorkbench() = default;
 
 void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
 {
+    auto sels = Gui::Selection().getSelection();
+
     if (strcmp(recipient, "View") == 0) {
         auto StdViews = new MenuItem;
         StdViews->setCommand("Standard Views");
@@ -643,11 +645,11 @@ void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
               << "Separator" << StdViews << "Separator" << "Std_DrawStyle" << "Part_SelectFilter"
               << "Std_ViewDockUndockFullscreen";
 
-        if (Gui::Selection().countObjectsOfType<App::DocumentObject>() > 0) {
+        if (sels.size() > 0) {
             *item << "Separator" << "Std_ToggleFreeze"
                   << "Std_ToggleSelectability" << "Std_TreeSelection"
                   << "Std_RandomColor" << "Std_ToggleTransparency" << "Separator" << "Std_Delete"
-                  << "Std_SendToPythonConsole" << "Std_TransformManip" << "Std_Placement";
+                  << "Std_SendToPythonConsole";
         }
     }
     else if (strcmp(recipient, "Tree") == 0) {
@@ -664,7 +666,14 @@ void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
             *item << "Separator"
                   << "Std_RandomColor" << "Std_ToggleTransparency" << "Separator"
                   << "Std_Cut" << "Std_Copy" << "Std_Paste" << "Std_Delete"
-                  << "Std_SendToPythonConsole" << "Std_Placement";
+                  << "Std_SendToPythonConsole";
+        }
+    }
+
+    if (sels.size() == 1) {
+        App::DocumentObject* obj = sels[0].pObject;
+        if (obj->getPlacementProperty() && !obj->getPlacementProperty()->isReadOnly()) {
+            *item << "Std_TransformManip" << "Std_Placement";
         }
     }
 }
