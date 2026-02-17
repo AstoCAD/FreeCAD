@@ -5434,6 +5434,7 @@ void ViewProviderSketch::generateContextMenu(const Gui::View3DInventorViewer* vi
 
     Gui::MenuItem menu;
     menu.setCommand("Sketcher Context");
+    menu << "Sketcher_ContextActionRow" << "Separator"; 
 
     std::vector<Gui::SelectionObject> selection =
         Gui::Selection().getSelectionEx(0, Sketcher::SketchObject::getClassTypeId());
@@ -5625,9 +5626,7 @@ void ViewProviderSketch::generateContextMenu(const Gui::View3DInventorViewer* vi
             }
             menu << "Sketcher_ToggleDrivingConstraint"
                  << "Sketcher_ToggleActiveConstraint"
-                 << "Sketcher_SelectElementsAssociatedWithConstraints"
-                 << "Separator"
-                 << "Std_Delete";
+                 << "Sketcher_SelectElementsAssociatedWithConstraints";
         }
         // add the rest of the context menu if geometry is selected
         if (selectedPoints != 0 || selectedEdges != 0) {
@@ -5643,13 +5642,7 @@ void ViewProviderSketch::generateContextMenu(const Gui::View3DInventorViewer* vi
                  << "Sketcher_CompDimensionTools"
                  << "Sketcher_CompConstrainTools"
                  << "Separator"
-                 << "Sketcher_SelectConstraints"
-                 << "Separator"
-                 << "Sketcher_CopyClipboard"
-                 << "Sketcher_Cut"
-                 << "Sketcher_Paste"
-                 << "Separator"
-                 << "Std_Delete";
+                 << "Sketcher_SelectConstraints";
         }
     }
     // context menu without a selection
@@ -5680,14 +5673,9 @@ void ViewProviderSketch::generateContextMenu(const Gui::View3DInventorViewer* vi
              << "Sketcher_CompConstrainTools"
              << "Separator"
              << "Sketcher_DeleteAllGeometry"
-             << "Sketcher_DeleteAllConstraints"
-             << "Separator"
-             << "Sketcher_Paste"
-             << "Separator"
-             << "Sketcher_LeaveSketch";
+             << "Sketcher_DeleteAllConstraints";
     }
-    // create context menu
-    Gui::Application::Instance->setupContextMenu("Sketch", &menu);
+
     QMenu contextMenu(viewer->getGLWidget());
     Gui::MenuManager::getInstance()->setupContextMenu(&menu, contextMenu);
     contextMenu.exec(QCursor::pos());
