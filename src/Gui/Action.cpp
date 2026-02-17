@@ -25,15 +25,23 @@
 #include <QApplication>
 #include <QEvent>
 #include <QFileInfo>
+#include <QHelpEvent>
+#include <QKeyEvent>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPaintEvent>
 #include <QRegularExpression>
 #include <QScreen>
+#include <QSizePolicy>
+#include <QStyleOptionToolButton>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QToolTip>
 #include <QRegularExpression>
+#include <QWidgetAction>
 
 #include <Base/Exception.h>
 #include <Base/Interpreter.h>
@@ -1504,6 +1512,331 @@ void WindowAction::addTo(QWidget* widget)
     else {
         menu->addActions(groupAction()->actions());
         getMainWindow()->setWindowsMenu(menu);
+    }
+}
+
+// --------------------------------------------------------------------
+
+namespace
+{
+
+// QWidgetAction child widgets can be clipped to the native menu row height on macOS.
+// Paint the row as one widget so the icons keep their intended height on all platforms.
+class ContextActionRowWidget: public QWidget
+{
+public:
+    ContextActionRowWidget(QMenu* menu, const std::vector<std::string>& commands)
+        : QWidget(menu)
+        , _menu(menu)
+    {
+        CommandManager& rMgr = Application::Instance->commandManager();
+
+        for (const std::string& cmdName : commands) {
+            Command* cmd = rMgr.getCommandByName(cmdName.c_str());
+            if (!cmd) {
+                continue;
+            }
+
+            Item item;
+            item.command = cmd;
+            item.icon = Gui::BitmapFactory().iconFromTheme(cmd->getPixmap());
+            item.toolTip = qApp->translate(cmd->className(), cmd->getToolTipText());
+            _items.push_back(item);
+        }
+
+        setMinimumSize(minimumSizeHint());
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setMouseTracking(true);
+        setFocusPolicy(Qt::StrongFocus);
+        setAttribute(Qt::WA_Hover);
+    }
+
+    bool isEmpty() const
+    {
+        return _items.empty();
+    }
+
+    QSize sizeHint() const override
+    {
+        return QSize(naturalWidth(), ButtonSize + 2 * VerticalMargin);
+    }
+
+    QSize minimumSizeHint() const override
+    {
+        return sizeHint();
+    }
+
+protected:
+    bool event(QEvent* event) override
+    {
+        if (event->type() == QEvent::ToolTip) {
+            auto* helpEvent = static_cast<QHelpEvent*>(event);
+            const int index = indexAt(helpEvent->pos());
+            if (index >= 0) {
+                QToolTip::showText(helpEvent->globalPos(),
+                                   _items[index].toolTip,
+                                   this,
+                                   rectFor(index));
+            }
+            else {
+                QToolTip::hideText();
+                event->ignore();
+            }
+            return true;
+        }
+
+        return QWidget::event(event);
+    }
+
+    void paintEvent(QPaintEvent*) override
+    {
+        QPainter painter(this);
+
+        for (int i = 0; i < static_cast<int>(_items.size()); ++i) {
+            const bool enabled = _items[i].command->isActive();
+
+            QStyleOptionToolButton option;
+            option.initFrom(this);
+            option.rect = rectFor(i);
+            option.icon = _items[i].icon;
+            option.iconSize = QSize(IconSize, IconSize);
+            option.toolButtonStyle = Qt::ToolButtonIconOnly;
+            option.subControls = QStyle::SC_ToolButton;
+
+            if (enabled) {
+                option.state |= QStyle::State_Enabled;
+            }
+            else {
+                option.state &= ~QStyle::State_Enabled;
+            }
+
+            if (i == _hovered && enabled) {
+                option.state |= QStyle::State_MouseOver;
+                option.activeSubControls = QStyle::SC_ToolButton;
+            }
+
+            if (i == _pressed && enabled) {
+                option.state |= QStyle::State_Sunken;
+            }
+            else {
+                option.state |= QStyle::State_Raised | QStyle::State_AutoRaise;
+            }
+
+            style()->drawComplexControl(QStyle::CC_ToolButton, &option, &painter, this);
+        }
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override
+    {
+        setHovered(indexAt(event->pos()));
+    }
+
+    void mousePressEvent(QMouseEvent* event) override
+    {
+        if (event->button() != Qt::LeftButton) {
+            QWidget::mousePressEvent(event);
+            return;
+        }
+
+        const int index = indexAt(event->pos());
+        _pressed = isEnabledIndex(index) ? index : -1;
+        update();
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override
+    {
+        if (event->button() != Qt::LeftButton) {
+            QWidget::mouseReleaseEvent(event);
+            return;
+        }
+
+        const int index = indexAt(event->pos());
+        const bool trigger = index >= 0 && index == _pressed && isEnabledIndex(index);
+        _pressed = -1;
+        update();
+
+        if (trigger) {
+            Command* command = _items[index].command;
+            _menu->hide();
+            command->invoke(0, Command::TriggerAction);
+        }
+    }
+
+    void leaveEvent(QEvent*) override
+    {
+        setHovered(-1);
+        if (_pressed != -1) {
+            _pressed = -1;
+            update();
+        }
+    }
+
+    void keyPressEvent(QKeyEvent* event) override
+    {
+        switch (event->key()) {
+            case Qt::Key_Left:
+                setHovered(nextEnabledIndex(_hovered, -1));
+                event->accept();
+                return;
+            case Qt::Key_Right:
+                setHovered(nextEnabledIndex(_hovered, 1));
+                event->accept();
+                return;
+            case Qt::Key_Return:
+            case Qt::Key_Enter:
+            case Qt::Key_Space:
+                if (isEnabledIndex(_hovered)) {
+                    Command* command = _items[_hovered].command;
+                    _menu->hide();
+                    command->invoke(0, Command::TriggerAction);
+                    event->accept();
+                    return;
+                }
+                break;
+            default:
+                break;
+        }
+
+        QWidget::keyPressEvent(event);
+    }
+
+private:
+    struct Item
+    {
+        Command* command {nullptr};
+        QIcon icon;
+        QString toolTip;
+    };
+
+    QRect rectFor(int index) const
+    {
+        const int count = static_cast<int>(_items.size());
+        if (count == 0) {
+            return QRect();
+        }
+
+        const int rowWidth = width() > 0 ? width() : naturalWidth();
+        const int availableWidth = rowWidth - 2 * HorizontalMargin;
+        const int naturalButtonWidth = count * ButtonSize + (count - 1) * Spacing;
+
+        if (availableWidth <= naturalButtonWidth) {
+            return QRect(HorizontalMargin + index * (ButtonSize + Spacing),
+                         VerticalMargin,
+                         ButtonSize,
+                         ButtonSize);
+        }
+
+        if (count == 1) {
+            return QRect(HorizontalMargin + (availableWidth - ButtonSize) / 2,
+                         VerticalMargin,
+                         ButtonSize,
+                         ButtonSize);
+        }
+
+        const int spacingWidth = availableWidth - count * ButtonSize;
+        const int spacing = spacingWidth / (count - 1);
+        const int remainder = spacingWidth % (count - 1);
+        const int distributedRemainder = index < remainder ? index : remainder;
+        return QRect(HorizontalMargin + index * (ButtonSize + spacing) + distributedRemainder,
+                     VerticalMargin,
+                     ButtonSize,
+                     ButtonSize);
+    }
+
+    int naturalWidth() const
+    {
+        const int count = static_cast<int>(_items.size());
+        return count * ButtonSize + (count > 1 ? (count - 1) * Spacing : 0)
+            + 2 * HorizontalMargin;
+    }
+
+    int indexAt(const QPoint& position) const
+    {
+        for (int i = 0; i < static_cast<int>(_items.size()); ++i) {
+            if (rectFor(i).contains(position)) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    bool isEnabledIndex(int index) const
+    {
+        return index >= 0 && index < static_cast<int>(_items.size())
+            && _items[index].command->isActive();
+    }
+
+    int nextEnabledIndex(int start, int direction) const
+    {
+        if (_items.empty()) {
+            return -1;
+        }
+
+        int index = start;
+        for (int step = 0; step < static_cast<int>(_items.size()); ++step) {
+            index += direction;
+            if (index < 0) {
+                index = static_cast<int>(_items.size()) - 1;
+            }
+            else if (index >= static_cast<int>(_items.size())) {
+                index = 0;
+            }
+
+            if (isEnabledIndex(index)) {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    void setHovered(int index)
+    {
+        if (index == _hovered) {
+            return;
+        }
+
+        _hovered = index;
+        update();
+    }
+
+    static constexpr int ButtonSize = 32;
+    static constexpr int IconSize = 24;
+    static constexpr int Spacing = 2;
+    static constexpr int HorizontalMargin = 4;
+    static constexpr int VerticalMargin = 2;
+
+    QMenu* _menu;
+    std::vector<Item> _items;
+    int _hovered {-1};
+    int _pressed {-1};
+};
+
+}  // namespace
+
+ActionRow::ActionRow(Command* pcCmd, const std::vector<std::string>& commands, QObject* parent)
+    : Action(pcCmd, parent)
+    , _subCommands(commands)
+{}
+
+void ActionRow::addTo(QWidget* widget)
+{
+    if (widget->inherits("QMenu")) {
+        QMenu* menu = qobject_cast<QMenu*>(widget);
+        auto* row = new ContextActionRowWidget(menu, _subCommands);
+        if (row->isEmpty()) {
+            delete row;
+            return;
+        }
+
+        auto* wa = new QWidgetAction(menu);
+        wa->setDefaultWidget(row);
+        menu->addAction(wa);
+    }
+    else {
+        // Fallback for non-menu environments
+        Action::addTo(widget);
     }
 }
 
