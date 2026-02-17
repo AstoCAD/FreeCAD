@@ -422,4 +422,15 @@ private:
     Q_DISABLE_COPY(WindowAction)
 };
 
+class GuiExport ActionRow: public Action
+{
+    Q_OBJECT
+public:
+    ActionRow(Command* pcCmd, const std::vector<std::string>& commands, QObject* parent);
+    void addTo(QWidget* widget) override;
+
+private:
+    std::vector<std::string> _subCommands;
+};
+
 }  // namespace Gui
