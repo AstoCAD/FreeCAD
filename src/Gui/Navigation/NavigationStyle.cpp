@@ -2596,7 +2596,15 @@ void NavigationStyle::openPopupMenu(const SbVec2s& position)
     MenuManager::getInstance()->setupContextMenu(&view, *contextMenu);
     contextMenu->setAttribute(Qt::WA_DeleteOnClose);
 
-    auto posAction = !contextMenu->actions().empty() ? contextMenu->actions().front() : nullptr;
+    auto allActions = contextMenu->actions();
+    auto posAction = !allActions.empty() ? allActions.front() : nullptr;
+
+    // Clarify should be after the copy/cut/... row and its separator
+    if (posAction && posAction->data().toString() == QString::fromUtf8("Std_ContextActionRow")) {
+        if (allActions.size() > 2) {
+            posAction = allActions.at(2);
+        }
+    }
 
     QMenu* objectMenu = nullptr;
     QList<QAction*> objectActions;
