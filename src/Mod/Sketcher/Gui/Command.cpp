@@ -1895,6 +1895,34 @@ bool CmdRenderingOrder::isActive()
     ;
 }
 
+/* Context action row for sketcher*/
+class SketcherCmdContextActionRow : public Gui::Command {
+public:
+    SketcherCmdContextActionRow() : Command("Sketcher_ContextActionRow") {
+        sGroup = "Edit";
+        sMenuText = QT_TR_NOOP("Sketcher Context Actions");
+    }
+
+    const char* className() const override {
+        return "SketcherCmdContextActionRow";
+    }
+
+    Gui::Action* createAction() override {
+        // Sketcher specific commands
+        std::vector<std::string> cmds = {
+            "Sketcher_CopyClipboard",
+            "Sketcher_Cut",
+            "Sketcher_Paste",
+            "Std_Delete",
+            "Sketcher_LeaveSketch"
+        };
+        // Use the generic ActionRow class
+        return new Gui::ActionRow(this, cmds, Gui::getMainWindow());
+    }
+
+    void activated(int) override {}
+};
+
 
 void CreateSketcherCommands()
 {
@@ -1916,5 +1944,6 @@ void CreateSketcherCommands()
     rcCmdMgr.addCommand(new CmdSketcherGrid());
     rcCmdMgr.addCommand(new CmdSketcherSnap());
     rcCmdMgr.addCommand(new CmdRenderingOrder());
+    rcCmdMgr.addCommand(new SketcherCmdContextActionRow());
 }
 // clang-format on
