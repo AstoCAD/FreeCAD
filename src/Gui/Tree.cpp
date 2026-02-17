@@ -1275,19 +1275,19 @@ void TreeWidget::contextMenuEvent(QContextMenuEvent* e)
 {
     // get the current item
     this->contextItem = itemAt(e->pos());
-    bool isDoc = this->contextItem && this->contextItem->type() == DocumentType;
+    bool isDocItem = this->contextItem && this->contextItem->type() == DocumentType;
+    bool isObjItem = this->contextItem && this->contextItem->type() == ObjectType;
 
     // ask workbenches and view provider, ...
     MenuItem view;
     Gui::Application::Instance->setupContextMenu("Tree", &view);
 
-    if (isDoc) {
-        view << "Std_Expressions";
+    if (isDocItem) {
+        view << "Std_Expressions" << "Std_Group";
     }
     else {
-        view << "Std_Properties" << "Separator";
+        view << "Separator";
     }
-    view << "Std_Group";
     Workbench::createLinkMenu(&view);
 
     QMenu contextMenu;
@@ -1299,16 +1299,16 @@ void TreeWidget::contextMenuEvent(QContextMenuEvent* e)
     connect(&subMenuGroup, &QActionGroup::triggered, this, &TreeWidget::onActivateDocument);
     MenuManager::getInstance()->setupContextMenu(&view, contextMenu);
 
-    if (isDoc) {
+    bool showHidden = false;
+    if (isDocItem) {
         auto docitem = static_cast<DocumentItem*>(this->contextItem);
         App::Document* doc = docitem->document()->getDocument();
+        showHidden = docitem->showHidden();
 
         // It's better to let user decide whether and how to activate
         // the current document, such as by double-clicking.
         // App::GetApplication().setActiveDocument(doc);
 
-        showHiddenAction->setChecked(docitem->showHidden());
-        contextMenu.addAction(this->showHiddenAction);
         contextMenu.addAction(this->openFileLocationAction);
         contextMenu.addAction(this->searchObjectsAction);
         contextMenu.addAction(this->closeDocAction);
@@ -1342,69 +1342,8 @@ void TreeWidget::contextMenuEvent(QContextMenuEvent* e)
             // contextMenu.addAction(this->createGroupAction);
         }
         contextMenu.addSeparator();
-    }
-    else if (this->contextItem && this->contextItem->type() == ObjectType) {
-        auto objitem = static_cast<DocumentObjectItem*>(this->contextItem);
 
-        // check that the selection is not across several documents
-        bool acrossDocuments = false;
-        auto SelectedObjectsList = Selection().getCompleteSelection();
-        // get the object's document as reference
-        App::Document* doc = objitem->object()->getObject()->getDocument();
-        for (auto it = SelectedObjectsList.begin(); it != SelectedObjectsList.end(); ++it) {
-            if ((*it).pDoc != doc) {
-                acrossDocuments = true;
-                break;
-            }
-        }
-
-        showHiddenAction->setChecked(doc->ShowHidden.getValue());
-        contextMenu.addAction(this->showHiddenAction);
-        contextMenu.addAction(this->toggleVisibilityInTreeAction);
-
-        if (!acrossDocuments) {  // is only sensible for selections within one document
-            if (objitem->object()->getObject()->isDerivedFrom<App::DocumentObjectGroup>()) {
-                contextMenu.addAction(this->createGroupAction);
-            }
-            // if there are dependent objects in the selection, add context menu to add them to selection
-            if (CheckForDependents()) {
-                contextMenu.addAction(this->selectDependentsAction);
-            }
-        }
-
-        contextMenu.addSeparator();
-        contextMenu.addAction(this->markRecomputeAction);
-        contextMenu.addAction(this->recomputeObjectAction);
-        contextMenu.addSeparator();
-
-        // relabeling is only possible for a single selected document
-        if (SelectedObjectsList.size() == 1) {
-            contextMenu.addAction(this->relabelObjectAction);
-        }
-
-        auto selItems = this->selectedItems();
-        // if only one item is selected, setup the edit menu
-        if (selItems.size() == 1) {
-            objitem->object()->setupContextMenu(&editMenu, this, SLOT(onStartEditing()));
-            QList<QAction*> editAct = editMenu.actions();
-            if (!editAct.isEmpty()) {
-                QAction* topact = contextMenu.actions().constFirst();
-                for (QList<QAction*>::iterator it = editAct.begin(); it != editAct.end(); ++it) {
-                    contextMenu.insertAction(topact, *it);
-                }
-                QAction* first = editAct.front();
-                contextMenu.setDefaultAction(first);
-                if (objitem->object()->isEditing()) {
-                    contextMenu.insertAction(topact, this->finishEditingAction);
-                }
-                contextMenu.insertSeparator(topact);
-            }
-        }
-    }
-
-
-    // add a submenu to active a document if two or more exist
-    if (isDoc) {
+        // add a submenu to active a document if two or more exist
         std::vector<App::Document*> docs = App::GetApplication().getDocuments();
         if (docs.size() >= 2) {
             contextMenu.addSeparator();
@@ -1429,12 +1368,83 @@ void TreeWidget::contextMenuEvent(QContextMenuEvent* e)
             subMenu.addActions(subMenuGroup.actions());
         }
     }
+    else if (isObjItem) {
+        auto objitem = static_cast<DocumentObjectItem*>(this->contextItem);
+        App::Document* doc = objitem->object()->getObject()->getDocument();
+        showHidden = doc->ShowHidden.getValue();
 
-    // add a submenu to present the settings of the tree.
+        // check that the selection is not across several documents
+        bool acrossDocuments = false;
+        auto SelectedObjectsList = Selection().getCompleteSelection();
+        for (auto it = SelectedObjectsList.begin(); it != SelectedObjectsList.end(); ++it) {
+            if ((*it).pDoc != doc) {
+                acrossDocuments = true;
+                break;
+            }
+        }
+
+        if (!acrossDocuments) {  // is only sensible for selections within one document
+            if (objitem->object()->getObject()->isDerivedFrom<App::DocumentObjectGroup>()) {
+                contextMenu.addAction(this->createGroupAction);
+            }
+            // if there are dependent objects in the selection, add context menu to add them to selection
+            if (CheckForDependents()) {
+                contextMenu.addAction(this->selectDependentsAction);
+            }
+        }
+
+        contextMenu.addSeparator();
+        contextMenu.addAction(this->markRecomputeAction);
+        contextMenu.addAction(this->recomputeObjectAction);
+        contextMenu.addSeparator();
+
+        auto selItems = this->selectedItems();
+        // if only one item is selected, setup the edit menu
+        if (selItems.size() == 1) {
+            objitem->object()->setupContextMenu(&editMenu, this, SLOT(onStartEditing()));
+            QList<QAction*> editAct = editMenu.actions();
+            if (!editAct.isEmpty()) {
+                auto allActions = contextMenu.actions();
+                QAction* topact = allActions.constFirst();
+
+                // If our Row is at the top, the "real" top for insertions is after the row and its
+                // separator
+                if (topact->data().toString() == QString::fromUtf8("Std_ContextActionRow")) {
+                    // Usually: [Row] [Separator] [Actual Top Content...]
+                    // We want to insert new things at index 2
+                    if (allActions.size() > 2 && allActions.at(1)->isSeparator()) {
+                        topact = allActions.at(2);
+                    }
+                    else if (allActions.size() > 1) {
+                        topact = allActions.at(1);
+                    }
+                }
+
+                for (QList<QAction*>::iterator it = editAct.begin(); it != editAct.end(); ++it) {
+                    contextMenu.insertAction(topact, *it);
+                }
+                QAction* first = editAct.front();
+                contextMenu.setDefaultAction(first);
+                if (objitem->object()->isEditing()) {
+                    contextMenu.insertAction(topact, this->finishEditingAction);
+                }
+                contextMenu.insertSeparator(topact);
+            }
+        }
+    }
+
+    // add a submenu to present the actions of the tree.
     QMenu settingsMenu;
-    settingsMenu.setTitle(tr("Tree Settings"));
+    settingsMenu.setTitle(tr("Tree Actions"));
     contextMenu.addSeparator();
     contextMenu.addMenu(&settingsMenu);
+
+    if (isObjItem) {
+        settingsMenu.addAction(this->toggleVisibilityInTreeAction);
+    }
+
+    showHiddenAction->setChecked(showHidden);
+    settingsMenu.addAction(this->showHiddenAction);
 
     QAction* action = new QAction(tr("Show Description"), this);
     QAction* internalNameAction = new QAction(tr("Show Internal Name"), this);

@@ -350,6 +350,10 @@ void Workbench::setupCustomShortcuts() const
 
 void Workbench::createContextMenu(const char* recipient, MenuItem* item) const
 {
+    if (Gui::Selection().countObjectsOfType<App::DocumentObject>() > 0) {
+        *item << "Std_ContextActionRow" << "Separator";
+    }
+
     setupContextMenu(recipient, item);
     WorkbenchManipulator::changeContextMenu(recipient, item);
 }
@@ -645,15 +649,14 @@ void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
               << "Separator" << StdViews << "Separator" << "Std_DrawStyle" << "Part_SelectFilter"
               << "Std_ViewDockUndockFullscreen";
 
-        if (sels.size() > 0) {
+        if (!sels.empty()) {
             *item << "Separator" << "Std_ToggleFreeze"
                   << "Std_ToggleSelectability" << "Std_TreeSelection"
-                  << "Std_RandomColor" << "Std_ToggleTransparency" << "Separator" << "Std_Delete"
-                  << "Std_SendToPythonConsole";
+                  << "Std_RandomColor" << "Std_ToggleTransparency" << "Separator";
         }
     }
     else if (strcmp(recipient, "Tree") == 0) {
-        if (Gui::Selection().countObjectsOfType<App::DocumentObject>() > 0) {
+        if (!sels.empty()) {
             *item << "Std_ToggleFreeze";
             if (Gui::Selection().countObjectsOfType<App::DocumentObject>() > 1) {
                 *item << "Std_ShowSelection"
@@ -664,9 +667,7 @@ void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
                 *item << "Std_TreeSelectAllInstances";  // works only when single object selected
             }
             *item << "Separator"
-                  << "Std_RandomColor" << "Std_ToggleTransparency" << "Separator"
-                  << "Std_Cut" << "Std_Copy" << "Std_Paste" << "Std_Delete"
-                  << "Std_SendToPythonConsole";
+                  << "Std_RandomColor" << "Std_ToggleTransparency" << "Separator";
         }
     }
 
