@@ -28,6 +28,7 @@
 #include <QMessageBox>
 #include <QTextStream>
 #include <QTreeWidgetItem>
+#include <QTreeWidget>
 
 #include <boost/regex.hpp>
 #include <boost/algorithm/string/replace.hpp>
@@ -60,6 +61,7 @@
 #include "Navigation/NavigationStyle.h"
 #include "Placement.h"
 #include "Tools.h"
+#include "Tree.h"
 #include "Transform.h"
 #include "Tree.h"
 #include "View3DInventor.h"
@@ -2343,6 +2345,88 @@ protected:
     QAction* pcActionPaste {nullptr};
 };
 
+// ===========================================================================
+// Std_Rename
+// ===========================================================================
+DEF_STD_CMD_A(StdCmdRename)
+
+StdCmdRename::StdCmdRename()
+    : Command("Std_Rename")
+{
+    sGroup = "Edit";
+    sMenuText = QT_TR_NOOP("&Rename");
+    sToolTipText = QT_TR_NOOP("Rename the selected object (F2)");
+    sWhatsThis = "Std_Rename";
+    sStatusTip = sToolTipText;
+    sPixmap = "edit-rename";
+    sAccel = "F2";
+}
+
+void StdCmdRename::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+
+    Gui::TreeWidget* tree = Gui::TreeWidget::instance();
+    if (!tree) {
+        return;
+    }
+
+    QList<QTreeWidgetItem*> items = tree->selectedItems();
+
+    if (items.size() == 1) {
+        tree->editItem(items.first(), 0);
+    }
+}
+
+bool StdCmdRename::isActive()
+{
+    // Only active if exactly one object is selected
+    return Gui::Selection().countObjectsOfType<App::DocumentObject>() == 1;
+}
+
+//===========================================================================
+// Std_ContextActionRow
+//===========================================================================
+class StdCmdContextActionRow: public Gui::Command
+{
+public:
+    StdCmdContextActionRow()
+        : Command("Std_ContextActionRow")
+    {
+        // Essential metadata
+        sGroup = "Edit";
+        sMenuText = QT_TR_NOOP("Context Actions");
+    }
+
+    // This is the missing piece that caused the build error
+    const char* className() const override
+    {
+        return "StdCmdContextActionRow";
+    }
+
+    Action* createAction() override
+    {
+        // List of commands to bundle horizontally
+        std::vector<std::string> cmds = {
+            "Std_Copy",
+            "Std_Cut",
+            "Std_Paste",
+            "Std_Rename",
+            "Std_SendToPythonConsole",
+            "Std_Delete",
+            "Std_Properties"
+        };
+        // Note: Make sure ActionRow is defined in Action.h/cpp
+        // and visible to this file.
+        return new ActionRow(this, cmds, Gui::getMainWindow());
+    }
+
+    void activated(int) override
+    {
+        // This is a container, the actual logic is in the sub-buttons
+    }
+};
+
 namespace Gui
 {
 
@@ -2387,6 +2471,8 @@ void CreateDocCommands()
     rcCmdMgr.addCommand(new StdCmdEdit());
     rcCmdMgr.addCommand(new StdCmdProperties());
     rcCmdMgr.addCommand(new StdCmdExpression());
+    rcCmdMgr.addCommand(new StdCmdRename());
+    rcCmdMgr.addCommand(new StdCmdContextActionRow());
 }
 
 }  // namespace Gui
