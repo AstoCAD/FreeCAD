@@ -350,6 +350,10 @@ void Workbench::setupCustomShortcuts() const
 
 void Workbench::createContextMenu(const char* recipient, MenuItem* item) const
 {
+    if (Gui::Selection().countObjectsOfType<App::DocumentObject>() > 0) {
+        *item << "Std_ContextActionRow" << "Separator";
+    }
+
     setupContextMenu(recipient, item);
     WorkbenchManipulator::changeContextMenu(recipient, item);
 }

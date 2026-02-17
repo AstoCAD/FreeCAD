@@ -25,6 +25,7 @@
 #include <QApplication>
 #include <QEvent>
 #include <QFileInfo>
+#include <QHBoxLayout>
 #include <QMenu>
 #include <QRegularExpression>
 #include <QScreen>
@@ -32,6 +33,7 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QToolTip>
+#include <QWidgetAction>
 
 #include <Base/Exception.h>
 #include <Base/Interpreter.h>
@@ -1498,6 +1500,57 @@ void WindowAction::addTo(QWidget* widget)
     else {
         menu->addActions(groupAction()->actions());
         getMainWindow()->setWindowsMenu(menu);
+    }
+}
+
+// --------------------------------------------------------------------
+
+ActionRow::ActionRow(Command* pcCmd, const std::vector<std::string>& commands, QObject* parent)
+    : Action(pcCmd, parent)
+    , _subCommands(commands)
+{}
+
+void ActionRow::addTo(QWidget* widget)
+{
+    if (widget->inherits("QMenu")) {
+        QMenu* menu = qobject_cast<QMenu*>(widget);
+        QWidgetAction* wa = new QWidgetAction(menu);
+
+        QWidget* container = new QWidget(menu);
+        QHBoxLayout* layout = new QHBoxLayout(container);
+        layout->setContentsMargins(4, 2, 4, 2);
+        layout->setSpacing(2);
+
+        CommandManager& rMgr = Application::Instance->commandManager();
+
+        for (const std::string& cmdName : _subCommands) {
+            Command* cmd = rMgr.getCommandByName(cmdName.c_str());
+            if (!cmd) {
+                continue;
+            }
+
+            QToolButton* btn = new QToolButton(container);
+            btn->setAutoRaise(true);
+            btn->setIcon(Gui::BitmapFactory().iconFromTheme(cmd->getPixmap()));
+            btn->setToolTip(qApp->translate(cmd->className(), cmd->getToolTipText()));
+            btn->setFixedSize(32, 32);
+            btn->setEnabled(cmd->isActive());
+
+            // Connect button click to command invocation
+            connect(btn, &QToolButton::clicked, [cmd, menu]() {
+                menu->hide();  // Close menu on click
+                cmd->invoke(0, Command::TriggerAction);
+            });
+
+            layout->addWidget(btn);
+        }
+
+        wa->setDefaultWidget(container);
+        menu->addAction(wa);
+    }
+    else {
+        // Fallback for non-menu environments
+        Action::addTo(widget);
     }
 }
 
