@@ -2060,7 +2060,15 @@ void NavigationStyle::openPopupMenu(const SbVec2s& position)
 
     // Add Clarify Selection option if there are objects under cursor
     bool separator = false;
-    auto posAction = !contextMenu->actions().empty() ? contextMenu->actions().front() : nullptr;
+    auto allActions = contextMenu->actions();
+    auto posAction = !allActions.empty() ? allActions.front() : nullptr;
+
+    // Clarify should be after the copy/cut/... row and its separator
+    if (posAction && posAction->data().toString() == QString::fromUtf8("Std_ContextActionRow")) {
+        if (allActions.size() > 2) {
+            posAction = allActions.at(2);
+        }
+    }
 
     // Get picked objects at position
     SoRayPickAction rp(viewer->getSoRenderManager()->getViewportRegion());
