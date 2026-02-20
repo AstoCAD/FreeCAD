@@ -169,7 +169,11 @@ public:
     void retranslate() const;
 
     bool areToolBarsLocked() const;
+    /// Whether the toolbars of the menu bar and status bar areas have their own lock
+    bool hasTitleToolBarLock() const;
+    bool areTitleToolBarsLocked() const;
     void setToolBarsLocked(bool locked) const;
+    void setTitleToolBarsLocked(bool locked) const;
 
     void setState(const QList<QString>& names, State state);
     void setState(const QString& name, State state);
@@ -184,6 +188,7 @@ public:
 protected:
     void setup(ToolBarItem*, QToolBar*) const;
 
+    void setTitleToolbarsMovable(bool movable) const;
     void setMovable(bool movable) const;
 
     ToolBarItem::DefaultVisibility getToolbarPolicy(const QToolBar*) const;
