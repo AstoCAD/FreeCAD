@@ -7863,6 +7863,11 @@ void SketchObject::delExternalPrivate(const std::set<long>& ids, bool removeRef)
             continue;
         }
 
+        // PROTECTION: Never delete array index 0 or 1 (H_Axis and V_Axis)
+        if (it->second < 2) {
+            continue;
+        }
+
         auto egf = ExternalGeometryFacade::getFacade(ExternalGeo[it->second]);
         if (removeRef && egf->getRef().size()) {
             refs.insert(egf->getRef());
@@ -7902,32 +7907,28 @@ void SketchObject::delExternalPrivate(const std::set<long>& ids, bool removeRef)
         ++offset;
     }
 
-    if (refs.empty()) {
-        ExternalGeo.setValues(std::move(geos));
-
-        solverNeedsUpdate = true;
-        Constraints.setValues(std::move(newConstraints));
-        acceptGeometry();  // This may need to be refactored into OnChanged for ExternalGeometry.
-    }
-
-    std::vector<std::string> newSubs;
-    std::vector<App::DocumentObject*> newObjs;
-    const auto& subs = ExternalGeometry.getSubValues();
-    auto itSub = subs.begin();
-    const auto& objs = ExternalGeometry.getValues();
-    auto itObj = objs.begin();
-    bool touched = false;
-    assert(externalGeoRef.size() == objs.size());
-    assert(externalGeoRef.size() == subs.size());
-    for (auto it = externalGeoRef.begin(); it != externalGeoRef.end(); ++it, ++itObj, ++itSub) {
-        if (refs.count(*it) == 0) {
-            touched = true;
-            newObjs.push_back(*itObj);
-            newSubs.push_back(*itSub);
+    if (!refs.empty()) {
+        std::vector<std::string> newSubs;
+        std::vector<App::DocumentObject*> newObjs;
+        const auto& subs = ExternalGeometry.getSubValues();
+        auto itSub = subs.begin();
+        const auto& objs = ExternalGeometry.getValues();
+        auto itObj = objs.begin();
+        bool touched = false;
+        assert(externalGeoRef.size() == objs.size());
+        assert(externalGeoRef.size() == subs.size());
+        for (auto it = externalGeoRef.begin(); it != externalGeoRef.end(); ++it, ++itObj, ++itSub) {
+            if (refs.find(*it) == refs.end()) {
+                newObjs.push_back(*itObj);
+                newSubs.push_back(*itSub);
+            }
+            else {
+                touched = true;
+            }
         }
-    }
-    if (touched) {
-        ExternalGeometry.setValues(newObjs, newSubs);
+        if (touched) {
+            ExternalGeometry.setValues(newObjs, newSubs);
+        }
     }
 
     ExternalGeo.setValues(std::move(geos));
@@ -9323,6 +9324,8 @@ void processFace (const Rotation& invRot,
 void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd)
 {
     Base::StateLocker lock(managedoperation, true); // no need to check input data validity as this is an sketchobject managed operation.
+    
+    fixCorruptedExternalGeo();
 
     // Analyze the state of existing external geometries to infer the desired state for new ones.
     // If any geometry from a source link is "defining", we'll treat the whole link as "defining".
@@ -9748,6 +9751,26 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
     if (hasError && this->isRecomputing()) {
         throw Base::RuntimeError("Missing external geometry reference");
     }
+}
+
+bool SketchObject::fixCorruptedExternalGeo()
+{
+    //Make sure the H/V axis are still in ExternalGeo. See 27693
+    bool corrupted = false;
+    if (ExternalGeo.getSize() < 2) {
+        corrupted = true;
+    }
+    else {
+        auto gf0 = GeometryFacade::getFacade(ExternalGeo[0]);
+        auto gf1 = GeometryFacade::getFacade(ExternalGeo[1]);
+        if (gf0->getId() != -1 || gf1->getId() != -2) {
+            corrupted = true;
+        }
+    }
+    if (corrupted) {
+        initExternalGeo();
+    }
+    return corrupted;
 }
 
 void SketchObject::fixExternalGeometry(const std::vector<int> &geoIds) {
@@ -11211,9 +11234,10 @@ void SketchObject::onSketchRestore()
         migrateSketch();
 
         updateGeometryRefs();
+
+        //fixCorruptedExternalGeo();
+
         if(ExternalGeo.getSize()<=2) {
-            if (ExternalGeo.getSize() < 2)
-                initExternalGeo();
             for(auto &key : externalGeoRef) {
                 long id = getDocument()->getStringHasher()->getID(key.c_str()).value();
                 if(geoLastId < id)
