@@ -1963,7 +1963,7 @@ void CmdTechDrawExportPagePDF::activated(int iMsg)
 
     auto* mvp = qobject_cast<MDIViewPage*>(Gui::getMainWindow()->activeWindow());
     if (mvp) {
-        mvp->savePDF();
+        mvp->exportAsPdf();
     }
 }
 
