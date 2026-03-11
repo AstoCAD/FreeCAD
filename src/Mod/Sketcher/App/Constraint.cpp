@@ -212,7 +212,7 @@ void Constraint::Restore(XMLReader& reader)
         setFont(reader.getAttribute<const char*>("Font"));
     }
     if (reader.hasAttribute("IsTextHeight")) {
-        setIsTextHeigth(reader.getAttribute<bool>("IsTextHeight"));
+        setIsTextHeight(reader.getAttribute<bool>("IsTextHeight"));
     }
 
     if (this->Type == InternalAlignment) {
