@@ -1984,47 +1984,20 @@ void ViewProviderSketch::moveConstraint(Sketcher::Constraint* Constr, int constN
     if (!isInEditMode())
         return;
 
-#ifdef FC_DEBUG
     Sketcher::SketchObject* obj = getSketchObject();
-    int intGeoCount = obj->getHighestCurveIndex() + 1;
-    int extGeoCount = obj->getExternalGeometryCount();
-#endif
-
-    // with memory allocation
-    const std::vector<Part::Geometry*> geomlist = getSolvedSketch().extractGeometry(true, true);
-
-    // lambda to finalize the move
-    auto cleanAndDraw = [this, geomlist](){
-        // delete the cloned objects
-        for (Part::Geometry* geomPtr : geomlist) {
-            if (geomPtr) {
-                delete geomPtr;
-            }
-        }
-
-        draw(true, false);
-    };
-
-#ifdef FC_DEBUG
-    assert(int(geomlist.size()) == extGeoCount + intGeoCount);
-    assert((Constr->First >= -extGeoCount && Constr->First < intGeoCount)
-           || Constr->First != GeoEnum::GeoUndef);
-    boost::ignore_unused(intGeoCount);
-    boost::ignore_unused(extGeoCount);
-#endif
 
     if (Constr->Type == Distance || Constr->Type == DistanceX || Constr->Type == DistanceY
         || Constr->Type == Radius || Constr->Type == Diameter || Constr->Type == Weight) {
 
         Base::Vector3d p1(0., 0., 0.), p2(0., 0., 0.);
         if (Constr->SecondPos != Sketcher::PointPos::none) {// point to point distance
-            p1 = getSolvedSketch().getPoint(Constr->First, Constr->FirstPos);
-            p2 = getSolvedSketch().getPoint(Constr->Second, Constr->SecondPos);
+            p1 = obj->getPoint(Constr->First, Constr->FirstPos);
+            p2 = obj->getPoint(Constr->Second, Constr->SecondPos);
         }
         else if (Constr->Second != GeoEnum::GeoUndef) {
-            p1 = getSolvedSketch().getPoint(Constr->First, Constr->FirstPos);
-            const Part::Geometry *geo1 = GeoList::getGeometryFromGeoId (geomlist, Constr->First);
-            const Part::Geometry *geo2 = GeoList::getGeometryFromGeoId (geomlist, Constr->Second);
+            p1 = obj->getPoint(Constr->First, Constr->FirstPos);
+            const Part::Geometry *geo1 = obj->getGeometry(Constr->First);
+            const Part::Geometry *geo2 = obj->getGeometry(Constr->Second);
 
             if (isLineSegment(*geo2)) {
                 if (isCircleOrArc(*geo1) && Constr->FirstPos == Sketcher::PointPos::none){
@@ -2068,10 +2041,10 @@ void ViewProviderSketch::moveConstraint(Sketcher::Constraint* Constr, int constN
             }
         }
         else if (Constr->FirstPos != Sketcher::PointPos::none) {
-            p2 = getSolvedSketch().getPoint(Constr->First, Constr->FirstPos);
+            p2 = obj->getPoint(Constr->First, Constr->FirstPos);
         }
         else if (Constr->First != GeoEnum::GeoUndef) {
-            const Part::Geometry* geo = GeoList::getGeometryFromGeoId(geomlist, Constr->First);
+            const Part::Geometry* geo = obj->getGeometry(Constr->First);
             if (geo->is<Part::GeomLineSegment>()) {
                 const Part::GeomLineSegment* lineSeg =
                     static_cast<const Part::GeomLineSegment*>(geo);
@@ -2090,7 +2063,8 @@ void ViewProviderSketch::moveConstraint(Sketcher::Constraint* Constr, int constN
                     Base::Vector2d centerToToPos = toPos - Base::Vector2d(center.x, center.y);
                     Constr->LabelDistance = centerToToPos * arcDirection;
 
-                    cleanAndDraw();
+                    
+                    draw(true, false);
                     return;
                 }
                 else {
@@ -2196,7 +2170,7 @@ void ViewProviderSketch::moveConstraint(Sketcher::Constraint* Constr, int constN
         moveAngleConstraint(Constr, constNum, toPos);
     }
 
-    cleanAndDraw();
+    draw(true, false);
 }
 
 void ViewProviderSketch::moveAngleConstraint(Sketcher::Constraint* constr, int constNum, const Base::Vector2d& toPos)
@@ -2270,7 +2244,7 @@ void ViewProviderSketch::moveAngleConstraint(Sketcher::Constraint* constr, int c
             p0 = Base::Vector3d(intersection.x, intersection.y, 0.);
         }
         else {// angle-via-point
-            Base::Vector3d p = getSolvedSketch().getPoint(constr->Third, constr->ThirdPos);
+            Base::Vector3d p = obj->getPoint(constr->Third, constr->ThirdPos);
             p0 = Base::Vector3d(p.x, p.y, 0);
             Base::Vector3d dir1 = getSolvedSketch().calculateNormalAtPoint(constr->First, p.x, p.y);
             dir1.RotateZ(-std::numbers::pi / 2);// convert to vector of tangency by rotating
