@@ -97,6 +97,7 @@ protected:
 
 private:
     Connection connectionToolSettings;
+    bool isEscapeAction {false};
 };
 
 
