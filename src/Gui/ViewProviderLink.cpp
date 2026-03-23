@@ -3201,10 +3201,13 @@ void ViewProviderLink::_setupContextMenu(
     }
 
     if (ext->getScaleProperty() && !ext->getScaleProperty()->isReadOnly()) {
+        Gui::Document* doc = getDocument();
         auto prop = ext->getScaleProperty();
-        auto action = menu->addAction(QObject::tr("Mirror link"), [prop] {
+        auto action = menu->addAction(QObject::tr("Mirror link"), [prop, doc] {
             try {
-                App::AutoTransaction guard(QT_TRANSLATE_NOOP("Command", "Mirror link"));
+                App::AutoTransaction guard(
+                    doc->openCommand(QT_TRANSLATE_NOOP("Command", "Mirror link"))
+                );
                 prop->setValue(prop->getValue() * -1.0);
                 Command::updateActive();
             }
