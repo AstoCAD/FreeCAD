@@ -127,11 +127,19 @@ bool TaskSpreadsheetView::initializeContent()
 
     m_isPopulatingGui = true; // Block signals during initial load
 
+    m_doc = Gui::Application::Instance->getDocument(m_targetPage->getDocument());
+    if (!m_doc) {
+        Base::Console().error(
+            "TaskSpreadsheetView::initializeContent: No valid target page or document.\n"
+        );
+        return false;
+    }
+
     if (m_isEditingView) {
-        Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Edit Spreadsheet View"));
+        m_doc->openCommand(QT_TRANSLATE_NOOP("Command", "Edit Spreadsheet View"));
     }
     else {
-        Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Create Spreadsheet View"));
+        m_doc->openCommand(QT_TRANSLATE_NOOP("Command", "Create Spreadsheet View"));
     }
 
     
@@ -202,7 +210,7 @@ bool TaskSpreadsheetView::apply()
     }
 
     //m_viewObject->Source.setValue(m_spreadsheet);
-    Gui::Command::commitCommand();
+    m_doc->commitCommand();
 
     m_viewObject->touch();
     m_viewObject->getDocument()->recompute();
@@ -212,7 +220,9 @@ bool TaskSpreadsheetView::apply()
 
 void TaskSpreadsheetView::reject()
 {
-    Gui::Command::abortCommand();
+    if (m_doc) {
+        m_doc->abortCommand();
+    }
 }
 
 ViewProviderSpreadsheet* TaskSpreadsheetView::getVps()

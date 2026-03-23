@@ -42,6 +42,10 @@ namespace App
 {
 class DocumentObject;
 }  // namespace App
+namespace Gui
+{
+class Document;
+}  // namespace Gui
 class QTableWidgetItem;
 class QFont;
 class QColor;
@@ -84,7 +88,6 @@ private Q_SLOTS:
     void onTableColumnResized(int logicalIndex, int oldSize, int newSize);
     void onClaimSpreadsheetToggled(bool val);
     void onLineWidthChanged(double value);
-    // void onClaimSpreadsheetToggled(bool checked); // Will be handled in applyChangesAndCommit
 
 private:
     ViewProviderSpreadsheet* getVps();
@@ -105,6 +108,7 @@ private:
     TechDraw::DrawViewSpreadsheet* m_viewObject;  // The view object being created or edited
     Spreadsheet::Sheet* m_spreadsheet;            // The source spreadsheet
     TechDraw::DrawPage* m_targetPage;             // Page to add new views to
+    Gui::Document* m_doc;
 
     bool m_isEditingView;                    // True if m_viewObject was non-null at construction
     bool m_spreadsheetWasPreselected;        // True if m_spreadsheet was non-null at construction
