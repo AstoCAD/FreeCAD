@@ -933,7 +933,7 @@ public:
     void activated() override
     {
         DrawSketchHandlerPolyLineBase::activated();
-        Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Add sketch polyline"));
+        openCommand(QT_TRANSLATE_NOOP("Command", "Add sketch polyline"));
     }
 
 private:
@@ -976,7 +976,7 @@ private:
 
     void executeCommands() override
     {
-        Gui::Command::commitCommand();
+        commitCommand();
     }
 
     void generateAutoConstraints() override
@@ -1215,9 +1215,9 @@ private:
 
     void onReset() override
     {
-        Gui::Command::abortCommand();
+        abortCommand();
         tryAutoRecomputeIfNotSolve(sketchgui->getSketchObject());
-        Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Add sketch polyline"));
+        openCommand(QT_TRANSLATE_NOOP("Command", "Add sketch polyline"));
 
         geoEltIds.clear();
         points.clear();
@@ -1315,7 +1315,7 @@ private:
             );
             // some commands might have already deleted some constraints/geometries but not
             // others
-            Gui::Command::abortCommand();
+            abortCommand();
 
             sketchgui->getSketchObject()->solve();
 
