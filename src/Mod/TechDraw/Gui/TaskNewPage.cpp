@@ -357,20 +357,14 @@ bool TaskNewPage::acceptPageCreation()
 
     QString templateFileName = getSelectedTemplatePath();
 
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Create new drawing page"));
-
     Gui::Document* doc = Gui::Application::Instance->activeDocument();
-    if (!doc) {
+    if (!doc || !doc->getDocument()) {
         Base::Console().warning(tr("No active document found.").toStdString().c_str());
-        Gui::Command::abortCommand();
         return false;
     }
     App::Document* appDoc = doc->getDocument();
-    if (!appDoc) {
-        Base::Console().warning(tr("No active document found.").toStdString().c_str());
-        Gui::Command::abortCommand();
-        return false;
-    }
+
+    doc->openCommand(QT_TRANSLATE_NOOP("Command", "Create new drawing page"));
 
     TechDraw::DrawPage* page = appDoc->addObject<TechDraw::DrawPage>("Page");
     if (!page) {
@@ -397,7 +391,7 @@ bool TaskNewPage::acceptPageCreation()
         TechDraw::DrawUtil::cleanFilespecBackslash(templateFileName.toStdString());
     svgTemplate->Template.setValue(filespecStd);
 
-    Gui::Command::commitCommand();
+    doc->commitCommand();
 
     auto* dvp = dynamic_cast<TechDrawGui::ViewProviderPage*>(
         Gui::Application::Instance->getViewProvider(page));
