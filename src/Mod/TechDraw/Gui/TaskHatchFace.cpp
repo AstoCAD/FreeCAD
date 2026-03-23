@@ -83,7 +83,13 @@ TaskHatchFace::TaskHatchFace(TechDraw::DrawViewPart* dvp,
     // m_isLoading is still true here, so onPatternChanged won't trigger preview yet
     loadDefaults();
 
-    Gui::Command::openCommand(QObject::tr("Create Hatch").toStdString().c_str());
+    App::Document* doc = m_dvp->getDocument();
+    m_doc = Gui::Application::Instance->getDocument(doc);
+    if (!doc || !m_doc) {
+        return;
+    }
+
+    m_doc->openCommand(QObject::tr("Create Hatch").toStdString().c_str());
 
     PatternEntry initialPattern;
     if (ui->patternComboBox->currentIndex() >= 0) {
@@ -114,7 +120,7 @@ TaskHatchFace::TaskHatchFace(TechDraw::DrawViewPart* dvp,
 
     if (!m_targetHatchObject) {
         Base::Console().error("TaskHatchFace: Failed to create initial hatch object.\n");
-        Gui::Command::abortCommand();  // Abort if creation failed
+        m_doc->abortCommand();  // Abort if creation failed
         m_isLoading = false;           // Allow UI interaction if it's not completely broken
         // Potentially disable UI or show error
         return;
@@ -193,7 +199,13 @@ TaskHatchFace::TaskHatchFace(App::DocumentObject* hatchObjectToEdit, QWidget* pa
     }
     m_originalObjectName = m_targetHatchObject->getNameInDocument();
 
-    Gui::Command::openCommand(QObject::tr("Edit Hatch").toStdString().c_str());
+    App::Document* doc = m_dvp->getDocument();
+    m_doc = Gui::Application::Instance->getDocument(doc);
+    if (!doc || !m_doc) {
+        return;
+    }
+
+    m_doc->openCommand(QObject::tr("Edit Hatch").toStdString().c_str());
 
     // loadFromObject loads UI from the existing object properties
     // m_isLoading is still true, so onPatternChanged from setCurrentIndex won't trigger preview yet
@@ -838,18 +850,18 @@ bool TaskHatchFace::accept()
         QMessageBox::critical(this,
                               QObject::tr("Error"),
                               QObject::tr("No target hatch object. Cannot accept."));
-        Gui::Command::abortCommand();  // Abort anything done so far
+        m_doc->abortCommand();  // Abort anything done so far
         return false;
     }
     if (!m_isEditMode && !m_dvp) {  // DVP is crucial for new hatches
         QMessageBox::critical(this,
                               QObject::tr("Error"),
                               QObject::tr("No valid DrawViewPart for new hatch."));
-        Gui::Command::abortCommand();
+        m_doc->abortCommand();
         return false;
     }
 
-    Gui::Command::commitCommand();
+    m_doc->commitCommand();
 
     Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
 
@@ -866,7 +878,9 @@ bool TaskHatchFace::reject()
 {
     // The magic of Gui::Command: abort reverts all changes made within its scope.
     // This includes object creation, deletion (doCommand removeObject), and property changes.
-    Gui::Command::abortCommand();
+    if (m_doc) {
+        m_doc->abortCommand();
+    }
 
     m_dvp->requestPaint();
 
