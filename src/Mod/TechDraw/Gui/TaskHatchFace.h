@@ -39,6 +39,11 @@ namespace App
 class DocumentObject;
 }
 
+namespace Gui
+{
+class Document;
+}
+
 namespace TechDraw
 {
 class DrawViewPart;
@@ -114,6 +119,7 @@ private:
 
     TechDraw::DrawViewPart* m_dvp;
     std::vector<std::string> m_subNames;
+    Gui::Document* m_doc;
 
     App::DocumentObject* m_targetHatchObject;
     bool m_isEditMode;
