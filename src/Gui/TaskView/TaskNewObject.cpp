@@ -74,14 +74,6 @@ bool TaskBoxNewObject::accept()
     ui->saveFile->onSave();
     ui->addInNewFile->onSave();
 
-    if (type == "App::Part") {
-        ui->createBody->onSave();
-        Command::openCommand(QT_TRANSLATE_NOOP("Command", "Create new part"));
-    }
-    else {
-        Command::openCommand(QT_TRANSLATE_NOOP("Command", "Create new assembly"));
-    }
-
     std::string name = ui->nameLine->text().toStdString();
     if (name.empty()) {
         name = ui->nameLine->placeholderText().toStdString();
@@ -89,8 +81,17 @@ bool TaskBoxNewObject::accept()
 
     // Create a new document unless the current doc is empty or useCurrent option used.
     auto doc = App::GetApplication().getActiveDocument();
-    if (doc->countObjects() != 0 && ui->addInNewFile->isChecked()) {
-        Command::doCommand(Command::Doc, "App.newDocument('%s')", name.c_str());
+    if (!doc || (doc->countObjects() != 0 && ui->addInNewFile->isChecked())) {
+        doc = App::GetApplication().newDocument(name.c_str());
+    }
+
+    Gui::Document* guiDoc = Gui::Application::Instance->getDocument(doc);
+    if (type == "App::Part") {
+        ui->createBody->onSave();
+        guiDoc->openCommand(QT_TRANSLATE_NOOP("Command", "Create new part"));
+    }
+    else {
+        guiDoc->openCommand(QT_TRANSLATE_NOOP("Command", "Create new assembly"));
     }
 
     Command::doCommand(
@@ -139,7 +140,7 @@ bool TaskBoxNewObject::accept()
         Command::doCommand(Command::Gui, "Gui.SendMsgToActiveView(\"Save\")");
     }
 
-    Command::commitCommand();
+    guiDoc->commitCommand();
 
     return true;
 }
