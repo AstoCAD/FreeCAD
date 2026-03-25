@@ -96,6 +96,68 @@ Gui--PropertyEditor--PropertyEditor > QWidget > QWidget > QLabel {
   border-radius: 2px;
 }
 
+/* CustomTitleBar ----------------------------------------------------------
+--------------------------------------------------------------------------- */
+TitleBarWidget {
+  background-color: #0F0F0F;
+}
+
+TitleBarWidget QPushButton#titleBarLogoBtn {
+  background-color: transparent;
+  border: none;
+  padding: 0px;
+  min-width: 45px;
+}
+TitleBarWidget QPushButton#titleBarLogoBtn:hover {
+  background-color: #333333;
+}
+
+QPushButton#minimizeButton, 
+QPushButton#maximizeButton, 
+QPushButton#restoreButton, 
+QPushButton#closeButton {
+  background-color: transparent;
+  border: none;
+  border-radius: 0px;
+  margin: 0px;
+  padding: 0px;
+  min-width: 45px;
+}
+
+QPushButton#closeButton {
+  qproperty-icon: url(:/customtitlebarkit/resources/icons/window-close-dark.svg);
+}
+QPushButton#minimizeButton {
+  qproperty-icon: url(:/customtitlebarkit/resources/icons/window-minimize-dark.svg);
+}
+QPushButton#maximizeButton {
+  qproperty-icon: url(:/customtitlebarkit/resources/icons/window-maximize-dark.svg);
+}
+QPushButton#restoreButton {
+  qproperty-icon: url(:/customtitlebarkit/resources/icons/window-restore-dark.svg);
+}
+
+QPushButton#minimizeButton:hover, 
+QPushButton#maximizeButton:hover, 
+QPushButton#restoreButton:hover {
+  background-color: #333333;
+}
+
+QPushButton#minimizeButton:pressed, 
+QPushButton#maximizeButton:pressed, 
+QPushButton#restoreButton:pressed {
+  background-color: #555555;
+}
+
+/* Specific red close button behavior */
+QPushButton#closeButton:hover {
+  background-color: #E81123; 
+}
+QPushButton#closeButton:pressed {
+  background-color: #8A0A14;
+}
+
+
 /*==================================================================================================
 Main window
 ==================================================================================================*/
@@ -832,7 +894,7 @@ https://doc.qt.io/qt-5/stylesheet-examples.html#customizing-specific-widgets
 report view
 --------------------------------------------------------------------------- */
 QTextEdit {
-  background-color: #444444;
+  background-color: #363636;
   color: white;
   border-radius: 2px;
   border: 0px solid #020202;
@@ -851,7 +913,7 @@ QTextEdit:selected {
 Python
 --------------------------------------------------------------------------- */
 QPlainTextEdit {
-  background-color: #3c3c3c;
+  background-color: #363636;
   color: white;
   border-radius: 2px;
   border: 0px solid #020202;
@@ -2253,14 +2315,15 @@ QTreeView::branch  {
 }
 
 QTreeView::branch:has-siblings:!adjoins-item  {
+  border-image: url(qss:images_dark-light/branch_vline_Light.svg) 0;
 }
 
 QTreeView::branch:has-siblings:adjoins-item  {
-
+  border-image: url(qss:images_dark-light/branch_more_Light.svg) 0;
 }
 
 QTreeView::branch:!has-children:!has-siblings:adjoins-item  {
-
+  border-image: url(qss:images_dark-light/branch_end_Light.svg) 0;
 }
 
 QTreeView::branch:closed:has-children:has-siblings  {
@@ -2410,6 +2473,10 @@ QListView:focus,
 QTableView:focus,
 QColumnView:focus {
   /* background-color: @ThemeAccentColor2; */
+}
+
+QTreeView::item {
+  background-color: #252525;
 }
 
 QTreeView::item:pressed,

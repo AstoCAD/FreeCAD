@@ -96,6 +96,51 @@ Gui--PropertyEditor--PropertyEditor > QWidget > QWidget > QLabel {
   border-radius: 2px;
 }
 
+/* CustomTitleBar ----------------------------------------------------------
+--------------------------------------------------------------------------- */
+TitleBarWidget {
+  background-color: #F6F6F6;
+}
+
+TitleBarWidget QPushButton#titleBarLogoBtn {
+  background-color: transparent;
+  border: none;
+  padding: 0px;
+  min-width: 45px;
+}
+
+QPushButton#minimizeButton, 
+QPushButton#maximizeButton, 
+QPushButton#restoreButton, 
+QPushButton#closeButton {
+  background-color: transparent;
+  border: none;
+  border-radius: 0px;
+  margin: 0px;
+  padding: 0px;
+  min-width: 45px;
+}
+
+QPushButton#minimizeButton:hover, 
+QPushButton#maximizeButton:hover, 
+QPushButton#restoreButton:hover {
+  background-color: #f0f0f0; /* Dark gray hover effect */
+}
+
+QPushButton#minimizeButton:pressed, 
+QPushButton#maximizeButton:pressed, 
+QPushButton#restoreButton:pressed {
+  background-color: #DEDEDE; /* Lighter gray when pressed */
+}
+
+QPushButton#closeButton:hover {
+  background-color: #E5505F; /* Red hover effect */
+}
+
+QPushButton#closeButton:pressed {
+  background-color: #E2364A; /* Brighter red when pressed */
+}
+
 /*==================================================================================================
 Main window
 ==================================================================================================*/
@@ -901,6 +946,10 @@ QToolBar {
 QToolBar:only-one {
   background-color: transparent;
   /* margin-top: -3px; */
+
+QToolBar:only-one:horizontal {
+  border-bottom: 0px;
+  padding-top: 0px;
 }
 
 QToolBar:horizontal {
@@ -2246,14 +2295,15 @@ QTreeView::branch  {
 }
 
 QTreeView::branch:has-siblings:!adjoins-item  {
+  border-image: url(qss:images_dark-light/branch_vline_Light.svg) 0;
 }
 
 QTreeView::branch:has-siblings:adjoins-item  {
-
+  border-image: url(qss:images_dark-light/branch_more_Light.svg) 0;
 }
 
 QTreeView::branch:!has-children:!has-siblings:adjoins-item  {
-
+  border-image: url(qss:images_dark-light/branch_end_Light.svg) 0;
 }
 
 QTreeView::branch:closed:has-children:has-siblings  {
@@ -2403,6 +2453,10 @@ QListView:focus,
 QTableView:focus,
 QColumnView:focus {
   /* background-color: @ThemeAccentColor2; */
+}
+
+QTreeView::item {
+  background-color: #f0f0f0;
 }
 
 QTreeView::item:pressed,
