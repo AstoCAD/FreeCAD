@@ -538,11 +538,6 @@ void TaskPatternParameters::onSelectionChanged(const Gui::SelectionChanges& msg)
         return;
     }
 
-    if (originalSelected(msg)) {
-        exitSelectionMode();
-        return;
-    }
-
     auto patternObj = getObject();
     if (!patternObj) {
         return;
