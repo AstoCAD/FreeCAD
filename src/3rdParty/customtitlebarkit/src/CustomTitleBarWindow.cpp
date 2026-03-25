@@ -35,10 +35,12 @@ struct CustomTitleBarWindow::Impl {
         titleBar->setNativeControlsSpacerSize({cachedSpacerWidth, 0});
     }
 
-    void layoutOverlay(CustomTitleBarWindow *window) {
-        if (!titleBar) return;
-        int overlayH = backend->snapTitleBarHeight(
-            qMax(titleBar->minimumHeight(), titleBar->sizeHint().height()));
+    void layoutOverlay(CustomTitleBarWindow* window)
+    {
+        if (!titleBar) {
+            return;
+        }
+        int overlayH = backend->snapTitleBarHeight(titleBar->minimumHeight());
         int spacerH = titleBarVisible ? overlayH : 0;
         // Spacer reserves space in QMainWindow's internal layout
         menuSpacer->setFixedHeight(spacerH);
