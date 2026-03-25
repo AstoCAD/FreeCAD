@@ -88,7 +88,8 @@ void PatternParametersWidget::setupUiElements()
     ParameterGrp::handle hPart = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/Part"
     );
-    ui->addSpacingButton->setVisible(hPart->GetBool("ExperimentalFeatures", false));
+
+    ui->addSpacingButton->setVisible(hPart->GetBool("ExperimentalFeatures", true));
 
     ui->enableCheckbox->setVisible(false);
 }
