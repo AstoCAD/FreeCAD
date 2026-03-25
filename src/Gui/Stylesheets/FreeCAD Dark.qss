@@ -98,43 +98,63 @@ Gui--PropertyEditor--PropertyEditor > QWidget > QWidget > QLabel {
 
 /* CustomTitleBar ----------------------------------------------------------
 --------------------------------------------------------------------------- */
-Gui--CustomTitleBar {
+TitleBarWidget {
   background-color: #0F0F0F;
 }
 
-Gui--CustomTitleBar > QPushButton {
-  background-color: #0F0F0F;
+TitleBarWidget QPushButton#titleBarLogoBtn {
+  background-color: transparent;
   border: none;
   padding: 0px;
   min-width: 45px;
 }
-
-Gui--CustomTitleBar > #CloseButton {
-  qproperty-icon: url(:/icons/window-close-dark.svg);
+TitleBarWidget QPushButton#titleBarLogoBtn:hover {
+  background-color: #333333;
 }
 
-Gui--CustomTitleBar > #MinimizeButton {
-  qproperty-icon: url(:/icons/window-minimize-dark.svg);
+QPushButton#minimizeButton, 
+QPushButton#maximizeButton, 
+QPushButton#restoreButton, 
+QPushButton#closeButton {
+  background-color: transparent;
+  border: none;
+  border-radius: 0px;
+  margin: 0px;
+  padding: 0px;
+  min-width: 45px;
 }
 
-Gui--CustomTitleBar > #MaximizeButton {
-  qproperty-icon: url(:/icons/window-maximize-dark.svg);
+QPushButton#closeButton {
+  qproperty-icon: url(:/customtitlebarkit/resources/icons/window-close-dark.svg);
+}
+QPushButton#minimizeButton {
+  qproperty-icon: url(:/customtitlebarkit/resources/icons/window-minimize-dark.svg);
+}
+QPushButton#maximizeButton {
+  qproperty-icon: url(:/customtitlebarkit/resources/icons/window-maximize-dark.svg);
+}
+QPushButton#restoreButton {
+  qproperty-icon: url(:/customtitlebarkit/resources/icons/window-restore-dark.svg);
 }
 
-Gui--CustomTitleBar > #CloseButton:hover {
-  background-color: #E81123; /* Red hover effect */
+QPushButton#minimizeButton:hover, 
+QPushButton#maximizeButton:hover, 
+QPushButton#restoreButton:hover {
+  background-color: #333333;
 }
 
-Gui--CustomTitleBar > #CloseButton:pressed {
-  background-color: #8A0A14; /* Brighter red when pressed */
+QPushButton#minimizeButton:pressed, 
+QPushButton#maximizeButton:pressed, 
+QPushButton#restoreButton:pressed {
+  background-color: #555555;
 }
 
-Gui--CustomTitleBar > QPushButton:hover {
-    background-color: #333333; /* Dark gray hover effect */
+/* Specific red close button behavior */
+QPushButton#closeButton:hover {
+  background-color: #E81123; 
 }
-
-Gui--CustomTitleBar > QPushButton:pressed {
-    background-color: #555555; /* Lighter gray when pressed */
+QPushButton#closeButton:pressed {
+  background-color: #8A0A14;
 }
 
 

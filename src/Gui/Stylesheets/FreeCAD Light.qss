@@ -98,31 +98,47 @@ Gui--PropertyEditor--PropertyEditor > QWidget > QWidget > QLabel {
 
 /* CustomTitleBar ----------------------------------------------------------
 --------------------------------------------------------------------------- */
-Gui--CustomTitleBar {
+TitleBarWidget {
   background-color: #F6F6F6;
 }
 
-Gui--CustomTitleBar > QPushButton {
-  background-color: #F6F6F6;
+TitleBarWidget QPushButton#titleBarLogoBtn {
+  background-color: transparent;
   border: none;
   padding: 0px;
   min-width: 45px;
 }
 
-Gui--CustomTitleBar > #CloseButton:hover {
+QPushButton#minimizeButton, 
+QPushButton#maximizeButton, 
+QPushButton#restoreButton, 
+QPushButton#closeButton {
+  background-color: transparent;
+  border: none;
+  border-radius: 0px;
+  margin: 0px;
+  padding: 0px;
+  min-width: 45px;
+}
+
+QPushButton#minimizeButton:hover, 
+QPushButton#maximizeButton:hover, 
+QPushButton#restoreButton:hover {
+  background-color: #f0f0f0; /* Dark gray hover effect */
+}
+
+QPushButton#minimizeButton:pressed, 
+QPushButton#maximizeButton:pressed, 
+QPushButton#restoreButton:pressed {
+  background-color: #DEDEDE; /* Lighter gray when pressed */
+}
+
+QPushButton#closeButton:hover {
   background-color: #E5505F; /* Red hover effect */
 }
 
-Gui--CustomTitleBar > #CloseButton:pressed {
+QPushButton#closeButton:pressed {
   background-color: #E2364A; /* Brighter red when pressed */
-}
-
-Gui--CustomTitleBar > QPushButton:hover {
-    background-color: #f0f0f0; /* Dark gray hover effect */
-}
-
-Gui--CustomTitleBar > QPushButton:pressed {
-    background-color: #DEDEDE; /* Lighter gray when pressed */
 }
 
 /*==================================================================================================
