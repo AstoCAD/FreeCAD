@@ -7,6 +7,7 @@
 #include <QHBoxLayout>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMouseEvent>
 #include <QPropertyAnimation>
 #include <QTimer>
 
@@ -28,13 +29,11 @@ struct FoldableMenuBar::Impl {
         if (!menuBar) return;
         if (!foldable || revealWidth >= menuBar->sizeHint().width()) {
             menuBar->clearMask();
-            menuBar->setVisible(true);
-        } else if (revealWidth <= 0) {
-            // Empty QRegion clears the mask (Qt treats it as "no mask"),
-            // so hide the widget instead.
-            menuBar->setVisible(false);
-        } else {
-            menuBar->setVisible(true);
+        }
+        else if (revealWidth <= 0) {
+            menuBar->setMask(QRegion(-1, -1, 1, 1));
+        }
+        else {
             menuBar->setMask(QRegion(0, 0, revealWidth, menuBar->height()));
         }
     }
@@ -50,6 +49,27 @@ struct FoldableMenuBar::Impl {
 
     bool isMouseOverOverlay() const {
         return overlayExpand && menuContainer && menuContainer->underMouse();
+    }
+
+    /// The menu bar is being driven from the keyboard (Alt, then the arrow keys)
+    bool isKeyboardActive() const {
+        return menuBar && menuBar->hasFocus();
+    }
+
+    /// Follow a menu bar: the menus added to it, and its activation from the keyboard.
+    void watchMenuBar(FoldableMenuBar *self) {
+        menuBar->installEventFilter(self);
+        // Alt and Alt+mnemonic make an item current before the menu bar takes the focus
+        // or opens the menu: unfold first, so that both happen on a menu bar that shows.
+        // A folded menu bar is masked out, so the mouse cannot make an item current.
+        QObject::connect(menuBar, &QMenuBar::hovered, self, [this, self]() {
+            if (!foldable || expanded) return;
+            collapseTimer->stop();
+            self->setExpanded(true);
+            // The menu that Alt+mnemonic opens is placed right after this
+            menuContainer->layout()->activate();
+            menuWrapper->layout()->activate();
+        });
     }
 
     void connectMenuCollapse(FoldableMenuBar *self, QMenu *menu) {
@@ -163,12 +183,14 @@ FoldableMenuBar::FoldableMenuBar(QWidget *parent)
 
     connect(d->animation, &QPropertyAnimation::finished, this, [this]() {
         if (!d->expanded) {
-            d->menuBar->setEnabled(false);
             d->clearOverlayMasks();
-            // In overlay mode, hide and reparent container back to this
             if (d->overlayExpand && d->menuContainer->parent() != this) {
-                d->menuContainer->hide();
                 d->menuContainer->setParent(this);
+                d->menuContainer->show();
+                d->menuContainer->setGeometry(0, 0, 0, 0);
+            }
+            else if (!d->overlayExpand) {
+                d->menuContainer->setMaximumWidth(0);
             }
         }
         if (d->expanded) {
@@ -182,10 +204,12 @@ FoldableMenuBar::FoldableMenuBar(QWidget *parent)
     d->collapseTimer->setInterval(400);
     connect(d->collapseTimer, &QTimer::timeout, this, [this]() {
         if (d->foldable && !underMouse() && !d->isMouseOverOverlay()
-            && !d->isAnyMenuVisible()) {
+            && !d->isAnyMenuVisible() && !d->isKeyboardActive()) {
             setExpanded(false);
         }
     });
+
+    d->watchMenuBar(this);
 }
 
 FoldableMenuBar::~FoldableMenuBar()
@@ -233,32 +257,33 @@ void FoldableMenuBar::setMenuBar(QMenuBar *menuBar)
             d->connectMenuCollapse(this, menu);
     }
 
-    // Watch for future menus added to this QMenuBar
-    d->menuBar->installEventFilter(this);
+    // Watch for future menus added to this QMenuBar, and for its keyboard activation
+    d->watchMenuBar(this);
 
     // Apply current foldable state
     if (d->foldable && !d->expanded) {
-        d->menuBar->setVisible(false);
-        d->menuBar->setEnabled(false);
+        d->updateClip();
     }
 }
 
 QMenu *FoldableMenuBar::addMenu(const QString &title)
 {
-    auto *menu = d->menuBar->addMenu(title);
-    d->connectMenuCollapse(this, menu);
-    return menu;
+    // Its collapse is connected when the menu bar reports the new action (eventFilter)
+    return d->menuBar->addMenu(title);
 }
 
 void FoldableMenuBar::setBrandWidget(QWidget *brand)
 {
     if (d->brandWidget) {
+        d->brandWidget->removeEventFilter(this);
         d->layout->removeWidget(d->brandWidget);
         d->brandWidget->setParent(nullptr);
     }
     d->brandWidget = brand;
     if (brand) {
         brand->setParent(this);
+        brand->setAttribute(Qt::WA_NoMousePropagation, true);
+        brand->installEventFilter(this);
         d->layout->insertWidget(0, brand);
     }
 }
@@ -275,17 +300,20 @@ void FoldableMenuBar::setFoldable(bool foldable)
     if (foldable) {
         d->expanded = false;
         d->revealWidth = 0;
-        d->menuBar->setVisible(false);
-        d->menuBar->setEnabled(false);
-        if (d->overlayExpand)
-            d->menuContainer->hide();
-    } else {
+        d->updateClip();
+        if (d->overlayExpand) {
+            d->menuContainer->setGeometry(0, 0, 0, 0);
+        }
+        else {
+            d->menuContainer->setMaximumWidth(0);
+        }
+    }
+    else {
         d->expanded = true;
         d->menuBar->clearMask();
-        d->menuBar->setVisible(true);
-        d->menuBar->setEnabled(true);
-        if (!d->overlayExpand)
-            d->menuContainer->show();
+        if (!d->overlayExpand) {
+            d->menuContainer->setMaximumWidth(QWIDGETSIZE_MAX);
+        }
     }
 }
 
@@ -302,16 +330,25 @@ void FoldableMenuBar::setOverlayExpand(bool overlay)
     if (overlay) {
         // Remove from layout — it will float as an overlay when expanded
         d->layout->removeWidget(d->menuContainer);
-        if (d->foldable && !d->expanded)
-            d->menuContainer->hide();
-    } else {
+        d->menuContainer->setMaximumWidth(QWIDGETSIZE_MAX);
+        if (d->foldable && !d->expanded) {
+            d->menuContainer->setGeometry(0, 0, 0, 0);
+        }
+    }
+    else {
         d->clearOverlayMasks();
         // Ensure menuContainer is parented to this and add to layout
-        if (d->menuContainer->parent() != this)
+        if (d->menuContainer->parent() != this) {
             d->menuContainer->setParent(this);
-        d->layout->addWidget(d->menuContainer);
-        if (!d->foldable || d->expanded)
             d->menuContainer->show();
+        }
+        d->layout->addWidget(d->menuContainer);
+        if (d->foldable && !d->expanded) {
+            d->menuContainer->setMaximumWidth(0);
+        }
+        else {
+            d->menuContainer->setMaximumWidth(QWIDGETSIZE_MAX);
+        }
     }
 }
 
@@ -338,8 +375,6 @@ void FoldableMenuBar::setExpanded(bool expanded)
         int targetWidth = d->menuBar->sizeHint().width();
 
         if (expanded) {
-            d->menuBar->setEnabled(true);
-
             if (d->overlayExpand) {
                 // Reparent to window so menu floats above all titlebar content
                 QWidget *win = window();
@@ -350,6 +385,9 @@ void FoldableMenuBar::setExpanded(bool expanded)
                     d->menuContainer->raise();
                 }
             }
+            else {
+                d->menuContainer->setMaximumWidth(QWIDGETSIZE_MAX);
+            }
 
             d->animation->setStartValue(0);
             d->animation->setEndValue(targetWidth);
@@ -358,9 +396,14 @@ void FoldableMenuBar::setExpanded(bool expanded)
             d->animation->setEndValue(0);
         }
         d->animation->start();
-    } else {
-        d->menuBar->setVisible(expanded);
-        if (expanded) d->menuBar->clearMask();
+    }
+    else {
+        if (expanded) {
+            d->menuBar->clearMask();
+        }
+        else {
+            d->menuBar->setMask(QRegion(-1, -1, 1, 1));
+        }
     }
 
     Q_EMIT expandedChanged(expanded);
@@ -374,9 +417,6 @@ bool FoldableMenuBar::isExpanded() const
 void FoldableMenuBar::enterEvent(QEnterEvent *event)
 {
     d->collapseTimer->stop();
-    if (d->foldable && !d->expanded) {
-        setExpanded(true);
-    }
     QWidget::enterEvent(event);
 }
 
@@ -399,11 +439,37 @@ void FoldableMenuBar::resizeEvent(QResizeEvent *event)
 
 bool FoldableMenuBar::eventFilter(QObject *obj, QEvent *event)
 {
+    if (obj == d->brandWidget && event->type() == QEvent::MouseButtonPress) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton && d->foldable) {
+            d->collapseTimer->stop();
+            mouseEvent->accept();
+            return true;
+        }
+    }
+
+    if (obj == d->brandWidget && event->type() == QEvent::MouseButtonRelease) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton
+            && d->brandWidget->rect().contains(mouseEvent->position().toPoint())
+            && d->foldable) {
+            d->collapseTimer->stop();
+            setExpanded(!d->expanded);
+            mouseEvent->accept();
+            return true;
+        }
+    }
+
     // Watch for menus being added to the external QMenuBar
     if (obj == d->menuBar && event->type() == QEvent::ActionAdded) {
         auto *actionEvent = static_cast<QActionEvent *>(event);
         if (auto *menu = actionEvent->action()->menu())
             d->connectMenuCollapse(this, menu);
+    }
+
+    // Keyboard navigation ended (Esc, Alt again, a click elsewhere): fold again
+    if (obj == d->menuBar && event->type() == QEvent::FocusOut && d->foldable) {
+        d->collapseTimer->start();
     }
 
     // In overlay mode, track mouse on the floating container

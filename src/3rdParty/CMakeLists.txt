@@ -30,6 +30,9 @@ endif()
 
 if(BUILD_GUI)
     add_subdirectory(customtitlebarkit)
+    # Gives the library the install RPATH of the other FreeCAD libraries. Without it, a bundle
+    # (AppImage) takes this library's dependencies from the host system.
+    SET_BIN_DIR(customtitlebarkit)
 endif()
 
 if (BUILD_TRACY_FRAME_PROFILER)
