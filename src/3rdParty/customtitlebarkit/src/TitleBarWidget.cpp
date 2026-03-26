@@ -144,6 +144,22 @@ void TitleBarWidget::setNativeControlsWidget(QWidget *widget)
     d->controlsWidget = widget;
 }
 
+void TitleBarWidget::setNativeControlsWidgetRight(QWidget *widget)
+{
+    if (!widget) return;
+
+    auto *lay = static_cast<QHBoxLayout *>(layout());
+
+    // Hide the generic window control buttons — the custom widget replaces them
+    d->windowControls->setVisible(false);
+
+    // Insert right before windowControls (end of visible area)
+    widget->setParent(this);
+    int idx = lay->indexOf(d->windowControls);
+    lay->insertWidget(idx, widget);
+    d->controlsWidget = widget;
+}
+
 void TitleBarWidget::setWindowControlsVisible(bool visible)
 {
     d->windowControls->setVisible(visible);
