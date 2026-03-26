@@ -353,19 +353,19 @@ void DSHSymbolController::configureToolWidget()
         QStringList symbolsNames = handler->pathMap.keys();
         symbolsNames.sort(Qt::CaseInsensitive);
         toolWidget->setComboboxElements(WCombobox::SecondCombo, symbolsNames);
-
-        onViewParameters[OnViewParameter::First]->setLabelType(Gui::SoDatumLabel::DISTANCEX);
-        onViewParameters[OnViewParameter::Second]->setLabelType(Gui::SoDatumLabel::DISTANCEY);
-
-        onViewParameters[OnViewParameter::Third]->setLabelType(
-            Gui::SoDatumLabel::DISTANCE,
-            Gui::EditableDatumLabel::Function::Dimensioning
-        );
-        onViewParameters[OnViewParameter::Fourth]->setLabelType(
-            Gui::SoDatumLabel::ANGLE,
-            Gui::EditableDatumLabel::Function::Dimensioning
-        );
     }
+
+    onViewParameters[OnViewParameter::First]->setLabelType(Gui::SoDatumLabel::DISTANCEX);
+    onViewParameters[OnViewParameter::Second]->setLabelType(Gui::SoDatumLabel::DISTANCEY);
+
+    onViewParameters[OnViewParameter::Third]->setLabelType(
+        Gui::SoDatumLabel::DISTANCE,
+        Gui::EditableDatumLabel::Function::Dimensioning
+    );
+    onViewParameters[OnViewParameter::Fourth]->setLabelType(
+        Gui::SoDatumLabel::ANGLE,
+        Gui::EditableDatumLabel::Function::Dimensioning
+    );
 }
 
 template<>
@@ -522,7 +522,7 @@ void DSHSymbolController::computeNextDrawSketchHandlerMode()
             auto& firstParam = onViewParameters[OnViewParameter::First];
             auto& secondParam = onViewParameters[OnViewParameter::Second];
 
-            if (firstParam->isSet && secondParam->isSet) {
+            if (firstParam->hasFinishedEditing && secondParam->hasFinishedEditing) {
                 handler->setNextState(SelectMode::SeekSecond);
             }
         } break;
