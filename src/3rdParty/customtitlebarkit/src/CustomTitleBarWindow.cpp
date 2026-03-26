@@ -82,7 +82,10 @@ CustomTitleBarWindow::CustomTitleBarWindow(Mode mode, QWidget *parent)
 
     // Replace the native controls spacer with a custom widget if the backend provides one
     if (auto *ctrlWidget = d->backend->createNativeControlsWidget(d->titleBar)) {
-        d->titleBar->setNativeControlsWidget(ctrlWidget);
+        if (d->backend->nativeControlsPosition() == PlatformTitleBarBackend::RightSide)
+            d->titleBar->setNativeControlsWidgetRight(ctrlWidget);
+        else
+            d->titleBar->setNativeControlsWidget(ctrlWidget);
     }
 
     // Plain spacer as menu widget — reserves space in QMainWindow's layout
