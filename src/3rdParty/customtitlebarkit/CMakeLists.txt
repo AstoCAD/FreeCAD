@@ -116,9 +116,24 @@ elseif(WIN32)
     )
     target_link_libraries(customtitlebarkit PRIVATE dwmapi)
 elseif(UNIX)
+    find_package(Qt6 COMPONENTS Svg)
     target_sources(customtitlebarkit PRIVATE
+        src/platform/linux/LinuxTitleBarBackend.h
         src/platform/linux/LinuxTitleBarBackend.cpp
+        src/platform/linux/LinuxWindowButton.h
+        src/platform/linux/LinuxWindowButton.cpp
+        src/platform/linux/LinuxDesktopDetection.h
+        src/platform/linux/LinuxDesktopDetection.cpp
     )
+    if(Qt6Svg_FOUND)
+        target_link_libraries(customtitlebarkit PRIVATE Qt6::Svg)
+    endif()
+
+    find_package(Qt6 COMPONENTS GuiPrivate)
+    if(Qt6GuiPrivate_FOUND)
+        target_link_libraries(customtitlebarkit PRIVATE Qt6::GuiPrivate)
+        target_compile_definitions(customtitlebarkit PRIVATE HAVE_QT_GUI_PRIVATE=1)
+    endif()
 endif()
 
 if(CUSTOMTITLEBARKIT_STANDALONE)
