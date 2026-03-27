@@ -52,7 +52,7 @@ cp build/FreeCAD AstoCAD.app/Contents/MacOS/AstoCAD
 
 # Add deployment target suffix to artifact name (e.g., "-macOS11" or "-macOS15")
 deploy_target="${MACOS_DEPLOYMENT_TARGET:-11.0}"
-deploy_suffix="-macOS${deploy_target%%.*}"
+deploy_suffix="macOS${deploy_target%%.*}"
 
 version_name="AstoCAD_${BUILD_TAG}-${deploy_suffix}-$(uname -m)"
 
