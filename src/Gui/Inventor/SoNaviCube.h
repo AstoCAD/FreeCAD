@@ -92,7 +92,9 @@ public:
         ArrowWest,
         ArrowRight,
         ArrowLeft,
-        DotBackside,
+        Backside,
+        Home,
+        Isometric,
         ViewMenu
     };
 
@@ -109,6 +111,8 @@ public:
     {
         FaceType type {FaceType::None};
         std::vector<SbVec3f> vertexArray;
+        std::vector<SbVec3f> trianglesArray;
+        std::vector<std::vector<SbVec3f>> lineLoops;
         SbRotation rotation;
     };
 
