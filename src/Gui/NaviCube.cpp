@@ -63,6 +63,7 @@
 #include <Base/Tools.h>
 #include "NaviCube.h"
 #include "Application.h"
+#include "Camera.h"
 #include "Command.h"
 #include "Action.h"
 #include "MainWindow.h"
@@ -1016,18 +1017,28 @@ bool NaviCubeImplementation::mouseReleased(short x, short y)
             }
         }
         else if (faceType == FaceType::Button) {
-
             // Handle the menu
             if (pickId == PickId::ViewMenu) {
                 resetClickState();
                 handleMenu();
                 return true;
             }
+            else if (pickId == PickId::Home) {
+                CommandManager& rcCmdMgr = Application::Instance->commandManager();
+                rcCmdMgr.runCommandByName("Std_ViewHome");
+
+                return true;
+            }
+            else if (pickId == PickId::Isometric) {
+                SbRotation rotation;
+                m_View3DInventorViewer->setCameraOrientation(Camera::rotation(Camera::Isometric));
+                return true;
+            }
 
             // Handle the flat buttons
             resetClickState();
             SbRotation rotation = getFaceRotation(pickId);
-            if (pickId == PickId::DotBackside) {
+            if (pickId == PickId::Backside) {
                 rotation.scaleAngle(pi);
             }
             else {
@@ -1209,11 +1220,20 @@ QMenu* NaviCubeImplementation::createNaviCubeMenu()
     if (commands.empty()) {
         commands.emplace_back("Std_OrthographicCamera");
         commands.emplace_back("Std_PerspectiveCamera");
-        commands.emplace_back("Std_ViewIsometric");
         commands.emplace_back("Separator");
         commands.emplace_back("Std_ViewFitAll");
         commands.emplace_back("Std_ViewFitSelection");
         commands.emplace_back("Std_AlignToSelection");
+        commands.emplace_back("Separator");
+        commands.emplace_back("Std_ViewFront");
+        commands.emplace_back("Std_ViewTop");
+        commands.emplace_back("Std_ViewRight");
+        commands.emplace_back("Std_ViewRear");
+        commands.emplace_back("Std_ViewBottom");
+        commands.emplace_back("Std_ViewLeft");
+        commands.emplace_back("Separator");
+        commands.emplace_back("Std_DrawStyle");
+        commands.emplace_back("Std_ViewDockUndockFullscreen");
         commands.emplace_back("Separator");
         commands.emplace_back("NaviCubeDraggableCmd");
     }
