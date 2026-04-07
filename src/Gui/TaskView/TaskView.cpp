@@ -275,6 +275,21 @@ TaskPanel::~TaskPanel()
     }
 }
 
+QSize TaskPanel::minimumSizeHint() const
+{
+    // Fix for both auto-resize and bug #28469:
+    // For the width, we take the maximum between the ActionPanel and the Layout.
+    // This allows the horizontal auto-resize feature to work correctly without squeezing content.
+    //
+    // For the height, we use ONLY the layout's minimum size (s2.height()).
+    // Including the actionPanel's height (s1.height()) would force the QScrollArea
+    // to expand vertically to the full height of its unfolded contents, resulting in
+    // a massive minimum height that breaks the main window geometry (Issue #28469).
+    QSize s1 = actionPanel->minimumSizeHint();
+    QSize s2 = QWidget::minimumSizeHint();
+    return {qMax(s1.width(), s2.width()), s2.height()};
+}
+
 //**************************************************************************
 //**************************************************************************
 // TaskView
