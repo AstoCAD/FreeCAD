@@ -532,33 +532,29 @@ void EditableDatumLabel::eventCallbackF(void* userData, SoEventCallback* cb)
 
 void EditableDatumLabel::handleEvent(SoEventCallback* cb)
 {
-    // The callback is registered only for SoMouseButtonEvent, so we can rely on the type.
-    const auto* mouseEvent = static_cast<const SoMouseButtonEvent*>(cb->getEvent());
+    const auto* event = cb->getEvent();
+    if (!event->isOfType(SoMouseButtonEvent::getClassTypeId())) {
+        return;
+    }
 
-    // Check for a left mouse button press (DOWN state).
-    if (mouseEvent->getButton() == SoMouseButtonEvent::BUTTON1
-        && mouseEvent->getState() == SoMouseButtonEvent::DOWN) {
-        // Get the information about what was picked.
-        const SoPickedPoint* pickedPoint = cb->getPickedPoint();
+    const auto* mouseEvent = static_cast<const SoMouseButtonEvent*>(event);
 
-        // If nothing was under the cursor, do nothing.
-        if (!pickedPoint) {
-            return;
-        }
+    const SoPickedPoint* pickedPoint = cb->getPickedPoint();
+    if (!pickedPoint || !pickedPoint->getPath()->containsNode(this->annotation)) {
+        return;
+    }
 
-        // Get the scene graph path to the object that was actually picked.
-        const SoPath* path = pickedPoint->getPath();
-        if (!path) {
-            return;
-        }
-
-        if (path->containsNode(this->annotation)) {
-            // The click was on our label! Handle the event and emit the signal.
+    if (mouseEvent->getButton() == SoMouseButtonEvent::BUTTON1) {
+        if (mouseEvent->getState() == SoMouseButtonEvent::UP) {
             cb->setHandled();
             Q_EMIT clicked(this);
         }
-        // If the click was on other geometry, the 'if' condition fails,
-        // and we do nothing, which is the correct behavior.
+    }
+    else if (mouseEvent->getButton() == SoMouseButtonEvent::BUTTON2) {
+        cb->setHandled();
+        if (mouseEvent->getState() == SoMouseButtonEvent::UP) {
+            Q_EMIT rightClicked(this, QCursor::pos());
+        }
     }
 }
 
