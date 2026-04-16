@@ -27,6 +27,7 @@
 #include <QToolButton>
 #include <QLabel>
 #include <QFormLayout>
+#include <QMenu>
 
 #include "ui_PatternParametersWidget.h"
 #include "PatternParametersWidget.h"
@@ -645,7 +646,6 @@ void PatternParametersWidget::updateSpacingLabels(
                 &PatternParametersWidget::onSpacingLabelClicked
             );
 
-            auto mode = static_cast<PatternMode>(m_modeProp->getValue());
             if (mode == PatternMode::Spacing) {
                 connect(
                     label.get(),
@@ -757,6 +757,16 @@ void PatternParametersWidget::updateSpacingLabels(
                 this,
                 &PatternParametersWidget::onSpacingLabelClicked
             );
+
+            if (mode == PatternMode::Spacing) {
+                connect(
+                    label.get(),
+                    &Gui::EditableDatumLabel::rightClicked,
+                    this,
+                    &PatternParametersWidget::onSpacingLabelRightClicked
+                );
+            }
+
             spacingLabels.push_back(std::move(label));
         }
 
@@ -769,7 +779,7 @@ void PatternParametersWidget::updateSpacingLabels(
             double totalAngle_deg = m_extentProp->getValue();
             double totalAngle_rad = Base::toRadians(totalAngle_deg);
 
-            label->setPoints(center, Base::Vector3d());
+            label->setPoints(Base::Vector3d(), Base::Vector3d());
             label->setLabelDistance(radius);
             label->setLabelStartAngle(startAngle);
             label->setLabelRange(totalAngle_rad);
@@ -793,7 +803,7 @@ void PatternParametersWidget::updateSpacingLabels(
                 double currentAngle_deg = (spacingOverride == -1.0) ? globalOffset : spacingOverride;
                 double currentAngle_rad = Base::toRadians(currentAngle_deg);
 
-                label->setPoints(center, Base::Vector3d());
+                label->setPoints(Base::Vector3d(), Base::Vector3d());
                 label->setLabelDistance(radius);
                 label->setLabelStartAngle(cumulativeAngle);
                 label->setLabelRange(currentAngle_rad);
