@@ -855,7 +855,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.form.GlobalErrorToleranceSpinBox.setProperty(
             "rawValue", self.simFeaturePy.fGlobalErrorTolerance
         )
-        self.setFrameValue(0)
+
         self.form.FramesPerSecondSpinBox.setValue(self.simFeaturePy.jFramesPerSecond)
 
     def setSpinboxPrecision(self, spinbox, precision, unit=App.Units.TimeSpan):
