@@ -100,8 +100,11 @@ void StdCmdPart::activated(int iMsg)
     doCommand(
         Gui::Command::Gui,
         "Gui.activateView('Gui::View3DInventor', True)\n"
+        "activePart = Gui.activeView().getActiveObject('%s')\n"
+        "if activePart:\n"
+        "    activePart.addObject(App.activeDocument().Tip)\n"
         "Gui.activeView().setActiveObject('%s', App.activeDocument().%s)",
-        PARTKEY,
+        PARTKEY, PARTKEY,
         PartName.c_str()
     );
 
