@@ -21,6 +21,7 @@
 #                                                                           *
 # **************************************************************************/
 
+import json
 import FreeCAD as App
 
 from PySide.QtCore import QT_TRANSLATE_NOOP
@@ -99,6 +100,9 @@ class Snapshot:
     def onDocumentRestored(self, snapshot_obj):
         """Called when a document containing a snapshot is loaded."""
         self.ensureProperties(snapshot_obj)
+        # Check if the document contains legacy JSON snapshot data and migrate it
+        if hasattr(snapshot_obj, "CapturedState") and snapshot_obj.CapturedState:
+            self.migrateFromJSON(snapshot_obj)
 
     def ensureProperties(self, snapshot_obj):
         """Ensures that the required properties are added to the object."""
@@ -225,6 +229,57 @@ class Snapshot:
 
         if snapshot_obj.SolveOnActivation:
             assembly.recompute()
+
+    def migrateFromJSON(self, snapshot_obj):
+        """
+        Migrates the old JSON-based 'CapturedState' property to the new
+        property list structure.
+        """
+        try:
+            state_data = json.loads(snapshot_obj.CapturedState)
+        except Exception as e:
+            App.Console.PrintError(f"Failed to decode old CapturedState JSON during migration: {e}\n")
+            return
+
+        doc = snapshot_obj.Document
+        captured_objs = []
+        captured_placements = []
+        captured_visibilities = []
+
+        for part_fullname, part_state in state_data.items():
+            part = doc.getObject(part_fullname)
+            if not part:
+                continue
+
+            captured_objs.append(part)
+
+            # Reconstruct Placement
+            if "placement" in part_state:
+                pos = part_state["placement"]["pos"]
+                rot = part_state["placement"]["rot"]
+                placement = App.Placement(App.Vector(*pos), App.Rotation(*rot))
+            else:
+                placement = getattr(part, "Placement", App.Placement())
+            captured_placements.append(placement)
+
+            # Reconstruct Visibility
+            visibility = part_state.get("visibility", True)
+            if visibility is None:
+                visibility = True
+            captured_visibilities.append(bool(visibility))
+
+        snapshot_obj.Components = captured_objs
+        snapshot_obj.Placements = captured_placements
+        snapshot_obj.Visibilities = captured_visibilities
+
+        # Clean up legacy property
+        try:
+            snapshot_obj.removeProperty("CapturedState")
+            App.Console.PrintLog("Successfully migrated snapshot properties to list-based structures.\n")
+        except Exception as e:
+            App.Console.PrintWarning(f"Could not remove legacy CapturedState property: {e}\n")
+            # Fallback in case of restriction
+            snapshot_obj.CapturedState = ""
 
 
 class ViewProviderSnapshot:
