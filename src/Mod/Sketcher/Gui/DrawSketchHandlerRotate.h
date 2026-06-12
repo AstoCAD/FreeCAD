@@ -51,7 +51,7 @@ using DSHRotateController = DrawSketchDefaultWidgetController<
     /*PAutoConstraintSize =*/0,
     /*OnViewParametersT =*/OnViewParameters<4>,
     /*WidgetParametersT =*/WidgetParameters<1>,
-    /*WidgetCheckboxesT =*/WidgetCheckboxes<1>,
+    /*WidgetCheckboxesT =*/WidgetCheckboxes<2>,
     /*WidgetComboboxesT =*/WidgetComboboxes<0>,
     /*WidgetLineEditsT =*/WidgetLineEdits<0>>;
 
@@ -71,6 +71,7 @@ public:
         : listOfGeoIds(listOfGeoIds)
         , deleteOriginal(false)
         , cloneConstraints(false)
+        , symmetric(false)
         , length(0.0)
         , startAngle(0.0)
         , endAngle(0.0)
@@ -113,6 +114,58 @@ public:
     }
 
 private:
+    static double getFullTurn()
+    {
+        return 2 * std::numbers::pi;
+    }
+
+    static bool isOneFullTurn(double angle)
+    {
+        return std::abs(std::abs(angle) - getFullTurn()) < Precision::Angular();
+    }
+
+    static double clampToFullTurn(double angle)
+    {
+        if (angle > getFullTurn()) {
+            return getFullTurn();
+        }
+
+        if (angle < -getFullTurn()) {
+            return -getFullTurn();
+        }
+
+        return angle;
+    }
+
+    static double angleForShapeCreation(double angle)
+    {
+        if (std::abs(angle) < Precision::Confusion()) {
+            return getFullTurn();
+        }
+
+        return clampToFullTurn(angle);
+    }
+
+    static double closestContinuousAngle(double angle, double previousAngle)
+    {
+        if (std::abs(angle) < Precision::Confusion()) {
+            return 0.0;
+        }
+
+        double closest = angle;
+        auto useIfCloser = [&](double candidate) {
+            if (std::abs(candidate) <= getFullTurn()
+                && std::abs(candidate - previousAngle) < std::abs(closest - previousAngle)) {
+                closest = candidate;
+            }
+        };
+
+        useIfCloser(angle + getFullTurn());
+        useIfCloser(angle - getFullTurn());
+
+        return closest;
+    }
+
     void updateDataAndDrawToPosition(Base::Vector2d onSketchPos) override
     {
         switch (state()) {
@@ -131,9 +184,8 @@ private:
                 endAngle = (onSketchPos - centerPoint).Angle();
                 endpoint = centerPoint + length * Base::Vector2d(cos(endAngle), sin(endAngle));
 
-                double angle1 = endAngle - startAngle;
-                double angle2 = angle1 + (angle1 < 0. ? 2 : -2) * std::numbers::pi;
-                totalAngle = abs(angle1 - totalAngle) < abs(angle2 - totalAngle) ? angle1 : angle2;
+                double angle = endAngle - startAngle;
+                totalAngle = closestContinuousAngle(angle, totalAngle);
 
                 CreateAndDrawShapeGeometry();
             } break;
@@ -230,10 +282,6 @@ private:
 
     bool canGoToNextMode() override
     {
-        if (state() == SelectMode::SeekThird && fabs(totalAngle) < Precision::Confusion()) {
-            // Prevent validation rotation of 0deg.
-            return false;
-        }
         return true;
     }
 
@@ -252,7 +300,7 @@ private:
     std::vector<int> listOfGeoIds;
     Base::Vector2d centerPoint, startPoint, endpoint;
 
-    bool deleteOriginal, cloneConstraints;
+    bool deleteOriginal, cloneConstraints, symmetric;
     double length, startAngle, endAngle, totalAngle, individualAngle;
     int numberOfCopies;
 
@@ -299,9 +347,29 @@ private:
             deleteOriginal = false;
         }
 
-        individualAngle = totalAngle / numberOfCopiesToMake;
+        double shapeAngle = angleForShapeCreation(totalAngle);
 
+        int angleDivisor = numberOfCopiesToMake;
+        if (numberOfCopies > 0 && isOneFullTurn(shapeAngle)) {
+            // In a full-turn pattern, the original occupies the final occurrence.
+            angleDivisor++;
+        }
+
+        individualAngle = shapeAngle / angleDivisor;
+
+        std::vector<int> copyFactors;
+        copyFactors.reserve(symmetric && numberOfCopies > 0 ? 2 * numberOfCopiesToMake
+                                                            : numberOfCopiesToMake);
         for (int i = 1; i <= numberOfCopiesToMake; i++) {
+            copyFactors.push_back(i);
+        }
+        if (symmetric && numberOfCopies > 0) {
+            for (int i = 1; i <= numberOfCopiesToMake; i++) {
+                copyFactors.push_back(-i);
+            }
+        }
+
+        for (int copyFactor : copyFactors) {
             for (auto& geoId : listOfGeoIds) {
                 const Part::Geometry* pGeo = Obj->getGeometry(geoId);
                 auto geoUniquePtr = std::unique_ptr<Part::Geometry>(pGeo->copy());
@@ -311,7 +379,7 @@ private:
                     geo->reverseIfReversed();  // make sure we don't have reversed conics
                 }
 
-                double angle = individualAngle * i;
+                double angle = individualAngle * copyFactor;
 
                 Base::Matrix4D matrix(toVector3d(centerPoint), Base::Vector3d(0, 0, 1), angle);
                 geo->transform(matrix);
@@ -341,10 +409,10 @@ private:
                 int secondIndex = indexOfGeoId(listOfGeoIds, cstr->Second);
                 int thirdIndex = indexOfGeoId(listOfGeoIds, cstr->Third);
 
-                for (int i = 0; i < numberOfCopiesToMake; i++) {
-                    int firstIndexi = firstCurveCreated + firstIndex + static_cast<int>(size) * i;
-                    int secondIndexi = firstCurveCreated + secondIndex + static_cast<int>(size) * i;
-                    int thirdIndexi = firstCurveCreated + thirdIndex + static_cast<int>(size) * i;
+                for (size_t i = 0; i < copyFactors.size(); i++) {
+                    int firstIndexi = firstCurveCreated + firstIndex + static_cast<int>(size * i);
+                    int secondIndexi = firstCurveCreated + secondIndex + static_cast<int>(size * i);
+                    int thirdIndexi = firstCurveCreated + thirdIndex + static_cast<int>(size * i);
 
                     auto newConstr = std::unique_ptr<Constraint>(cstr->copy());
                     newConstr->First = firstIndexi;
@@ -491,6 +559,17 @@ void DSHRotateController::configureToolWidget()
                 )
                 + QStringLiteral("</p>")
         );
+        toolWidget->setCheckboxLabel(
+            WCheckbox::SecondBox,
+            QApplication::translate("TaskSketcherTool_c2_rotate", "Symmetric")
+        );
+        toolWidget->setCheckboxToolTip(
+            WCheckbox::SecondBox,
+            QApplication::translate(
+                "TaskSketcherTool_c2_rotate",
+                "Create additional copies in the opposite rotation direction."
+            )
+        );
     }
 
     onViewParameters[OnViewParameter::First]->setLabelType(Gui::SoDatumLabel::DISTANCEX);
@@ -532,6 +611,9 @@ void DSHRotateController::adaptDrawingToCheckboxChange(int checkboxindex, bool v
         case WCheckbox::FirstBox: {
             handler->cloneConstraints = value;
         } break;
+        case WCheckbox::SecondBox: {
+            handler->symmetric = value;
+        } break;
     }
 }
 
@@ -557,11 +639,15 @@ void DSHRotateControllerBase::doEnforceControlParameters(Base::Vector2d& onSketc
 
             if (thirdParam->isSet) {
                 double arcAngle = Base::toRadians(thirdParam->getValue());
-                if (fmod(fabs(arcAngle), 2 * std::numbers::pi) < Precision::Confusion()
-                    && thirdParam->hasFinishedEditing) {
-                    unsetOnViewParameter(thirdParam.get());
-                    return;
+                double clampedAngle = DrawSketchHandlerRotate::clampToFullTurn(arcAngle);
+                if (clampedAngle != arcAngle) {
+                    setOnViewParameterValue(
+                        OnViewParameter::Third,
+                        Base::toDegrees(clampedAngle),
+                        Base::Unit::Angle
+                    );
                 }
+
                 onSketchPos.x = handler->centerPoint.x + 1;
                 onSketchPos.y = handler->centerPoint.y;
             }
@@ -571,10 +657,14 @@ void DSHRotateControllerBase::doEnforceControlParameters(Base::Vector2d& onSketc
 
             if (fourthParam->isSet) {
                 double arcAngle = Base::toRadians(fourthParam->getValue());
-                if (fmod(fabs(arcAngle), 2 * std::numbers::pi) < Precision::Confusion()
-                    && fourthParam->hasFinishedEditing) {
-                    unsetOnViewParameter(fourthParam.get());
-                    return;
+                double clampedAngle = DrawSketchHandlerRotate::clampToFullTurn(arcAngle);
+                if (clampedAngle != arcAngle) {
+                    setOnViewParameterValue(
+                        OnViewParameter::Fourth,
+                        Base::toDegrees(clampedAngle),
+                        Base::Unit::Angle
+                    );
+                    arcAngle = clampedAngle;
                 }
 
                 handler->totalAngle = arcAngle;
@@ -659,7 +749,9 @@ void DSHRotateController::computeNextDrawSketchHandlerMode()
             auto& thirdParam = onViewParameters[OnViewParameter::Third];
 
             if (thirdParam->hasFinishedEditing) {
-                handler->totalAngle = Base::toRadians(thirdParam->getValue());
+                handler->totalAngle = DrawSketchHandlerRotate::clampToFullTurn(
+                    Base::toRadians(thirdParam->getValue())
+                );
                 handler->setNextState(SelectMode::End);
             }
         } break;
