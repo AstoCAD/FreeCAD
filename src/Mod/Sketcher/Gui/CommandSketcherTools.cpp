@@ -25,6 +25,7 @@
 #include <FCConfig.h>
 
 #include <memory>
+#include <unordered_map>
 
 #include <QApplication>
 #include <QClipboard>
