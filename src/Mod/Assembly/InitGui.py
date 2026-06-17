@@ -89,6 +89,7 @@ class AssemblyWorkbench(Workbench):
             "Std_NewAssembly",
             "Assembly_Insert",
             "Assembly_InsertFastener",
+            "Part_LinkArrays",
             "Assembly_SolveAssembly",
             "Assembly_CreateView",
             "Assembly_CreateSnapshot",

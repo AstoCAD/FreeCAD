@@ -442,6 +442,9 @@ void Workbench::activated()
     const char* Transformed[] = {
         "PartDesign_Mirrored",
         "PartDesign_LinearPattern",
+        "PartDesign_CircularPattern",
+        "PartDesign_PathPattern",
+        "PartDesign_PointPattern",
         "PartDesign_PolarPattern",
         "PartDesign_MultiTransform",
         nullptr
@@ -523,6 +526,9 @@ Gui::MenuItem* Workbench::setupMenuBar() const
     *transformations << "PartDesign_Mirrored"
                      << "PartDesign_LinearPattern"
                      << "PartDesign_PolarPattern"
+                     << "PartDesign_CircularPattern"
+                     << "PartDesign_PathPattern"
+                     << "PartDesign_PointPattern"
                      << "PartDesign_MultiTransform";
 
     // dressups
@@ -620,6 +626,9 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
 
     *part << "PartDesign_Mirrored"
           << "PartDesign_LinearPattern"
+          << "PartDesign_CircularPattern"
+          << "PartDesign_PathPattern"
+          << "PartDesign_PointPattern"
           << "PartDesign_PolarPattern"
           << "PartDesign_MultiTransform";
 
