@@ -170,6 +170,56 @@ class TestLinearPattern(unittest.TestCase):
         # self.assertEqual(len(self.LinearPattern.Shape.ElementReverseMap), 170)
         self.assertEqual(self.LinearPattern.Shape.ElementMapSize, 26)
 
+    def testPrimitiveWithDifferentSupportPlacementLinearPattern(self):
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.BaseBox = self.Doc.addObject("PartDesign::AdditiveBox", "BaseBox")
+        self.Body.addObject(self.BaseBox)
+        self.BaseBox.Length = 50.0
+        self.BaseBox.Width = 25.0
+        self.BaseBox.Height = 100.0
+        self.BaseBox.Placement = FreeCAD.Placement(
+            FreeCAD.Vector(-25.0, 0.0, 0.0), FreeCAD.Rotation()
+        )
+        self.Doc.recompute()
+
+        self.Cylinder = self.Doc.addObject("PartDesign::SubtractiveCylinder", "Cylinder")
+        self.Body.addObject(self.Cylinder)
+        self.Cylinder.Radius = 3.0
+        self.Cylinder.Height = 19.0
+        self.Cylinder.AttachmentSupport = [(self.Doc.XZ_Plane, "")]
+        self.Cylinder.MapMode = "FlatFace"
+        self.Cylinder.AttachmentOffset = FreeCAD.Placement(
+            FreeCAD.Vector(0.0, 30.0, -38.0),
+            FreeCAD.Rotation(FreeCAD.Vector(0.0, 1.0, 0.0), 40.0),
+        )
+        self.Doc.recompute()
+
+        self.Cylinder001 = self.Doc.addObject("PartDesign::SubtractiveCylinder", "Cylinder001")
+        self.Body.addObject(self.Cylinder001)
+        self.Cylinder001.Radius = 3.0
+        self.Cylinder001.Height = 19.0
+        self.Cylinder001.AttachmentSupport = [(self.Doc.XZ_Plane, "")]
+        self.Cylinder001.MapMode = "FlatFace"
+        self.Cylinder001.AttachmentOffset = FreeCAD.Placement(
+            FreeCAD.Vector(0.0, 30.0, -38.0),
+            FreeCAD.Rotation(FreeCAD.Vector(0.0, 1.0, 0.0), -40.0),
+        )
+        self.Doc.recompute()
+
+        self.LinearPattern = self.Doc.addObject("PartDesign::LinearPattern", "LinearPattern")
+        self.Body.addObject(self.LinearPattern)
+        self.LinearPattern.Originals = [self.Cylinder]
+        self.LinearPattern.Direction = (self.Doc.Z_Axis, [""])
+        self.LinearPattern.Length = 60.0
+        self.LinearPattern.Occurrences = 3
+        self.Doc.recompute()
+
+        supportBoundBox = self.Cylinder001.Shape.BoundBox
+        patternBoundBox = self.LinearPattern.Shape.BoundBox
+        self.assertLessEqual(patternBoundBox.XMax, supportBoundBox.XMax + 1e-7)
+        self.assertGreaterEqual(patternBoundBox.YMin, supportBoundBox.YMin - 1e-7)
+        self.assertLess(self.LinearPattern.Shape.Volume, self.Cylinder001.Shape.Volume)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestLinearPattern")
