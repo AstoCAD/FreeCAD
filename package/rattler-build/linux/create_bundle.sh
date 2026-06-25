@@ -60,7 +60,7 @@ pixi list -e default > AppDir/packages.txt
 sed -i "1s/.*/\nLIST OF PACKAGES:/" AppDir/packages.txt
 
 echo "Running FreeCAD command-line smoke test..."
-if ! "${conda_env}/bin/freecadcmd" --safe-mode --version; then
+if ! "${conda_env}/bin/AstoCADcmd" --safe-mode --version; then
     echo "FreeCAD command-line smoke test failed; the Linux bundle cannot start."
     exit 1
 fi
