@@ -45,6 +45,7 @@
 
 #include <Base/Interpreter.h>
 #include <App/Application.h>
+#include <App/DocumentObject.h>
 
 #include "Navigation/NavigationStyle.h"
 #include "Navigation/NavigationStylePy.h"
@@ -52,6 +53,7 @@
 #include "Camera.h"
 #include "Command.h"
 #include "Action.h"
+#include "Document.h"
 #include "Inventor/SoMouseWheelEvent.h"
 #include "MenuManager.h"
 #include "MouseSelection.h"
@@ -61,6 +63,7 @@
 #include "SoFullPathHelper.h"
 #include "View3DInventorViewer.h"
 #include "ViewParams.h"
+#include "ViewProviderDocumentObject.h"
 
 using namespace Gui;
 
@@ -2307,7 +2310,7 @@ void NavigationStyle::openPopupMenu(const SbVec2s& position)
     // store the right-click position for potential use by Clarify Selection
     rightClickPosition = position;
 
-    // ask workbenches and view provider, ...
+    // ask workbenches
     MenuItem view;
     Gui::Application::Instance->setupContextMenu("View", &view);
 
@@ -2315,17 +2318,70 @@ void NavigationStyle::openPopupMenu(const SbVec2s& position)
     MenuManager::getInstance()->setupContextMenu(&view, *contextMenu);
     contextMenu->setAttribute(Qt::WA_DeleteOnClose);
 
-    // Add Clarify Selection option if there are objects under cursor
-    bool separator = false;
     auto allActions = contextMenu->actions();
     auto posAction = !allActions.empty() ? allActions.front() : nullptr;
 
-    // Clarify should be after the copy/cut/... row and its separator
+    // Object and Clarify actions should be after the copy/cut/... row and its separator
     if (posAction && posAction->data().toString() == QString::fromUtf8("Std_ContextActionRow")) {
         if (allActions.size() > 2) {
             posAction = allActions.at(2);
         }
     }
+
+    QMenu* objectMenu = nullptr;
+    QList<QAction*> objectActions;
+    auto selection = Gui::Selection().getSelectionEx();
+
+    if (selection.size() == 1) {
+        App::DocumentObject* selectedObject = selection.front().getObject();
+        auto* selectedViewProvider
+            = Gui::Application::Instance->getViewProvider<Gui::ViewProviderDocumentObject>(
+                selectedObject
+            );
+
+        if (selectedViewProvider) {
+            objectMenu = new QMenu(contextMenu);
+            selectedViewProvider->setupContextMenu(objectMenu, contextMenu, SLOT(close()));
+            objectActions = objectMenu->actions();
+            if (!objectActions.empty()) {
+                contextMenu->setDefaultAction(objectActions.front());
+
+                for (auto* action : objectActions) {
+                    if (posAction) {
+                        contextMenu->insertAction(posAction, action);
+                    }
+                    else {
+                        contextMenu->addAction(action);
+                    }
+                }
+
+                if (posAction) {
+                    contextMenu->insertSeparator(posAction);
+                }
+                else {
+                    contextMenu->addSeparator();
+                }
+
+                QObject::connect(
+                    contextMenu,
+                    &QMenu::triggered,
+                    [objectActions, selectedViewProvider](QAction* selectedAction) {
+                        if (objectActions.contains(selectedAction)
+                            && selectedAction->data().isValid()) {
+                            int editMode = selectedAction->data().toInt();
+                            selectedViewProvider->getDocument()->setEdit(
+                                selectedViewProvider,
+                                editMode
+                            );
+                        }
+                    }
+                );
+            }
+        }
+    }
+
+    // Add Clarify Selection option if there are objects under cursor
+    bool separator = false;
 
     // Get picked objects at position
     SoRayPickAction rp(viewer->getSoRenderManager()->getViewportRegion());
