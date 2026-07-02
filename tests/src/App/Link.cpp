@@ -8,6 +8,7 @@
 #include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <App/Link.h>
+#include <App/SuppressibleExtension.h>
 #include <Base/Placement.h>
 #include <Base/Vector3D.h>
 
@@ -189,6 +190,49 @@ static App::Link* addLink(App::Document* doc)
     auto* link = dynamic_cast<App::Link*>(obj);
     EXPECT_NE(link, nullptr);
     return link;
+}
+
+TEST_F(LinkTest, suppressedLinkElementIsOmittedFromParentSubObjects)
+{
+    auto* target = addLink(_doc);
+    auto* link = addLink(_doc);
+    link->LinkedObject.setValue(target);
+    link->ElementCount.setValue(3);
+
+    auto elements = link->ElementList.getValues();
+    ASSERT_EQ(3U, elements.size());
+
+    auto* suppressible = elements[1]->getExtensionByType<App::SuppressibleExtension>(true);
+    ASSERT_NE(suppressible, nullptr);
+    suppressible->Suppressed.setValue(true);
+
+    auto subs = link->getSubObjects();
+    ASSERT_EQ(2U, subs.size());
+    EXPECT_EQ("0.", subs[0]);
+    EXPECT_EQ("2.", subs[1]);
+
+    EXPECT_EQ(elements[0], link->getSubObject("0."));
+    EXPECT_EQ(elements[1], link->getSubObject("1."));
+    EXPECT_EQ(nullptr, link->getSubObject("1.Face1"));
+    EXPECT_EQ(elements[1], elements[1]->getSubObject(nullptr));
+    EXPECT_EQ(nullptr, elements[1]->getSubObject("Face1"));
+}
+
+TEST_F(LinkTest, noElementTrueOnlyFiltersGeneratedLinkElements)
+{
+    auto* target = addLink(_doc);
+    auto* link = addLink(_doc);
+    link->LinkedObject.setValue(target);
+
+    EXPECT_EQ(target, link->getTrueLinkedObject(false, nullptr, 0, true));
+
+    link->ElementCount.setValue(1);
+    auto elements = link->ElementList.getValues();
+    ASSERT_EQ(1U, elements.size());
+    auto* element = freecad_cast<App::LinkElement*>(elements[0]);
+    ASSERT_NE(element, nullptr);
+
+    EXPECT_EQ(nullptr, element->getTrueLinkedObject(false, nullptr, 0, true));
 }
 
 // -- getScaleVector --
