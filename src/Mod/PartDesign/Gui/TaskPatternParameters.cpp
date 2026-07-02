@@ -30,9 +30,14 @@
 #include <gp_Dir.hxx>
 #include <gp_Vec.hxx>
 #include <gp_Pnt.hxx>
+#include <Standard_Failure.hxx>
 
 #include <BRep_Builder.hxx>
 #include <TopoDS_Compound.hxx>
+
+#include <algorithm>
+#include <list>
+#include <optional>
 
 #include <App/Document.h>
 #include <App/DocumentObject.h>
@@ -55,6 +60,7 @@
 #include <Mod/PartDesign/App/FeaturePointPattern.h>
 #include <Mod/PartDesign/App/FeaturePolarPattern.h>
 #include <Mod/PartDesign/App/FeatureAddSub.h>
+#include <Mod/Part/Gui/PatternInstanceControls.h>
 #include <Mod/Part/Gui/PatternParametersWidget.h>
 #include <Mod/Part/App/Tools.h>
 
@@ -67,6 +73,41 @@
 using namespace PartDesignGui;
 using namespace Gui;
 
+namespace
+{
+
+std::optional<Base::Vector3d> shapeCenter(const TopoDS_Shape& shape)
+{
+    if (shape.IsNull()) {
+        return std::nullopt;
+    }
+
+    Bnd_Box bndBox;
+    BRepBndLib::Add(shape, bndBox);
+    if (bndBox.IsVoid()) {
+        return std::nullopt;
+    }
+
+    double xmin = 0.0;
+    double ymin = 0.0;
+    double zmin = 0.0;
+    double xmax = 0.0;
+    double ymax = 0.0;
+    double zmax = 0.0;
+    bndBox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+
+    return Base::Vector3d((xmin + xmax) / 2.0, (ymin + ymax) / 2.0, (zmin + zmax) / 2.0);
+}
+
+Base::Vector3d transformedPoint(const Base::Vector3d& point, const gp_Trsf& transform)
+{
+    gp_Pnt pnt(point.x, point.y, point.z);
+    pnt.Transform(transform);
+    return Base::Vector3d(pnt.X(), pnt.Y(), pnt.Z());
+}
+
+}  // namespace
+
 /* TRANSLATOR PartDesignGui::TaskPatternParameters */
 
 TaskPatternParameters::TaskPatternParameters(ViewProviderTransformed* TransformedView, QWidget* parent)
@@ -75,6 +116,7 @@ TaskPatternParameters::TaskPatternParameters(ViewProviderTransformed* Transforme
 {
     setupUI();
     updatePatternSpacingLabels();
+    setupInstanceControls();
 }
 
 TaskPatternParameters::TaskPatternParameters(
@@ -86,6 +128,7 @@ TaskPatternParameters::TaskPatternParameters(
 {
     setupParameterUI(parameterWidget);
     updatePatternSpacingLabels();
+    setupInstanceControls();
 }
 
 void TaskPatternParameters::setupParameterUI(QWidget* widget)
@@ -165,6 +208,7 @@ void TaskPatternParameters::setupPatternTransaction()
 void TaskPatternParameters::recomputePatternFeature()
 {
     recomputeFeature();
+    updateInstanceControls();
 }
 
 Base::Vector3d TaskPatternParameters::getPatternStartPoint() const
@@ -197,6 +241,114 @@ std::string TaskPatternParameters::buildDirectionReferencePythonString(
 ) const
 {
     return buildLinkSingleSubPythonStr(obj, subs);
+}
+
+void TaskPatternParameters::setupInstanceControls()
+{
+    auto* pattern = dynamic_cast<PartDesign::Transformed*>(getObject());
+    auto* topPattern = getTopTransformedObject();
+    auto* view = getTopTransformedView();
+    if (!pattern || !topPattern || pattern != topPattern || !view) {
+        instanceControls.reset();
+        return;
+    }
+
+    auto* viewer = view->getViewer();
+    if (!viewer) {
+        instanceControls.reset();
+        return;
+    }
+
+    instanceControls = std::make_unique<PartGui::PatternInstanceControls>(viewer, this);
+    connect(instanceControls.get(),
+            &PartGui::PatternInstanceControls::toggleRequested,
+            this,
+            [this](int index, bool suppress) {
+                setInstanceSuppressed(index, suppress);
+            });
+    updateInstanceControls();
+}
+
+void TaskPatternParameters::updateInstanceControls()
+{
+    if (!instanceControls) {
+        return;
+    }
+
+    auto* pattern = dynamic_cast<PartDesign::Transformed*>(getObject());
+    if (!pattern) {
+        instanceControls->clear();
+        return;
+    }
+
+    auto sourceCenter = shapeCenter(pattern->PreviewShape.getShape().getShape());
+    if (!sourceCenter) {
+        instanceControls->clear();
+        return;
+    }
+
+    std::list<gp_Trsf> transformations;
+    try {
+        transformations = pattern->getTransformations(pattern->getOriginals());
+    }
+    catch (const Base::Exception&) {
+        instanceControls->clear();
+        return;
+    }
+    catch (const Standard_Failure&) {
+        instanceControls->clear();
+        return;
+    }
+
+    std::vector<PartGui::PatternInstanceControls::Instance> instances;
+    int index = 0;
+    for (const auto& transformation : transformations) {
+        if (index > 0) {
+            instances.push_back(
+                {index, transformedPoint(*sourceCenter, transformation), pattern->isTransformationSuppressed(index)}
+            );
+        }
+        ++index;
+    }
+
+    instanceControls->setInstances(instances);
+}
+
+void TaskPatternParameters::setInstanceSuppressed(int index, bool suppress)
+{
+    if (index <= 0) {
+        return;
+    }
+
+    auto* pattern = dynamic_cast<PartDesign::Transformed*>(getObject());
+    if (!pattern) {
+        return;
+    }
+
+    const long suppressedIndex = static_cast<long>(index);
+    std::vector<long> suppressed = pattern->SuppressedIndices.getValues();
+    auto it = std::find(suppressed.begin(), suppressed.end(), suppressedIndex);
+    const bool alreadySuppressed = it != suppressed.end();
+    if (suppress == alreadySuppressed) {
+        return;
+    }
+
+    setupTransaction();
+    if (suppress) {
+        suppressed.push_back(suppressedIndex);
+    }
+    else {
+        suppressed.erase(
+            std::remove(suppressed.begin(), suppressed.end(), suppressedIndex),
+            suppressed.end()
+        );
+    }
+
+    std::sort(suppressed.begin(), suppressed.end());
+    suppressed.erase(std::unique(suppressed.begin(), suppressed.end()), suppressed.end());
+    pattern->SuppressedIndices.setValues(suppressed);
+    recomputeFeature();
+    updateInstanceControls();
 }
 
 // --- Task-Specific Logic ---
@@ -298,6 +450,7 @@ void TaskPatternParameters::onUpdateView(bool on)
     blockUpdate = !on;
     if (on) {
         PartGui::TaskPatternParameters::kickUpdateViewTimer();
+        updateInstanceControls();
     }
 }
 
@@ -356,7 +509,7 @@ void TaskPatternParameters::onSelectionChanged(const Gui::SelectionChanges& msg)
             auto* polarPattern = static_cast<PartDesign::PolarPattern*>(patternObj);
             polarPattern->Axis.setValue(selObj, directions);
         }
-        recomputeFeature();
+        recomputePatternFeature();
         updatePatternParameterUI();
     }
     exitReferenceSelectionMode();
@@ -364,6 +517,7 @@ void TaskPatternParameters::onSelectionChanged(const Gui::SelectionChanges& msg)
 
 TaskPatternParameters::~TaskPatternParameters()
 {
+    instanceControls.reset();
     showOriginAxes(false);         // Clean up temporary visibility
     exitReferenceSelectionMode();  // Ensure gates are removed etc.
     // ui unique_ptr handles deletion
@@ -386,6 +540,7 @@ void TaskPatternParameters::apply()
     // chance to fire. If the timer is active, it means a recompute is
     // pending.
     consumePendingUpdate();
+    updateInstanceControls();
 }
 
 Base::Vector3d TaskPatternParameters::getStartPoint() const

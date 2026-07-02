@@ -24,6 +24,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include <Gui/Selection/Selection.h>
 #include <Gui/TaskView/TaskDialog.h>
@@ -44,8 +45,15 @@ class LinkArrayPolar;
 
 class Ui_TaskLinkArrayParameters;
 
+namespace Gui
+{
+class View3DInventorViewer;
+}
+
 namespace PartGui
 {
+
+class PatternInstanceControls;
 
 class PartGuiExport TaskLinkArrayParameters: public Gui::TaskView::TaskBox,
                                              public Gui::SelectionObserver,
@@ -85,13 +93,20 @@ private:
     bool isUsefulLinkedObject(App::DocumentObject* obj) const;
     App::DocumentObject* getSelectedLinkedObject() const;
     void enterReferenceSelectionMode();
+    void setupInstanceControls(Gui::View3DInventorViewer* viewer);
+    void updateInstanceControls();
+    void setInstanceSuppressed(int index, bool suppress);
 
     std::unique_ptr<Ui_TaskLinkArrayParameters> ui;
+    std::unique_ptr<PatternInstanceControls> instanceControls;
     QWidget* proxy = nullptr;
+    Gui::View3DInventorViewer* instanceControlsViewer = nullptr;
     Part::LinkArray* array = nullptr;
     bool blockUpdate = false;
     bool linkedObjectSelectionMode = false;
     bool referenceSelectionMode = false;
+    std::vector<Base::Vector3d> instanceControlCenters;
+    std::vector<bool> instanceControlCentersValid;
 };
 
 class PartGuiExport TaskDlgLinkArrayParameters: public Gui::TaskView::TaskDialog
