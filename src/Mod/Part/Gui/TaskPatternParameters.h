@@ -139,6 +139,9 @@ protected:
         Part::LinearPatternDirection direction
     ) const;
     virtual Base::Vector3d transformLinearPatternDirection(const Base::Vector3d& direction) const;
+    virtual Base::Vector3d getLinearPatternLabelPlaneNormal(
+        Part::LinearPatternDirection direction
+    ) const;
     virtual void transformPolarPatternAxis(gp_Ax2& axis) const;
     virtual std::string buildDirectionReferencePythonString(
         const App::DocumentObject* obj,
