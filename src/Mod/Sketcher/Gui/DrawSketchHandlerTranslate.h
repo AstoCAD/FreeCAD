@@ -25,6 +25,9 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cmath>
+
 #include <QApplication>
 #include <map>
 #include <utility>
@@ -81,7 +84,7 @@ public:
         , cloneConstraints(false)
         , firstDirectionSymmetric(false)
         , secondDirectionSymmetric(false)
-        , numberOfCopies(0)
+        , numberOfCopies(1)
         , secondNumberOfCopies(1)
     {}
 
@@ -133,8 +136,10 @@ private:
                 sketchgui->getSketchObject(),
                 listOfGeoIds,
                 ShapeGeometry.size(),
-                numberOfCopies,
-                secondNumberOfCopies
+                listOfGeoIds.empty()
+                    ? 0
+                    : static_cast<int>(ShapeGeometry.size() / listOfGeoIds.size()),
+                1
             );
 
             if (deleteOriginal) {
@@ -275,58 +280,67 @@ private:
 
         ShapeGeometry.clear();
 
-        int numberOfCopiesToMake = numberOfCopies;
-        if (numberOfCopies == 0) {
-            numberOfCopiesToMake = 1;
-            deleteOriginal = 1;
-        }
-        else {
-            deleteOriginal = 0;
+        std::vector<std::pair<double, double>> copyOffsets;
+        bool transformOriginal = numberOfCopies == 1 && secondNumberOfCopies == 1;
+        if (transformOriginal) {
+            deleteOriginal = true;
+            copyOffsets.emplace_back(1.0, 0.0);
         }
 
-        std::vector<int> firstFactors;
-        firstFactors.reserve(
-            numberOfCopiesToMake + 1
-            + (firstDirectionSymmetric && numberOfCopies > 0 ? numberOfCopiesToMake : 0)
-        );
+        if (!transformOriginal) {
+            auto buildFactors = [](int elementCount, bool symmetric) {
+                elementCount = std::max(elementCount, 1);
+                std::vector<double> factors;
+                factors.reserve(elementCount);
 
-        for (int i = 0; i <= numberOfCopiesToMake; i++) {
-            firstFactors.push_back(i);
-        }
-
-        if (firstDirectionSymmetric && numberOfCopies > 0) {
-            for (int i = 1; i <= numberOfCopiesToMake; i++) {
-                firstFactors.push_back(-i);
-            }
-        }
-
-        std::vector<int> secondFactors;
-        secondFactors.reserve(
-            secondNumberOfCopies
-            + (secondDirectionSymmetric && secondNumberOfCopies > 1 ? secondNumberOfCopies - 1 : 0)
-        );
-
-        for (int k = 0; k < secondNumberOfCopies; k++) {
-            secondFactors.push_back(k);
-        }
-
-        if (secondDirectionSymmetric && secondNumberOfCopies > 1) {
-            for (int k = 1; k < secondNumberOfCopies; k++) {
-                secondFactors.push_back(-k);
-            }
-        }
-
-        std::vector<std::pair<int, int>> copyOffsets;
-        if (!firstFactors.empty() && !secondFactors.empty()) {
-            copyOffsets.reserve(firstFactors.size() * secondFactors.size() - 1);
-        }
-
-        for (int secondFactor : secondFactors) {
-            for (int firstFactor : firstFactors) {
-                if (firstFactor == 0 && secondFactor == 0) {
-                    continue;
+                if (!symmetric) {
+                    for (int i = 0; i < elementCount; i++) {
+                        factors.push_back(i);
+                    }
+                    return factors;
                 }
-                copyOffsets.emplace_back(firstFactor, secondFactor);
+
+                int sideCount = elementCount / 2;
+                bool hasOriginal = elementCount % 2 == 1;
+                if (hasOriginal) {
+                    factors.push_back(0.0);
+                }
+
+                for (int i = 1; i <= sideCount; i++) {
+                    factors.push_back(hasOriginal ? i : i - 0.5);
+                }
+
+                for (int i = 1; i <= sideCount; i++) {
+                    factors.push_back(hasOriginal ? -i : 0.5 - i);
+                }
+
+                return factors;
+            };
+
+            auto hasOriginalFactor = [](const std::vector<double>& factors) {
+                return std::any_of(factors.begin(), factors.end(), [](double factor) {
+                    return std::abs(factor) < Precision::Confusion();
+                });
+            };
+
+            std::vector<double> firstFactors = buildFactors(numberOfCopies, firstDirectionSymmetric);
+            std::vector<double> secondFactors =
+                buildFactors(secondNumberOfCopies, secondDirectionSymmetric);
+
+            deleteOriginal = !(hasOriginalFactor(firstFactors) && hasOriginalFactor(secondFactors));
+
+            if (!firstFactors.empty() && !secondFactors.empty()) {
+                copyOffsets.reserve(firstFactors.size() * secondFactors.size() - 1);
+            }
+
+            for (double secondFactor : secondFactors) {
+                for (double firstFactor : firstFactors) {
+                    if (std::abs(firstFactor) < Precision::Confusion()
+                        && std::abs(secondFactor) < Precision::Confusion()) {
+                        continue;
+                    }
+                    copyOffsets.emplace_back(firstFactor, secondFactor);
+                }
             }
         }
 
@@ -544,7 +558,7 @@ template<>
 void DSHTranslateController::secondKeyShortcut()
 {
     auto value = toolWidget->getParameter(WParameter::First);
-    if (value > 0.0) {
+    if (value > 1.0) {
         toolWidget->setParameterWithoutPassingFocus(WParameter::First, value - 1);
     }
 }
@@ -591,7 +605,7 @@ void DSHTranslateController::configureToolWidget()
             WCheckbox::SecondBox,
             QApplication::translate(
                 "TaskSketcherTool_c2_translate",
-                "Create additional copies in the opposite translation direction."
+                "Distribute the elements symmetrically around the original position."
             )
         );
     }
@@ -618,18 +632,18 @@ void DSHTranslateController::configureToolWidget()
 
     toolWidget->setParameterLabel(
         WParameter::First,
-        QApplication::translate("TaskSketcherTool_p3_translate", "Copies (+'U'/-'J')")
+        QApplication::translate("TaskSketcherTool_p3_translate", "Elements (+'U'/-'J')")
     );
     toolWidget->setParameterLabel(
         WParameter::Second,
         QApplication::translate("TaskSketcherTool_p5_translate", "Rows (+'R'/-'F')")
     );
 
-    toolWidget->setParameter(OnViewParameter::First, 0.0);
+    toolWidget->setParameter(OnViewParameter::First, 1.0);
     toolWidget->setParameter(OnViewParameter::Second, 1.0);
     toolWidget->configureParameterUnit(OnViewParameter::First, Base::Unit());
     toolWidget->configureParameterUnit(OnViewParameter::Second, Base::Unit());
-    toolWidget->configureParameterMin(OnViewParameter::First, 0.0);      // NOLINT
+    toolWidget->configureParameterMin(OnViewParameter::First, 1.0);      // NOLINT
     toolWidget->configureParameterMin(OnViewParameter::Second, 1.0);     // NOLINT
     toolWidget->configureParameterMax(OnViewParameter::First, 9999.0);   // NOLINT
     toolWidget->configureParameterMax(OnViewParameter::Second, 9999.0);  // NOLINT
@@ -642,7 +656,7 @@ void DSHTranslateController::adaptDrawingToParameterChange(int parameterindex, d
 {
     switch (parameterindex) {
         case WParameter::First:
-            handler->numberOfCopies = floor(abs(value));
+            handler->numberOfCopies = std::max(1, static_cast<int>(floor(abs(value))));
             break;
         case WParameter::Second:
             handler->secondNumberOfCopies = floor(abs(value));
