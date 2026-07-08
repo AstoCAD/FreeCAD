@@ -826,6 +826,11 @@ bool DrawSketchHandler::renderTangentAutoConstraintHint() const
         return false;
     }
 
+    if (!areDirectionalAutoConstraintHintsVisible()) {
+        clearParallelPerpendicularHintDrawing();
+        return true;
+    }
+
     double halfLength = 1000.0 * sketchgui->getScaleFactor();
     const Base::Vector2d p1 = tangentAutoConstraintHint.start
         - halfLength * tangentAutoConstraintHint.direction;
@@ -1538,6 +1543,14 @@ void DrawSketchHandler::drawParallelPerpendicularHint(
     );
 }
 
+bool DrawSketchHandler::areDirectionalAutoConstraintHintsVisible() const
+{
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/Sketcher/General"
+    );
+    return hGrp->GetBool("ShowDirectionalAutoConstraintHints", true);
+}
+
 void DrawSketchHandler::resetParallelPerpendicularHint()
 {
     parallelPerpendicularRefGeoId = GeoEnum::GeoUndef;
@@ -1556,6 +1569,11 @@ void DrawSketchHandler::clearParallelPerpendicularHintDrawing() const
 
 void DrawSketchHandler::renderParallelPerpendicularHint() const
 {
+    if (!areDirectionalAutoConstraintHintsVisible()) {
+        clearParallelPerpendicularHintDrawing();
+        return;
+    }
+
     if (parallelPerpendicularRefGeoId == GeoEnum::GeoUndef) {
         clearParallelPerpendicularHintDrawing();
         return;
