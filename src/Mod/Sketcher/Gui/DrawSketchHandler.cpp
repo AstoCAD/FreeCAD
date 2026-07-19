@@ -965,7 +965,9 @@ bool DrawSketchHandler::seekTangentAutoConstraint(
     Base::Vector3d tmpDir(Dir.x, Dir.y, 0.f);                    // Direction of line
     Base::Vector3d tmpStart(Pos.x - Dir.x, Pos.y - Dir.y, 0.f);  // Start point
 
-    auto removeCoincidentConstraint = [&](int geoId, PointPos pos) {
+    auto removeCoincidentConstraint = [&](int completeGeometryIndex, PointPos pos) {
+        // Callers pass an index into getCompleteGeometry(); stored constraints use GeoIds.
+        int geoId = obj->getGeoIdFromCompleteGeometryIndex(completeGeometryIndex);
         std::erase_if(suggestedConstraints, [geoId, pos](const AutoConstraint& c) {
             return c.Type == Coincident && c.GeoId == geoId && c.PosId == pos;
         });
@@ -1154,19 +1156,17 @@ bool DrawSketchHandler::seekTangentAutoConstraint(
     }
 
     if (tangId != GeoEnum::GeoUndef) {
+        const int tangGeoId = obj->getGeoIdFromCompleteGeometryIndex(tangId);
         const bool isTangentHintMatch = tangentAutoConstraintHint.isValid
-            && tangId == tangentAutoConstraintHint.geoId
+            && tangGeoId == tangentAutoConstraintHint.geoId
             && tanPos == tangentAutoConstraintHint.posId;
         if (isTangentHintMatch && !isDirectionCloseToTangentHint(Dir)) {
             return false;
         }
 
-        if (tangId > getHighestCurveIndex()) {  // external Geometry
-            tangId = getHighestCurveIndex() - tangId;
-        }
         AutoConstraint constr;
         constr.Type = Tangent;
-        constr.GeoId = tangId;
+        constr.GeoId = tangGeoId;
         constr.PosId = tanPos;
         suggestedConstraints.push_back(constr);
         if (isTangentHintMatch) {
