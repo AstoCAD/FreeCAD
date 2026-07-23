@@ -245,7 +245,7 @@ void setGearJointCarrierMarkerIfAvailable(
         carrierMarkerName
     );
     if (!fullMarkerNameK.empty()) {
-        gearJoint->setMarkerK(fullMarkerNameK);
+        //gearJoint->setMarkerK(fullMarkerNameK);
     }
 }
 
