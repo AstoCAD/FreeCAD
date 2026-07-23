@@ -278,6 +278,8 @@ void AssemblyLink::onDocumentRestored()
 {
     App::Part::onDocumentRestored();
     updateContents();
+
+    App::Link::migrateLabelUtility(this, getLinkedObject2());
 }
 
 void AssemblyLink::updateParentJoints()
@@ -919,11 +921,4 @@ void AssemblyLink::onParentLabelChanged(App::DocumentObject* parent)
     }
 
     App::Link::updateLabelUtility(this, getLinkedObject2());
-}
-
-void AssemblyLink::onDocumentRestored()
-{
-    App::Part::onDocumentRestored();
-
-    App::Link::migrateLabelUtility(this, getLinkedObject2());
 }
