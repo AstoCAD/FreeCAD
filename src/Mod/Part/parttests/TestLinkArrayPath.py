@@ -19,6 +19,7 @@ class TestLinkArrayPath(unittest.TestCase):
         )
         self.array = self.doc.addObject("Part::LinkArrayPath", "Array")
         self.array.LinkedObject = source
+        self.array.ShowElement = False
         self.array.Path = (self.path, ["Edge1", "Edge2"])
 
     def tearDown(self):

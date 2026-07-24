@@ -350,10 +350,10 @@ void Workbench::activated()
     const char* Transformed[] = {
         "PartDesign_Mirrored",
         "PartDesign_LinearPattern",
+        "PartDesign_PolarPattern",
         "PartDesign_CircularPattern",
         "PartDesign_PathPattern",
         "PartDesign_PointPattern",
-        "PartDesign_PolarPattern",
         "PartDesign_MultiTransform",
         nullptr
     };
@@ -534,10 +534,10 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
 
     *part << "PartDesign_Mirrored"
           << "PartDesign_LinearPattern"
+          << "PartDesign_PolarPattern"
           << "PartDesign_CircularPattern"
           << "PartDesign_PathPattern"
           << "PartDesign_PointPattern"
-          << "PartDesign_PolarPattern"
           << "PartDesign_MultiTransform";
 
     return root;

@@ -81,7 +81,7 @@ Transformed::Transformed()
         (std::vector<long>()),
         "Transformation",
         App::Prop_None,
-        "Indices of generated pattern instances that are suppressed"
+        "Indices of generated pattern instances that are suppressed."
     );
 }
 
@@ -288,6 +288,23 @@ bool Transformed::isTransformationSuppressed(int index) const
 
     const auto suppressed = SuppressedIndices.getValues();
     return std::ranges::find(suppressed, static_cast<long>(index)) != suppressed.end();
+}
+
+void Transformed::setTransformationSuppressed(int index, bool suppress)
+{
+    if (index < 0 || isTransformationSuppressed(index) == suppress) {
+        return;
+    }
+    auto suppressed = SuppressedIndices.getValues();
+    if (suppress) {
+        suppressed.push_back(index);
+    }
+    else {
+        std::erase(suppressed, static_cast<long>(index));
+    }
+    std::ranges::sort(suppressed);
+    suppressed.erase(std::unique(suppressed.begin(), suppressed.end()), suppressed.end());
+    SuppressedIndices.setValues(suppressed);
 }
 
 const std::list<gp_Trsf> Transformed::getFilteredTransformations(

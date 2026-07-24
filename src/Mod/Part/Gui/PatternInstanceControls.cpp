@@ -296,12 +296,12 @@ void PatternInstanceControls::updateButton(ButtonInfo& info) const
 
     if (info.instance.suppressed) {
         info.button->setIcon(restoreIcon());
-        info.button->setToolTip(tr("Restore instance"));
+        info.button->setToolTip(tr("Restores this instance"));
         return;
     }
 
     info.button->setIcon(suppressIcon());
-    info.button->setToolTip(tr("Suppress instance"));
+    info.button->setToolTip(tr("Suppresses this instance"));
 }
 
 void PatternInstanceControls::attachCameraSensor()
