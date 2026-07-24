@@ -144,7 +144,7 @@ void PatternPathParametersWidget::getPath(App::DocumentObject*& object,
 void PatternPathParametersWidget::updatePathButton()
 {
     if (!pathProperty || !pathProperty->getValue()) {
-        ui->pathButton->setText(tr("Select path..."));
+        ui->pathButton->setText(tr("Select path…"));
         return;
     }
 
