@@ -236,8 +236,23 @@ void QGIViewSpreadsheet::updateView(bool update)
         // completing a Qt event. Keep the normal view mechanics, but defer SVG regeneration until
         // edit mode is closed.
         QGIView::updateView(update);
+
+        // QGIViewSymbol::updateView() normally updates the SVG item's scale in drawSvg(). Since
+        // drawing is deliberately skipped above, keep its scale in sync explicitly so the editor
+        // transform follows scale changes made while the task panel is open.
+        auto* view = dynamic_cast<TechDraw::DrawViewSpreadsheet*>(getViewObject());
+        auto* viewProvider =
+            dynamic_cast<ViewProviderSpreadsheet*>(getViewProvider(view));
+        if (view && viewProvider) {
+            const double scale = viewProvider->LegacyScaling.getValue()
+                ? legacyScaler(view)
+                : symbolScaler(view);
+            m_svgItem->setScale(scale);
+        }
+
         updateEditorTransform();
         m_svgItem->setVisible(!m_editorGroup || !m_editorGroup->isVisible());
+        drawBorder();
         return;
     }
 
@@ -433,6 +448,7 @@ void QGIViewSpreadsheet::createEditor()
                     return;
                 }
                 updateEditorGeometry();
+                drawBorder();
                 Q_EMIT columnResized(section, newSize);
             });
     connect(m_table->verticalHeader(),
@@ -443,6 +459,7 @@ void QGIViewSpreadsheet::createEditor()
                     return;
                 }
                 updateEditorGeometry();
+                drawBorder();
                 Q_EMIT rowResized(section, newSize);
             });
     connect(m_table->horizontalHeader(),
@@ -623,6 +640,7 @@ void QGIViewSpreadsheet::populateEditor()
     updateEditorButtons();
     updateEditorGeometry();
     updateEditorTransform();
+    drawBorder();
 }
 
 void QGIViewSpreadsheet::updateCellItem(int tableRow, int tableColumn)
@@ -693,6 +711,27 @@ void QGIViewSpreadsheet::updateEditorGeometry()
     m_addColumnProxy->setPos(
         0.5 * cellWidth + 6,
         -0.5 * cellHeight - 0.5 * (headerHeight + columnButtonSize.height()));
+}
+
+QRectF QGIViewSpreadsheet::frameRect() const
+{
+    if (!m_isEditing || !m_editorGroup || !m_table || !m_editorGroup->isVisible()) {
+        return QGIViewSymbol::frameRect();
+    }
+
+    int cellWidth = 0;
+    for (int column = 0; column < m_table->columnCount(); ++column) {
+        cellWidth += m_table->columnWidth(column);
+    }
+    int cellHeight = 0;
+    for (int row = 0; row < m_table->rowCount(); ++row) {
+        cellHeight += m_table->rowHeight(row);
+    }
+
+    // The table proxy also contains editor-only headers and structure buttons. Use the centered
+    // cell area so the view decorations match the rendered Spreadsheet content.
+    const QRectF cellArea(-0.5 * cellWidth, -0.5 * cellHeight, cellWidth, cellHeight);
+    return mapFromItem(m_editorGroup, cellArea).boundingRect();
 }
 
 void QGIViewSpreadsheet::updateEditorTransform()

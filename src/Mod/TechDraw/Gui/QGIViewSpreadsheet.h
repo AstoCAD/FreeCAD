@@ -82,6 +82,7 @@ Q_SIGNALS:
 
 protected:
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
+    QRectF frameRect() const override;
 
 private:
     enum class PendingStructureAction
