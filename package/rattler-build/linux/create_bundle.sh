@@ -66,7 +66,7 @@ if ! "${conda_env}/bin/AstoCADcmd" --safe-mode --version; then
 fi
 
 echo "Running FreeCAD bundled Pivy smoke test..."
-if ! "${conda_env}/bin/freecadcmd" --safe-mode --console "import pivy; from pivy import coin; print(pivy.__file__); print(coin.SoDB.getVersion())"; then
+if ! "${conda_env}/bin/AstoCADcmd" --safe-mode --console "import pivy; from pivy import coin; print(pivy.__file__); print(coin.SoDB.getVersion())"; then
     echo "FreeCAD bundled Pivy smoke test failed; the Linux bundle cannot import the bundled Coin/Pivy runtime."
     exit 1
 fi
