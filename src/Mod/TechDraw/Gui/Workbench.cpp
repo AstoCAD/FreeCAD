@@ -299,7 +299,6 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     views->setCommand("TechDraw Views");
     *views << "TechDraw_View";
     *views << "TechDraw_BrokenView";
-    *views << "TechDraw_ActiveView";
     *views << "TechDraw_SectionGroup";
     *views << "TechDraw_DetailView";
     *views << "TechDraw_SpreadsheetView";
@@ -391,7 +390,6 @@ Gui::ToolBarItem* Workbench::setupCommandBars() const
     Gui::ToolBarItem* views = new Gui::ToolBarItem(root);
     views->setCommand("Views");
     *views << "TechDraw_View";
-    *views << "TechDraw_ActiveView";
     *views << "TechDraw_SectionGroup";
     *views << "TechDraw_DetailView";
     *views << "TechDraw_DraftView";
