@@ -2,8 +2,6 @@
 
 """Shared exact helical and annular geometry primitives."""
 
-from dataclasses import dataclass, replace
-import bisect
 import math
 
 import FreeCAD

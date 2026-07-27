@@ -5,9 +5,28 @@
 import math
 
 import FreeCAD
-import Part
 
-from stairdesigner import geometry
+from .geometry_core import (
+    BLONDEL_MAXIMUM,
+    BLONDEL_MINIMUM,
+    assign_section_elevations,
+    distribute_treads,
+    flight_stair_metrics,
+    riser_stations,
+    tread_goings,
+)
+from .geometry_plan import (
+    balanced_partition_is_valid,
+    balanced_tread_faces,
+    fit_balanced_sections_to_footprint,
+    fit_tangent_sections_to_footprint,
+    make_stair_footprint,
+    make_tangent_stair_footprint,
+    tangent_tread_faces,
+)
+from .geometry_stringer_path import automatic_stringer_width
+from .geometry_tangent import tangent_flight_sections
+from .geometry_winders import balanced_winder_sections
 
 
 QT_TRANSLATE_NOOP = FreeCAD.Qt.QT_TRANSLATE_NOOP
@@ -681,7 +700,7 @@ class StairBaseMixin:
                 if str(obj.StairType) == "Wood"
                 else [0.0] * total_treads
             )
-            riser_height, height_stations = geometry.riser_stations(
+            riser_height, height_stations = riser_stations(
                 floor_height,
                 total_risers,
                 extra_heights,
@@ -698,7 +717,7 @@ class StairBaseMixin:
                 for index, flight in enumerate(flights)
                 if not _is_landing_flight(flight)
             ]
-            stair_tread_counts = geometry.distribute_treads(
+            stair_tread_counts = distribute_treads(
                 [flight_lengths[index] for index in stair_indices],
                 total_treads,
             )
@@ -773,7 +792,7 @@ class StairBaseMixin:
                 ]
                 turn_types = [str(flight.TurnType) for flight in flights[1:]]
                 balanced_sections, average_going = (
-                    geometry.tangent_flight_sections(
+                    tangent_flight_sections(
                         flight_specs,
                         total_treads,
                         1.0,
@@ -787,16 +806,16 @@ class StairBaseMixin:
                         extra_widths=extra_widths,
                     )
                 )
-                balanced_footprint = geometry.make_tangent_stair_footprint(
+                balanced_footprint = make_tangent_stair_footprint(
                     flight_specs, turn_types, start_angle, end_angle
                 )
                 balanced_sections = (
-                    geometry.fit_tangent_sections_to_footprint(
+                    fit_tangent_sections_to_footprint(
                         balanced_sections, balanced_footprint
                     )
                 )
                 if has_landing_flight:
-                    partition_faces = geometry.tangent_tread_faces(
+                    partition_faces = tangent_tread_faces(
                         balanced_sections, flight_specs
                     )
                     winding_geometry_valid = (
@@ -804,10 +823,8 @@ class StairBaseMixin:
                         and all(face.isValid() for face in partition_faces)
                     )
                 else:
-                    partition_faces = geometry.balanced_tread_faces(
-                        balanced_sections, balanced_footprint
-                    )
-                    winding_geometry_valid = geometry.balanced_partition_is_valid(
+                    partition_faces = balanced_tread_faces(balanced_sections, balanced_footprint)
+                    winding_geometry_valid = balanced_partition_is_valid(
                         partition_faces,
                         balanced_footprint,
                         len(balanced_sections) - 1,
@@ -822,7 +839,7 @@ class StairBaseMixin:
                     )
                     for layout in layouts
                 ]
-                balanced_sections, average_going = geometry.balanced_winder_sections(
+                balanced_sections, average_going = balanced_winder_sections(
                     flight_specs,
                     total_treads,
                     1.0,
@@ -840,23 +857,19 @@ class StairBaseMixin:
                     ),
                     extra_widths=extra_widths,
                 )
-                balanced_footprint = geometry.make_stair_footprint(
-                    flight_specs, start_angle, end_angle
-                )
-                balanced_sections = geometry.fit_balanced_sections_to_footprint(
+                balanced_footprint = make_stair_footprint(flight_specs, start_angle, end_angle)
+                balanced_sections = fit_balanced_sections_to_footprint(
                     balanced_sections, balanced_footprint
                 )
-                partition_faces = geometry.balanced_tread_faces(
-                    balanced_sections, balanced_footprint
-                )
-                winding_geometry_valid = geometry.balanced_partition_is_valid(
+                partition_faces = balanced_tread_faces(balanced_sections, balanced_footprint)
+                winding_geometry_valid = balanced_partition_is_valid(
                     partition_faces,
                     balanced_footprint,
                     len(balanced_sections) - 1,
                 )
                 balanced_plan_shapes = partition_faces
             if balanced_sections:
-                balanced_sections = geometry.assign_section_elevations(
+                balanced_sections = assign_section_elevations(
                     balanced_sections,
                     height_stations,
                 )
@@ -873,7 +886,7 @@ class StairBaseMixin:
                     balanced_plan_shapes = None
 
             if balanced_sections is None:
-                average_going, _goings = geometry.tread_goings(
+                average_going, _goings = tread_goings(
                     sum(flight_lengths[index] for index in stair_indices),
                     total_treads,
                     extra_widths,
@@ -893,15 +906,15 @@ class StairBaseMixin:
             obj.TreadWidth = average_going
             obj.BlondelValue = blondel_value
             obj.BlondelCompliant = (
-                geometry.BLONDEL_MINIMUM
+                BLONDEL_MINIMUM
                 <= blondel_value
-                <= geometry.BLONDEL_MAXIMUM
+                <= BLONDEL_MAXIMUM
             )
             obj.setEditorMode(
                 "StringerWidth", 0 if obj.StringerCustomWidth else 1
             )
             if not obj.StringerCustomWidth:
-                obj.StringerWidth = geometry.automatic_stringer_width(
+                obj.StringerWidth = automatic_stringer_width(
                     riser_height,
                     average_going,
                     _quantity_value(obj.StepThickness),
@@ -1050,13 +1063,13 @@ class StairBaseMixin:
             for height in section_heights:
                 elevation += height
                 section_top_elevations.append(elevation)
-            metrics = geometry.flight_stair_metrics(
+            metrics = flight_stair_metrics(
                 length,
                 tread_count,
                 riser_height,
                 flight_extras,
             )
-            _general_going, goings = geometry.tread_goings(
+            _general_going, goings = tread_goings(
                 length,
                 tread_count,
                 flight_extras,

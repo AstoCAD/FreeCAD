@@ -2,12 +2,10 @@
 
 """Stair and flight object factories."""
 
-import math
-
 import FreeCAD
-import Part
 
-from stairdesigner import geometry
+from .geometry_core import straight_stair_metrics
+from .geometry_straight import default_concrete_thickness
 
 
 QT_TRANSLATE_NOOP = FreeCAD.Qt.QT_TRANSLATE_NOOP
@@ -127,14 +125,14 @@ def make_stair(
     if FreeCAD.GuiUp:
         sketch.ViewObject.Visibility = False
 
-    flights = _make_component_group(stair, "FlightsGroup", "Flights", "stairs")
+    _make_component_group(stair, "FlightsGroup", "Flights", "stairs")
     _make_flight(stair, flight_length, width)
-    initial_metrics = geometry.straight_stair_metrics(
+    initial_metrics = straight_stair_metrics(
         floor_height,
         flight_length,
         steps,
     )
-    stair.ConcreteThickness = geometry.default_concrete_thickness(initial_metrics)
+    stair.ConcreteThickness = default_concrete_thickness(initial_metrics)
 
     stair.Proxy._updating = False
     stair.Proxy.rebuild(stair, allow_structure_changes=True)

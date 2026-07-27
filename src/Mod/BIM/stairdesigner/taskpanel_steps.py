@@ -2,15 +2,12 @@
 
 """Stair, step, riser, and selected-component task-panel sections."""
 
-import math
-from functools import partial
-
 import FreeCAD
 import FreeCADGui
-from PySide import QtCore, QtGui
+from PySide import QtGui
 
-from stairdesigner import objects as stair_objects
-from stairdesigner.geometry import BLONDEL_MAXIMUM, BLONDEL_MINIMUM
+from .geometry_core import BLONDEL_MAXIMUM, BLONDEL_MINIMUM
+from .object_components import _set_tread_properties
 
 
 translate = FreeCAD.Qt.translate
@@ -257,7 +254,7 @@ class StepPanelMixin:
                 name not in selected.PropertiesList
                 for name in ("ExtraWidth", "ExtraHeight")
             ):
-                stair_objects._set_tread_properties(selected)
+                _set_tread_properties(selected)
             self.selected_step_name.setText(
                 translate("BIM", "Step {0} / Riser {0}").format(
                     selected.Index

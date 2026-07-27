@@ -2,8 +2,7 @@
 
 """Wood tread, riser, and concrete stair solids."""
 
-from dataclasses import dataclass, replace
-import bisect
+from dataclasses import replace
 import math
 
 import FreeCAD

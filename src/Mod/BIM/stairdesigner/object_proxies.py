@@ -2,12 +2,9 @@
 
 """Flight, component-group, and view-provider proxies."""
 
-import math
+from importlib import import_module
 
 import FreeCAD
-import Part
-
-from stairdesigner import geometry
 
 
 QT_TRANSLATE_NOOP = FreeCAD.Qt.QT_TRANSLATE_NOOP
@@ -384,7 +381,7 @@ class ViewProviderStair:
         self.Object = vobj.Object
 
     def getIcon(self):
-        import Arch_rc
+        import_module("Arch_rc")
 
         return ":/icons/Arch_Stairs_Tree.svg"
 
@@ -402,10 +399,11 @@ class ViewProviderStair:
         if mode != 0:
             return None
         import FreeCADGui
-        from stairdesigner.taskpanels import StairDesignerTaskPanel
+
+        task_panel = import_module("stairdesigner.taskpanel").StairDesignerTaskPanel
 
         if not FreeCADGui.Control.activeDialog():
-            FreeCADGui.Control.showDialog(StairDesignerTaskPanel(vobj.Object))
+            FreeCADGui.Control.showDialog(task_panel(vobj.Object))
         return True
 
     def unsetEdit(self, vobj, mode):
@@ -434,7 +432,7 @@ class ViewProviderComponentGroup:
         self.Object = vobj.Object
 
     def getIcon(self):
-        import Arch_rc
+        import_module("Arch_rc")
 
         return {
             "handrails": ":/icons/Arch_Handrail_Tree.svg",
@@ -458,13 +456,14 @@ class ViewProviderComponentGroup:
         if mode != 0:
             return None
         import FreeCADGui
-        from stairdesigner.taskpanels import StairDesignerTaskPanel
+
+        task_panel = import_module("stairdesigner.taskpanel").StairDesignerTaskPanel
 
         stair = vobj.Object.Document.getObject(vobj.Object.StairName)
         if stair and not FreeCADGui.Control.activeDialog():
             section = getattr(vobj.Object, "PanelSection", "stairs")
             FreeCADGui.Control.showDialog(
-                StairDesignerTaskPanel(
+                task_panel(
                     stair,
                     edit_object=vobj.Object,
                     active_section=section,

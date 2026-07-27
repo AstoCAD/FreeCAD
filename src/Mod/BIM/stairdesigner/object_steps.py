@@ -2,12 +2,23 @@
 
 """Step, riser, plan, and concrete object generation."""
 
-import math
-
 import FreeCAD
 import Part
 
-from stairdesigner import geometry
+from .geometry_core import balanced_section_top
+from .geometry_plan import balanced_tread_faces
+from .geometry_steps import (
+    balanced_plan_geometry,
+    make_balanced_concrete_shape,
+    make_balanced_riser_shape,
+    make_balanced_tread_shape,
+)
+from .geometry_straight import (
+    make_concrete_shape,
+    make_riser_shape,
+    make_tread_shape,
+    plan_segments,
+)
 
 
 QT_TRANSLATE_NOOP = FreeCAD.Qt.QT_TRANSLATE_NOOP
@@ -44,7 +55,7 @@ class StairStepsMixin:
         lines = []
         if balanced_sections:
             lines.extend(
-                geometry.balanced_plan_geometry(
+                balanced_plan_geometry(
                     balanced_sections, balanced_footprint
                 )
             )
@@ -64,7 +75,7 @@ class StairStepsMixin:
                     ),
                     placement.Rotation,
                 )
-                for start, end in geometry.plan_segments(
+                for start, end in plan_segments(
                     layout["metrics"],
                     layout["width"],
                     nosing,
@@ -162,7 +173,7 @@ class StairStepsMixin:
                         back_extension = step_riser_overlap
                         if not stair.PriorityToRiser:
                             back_extension += riser_thickness
-                tread_shape = geometry.make_tread_shape(
+                tread_shape = make_tread_shape(
                     local_index,
                     metrics,
                     layout["width"],
@@ -195,7 +206,7 @@ class StairStepsMixin:
                 riser.Label = f"{translate('BIM', 'Riser')} {generated_index + 1}"
                 riser.Index = generated_index + 1
                 riser.FlightIndex = layout["index"] + 1
-                riser.Shape = geometry.make_riser_shape(
+                riser.Shape = make_riser_shape(
                     local_index,
                     metrics,
                     layout["width"],
@@ -229,7 +240,7 @@ class StairStepsMixin:
     ):
         tread_count = len(sections) - 1
         riser_height = _quantity_value(stair.RiserHeight)
-        base_faces = plan_shapes or geometry.balanced_tread_faces(
+        base_faces = plan_shapes or balanced_tread_faces(
             sections, footprint
         )
         for index, (front, rear, base_face) in enumerate(
@@ -250,11 +261,11 @@ class StairStepsMixin:
                     back_extension = step_riser_overlap
                     if not stair.PriorityToRiser:
                         back_extension += riser_thickness
-            tread_shape = geometry.make_balanced_tread_shape(
+            tread_shape = make_balanced_tread_shape(
                 front,
                 rear,
                 footprint,
-                geometry.balanced_section_top(
+                balanced_section_top(
                     front, index, riser_height
                 ),
                 step_thickness,
@@ -284,11 +295,11 @@ class StairStepsMixin:
         for generated_index, (riser, (index, section)) in enumerate(
             zip(risers, riser_sections)
         ):
-            top = geometry.balanced_section_top(
+            top = balanced_section_top(
                 section, index, riser_height
             )
             previous_top = (
-                geometry.balanced_section_top(
+                balanced_section_top(
                     sections[index - 1],
                     index - 1,
                     riser_height,
@@ -332,7 +343,7 @@ class StairStepsMixin:
             )
             riser.Index = generated_index + 1
             riser.FlightIndex = section.flight_index + 1
-            riser.Shape = geometry.make_balanced_riser_shape(
+            riser.Shape = make_balanced_riser_shape(
                 section,
                 base,
                 height,
@@ -367,7 +378,7 @@ class StairStepsMixin:
         if not concrete:
             return
         if balanced_sections:
-            result = geometry.make_balanced_concrete_shape(
+            result = make_balanced_concrete_shape(
                 balanced_sections,
                 balanced_footprint,
                 _quantity_value(stair.RiserHeight),
@@ -389,7 +400,7 @@ class StairStepsMixin:
         else:
             shapes = []
             for index, layout in enumerate(layouts):
-                shape = geometry.make_concrete_shape(
+                shape = make_concrete_shape(
                     layout["metrics"],
                     layout["width"],
                     _quantity_value(stair.ConcreteThickness),

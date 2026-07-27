@@ -2,15 +2,12 @@
 
 """Handrail task-panel controls and side selection."""
 
-import math
 from functools import partial
 
 import FreeCAD
-import FreeCADGui
 from PySide import QtCore, QtGui
 
-from stairdesigner import objects as stair_objects
-from stairdesigner.geometry import BLONDEL_MAXIMUM, BLONDEL_MINIMUM
+from .object_utils import get_flights
 
 
 translate = FreeCAD.Qt.translate
@@ -247,7 +244,7 @@ class HandrailPanelMixin:
         self.handrail_tree.clear()
         self.handrail_flight_editors = []
         self.handrail_all_editors = {}
-        flights = stair_objects.get_flights(self.stair)
+        flights = get_flights(self.stair)
         if len(flights) > 1:
             root = QtGui.QTreeWidgetItem(self.handrail_tree)
             root.setText(0, translate("BIM", "All"))

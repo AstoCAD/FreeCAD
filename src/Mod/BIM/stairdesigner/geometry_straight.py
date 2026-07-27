@@ -2,17 +2,10 @@
 
 """Straight-flight tread, riser, concrete, and plan primitives."""
 
-from dataclasses import dataclass, replace
-import bisect
 import math
 
 import FreeCAD
 import Part
-
-from .geometry_core import (
-    riser_heights,
-    tread_goings,
-)
 
 def make_tread_shape(
     index,

@@ -28,8 +28,8 @@ class Arch_StairDesigner:
 
     def Activated(self):
         import Draft
-        from stairdesigner import make_stair
-        from stairdesigner.taskpanels import StairDesignerTaskPanel
+        from stairdesigner.object_factory import make_stair
+        from stairdesigner.taskpanel import StairDesignerTaskPanel
 
         doc = FreeCAD.ActiveDocument
         gui_doc = FreeCADGui.ActiveDocument
