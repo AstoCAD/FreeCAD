@@ -3,14 +3,18 @@
 """Multi-flight tree construction and editing."""
 
 import math
-from functools import partial
 
 import FreeCAD
-import FreeCADGui
 from PySide import QtCore, QtGui
 
-from stairdesigner import objects as stair_objects
-from stairdesigner.geometry import BLONDEL_MAXIMUM, BLONDEL_MINIMUM
+from .object_factory import resize_flights
+from .object_utils import (
+    get_flights,
+    linked_circular_radii,
+    linked_flight_side_lengths_for_difference,
+    straight_turn_side_difference,
+    sync_all_flight_side_lengths,
+)
 
 
 translate = FreeCAD.Qt.translate
@@ -44,7 +48,7 @@ class FlightPanelMixin:
     def _populate_flight_tree(self):
         self.flight_tree.clear()
         self.flight_editors = []
-        flights = stair_objects.get_flights(self.stair)
+        flights = get_flights(self.stair)
         single_flight = len(flights) == 1
         all_straight = all(
             str(flight.FlightType) == "Straight" for flight in flights
@@ -427,7 +431,7 @@ class FlightPanelMixin:
         )
         signed_length_difference = 0.0
         if incoming_straight_turn:
-            turn_difference = stair_objects.straight_turn_side_difference(
+            turn_difference = straight_turn_side_difference(
                 record["width"].value(),
                 previous_record["width"].value(),
                 record["angle"].value(),
@@ -437,7 +441,7 @@ class FlightPanelMixin:
                 turn_difference = -turn_difference
             signed_length_difference += turn_difference
         if straight_turn:
-            turn_difference = stair_objects.straight_turn_side_difference(
+            turn_difference = straight_turn_side_difference(
                 record["width"].value(),
                 next_record["width"].value(),
                 next_record["angle"].value(),
@@ -462,7 +466,7 @@ class FlightPanelMixin:
             signed_length_difference -= record["width"].value() * math.tan(
                 math.radians(record["end_angle"].value())
             )
-        left, right = stair_objects.linked_flight_side_lengths_for_difference(
+        left, right = linked_flight_side_lengths_for_difference(
             record["left_length"].value(),
             record["right_length"].value(),
             signed_length_difference,
@@ -478,7 +482,7 @@ class FlightPanelMixin:
 
     def _sync_flight_radius_editors(self, index, driver=None):
         record = self.flight_editors[index]
-        inner, outer = stair_objects.linked_circular_radii(
+        inner, outer = linked_circular_radii(
             record["inner_radius"].value(),
             record["outer_radius"].value(),
             record["width"].value(),
@@ -497,8 +501,8 @@ class FlightPanelMixin:
             return
         self._loading = True
         try:
-            flights = stair_objects.get_flights(self.stair)
-            stair_objects.resize_flights(self.stair, len(flights) + 1)
+            flights = get_flights(self.stair)
+            resize_flights(self.stair, len(flights) + 1)
             self.flight = self._first_flight()
             self._populate_flight_tree()
             if hasattr(self, "stringer_tree"):
@@ -529,13 +533,13 @@ class FlightPanelMixin:
                 translate("BIM", "Delete Flight"),
             )
             delete_action.setEnabled(
-                len(stair_objects.get_flights(self.stair)) > 1
+                len(get_flights(self.stair)) > 1
             )
             delete_action.triggered.connect(self._remove_flight)
         menu.exec_(self.flight_tree.viewport().mapToGlobal(position))
 
     def _remove_flight(self):
-        flights = stair_objects.get_flights(self.stair)
+        flights = get_flights(self.stair)
         if self._loading or len(flights) <= 1:
             return
         selected = self.flight_tree.currentItem()
@@ -554,12 +558,12 @@ class FlightPanelMixin:
         try:
             self.stair.FlightsGroup.removeObject(selected_flight)
             self.stair.Document.removeObject(selected_flight.Name)
-            remaining = stair_objects.get_flights(self.stair)
+            remaining = get_flights(self.stair)
             if str(remaining[0].FlightType) == "Straight":
                 remaining[0].Angle = 0.0
             for index, flight in enumerate(remaining):
                 flight.Label = f"{translate('BIM', 'Flight')} {index + 1}"
-            stair_objects.sync_all_flight_side_lengths(self.stair)
+            sync_all_flight_side_lengths(self.stair)
             self.flight = self._first_flight()
             self._populate_flight_tree()
             if hasattr(self, "stringer_tree"):

@@ -2,42 +2,45 @@
 
 """Tests for the BIM Stair Designer object model."""
 
+from importlib import import_module
 import math
 
 import FreeCAD
 import Part
 
 from bimtests import TestArchBase
-from stairdesigner import make_stair
-from stairdesigner.geometry import (
+from stairdesigner.geometry_core import (
     BalancedSection,
-    _circular_stringer_data,
-    _section_band_faces,
-    _stringer_elevations,
+    distribute_treads,
+    straight_stair_metrics,
+)
+from stairdesigner.geometry_plan import (
     balanced_partition_is_valid,
     balanced_tread_faces,
-    balanced_winder_sections,
-    distribute_treads,
     fit_balanced_sections_to_footprint,
     fit_tangent_sections_to_footprint,
+    make_stair_footprint,
+    make_tangent_stair_footprint,
+    tangent_tread_faces,
+)
+from stairdesigner.geometry_steps import (
+    _section_band_faces,
     make_balanced_concrete_shape,
     make_balanced_riser_shape,
     make_balanced_tread_shape,
-    make_housed_stringer_shape,
-    make_stair_footprint,
-    make_tangent_stair_footprint,
-    straight_stair_metrics,
+)
+from stairdesigner.geometry_stringer_path import (
+    _circular_stringer_data,
+    _stringer_elevations,
     stringer_flight_runs,
-    tangent_flight_sections,
-    tangent_tread_faces,
 )
-from stairdesigner.objects import (
-    StairProxy,
-    ViewProviderComponentGroup,
-    get_flights,
-    resize_flights,
-    sync_all_flight_side_lengths,
-)
+from stairdesigner.geometry_stringer_shapes import make_housed_stringer_shape
+from stairdesigner.geometry_tangent import tangent_flight_sections
+from stairdesigner.geometry_winders import balanced_winder_sections
+from stairdesigner.object_factory import make_stair, resize_flights
+from stairdesigner.object_proxies import ViewProviderComponentGroup
+from stairdesigner.object_stair import StairProxy
+from stairdesigner.object_utils import get_flights, sync_all_flight_side_lengths
 from stairdesigner.taskpanel_position import (
     _selected_vertices,
     _translated_stair_placement,
@@ -47,7 +50,7 @@ from stairdesigner.taskpanel_position import (
 class TestArchStairDesigner(TestArchBase.TestArchBase):
 
     def test_component_group_icons_are_available(self):
-        import Arch_rc
+        import_module("Arch_rc")
         from PySide import QtCore
 
         paths = {

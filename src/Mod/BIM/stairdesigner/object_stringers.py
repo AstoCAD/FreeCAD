@@ -5,9 +5,13 @@
 import math
 
 import FreeCAD
-import Part
 
-from stairdesigner import geometry
+from .geometry_stringer_path import (
+    planar_stringer_sections,
+    straight_stringer_sections,
+    stringer_flight_runs,
+)
+from .geometry_stringer_shapes import make_housed_stringer_shape, make_notched_stringer_shape
 
 
 QT_TRANSLATE_NOOP = FreeCAD.Qt.QT_TRANSLATE_NOOP
@@ -252,7 +256,7 @@ def _planar_stringer_runs(
         result.append(
             (
                 flight_index,
-                geometry.planar_stringer_sections(
+                planar_stringer_sections(
                     sections,
                     side,
                     right_origin,
@@ -475,7 +479,7 @@ class StairStringerMixin:
         group.Proxy.Section = "stringers"
 
         if balanced_sections:
-            flight_runs = geometry.stringer_flight_runs(
+            flight_runs = stringer_flight_runs(
                 balanced_sections,
                 [str(flight.FlightType) for flight in flights],
             )
@@ -484,7 +488,7 @@ class StairStringerMixin:
             flight_runs = [
                 (
                     0,
-                    geometry.straight_stringer_sections(
+                    straight_stringer_sections(
                         layout["metrics"],
                         layout["width"],
                         layout["tread_goings"],
@@ -603,7 +607,7 @@ class StairStringerMixin:
                     else 0.0
                 )
                 if stringer_type == "Housed stringer":
-                    part.Shape = geometry.make_housed_stringer_shape(
+                    part.Shape = make_housed_stringer_shape(
                         sections,
                         riser_height,
                         side,
@@ -617,7 +621,7 @@ class StairStringerMixin:
                         _quantity_value(stair.Nosing),
                     )
                 else:
-                    part.Shape = geometry.make_notched_stringer_shape(
+                    part.Shape = make_notched_stringer_shape(
                         sections,
                         riser_height,
                         _quantity_value(stair.StepThickness),

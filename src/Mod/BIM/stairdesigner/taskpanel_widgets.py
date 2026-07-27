@@ -2,16 +2,9 @@
 
 """Shared Stair Designer task-panel widgets and editors."""
 
-import math
-from functools import partial
-
 import FreeCAD
 import FreeCADGui
 from PySide import QtCore, QtGui
-
-from stairdesigner import objects as stair_objects
-from stairdesigner.geometry import BLONDEL_MAXIMUM, BLONDEL_MINIMUM
-
 
 translate = FreeCAD.Qt.translate
 

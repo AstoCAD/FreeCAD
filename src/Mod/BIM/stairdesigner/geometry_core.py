@@ -3,11 +3,7 @@
 """Core dimensions and shared stair geometry data."""
 
 from dataclasses import dataclass, replace
-import bisect
 import math
-
-import FreeCAD
-import Part
 
 BLONDEL_MINIMUM = 620.0
 BLONDEL_MAXIMUM = 640.0

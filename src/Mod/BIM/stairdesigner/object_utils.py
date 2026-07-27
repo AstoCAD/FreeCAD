@@ -5,9 +5,6 @@
 import math
 
 import FreeCAD
-import Part
-
-from stairdesigner import geometry
 
 
 QT_TRANSLATE_NOOP = FreeCAD.Qt.QT_TRANSLATE_NOOP
@@ -277,9 +274,7 @@ def sync_flight_side_lengths(stair, flight, driver=None):
         sync_circular_radii(flight, driver)
         return
     flights = get_flights(stair)
-    try:
-        index = flights.index(flight)
-    except ValueError:
+    if flight not in flights:
         return
     left, right = linked_flight_side_lengths_for_difference(
         _quantity_value(flight.LeftLength),

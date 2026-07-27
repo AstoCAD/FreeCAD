@@ -2,8 +2,6 @@
 
 """Handrail paths, rails, posts, and pickets."""
 
-from dataclasses import dataclass, replace
-import bisect
 import math
 
 import FreeCAD

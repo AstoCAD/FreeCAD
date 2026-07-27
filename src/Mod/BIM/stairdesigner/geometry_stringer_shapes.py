@@ -2,8 +2,6 @@
 
 """Housed and notched stringer solids."""
 
-from dataclasses import dataclass, replace
-import bisect
 import math
 
 import FreeCAD

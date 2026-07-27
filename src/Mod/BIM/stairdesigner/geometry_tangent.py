@@ -2,12 +2,7 @@
 
 """Tangential circular-flight path construction."""
 
-from dataclasses import dataclass, replace
-import bisect
 import math
-
-import FreeCAD
-import Part
 
 from .geometry_core import (
     BalancedSection,

@@ -2,8 +2,7 @@
 
 """Stringer paths, profiles, and flight-run preparation."""
 
-from dataclasses import dataclass, replace
-import bisect
+from dataclasses import replace
 import math
 
 import FreeCAD
@@ -15,7 +14,6 @@ from .geometry_core import (
     _cross,
     _dot,
     balanced_section_top,
-    tread_goings,
 )
 
 def straight_stringer_sections(

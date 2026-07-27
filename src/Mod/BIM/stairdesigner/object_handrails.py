@@ -7,7 +7,16 @@ import math
 import FreeCAD
 import Part
 
-from stairdesigner import geometry
+from .geometry_core import balanced_section_top
+from .geometry_handrails import (
+    handrail_picket_fractions,
+    make_handrail_path,
+    make_handrail_top_rail_shape,
+    make_handrail_vertical_member_shape,
+    sample_handrail_path,
+)
+from .geometry_steps import _local_step_expansion_faces, _section_band_faces
+from .geometry_stringer_path import straight_stringer_sections, stringer_flight_runs
 
 
 QT_TRANSLATE_NOOP = FreeCAD.Qt.QT_TRANSLATE_NOOP
@@ -177,7 +186,7 @@ class StairHandrailMixin:
         group.Proxy.Section = "handrails"
 
         if balanced_sections:
-            flight_runs = geometry.stringer_flight_runs(
+            flight_runs = stringer_flight_runs(
                 balanced_sections,
                 [str(flight.FlightType) for flight in flights],
             )
@@ -185,7 +194,7 @@ class StairHandrailMixin:
             flight_runs = [
                 (
                     0,
-                    geometry.straight_stringer_sections(
+                    straight_stringer_sections(
                         layouts[0]["metrics"],
                         layouts[0]["width"],
                         layouts[0]["tread_goings"],
@@ -234,7 +243,7 @@ class StairHandrailMixin:
             and balanced_plan_shapes
         ):
             for index, plan_shape in enumerate(balanced_plan_shapes):
-                elevation = geometry.balanced_section_top(
+                elevation = balanced_section_top(
                     balanced_sections[index],
                     index,
                     riser_height,
@@ -244,14 +253,14 @@ class StairHandrailMixin:
                     for face in plan_shape.Faces
                 )
             if stair.EndWithRiser:
-                terminal_elevation = geometry.balanced_section_top(
+                terminal_elevation = balanced_section_top(
                     balanced_sections[-1],
                     len(balanced_sections) - 1,
                     riser_height,
                 )
                 concrete_support_faces.extend(
                     (face, terminal_elevation)
-                    for face in geometry._local_step_expansion_faces(
+                    for face in _local_step_expansion_faces(
                         balanced_sections[-1],
                         balanced_sections[-1],
                         balanced_footprint,
@@ -264,7 +273,7 @@ class StairHandrailMixin:
                 )
                 concrete_support_faces.extend(
                     (face, terminal_elevation)
-                    for face in geometry._section_band_faces(
+                    for face in _section_band_faces(
                         balanced_sections[-1],
                         balanced_footprint,
                         -min(
@@ -407,7 +416,7 @@ class StairHandrailMixin:
                 ).get(
                     flight_index, sections
                 )
-                path = geometry.make_handrail_path(
+                path = make_handrail_path(
                     path_sections,
                     riser_height,
                     side,
@@ -430,7 +439,7 @@ class StairHandrailMixin:
                 )
                 if path is None:
                     continue
-                junction_path = geometry.make_handrail_path(
+                junction_path = make_handrail_path(
                     sections,
                     riser_height,
                     side,
@@ -451,7 +460,7 @@ class StairHandrailMixin:
                     if rail_shape == "Circular"
                     else rail_thickness
                 )
-                top_rail_shape = geometry.make_handrail_top_rail_shape(
+                top_rail_shape = make_handrail_top_rail_shape(
                     path,
                     rail_shape,
                     rail_width,
@@ -584,7 +593,7 @@ class StairHandrailMixin:
                     return max(elevations) if elevations else None
 
                 for post_index, fraction in enumerate((0.0, 1.0)):
-                    sample = geometry.sample_handrail_path(path, fraction)
+                    sample = sample_handrail_path(path, fraction)
                     attachment_sample = sample
                     corner_point = corner_post_points.get(
                         (side, flight_index, post_index)
@@ -592,7 +601,7 @@ class StairHandrailMixin:
                     if corner_point is not None:
                         sample = dict(sample)
                         sample["point"] = corner_point
-                    junction_sample = geometry.sample_handrail_path(
+                    junction_sample = sample_handrail_path(
                         junction_path or path, fraction
                     )
                     position_key = (
@@ -632,7 +641,7 @@ class StairHandrailMixin:
                             "side": side,
                             "element_index": post_index,
                             "shape": (
-                                geometry.make_handrail_vertical_member_shape(
+                                make_handrail_vertical_member_shape(
                                     sample["point"],
                                     sample["tangent"],
                                     bottom,
@@ -651,7 +660,7 @@ class StairHandrailMixin:
                         }
                     )
 
-                fractions = geometry.handrail_picket_fractions(
+                fractions = handrail_picket_fractions(
                     path["length"],
                     post_path_size,
                     picket_path_size,
@@ -660,7 +669,7 @@ class StairHandrailMixin:
                     ),
                 )
                 for picket_index, fraction in enumerate(fractions):
-                    sample = geometry.sample_handrail_path(path, fraction)
+                    sample = sample_handrail_path(path, fraction)
                     span = stringer_span(sample)
                     local_concrete_support = concrete_support(
                         sample,
@@ -694,7 +703,7 @@ class StairHandrailMixin:
                             "side": side,
                             "element_index": picket_index,
                             "shape": (
-                                geometry.make_handrail_vertical_member_shape(
+                                make_handrail_vertical_member_shape(
                                     sample["point"],
                                     sample["tangent"],
                                     bottom,

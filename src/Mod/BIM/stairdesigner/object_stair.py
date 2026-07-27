@@ -2,12 +2,7 @@
 
 """The assembled Stair document proxy."""
 
-import math
-
 import FreeCAD
-import Part
-
-from stairdesigner import geometry
 
 
 QT_TRANSLATE_NOOP = FreeCAD.Qt.QT_TRANSLATE_NOOP

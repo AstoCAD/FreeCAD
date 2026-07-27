@@ -2,7 +2,6 @@
 
 """Stair footprints, plan partitions, and plan geometry."""
 
-from dataclasses import dataclass, replace
 import bisect
 import math
 
