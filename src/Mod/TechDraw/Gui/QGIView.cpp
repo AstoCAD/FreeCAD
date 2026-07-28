@@ -24,6 +24,7 @@
 # include <QApplication>
 # include <QGraphicsSceneHoverEvent>
 # include <QGraphicsSceneMouseEvent>
+# include <QLineF>
 # include <QPainter>
 # include <QStyleOptionGraphicsItem>
 # include <QTransform>
@@ -166,6 +167,12 @@ void QGIView::alignTo(QGraphicsItem*item, const QString &alignment)
 
 QVariant QGIView::itemChange(GraphicsItemChange change, const QVariant &value)
 {
+    if ((change == ItemPositionHasChanged
+         || change == ItemScenePositionHasChanged)
+        && scene()) {
+        Q_EMIT positionChanged();
+    }
+
     if(change == ItemPositionChange && scene()) {
         QPointF newPos = value.toPointF();            //position within parent!
         TechDraw::DrawView* viewObj = getViewObject();
@@ -184,8 +191,17 @@ QVariant QGIView::itemChange(GraphicsItemChange change, const QVariant &value)
             }
         }
         else {
-            // For general views we check if we need to snap to a position
-            if (!(QApplication::keyboardModifiers() & Qt::AltModifier)) {
+            auto* sectionView =
+                dynamic_cast<TechDraw::DrawViewSection*>(viewObj);
+            if (sectionView
+                && sectionView->SectionPlacement.getValue() != 0) {
+                // Explicit section placement modes are persistent constraints,
+                // independent of general view snapping and the Alt modifier.
+                snapSectionView(sectionView, newPos);
+            }
+            // For general and free section views, check whether we need to
+            // snap temporarily to a position.
+            else if (!(QApplication::keyboardModifiers() & Qt::AltModifier)) {
                 if (!m_inhibitSnapOnPosChange) {
                     snapPosition(newPos);
                 }
@@ -404,7 +420,14 @@ void QGIView::snapSectionView(const TechDraw::DrawViewSection* sectionView,
         return;
     }
     arrowDirectionOnBase.Normalize();
-    double baseSize = Rez::guiX(baseView->getSizeAlongVector(arrowDirectionOnBase));
+    const long placementMode = sectionView->SectionPlacement.getValue();
+    Base::Vector3d constraintDirection = arrowDirectionOnBase;
+    if (placementMode == 1) {
+        constraintDirection = Base::Vector3d(
+            -arrowDirectionOnBase.y, arrowDirectionOnBase.x, 0.0);
+    }
+    double baseSize = Rez::guiX(
+        baseView->getSizeAlongVector(constraintDirection));
     double snapDist = baseSize * getScale() * Preferences::SnapLimitFactor();
 
     // find the scene position of the SO on the base view
@@ -435,6 +458,18 @@ void QGIView::snapSectionView(const TechDraw::DrawViewSection* sectionView,
             // check our alignment
     auto newSOPosition = DU::invertY(DU::toVector3d(newPosition)) + sectionSOOffset;
 
+    if (placementMode != 0) {
+        auto constrainedPosition = newSOPosition.Perpendicular(
+            baseSOScenePos, constraintDirection);
+        if ((constrainedPosition - baseSOScenePos).Length() < snapDist) {
+            constrainedPosition = baseSOScenePos;
+        }
+        auto netPosition = constrainedPosition - sectionSOOffset;
+        netPosition = DU::invertY(netPosition);
+        newPosition = DU::toQPointF(netPosition);
+        return;
+    }
+
     Base::Vector3d actualAlignmentVector = newSOPosition - baseSOScenePos;
     actualAlignmentVector.Normalize();
 
@@ -454,6 +489,23 @@ void QGIView::snapSectionView(const TechDraw::DrawViewSection* sectionView,
     }
 
     return;
+}
+
+void QGIView::applySectionPlacementConstraint()
+{
+    auto* sectionView =
+        dynamic_cast<TechDraw::DrawViewSection*>(getViewObject());
+    if (!sectionView || sectionView->SectionPlacement.getValue() == 0
+        || !scene()) {
+        return;
+    }
+    QPointF constrainedPosition = pos();
+    snapSectionView(sectionView, constrainedPosition);
+    if (QLineF(constrainedPosition, pos()).length() <= 1.0e-6) {
+        return;
+    }
+    setPos(constrainedPosition);
+    dragFinished();
 }
 
 Base::Vector3d  QGIView::projItemPagePos(DrawViewPart* item)
@@ -823,7 +875,8 @@ QRectF QGIView::frameRect() const
             child->type() != UserType::QGIVertex &&
             child->type() != UserType::QGICMark  &&
             child->type() != UserType::QGIViewDimension &&
-            child->type() != UserType::QGIViewBalloon) {
+            child->type() != UserType::QGIViewBalloon &&
+            child->type() != UserType::QGISectionConnector) {
             QRectF childRect = mapFromItem(child, child->boundingRect()).boundingRect();
             result = result.united(childRect);
         }
@@ -849,6 +902,7 @@ QRectF QGIView::customChildrenBoundingRect() const
             child->type() != UserType::QGCustomBorder &&
             child->type() != UserType::QGCustomLabel &&
             child->type() != UserType::QGICaption &&
+            child->type() != UserType::QGISectionConnector &&
             // we treat vertices as part of the boundingRect to allow loose vertices outside of the
             // area defined by the edges as in frameRect()
             // child->type() != UserType::QGIVertex &&
@@ -1107,10 +1161,20 @@ void QGIView::updateFrameVisibility()
     }
 }
 
+void QGIView::setFrameForcedVisible(bool visible)
+{
+    m_frameForcedVisible = visible;
+    updateFrameVisibility();
+}
+
 bool QGIView::shouldShowFrame() const
 {
     if (isExporting()) {
         return false;
+    }
+
+    if (m_frameForcedVisible) {
+        return true;
     }
 
     ViewFrameMode frameMode = PreferencesGui::getViewFrameMode();

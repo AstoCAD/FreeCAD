@@ -69,6 +69,7 @@
 #include <gp_Dir.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
+#include <gp_Vec.hxx>
 #include <limits>
 #include <sstream>
 
@@ -131,6 +132,38 @@ constexpr double stretchMinimum{EWTOLERANCE};
 constexpr double stretchMaximum{std::numeric_limits<double>::max()};
 constexpr double stretchStep{0.1};
 
+namespace
+{
+
+bool sectionPlaneIntersectsBox(const gp_Pln& plane, const Bnd_Box& box)
+{
+    if (box.IsVoid()) {
+        return false;
+    }
+
+    double xMin = 0.0;
+    double yMin = 0.0;
+    double zMin = 0.0;
+    double xMax = 0.0;
+    double yMax = 0.0;
+    double zMax = 0.0;
+    box.Get(xMin, yMin, zMin, xMax, yMax, zMax);
+    const gp_Pnt center((xMin + xMax) * 0.5,
+                        (yMin + yMax) * 0.5,
+                        (zMin + zMax) * 0.5);
+    const gp_Dir normal = plane.Axis().Direction();
+    const gp_Vec planeToCenter(plane.Location(), center);
+    const double centerDistance = planeToCenter.Dot(gp_Vec(normal));
+    const double projectedRadius =
+        std::abs(normal.X()) * (xMax - xMin) * 0.5
+        + std::abs(normal.Y()) * (yMax - yMin) * 0.5
+        + std::abs(normal.Z()) * (zMax - zMin) * 0.5;
+    return std::abs(centerDistance)
+        <= projectedRadius + box.GetGap() + EWTOLERANCE;
+}
+
+}  // namespace
+
 App::PropertyFloatConstraint::Constraints DrawViewSection::stretchRange = {
                             stretchMinimum, stretchMaximum, stretchStep};
 
@@ -139,6 +172,9 @@ App::PropertyFloatConstraint::Constraints DrawViewSection::stretchRange = {
 //===========================================================================
 
 PROPERTY_SOURCE(TechDraw::DrawViewSection, TechDraw::DrawViewPart)
+
+const char* DrawViewSection::SectionPlacementEnums[] = {
+    "Free", "Along section line", "Along view direction", nullptr};
 
 DrawViewSection::DrawViewSection()
     : m_waitingForCut(false)
@@ -199,6 +235,17 @@ DrawViewSection::DrawViewSection()
                       ggroup,
                       App::Prop_None,
                       "Use the cut shape from the base view instead of the original object");
+    ADD_PROPERTY_TYPE(SectionCutOnly,
+                      (false),
+                      sgroup,
+                      App::Prop_None,
+                      "Show only the geometry intersected by the section plane");
+    SectionPlacement.setEnums(SectionPlacementEnums);
+    ADD_PROPERTY_TYPE(SectionPlacement,
+                      ((long)0),
+                      sgroup,
+                      App::Prop_None,
+                      "Constrains placement of a straight-axis section view");
 
     // properties related to the display of the cut surface
     CutSurfaceDisplay.setEnums(CutSurfaceEnums);    //NOLINT
@@ -317,6 +364,11 @@ void DrawViewSection::onChanged(const App::Property* prop)
         return;
     }
 
+    if (prop == &SectionCutOnly || prop == &SectionPlacement) {
+        requestPaint();
+        return;
+    }
+
     if (prop == &FileHatchPattern) {
         replaceSvgIncluded(FileHatchPattern.getValue());
         requestPaint();
@@ -417,14 +469,14 @@ App::DocumentObjectExecReturn* DrawViewSection::execute()
         return DrawView::execute();     //NOLINT
     }
 
-    // is SectionOrigin valid?
+    // A section is defined by an infinite plane. Its origin does not need to
+    // be inside the source bounds, which is especially common when the base
+    // is another centered or rotated section view.
     Bnd_Box centerBox;
     BRepBndLib::AddOptimal(baseShape, centerBox);
     centerBox.SetGap(0.0);
-    Base::Vector3d orgPnt = SectionOrigin.getValue();
-
-    if (!isReallyInBox(gp_Pnt(orgPnt.x, orgPnt.y, orgPnt.z), centerBox)) {
-        Base::Console().warning("DVS: SectionOrigin doesn't intersect part in %s\n",
+    if (!sectionPlaneIntersectsBox(getSectionPlane(), centerBox)) {
+        Base::Console().warning("DVS: Section plane doesn't intersect part in %s\n",
                                 getNameInDocument());
     }
 
@@ -948,9 +1000,11 @@ std::pair<Base::Vector3d, Base::Vector3d> DrawViewSection::sectionLineEnds()
 
     Base::Vector3d sectionOrg = SectionOrigin.getValue() - getBaseDVP()->getOriginalCentroid();
     sectionOrg = getBaseDVP()->projectPoint(sectionOrg);// convert to base view CS
-    double halfSize = (getBaseDVP()->getSizeAlongVector(dir) / 2) * SectionLineStretch.getValue();
-    result.first = sectionOrg + dir * halfSize;
-    result.second = sectionOrg - dir * halfSize;
+    const auto bounds = getBaseDVP()->getBoundsAlongVector(dir);
+    const double originAlong = sectionOrg.Dot(dir);
+    const double stretch = SectionLineStretch.getValue();
+    result.first = sectionOrg + dir * (bounds.second - originAlong) * stretch;
+    result.second = sectionOrg + dir * (bounds.first - originAlong) * stretch;
 
     return result;
 }
@@ -1156,6 +1210,18 @@ gp_Ax2 DrawViewSection::getSectionCS() const
 //! return the center of the shape resulting from the cut operation
 Base::Vector3d DrawViewSection::getCutCentroid() const
 {
+    // SectionPlacement can be changed while a newly created section is still
+    // waiting for its first cut.  In that state m_cutPieces is either null or
+    // an empty compound, whose bounding box is void.  Use the section origin
+    // as the temporary anchor until the generated geometry becomes available.
+    if (m_cutPieces.IsNull()) {
+        return SectionOrigin.getValue();
+    }
+    Bnd_Box cutBounds;
+    BRepBndLib::AddOptimal(m_cutPieces, cutBounds, true, false);
+    if (cutBounds.IsVoid()) {
+        return SectionOrigin.getValue();
+    }
     gp_Pnt inputCenter = ShapeUtils::findCentroid(m_cutPieces, getProjectionCS());
     return Base::Vector3d(inputCenter.X(), inputCenter.Y(), inputCenter.Z());
 }

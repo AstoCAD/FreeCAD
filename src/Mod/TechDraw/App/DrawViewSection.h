@@ -105,6 +105,8 @@ public:
     App::PropertyBool FuseBeforeCut;
     App::PropertyBool TrimAfterCut;//new v021
     App::PropertyBool UsePreviousCut;   // new v022
+    App::PropertyBool SectionCutOnly;
+    App::PropertyEnumeration SectionPlacement;
 
     App::PropertyFloatConstraint SectionLineStretch;  // new v022
 //NOLINTEND
@@ -166,6 +168,7 @@ public:
 
     static const char* SectionDirEnums[];
     static const char* CutSurfaceEnums[];
+    static const char* SectionPlacementEnums[];
 
     virtual std::pair<Base::Vector3d, Base::Vector3d> sectionLineEnds();
     Base::Vector3d getSectionDirectionOnBaseView();
