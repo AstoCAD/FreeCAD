@@ -50,6 +50,17 @@ public:
     double zMax;
 };
 
+struct TechDrawExport AlignedSectionBoundaryInfo
+{
+    bool valid{false};
+    bool startPartial{false};
+    bool endPartial{false};
+    Base::Vector3d startPoint {0.0, 0.0, 0.0};
+    Base::Vector3d centerPoint {0.0, 0.0, 0.0};
+    Base::Vector3d endPoint {0.0, 0.0, 0.0};
+    Base::Vector3d normal {0.0, 0.0, 0.0};
+};
+
 //NOLINTBEGIN
 class TechDrawExport DrawComplexSection: public DrawViewSection
 {
@@ -63,6 +74,7 @@ public:
 //NOLINTBEGIN
     App::PropertyLink CuttingToolWireObject;
     App::PropertyEnumeration ProjectionStrategy;//Offset or Aligned
+    App::PropertyEnumeration SectionViewAlignment;
 //NOLINTEND
 
     TopoDS_Shape makeCuttingTool(double dMax) override;
@@ -89,7 +101,8 @@ public:
     TopoDS_Compound findSectionPlaneIntersections(const TopoDS_Shape& cutShape) override;
     TopoDS_Shape getShapeToIntersect() override;
     bool boxesIntersect(TopoDS_Face& face, TopoDS_Shape& shape);
-    TopoDS_Shape shapeShapeIntersect(const TopoDS_Shape& shape0, const TopoDS_Shape& shape1);
+    TopoDS_Shape shapeShapeIntersect(const TopoDS_Shape& shape0,
+                                     const TopoDS_Shape& shape1) const;
     std::vector<TopoDS_Face> faceShapeIntersect(const TopoDS_Face& face, const TopoDS_Shape& shape);
     TopoDS_Compound singleToolIntersections(const TopoDS_Shape& cutShape);
     TopoDS_Compound alignedToolIntersections(const TopoDS_Shape& cutShape);
@@ -112,6 +125,13 @@ public:
     bool validateSketchNormal(App::DocumentObject* sketchObject) const;
     bool validateProfileAlignment(const TopoDS_Wire& profileWire) const;
     static bool isProfileObject(App::DocumentObject* obj);
+    App::DocumentObject* getGeneratedProfile() const;
+    bool isPartialSection() const;
+    AlignedSectionBoundaryInfo alignedSectionBoundaryInfo() const;
+    std::pair<Base::Vector3d, Base::Vector3d>
+        partialSectionBoundaryPoints() const;
+    std::pair<Base::Vector3d, Base::Vector3d>
+        partialSectionBoundaryDirections() const;
     static bool isMultiSegmentProfile(App::DocumentObject* obj);
     static bool isLinearProfile(App::DocumentObject* obj);
     static bool isTrulyEmpty(const TopoDS_Shape& inShape);
@@ -138,6 +158,9 @@ public:
 public Q_SLOTS:
     void onSectionCutFinished() override;
 
+protected:
+    void unsetupObject() override;
+
 private:
     bool validateOffsetProfile(const TopoDS_Wire& profile,
                                Base::Vector3d direction,
@@ -156,14 +179,16 @@ private:
                                       const TopoDS_Face& segmentFace,
                                       int iPiece,
                                       Base::Vector3d uOrientedSegmentNormal,
-                                      double& pieceVertical);
+                                      double& pieceVertical,
+                                      const Base::Vector3d& segmentStart,
+                                      const Base::Vector3d& segmentDirection,
+                                      double& materialMinimum);
     TopoDS_Shape movePieceToPaperPlane(const TopoDS_Shape& piece, double sizeMax);
     TopoDS_Shape distributePiece(const TopoDS_Shape& piece,
-                           double pieceSize,
                            double verticalDisplace,
                            const gp_Vec& alignmentAxis,
                            const gp_Vec& gMovementVector,
-                           double baseDistance);
+                           double unfoldedPosition);
 
     std::vector<std::pair<int, Base::Vector3d> >
                     getSegmentViewDirections(const TopoDS_Wire& profileWire,
@@ -196,8 +221,14 @@ private:
     QFutureWatcher<void> m_alignWatcher;
     QFuture<void> m_alignFuture;
     bool m_waitingForAlign;
+    bool m_alignedBoundaryValid{false};
+    double m_alignedStartPosition{0.0};
+    double m_alignedCenterPosition{0.0};
+    double m_alignedEndPosition{0.0};
+    Base::Vector3d m_alignedMovementDirection {0.0, 0.0, 0.0};
 
     static const char* ProjectionStrategyEnums[];       //NOLINT
+    static const char* SectionViewAlignmentEnums[];     //NOLINT
 };
 
 using DrawComplexSectionPython = App::FeaturePythonT<DrawComplexSection>;

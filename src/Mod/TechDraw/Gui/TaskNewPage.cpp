@@ -351,7 +351,7 @@ bool TaskNewPage::isTemplateValid() const
 bool TaskNewPage::acceptPageCreation()
 {
     if (!isTemplateValid()) {
-        Base::Console().warning(tr("A valid template file must be selected to proceed.").toStdString().c_str());
+        Base::Console().warning("{}", tr("A valid template file must be selected to proceed.").toStdString());
         return false;
     }
 
@@ -359,7 +359,7 @@ bool TaskNewPage::acceptPageCreation()
 
     Gui::Document* doc = Gui::Application::Instance->activeDocument();
     if (!doc || !doc->getDocument()) {
-        Base::Console().warning(tr("No active document found.").toStdString().c_str());
+        Base::Console().warning("{}", tr("No active document found.").toStdString());
         return false;
     }
     App::Document* appDoc = doc->getDocument();
