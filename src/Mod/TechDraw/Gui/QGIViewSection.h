@@ -27,6 +27,10 @@
 #include "QGIViewPart.h"
 #include "QGIUserTypes.h"
 
+QT_BEGIN_NAMESPACE
+class QGraphicsPathItem;
+QT_END_NAMESPACE
+
 namespace TechDrawGui
 {
 
@@ -34,7 +38,7 @@ class TechDrawGuiExport QGIViewSection : public QGIViewPart
 {
 public:
 
-    QGIViewSection() = default;
+    QGIViewSection();
     ~QGIViewSection() override = default;
 
     void draw() override;
@@ -44,6 +48,15 @@ public:
 
 protected:
     void drawSectionFace();
+    QVariant itemChange(GraphicsItemChange change,
+                        const QVariant& value) override;
+
+private:
+    void updatePlacementConnector();
+    void connectPlacementConnectorToBase();
+
+    QGraphicsPathItem* m_placementConnector{};
+    QMetaObject::Connection m_basePositionConnection;
 };
 
 } // end namespace TechDrawGui

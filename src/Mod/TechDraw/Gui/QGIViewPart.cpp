@@ -22,6 +22,7 @@
 
 #include <QPainterPath>
 #include <QKeyEvent>
+#include <QLineF>
 #include <QGraphicsTransform>
 #include <QImage>
 #include <algorithm>
@@ -442,6 +443,22 @@ QGIViewPart::~QGIViewPart()
     delete m_dashedLineGenerator;
 }
 
+QPen QGIViewPart::centerLinePen(double width)
+{
+    QPen pen = m_dashedLineGenerator->getLinePen(
+        Preferences::CenterLineStyle(), width);
+    if (pen.style() == Qt::CustomDashLine) {
+        QVector<qreal> pattern = pen.dashPattern();
+        constexpr qreal patternScale = 0.25;
+        for (qreal& element : pattern) {
+            element *= patternScale;
+        }
+        pen.setDashPattern(pattern);
+        pen.setDashOffset(pen.dashOffset() * patternScale);
+    }
+    return pen;
+}
+
 QVariant QGIViewPart::itemChange(GraphicsItemChange change, const QVariant& value)
 {
     if (change == ItemSelectedHasChanged && scene()) {
@@ -613,14 +630,19 @@ void QGIViewPart::draw()
         return;
 
     drawViewPart();
+    drawViewDecorations();
+
+    prepareGeometryChange();
+}
+
+void QGIViewPart::drawViewDecorations()
+{
     drawAllHighlights();
     drawBreakLines();
     drawMatting();
     //this is old C/L
     drawCenterLines(true);//have to draw centerlines after border to get size correct.
     drawAllSectionLines();//same for section lines
-
-    prepareGeometryChange();
 }
 
 void QGIViewPart::drawViewPart()
@@ -772,12 +794,145 @@ void QGIViewPart::drawAllEdges()
     auto dvp(static_cast<TechDraw::DrawViewPart*>(getViewObject()));
     auto vp = static_cast<ViewProviderViewPart*>(getViewProvider(getViewObject()));
 
+    auto* complexSection =
+        dynamic_cast<TechDraw::DrawComplexSection*>(dvp);
+    QPointF partialStart;
+    QPointF partialEnd;
+    QPointF partialStartNormal;
+    QPointF partialEndNormal;
+    bool hasPartialBoundaries = false;
+    if (complexSection && complexSection->isPartialSection()
+        && complexSection->ProjectionStrategy.getValue() == 0) {
+        const auto boundaries =
+            complexSection->partialSectionBoundaryPoints();
+        const auto directions =
+            complexSection->partialSectionBoundaryDirections();
+        partialStart = QPointF(Rez::guiX(boundaries.first.x),
+                               Rez::guiX(boundaries.first.y));
+        partialEnd = QPointF(Rez::guiX(boundaries.second.x),
+                             Rez::guiX(boundaries.second.y));
+        partialStartNormal = QPointF(directions.first.x,
+                                     directions.first.y);
+        partialEndNormal = QPointF(directions.second.x,
+                                   directions.second.y);
+        hasPartialBoundaries =
+            QLineF(QPointF(), partialStartNormal).length() > 1.0e-6
+            && QLineF(QPointF(), partialEndNormal).length() > 1.0e-6;
+    }
+    auto isPartialBoundary = [&](const QPainterPath& path) {
+        if (!hasPartialBoundaries || path.elementCount() < 2) {
+            return false;
+        }
+        constexpr double boundaryTolerance = 0.05;
+        bool onStart = true;
+        bool onEnd = true;
+        for (int i = 0; i < path.elementCount(); ++i) {
+            const auto element = path.elementAt(i);
+            const QPointF point(element.x, element.y);
+            onStart = onStart
+                && std::abs(QPointF::dotProduct(
+                       point - partialStart, partialStartNormal))
+                    < boundaryTolerance;
+            onEnd = onEnd
+                && std::abs(QPointF::dotProduct(
+                       point - partialEnd, partialEndNormal))
+                    < boundaryTolerance;
+        }
+        return onStart || onEnd;
+    };
+
+    const auto alignedBoundaries = complexSection
+        ? complexSection->alignedSectionBoundaryInfo()
+        : TechDraw::AlignedSectionBoundaryInfo {};
+    const QPointF alignedNormal(alignedBoundaries.normal.x,
+                                alignedBoundaries.normal.y);
+    const QPointF alignedTangent(-alignedNormal.y(), alignedNormal.x());
+    auto guiPoint = [](const Base::Vector3d& point) {
+        return QPointF(Rez::guiX(point.x), Rez::guiX(point.y));
+    };
+    const QPointF alignedStart = guiPoint(alignedBoundaries.startPoint);
+    const QPointF alignedCenter = guiPoint(alignedBoundaries.centerPoint);
+    const QPointF alignedEnd = guiPoint(alignedBoundaries.endPoint);
+    auto isOnAlignedBoundary = [&](const QPainterPath& path,
+                                   const QPointF& point) {
+        if (!alignedBoundaries.valid || path.elementCount() < 2) {
+            return false;
+        }
+        constexpr double tolerance = 0.05;
+        for (int i = 0; i < path.elementCount(); ++i) {
+            const auto element = path.elementAt(i);
+            if (std::abs(QPointF::dotProduct(
+                    QPointF(element.x, element.y) - point,
+                    alignedNormal)) >= tolerance) {
+                return false;
+            }
+        }
+        return true;
+    };
+    auto alignedStation = [&](const QPainterPath& path)
+        -> std::optional<double> {
+        if (!alignedBoundaries.valid || path.elementCount() < 2) {
+            return {};
+        }
+        constexpr double tolerance = 0.05;
+        const auto first = path.elementAt(0);
+        const double station = QPointF::dotProduct(
+            QPointF(first.x, first.y), alignedNormal);
+        for (int i = 1; i < path.elementCount(); ++i) {
+            const auto element = path.elementAt(i);
+            const double candidate = QPointF::dotProduct(
+                QPointF(element.x, element.y), alignedNormal);
+            if (std::abs(candidate - station) >= tolerance) {
+                return {};
+            }
+        }
+        return station;
+    };
+    double centerMinimum = std::numeric_limits<double>::max();
+    double centerMaximum = std::numeric_limits<double>::lowest();
+
     const TechDraw::BaseGeomPtrVector& geoms = dvp->getEdgeGeometry();
+    double alignedMinimumStation = std::numeric_limits<double>::max();
+    double alignedMaximumStation = std::numeric_limits<double>::lowest();
+    for (const TechDraw::BaseGeomPtr& geom : geoms) {
+        if (const auto station = alignedStation(drawPainterPath(geom))) {
+            alignedMinimumStation = std::min(alignedMinimumStation, *station);
+            alignedMaximumStation = std::max(alignedMaximumStation, *station);
+        }
+    }
+    const bool alignedStartIsMinimum =
+        QPointF::dotProduct(alignedStart, alignedNormal)
+        <= QPointF::dotProduct(alignedEnd, alignedNormal);
+    auto isOnAlignedOuterBoundary = [&](const QPainterPath& path,
+                                        bool startBoundary) {
+        const auto station = alignedStation(path);
+        if (!station || alignedMinimumStation > alignedMaximumStation) {
+            return false;
+        }
+        const bool useMinimum =
+            startBoundary == alignedStartIsMinimum;
+        const double outerStation = useMinimum
+            ? alignedMinimumStation : alignedMaximumStation;
+        return std::abs(*station - outerStation) < 0.05;
+    };
     TechDraw::BaseGeomPtrVector::const_iterator itGeom = geoms.begin();
     QGIEdge* item{};
     for (int iEdge = 0; itGeom != geoms.end(); itGeom++, iEdge++) {
         bool showItem = true;
         if (!showThisEdge(*itGeom)) {
+            continue;
+        }
+
+        const QPainterPath edgePath = drawPainterPath(*itGeom);
+        if (isOnAlignedBoundary(edgePath, alignedCenter)) {
+            for (int i = 0; i < edgePath.elementCount(); ++i) {
+                const auto element = edgePath.elementAt(i);
+                const double position = QPointF::dotProduct(
+                    QPointF(element.x, element.y) - alignedCenter,
+                    alignedTangent);
+                centerMinimum = std::min(centerMinimum, position);
+                centerMaximum = std::max(centerMaximum, position);
+            }
             continue;
         }
 
@@ -854,6 +1009,28 @@ void QGIViewPart::drawAllEdges()
             item->setWidth(Rez::guiX(vp->IsoWidth.getValue()));   //graphic
         }
 
+        const bool onAlignedStart =
+            isOnAlignedOuterBoundary(edgePath, true);
+        const bool onAlignedEnd =
+            isOnAlignedOuterBoundary(edgePath, false);
+        const bool alignedOuterBoundary = onAlignedStart || onAlignedEnd;
+        const bool alignedPartialBoundary =
+            (alignedBoundaries.startPartial && onAlignedStart)
+            || (alignedBoundaries.endPartial && onAlignedEnd);
+        if (isPartialBoundary(edgePath) || alignedPartialBoundary) {
+            QPen boundaryPen = m_dashedLineGenerator->getLinePen(
+                1, vp->LineWidth.getValue());
+            boundaryPen.setStyle(Qt::DashLine);
+            item->setLinePen(boundaryPen);
+            item->setWidth(Rez::guiX(vp->LineWidth.getValue()));
+        }
+        else if (alignedOuterBoundary) {
+            item->setLinePen(m_dashedLineGenerator->getLinePen(
+                1, vp->LineWidth.getValue()));
+            item->setWidth(Rez::guiX(vp->LineWidth.getValue()));
+            item->setHiddenEdge(false);
+        }
+
         item->setPos(0.0, 0.0);//now at group(0, 0)
         item->setZValue(ZVALUE::EDGE);
         if (!dvp->showsVisibleEdges()
@@ -875,6 +1052,32 @@ void QGIViewPart::drawAllEdges()
         //            std::stringstream edgeId;
         //            edgeId << "QGIVP.edgePath" << i;
         //            dumpPath(edgeId.str().c_str(), edgePath);
+    }
+
+    if (centerMinimum <= centerMaximum) {
+        constexpr double extension = 4.0;
+        const double guiExtension = Rez::guiX(extension);
+        QPainterPath centerPath;
+        centerPath.moveTo(
+            alignedCenter
+            + alignedTangent * (centerMinimum - guiExtension));
+        centerPath.lineTo(
+            alignedCenter
+            + alignedTangent * (centerMaximum + guiExtension));
+        auto* centerItem = new QGIEdge(-1);
+        addToGroupWithoutUpdate(centerItem);
+        centerItem->setPath(centerPath);
+        centerItem->setNormalColor(
+            PreferencesGui::getAccessibleQColor(
+                PreferencesGui::normalQColor()));
+        centerItem->setLinePen(centerLinePen(vp->LineWidth.getValue()));
+        centerItem->setWidth(Rez::guiX(vp->LineWidth.getValue()));
+        centerItem->setPos(0.0, 0.0);
+        centerItem->setZValue(ZVALUE::EDGE + 1);
+        centerItem->setPrettyNormal();
+        centerItem->setAcceptHoverEvents(false);
+        centerItem->setAcceptedMouseButtons(Qt::NoButton);
+        centerItem->setFlag(QGraphicsItem::ItemIsSelectable, false);
     }
 }
 
@@ -1109,6 +1312,8 @@ void QGIViewPart::drawSectionLine(TechDraw::DrawViewSection* viewSection, bool b
         return;
     if (!viewSection)
         return;
+    if (m_hiddenSectionLines.contains(viewSection->getNameInDocument()))
+        return;
 
     if (!viewSection->hasGeometry())
         return;
@@ -1136,6 +1341,7 @@ void QGIViewPart::drawSectionLine(TechDraw::DrawViewSection* viewSection, bool b
 
         QGISectionLine* sectionLine = new QGISectionLine();
         addToGroupWithoutUpdate(sectionLine);
+        sectionLine->setData(10, QString::fromUtf8(viewSection->getNameInDocument()));
         sectionLine->setSymbol(const_cast<char*>(viewSection->SectionSymbol.getValue()));
         sectionLine->setPathMode(false);
 
@@ -1208,6 +1414,8 @@ void QGIViewPart::drawComplexSectionLine(TechDraw::DrawViewSection* viewSection,
         return;
     if (!viewSection)
         return;
+    if (m_hiddenSectionLines.contains(viewSection->getNameInDocument()))
+        return;
     auto vp = static_cast<ViewProviderViewPart*>(getViewProvider(viewPart));
     if (!vp) {
         return;
@@ -1244,6 +1452,7 @@ void QGIViewPart::drawComplexSectionLine(TechDraw::DrawViewSection* viewSection,
 
     QGISectionLine* sectionLine = new QGISectionLine();
     addToGroupWithoutUpdate(sectionLine);
+    sectionLine->setData(10, QString::fromUtf8(viewSection->getNameInDocument()));
     sectionLine->setSymbol(const_cast<char*>(viewSection->SectionSymbol.getValue()));
 
     sectionLine->setPathMode(true);
@@ -1289,6 +1498,39 @@ void QGIViewPart::drawComplexSectionLine(TechDraw::DrawViewSection* viewSection,
     sectionLine->setZValue(ZVALUE::SECTIONLINE);
     sectionLine->setRotation(-viewPart->Rotation.getValue());
     sectionLine->draw();
+}
+
+void QGIViewPart::setSectionLineVisible(TechDraw::DrawViewSection* viewSection, bool visible)
+{
+    if (!viewSection) {
+        return;
+    }
+    const QString sectionName = QString::fromUtf8(viewSection->getNameInDocument());
+    if (visible) {
+        m_hiddenSectionLines.erase(viewSection->getNameInDocument());
+    }
+    else {
+        m_hiddenSectionLines.insert(viewSection->getNameInDocument());
+    }
+    for (QGraphicsItem* child : childItems()) {
+        if (child->type() == QGISectionLine::Type && child->data(10).toString() == sectionName) {
+            child->setVisible(visible);
+        }
+    }
+}
+
+bool QGIViewPart::hasSectionLine(TechDraw::DrawViewSection* viewSection) const
+{
+    if (!viewSection) {
+        return false;
+    }
+    const QString sectionName = QString::fromUtf8(viewSection->getNameInDocument());
+    for (QGraphicsItem* child : childItems()) {
+        if (child->type() == QGISectionLine::Type && child->data(10).toString() == sectionName) {
+            return true;
+        }
+    }
+    return false;
 }
 
 //TODO: use Cosmetic::CenterLine object for this to make it usable for dims.

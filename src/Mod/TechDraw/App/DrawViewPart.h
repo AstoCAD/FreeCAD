@@ -196,6 +196,7 @@ public:
     double getBoxX() const;
     double getBoxY() const;
     QRectF getRect() const override;
+    std::pair<double, double> getBoundsAlongVector(Base::Vector3d alignmentVector);
     double getSizeAlongVector(Base::Vector3d alignmentVector);
 
     // ancillary projection routines
