@@ -70,6 +70,32 @@ class DrawViewSectionTest(unittest.TestCase):
         self.assertEqual(len(edges), 4, "DrawViewSection has wrong number of edges")
         self.assertTrue("Up-to-date" in section.State)
 
+    def testGeneratedProfileOwnership(self):
+        """Generated section profiles are owned by their complex section."""
+        section = FreeCAD.ActiveDocument.addObject(
+            "TechDraw::DrawComplexSection", "ComplexSection"
+        )
+        generated_profile = FreeCAD.ActiveDocument.addObject(
+            "Part::Feature", "SectionProfile"
+        )
+        section.CuttingToolWireObject = generated_profile
+        generated_profile_name = generated_profile.Name
+
+        FreeCAD.ActiveDocument.removeObject(section.Name)
+        self.assertIsNone(FreeCAD.ActiveDocument.getObject(generated_profile_name))
+
+        custom_section = FreeCAD.ActiveDocument.addObject(
+            "TechDraw::DrawComplexSection", "CustomComplexSection"
+        )
+        custom_profile = FreeCAD.ActiveDocument.addObject(
+            "Part::Feature", "CustomProfile"
+        )
+        custom_section.CuttingToolWireObject = custom_profile
+        custom_profile_name = custom_profile.Name
+
+        FreeCAD.ActiveDocument.removeObject(custom_section.Name)
+        self.assertIsNotNone(FreeCAD.ActiveDocument.getObject(custom_profile_name))
+
 
 if __name__ == "__main__":
     unittest.main()

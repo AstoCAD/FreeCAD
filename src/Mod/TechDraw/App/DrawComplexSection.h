@@ -110,6 +110,7 @@ public:
     bool validateSketchNormal(App::DocumentObject* sketchObject) const;
     bool validateProfileAlignment(const TopoDS_Wire& profileWire) const;
     static bool isProfileObject(App::DocumentObject* obj);
+    App::DocumentObject* getGeneratedProfile() const;
     static bool isMultiSegmentProfile(App::DocumentObject* obj);
     static bool isLinearProfile(App::DocumentObject* obj);
     static bool isTrulyEmpty(const TopoDS_Shape& inShape);
@@ -135,6 +136,9 @@ public:
 
 public Q_SLOTS:
     void onSectionCutFinished() override;
+
+protected:
+    void unsetupObject() override;
 
 private:
     bool validateOffsetProfile(const TopoDS_Wire& profile,
