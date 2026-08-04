@@ -32,12 +32,15 @@
 
 #include <App/DocumentObject.h>
 #include <App/FeaturePython.h>
+#include <App/PropertyGeo.h>
 #include <App/PropertyLinks.h>
+#include <App/PropertyStandard.h>
 #include <Base/BoundBox.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include "CosmeticExtension.h"
 #include "DrawView.h"
+#include "DrawViewBreak.h"
 
 
 class gp_Pnt;
@@ -117,6 +120,8 @@ class TechDrawExport DrawViewPart: public DrawView, public CosmeticExtension
     PROPERTY_HEADER_WITH_EXTENSIONS(TechDraw::DrawViewPart);
 
 public:
+    using BreakType = TechDraw::BreakType;
+
     DrawViewPart();
     ~DrawViewPart() override;
 
@@ -144,10 +149,29 @@ public:
     App::PropertyInteger ScrubCount;
 
     static const char* DisplayStyleEnums[];
+    static const char* BreakTypeEnums[];
+
+    App::PropertyLinkList Breaks;
+
     ViewDisplayStyle getDisplayStyle() const;
     bool hasShadedDisplay() const;
     bool showsVisibleEdges() const;
     bool hiddenEdgesAreSolid() const;
+
+    std::size_t getBreakCount() const;
+    DrawViewBreak* getBreakObject(std::size_t index) const;
+    DrawViewBreak* addBreak(const Base::Vector3d& firstPoint,
+                            const Base::Vector3d& secondPoint,
+                            const Base::Vector3d& direction,
+                            double gap,
+                            BreakType lineType);
+    bool removeBreak(std::size_t index);
+    BreakType getBreakType(std::size_t index) const;
+    double getBreakGap(std::size_t index) const;
+    std::pair<Base::Vector3d, Base::Vector3d>
+        getBreakLinePoints(std::size_t index) const;
+    Base::Vector3d getBreakLineDirection(std::size_t index) const;
+    Base::Vector3d mapPointFromBrokenView(const Base::Vector3d& point2d) const;
 
     short mustExecute() const override;
     App::DocumentObjectExecReturn* execute() override;
@@ -268,6 +292,9 @@ public Q_SLOTS:
 protected:
     bool checkXDirection() const;
 
+    TopoDS_Shape applyViewBreaks(const TopoDS_Shape& shape);
+    void setBreakSourceCentroid(const Base::Vector3d& centroid);
+
     TechDraw::GeometryObjectPtr geometryObject;
     TechDraw::GeometryObjectPtr m_tempGeometryObject;//holds the new GO until hlr is completed
     Base::BoundBox3d bbox;
@@ -291,6 +318,8 @@ protected:
 
     TopoDS_Shape m_saveShape;     //TODO: make this a Property.  Part::TopoShapeProperty??
     Base::Vector3d m_saveCentroid;//centroid before centering shape in origin
+    Base::Vector3d m_breakSourceCentroid;
+    Base::Vector3d m_breakResultCentroid;
 
     std::vector<TechDraw::VertexPtr> m_referenceVerts;
 
