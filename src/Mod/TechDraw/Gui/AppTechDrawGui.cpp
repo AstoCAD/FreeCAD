@@ -59,6 +59,7 @@
 #include "ViewProviderTemplate.h"
 #include "ViewProviderTemplateExtension.h"
 #include "ViewProviderTile.h"
+#include "ViewProviderViewBreak.h"
 #include "ViewProviderViewClip.h"
 #include "ViewProviderViewPart.h"
 #include "ViewProviderViewSection.h"
@@ -143,6 +144,7 @@ PyMOD_INIT_FUNC(TechDrawGui)
     TechDrawGui::ViewProviderTemplate::init();
     TechDrawGui::ViewProviderDimension::init();
     TechDrawGui::ViewProviderBalloon::init();
+    TechDrawGui::ViewProviderViewBreak::init();
     TechDrawGui::ViewProviderViewPart::init();
     TechDrawGui::ViewProviderProjGroupItem::init();
     TechDrawGui::ViewProviderProjGroup::init();
