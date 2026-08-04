@@ -40,6 +40,7 @@
 #include <Mod/TechDraw/App/DrawGeomHatch.h>
 #include <Mod/TechDraw/App/DrawHatch.h>
 #include <Mod/TechDraw/App/DrawLeaderLine.h>
+#include <Mod/TechDraw/App/DrawPage.h>
 #include <Mod/TechDraw/App/DrawRichAnno.h>
 #include <Mod/TechDraw/App/DrawViewBalloon.h>
 #include <Mod/TechDraw/App/DrawViewDetail.h>
@@ -59,6 +60,7 @@
 #include "TaskDetail.h"
 #include "TaskProjGroup.h"
 #include "ViewProviderViewPart.h"
+#include "DrawGuiUtil.h"
 #include "ViewProviderPage.h"
 #include "QGIViewPart.h"
 #include "QGIViewDimension.h"
@@ -241,6 +243,9 @@ std::vector<App::DocumentObject*> ViewProviderViewPart::claimChildren() const
         }
     }
 
+    const auto sketches = getViewPart()->Sketches.getValues();
+    temp.insert(temp.end(), sketches.begin(), sketches.end());
+
     const std::vector<App::DocumentObject *> &views = getViewPart()->getInList();
     try {
       for(std::vector<App::DocumentObject *>::const_iterator it = views.begin(); it != views.end(); ++it) {
@@ -278,6 +283,30 @@ std::vector<App::DocumentObject*> ViewProviderViewPart::claimChildren() const
     } catch (...) {
         return {};
     }
+}
+
+bool ViewProviderViewPart::canDropObject(App::DocumentObject* obj) const
+{
+    return DrawPage::isSketch(obj);
+}
+
+void ViewProviderViewPart::dropObject(App::DocumentObject* obj)
+{
+    if (!DrawPage::isSketch(obj)) {
+        ViewProviderDrawingView::dropObject(obj);
+        return;
+    }
+
+    auto* view = getViewPart();
+    auto* page = view ? view->findParentPage() : nullptr;
+    if (!page || obj->getDocument() != view->getDocument()) {
+        return;
+    }
+
+    DrawGuiUtil::detachSketchFromTechDraw(obj);
+    page->addView(obj, false);
+    view->addSketch(obj);
+    page->Views.touch();
 }
 
 bool ViewProviderViewPart::setEdit(int ModNum)
