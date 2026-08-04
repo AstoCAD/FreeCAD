@@ -20,6 +20,7 @@ set(TechDrawGui_XML_SRCS
 set(TechDrawGui_LIBS
     TechDraw
     Part
+    Sketcher
     FreeCADGui
 )
 
@@ -208,6 +209,8 @@ SET(TechDrawGui_SRCS
     TaskNewPage.h
     Grabber3d.cpp
     Grabber3d.h
+    TaskNewSketch.cpp
+    TaskNewSketch.h
     TaskDetail.ui
     TaskDetail.cpp
     TaskDetail.h
@@ -241,6 +244,8 @@ SET(TechDrawGui_SRCS
 SET(TechDrawGuiView_SRCS
     MDIViewPage.cpp
     MDIViewPage.h
+    TechDrawSketchEditView.cpp
+    TechDrawSketchEditView.h
     PagePrinter.cpp
     PagePrinter.h
     QGVPage.cpp
@@ -315,6 +320,8 @@ SET(TechDrawGuiView_SRCS
     QGIDimLines.h
     QGISectionLine.cpp
     QGISectionLine.h
+    QGISketch.cpp
+    QGISketch.h
     QGIDecoration.cpp
     QGIDecoration.h
     QGICenterLine.cpp
