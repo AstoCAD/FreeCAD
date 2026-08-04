@@ -84,7 +84,8 @@ enum : int {
     QGMText,
     QGTracker,
     TemplateTextField,
-    QGISectionConnector
+    QGISectionConnector,
+    QGISketch
 };
 };
 }

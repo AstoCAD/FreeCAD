@@ -217,6 +217,7 @@ Gui::MenuItem* Workbench::setupMenuBar() const
     *views << "TechDraw_DetailView";
     *views << "TechDraw_ProjectionGroup";
     *views << "TechDraw_ClipGroup";
+    *views << "TechDraw_NewSketch";
     *views << "Separator";
     *views << "TechDraw_Symbol";
     *views << "TechDraw_Image";
@@ -303,6 +304,7 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     *views << "TechDraw_DetailView";
     *views << "TechDraw_SpreadsheetView";
     *views << "TechDraw_ClipGroup";
+    *views << "TechDraw_NewSketch";
 
     Gui::ToolBarItem* stacking = new Gui::ToolBarItem(root);
     stacking->setCommand("TechDraw Stacking");
