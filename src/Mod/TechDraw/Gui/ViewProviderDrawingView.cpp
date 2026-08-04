@@ -45,6 +45,7 @@
 #include <Mod/TechDraw/App/DrawViewDimension.h>
 #include <Mod/TechDraw/App/Preferences.h>
 
+#include "DrawGuiUtil.h"
 #include "ViewProviderDrawingView.h"
 #include "ViewProviderDrawingViewExtension.h"
 #include "MDIViewPage.h"
@@ -226,8 +227,29 @@ bool ViewProviderDrawingView::isShow() const
     return Visibility.getValue();
 }
 
+bool ViewProviderDrawingView::canDropObject(App::DocumentObject* docObj) const
+{
+    // Other objects keep the extension's answer, which lets the page have
+    // the drop (and lets a Clip group receive views).
+    return TechDraw::DrawPage::isSketch(docObj)
+        || Gui::ViewProviderDocumentObject::canDropObject(docObj);
+}
+
 void ViewProviderDrawingView::dropObject(App::DocumentObject* docObj)
 {
+    if (TechDraw::DrawPage::isSketch(docObj)) {
+        auto* view = getViewObject();
+        auto* page = view ? view->findParentPage() : nullptr;
+        if (!page || docObj->getDocument() != view->getDocument()) {
+            return;
+        }
+
+        DrawGuiUtil::detachSketchFromTechDraw(docObj);
+        page->addView(docObj, false);
+        view->addSketch(docObj);
+        page->Views.touch();
+        return;
+    }
     getViewProviderPage()->dropObject(docObj);
 }
 
@@ -533,7 +555,7 @@ void ViewProviderDrawingView::fixSceneDependencies()
 
 std::vector<App::DocumentObject*> ViewProviderDrawingView::claimChildren() const
 {
-    std::vector<App::DocumentObject*> temp;
+    std::vector<App::DocumentObject*> temp = getViewObject()->Sketches.getValues();
     const std::vector<App::DocumentObject *> &potentialChildren = getViewObject()->getInList();
     try {
       for(auto& child : potentialChildren) {
