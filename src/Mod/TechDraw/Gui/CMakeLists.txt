@@ -61,6 +61,7 @@ set(TechDrawGui_UIC_SRCS
     TaskProjGroup.ui
     TaskRestoreLines.ui
     TaskRichAnno.ui
+    TaskBrokenView.ui
     TaskSectionView.ui
     TaskSpreadsheetView.ui
     TaskWeldingSymbol.ui
@@ -135,6 +136,9 @@ SET(TechDrawGui_SRCS
     DlgTemplateField.ui
     DlgTemplateField.cpp
     DlgTemplateField.h
+    TaskBrokenView.ui
+    TaskBrokenView.cpp
+    TaskBrokenView.h
     TaskSectionView.ui
     TaskSectionView.cpp
     TaskSectionView.h
@@ -401,6 +405,8 @@ SET(TechDrawGuiViewProvider_SRCS
     ViewProviderSpreadsheet.h
     ViewProviderViewClip.cpp
     ViewProviderViewClip.h
+    ViewProviderViewBreak.cpp
+    ViewProviderViewBreak.h
     ViewProviderGeomHatch.cpp
     ViewProviderGeomHatch.h
     ViewProviderHatch.cpp
@@ -422,6 +428,7 @@ SET(TechDrawGuiViewProvider_SRCS
 SET(TechDrawGuiTaskDlgs_SRCS
     TaskProjGroup.ui
     TaskLinkDim.ui
+    TaskBrokenView.ui
     TaskSectionView.ui
     TaskSpreadsheetView.ui
     TaskGeomHatch.ui

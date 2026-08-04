@@ -25,6 +25,7 @@
 #include <QLineF>
 #include <QGraphicsTransform>
 #include <QImage>
+#include <QTimer>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -112,6 +113,33 @@ namespace {
 constexpr double ShadedPixelsPerMillimetre = 12.0;  // approximately 300 dpi
 constexpr int ShadedMaxImageDimension = 4096;
 constexpr double ShadedAngularDeflection = 0.20;
+constexpr double BreakLineClipInset = 2.0;
+
+QRectF breakLineClipBounds(const DrawViewPart* view)
+{
+    if (!view) {
+        return {};
+    }
+
+    const Base::BoundBox3d box = view->getBoundingBox();
+    if (!box.IsValid()) {
+        return {};
+    }
+
+    QRectF bounds(QPointF(Rez::guiX(box.MinX), Rez::guiX(-box.MaxY)),
+                  QPointF(Rez::guiX(box.MaxX), Rez::guiX(-box.MinY)));
+    bounds = bounds.normalized();
+
+    // Keep the break decoration, including its waveform and pen, inside the
+    // projected geometry.  In particular, never derive this extent from
+    // QGIViewPart::boundingRect(): it already contains previously drawn break
+    // lines and would make them grow on every redraw.
+    const double inset = std::min(
+        Rez::guiX(BreakLineClipInset),
+        0.25 * std::min(bounds.width(), bounds.height()));
+    bounds.adjust(inset, inset, -inset, -inset);
+    return bounds;
+}
 
 struct ShadedVertex
 {
@@ -1713,8 +1741,8 @@ void QGIViewPart::drawBreakLines()
 {
     // Base::Console().message("QGIVP::drawBreakLines()\n");
 
-    auto dbv = dynamic_cast<TechDraw::DrawBrokenView*>(getViewObject());
-    if (!dbv) {
+    auto* dvp = dynamic_cast<TechDraw::DrawViewPart*>(getViewObject());
+    if (!dvp) {
         return;
     }
 
@@ -1723,29 +1751,76 @@ void QGIViewPart::drawBreakLines()
         return;
     }
 
-    DrawBrokenView::BreakType breakType = static_cast<DrawBrokenView::BreakType>(vp->BreakLineType.getValue());
-    auto breaks = dbv->Breaks.getValues();
-    for (auto& breakObj : breaks) {
-        QGIBreakLine* breakLine = new QGIBreakLine();
-        addToGroupWithoutUpdate(breakLine);
+    auto dbv = dynamic_cast<TechDraw::DrawBrokenView*>(dvp);
+    if (dbv) {
+        DrawBrokenView::BreakType breakType =
+            static_cast<DrawBrokenView::BreakType>(vp->BreakLineType.getValue());
+        auto breaks = dbv->Breaks.getValues();
+        for (auto& breakObj : breaks) {
+            if (breakObj->isDerivedFrom<TechDraw::DrawViewBreak>()) {
+                continue;
+            }
+            QGIBreakLine* breakLine = new QGIBreakLine();
+            addToGroupWithoutUpdate(breakLine);
 
-        Base::Vector3d direction = dbv->guiDirectionFromObj(*breakObj);
-        breakLine->setDirection(direction);
-        // the bounds describe two corners of the removed area in the view
-        std::pair<Base::Vector3d, Base::Vector3d> bounds = dbv->breakBoundsFromObj(*breakObj);
-        // the bounds are in 3d form, so we need to invert & rez them
-        Base::Vector3d topLeft     = Rez::guiX(DU::invertY(bounds.first));
-        Base::Vector3d bottomRight = Rez::guiX(DU::invertY(bounds.second));
-        breakLine->setBounds(topLeft, bottomRight);
+            Base::Vector3d direction = dbv->guiDirectionFromObj(*breakObj);
+            breakLine->setDirection(direction);
+            std::pair<Base::Vector3d, Base::Vector3d> bounds =
+                dbv->breakBoundsFromObj(*breakObj);
+            Base::Vector3d topLeft = Rez::guiX(DU::invertY(bounds.first));
+            Base::Vector3d bottomRight = Rez::guiX(DU::invertY(bounds.second));
+            breakLine->setBounds(topLeft, bottomRight);
+            breakLine->setPos(0.0, 0.0);
+            breakLine->setLinePen(m_dashedLineGenerator->getLinePen(
+                vp->BreakLineStyle.getValue(), vp->HiddenWidth.getValue()));
+            breakLine->setWidth(Rez::guiX(vp->HiddenWidth.getValue()));
+            breakLine->setBreakType(breakType);
+            breakLine->setZValue(ZVALUE::SECTIONLINE);
+            Base::Color color = prefBreaklineColor();
+            breakLine->setBreakColor(color.asValue<QColor>());
+            breakLine->setRotation(-dbv->Rotation.getValue());
+            breakLine->draw();
+        }
+    }
+
+    const QRectF clip = breakLineClipBounds(dvp);
+    for (std::size_t index = 0; index < dvp->getBreakCount(); ++index) {
+        const auto points = dvp->getBreakLinePoints(index);
+        const Base::Vector3d tangent = dvp->getBreakLineDirection(index);
+        const QPointF first(Rez::guiX(points.first.x),
+                            Rez::guiX(-points.first.y));
+        const QPointF second(Rez::guiX(points.second.x),
+                             Rez::guiX(-points.second.y));
+        const QPointF guiTangent(tangent.x, -tangent.y);
+
+        auto* breakLine = new QGIBreakLine();
+        addToGroupWithoutUpdate(breakLine);
+        breakLine->setBreakObject(dvp->getBreakObject(index));
+        breakLine->setLineGeometry(first, second, guiTangent, clip);
         breakLine->setPos(0.0, 0.0);
-        breakLine->setLinePen(
-            m_dashedLineGenerator->getLinePen(vp->BreakLineStyle.getValue(), vp->HiddenWidth.getValue()));
+        breakLine->setLinePen(m_dashedLineGenerator->getLinePen(
+            vp->BreakLineStyle.getValue(), vp->HiddenWidth.getValue()));
         breakLine->setWidth(Rez::guiX(vp->HiddenWidth.getValue()));
-        breakLine->setBreakType(breakType);
+        breakLine->setBreakType(dvp->getBreakType(index));
         breakLine->setZValue(ZVALUE::SECTIONLINE);
-        Base::Color color = prefBreaklineColor();
-        breakLine->setBreakColor(color.asValue<QColor>());
-        breakLine->setRotation(-dbv->Rotation.getValue());
+        breakLine->setBreakColor(prefBreaklineColor().asValue<QColor>());
+        breakLine->setDeleteCallback([dvp, index]() {
+            QTimer::singleShot(0, [dvp, index]() {
+                App::Document* document = dvp ? dvp->getDocument() : nullptr;
+                if (!document) {
+                    return;
+                }
+                document->openTransaction(
+                    QT_TRANSLATE_NOOP("Command", "Remove view break"));
+                if (!dvp->removeBreak(index)) {
+                    document->abortTransaction();
+                    return;
+                }
+                document->commitTransaction();
+                dvp->recomputeFeature();
+                dvp->requestPaint();
+            });
+        });
         breakLine->draw();
     }
 }
