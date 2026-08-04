@@ -180,6 +180,39 @@ endif(BUILD_GUI)
 SET(TDTest_SRCS
     TDTest/__init__.py
     TDTest/DrawHatchTest.py
+    TDTest/DrawDimensionApiTest.py
+    TDTest/DrawDimensionShapeNameTest.py
+    TDTest/DrawDimensionEdgeVertexTest.py
+    TDTest/DrawCreationDocumentTest.py
+    TDTest/DrawSpreadsheetLabelXmlTest.py
+    TDTest/DrawBoltCircleTest.py
+    TDTest/DrawAxoLengthTransactionGuiTest.py
+    TDTest/TestExtendShortenEmptySelectionGui.py
+    TDTest/TestViewLockNoViewSelectionGui.py
+    TDTest/TestLineParallelEmptySelectionGui.py
+    TDTest/TestTwoPointCircleEmptySelectionGui.py
+    TDTest/TestHorizontalChainPendingGui.py
+    TDTest/TestChainWarningsPendingGui.py
+    TDTest/TestDimensionFormatPendingGui.py
+    TDTest/TestDxfExportPendingTransactionGui.py
+    TDTest/TestDxfExportDraftWarningGui.py
+    TDTest/DrawMoveViewPageChooserGuiTest.py
+    TDTest/DrawFindPageGuiTest.py
+    TDTest/DrawBrokenViewSelectionGuiTest.py
+    TDTest/DrawTemplateFieldsDismissalGuiTest.py
+    TDTest/TestTemplateFieldsMissingTemplateGui.py
+    TDTest/DrawPositionSectionSelectionGuiTest.py
+    TDTest/DrawModelSelectionGuiTest.py
+    TDTest/DrawCosmeticCircleGuiTest.py
+    TDTest/DrawDraftViewDocumentTest.py
+    TDTest/DrawArchViewDocumentTest.py
+    TDTest/DrawViewLineCapGuiTest.py
+    TDTest/DrawImportFilenameTest.py
+    TDTest/DrawPagePdfFilenameTest.py
+    TDTest/DrawPageUnshownExportTest.py
+    TDTest/HatchFaceLastUsedGuiTest.py
+    TDTest/DrawSvgzSymbolTest.py
+    TDTest/DrawPageSketchTest.py
     TDTest/DrawProjectionGroupTest.py
     TDTest/DrawViewAnnotationTest.py
     TDTest/DrawViewImageTest.py
