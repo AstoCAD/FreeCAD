@@ -59,6 +59,7 @@ public:
     App::PropertyVector AnchorPoint;
     App::PropertyFloat   Radius;
     App::PropertyString Reference;
+    App::PropertyBool   Connect;
 
     App::PropertyBool   ShowMatting;
     App::PropertyBool   ShowHighlight;

@@ -800,7 +800,7 @@ CmdTechDrawDetailView::CmdTechDrawDetailView() : Command("TechDraw_DetailView")
     sAppModule = "TechDraw";
     sGroup = QT_TR_NOOP("TechDraw");
     sMenuText = QT_TR_NOOP("Detail View");
-    sToolTipText = QT_TR_NOOP("Inserts a new detail view based on the selected view in the current page");
+    sToolTipText = QT_TR_NOOP("Interactively inserts a new detail view in the current page");
     sWhatsThis = "TechDraw_DetailView";
     sStatusTip = sToolTipText;
     sPixmap = "actions/TechDraw_DetailView";
@@ -810,27 +810,34 @@ void CmdTechDrawDetailView::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
 
-    std::vector<App::DocumentObject*> baseObj =
-        getSelection().getObjectsOfType(TechDraw::DrawViewPart::getClassTypeId());
-    if (baseObj.empty()) {
-        QMessageBox::warning(Gui::getMainWindow(), QObject::tr("Wrong selection"),
-                             QObject::tr("Select at least 1 DrawViewPart object as base"));
+    TechDraw::DrawPage* page = DrawGuiUtil::findPage(this);
+    if (!page) {
         return;
     }
-    TechDraw::DrawViewPart* dvp = static_cast<TechDraw::DrawViewPart*>(*(baseObj.begin()));
 
-    Gui::Control().showDialog(new TaskDlgDetail(dvp));
+    auto* mdi = qobject_cast<MDIViewPage*>(Gui::getMainWindow()->activeWindow());
+    QGVPage* graphicsView = mdi && mdi->getPage() == page
+        ? mdi->getViewProviderPage()->getQGVPage()
+        : nullptr;
+    if (!graphicsView) {
+        QMessageBox::warning(
+            Gui::getMainWindow(),
+            QObject::tr("No active drawing page"),
+            QObject::tr("Open the drawing page where the detail view should be created."));
+        return;
+    }
+
+    Gui::Control().showDialog(new TaskDlgDetail(page, graphicsView));
 }
 
 bool CmdTechDrawDetailView::isActive()
 {
     bool havePage = DrawGuiUtil::needPage(this);
-    bool haveView = DrawGuiUtil::needView(this);
     bool taskInProgress = false;
     if (havePage) {
         taskInProgress = Gui::Control().activeDialog();
     }
-    return (havePage && haveView && !taskInProgress);
+    return (havePage && !taskInProgress);
 }
 
 //===========================================================================
