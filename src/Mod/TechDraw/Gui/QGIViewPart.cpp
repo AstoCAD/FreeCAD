@@ -1482,6 +1482,15 @@ void QGIViewPart::drawHighlight(TechDraw::DrawViewDetail* viewDetail, bool b)
 
         double rotation = viewPart->Rotation.getValue();
         highlight->setRotation(rotation);
+        if (viewDetail->Connect.getValue()) {
+            auto* scenePage = dynamic_cast<QGSPage*>(scene());
+            auto* detailItem = scenePage
+                ? scenePage->findQViewForDocObj(viewDetail)
+                : nullptr;
+            const double detailRadius =
+                Rez::guiX(viewDetail->Radius.getValue() * viewDetail->getScale());
+            highlight->setConnector(this, detailItem, detailRadius);
+        }
         highlight->draw();
     }
 }

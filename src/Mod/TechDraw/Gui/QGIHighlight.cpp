@@ -20,8 +20,10 @@
  *                                                                         *
  ***************************************************************************/
 
-# include <QPainter>
-# include <QStyleOptionGraphicsItem>
+#include <cmath>
+
+#include <QPainter>
+#include <QStyleOptionGraphicsItem>
 
 
 #include <Base/Tools.h>
@@ -29,6 +31,8 @@
 
 #include "QGIHighlight.h"
 #include "PreferencesGui.h"
+#include "QGIArrow.h"
+#include "QGIView.h"
 #include "QGIViewPart.h"
 #include "Rez.h"
 
@@ -54,12 +58,26 @@ QGIHighlight::QGIHighlight() :
     addToGroup(m_reference);
     m_reference->setFlag(QGraphicsItem::ItemIsSelectable, false);
 
+    m_connectorLine = new QGraphicsPathItem();
+    addToGroup(m_connectorLine);
+    m_connectorLine->setFlag(QGraphicsItem::ItemIsSelectable, false);
+    m_connectorLine->setZValue(-2.0);
+    m_connectorLine->hide();
+
+    m_connectorArrow = new QGIArrow();
+    addToGroup(m_connectorArrow);
+    m_connectorArrow->setDirMode(true);
+    m_connectorArrow->setZValue(-1.0);
+    m_connectorArrow->hide();
+
     setWidth(Rez::guiX(0.75));
 }
 
 QGIHighlight::~QGIHighlight()
 {
-
+    QObject::disconnect(m_sourcePositionConnection);
+    QObject::disconnect(m_targetPositionConnection);
+    QObject::disconnect(m_targetDestroyedConnection);
 }
 
 
@@ -80,7 +98,94 @@ void QGIHighlight::draw()
     prepareGeometryChange();
     makeHighlight();
     makeReference();
+    makeConnector();
     update();
+}
+
+void QGIHighlight::setConnector(QGIView* source, QGIView* target, double targetRadius)
+{
+    QObject::disconnect(m_sourcePositionConnection);
+    QObject::disconnect(m_targetPositionConnection);
+    QObject::disconnect(m_targetDestroyedConnection);
+
+    m_connectorSource = source;
+    m_connectorTarget = target;
+    m_connectorTargetRadius = targetRadius;
+    if (!m_connectorSource || !m_connectorTarget
+        || !m_connectorSource->isVisible() || !m_connectorTarget->isVisible()) {
+        m_connectorLine->hide();
+        m_connectorArrow->hide();
+        return;
+    }
+
+    m_sourcePositionConnection = QObject::connect(
+        m_connectorSource, &QGIView::positionChanged,
+        [this]() { makeConnector(); });
+    m_targetPositionConnection = QObject::connect(
+        m_connectorTarget, &QGIView::positionChanged,
+        [this]() { makeConnector(); });
+    m_targetDestroyedConnection = QObject::connect(
+        m_connectorTarget, &QObject::destroyed,
+        [this]() {
+            m_connectorTarget = nullptr;
+            m_connectorLine->hide();
+            m_connectorArrow->hide();
+        });
+}
+
+void QGIHighlight::makeConnector()
+{
+    if (!m_connectorSource || !m_connectorTarget) {
+        m_connectorLine->hide();
+        m_connectorArrow->hide();
+        return;
+    }
+
+    const QRectF highlightBounds(m_start, m_end);
+    const QPointF sourceCenter = mapToScene(highlightBounds.center());
+    const QPointF sourceRadiusPoint = mapToScene(
+        highlightBounds.center() + QPointF(highlightBounds.width() * 0.5, 0.0));
+    const QPointF targetCenter = m_connectorTarget->mapToScene(QPointF());
+    const QPointF targetRadiusPoint = m_connectorTarget->mapToScene(
+        QPointF(m_connectorTargetRadius, 0.0));
+
+    QPointF direction = targetCenter - sourceCenter;
+    const double centerDistance = std::hypot(direction.x(), direction.y());
+    const double sourceRadius = std::hypot(
+        sourceRadiusPoint.x() - sourceCenter.x(),
+        sourceRadiusPoint.y() - sourceCenter.y());
+    const double targetRadius = std::hypot(
+        targetRadiusPoint.x() - targetCenter.x(),
+        targetRadiusPoint.y() - targetCenter.y());
+    if (centerDistance <= sourceRadius + targetRadius || centerDistance <= 1.0e-9) {
+        m_connectorLine->hide();
+        m_connectorArrow->hide();
+        return;
+    }
+    direction /= centerDistance;
+
+    const QPointF sourceEndScene = sourceCenter + direction * sourceRadius;
+    const QPointF targetEndScene = targetCenter - direction * targetRadius;
+    const QPointF sourceEnd = mapFromScene(sourceEndScene);
+    const QPointF targetEnd = mapFromScene(targetEndScene);
+    QPainterPath path(sourceEnd);
+    path.lineTo(targetEnd);
+    m_connectorLine->setPath(path);
+
+    QPointF localDirection = targetEnd - sourceEnd;
+    const double localLength = std::hypot(localDirection.x(), localDirection.y());
+    if (localLength <= 1.0e-9) {
+        m_connectorLine->hide();
+        m_connectorArrow->hide();
+        return;
+    }
+    localDirection /= localLength;
+    m_connectorArrow->setDirection(
+        Base::Vector3d(localDirection.x(), localDirection.y(), 0.0));
+    m_connectorArrow->setPos(targetEnd);
+    m_connectorArrow->draw();
+    m_connectorLine->show();
+    m_connectorArrow->show();
 }
 
 void QGIHighlight::makeHighlight()
@@ -160,6 +265,11 @@ void QGIHighlight::setReference(const char* ref)
     m_refText = QString::fromUtf8(ref);
 }
 
+QRectF QGIHighlight::referenceSceneBoundingRect() const
+{
+    return m_reference ? m_reference->sceneBoundingRect() : QRectF();
+}
+
 void QGIHighlight::setFont(QFont f, double fsize)
 {
     m_refFont = f;
@@ -193,6 +303,12 @@ void QGIHighlight::setTools()
     m_rect->setPen(m_pen);
 
     m_reference->setDefaultTextColor(m_pen.color());
+    QPen connectorPen(m_pen);
+    connectorPen.setStyle(Qt::SolidLine);
+    m_connectorLine->setPen(connectorPen);
+    m_connectorArrow->setNormalColor(m_pen.color());
+    m_connectorArrow->setFill(m_pen.color(), Qt::SolidPattern);
+    m_connectorArrow->setPrettyNormal();
 }
 
 void QGIHighlight::setLinePen(QPen isoPen)
