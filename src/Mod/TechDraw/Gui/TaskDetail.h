@@ -17,35 +17,33 @@
  *   License along with this library; see the file COPYING.LIB. If not,    *
  *   write to the Free Software Foundation, Inc., 59 Temple Place,         *
  *   Suite 330, Boston, MA  02111-1307, USA                                *
- *                                                                         *
  ***************************************************************************/
 
 #pragma once
+
+#include <memory>
+#include <string>
 
 #include <Base/Vector3D.h>
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
-#include "QGIGhostHighlight.h"
+namespace App
+{
+class Document;
+}
 
 namespace TechDraw
 {
 class DrawPage;
-class DrawView;
 class DrawViewDetail;
 class DrawViewPart;
 }
 
 namespace TechDrawGui
 {
-class QGSPage;
-class QGIView;
-class QGIPrimPath;
-class QGEPath;
-class QGIDetail;
-class QGIGhostHighlight;
-class ViewProviderPage;
+class QGVPage;
 class Ui_TaskDetail;
 
 class TaskDetail : public QWidget
@@ -53,79 +51,57 @@ class TaskDetail : public QWidget
     Q_OBJECT
 
 public:
-    explicit TaskDetail(TechDraw::DrawViewPart* baseFeat);
+    TaskDetail(TechDraw::DrawPage* page, QGVPage* graphicsView);
     explicit TaskDetail(TechDraw::DrawViewDetail* detailFeat);
-    ~TaskDetail() override = default;
+    ~TaskDetail() override;
 
-    virtual bool accept();
-    virtual bool reject();
-    void updateTask();
-    void saveButtons(QPushButton* btnOK,
-                     QPushButton* btnCancel);
-    void enableTaskButtons(bool button);
+    bool accept();
+    bool reject();
 
-    TechDraw::DrawViewPart* getBaseFeat();
-    TechDraw::DrawViewDetail* getDetailFeat();
+    TechDraw::DrawViewDetail* getDetailFeat() const;
+    QGVPage* graphicsView() const;
+    bool isCreateMode() const;
+    bool isCreated() const;
+    double referenceAngle() const;
 
-public Q_SLOTS:
-        void onDraggerClicked(bool clicked);
-        void onHighlightMoved(QPointF dragEnd);
-        void onXEdit();
-        void onYEdit();
-        void onRadiusEdit();
-        void onScaleTypeEdit();
-        void onScaleEdit();
-        void onReferenceEdit();
+    void setInteractiveBase(TechDraw::DrawViewPart* base);
+    void createDetail(const Base::Vector3d& anchor, double radius);
+    void setInteractiveGeometry(const Base::Vector3d& anchor, double radius);
+    void setReferenceAngle(double angle);
+    void saveButtons(QPushButton* btnOK, QPushButton* btnCancel);
 
-protected:
-    void changeEvent(QEvent *event) override;
-    void startDragger();
-
-    void createDetail();
-    void updateDetail();
-
-    void editByHighlight();
-
-    void blockButtons(bool isBlocked);
-    void setUiFromFeat();
-    void updateUi(QPointF pos);
-    void enableInputFields(bool isEnabled);
-
-    void saveDetailState();
-    void restoreDetailState();
-    QPointF getAnchorScene();
-
+private Q_SLOTS:
+    void onIdentifierEdit();
+    void onConnectChanged(bool checked);
+    void onScaleTypeEdit();
+    void onScaleEdit();
 
 private:
+    void setupUi();
+    void setUiFromFeature();
+    void updateScale();
+    void saveDetailState();
+    void restoreDetailState();
+
     std::unique_ptr<Ui_TaskDetail> ui;
-    bool blockUpdate;
-
-    QGIGhostHighlight* m_ghost;
-
-    ViewProviderPage* m_vpp;
-    TechDraw::DrawViewDetail* m_detailFeat;
-    TechDraw::DrawViewPart* m_baseFeat;
-    TechDraw::DrawPage* m_basePage;
-    QGIView* m_qgParent;
-    std::string m_qgParentName;
-
-    bool m_inProgressLock;
-
-    QPushButton* m_btnOK;
-    QPushButton* m_btnCancel;
-
+    TechDraw::DrawPage* m_page{nullptr};
+    QGVPage* m_graphicsView{nullptr};
+    TechDraw::DrawViewDetail* m_detailFeat{nullptr};
+    TechDraw::DrawViewPart* m_baseFeat{nullptr};
+    App::Document* m_doc{nullptr};
+    std::string m_detailName;
     Base::Vector3d m_saveAnchor;
-    double m_saveRadius;
-    bool m_saved;
-    QPointF m_dragStart;
-
-    std::string    m_baseName;
-    std::string    m_pageName;
-    std::string    m_detailName;
-    App::Document* m_doc;
-
-    bool m_mode;
-    bool m_created;
+    double m_saveRadius{0.0};
+    double m_saveScale{1.0};
+    long m_saveScaleType{0};
+    std::string m_saveReference;
+    bool m_saveConnect{false};
+    double m_saveReferenceAngle{0.0};
+    bool m_createMode{true};
+    bool m_created{false};
+    bool m_blockUpdate{false};
+    QPushButton* m_btnOK{nullptr};
+    QPushButton* m_btnCancel{nullptr};
 };
 
 class TaskDlgDetail : public Gui::TaskView::TaskDialog
@@ -133,30 +109,21 @@ class TaskDlgDetail : public Gui::TaskView::TaskDialog
     Q_OBJECT
 
 public:
-    explicit TaskDlgDetail(TechDraw::DrawViewPart* baseFeat);
+    TaskDlgDetail(TechDraw::DrawPage* page, QGVPage* graphicsView);
     explicit TaskDlgDetail(TechDraw::DrawViewDetail* detailFeat);
     ~TaskDlgDetail() override;
 
-    /// is called the TaskView when the dialog is opened
     void open() override;
-    /// is called by the framework if an button is clicked which has no accept or reject role
-    void clicked(int) override;
-    /// is called by the framework if the dialog is accepted (Ok)
     bool accept() override;
-    /// is called by the framework if the dialog is rejected (Cancel)
     bool reject() override;
-    /// is called by the framework if the user presses the help button
-    bool isAllowedAlterDocument() const override
-                        { return false; }
-    void update();
-
+    bool isAllowedAlterDocument() const override { return false; }
     void modifyStandardButtons(QDialogButtonBox* box) override;
-
     std::string getDetailName() const;
 
 private:
-    TaskDetail * widget;
-    Gui::TaskView::TaskBox* taskbox;
+    TaskDetail* widget{nullptr};
+    Gui::TaskView::TaskBox* taskbox{nullptr};
+    QGVPage* m_graphicsView{nullptr};
 };
 
-} //namespace TechDrawGui
+}  // namespace TechDrawGui
