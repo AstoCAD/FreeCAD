@@ -85,6 +85,8 @@ DrawViewDetail::DrawViewDetail() : m_waitingForDetail(false), m_saveDvp(nullptr)
                       "Location of detail in BaseView");
     ADD_PROPERTY_TYPE(Radius, (10.0), dgroup, App::Prop_None, "Size of detail area");
     ADD_PROPERTY_TYPE(Reference, ("1"), dgroup, App::Prop_None, "An identifier for this detail");
+    ADD_PROPERTY_TYPE(Connect, (false), dgroup, App::Prop_None,
+                      "Connect the detail highlight to the detailed view");
 
     static const char* agroup{"Appearance"};
     ADD_PROPERTY_TYPE(ShowMatting, (Preferences::showDetailMatting()), agroup, App::Prop_None,
@@ -134,6 +136,13 @@ void DrawViewDetail::onChanged(const App::Property* prop)
     if (prop == &Reference) {
         std::string captionText = makeCaption();
         Caption.setValue(captionText);
+    }
+
+    if (prop == &Connect) {
+        auto* baseView = dynamic_cast<DrawViewPart*>(BaseView.getValue());
+        if (baseView) {
+            baseView->requestPaint();
+        }
     }
 
     DrawViewPart::onChanged(prop);

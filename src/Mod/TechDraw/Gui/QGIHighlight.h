@@ -29,7 +29,9 @@
 #include <QColor>
 #include <QFont>
 #include <QGraphicsEllipseItem>
+#include <QGraphicsPathItem>
 #include <QGraphicsScene>
+#include <QMetaObject>
 #include <QPointF>
 
 #include "QGCustomText.h"
@@ -40,6 +42,9 @@
 
 namespace TechDrawGui
 {
+
+class QGIArrow;
+class QGIView;
 
 class TechDrawGuiExport QGIHighlight : public QGIDecoration
 {
@@ -62,6 +67,8 @@ public:
     void setFeatureName(std::string name) { m_featureName = name; }
     std::string getFeatureName() { return m_featureName; }
     void setReferenceAngle(double angle) { m_referenceAngle = angle; }
+    QRectF referenceSceneBoundingRect() const;
+    void setConnector(QGIView* source, QGIView* target, double targetRadius);
 
     void onDragFinished() override;
 
@@ -73,6 +80,7 @@ protected:
 
     void makeHighlight();
     void makeReference();
+    void makeConnector();
     void setTools();
     int getHoleStyle();
 
@@ -81,6 +89,14 @@ private:
     QGraphicsEllipseItem* m_circle;
     QGCustomRect*      m_rect;
     QGCustomText*      m_reference;
+    QGraphicsPathItem* m_connectorLine;
+    QGIArrow*          m_connectorArrow;
+    QGIView*           m_connectorSource{nullptr};
+    QGIView*           m_connectorTarget{nullptr};
+    double             m_connectorTargetRadius{0.0};
+    QMetaObject::Connection m_sourcePositionConnection;
+    QMetaObject::Connection m_targetPositionConnection;
+    QMetaObject::Connection m_targetDestroyedConnection;
     std::string        m_refFontName;
     QFont              m_refFont;
     double             m_refSize;
