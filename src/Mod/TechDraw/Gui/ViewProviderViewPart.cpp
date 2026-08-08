@@ -236,6 +236,11 @@ std::vector<App::DocumentObject*> ViewProviderViewPart::claimChildren() const
     //    - GeomHatches
     //    - any drawing views declaring this view as their parent
     std::vector<App::DocumentObject*> temp;
+    for (auto* object : getViewPart()->Breaks.getValues()) {
+        if (object && object->isDerivedFrom<TechDraw::DrawViewBreak>()) {
+            temp.push_back(object);
+        }
+    }
     const auto sketches = getViewPart()->Sketches.getValues();
     temp.insert(temp.end(), sketches.begin(), sketches.end());
     const std::vector<App::DocumentObject *> &views = getViewPart()->getInList();

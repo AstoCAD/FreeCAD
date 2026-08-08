@@ -68,7 +68,6 @@ public:
     DrawBrokenView();
     ~DrawBrokenView() override = default;
 
-    App::PropertyLinkList Breaks;   // NOLINT
     App::PropertyLength   Gap;      // NOLINT
 
     App::DocumentObjectExecReturn* execute() override;

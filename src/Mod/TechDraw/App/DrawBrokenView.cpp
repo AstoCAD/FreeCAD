@@ -92,6 +92,22 @@ using namespace TechDraw;
 using DU = DrawUtil;
 using SU = ShapeUtils;
 
+namespace
+{
+
+std::vector<App::DocumentObject*> legacyBreakObjects(const DrawBrokenView& view)
+{
+    std::vector<App::DocumentObject*> result;
+    for (auto* object : view.Breaks.getValues()) {
+        if (object && !object->isDerivedFrom<DrawViewBreak>()) {
+            result.push_back(object);
+        }
+    }
+    return result;
+}
+
+} // namespace
+
 //===========================================================================
 // DrawBrokenView
 //===========================================================================
@@ -112,10 +128,6 @@ DrawBrokenView::DrawBrokenView()
     static const char* sgroup = "Broken view";
     constexpr double DefaultGapSizeMm{10.0};
 
-    ADD_PROPERTY_TYPE(Breaks, (nullptr), sgroup, App::Prop_None,
-                      "Objects in the 3D view that define the start/end points and direction of breaks in this view.");
-    Breaks.setScope(App::LinkScope::Global);
-    Breaks.setAllowExternal(true);
     ADD_PROPERTY_TYPE(Gap,
                       (DefaultGapSizeMm),
                       sgroup,
@@ -177,7 +189,7 @@ App::DocumentObjectExecReturn* DrawBrokenView::execute()
 //! pieces moved so they are separated by a distance of Gap.
 TopoDS_Shape DrawBrokenView::breakShape(const TopoDS_Shape& shapeToBreak) const
 {
-    auto breaksAll = Breaks.getValues();
+    auto breaksAll = legacyBreakObjects(*this);
     TopoDS_Shape updatedShape = shapeToBreak;
     for (auto& item : breaksAll) {
         TopoDS_Shape previousShape = updatedShape;
@@ -261,7 +273,7 @@ TopoDS_Shape DrawBrokenView::compressShape(const TopoDS_Shape& shapeToCompress) 
 TopoDS_Shape  DrawBrokenView::compressHorizontal(const TopoDS_Shape& shapeToCompress)const
 {
     std::vector<TopoDS_Shape> pieces = getPieces(shapeToCompress);
-    std::vector<App::DocumentObject*> breaksAll = Breaks.getValues();
+    std::vector<App::DocumentObject*> breaksAll = legacyBreakObjects(*this);
     Base::Vector3d moveDirection = DU::closestBasisOriented(Base::convertTo<Base::Vector3d>(getProjectionCS().XDirection()));
     bool descend = false;
     BreakList sortedBreaks = makeSortedBreakList(breaksAll, moveDirection, descend);
@@ -302,7 +314,7 @@ TopoDS_Shape  DrawBrokenView::compressVertical(const TopoDS_Shape& shapeToCompre
 {
     auto pieces = getPieces(shapeToCompress);
 
-    auto breaksAll = Breaks.getValues();
+    auto breaksAll = legacyBreakObjects(*this);
     // not sure about using closestBasis here. may prevent oblique breaks later.
     auto moveDirection = DU::closestBasisOriented(Base::convertTo<Base::Vector3d>(getProjectionCS().YDirection()));
 
@@ -911,7 +923,7 @@ Base::Vector3d DrawBrokenView::mapPoint3dToView(Base::Vector3d point3d) const
 {
     Base::Vector3d result{point3d};
 
-    auto breaksAll = Breaks.getValues();
+    auto breaksAll = legacyBreakObjects(*this);
     bool descend = false;
     auto moveXDirection = DU::closestBasisOriented(Base::convertTo<Base::Vector3d>(getProjectionCS().XDirection()));
 
@@ -953,7 +965,7 @@ Base::Vector3d DrawBrokenView::mapPoint2dFromView(Base::Vector3d point2d) const
     auto pseudo3d = Base::convertTo<Base::Vector3d>(Base::convertTo<gp_Pnt>(point2d).Transformed(xTo3d));
 
     // now shift down and left
-    auto breaksAll = Breaks.getValues();
+    auto breaksAll = legacyBreakObjects(*this);
 
     auto moveXDirection = DU::closestBasisOriented(Base::convertTo<Base::Vector3d>(getProjectionCS().XDirection()));
     // we are expanding, so the direction should be to the "left"/"down" which is the opposite of

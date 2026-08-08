@@ -92,6 +92,7 @@
 #include "DrawViewDetail.h"
 #include "DrawViewDimension.h"
 #include "DrawViewPart.h"
+#include "DrawViewBreak.h"
 #include "DrawViewPartPy.h"// generated from DrawViewPartPy.xml
 #include "DrawViewSection.h"
 #include "EdgeWalker.h"
@@ -130,6 +131,7 @@ constexpr double defaultBreakGap = 10.0;
 
 struct ViewBreakDefinition
 {
+    DrawViewBreak* object{nullptr};
     Base::Vector3d first;
     Base::Vector3d second;
     Base::Vector3d direction;
@@ -141,21 +143,19 @@ struct ViewBreakDefinition
 
 std::vector<ViewBreakDefinition> viewBreakDefinitions(const DrawViewPart& view)
 {
-    const auto& points = view.BreakPoints.getValues();
-    const auto& directions = view.BreakDirections.getValues();
-    const auto& gaps = view.BreakGaps.getValues();
-    const auto& types = view.BreakLineTypes.getValues();
-    const std::size_t count = points.size() / 2;
-
     std::vector<ViewBreakDefinition> result;
-    result.reserve(count);
-    for (std::size_t index = 0; index < count; ++index) {
+    const auto& objects = view.Breaks.getValues();
+    result.reserve(objects.size());
+    for (auto* object : objects) {
+        auto* viewBreak = freecad_cast<DrawViewBreak*>(object);
+        if (!viewBreak || viewBreak->Suppressed.getValue()) {
+            continue;
+        }
         ViewBreakDefinition item;
-        item.first = points[index * 2];
-        item.second = points[index * 2 + 1];
-        item.direction = index < directions.size()
-            ? directions[index]
-            : item.second - item.first;
+        item.object = viewBreak;
+        item.first = viewBreak->StartPoint.getValue();
+        item.second = viewBreak->EndPoint.getValue();
+        item.direction = viewBreak->Direction.getValue();
         if (item.direction.Sqr() <= std::numeric_limits<double>::epsilon()) {
             continue;
         }
@@ -167,13 +167,11 @@ std::vector<ViewBreakDefinition> viewBreakDefinitions(const DrawViewPart& view)
         if (item.high - item.low <= EWTOLERANCE) {
             continue;
         }
-        if (index < gaps.size()) {
-            item.gap = std::max(0.0, gaps[index]);
-        }
-        if (index < types.size()
-            && types[index] >= static_cast<long>(DrawViewPart::BreakType::NONE)
-            && types[index] <= static_cast<long>(DrawViewPart::BreakType::SINUSOID)) {
-            item.type = static_cast<DrawViewPart::BreakType>(types[index]);
+        item.gap = std::max(0.0, viewBreak->Gap.getValue());
+        const long type = viewBreak->BreakType.getValue();
+        if (type >= static_cast<long>(DrawViewPart::BreakType::NONE)
+            && type <= static_cast<long>(DrawViewPart::BreakType::SINUSOID)) {
+            item.type = static_cast<DrawViewPart::BreakType>(type);
         }
         result.push_back(item);
     }
@@ -347,21 +345,10 @@ DrawViewPart::DrawViewPart()
     ADD_PROPERTY_TYPE(ScrubCount, (Preferences::scrubCount()), sgroup, App::Prop_None,
                       "The number of times FreeCAD should try to clean the HLR result.");
 
-    ADD_PROPERTY_TYPE(BreakPoints, (Base::Vector3d()), breakGroup, App::Prop_None,
-                      "Pairs of 3D model points defining the two cut planes of each break.");
-    BreakPoints.setValues({});
-    ADD_PROPERTY_TYPE(BreakDirections, (Base::Vector3d()), breakGroup, App::Prop_None,
-                      "One 3D compression direction for each break.");
-    BreakDirections.setValues({});
-    ADD_PROPERTY_TYPE(BreakGaps, (defaultBreakGap), breakGroup, App::Prop_None,
-                      "One final gap size in millimetres for each break.");
-    BreakGaps.setValues({});
-    ADD_PROPERTY_TYPE(BreakLineTypes,
-                      (static_cast<long>(BreakType::ZIGZAG)),
-                      breakGroup,
-                      App::Prop_None,
-                      "One break-line style value for each break.");
-    BreakLineTypes.setValues({});
+    ADD_PROPERTY_TYPE(Breaks, (nullptr), breakGroup, App::Prop_None,
+                      "Break objects owned by this view.");
+    Breaks.setScope(App::LinkScope::Global);
+    Breaks.setAllowExternal(true);
 
     //initialize bbox to non-garbage
     bbox = Base::BoundBox3d(Base::Vector3d(0.0, 0.0, 0.0), 0.0);
@@ -441,10 +428,10 @@ std::vector<App::DocumentObject*> DrawViewPart::getAllSources() const
 
 std::size_t DrawViewPart::getBreakCount() const
 {
-    return BreakPoints.getValues().size() / 2;
+    return viewBreakDefinitions(*this).size();
 }
 
-void DrawViewPart::addBreak(
+DrawViewBreak* DrawViewPart::addBreak(
     const Base::Vector3d& firstPoint,
     const Base::Vector3d& secondPoint,
     const Base::Vector3d& direction,
@@ -452,64 +439,48 @@ void DrawViewPart::addBreak(
     BreakType lineType
 )
 {
-    auto points = BreakPoints.getValues();
-    auto directions = BreakDirections.getValues();
-    auto gaps = BreakGaps.getValues();
-    auto types = BreakLineTypes.getValues();
-    points.push_back(firstPoint);
-    points.push_back(secondPoint);
-    directions.push_back(direction);
-    gaps.push_back(std::max(0.0, gap));
-    types.push_back(static_cast<long>(lineType));
-    BreakPoints.setValues(points);
-    BreakDirections.setValues(directions);
-    BreakGaps.setValues(gaps);
-    BreakLineTypes.setValues(types);
+    App::Document* document = getDocument();
+    if (!document) {
+        return nullptr;
+    }
+
+    auto* viewBreak = document->addObject<DrawViewBreak>("Break");
+    viewBreak->StartPoint.setValue(firstPoint);
+    viewBreak->EndPoint.setValue(secondPoint);
+    viewBreak->Direction.setValue(direction);
+    viewBreak->Gap.setValue(std::max(0.0, gap));
+    viewBreak->BreakType.setValue(static_cast<long>(lineType));
+
+    auto breaks = Breaks.getValues();
+    breaks.push_back(viewBreak);
+    Breaks.setValues(breaks);
+    return viewBreak;
 }
 
 bool DrawViewPart::removeBreak(std::size_t index)
 {
-    auto points = BreakPoints.getValues();
-    if (index >= points.size() / 2) {
+    const auto definitions = viewBreakDefinitions(*this);
+    App::Document* document = getDocument();
+    if (!document || index >= definitions.size()) {
         return false;
     }
-    auto directions = BreakDirections.getValues();
-    auto gaps = BreakGaps.getValues();
-    auto types = BreakLineTypes.getValues();
-    points.erase(
-        points.begin() + static_cast<std::ptrdiff_t>(index * 2),
-        points.begin() + static_cast<std::ptrdiff_t>(index * 2 + 2)
-    );
-    if (index < directions.size()) {
-        directions.erase(directions.begin() + static_cast<std::ptrdiff_t>(index));
-    }
-    if (index < gaps.size()) {
-        gaps.erase(gaps.begin() + static_cast<std::ptrdiff_t>(index));
-    }
-    if (index < types.size()) {
-        types.erase(types.begin() + static_cast<std::ptrdiff_t>(index));
-    }
-    BreakPoints.setValues(points);
-    BreakDirections.setValues(directions);
-    BreakGaps.setValues(gaps);
-    BreakLineTypes.setValues(types);
+    document->removeObject(definitions[index].object->getNameInDocument());
     return true;
 }
 
 DrawViewPart::BreakType DrawViewPart::getBreakType(std::size_t index) const
 {
-    const auto& values = BreakLineTypes.getValues();
-    if (index >= values.size() || values[index] < static_cast<long>(BreakType::NONE)
-        || values[index] > static_cast<long>(BreakType::SINUSOID)) {
+    const auto definitions = viewBreakDefinitions(*this);
+    if (index >= definitions.size()) {
         return BreakType::ZIGZAG;
     }
-    return static_cast<BreakType>(values[index]);
+    return definitions[index].type;
 }
 
 double DrawViewPart::getBreakGap(std::size_t index) const
 {
-    const auto& values = BreakGaps.getValues();
-    return index < values.size() ? std::max(0.0, values[index]) : defaultBreakGap;
+    const auto definitions = viewBreakDefinitions(*this);
+    return index < definitions.size() ? definitions[index].gap : defaultBreakGap;
 }
 
 void DrawViewPart::setBreakSourceCentroid(const Base::Vector3d& centroid)
@@ -564,9 +535,8 @@ TopoDS_Shape DrawViewPart::applyViewBreaks(const TopoDS_Shape& shape)
 
 std::pair<Base::Vector3d, Base::Vector3d> DrawViewPart::getBreakLinePoints(std::size_t index) const
 {
-    const auto& points = BreakPoints.getValues();
     const auto breaks = viewBreakDefinitions(*this);
-    if (index >= points.size() / 2 || index >= breaks.size()) {
+    if (index >= breaks.size()) {
         return {Base::Vector3d(), Base::Vector3d()};
     }
     const gp_Ax2 axes = getRotatedCS(m_breakResultCentroid);
@@ -577,7 +547,7 @@ std::pair<Base::Vector3d, Base::Vector3d> DrawViewPart::getBreakLinePoints(std::
         const Base::Vector3d relative = compressed - m_breakResultCentroid;
         return Base::Vector3d(relative.Dot(xAxis) * getScale(), relative.Dot(yAxis) * getScale(), 0.0);
     };
-    return {project(points[index * 2]), project(points[index * 2 + 1])};
+    return {project(breaks[index].first), project(breaks[index].second)};
 }
 
 Base::Vector3d DrawViewPart::getBreakLineDirection(std::size_t index) const
@@ -688,8 +658,7 @@ short DrawViewPart::mustExecute() const
         || HardHidden.isTouched() || SmoothHidden.isTouched() || SeamHidden.isTouched()
         || IsoHidden.isTouched() || IsoCount.isTouched() || CoarseView.isTouched()
         || CosmeticVertexes.isTouched() || CosmeticEdges.isTouched() || CenterLines.isTouched()
-        || BreakPoints.isTouched() || BreakDirections.isTouched()
-        || BreakGaps.isTouched() || BreakLineTypes.isTouched()) {
+        || Breaks.isTouched()) {
         return 1;
     }
 

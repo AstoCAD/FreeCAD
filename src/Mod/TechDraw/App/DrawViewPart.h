@@ -40,6 +40,7 @@
 
 #include "CosmeticExtension.h"
 #include "DrawView.h"
+#include "DrawViewBreak.h"
 
 
 class gp_Pnt;
@@ -119,12 +120,7 @@ class TechDrawExport DrawViewPart: public DrawView, public CosmeticExtension
     PROPERTY_HEADER_WITH_EXTENSIONS(TechDraw::DrawViewPart);
 
 public:
-    enum class BreakType : int {
-        NONE,
-        ZIGZAG,
-        SIMPLE,
-        SINUSOID
-    };
+    using BreakType = TechDraw::BreakType;
 
     DrawViewPart();
     ~DrawViewPart() override;
@@ -155,12 +151,7 @@ public:
     static const char* DisplayStyleEnums[];
     static const char* BreakTypeEnums[];
 
-    // BreakPoints contains two 3D model points per break. BreakDirections,
-    // BreakGaps, and BreakLineTypes contain one entry per break.
-    App::PropertyVectorList BreakPoints;
-    App::PropertyVectorList BreakDirections;
-    App::PropertyFloatList BreakGaps;
-    App::PropertyIntegerList BreakLineTypes;
+    App::PropertyLinkList Breaks;
 
     ViewDisplayStyle getDisplayStyle() const;
     bool hasShadedDisplay() const;
@@ -168,11 +159,11 @@ public:
     bool hiddenEdgesAreSolid() const;
 
     std::size_t getBreakCount() const;
-    void addBreak(const Base::Vector3d& firstPoint,
-                  const Base::Vector3d& secondPoint,
-                  const Base::Vector3d& direction,
-                  double gap,
-                  BreakType lineType);
+    DrawViewBreak* addBreak(const Base::Vector3d& firstPoint,
+                            const Base::Vector3d& secondPoint,
+                            const Base::Vector3d& direction,
+                            double gap,
+                            BreakType lineType);
     bool removeBreak(std::size_t index);
     BreakType getBreakType(std::size_t index) const;
     double getBreakGap(std::size_t index) const;

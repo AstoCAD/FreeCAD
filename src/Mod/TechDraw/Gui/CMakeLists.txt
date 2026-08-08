@@ -412,6 +412,8 @@ SET(TechDrawGuiViewProvider_SRCS
     ViewProviderSpreadsheet.h
     ViewProviderViewClip.cpp
     ViewProviderViewClip.h
+    ViewProviderViewBreak.cpp
+    ViewProviderViewBreak.h
     ViewProviderGeomHatch.cpp
     ViewProviderGeomHatch.h
     ViewProviderHatch.cpp
