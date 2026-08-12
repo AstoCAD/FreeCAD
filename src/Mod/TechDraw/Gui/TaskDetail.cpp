@@ -825,6 +825,7 @@ void TaskDetail::createDetail(const Base::Vector3d& anchor, double radius)
     m_detailFeat->Connect.setValue(ui->cbConnect->isChecked());
     m_detailFeat->ScaleType.setValue(ui->cbScaleType->currentIndex());
     m_detailFeat->Scale.setValue(ui->qsbScale->value());
+    m_detailFeat->Caption.setValue(m_detailFeat->makeCaption());
     if (identifier == m_page->getNextViewIdentifier(false)) {
         m_page->getNextViewIdentifier();
     }
@@ -905,7 +906,6 @@ void TaskDetail::updateScale()
     }
     m_detailFeat->ScaleType.setValue(ui->cbScaleType->currentIndex());
     m_detailFeat->Scale.setValue(ui->qsbScale->value());
-    m_detailFeat->Caption.setValue(m_detailFeat->makeCaption());
     m_detailFeat->Caption.setValue(m_detailFeat->makeCaption());
     m_detailFeat->recomputeFeature();
     m_detailFeat->requestPaint();
