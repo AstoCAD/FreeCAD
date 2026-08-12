@@ -70,6 +70,7 @@
         <file>icons/actions/TechDraw_SurfaceFinishSymbols.svg</file>
         <file>icons/actions/TechDraw_CosmeticCircle.svg</file>
         <file>icons/actions/TechDraw_BrokenView.svg</file>
+        <file>icons/actions/TechDraw_BrokenOutSectionView.svg</file>
         <file>icons/arrow-ccw.svg</file>
         <file>icons/arrow-cw.svg</file>
         <file>icons/arrow-down.svg</file>
@@ -166,6 +167,7 @@
         <file>icons/TechDraw_ProjTop.svg</file>
         <file>icons/TechDraw_RadiusDimension.svg</file>
         <file>icons/TechDraw_SectionView_Pointer.svg</file>
+        <file>icons/TechDraw_BrokenOutSectionView_Pointer.svg</file>
         <file>icons/TechDraw_TreeHatch.svg</file>
         <file>icons/TechDraw_TreeMulti.svg</file>
         <file>icons/TechDraw_TreePage.svg</file>
