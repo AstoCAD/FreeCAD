@@ -43,6 +43,7 @@
 #include "CosmeticExtension.h"
 #include "DrawView.h"
 #include "DrawViewBreak.h"
+#include "DrawViewBrokenOutSection.h"
 
 
 class gp_Pnt;
@@ -154,12 +155,15 @@ public:
     static const char* BreakTypeEnums[];
 
     App::PropertyLinkList Breaks;
+    App::PropertyLinkList BrokenOutSections;
 
     ViewDisplayStyle getDisplayStyle() const;
     bool hasShadedDisplay() const;
     bool showsVisibleEdges() const;
     bool hiddenEdgesAreSolid() const;
 
+    //! true if execute() applies the Breaks to the projected geometry
+    virtual bool supportsViewBreaks() const { return true; }
     std::size_t getBreakCount() const;
     DrawViewBreak* getBreakObject(std::size_t index) const;
     DrawViewBreak* addBreak(const Base::Vector3d& firstPoint,
@@ -168,12 +172,19 @@ public:
                             double gap,
                             BreakType lineType);
     bool removeBreak(std::size_t index);
+    DrawViewBrokenOutSection* addBrokenOutSection(
+        const std::vector<Base::Vector3d>& outline,
+        double depth);
+    bool removeBrokenOutSection(std::size_t index);
     BreakType getBreakType(std::size_t index) const;
     double getBreakGap(std::size_t index) const;
     std::pair<Base::Vector3d, Base::Vector3d>
         getBreakLinePoints(std::size_t index) const;
     Base::Vector3d getBreakLineDirection(std::size_t index) const;
     Base::Vector3d mapPointFromBrokenView(const Base::Vector3d& point2d) const;
+    Base::Vector3d mapPointToBrokenView(const Base::Vector3d& point3d) const;
+    //! true when the current geometry is built from a shape cut and moved by view breaks
+    bool hasAppliedViewBreaks() const { return m_viewBreaksApplied; }
 
     short mustExecute() const override;
     App::DocumentObjectExecReturn* execute() override;
@@ -200,6 +211,10 @@ public:
     const BaseGeomPtrVector getEdgeGeometry() const;
     const BaseGeomPtrVector getVisibleFaceEdges() const;
     const std::vector<TechDraw::FacePtr> getFaceGeometry() const;
+    const std::vector<TechDraw::FacePtr>& getBrokenOutSectionFaceGeometry() const
+    {
+        return m_brokenOutSectionFaces;
+    }
 
     bool hasGeometry() const;
     virtual bool allowsEmptyGeometry() const { return false; }
@@ -300,11 +315,15 @@ protected:
     bool checkXDirection() const;
 
     TopoDS_Shape applyViewBreaks(const TopoDS_Shape& shape);
+    TopoDS_Shape applyBrokenOutSections(const TopoDS_Shape& shape);
+    void updateBrokenOutSectionFaces(const TopoDS_Shape& shape);
     void setBreakSourceCentroid(const Base::Vector3d& centroid);
 
     TechDraw::GeometryObjectPtr geometryObject;
     TechDraw::GeometryObjectPtr m_tempGeometryObject;//holds the new GO until hlr is completed
     Base::BoundBox3d bbox;
+    std::vector<double> m_brokenOutSectionPlanes;
+    std::vector<TechDraw::FacePtr> m_brokenOutSectionFaces;
 
     void onChanged(const App::Property* prop) override;
     void unsetupObject() override;
@@ -333,6 +352,7 @@ protected:
     Base::Vector3d m_saveCentroid;//centroid before centering shape in origin
     Base::Vector3d m_breakSourceCentroid;
     Base::Vector3d m_breakResultCentroid;
+    bool m_viewBreaksApplied{false};
 
     std::vector<TechDraw::VertexPtr> m_referenceVerts;
 
