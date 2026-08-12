@@ -42,14 +42,19 @@
 #include <BRepAlgo_NormalProjection.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepTools.hxx>
+#include <BRepTools_WireExplorer.hxx>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepPrimAPI_MakeHalfSpace.hxx>
+#include <BRepPrimAPI_MakePrism.hxx>
 #include <Bnd_Box.hxx>
 #include <HLRAlgo_Projector.hxx>
 #include <QtConcurrentRun>
@@ -67,6 +72,12 @@
 #include <gp_Dir.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
+#include <gp_Vec.hxx>
+#include <GeomAPI_Interpolate.hxx>
+#include <GeomAbs_SurfaceType.hxx>
+#include <Precision.hxx>
+#include <Standard_Failure.hxx>
+#include <TColgp_HArray1OfPnt.hxx>
 #include <sstream>
 #include <cstring>
 
@@ -93,6 +104,7 @@
 #include "DrawViewDimension.h"
 #include "DrawViewPart.h"
 #include "DrawViewBreak.h"
+#include "DrawViewBrokenOutSection.h"
 #include "DrawViewPartPy.h"// generated from DrawViewPartPy.xml
 #include "DrawViewSection.h"
 #include "EdgeWalker.h"
@@ -349,6 +361,10 @@ DrawViewPart::DrawViewPart()
                       "Break objects owned by this view.");
     Breaks.setScope(App::LinkScope::Global);
     Breaks.setAllowExternal(true);
+    ADD_PROPERTY_TYPE(BrokenOutSections, (nullptr), "Broken-out Section", App::Prop_None,
+                      "Broken-out section objects owned by this view.");
+    BrokenOutSections.setScope(App::LinkScope::Global);
+    BrokenOutSections.setAllowExternal(true);
 
     //initialize bbox to non-garbage
     bbox = Base::BoundBox3d(Base::Vector3d(0.0, 0.0, 0.0), 0.0);
@@ -474,6 +490,218 @@ bool DrawViewPart::removeBreak(std::size_t index)
     return true;
 }
 
+DrawViewBrokenOutSection* DrawViewPart::addBrokenOutSection(
+    const std::vector<Base::Vector3d>& outline,
+    double depth)
+{
+    App::Document* document = getDocument();
+    if (!document || outline.size() < 3) {
+        return nullptr;
+    }
+
+    auto* section = document->addObject<DrawViewBrokenOutSection>("BrokenOutSection");
+    section->Outline.setValues(outline);
+    section->Depth.setValue(std::max(0.0, depth));
+    auto sections = BrokenOutSections.getValues();
+    sections.push_back(section);
+    BrokenOutSections.setValues(sections);
+    return section;
+}
+
+bool DrawViewPart::removeBrokenOutSection(std::size_t index)
+{
+    const auto sections = BrokenOutSections.getValues();
+    App::Document* document = getDocument();
+    if (!document || index >= sections.size() || !sections[index]) {
+        return false;
+    }
+    document->removeObject(sections[index]->getNameInDocument());
+    return true;
+}
+
+TopoDS_Shape DrawViewPart::applyBrokenOutSections(const TopoDS_Shape& shape)
+{
+    TopoDS_Shape result = shape;
+    m_brokenOutSectionPlanes.clear();
+    Base::Vector3d viewDirection = Direction.getValue();
+    if (result.IsNull() || viewDirection.Sqr() <= std::numeric_limits<double>::epsilon()) {
+        return result;
+    }
+    viewDirection.Normalize();
+
+    const auto shapeLimits = limitsAlong(shape, viewDirection);
+    if (shapeLimits.second == std::numeric_limits<double>::lowest()) {
+        return result;
+    }
+    const double front = shapeLimits.second;
+    const double margin = std::max(1.0, shapeLimits.second - shapeLimits.first) * 0.01;
+
+    for (auto* object : BrokenOutSections.getValues()) {
+        auto* section = freecad_cast<DrawViewBrokenOutSection*>(object);
+        if (!section || section->Suppressed.getValue()) {
+            continue;
+        }
+        const auto points = section->Outline.getValues();
+        const double depth = section->Depth.getValue();
+        if (points.size() < 3 || depth <= EWTOLERANCE) {
+            continue;
+        }
+
+        Handle(TColgp_HArray1OfPnt) interpolationPoints =
+            new TColgp_HArray1OfPnt(1, static_cast<Standard_Integer>(points.size()));
+        for (size_t index = 0; index < points.size(); ++index) {
+            const Base::Vector3d& point = points[index];
+            const double shift = front + margin - point.Dot(viewDirection);
+            interpolationPoints->SetValue(
+                static_cast<Standard_Integer>(index + 1),
+                Base::convertTo<gp_Pnt>(point + viewDirection * shift));
+        }
+
+        GeomAPI_Interpolate interpolate(interpolationPoints, true, Precision::Confusion());
+        try {
+            interpolate.Perform();
+        }
+        catch (const Standard_Failure&) {
+            Base::Console().warning("%s: failed to interpolate broken-out section outline.\n",
+                                    getNameInDocument());
+            continue;
+        }
+        if (!interpolate.IsDone()) {
+            continue;
+        }
+
+        BRepBuilderAPI_MakeEdge edge(interpolate.Curve());
+        if (!edge.IsDone()) {
+            continue;
+        }
+        BRepBuilderAPI_MakeWire wire(edge.Edge());
+        if (!wire.IsDone()) {
+            continue;
+        }
+        BRepBuilderAPI_MakeFace face(wire.Wire());
+        if (!face.IsDone()) {
+            continue;
+        }
+        const gp_Vec extrusion = Base::convertTo<gp_Vec>(
+            viewDirection * -(depth + margin));
+        BRepPrimAPI_MakePrism prism(face.Face(), extrusion, false, true);
+        if (!prism.IsDone()) {
+            continue;
+        }
+        BRepAlgoAPI_Cut cut(result, prism.Shape());
+        if (cut.IsDone() && !cut.Shape().IsNull()) {
+            result = cut.Shape();
+            m_brokenOutSectionPlanes.push_back(front - depth);
+        }
+        else {
+            Base::Console().warning("%s: failed to apply a broken-out section.\n",
+                                    getNameInDocument());
+        }
+    }
+    return result;
+}
+
+void DrawViewPart::updateBrokenOutSectionFaces(const TopoDS_Shape& shape)
+{
+    m_brokenOutSectionFaces.clear();
+    if (shape.IsNull() || m_brokenOutSectionPlanes.empty()) {
+        return;
+    }
+
+    Base::Vector3d viewDirection = Direction.getValue();
+    if (viewDirection.Sqr() <= std::numeric_limits<double>::epsilon()) {
+        return;
+    }
+    viewDirection.Normalize();
+
+    BRep_Builder builder;
+    TopoDS_Compound cutFaces;
+    builder.MakeCompound(cutFaces);
+    for (TopExp_Explorer explorer(shape, TopAbs_FACE); explorer.More(); explorer.Next()) {
+        const TopoDS_Face& face = TopoDS::Face(explorer.Current());
+        BRepAdaptor_Surface surface(face);
+        if (surface.GetType() != GeomAbs_Plane) {
+            continue;
+        }
+        const gp_Pln plane = surface.Plane();
+        if (!plane.Axis().Direction().IsParallel(
+                Base::convertTo<gp_Dir>(viewDirection), Precision::Angular())) {
+            continue;
+        }
+        const double position =
+            Base::convertTo<Base::Vector3d>(plane.Location()).Dot(viewDirection);
+        const bool isCutFace = std::any_of(
+            m_brokenOutSectionPlanes.begin(),
+            m_brokenOutSectionPlanes.end(),
+            [position](double candidate) {
+                return std::abs(position - candidate) <= 10.0 * Precision::Confusion();
+            });
+        if (isCutFace) {
+            builder.Add(cutFaces, face);
+        }
+    }
+
+    if (cutFaces.IsNull()) {
+        return;
+    }
+    // The cut changes the shape centroid.  Keep the generated section faces
+    // in the same stable view coordinate system as the stored outline and HLR.
+    const Base::Vector3d centroid = m_breakResultCentroid;
+    TopoDS_Shape displayFaces = ShapeUtils::moveShape(cutFaces, centroid * -1.0);
+    displayFaces = ShapeUtils::scaleShape(displayFaces, getScale());
+    if (!DrawUtil::fpCompare(Rotation.getValue(), 0.0)) {
+        displayFaces = ShapeUtils::rotateShape(
+            displayFaces, getProjectionCS(), Rotation.getValue());
+    }
+
+    // These faces are parallel to the drawing plane, so a coordinate-system
+    // transform is an exact projection.  Running each boundary edge through
+    // HLR can omit or split the trimmed B-spline edge; the remaining open wire
+    // is then implicitly closed with a straight chord by QPainter.
+    gp_Trsf toProjection;
+    toProjection.SetTransformation(getProjectionCS());
+    displayFaces = BRepBuilderAPI_Transform(displayFaces, toProjection, true).Shape();
+    displayFaces = ShapeUtils::invertGeometry(displayFaces);
+
+    for (TopExp_Explorer faceExplorer(displayFaces, TopAbs_FACE);
+         faceExplorer.More(); faceExplorer.Next()) {
+        auto tdFace = std::make_shared<TechDraw::Face>();
+        const TopoDS_Face& face = TopoDS::Face(faceExplorer.Current());
+        for (TopExp_Explorer wireExplorer(face, TopAbs_WIRE);
+             wireExplorer.More(); wireExplorer.Next()) {
+            const TopoDS_Wire& wire = TopoDS::Wire(wireExplorer.Current());
+            auto* tdWire = new TechDraw::Wire();
+            // Preserve the topological wire order.  Rebuilding a wire from an
+            // unordered projected compound can manufacture the long straight
+            // chords seen in broken-out section hatches.
+            for (BRepTools_WireExplorer edgeExplorer(wire);
+                 edgeExplorer.More(); edgeExplorer.Next()) {
+                const TopoDS_Edge edge = edgeExplorer.Current();
+                BRepAdaptor_Curve adaptor(edge);
+                // Do not let BaseGeom::baseFactory simplify a trimmed cutter
+                // B-spline to Generic.  Generic has no polygon here and falls
+                // back to the two endpoints, replacing the curved breakout
+                // boundary with a straight chord.
+                BaseGeomPtr geometry = adaptor.GetType() == GeomAbs_BSplineCurve
+                    ? std::make_shared<TechDraw::BSpline>(edge)
+                    : BaseGeom::baseFactory(edge);
+                if (geometry) {
+                    tdWire->geoms.push_back(geometry);
+                }
+            }
+            if (tdWire->geoms.empty()) {
+                delete tdWire;
+            }
+            else {
+                tdFace->wires.push_back(tdWire);
+            }
+        }
+        if (!tdFace->wires.empty()) {
+            m_brokenOutSectionFaces.push_back(std::move(tdFace));
+        }
+    }
+}
+
 DrawViewPart::BreakType DrawViewPart::getBreakType(std::size_t index) const
 {
     const auto definitions = viewBreakDefinitions(*this);
@@ -593,6 +821,18 @@ Base::Vector3d DrawViewPart::mapPointFromBrokenView(const Base::Vector3d& point2
     return candidate;
 }
 
+Base::Vector3d DrawViewPart::mapPointToBrokenView(const Base::Vector3d& point3d) const
+{
+    const auto breaks = viewBreakDefinitions(*this);
+    const Base::Vector3d compressed = point3d + breakShift(point3d, breaks);
+    const gp_Ax2 axes = getRotatedCS(m_breakResultCentroid);
+    const Base::Vector3d relative = compressed - m_breakResultCentroid;
+    return Base::Vector3d(
+        relative.Dot(Base::convertTo<Base::Vector3d>(axes.XDirection())) * getScale(),
+        relative.Dot(Base::convertTo<Base::Vector3d>(axes.YDirection())) * getScale(),
+        0.0);
+}
+
 //! pick vertex objects out of the Source properties and
 //! add them directly to the geometry without going through HLR
 void DrawViewPart::addPoints()
@@ -641,11 +881,17 @@ App::DocumentObjectExecReturn* DrawViewPart::execute()
 
     setBreakSourceCentroid(Base::convertTo<Base::Vector3d>(
         ShapeUtils::findCentroid(shape, getProjectionCS())));
+    m_brokenOutSectionPlanes.clear();
+    m_brokenOutSectionFaces.clear();
+    if (!BrokenOutSections.getValues().empty()) {
+        BRepBuilderAPI_Copy copy(shape);
+        shape = applyBrokenOutSections(copy.Shape());
+    }
     if (getBreakCount() > 0) {
         BRepBuilderAPI_Copy copy(shape);
         shape = applyViewBreaks(copy.Shape());
     }
-
+    updateBrokenOutSectionFaces(shape);
     partExec(shape);
 
     return DrawView::execute();
@@ -664,7 +910,7 @@ short DrawViewPart::mustExecute() const
         || HardHidden.isTouched() || SmoothHidden.isTouched() || SeamHidden.isTouched()
         || IsoHidden.isTouched() || IsoCount.isTouched() || CoarseView.isTouched()
         || CosmeticVertexes.isTouched() || CosmeticEdges.isTouched() || CenterLines.isTouched()
-        || Breaks.isTouched()) {
+        || Breaks.isTouched() || BrokenOutSections.isTouched()) {
         return 1;
     }
 
@@ -741,6 +987,12 @@ GeometryObjectPtr DrawViewPart::makeGeometryForShape(const TopoDS_Shape& shape)
     TopoDS_Shape localShape = copier.Shape();
 
     gp_Pnt gCentroid = ShapeUtils::findCentroid(localShape, getProjectionCS());
+    if (!BrokenOutSections.getValues().empty() || getBreakCount() > 0) {
+        // Broken and broken-out views intentionally alter the projected shape.
+        // Recentring on that result would move the view underneath the tools'
+        // stored coordinates, so use the stable centroid established in execute().
+        gCentroid = Base::convertTo<gp_Pnt>(m_breakResultCentroid);
+    }
     m_saveCentroid = Base::convertTo<Base::Vector3d>(gCentroid);
     m_saveShape = centerScaleRotate(this, localShape, m_saveCentroid);
 

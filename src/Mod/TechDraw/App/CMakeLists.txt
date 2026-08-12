@@ -52,6 +52,8 @@ SET(Draw_SRCS
     DrawView.h
     DrawViewBreak.cpp
     DrawViewBreak.h
+    DrawViewBrokenOutSection.cpp
+    DrawViewBrokenOutSection.h
     DrawViewPart.cpp
     DrawViewPart.h
     DrawViewAnnotation.cpp

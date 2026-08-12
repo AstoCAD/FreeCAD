@@ -68,6 +68,7 @@
 #include "QGVPage.h"
 #include "Rez.h"
 #include "TaskBrokenView.h"
+#include "TaskBrokenOutSection.h"
 #include "TaskActiveView.h"
 #include "TaskDetail.h"
 #include "TaskNewPage.h"
@@ -688,6 +689,54 @@ void CmdTechDrawBrokenView::activated(int iMsg)
 }
 
 bool CmdTechDrawBrokenView::isActive(void)
+{
+    return DrawGuiUtil::needPage(this) && !Gui::Control().activeDialog();
+}
+
+//===========================================================================
+// TechDraw_BrokenOutSectionView
+//===========================================================================
+
+DEF_STD_CMD_A(CmdTechDrawBrokenOutSectionView)
+
+CmdTechDrawBrokenOutSectionView::CmdTechDrawBrokenOutSectionView()
+    : Command("TechDraw_BrokenOutSectionView")
+{
+    sAppModule = "TechDraw";
+    sGroup = QT_TR_NOOP("TechDraw");
+    sMenuText = QT_TR_NOOP("Broken-out Section View");
+    sToolTipText = QT_TR_NOOP(
+        "Creates a local section inside a closed B-spline on an existing drawing view");
+    sWhatsThis = "TechDraw_BrokenOutSectionView";
+    sStatusTip = sToolTipText;
+    sPixmap = "actions/TechDraw_BrokenOutSectionView";
+}
+
+void CmdTechDrawBrokenOutSectionView::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    if (Gui::Control().activeDialog()) {
+        QMessageBox::warning(Gui::getMainWindow(), QObject::tr("Task in progress"),
+                             QObject::tr("Close active task dialog and try again"));
+        return;
+    }
+    DrawPage* page = DrawGuiUtil::findPage(this);
+    if (!page) {
+        return;
+    }
+    auto* mdi = qobject_cast<MDIViewPage*>(Gui::getMainWindow()->activeWindow());
+    QGVPage* graphicsView = mdi && mdi->getPage() == page
+        ? mdi->getViewProviderPage()->getQGVPage() : nullptr;
+    if (!graphicsView) {
+        QMessageBox::warning(
+            Gui::getMainWindow(), QObject::tr("No active drawing page"),
+            QObject::tr("Open the drawing page where the broken-out section should be created."));
+        return;
+    }
+    Gui::Control().showDialog(new TaskDlgBrokenOutSection(page, graphicsView));
+}
+
+bool CmdTechDrawBrokenOutSectionView::isActive()
 {
     return DrawGuiUtil::needPage(this) && !Gui::Control().activeDialog();
 }
@@ -1845,6 +1894,7 @@ void CreateTechDrawCommands()
     rcCmdMgr.addCommand(new CmdTechDrawBalloon());
     rcCmdMgr.addCommand(new CmdTechDrawProjectShape());
     rcCmdMgr.addCommand(new CmdTechDrawBrokenView());
+    rcCmdMgr.addCommand(new CmdTechDrawBrokenOutSectionView());
 
 }
 

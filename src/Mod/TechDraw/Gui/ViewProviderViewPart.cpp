@@ -47,6 +47,7 @@
 #include <Mod/TechDraw/App/DrawViewDimension.h>
 #include <Mod/TechDraw/App/DrawViewMulti.h>
 #include <Mod/TechDraw/App/DrawBrokenView.h>
+#include <Mod/TechDraw/App/DrawViewBrokenOutSection.h>
 #include <Mod/TechDraw/App/DrawViewPart.h>
 #include <Mod/TechDraw/App/LineGroup.h>
 #include <Mod/TechDraw/App/Cosmetic.h>
@@ -234,11 +235,18 @@ std::vector<App::DocumentObject*> ViewProviderViewPart::claimChildren() const
     //    - Leaders
     //    - Hatches
     //    - GeomHatches
+    //    - Breaks and broken-out sections
     //    - any drawing views declaring this view as their parent
     std::vector<App::DocumentObject*> temp;
 
     for (auto* object : getViewPart()->Breaks.getValues()) {
         if (object && object->isDerivedFrom<TechDraw::DrawViewBreak>()) {
+            temp.push_back(object);
+        }
+    }
+
+    for (auto* object : getViewPart()->BrokenOutSections.getValues()) {
+        if (object && object->isDerivedFrom<TechDraw::DrawViewBrokenOutSection>()) {
             temp.push_back(object);
         }
     }

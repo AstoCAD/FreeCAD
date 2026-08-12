@@ -21,6 +21,8 @@
  ***************************************************************************/
 
 #include <QPainterPath>
+#include <QPainterPathStroker>
+#include <QPainter>
 #include <QKeyEvent>
 #include <QLineF>
 #include <QGraphicsTransform>
@@ -67,15 +69,18 @@
 #include <Mod/TechDraw/App/DrawHatch.h>
 #include <Mod/TechDraw/App/DrawUtil.h>
 #include <Mod/TechDraw/App/DrawViewDetail.h>
+#include <Mod/TechDraw/App/DrawViewBrokenOutSection.h>
 #include <Mod/TechDraw/App/DrawViewPart.h>
 #include <Mod/TechDraw/App/DrawViewSection.h>
 #include <Mod/TechDraw/App/Geometry.h>
+#include <Mod/TechDraw/App/Preferences.h>
 #include <Mod/TechDraw/App/DrawBrokenView.h>
 #include <Mod/TechDraw/App/DrawProjGroup.h>
 #include <Mod/TechDraw/App/DrawProjGroupItem.h>
 #include <Mod/Part/App/Tools.h>
 
 #include "DrawGuiUtil.h"
+#include "BrokenOutSectionUtils.h"
 #include "MDIViewPage.h"
 #include "PreferencesGui.h"
 #include "QGIArrow.h"
@@ -188,6 +193,138 @@ private:
     QImage m_image;
     QRectF m_rect;
 };
+
+class QGIClippedEdge final : public QGIEdge
+{
+public:
+    QGIClippedEdge()
+        : QGIEdge(-1)
+    {}
+
+    void setPaintClip(const QPainterPath& clip)
+    {
+        m_clip = clip;
+    }
+
+    void paint(QPainter* painter,
+               const QStyleOptionGraphicsItem* option,
+               QWidget* widget) override
+    {
+        painter->save();
+        painter->setClipPath(m_clip, Qt::IntersectClip);
+        QGIPrimPath::paint(painter, option, widget);
+        painter->restore();
+    }
+
+private:
+    QPainterPath m_clip;
+};
+
+struct BrokenOutBoundaryMask
+{
+    QPainterPath outlines;
+    QPainterPath boundaryBand;
+
+    bool isEmpty() const
+    {
+        return boundaryBand.isEmpty();
+    }
+};
+
+BrokenOutBoundaryMask makeBrokenOutBoundaryMask(const DrawViewPart* view,
+                                                 double lineWidth)
+{
+    BrokenOutBoundaryMask result;
+    if (!view) {
+        return result;
+    }
+
+    for (App::DocumentObject* object : view->BrokenOutSections.getValues()) {
+        auto* section = freecad_cast<TechDraw::DrawViewBrokenOutSection*>(object);
+        if (!section || section->Suppressed.getValue()) {
+            continue;
+        }
+        const QPainterPath outline =
+            brokenOutSectionPath(view, section->Outline.getValues());
+        if (!outline.isEmpty()) {
+            result.outlines.addPath(outline);
+        }
+    }
+
+    if (!result.outlines.isEmpty()) {
+        QPainterPathStroker stroker;
+        stroker.setWidth(Rez::guiX(std::max(0.15, lineWidth * 1.5)));
+        result.boundaryBand = stroker.createStroke(result.outlines);
+    }
+    return result;
+}
+
+bool isBooleanBoundaryFragment(const QPainterPath& edge,
+                               const BrokenOutBoundaryMask& mask)
+{
+    if (edge.isEmpty() || mask.isEmpty()) {
+        return false;
+    }
+
+    // OCC splits the lateral face of the cutting prism at every model face.
+    // A resulting edge either follows the authoritative outline or is an
+    // internal splitter joining two points on that outline.  Do not let those
+    // Boolean implementation details replace the curve drawn by the tool.
+    constexpr int sampleCount = 9;
+    int samplesOnBoundary = 0;
+    for (int sample = 0; sample < sampleCount; ++sample) {
+        const qreal percent = static_cast<qreal>(sample)
+            / static_cast<qreal>(sampleCount - 1);
+        if (mask.boundaryBand.contains(edge.pointAtPercent(percent))) {
+            ++samplesOnBoundary;
+        }
+    }
+    if (samplesOnBoundary >= 5) {
+        return true;
+    }
+
+    const QPointF start = edge.pointAtPercent(0.0);
+    const QPointF end = edge.pointAtPercent(1.0);
+    if (QPointF::dotProduct(end - start, end - start) <= 1.0e-12
+        || !mask.boundaryBand.contains(start)
+        || !mask.boundaryBand.contains(end)) {
+        return false;
+    }
+
+    // A chord created by split coplanar faces lies inside the breakout.  An
+    // unrelated edge outside the outline that merely touches it twice does not.
+    return mask.outlines.contains(edge.pointAtPercent(0.5));
+}
+
+QPainterPath clipMaterialFaceAtBrokenOutBoundary(
+    const QPainterPath& face,
+    const BrokenOutBoundaryMask& mask)
+{
+    if (face.isEmpty() || mask.isEmpty()) {
+        return face;
+    }
+
+    const QPainterPath inside = face.intersected(mask.outlines);
+    if (inside.isEmpty()) {
+        return face;
+    }
+
+    const QPainterPath outside = face.subtracted(mask.outlines);
+    if (!outside.isEmpty()) {
+        // This is a surrounding material face.  Its HLR reconstruction may
+        // cross the Boolean fragments with a chord, but the aperture is owned
+        // by the stored B-spline.
+        return outside;
+    }
+
+    if (!face.intersected(mask.boundaryBand).isEmpty()) {
+        // A face wholly inside the aperture but touching its boundary is a
+        // duplicate/sliver made from cutter topology.  The explicit section
+        // faces are drawn separately and own this area.
+        return {};
+    }
+    return face;
+}
 
 double edgeFunction(const QPointF& a, const QPointF& b, double x, double y)
 {
@@ -699,10 +836,99 @@ void QGIViewPart::drawViewPart()
     else if (viewPart->handleFaces() && !viewPart->CoarseView.getValue()) {
         drawAllFaces();
     }
+    drawBrokenOutSectionFaces();
 
     drawAllEdges();
+    drawBrokenOutSectionOutlines();
 
     drawAllVertexes();
+}
+
+void QGIViewPart::drawBrokenOutSectionFaces()
+{
+    auto* viewPart = dynamic_cast<TechDraw::DrawViewPart*>(getViewObject());
+    auto* viewProvider =
+        dynamic_cast<ViewProviderViewPart*>(getViewProvider(getViewObject()));
+    if (!viewPart || !viewProvider) {
+        return;
+    }
+    const bool showSectionEdges =
+        TechDraw::Preferences::getPreferenceGroup("General")
+            ->GetBool("ShowSectionEdges", true);
+    for (const auto& face : viewPart->getBrokenOutSectionFaceGeometry()) {
+        QGIFace* item = drawFace(face, -1);
+        item->setZValue(ZVALUE::SECTIONFACE);
+        item->setDrawEdges(showSectionEdges);
+        if (showSectionEdges) {
+            item->setStyle(Qt::SolidLine);
+            item->setWidth(Rez::guiX(viewProvider->LineWidth.getValue()));
+        }
+        item->isHatched(true);
+        item->setFillMode(FillMode::SvgFill);
+        item->setHatchFile(TechDraw::DrawHatch::prefSvgHatch());
+        item->setHatchColor(TechDraw::DrawHatch::prefSvgHatchColor());
+        item->setHatchScale(1.0);
+        item->draw();
+        item->setPrettyNormal();
+        item->setAcceptHoverEvents(false);
+        item->setFlag(QGraphicsItem::ItemIsSelectable, false);
+    }
+}
+
+void QGIViewPart::drawBrokenOutSectionOutlines()
+{
+    auto* viewPart = dynamic_cast<TechDraw::DrawViewPart*>(getViewObject());
+    auto* viewProvider =
+        dynamic_cast<ViewProviderViewPart*>(getViewProvider(getViewObject()));
+    if (!viewPart || !viewProvider) {
+        return;
+    }
+
+    const QColor outlineColor =
+        PreferencesGui::getAccessibleQColor(PreferencesGui::normalQColor());
+    QPainterPath materialClip;
+    for (QGraphicsItem* child : childItems()) {
+        auto* face = dynamic_cast<QGIFace*>(child);
+        if (!face || face->getProjIndex() < 0 || face->path().isEmpty()) {
+            continue;
+        }
+        materialClip = materialClip.isEmpty()
+            ? face->path()
+            : materialClip.united(face->path());
+    }
+    if (materialClip.isEmpty()) {
+        return;
+    }
+    QPainterPathStroker clipStroker;
+    clipStroker.setWidth(Rez::guiX(std::max(
+        0.15, viewProvider->LineWidth.getValue() * 1.5)));
+    materialClip = materialClip.united(clipStroker.createStroke(materialClip));
+
+    for (App::DocumentObject* object : viewPart->BrokenOutSections.getValues()) {
+        auto* section = freecad_cast<TechDraw::DrawViewBrokenOutSection*>(object);
+        if (!section || section->Suppressed.getValue()) {
+            continue;
+        }
+        const QPainterPath path = brokenOutSectionPath(viewPart, section->Outline.getValues());
+        if (path.isEmpty()) {
+            continue;
+        }
+
+        auto* item = new QGIClippedEdge();
+        addToGroupWithoutUpdate(item);
+        item->setPath(path);
+        item->setPaintClip(materialClip);
+        item->setNormalColor(outlineColor);
+        item->setLinePen(m_dashedLineGenerator->getLinePen(
+            1, viewProvider->LineWidth.getValue()));
+        item->setWidth(Rez::guiX(viewProvider->LineWidth.getValue()));
+        item->setPos(0.0, 0.0);
+        item->setZValue(ZVALUE::EDGE + 1);
+        item->setPrettyNormal();
+        item->setAcceptHoverEvents(false);
+        item->setAcceptedMouseButtons(Qt::NoButton);
+        item->setFlag(QGraphicsItem::ItemIsSelectable, false);
+    }
 }
 
 void QGIViewPart::drawShaded()
@@ -743,6 +969,8 @@ void QGIViewPart::drawAllFaces(void)
         faceColor = vpp->FaceColor.getValue().asValue<QColor>();
         faceColor.setAlpha((100 - vpp->FaceTransparency.getValue())*255/100);
     }
+    const BrokenOutBoundaryMask brokenOutMask = makeBrokenOutBoundaryMask(
+        dvp, vpp ? vpp->LineWidth.getValue() : 0.2);
 
     std::vector<TechDraw::DrawHatch*> regularHatches = dvp->getHatches();
     std::vector<TechDraw::DrawGeomHatch*> geomHatches = dvp->getGeomHatches();
@@ -750,6 +978,8 @@ void QGIViewPart::drawAllFaces(void)
     int iFace(0);
     for (auto& face : faceGeoms) {
         QGIFace* newFace = drawFace(face, iFace);
+        newFace->setOutline(
+            clipMaterialFaceAtBrokenOutBoundary(newFace->path(), brokenOutMask));
         if (faceColor.isValid()) {
             newFace->setFillColor(faceColor);
             newFace->setFillMode(faceColor.alpha() ? FillMode::PlainFill : FillMode::NoFill);
@@ -821,6 +1051,8 @@ void QGIViewPart::drawAllEdges()
     // dvp and vp already validated
     auto dvp(static_cast<TechDraw::DrawViewPart*>(getViewObject()));
     auto vp = static_cast<ViewProviderViewPart*>(getViewProvider(getViewObject()));
+    const BrokenOutBoundaryMask brokenOutMask =
+        makeBrokenOutBoundaryMask(dvp, vp->LineWidth.getValue());
 
     auto* complexSection =
         dynamic_cast<TechDraw::DrawComplexSection*>(dvp);
@@ -964,9 +1196,15 @@ void QGIViewPart::drawAllEdges()
             continue;
         }
 
+        const bool suppressed = (*itGeom)->source() == TechDraw::SourceType::GEOMETRY
+            && isBooleanBoundaryFragment(edgePath, brokenOutMask);
+        if (suppressed) {
+            continue;
+        }
+
         item = new QGIEdge(iEdge);
         addToGroupWithoutUpdate(item);      //item is created at scene(0, 0), not group(0, 0)
-        item->setPath(drawPainterPath(*itGeom));
+        item->setPath(edgePath);
         item->setSource((*itGeom)->source());
 
         item->setNormalColor(PreferencesGui::getAccessibleQColor(PreferencesGui::normalQColor()));
@@ -1116,14 +1354,20 @@ void QGIViewPart::drawAllVertexes()
     auto vp(static_cast<ViewProviderViewPart*>(getViewProvider(getViewObject())));
     ViewProviderPage* vpPage = vp->getViewProviderPage();
     QColor vertexColor = PreferencesGui::getAccessibleQColor(PreferencesGui::vertexQColor());
+    const BrokenOutBoundaryMask brokenOutMask =
+        makeBrokenOutBoundaryMask(dvp, vp->LineWidth.getValue());
 
     const std::vector<TechDraw::VertexPtr>& verts = dvp->getVertexGeometry();
     auto vert = verts.begin();
     for (int i = 0; vert != verts.end(); ++vert, i++) {
+        const QPointF point(Rez::guiX((*vert)->x()), Rez::guiX((*vert)->y()));
+        if (!(*vert)->isCenter() && brokenOutMask.boundaryBand.contains(point)) {
+            continue;
+        }
         if ((*vert)->isCenter()) {
             auto* cmItem = new QGICMark(i);
             addToGroupWithoutUpdate(cmItem);
-            cmItem->setPos(Rez::guiX((*vert)->x()), Rez::guiX((*vert)->y()));
+            cmItem->setPos(point);
             cmItem->setThick(0.5F * getLineWidth());    //need minimum?
             cmItem->setSize(getVertexSize() * vp->CenterScale.getValue());
             cmItem->setPrettyNormal();
@@ -1138,7 +1382,7 @@ void QGIViewPart::drawAllVertexes()
             if (showVertices()) {
                 auto* item = new QGIVertex(i);
                 addToGroupWithoutUpdate(item);
-                item->setPos(Rez::guiX((*vert)->x()), Rez::guiX((*vert)->y()));
+                item->setPos(point);
                 item->setNormalColor(vertexColor);
                 item->setFillColor(vertexColor);
                 item->setRadius(getVertexSize());

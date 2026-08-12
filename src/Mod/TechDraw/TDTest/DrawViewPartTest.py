@@ -103,5 +103,37 @@ class DrawViewPartTest(unittest.TestCase):
         FreeCAD.ActiveDocument.recompute()
         self.assertEqual(view.Breaks, [])
 
+    def testBrokenOutSectionDocumentObject(self):
+        """A view owns editable, suppressible broken-out section objects."""
+        view = FreeCAD.ActiveDocument.addObject(
+            "TechDraw::DrawViewPart", "BrokenOutView"
+        )
+        self.page.addView(view)
+        view.Source = [FreeCAD.ActiveDocument.Box]
+
+        section = FreeCAD.ActiveDocument.addObject(
+            "TechDraw::DrawViewBrokenOutSection", "BrokenOutSection"
+        )
+        section.Outline = [
+            FreeCAD.Vector(2.0, 2.0, 0.0),
+            FreeCAD.Vector(8.0, 2.0, 0.0),
+            FreeCAD.Vector(8.0, 8.0, 0.0),
+            FreeCAD.Vector(2.0, 8.0, 0.0),
+        ]
+        section.Depth = 4.0
+        view.BrokenOutSections = [section]
+        FreeCAD.ActiveDocument.recompute()
+
+        self.assertEqual(view.BrokenOutSections, [section])
+        self.assertTrue(section.hasExtension("App::SuppressibleExtension"))
+        self.assertEqual(len(section.Outline), 4)
+        self.assertAlmostEqual(section.Depth.Value, 4.0)
+
+        section.Suppressed = True
+        self.assertNotIn("Touched", view.State)
+        FreeCAD.ActiveDocument.removeObject(section.Name)
+        FreeCAD.ActiveDocument.recompute()
+        self.assertEqual(view.BrokenOutSections, [])
+
 if __name__ == "__main__":
     unittest.main()

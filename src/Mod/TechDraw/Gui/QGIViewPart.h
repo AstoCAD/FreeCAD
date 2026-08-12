@@ -141,6 +141,8 @@ protected:
     QPainterPath drawPainterPath(TechDraw::BaseGeomPtr baseGeom) const;
     void drawViewPart();
     void drawViewDecorations();
+    void drawBrokenOutSectionFaces();
+    void drawBrokenOutSectionOutlines();
     QGIFace* drawFace(TechDraw::FacePtr f, int idx);
 
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
