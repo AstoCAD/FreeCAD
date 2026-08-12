@@ -33,4 +33,6 @@ from TDTest.DrawProjectionGroupTest import DrawProjectionGroupTest  # noqa: F401
 from TDTest.DrawViewScaleTypeTest import DrawViewScaleTypeTest  # noqa: F401
 from TDTest.PythonFeatureTest import PythonFeatureTest  # noqa: F401
 from TDTest.DrawViewBreakRemovalTest import DrawViewBreakRemovalTest  # noqa: F401
+from TDTest.DrawBrokenOutSectionDepthTest import DrawBrokenOutSectionDepthTest  # noqa: F401
+from TDTest.DrawDimensionViewBreakTest import DrawDimensionViewBreakTest  # noqa: F401
 
