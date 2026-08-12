@@ -325,8 +325,8 @@ void QGIFace::buildSvgHatch()
         return;
     }
     long int tileCount = 0;
-    for (int iw = 0; iw < int(tilesWide); iw++) {
-        for (int ih = 0; ih < int(tilesHigh); ih++) {
+    for (int iw=0; iw<int(tilesWide); iw++) {
+        for (int ih=0; ih<int(tilesHigh); ih++) {
             QGCustomSvg* tile = new QGCustomSvg();
             tile->setScale(m_fillScale);
             tile->setSharedRenderer(m_sharedRender);

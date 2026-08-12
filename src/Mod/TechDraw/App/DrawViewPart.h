@@ -41,6 +41,7 @@
 #include "CosmeticExtension.h"
 #include "DrawView.h"
 #include "DrawViewBreak.h"
+#include "DrawViewBrokenOutSection.h"
 
 
 class gp_Pnt;
@@ -152,6 +153,7 @@ public:
     static const char* BreakTypeEnums[];
 
     App::PropertyLinkList Breaks;
+    App::PropertyLinkList BrokenOutSections;
 
     ViewDisplayStyle getDisplayStyle() const;
     bool hasShadedDisplay() const;
@@ -166,12 +168,17 @@ public:
                             double gap,
                             BreakType lineType);
     bool removeBreak(std::size_t index);
+    DrawViewBrokenOutSection* addBrokenOutSection(
+        const std::vector<Base::Vector3d>& outline,
+        double depth);
+    bool removeBrokenOutSection(std::size_t index);
     BreakType getBreakType(std::size_t index) const;
     double getBreakGap(std::size_t index) const;
     std::pair<Base::Vector3d, Base::Vector3d>
         getBreakLinePoints(std::size_t index) const;
     Base::Vector3d getBreakLineDirection(std::size_t index) const;
     Base::Vector3d mapPointFromBrokenView(const Base::Vector3d& point2d) const;
+    Base::Vector3d mapPointToBrokenView(const Base::Vector3d& point3d) const;
 
     short mustExecute() const override;
     App::DocumentObjectExecReturn* execute() override;
@@ -199,6 +206,10 @@ public:
     const BaseGeomPtrVector getEdgeGeometry() const;
     const BaseGeomPtrVector getVisibleFaceEdges() const;
     const std::vector<TechDraw::FacePtr> getFaceGeometry() const;
+    const std::vector<TechDraw::FacePtr>& getBrokenOutSectionFaceGeometry() const
+    {
+        return m_brokenOutSectionFaces;
+    }
 
     bool hasGeometry() const;
     TechDraw::GeometryObjectPtr getGeometryObject() const { return geometryObject; }
@@ -298,11 +309,15 @@ protected:
     bool checkXDirection() const;
 
     TopoDS_Shape applyViewBreaks(const TopoDS_Shape& shape);
+    TopoDS_Shape applyBrokenOutSections(const TopoDS_Shape& shape);
+    void updateBrokenOutSectionFaces(const TopoDS_Shape& shape);
     void setBreakSourceCentroid(const Base::Vector3d& centroid);
 
     TechDraw::GeometryObjectPtr geometryObject;
     TechDraw::GeometryObjectPtr m_tempGeometryObject;//holds the new GO until hlr is completed
     Base::BoundBox3d bbox;
+    std::vector<double> m_brokenOutSectionPlanes;
+    std::vector<TechDraw::FacePtr> m_brokenOutSectionFaces;
 
     void onChanged(const App::Property* prop) override;
     void unsetupObject() override;

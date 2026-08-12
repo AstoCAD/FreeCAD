@@ -63,6 +63,7 @@ set(TechDrawGui_UIC_SRCS
     TaskRestoreLines.ui
     TaskRichAnno.ui
     TaskBrokenView.ui
+    TaskBrokenOutSection.ui
     TaskSectionView.ui
     TaskSpreadsheetView.ui
     TaskWeldingSymbol.ui
@@ -91,6 +92,8 @@ SET(TechDrawGui_SRCS
     AppTechDrawGui.cpp
     AppTechDrawGuiPy.cpp
     Command.cpp
+    BrokenOutSectionUtils.cpp
+    BrokenOutSectionUtils.h
     CommandCreateDims.cpp
     CommandDecorate.cpp
     CommandAnnotate.cpp
@@ -140,6 +143,9 @@ SET(TechDrawGui_SRCS
     TaskBrokenView.ui
     TaskBrokenView.cpp
     TaskBrokenView.h
+    TaskBrokenOutSection.ui
+    TaskBrokenOutSection.cpp
+    TaskBrokenOutSection.h
     TaskSectionView.ui
     TaskSectionView.cpp
     TaskSectionView.h
@@ -414,6 +420,8 @@ SET(TechDrawGuiViewProvider_SRCS
     ViewProviderViewClip.h
     ViewProviderViewBreak.cpp
     ViewProviderViewBreak.h
+    ViewProviderBrokenOutSection.cpp
+    ViewProviderBrokenOutSection.h
     ViewProviderGeomHatch.cpp
     ViewProviderGeomHatch.h
     ViewProviderHatch.cpp
@@ -436,6 +444,7 @@ SET(TechDrawGuiTaskDlgs_SRCS
     TaskProjGroup.ui
     TaskLinkDim.ui
     TaskBrokenView.ui
+    TaskBrokenOutSection.ui
     TaskSectionView.ui
     TaskSpreadsheetView.ui
     TaskGeomHatch.ui

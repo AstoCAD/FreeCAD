@@ -481,6 +481,16 @@ void QGVPage::mousePressEvent(QMouseEvent* event)
     QGraphicsView::mousePressEvent(event);
 }
 
+void QGVPage::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    if (toolHandler && event->button() != Qt::MiddleButton) {
+        toolHandler->mouseDoubleClickEvent(event);
+    }
+    else {
+        QGraphicsView::mouseDoubleClickEvent(event);
+    }
+}
+
 void QGVPage::mouseMoveEvent(QMouseEvent* event)
 {
     if (toolHandler) {
