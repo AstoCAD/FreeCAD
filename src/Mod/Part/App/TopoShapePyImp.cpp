@@ -892,15 +892,16 @@ PyObject* TopoShapePy::sewShape(PyObject* args)
     if (!PyArg_ParseTuple(args, "|d", &tolerance)) {
         return nullptr;
     }
+    // BRepBuilderAPI_Sewing accepts any tolerance without complaint: an infinite one
+    // merges all faces away and a NaN one leaves everything unsewn.
+    checkFinite(tolerance, "Tolerance");
 
-    try {
-        getTopoShapePtr()->sewShape();
+    PY_TRY
+    {
+        getTopoShapePtr()->sewShape(tolerance);
         Py_Return;
     }
-    catch (Standard_Failure& e) {
-        PyErr_SetString(PartExceptionOCCError, e.GetMessageString());
-        return nullptr;
-    }
+    PY_CATCH_OCC
 }
 
 PyObject* TopoShapePy::childShapes(PyObject* args) const
