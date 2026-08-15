@@ -149,8 +149,11 @@ macro(SetupBundledCoinPivy)
     endif ()
     set(PIVY_PACKAGE_OUTPUT_DIR "${PROJECT_BINARY_DIR}/Mod/pivy"
         CACHE PATH "Build-tree output directory for bundled Pivy" FORCE)
+    # Visual Studio project names are case-insensitive. Avoid colliding with
+    # bundled Coin's `Coin` target while retaining the Python module name.
+    set(PIVY_COIN_TARGET_NAME pivy_coin)
     add_subdirectory("${CMAKE_SOURCE_DIR}/src/3rdParty/pivy" "${CMAKE_BINARY_DIR}/src/3rdParty/pivy")
-    set_property(TARGET coin PROPERTY INSTALL_REMOVE_ENVIRONMENT_RPATH TRUE)
+    set_property(TARGET ${PIVY_COIN_TARGET_NAME} PROPERTY INSTALL_REMOVE_ENVIRONMENT_RPATH TRUE)
     if (NOT DEFINED PIVY_VERSION OR PIVY_VERSION STREQUAL "")
         message(FATAL_ERROR "Bundled Pivy did not define PIVY_VERSION")
     endif ()
