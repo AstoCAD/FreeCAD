@@ -176,6 +176,8 @@ void Workbench::activated()
 
     const char* Face[] = {
         "PartDesign_NewSketch",
+        "PartDesign_AdditiveForm",
+        "PartDesign_SubtractiveForm",
         "PartDesign_Fillet",
         "PartDesign_Chamfer",
         "PartDesign_Draft",
@@ -454,7 +456,9 @@ Gui::MenuItem* Workbench::setupMenuBar() const
           << "PartDesign_SubShapeBinder"
           << "PartDesign_Clone"
           << "Separator" << additives << "PartDesign_CompPrimitiveAdditive"
+          << "PartDesign_AdditiveForm"
           << "Separator" << subtractives << "PartDesign_CompPrimitiveSubtractive"
+          << "PartDesign_SubtractiveForm"
           << "Separator" << dressups << "Separator" << transformations << "Separator"
           << "PartDesign_Boolean"
           << "Separator"
@@ -510,6 +514,7 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
           << "PartDesign_AdditivePipe"
           << "PartDesign_AdditiveHelix"
           << "PartDesign_CompPrimitiveAdditive"
+          << "PartDesign_AdditiveForm"
           << "Separator"
           << "PartDesign_Pocket"
           << "PartDesign_Hole"
@@ -518,6 +523,7 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
           << "PartDesign_SubtractivePipe"
           << "PartDesign_SubtractiveHelix"
           << "PartDesign_CompPrimitiveSubtractive"
+          << "PartDesign_SubtractiveForm"
           << "Separator"
           << "PartDesign_Boolean";
 
