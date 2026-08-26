@@ -27,6 +27,8 @@
 #include "QGIViewPart.h"
 #include "QGIUserTypes.h"
 
+#include <QPointF>
+
 QT_BEGIN_NAMESPACE
 class QGraphicsPathItem;
 QT_END_NAMESPACE
@@ -52,11 +54,16 @@ protected:
                         const QVariant& value) override;
 
 private:
+    void basePositionChanged();
+    void basePositionChangeFinished();
     void updatePlacementConnector();
     void connectPlacementConnectorToBase();
 
     QGraphicsPathItem* m_placementConnector{};
     QMetaObject::Connection m_basePositionConnection;
+    QMetaObject::Connection m_basePositionFinishedConnection;
+    QPointF m_lastBaseScenePosition;
+    bool m_hasBaseScenePosition{false};
 };
 
 } // end namespace TechDrawGui

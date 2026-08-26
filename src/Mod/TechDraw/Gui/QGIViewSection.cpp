@@ -115,7 +115,10 @@ QVariant QGIViewSection::itemChange(GraphicsItemChange change,
 void QGIViewSection::connectPlacementConnectorToBase()
 {
     QObject::disconnect(m_basePositionConnection);
+    QObject::disconnect(m_basePositionFinishedConnection);
     m_basePositionConnection = {};
+    m_basePositionFinishedConnection = {};
+    m_hasBaseScenePosition = false;
     auto* section =
         dynamic_cast<TechDraw::DrawViewSection*>(getViewObject());
     auto* base = section ? section->getBaseDVP() : nullptr;
@@ -126,9 +129,53 @@ void QGIViewSection::connectPlacementConnectorToBase()
         ? dynamic_cast<QGIView*>(baseProvider->getQView())
         : nullptr;
     if (baseItem) {
+        m_lastBaseScenePosition = baseItem->scenePos();
+        m_hasBaseScenePosition = true;
         m_basePositionConnection = connect(
             baseItem, &QGIView::positionChanged,
-            this, &QGIViewSection::updatePlacementConnector);
+            this, &QGIViewSection::basePositionChanged);
+        m_basePositionFinishedConnection = connect(
+            baseItem, &QGIView::positionChangeFinished,
+            this, &QGIViewSection::basePositionChangeFinished);
+    }
+}
+
+void QGIViewSection::basePositionChanged()
+{
+    auto* section =
+        dynamic_cast<TechDraw::DrawViewSection*>(getViewObject());
+    auto* base = section ? section->getBaseDVP() : nullptr;
+    auto* baseProvider = base
+        ? freecad_cast<ViewProviderDrawingView*>(getViewProvider(base))
+        : nullptr;
+    auto* baseItem = baseProvider
+        ? dynamic_cast<QGIView*>(baseProvider->getQView())
+        : nullptr;
+    if (!baseItem) {
+        m_hasBaseScenePosition = false;
+        updatePlacementConnector();
+        return;
+    }
+
+    const QPointF basePosition = baseItem->scenePos();
+    if (m_hasBaseScenePosition && section
+        && section->SectionPlacement.getValue() != 0) {
+        const QPointF movement = basePosition - m_lastBaseScenePosition;
+        if (!movement.isNull()) {
+            setPos(pos() + movement);
+        }
+    }
+    m_lastBaseScenePosition = basePosition;
+    m_hasBaseScenePosition = true;
+    updatePlacementConnector();
+}
+
+void QGIViewSection::basePositionChangeFinished()
+{
+    auto* section =
+        dynamic_cast<TechDraw::DrawViewSection*>(getViewObject());
+    if (section && section->SectionPlacement.getValue() != 0) {
+        dragFinished();
     }
 }
 

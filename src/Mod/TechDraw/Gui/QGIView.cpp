@@ -283,6 +283,9 @@ void QGIView::dragFinished()
 
         snapping = false;
     }
+    // Allow dependent graphics items to persist their corresponding move in
+    // the same transaction as this view.
+    Q_EMIT positionChangeFinished();
     if (ownTransaction) {
         viewObj->getDocument()->commitTransaction();
     }
@@ -431,12 +434,11 @@ void QGIView::snapSectionView(const TechDraw::DrawViewSection* sectionView,
     double snapDist = baseSize * getScale() * Preferences::SnapLimitFactor();
 
     // find the scene position of the SO on the base view
-    auto baseX = baseView->X.getValue();
-    auto baseY = baseView->Y.getValue();
-    Base::Vector3d baseScenePos{baseX, baseY, 0};       // paper space position
-    if (DrawView::isProjGroupItem(baseView)) {
-        baseScenePos = projItemPagePos(baseView);
-    }
+    // Use the live graphics position.  During a drag the feature's X/Y values
+    // are not written until mouse release, while constrained section views
+    // must follow the base view continuously.
+    Base::Vector3d baseScenePos = Rez::appX(
+        DU::invertY(DU::toVector3d(qgiv->scenePos())));
     auto sectionOrg3d      = sectionView->SectionOrigin.getValue();
     auto shapeCenter3d     = baseView->getCurrentCentroid();
     auto baseShapeCenter   = baseView->projectPoint(shapeCenter3d, false);

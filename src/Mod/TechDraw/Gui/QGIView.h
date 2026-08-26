@@ -192,6 +192,7 @@ public:
 
 Q_SIGNALS:
     void positionChanged();
+    void positionChangeFinished();
 
 protected:
     QGIView* getQGIVByName(std::string name) const;
