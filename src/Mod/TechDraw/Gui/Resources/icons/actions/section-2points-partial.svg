@@ -6,7 +6,7 @@
    width="64"
    height="64"
    id="svg2"
-   sodipodi:docname="section-center-right.svg"
+   sodipodi:docname="section-2points.svg"
    inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -290,7 +290,7 @@
      style="color:#000000;display:inline;overflow:visible;visibility:visible;fill:none;stroke:#34e0e2;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:21.92;stroke-opacity:1;marker:none;enable-background:accumulate"
      sodipodi:nodetypes="ccccccccccccccc" />
   <g
-     transform="matrix(0.63333709,0,0,0.63333697,37.69709,30.670916)"
+     transform="matrix(0.63333709,0,0,0.63333697,22.154941,15.029772)"
      id="g14"
      style="stroke-width:1.2842">
     <path
@@ -318,13 +318,13 @@
   <text
      xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:21.3333px;font-family:Arial;-inkscape-font-specification:Arial;text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#34e0e2;fill-opacity:1;stroke:#042a2a;stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:5.5;stroke-dasharray:none;stroke-opacity:1"
-     x="10.865388"
-     y="48.167557"
+     x="6.7076154"
+     y="46.187664"
      id="text1-2"><tspan
        sodipodi:role="line"
        id="tspan1-4"
-       x="10.865388"
-       y="48.167557">1</tspan></text>
+       x="6.7076154"
+       y="46.187664">1</tspan></text>
   <text
      xml:space="preserve"
      style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:20.1498px;font-family:Arial;-inkscape-font-specification:Arial;text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#34e0e2;fill-opacity:1;stroke:#042a2a;stroke-width:1.03897;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:5.5;stroke-dasharray:none;stroke-opacity:1"

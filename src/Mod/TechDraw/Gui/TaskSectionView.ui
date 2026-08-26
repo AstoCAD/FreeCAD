@@ -67,19 +67,28 @@
        </widget>
       </item>
       <item>
-       <widget class="QToolButton" name="tbSectionCenterLeft">
-        <property name="toolTip"><string>Center and left point</string></property>
-        <property name="text"><string>Center and left point</string></property>
-        <property name="icon"><iconset resource="Resources/TechDraw.qrc"><normaloff>:/icons/actions/section-center-left.svg</normaloff>:/icons/actions/section-center-left.svg</iconset></property>
+       <widget class="QToolButton" name="tbSectionTwoPoints">
+        <property name="toolTip"><string>Two points</string></property>
+        <property name="text"><string>Two points</string></property>
+        <property name="icon"><iconset resource="Resources/TechDraw.qrc"><normaloff>:/icons/actions/section-2points.svg</normaloff>:/icons/actions/section-2points.svg</iconset></property>
         <property name="checkable"><bool>true</bool></property>
         <property name="autoExclusive"><bool>true</bool></property>
        </widget>
       </item>
       <item>
-       <widget class="QToolButton" name="tbSectionCenterRight">
-        <property name="toolTip"><string>Center and right point</string></property>
-        <property name="text"><string>Center and right point</string></property>
-        <property name="icon"><iconset resource="Resources/TechDraw.qrc"><normaloff>:/icons/actions/section-center-right.svg</normaloff>:/icons/actions/section-center-right.svg</iconset></property>
+       <widget class="QToolButton" name="tbSectionCenterPoint">
+        <property name="toolTip"><string>Half section from center and point</string></property>
+        <property name="text"><string>Center and point</string></property>
+        <property name="icon"><iconset resource="Resources/TechDraw.qrc"><normaloff>:/icons/actions/section-center-point.svg</normaloff>:/icons/actions/section-center-point.svg</iconset></property>
+        <property name="checkable"><bool>true</bool></property>
+        <property name="autoExclusive"><bool>true</bool></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="tbSectionTwoPointsPartial">
+        <property name="toolTip"><string>Two points partial view</string></property>
+        <property name="text"><string>Two points partial view</string></property>
+        <property name="icon"><iconset resource="Resources/TechDraw.qrc"><normaloff>:/icons/actions/section-2points-partial.svg</normaloff>:/icons/actions/section-2points-partial.svg</iconset></property>
         <property name="checkable"><bool>true</bool></property>
         <property name="autoExclusive"><bool>true</bool></property>
        </widget>
@@ -89,15 +98,6 @@
         <property name="toolTip"><string>Center and 2 points</string></property>
         <property name="text"><string>Center and 2 points</string></property>
         <property name="icon"><iconset resource="Resources/TechDraw.qrc"><normaloff>:/icons/actions/section-center-2points.svg</normaloff>:/icons/actions/section-center-2points.svg</iconset></property>
-        <property name="checkable"><bool>true</bool></property>
-        <property name="autoExclusive"><bool>true</bool></property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QToolButton" name="tbSectionTwoPoints">
-        <property name="toolTip"><string>Two points</string></property>
-        <property name="text"><string>Two points</string></property>
-        <property name="icon"><iconset resource="Resources/TechDraw.qrc"><normaloff>:/icons/actions/section-2points.svg</normaloff>:/icons/actions/section-2points.svg</iconset></property>
         <property name="checkable"><bool>true</bool></property>
         <property name="autoExclusive"><bool>true</bool></property>
        </widget>
@@ -276,50 +276,13 @@
    </widget>
    </item>
    <item>
-    <widget class="QWidget" name="sectionPlacementWidget" native="true">
-     <layout class="QHBoxLayout" name="horizontalLayoutSectionPlacement">
-      <property name="leftMargin">
-       <number>0</number>
-      </property>
-      <property name="topMargin">
-       <number>0</number>
-      </property>
-      <property name="rightMargin">
-       <number>0</number>
-      </property>
-      <property name="bottomMargin">
-       <number>0</number>
-      </property>
-      <item>
-       <widget class="QLabel" name="labelSectionPlacement">
-        <property name="text">
-         <string>Section placement</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QComboBox" name="cmbSectionPlacement">
-        <property name="toolTip">
-         <string>Constrains movement of a straight-axis section view</string>
-        </property>
-        <item>
-         <property name="text">
-          <string>Free</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Along section line</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Along view direction</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-     </layout>
+    <widget class="QCheckBox" name="cbConnectionLine">
+     <property name="toolTip">
+      <string>Shows a line connecting the cutting line to the section view</string>
+     </property>
+     <property name="text">
+      <string>Connection line</string>
+     </property>
     </widget>
    </item>
    <item>
@@ -380,7 +343,20 @@
       <string>Shows only the geometry intersected by the section plane</string>
      </property>
      <property name="text">
-      <string>Section cut only</string>
+      <string>Slice section</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="cbShowOutsidePartialBoundaries">
+     <property name="toolTip">
+      <string>Shows projected geometry beyond the partial section boundaries</string>
+     </property>
+     <property name="text">
+      <string>Show outside boundaries</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
      </property>
     </widget>
    </item>

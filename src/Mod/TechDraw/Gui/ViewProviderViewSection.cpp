@@ -115,18 +115,14 @@ void ViewProviderViewSection::updateData(const App::Property* prop)
 {
     if (prop == &(getViewObject()->FileHatchPattern)   ||
         prop == &(getViewObject()->CutSurfaceDisplay)    ||
-        prop == &(getViewObject()->SectionCutOnly)    ||
-        prop == &(getViewObject()->SectionPlacement)    ||
+        prop == &(getViewObject()->SectionCutOnly) ||
+        prop == &(getViewObject()->ShowOutsidePartialBoundaries) ||
+        prop == &(getViewObject()->ConnectionLine)    ||
+        prop == &(getViewObject()->LockRelativePositionToSource) ||
         prop == &(getViewObject()->NameGeomPattern)    ||
         prop == &(getViewObject()->HatchScale)  ||
         prop == &(getViewObject()->HatchRotation) ) {
         updateGraphic();
-    }
-
-    if (prop == &(getViewObject()->SectionPlacement)) {
-        if (QGIView* qgiv = getQView()) {
-            qgiv->applySectionPlacementConstraint();
-        }
     }
 
     ViewProviderViewPart::updateData(prop);

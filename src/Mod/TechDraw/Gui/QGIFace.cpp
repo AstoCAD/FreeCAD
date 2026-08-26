@@ -252,6 +252,24 @@ void QGIFace::setOutline(const QPainterPath & path)
     setPath(path);
 }
 
+void QGIFace::setPaintClip(const QPainterPath& clip)
+{
+    prepareGeometryChange();
+    m_paintClip = clip;
+}
+
+void QGIFace::paint(QPainter* painter,
+                    const QStyleOptionGraphicsItem* option,
+                    QWidget* widget)
+{
+    painter->save();
+    if (!m_paintClip.isEmpty()) {
+        painter->setClipPath(m_paintClip, Qt::IntersectClip);
+    }
+    QGIPrimPath::paint(painter, option, widget);
+    painter->restore();
+}
+
 /// add PAT hatch line set
 void QGIFace::addLineSet(LineSet& ls)
 {
@@ -500,12 +518,13 @@ void QGIFace::getParameters()
 
 QRectF QGIFace::boundingRect() const
 {
-    return shape().controlPointRect();
+    return shape().boundingRect();
 }
 
 QPainterPath QGIFace::shape() const
 {
-    return path();
+    return m_paintClip.isEmpty()
+        ? path() : path().intersected(m_paintClip);
 }
 
 bool QGIFace::exporting() const

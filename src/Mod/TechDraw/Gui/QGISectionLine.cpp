@@ -26,6 +26,7 @@
 # include <QGraphicsSceneMouseEvent>
 # include <QPainter>
 # include <QPainterPath>
+# include <QPainterPathStroker>
 # include <QStyleOptionGraphicsItem>
 
 
@@ -149,13 +150,17 @@ void QGISectionLine::makeArrows()
 void QGISectionLine::makeArrowBases()
 {
     QPainterPath path;
+    const double arrowLength = Rez::guiX(m_arrowSize);
     const double baseLength = Rez::guiX(m_arrowSize * 1.35);
     auto addBase = [&](QGIArrow* arrow, const Base::Vector3d& direction) {
         QPointF screenDirection(direction.x, -direction.y);
         screenDirection = normalizeQPointF(screenDirection);
         const QPointF tip = arrow->pos();
         path.moveTo(tip);
-        path.lineTo(tip - screenDirection * baseLength);
+        // The first arrowLength is hidden by the filled arrowhead.  Add it
+        // to the requested shaft length so the complete blue shaft remains
+        // visible behind the arrowhead.
+        path.lineTo(tip - screenDirection * (arrowLength + baseLength));
     };
     addBase(m_arrow1, m_arrowDir1);
     addBase(m_arrow2, m_arrowDir2);
@@ -465,6 +470,64 @@ void QGISectionLine::setPath(const QPainterPath &path)
     m_line->setPath(path);
 }
 
+QPointF QGISectionLine::lineCenter() const
+{
+    const QPainterPath path = m_line->path();
+    if (!path.isEmpty()) {
+        // A half section appends its perpendicular leader as a second
+        // subpath.  Placement belongs to the cutting line, not to that
+        // display-only leader.
+        QPainterPath cuttingPath;
+        for (int index = 0; index < path.elementCount(); ++index) {
+            const auto element = path.elementAt(index);
+            if (index > 0 && element.isMoveTo()) {
+                // Half sections append their perpendicular leader as a
+                // second subpath beginning at the construction center.
+                return QPointF(element.x, element.y);
+            }
+            if (index == 0) {
+                cuttingPath.moveTo(element.x, element.y);
+            }
+            else {
+                cuttingPath.lineTo(element.x, element.y);
+            }
+        }
+        if (!cuttingPath.isEmpty()) {
+            return cuttingPath.pointAtPercent(0.5);
+        }
+    }
+    return (m_start + m_end) / 2.0;
+}
+
+QPointF QGISectionLine::lineDirection() const
+{
+    const QPainterPath path = m_line->path();
+    if (!path.isEmpty()) {
+        const auto first = path.elementAt(0);
+        QPointF start(first.x, first.y);
+        QPointF end = start;
+        for (int index = 1; index < path.elementCount(); ++index) {
+            const auto element = path.elementAt(index);
+            if (element.isMoveTo()) {
+                break;
+            }
+            end = QPointF(element.x, element.y);
+        }
+        const QLineF cuttingLine(start, end);
+        if (cuttingLine.length() > 1.0e-6) {
+            return cuttingLine.unitVector().p2()
+                - cuttingLine.unitVector().p1();
+        }
+    }
+
+    const QLineF cuttingLine(m_start, m_end);
+    if (cuttingLine.length() > 1.0e-6) {
+        return cuttingLine.unitVector().p2()
+            - cuttingLine.unitVector().p1();
+    }
+    return {};
+}
+
 void QGISectionLine::setChangePoints(const TechDraw::ChangePointVector& changePointData)
 {
     m_changePointData = changePointData;
@@ -515,10 +578,12 @@ void QGISectionLine::setArrowClickCallback(std::function<void()> callback)
     const bool clickable = static_cast<bool>(m_arrowClickCallback);
     m_arrow1->setCursor(clickable ? Qt::PointingHandCursor : Qt::ArrowCursor);
     m_arrow2->setCursor(clickable ? Qt::PointingHandCursor : Qt::ArrowCursor);
+    m_arrowBases->setCursor(clickable ? Qt::PointingHandCursor : Qt::ArrowCursor);
     const QString tooltip = clickable
         ? QObject::tr("Reverse the section direction") : QString();
     m_arrow1->setToolTip(tooltip);
     m_arrow2->setToolTip(tooltip);
+    m_arrowBases->setToolTip(tooltip);
 }
 
 void QGISectionLine::mousePressEvent(QGraphicsSceneMouseEvent* event)
@@ -530,8 +595,14 @@ void QGISectionLine::mousePressEvent(QGraphicsSceneMouseEvent* event)
             .adjusted(-margin, -margin, margin, margin)
             .contains(arrowPoint);
     };
+    QPainterPathStroker shaftHitArea;
+    shaftHitArea.setWidth(Rez::guiX(3.0));
+    const bool hitsArrowShaft = shaftHitArea
+        .createStroke(m_arrowBases->path())
+        .contains(event->pos());
     if (event->button() == Qt::LeftButton && m_arrowClickCallback
-        && (hitsArrow(m_arrow1) || hitsArrow(m_arrow2))) {
+        && (hitsArrow(m_arrow1) || hitsArrow(m_arrow2)
+            || hitsArrowShaft)) {
         m_arrowClickCallback();
         event->accept();
         return;
