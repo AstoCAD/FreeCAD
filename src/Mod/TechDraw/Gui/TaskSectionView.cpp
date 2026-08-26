@@ -37,6 +37,7 @@
 #include <QIcon>
 #include <QSignalBlocker>
 #include <QTimer>
+#include <QEventLoop>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <algorithm>
@@ -322,7 +323,10 @@ private:
 class SelectableOffsetEdge final : public QGraphicsPathItem
 {
 public:
-    explicit SelectableOffsetEdge(std::function<void()> deleteCallback) :
+    explicit SelectableOffsetEdge(
+        std::function<void()> deleteCallback,
+        const QString& toolTip =
+            QObject::tr("Select and press Delete to remove this offset")) :
         m_deleteCallback(std::move(deleteCallback))
     {
         QPen pen(QColor(35, 95, 210), 2.0, Qt::SolidLine,
@@ -334,7 +338,7 @@ public:
         setFlag(QGraphicsItem::ItemIsFocusable);
         setAcceptedMouseButtons(Qt::LeftButton);
         setCursor(Qt::PointingHandCursor);
-        setToolTip(QObject::tr("Select and press Delete to remove this offset"));
+        setToolTip(toolTip);
     }
 
     QPainterPath shape() const override
@@ -853,8 +857,10 @@ void TaskSectionView::setUiEdit()
     ui->cmbScaleType->setCurrentIndex(m_section->getScaleType());
     ui->cbSectionCutOnly->setChecked(
         m_section->SectionCutOnly.getValue());
-    ui->cmbSectionPlacement->setCurrentIndex(
-        static_cast<int>(m_section->SectionPlacement.getValue()));
+    ui->cbShowOutsidePartialBoundaries->setChecked(
+        m_section->ShowOutsidePartialBoundaries.getValue());
+    ui->cbConnectionLine->setChecked(
+        m_section->ConnectionLine.getValue());
     //Allow or prevent scale changing initially
     if (m_section->ScaleType.isValue("Custom")) {
         ui->sbScale->setEnabled(true);
@@ -873,7 +879,11 @@ void TaskSectionView::setUiEdit()
     projectedViewDirection.Normalize();
     double viewAngle = atan2(-projectedViewDirection.y, -projectedViewDirection.x);
     m_compass->setDialAngle(Base::toDegrees(viewAngle));
-    m_viewDirectionWidget->setValueNoNotify(sectionNormalVec * -1.0);
+    // The direction widget and baseToDisplayedDirection() both operate in
+    // BaseView coordinates.  SectionNormal is stored in global coordinates,
+    // so feeding it directly to the widget corrupts non-standard views every
+    // time the task is reopened and accepted.
+    m_viewDirectionWidget->setValueNoNotify(projectedViewDirection * -1.0);
 
     if (auto* complexSection =
             dynamic_cast<TechDraw::DrawComplexSection*>(m_section)) {
@@ -899,7 +909,6 @@ void TaskSectionView::setUiCommon(const QPointF& center)
 {
     ui->gbCustomComplexSection->hide();
     ui->parallelToWidget->hide();
-    ui->sectionPlacementWidget->hide();
     ui->tbSectionSketchBased->setIcon(QIcon(QString::fromStdString(
         App::Application::getResourceDir()
         + "Mod/Sketcher/Resources/icons/SketcherWorkbench.svg")));
@@ -935,6 +944,10 @@ void TaskSectionView::setUiCommon(const QPointF& center)
     connect(ui->cbLiveUpdate, &QToolButton::clicked, this, &TaskSectionView::liveUpdateClicked);
     connect(ui->cbSectionCutOnly, &QCheckBox::clicked,
             this, [this]() { apply(); });
+    connect(ui->cbShowOutsidePartialBoundaries, &QCheckBox::clicked,
+            this, [this]() { apply(); });
+    connect(ui->cbConnectionLine, &QCheckBox::clicked,
+            this, [this]() { apply(); });
     connect(ui->cbShowManualControls, &QCheckBox::toggled, this,
             &TaskSectionView::onShowManualControlsToggled);
     connect(ui->pbSectionObjects, &QPushButton::clicked,
@@ -946,9 +959,6 @@ void TaskSectionView::setUiCommon(const QPointF& center)
     connect(ui->cmbParallelTo,
             qOverload<int>(&QComboBox::currentIndexChanged), this,
             &TaskSectionView::onParallelToChanged);
-    connect(ui->cmbSectionPlacement,
-            qOverload<int>(&QComboBox::currentIndexChanged), this,
-            &TaskSectionView::onSectionPlacementChanged);
     const auto connectPositionButton = [this](QToolButton* button) {
         button->setIconSize(QSize(28, 28));
         connect(button, &QToolButton::toggled, this,
@@ -961,8 +971,8 @@ void TaskSectionView::setUiCommon(const QPointF& center)
     connectPositionButton(ui->tbSectionHorizontal);
     connectPositionButton(ui->tbSectionVertical);
     connectPositionButton(ui->tbSectionCenterDirection);
-    connectPositionButton(ui->tbSectionCenterLeft);
-    connectPositionButton(ui->tbSectionCenterRight);
+    connectPositionButton(ui->tbSectionCenterPoint);
+    connectPositionButton(ui->tbSectionTwoPointsPartial);
     connectPositionButton(ui->tbSectionCenterTwoPoints);
     connectPositionButton(ui->tbSectionTwoPoints);
     connectPositionButton(ui->tbSectionSketchBased);
@@ -1224,12 +1234,6 @@ void TaskSectionView::onParallelToChanged(int index)
     apply();
 }
 
-void TaskSectionView::onSectionPlacementChanged(int index)
-{
-    Q_UNUSED(index);
-    apply();
-}
-
 void TaskSectionView::adoptTemporarySectionLine(QGISectionLine* line,
                                                  QGIViewPart* baseItem)
 {
@@ -1284,11 +1288,11 @@ TaskSectionView::PositionMode TaskSectionView::positionMode() const
     if (ui->tbSectionVertical->isChecked()) {
         return PositionMode::Vertical;
     }
-    if (ui->tbSectionCenterLeft->isChecked()) {
-        return PositionMode::CenterAndLeftPoint;
+    if (ui->tbSectionCenterPoint->isChecked()) {
+        return PositionMode::CenterAndPoint;
     }
-    if (ui->tbSectionCenterRight->isChecked()) {
-        return PositionMode::CenterAndRightPoint;
+    if (ui->tbSectionTwoPointsPartial->isChecked()) {
+        return PositionMode::TwoPointsPartial;
     }
     if (ui->tbSectionCenterTwoPoints->isChecked()) {
         return PositionMode::CenterAndTwoPoints;
@@ -1332,6 +1336,9 @@ void TaskSectionView::resetInteractivePreview()
     m_endpointsEdited = false;
     m_startEndpointEdited = false;
     m_endEndpointEdited = false;
+    m_halfSection = false;
+    m_halfSectionTowardStart = false;
+    updatePartialDisplayVisibility();
 
     if (m_createMode && m_section) {
         const std::string sectionName =
@@ -1609,6 +1616,36 @@ void TaskSectionView::updateTemporarySectionLineEndpoint(
         m_endEndpointEdited = true;
     }
     m_endpointsEdited = true;
+    drawTemporarySingleOffset();
+}
+
+void TaskSectionView::updateTemporaryHalfSection(
+    const QPointF& center,
+    const QPointF& endpoint,
+    const Base::Vector3d& displayedDirection)
+{
+    QPointF tangent(-displayedDirection.y, -displayedDirection.x);
+    const double tangentLength = std::hypot(tangent.x(), tangent.y());
+    if (tangentLength <= std::numeric_limits<double>::epsilon()) {
+        return;
+    }
+    tangent /= tangentLength;
+
+    const double endpointAlong = QPointF::dotProduct(endpoint - center, tangent);
+    m_temporaryCenter = center;
+    m_displayedDirection = displayedDirection;
+    m_halfSection = true;
+    m_halfSectionTowardStart = endpointAlong < 0.0;
+    const auto automaticBounds = sectionLineBounds(
+        m_baseItem, center, displayedDirection);
+    m_temporaryStartAlong = automaticBounds.first;
+    m_temporaryEndAlong = automaticBounds.second;
+    // The second click selects which half and its line direction. The actual
+    // endpoint remains automatic so a newly-created half section spans all
+    // model geometry, just like the non-partial Two points mode.
+    m_endpointsEdited = true;
+    m_startEndpointEdited = !m_halfSectionTowardStart;
+    m_endEndpointEdited = m_halfSectionTowardStart;
     drawTemporarySingleOffset();
 }
 
@@ -2170,7 +2207,48 @@ TaskSectionView::sectionPathPoints(bool includePending) const
         }
         points = std::move(bentPoints);
     }
+    if (m_halfSection) {
+        std::erase_if(points, [this](const auto& point) {
+            return m_halfSectionTowardStart
+                ? point.second > 1.0e-6
+                : point.second < -1.0e-6;
+        });
+    }
     return points;
+}
+
+QPointF TaskSectionView::halfSectionLeaderEnd() const
+{
+    QPointF arrowDirection(m_displayedDirection.x,
+                           -m_displayedDirection.y);
+    const double length = std::hypot(
+        arrowDirection.x(), arrowDirection.y());
+    if (length <= std::numeric_limits<double>::epsilon()) {
+        arrowDirection = QPointF(1.0, 0.0);
+    }
+    else {
+        arrowDirection /= length;
+    }
+
+    QRectF bounds = m_baseItem ? m_baseItem->contentBoundingRect() : QRectF();
+    if (bounds.isEmpty() && m_baseItem) {
+        bounds = m_baseItem->boundingRect();
+    }
+    double minimumProjection = 0.0;
+    if (!bounds.isEmpty()) {
+        const std::array<QPointF, 4> corners{
+            bounds.topLeft(), bounds.topRight(),
+            bounds.bottomLeft(), bounds.bottomRight()};
+        minimumProjection = std::numeric_limits<double>::max();
+        for (const QPointF& corner : corners) {
+            minimumProjection = std::min(
+                minimumProjection,
+                QPointF::dotProduct(corner - m_temporaryCenter,
+                                    arrowDirection));
+        }
+    }
+    return m_temporaryCenter
+        + arrowDirection * (minimumProjection - Rez::guiX(10.0));
 }
 
 void TaskSectionView::drawTemporarySingleOffset()
@@ -2188,6 +2266,12 @@ void TaskSectionView::drawTemporarySingleOffset()
     path.moveTo(m_baseItem->mapToScene(points.front().first));
     for (size_t i = 1; i < points.size(); ++i) {
         path.lineTo(m_baseItem->mapToScene(points[i].first));
+    }
+    QPointF sceneLeaderEnd;
+    if (m_halfSection) {
+        sceneLeaderEnd = m_baseItem->mapToScene(halfSectionLeaderEnd());
+        path.moveTo(m_baseItem->mapToScene(m_temporaryCenter));
+        path.lineTo(sceneLeaderEnd);
     }
     m_temporarySectionLine->setPathMode(true);
     m_temporarySectionLine->setPath(path);
@@ -2228,12 +2312,26 @@ void TaskSectionView::drawTemporarySingleOffset()
         m_baseItem->mapToScene(rotatedArrow(endAngle));
     const QPointF startDirection = startArrowEnd - arrowStart;
     const QPointF endDirection = endArrowEnd - arrowStart;
-    m_temporarySectionLine->setEnds(
-        Base::Vector3d(sceneStart.x(), sceneStart.y(), 0.0),
-        Base::Vector3d(sceneEnd.x(), sceneEnd.y(), 0.0));
-    m_temporarySectionLine->setArrowDirections(
-        Base::Vector3d(startDirection.x(), -startDirection.y(), 0.0),
-        Base::Vector3d(endDirection.x(), -endDirection.y(), 0.0));
+    if (m_halfSection) {
+        const QPointF retainedEnd =
+            m_halfSectionTowardStart ? sceneStart : sceneEnd;
+        const QPointF retainedDirection = m_halfSectionTowardStart
+            ? startDirection : endDirection;
+        m_temporarySectionLine->setEnds(
+            Base::Vector3d(sceneLeaderEnd.x(), sceneLeaderEnd.y(), 0.0),
+            Base::Vector3d(retainedEnd.x(), retainedEnd.y(), 0.0));
+        m_temporarySectionLine->setArrowDirections(
+            Base::Vector3d(retainedDirection.x(), -retainedDirection.y(), 0.0),
+            Base::Vector3d(retainedDirection.x(), -retainedDirection.y(), 0.0));
+    }
+    else {
+        m_temporarySectionLine->setEnds(
+            Base::Vector3d(sceneStart.x(), sceneStart.y(), 0.0),
+            Base::Vector3d(sceneEnd.x(), sceneEnd.y(), 0.0));
+        m_temporarySectionLine->setArrowDirections(
+            Base::Vector3d(startDirection.x(), -startDirection.y(), 0.0),
+            Base::Vector3d(endDirection.x(), -endDirection.y(), 0.0));
+    }
     m_temporarySectionLine->draw();
     rebuildSelectableOffsetEdges();
     updateSectionHandles();
@@ -2329,6 +2427,90 @@ void TaskSectionView::rebuildSelectableOffsetEdges()
         edge->setPath(edgePath);
         m_selectableOffsetEdges.push_back(std::move(edge));
     }
+
+    if (m_halfSection) {
+        QPainterPath leaderPath;
+        leaderPath.moveTo(m_baseItem->mapToScene(m_temporaryCenter));
+        leaderPath.lineTo(m_baseItem->mapToScene(halfSectionLeaderEnd()));
+        auto leader = makeSceneItem<SelectableOffsetEdge>(
+            *m_baseItem->scene(), [this]() {
+                QTimer::singleShot(0, this,
+                                   [this]() { clearHalfSection(); });
+            },
+            QObject::tr(
+                "Select and press Delete to restore the full section"));
+        leader->setPath(leaderPath);
+        m_selectableOffsetEdges.push_back(std::move(leader));
+        return;
+    }
+
+    // The two ordinary center-to-end segments are selectable independently.
+    // Deleting one converts the section to a half section retaining the
+    // opposite side.
+    const auto fullPath = sectionPathPoints(false);
+    auto addHalfSelector = [this, &fullPath](bool startHalf) {
+        QPainterPath selectablePath;
+        bool hasPoint = false;
+        for (const auto& point : fullPath) {
+            if ((startHalf && point.second <= 1.0e-6)
+                || (!startHalf && point.second >= -1.0e-6)) {
+                const QPointF scenePoint =
+                    m_baseItem->mapToScene(point.first);
+                if (!hasPoint) {
+                    selectablePath.moveTo(scenePoint);
+                    hasPoint = true;
+                }
+                else {
+                    selectablePath.lineTo(scenePoint);
+                }
+            }
+        }
+        if (selectablePath.elementCount() < 2) {
+            return;
+        }
+        auto selector = makeSceneItem<SelectableOffsetEdge>(
+            *m_baseItem->scene(), [this, startHalf]() {
+                QTimer::singleShot(0, this, [this, startHalf]() {
+                    makeHalfSection(!startHalf);
+                });
+            },
+            QObject::tr(
+                "Select and press Delete to remove this half"));
+        selector->setPath(selectablePath);
+        m_selectableOffsetEdges.push_back(std::move(selector));
+    };
+    addHalfSelector(true);
+    addHalfSelector(false);
+}
+
+void TaskSectionView::makeHalfSection(bool retainStartHalf)
+{
+    m_halfSection = true;
+    m_halfSectionTowardStart = retainStartHalf;
+    m_endpointsEdited = true;
+    m_startEndpointEdited = !retainStartHalf;
+    m_endEndpointEdited = retainStartHalf;
+    showUnappliedPreview(false);
+    drawTemporarySingleOffset();
+    showSectionHandles();
+    apply();
+}
+
+void TaskSectionView::clearHalfSection()
+{
+    m_halfSection = false;
+    m_halfSectionTowardStart = false;
+    m_endpointsEdited = false;
+    m_startEndpointEdited = false;
+    m_endEndpointEdited = false;
+    const auto bounds = sectionLineBounds(
+        m_baseItem, m_temporaryCenter, m_displayedDirection);
+    m_temporaryStartAlong = bounds.first;
+    m_temporaryEndAlong = bounds.second;
+    showUnappliedPreview(false);
+    drawTemporarySingleOffset();
+    showSectionHandles();
+    apply();
 }
 
 void TaskSectionView::removeOffsetStep(size_t index)
@@ -2618,6 +2800,12 @@ void TaskSectionView::updateSectionControls()
     for (const ArcBend& bend : m_arcBends) {
         bounds.push_back(bend.along);
     }
+    if (m_halfSection) {
+        std::erase_if(bounds, [this](double along) {
+            return m_halfSectionTowardStart
+                ? along > 1.0e-6 : along < -1.0e-6;
+        });
+    }
     std::sort(bounds.begin(), bounds.end());
     bounds.erase(std::unique(bounds.begin(), bounds.end(),
                              [](double left, double right) {
@@ -2742,16 +2930,20 @@ void TaskSectionView::showSectionHandles()
         item->show();
     }
     if (m_startRotationHandle) {
-        m_startRotationHandle->show();
+        m_startRotationHandle->setVisible(
+            !m_halfSection || m_halfSectionTowardStart);
     }
     if (m_endRotationHandle) {
-        m_endRotationHandle->show();
+        m_endRotationHandle->setVisible(
+            !m_halfSection || !m_halfSectionTowardStart);
     }
     if (m_startEndpointHandle) {
-        m_startEndpointHandle->show();
+        m_startEndpointHandle->setVisible(
+            !m_halfSection || m_halfSectionTowardStart);
     }
     if (m_endEndpointHandle) {
-        m_endEndpointHandle->show();
+        m_endEndpointHandle->setVisible(
+            !m_halfSection || !m_halfSectionTowardStart);
     }
 }
 
@@ -3423,7 +3615,8 @@ void TaskSectionView::enableAll(bool enable)
     ui->sbCenterY->setEnabled(enable);
     ui->cmbScaleType->setEnabled(enable);
     ui->cbSectionCutOnly->setEnabled(enable);
-    ui->cmbSectionPlacement->setEnabled(enable);
+    ui->cbShowOutsidePartialBoundaries->setEnabled(enable);
+    ui->cbConnectionLine->setEnabled(enable);
     ui->gbOrientation->setEnabled(enable);
     ui->gbPlane->setEnabled(enable);
     QString qScaleType = ui->cmbScaleType->currentText();
@@ -3478,6 +3671,7 @@ bool TaskSectionView::apply(bool forceUpdate)
         Base::Console().error("{}\n", msg);
         return false;
     }
+    const bool needsInitialPlacement = !m_section;
     convertSectionToComplex();
     if (!m_section) {
         m_section = createSectionView();
@@ -3494,6 +3688,29 @@ bool TaskSectionView::apply(bool forceUpdate)
         return false;
     }
     m_section->recomputeFeature();
+    if (needsInitialPlacement) {
+        // The cut and projection run asynchronously. Wait for their actual
+        // bounds before placing the view, within the creation transaction.
+        QEventLoop loop;
+        QTimer timer;
+        connect(&timer, &QTimer::timeout, &loop, [&]() {
+            if (!m_section->waitingForResult()) {
+                loop.quit();
+            }
+        });
+        if (m_section->waitingForResult()) {
+            timer.start(20);
+            loop.exec(QEventLoop::ExcludeUserInputEvents);
+        }
+        auto* provider = freecad_cast<ViewProviderViewPart*>(
+            Gui::Application::Instance->getViewProvider(m_section));
+        auto* item = provider ? provider->getQView() : nullptr;
+        if (item) {
+            item->setVisible(true);
+            item->updateView(true);
+            item->autoPositionSectionView(m_section);
+        }
+    }
     if (isBaseValid()) {
         m_base->requestPaint();
     }
@@ -3564,20 +3781,18 @@ bool TaskSectionView::hasBentAxis() const
 void TaskSectionView::updateParallelToVisibility()
 {
     ui->parallelToWidget->setVisible(hasBentAxis());
-    updateSectionPlacementVisibility();
+    updatePartialDisplayVisibility();
 }
 
-void TaskSectionView::updateSectionPlacementVisibility()
+void TaskSectionView::updatePartialDisplayVisibility()
 {
-    const bool available = !m_customComplexSection && !hasBentAxis();
-    ui->sectionPlacementWidget->setVisible(available);
-    if (!available && ui->cmbSectionPlacement->currentIndex() != 0) {
-        const QSignalBlocker blocker(ui->cmbSectionPlacement);
-        ui->cmbSectionPlacement->setCurrentIndex(0);
-        if (m_section) {
-            m_section->SectionPlacement.setValue(0L);
-        }
+    bool partial = m_halfSection;
+    if (!partial && m_endpointsEdited) {
+        const auto status = partialEndpointStatus(
+            sectionPathPoints(false));
+        partial = status.first || status.second;
     }
+    ui->cbShowOutsidePartialBoundaries->setVisible(partial);
 }
 
 //*********************************************************************
@@ -3669,10 +3884,17 @@ TechDraw::DrawViewSection* TaskSectionView::createSectionView(void)
                            "App.ActiveDocument.%s.SectionCutOnly = %s",
                            m_sectionName.c_str(),
                            ui->cbSectionCutOnly->isChecked() ? "True" : "False");
+        Command::doCommand(
+            Command::Doc,
+            "App.ActiveDocument.%s.ShowOutsidePartialBoundaries = %s",
+            m_sectionName.c_str(),
+            ui->cbShowOutsidePartialBoundaries->isChecked()
+                ? "True" : "False");
         Command::doCommand(Command::Doc,
-                           "App.ActiveDocument.%s.SectionPlacement = %d",
+                           "App.ActiveDocument.%s.ConnectionLine = %s",
                            m_sectionName.c_str(),
-                           ui->cmbSectionPlacement->currentIndex());
+                           ui->cbConnectionLine->isChecked()
+                               ? "True" : "False");
 
         App::DocumentObject* newObj = m_base->getDocument()->getObject(m_sectionName.c_str());
         m_section = dynamic_cast<TechDraw::DrawViewSection*>(newObj);
@@ -3718,6 +3940,97 @@ TechDraw::DrawViewSection* TaskSectionView::createSectionView(void)
     return m_section;
 }
 
+std::pair<bool, bool> TaskSectionView::partialEndpointStatus(
+    const std::vector<std::pair<QPointF, double>>& pathPoints) const
+{
+    if (!m_baseItem || !m_base || pathPoints.size() < 2) {
+        return {false, false};
+    }
+
+    PathBuilder pathBuilder(m_baseItem);
+    auto endpointIsPartial = [&](bool startEndpoint) {
+        const QPointF endpoint = startEndpoint
+            ? pathPoints.front().first : pathPoints.back().first;
+        QPointF inwardPoint = startEndpoint
+            ? pathPoints[1].first
+            : pathPoints[pathPoints.size() - 2].first;
+        if (QPointF::dotProduct(inwardPoint - endpoint,
+                                inwardPoint - endpoint) < 1.0e-12) {
+            inwardPoint = m_temporaryCenter;
+        }
+        QPointF outward = endpoint - inwardPoint;
+        const double outwardLength = std::hypot(outward.x(), outward.y());
+        if (outwardLength < 1.0e-8) {
+            return true;
+        }
+        outward /= outwardLength;
+
+        const QTransform projectAlongOutward(
+            outward.x(), -outward.y(),
+            outward.y(), outward.x(), 0.0, 0.0);
+        const QPointF projectedEndpoint =
+            projectAlongOutward.map(endpoint);
+        const double rayY = projectedEndpoint.y();
+        const double intersectionTolerance = Rez::guiX(0.01);
+        double furthestIntersection = std::numeric_limits<double>::lowest();
+        for (const BaseGeomPtr& geometry : m_base->getEdgeGeometry()) {
+            if (!geometry
+                || geometry->source() != SourceType::GEOMETRY) {
+                continue;
+            }
+            const QPainterPath edgePath =
+                pathBuilder.geomToPainterPath(geometry, 0.0);
+            if (edgePath.isEmpty()) {
+                continue;
+            }
+            const QPainterPath projectedPath =
+                projectAlongOutward.map(edgePath);
+            const QList<QPolygonF> polylines =
+                projectedPath.toSubpathPolygons();
+            for (const QPolygonF& polyline : polylines) {
+                for (qsizetype i = 1; i < polyline.size(); ++i) {
+                    const QPointF first = polyline[i - 1];
+                    const QPointF second = polyline[i];
+                    const double minimumY =
+                        std::min(first.y(), second.y());
+                    const double maximumY =
+                        std::max(first.y(), second.y());
+                    if (rayY < minimumY - intersectionTolerance
+                        || rayY > maximumY + intersectionTolerance) {
+                        continue;
+                    }
+                    const double deltaY = second.y() - first.y();
+                    if (std::abs(deltaY) <= intersectionTolerance) {
+                        if (std::abs(rayY - first.y())
+                            <= intersectionTolerance) {
+                            furthestIntersection = std::max(
+                                furthestIntersection,
+                                std::max(first.x(), second.x()));
+                        }
+                        continue;
+                    }
+                    const double ratio = std::clamp(
+                        (rayY - first.y()) / deltaY, 0.0, 1.0);
+                    const double intersectionX =
+                        first.x() + ratio * (second.x() - first.x());
+                    furthestIntersection = std::max(
+                        furthestIntersection, intersectionX);
+                }
+            }
+        }
+
+        const double endpointPosition = projectedEndpoint.x();
+        const double endpointTolerance = Rez::guiX(0.1);
+        const bool hasOutwardIntersection =
+            furthestIntersection > std::numeric_limits<double>::lowest();
+        return hasOutwardIntersection
+            && endpointPosition
+                < furthestIntersection - endpointTolerance;
+    };
+
+    return {endpointIsPartial(true), endpointIsPartial(false)};
+}
+
 void TaskSectionView::createOffsetProfile()
 {
     if (m_customComplexSection || !hasComplexPath() || !m_base
@@ -3753,96 +4066,20 @@ void TaskSectionView::updateOffsetProfile()
     // geometry exists beyond that plane. Use the support of the real projected
     // edges, rather than the rectangular view bounds, so curved outlines and
     // rotated section halves are classified correctly.
-    if (m_baseItem && m_base && pathPoints.size() >= 2) {
-        PathBuilder pathBuilder(m_baseItem);
-        auto endpointIsPartial = [&](bool startEndpoint) {
-            const QPointF endpoint = startEndpoint
-                ? pathPoints.front().first : pathPoints.back().first;
-            QPointF inwardPoint = startEndpoint
-                ? pathPoints[1].first
-                : pathPoints[pathPoints.size() - 2].first;
-            if (QPointF::dotProduct(inwardPoint - endpoint,
-                                    inwardPoint - endpoint) < 1.0e-12) {
-                inwardPoint = m_temporaryCenter;
-            }
-            QPointF outward = endpoint - inwardPoint;
-            const double outwardLength =
-                std::hypot(outward.x(), outward.y());
-            if (outwardLength < 1.0e-8) {
-                return true;
-            }
-            outward /= outwardLength;
-
-            const QTransform projectAlongOutward(
-                outward.x(), -outward.y(),
-                outward.y(), outward.x(), 0.0, 0.0);
-            const QPointF projectedEndpoint =
-                projectAlongOutward.map(endpoint);
-            const double rayY = projectedEndpoint.y();
-            const double intersectionTolerance = Rez::guiX(0.01);
-            double furthestIntersection =
-                std::numeric_limits<double>::lowest();
-            for (const BaseGeomPtr& geometry : m_base->getEdgeGeometry()) {
-                if (!geometry
-                    || geometry->source() != SourceType::GEOMETRY) {
-                    continue;
-                }
-                const QPainterPath edgePath =
-                    pathBuilder.geomToPainterPath(geometry, 0.0);
-                if (edgePath.isEmpty()) {
-                    continue;
-                }
-                const QPainterPath projectedPath =
-                    projectAlongOutward.map(edgePath);
-                const QList<QPolygonF> polylines =
-                    projectedPath.toSubpathPolygons();
-                for (const QPolygonF& polyline : polylines) {
-                    for (qsizetype i = 1; i < polyline.size(); ++i) {
-                        const QPointF first = polyline[i - 1];
-                        const QPointF second = polyline[i];
-                        const double minimumY =
-                            std::min(first.y(), second.y());
-                        const double maximumY =
-                            std::max(first.y(), second.y());
-                        if (rayY < minimumY - intersectionTolerance
-                            || rayY > maximumY + intersectionTolerance) {
-                            continue;
-                        }
-                        const double deltaY = second.y() - first.y();
-                        if (std::abs(deltaY) <= intersectionTolerance) {
-                            if (std::abs(rayY - first.y())
-                                <= intersectionTolerance) {
-                                furthestIntersection = std::max(
-                                    furthestIntersection,
-                                    std::max(first.x(), second.x()));
-                            }
-                            continue;
-                        }
-                        const double ratio = std::clamp(
-                            (rayY - first.y()) / deltaY, 0.0, 1.0);
-                        const double intersectionX =
-                            first.x() + ratio * (second.x() - first.x());
-                        furthestIntersection = std::max(
-                            furthestIntersection, intersectionX);
-                    }
-                }
-            }
-
-            const double endpointPosition = projectedEndpoint.x();
-            const double endpointTolerance = Rez::guiX(0.1);
-            const bool hasOutwardIntersection =
-                furthestIntersection
-                > std::numeric_limits<double>::lowest();
-            const bool partial = hasOutwardIntersection
-                && endpointPosition
-                    < furthestIntersection - endpointTolerance;
-            return partial;
-        };
-        m_startEndpointEdited = endpointIsPartial(true);
-        m_endEndpointEdited = endpointIsPartial(false);
-        m_endpointsEdited =
-            m_startEndpointEdited || m_endEndpointEdited;
+    const auto partialStatus = partialEndpointStatus(pathPoints);
+    if (m_halfSection) {
+        m_startEndpointEdited = m_halfSectionTowardStart
+            ? partialStatus.first : true;
+        m_endEndpointEdited = m_halfSectionTowardStart
+            ? true : partialStatus.second;
+        m_endpointsEdited = true;
     }
+    else {
+        m_startEndpointEdited = partialStatus.first;
+        m_endEndpointEdited = partialStatus.second;
+        m_endpointsEdited = partialStatus.first || partialStatus.second;
+    }
+    updatePartialDisplayVisibility();
     const bool straightPartialPath =
         m_endpointsEdited && m_offsetSteps.empty() && m_arcBends.empty()
         && std::abs(m_startRotation) <= 1.0e-8
@@ -4056,6 +4293,25 @@ void TaskSectionView::updateOffsetProfile()
     setEndpointProperty("PartialSectionEnd",
                         "The end endpoint limits the section view",
                         m_endEndpointEdited);
+    setEndpointProperty("HalfSection",
+                        "The profile represents a half section",
+                        m_halfSection);
+    setEndpointProperty("HalfSectionTowardStart",
+                        "The half section retains the start side",
+                        m_halfSectionTowardStart);
+    auto* halfLeaderProperty = dynamic_cast<App::PropertyVector*>(
+        profile->getPropertyByName("HalfSectionLeaderEnd"));
+    if (!halfLeaderProperty) {
+        halfLeaderProperty = dynamic_cast<App::PropertyVector*>(
+            profile->addDynamicProperty(
+                "App::PropertyVector", "HalfSectionLeaderEnd", "Section",
+                "Outer endpoint of the half-section center leader",
+                App::Prop_Hidden));
+    }
+    if (halfLeaderProperty) {
+        halfLeaderProperty->setValue(
+            viewPointToSectionOrigin(halfSectionLeaderEnd()));
+    }
     auto* stateProperty = dynamic_cast<App::PropertyString*>(
         profile->getPropertyByName("ModernSectionData"));
     if (!stateProperty) {
@@ -4081,13 +4337,15 @@ std::string TaskSectionView::serializeModernProfileState() const
         viewPointToSectionOrigin(m_temporaryCenter);
     std::ostringstream state;
     state.precision(std::numeric_limits<double>::max_digits10);
-    state << 4 << ' ' << centerOrigin.x << ' ' << centerOrigin.y << ' '
+    state << 5 << ' ' << centerOrigin.x << ' ' << centerOrigin.y << ' '
           << centerOrigin.z << ' ' << m_displayedDirection.x << ' '
           << m_displayedDirection.y << ' ' << m_displayedDirection.z << ' '
           << m_temporaryStartAlong << ' ' << m_temporaryEndAlong << ' '
           << static_cast<int>(m_endpointsEdited) << ' '
           << static_cast<int>(m_startEndpointEdited) << ' '
           << static_cast<int>(m_endEndpointEdited) << ' '
+          << static_cast<int>(m_halfSection) << ' '
+          << static_cast<int>(m_halfSectionTowardStart) << ' '
           << m_startOffset << ' ' << m_startRotation << ' ' << m_endRotation
           << ' ' << m_nextModifierId << ' ' << m_offsetSteps.size();
     for (const OffsetStep& step : m_offsetSteps) {
@@ -4134,6 +4392,8 @@ struct ModernProfileState
     bool endpointsEdited{false};
     bool startEndpointEdited{false};
     bool endEndpointEdited{false};
+    bool halfSection{false};
+    bool halfSectionTowardStart{false};
     double startOffset{0.0};
     double startRotation{0.0};
     double endRotation{0.0};
@@ -4152,7 +4412,7 @@ parseModernProfileState(const std::string& serialized)
     std::size_t offsetCount = 0;
     std::size_t arcCount = 0;
     if (!(input >> version)
-        || (version != 1 && version != 2 && version != 3 && version != 4)
+        || (version < 1 || version > 5)
         || !(input >> restored->centerOrigin.x >> restored->centerOrigin.y
                    >> restored->centerOrigin.z >> restored->displayedDirection.x
                    >> restored->displayedDirection.y
@@ -4195,6 +4455,18 @@ parseModernProfileState(const std::string& serialized)
     else {
         restored->startEndpointEdited = restored->endpointsEdited;
         restored->endEndpointEdited = restored->endpointsEdited;
+    }
+
+    if (version >= 5) {
+        int halfSection = 0;
+        int towardStart = 0;
+        if (!(input >> halfSection >> towardStart)
+            || (halfSection != 0 && halfSection != 1)
+            || (towardStart != 0 && towardStart != 1)) {
+            return {};
+        }
+        restored->halfSection = halfSection != 0;
+        restored->halfSectionTowardStart = towardStart != 0;
     }
 
     if (!(input >> restored->startOffset >> restored->startRotation
@@ -4286,6 +4558,8 @@ bool TaskSectionView::restoreModernProfileState()
     m_endpointsEdited = restored->endpointsEdited;
     m_startEndpointEdited = restored->startEndpointEdited;
     m_endEndpointEdited = restored->endEndpointEdited;
+    m_halfSection = restored->halfSection;
+    m_halfSectionTowardStart = restored->halfSectionTowardStart;
     m_startOffset = restored->startOffset;
     m_startRotation = restored->startRotation;
     m_endRotation = restored->endRotation;
@@ -4394,10 +4668,17 @@ void TaskSectionView::updateSectionView()
                            "App.ActiveDocument.%s.SectionCutOnly = %s",
                            m_sectionName.c_str(),
                            ui->cbSectionCutOnly->isChecked() ? "True" : "False");
+        Command::doCommand(
+            Command::Doc,
+            "App.ActiveDocument.%s.ShowOutsidePartialBoundaries = %s",
+            m_sectionName.c_str(),
+            ui->cbShowOutsidePartialBoundaries->isChecked()
+                ? "True" : "False");
         Command::doCommand(Command::Doc,
-                           "App.ActiveDocument.%s.SectionPlacement = %d",
+                           "App.ActiveDocument.%s.ConnectionLine = %s",
                            m_sectionName.c_str(),
-                           ui->cmbSectionPlacement->currentIndex());
+                           ui->cbConnectionLine->isChecked()
+                               ? "True" : "False");
         if (!hasComplexPath()) {
             const Base::Vector3d origin =
                 viewPointToSectionOrigin(centerFromUi());
@@ -4646,8 +4927,12 @@ public:
                 m_direction = Base::Vector3d(1.0, 0.0, 0.0);
             }
             if (m_task->positionMode()
-                == TaskSectionView::PositionMode::TwoPoints) {
+                == TaskSectionView::PositionMode::TwoPointsPartial) {
                 updateFirstEndpointPreview(m_center, m_direction);
+            }
+            else if (m_task->positionMode()
+                     == TaskSectionView::PositionMode::CenterAndPoint) {
+                updateHalfPreview(m_center, m_direction);
             }
             else {
                 updatePreview(m_center, m_direction);
@@ -4664,6 +4949,28 @@ public:
             const TaskSectionView::PositionMode positionMode =
                 m_task->positionMode();
             if (m_mode == Mode::SeekSecondDirection) {
+                if (positionMode
+                    == TaskSectionView::PositionMode::CenterAndPoint) {
+                    QPointF requestedDirection = localPoint - m_center;
+                    const double requestedLength = std::hypot(
+                        requestedDirection.x(), requestedDirection.y());
+                    if (requestedLength < 1.0) {
+                        return;
+                    }
+                    requestedDirection /= requestedLength;
+                    const QPointF currentDirection(
+                        m_direction.x, -m_direction.y);
+                    if (QPointF::dotProduct(requestedDirection,
+                                            currentDirection) < 0.0) {
+                        m_direction *= -1.0;
+                    }
+                    m_task->updateTemporaryHalfSection(
+                        m_center, m_secondPoint, m_direction);
+                    m_task->setInteractiveParameters(
+                        m_lockedOrigin, toBaseDirection(m_direction));
+                    event->accept();
+                    return;
+                }
                 const QPointF delta = localPoint - m_center;
                 if (std::hypot(delta.x(), delta.y()) < 1.0) {
                     return;
@@ -4725,7 +5032,18 @@ public:
                 && positionMode
                     == TaskSectionView::PositionMode::
                         CenterAndViewDirection) {
-                m_direction = lineDirection;
+                // preselectedDirectionSnap returns the normal used by the
+                // point-based construction modes. Center and view direction
+                // needs the view direction itself: updatePreview will derive
+                // the perpendicular section line from it.
+                m_direction = Base::Vector3d(
+                    -lineDirection.y, lineDirection.x, 0.0);
+                const QPointF displayedDirection(
+                    m_direction.x, -m_direction.y);
+                if (QPointF::dotProduct(
+                        displayedDirection, localPoint - m_center) < 0.0) {
+                    m_direction *= -1.0;
+                }
                 updatePreview(m_center, m_direction);
                 m_task->setInteractiveParameters(
                     m_lockedOrigin, toBaseDirection(m_direction));
@@ -4734,8 +5052,10 @@ public:
             }
 
             const QPointF reference =
-                positionMode
+                (positionMode
                     == TaskSectionView::PositionMode::TwoPoints
+                 || positionMode
+                    == TaskSectionView::PositionMode::TwoPointsPartial)
                 ? m_firstPoint : m_center;
             QPointF delta = localPoint - reference;
             if (std::hypot(delta.x(), delta.y()) < 1.0) {
@@ -4784,13 +5104,9 @@ public:
             }
 
             if (positionMode
-                == TaskSectionView::PositionMode::
-                    CenterAndRightPoint) {
-                tangent *= -1.0;
-            }
-
-            if (positionMode
-                == TaskSectionView::PositionMode::TwoPoints) {
+                    == TaskSectionView::PositionMode::TwoPoints
+                || positionMode
+                    == TaskSectionView::PositionMode::TwoPointsPartial) {
                 double length = QPointF::dotProduct(delta, tangent);
                 if (length < 0.0) {
                     tangent *= -1.0;
@@ -4803,26 +5119,30 @@ public:
                 tangent *= -1.0;
                 m_direction = Base::Vector3d(
                     -tangent.y(), -tangent.x(), 0.0);
-                m_task->updateTemporarySectionLineFromEndpoints(
-                    m_firstPoint, secondPoint, m_direction);
+                if (positionMode
+                    == TaskSectionView::PositionMode::TwoPointsPartial) {
+                    m_task->updateTemporarySectionLineFromEndpoints(
+                        m_firstPoint, secondPoint, m_direction);
+                }
+                else {
+                    m_task->updateTemporarySectionLine(
+                        m_center, m_direction);
+                }
             }
             else {
                 m_direction = Base::Vector3d(
                     -tangent.y(), -tangent.x(), 0.0);
                 if (positionMode
-                    == TaskSectionView::PositionMode::
-                        CenterAndLeftPoint
-                    || positionMode
-                        == TaskSectionView::PositionMode::
-                            CenterAndRightPoint
-                    || positionMode
+                        == TaskSectionView::PositionMode::CenterAndPoint) {
+                    m_secondPoint = localPoint;
+                    m_task->updateTemporaryHalfSection(
+                        m_center, localPoint, m_direction);
+                }
+                else if (positionMode
                         == TaskSectionView::PositionMode::
                             CenterAndTwoPoints) {
                     m_task->updateTemporarySectionLineEndpoint(
-                        m_center, localPoint, m_direction,
-                        positionMode
-                            == TaskSectionView::PositionMode::
-                                CenterAndRightPoint);
+                        m_center, localPoint, m_direction, false);
                 }
                 else {
                     updatePreview(m_center, m_direction);
@@ -4855,18 +5175,35 @@ public:
             m_lockedOrigin = toSectionOrigin(m_center);
             m_task->adoptTemporarySectionLine(m_preview.release(), m_baseItem);
             if (m_task->positionMode()
-                != TaskSectionView::PositionMode::TwoPoints) {
-                m_task->updateTemporarySectionLine(
-                    m_center, m_direction);
+                    != TaskSectionView::PositionMode::TwoPoints
+                && m_task->positionMode()
+                    != TaskSectionView::PositionMode::TwoPointsPartial) {
+                if (m_task->positionMode()
+                    == TaskSectionView::PositionMode::CenterAndPoint) {
+                    const QPointF tangent(-m_direction.y, -m_direction.x);
+                    m_task->updateTemporaryHalfSection(
+                        m_center, m_center + tangent, m_direction);
+                }
+                else {
+                    m_task->updateTemporarySectionLine(
+                        m_center, m_direction);
+                }
             }
             m_task->setDirectionControlsVisible(true);
             m_task->setInteractiveParameters(m_lockedOrigin, toBaseDirection(m_direction));
             updateHint();
         }
         else {
+            // A click is not guaranteed to be preceded by a mouse-move at
+            // precisely the same coordinates. Re-evaluate the construction
+            // state here to prevent a stale endpoint/rotation from collapsing
+            // one half of a center-based line to the center point.
+            mouseMoveEvent(event);
             if (m_mode == Mode::SeekDirection
-                && m_task->positionMode()
-                    == TaskSectionView::PositionMode::CenterAndTwoPoints) {
+                && (m_task->positionMode()
+                        == TaskSectionView::PositionMode::CenterAndTwoPoints
+                    || m_task->positionMode()
+                        == TaskSectionView::PositionMode::CenterAndPoint)) {
                 m_mode = Mode::SeekSecondDirection;
                 updateHint();
                 event->accept();
@@ -4958,7 +5295,9 @@ private:
                         "%1 select base view for sketch-based section");
                 }
                 else if (m_task->positionMode()
-                         == TaskSectionView::PositionMode::TwoPoints) {
+                             == TaskSectionView::PositionMode::TwoPoints
+                         || m_task->positionMode()
+                             == TaskSectionView::PositionMode::TwoPointsPartial) {
                     action = QObject::tr(
                         "%1 place first section-line point");
                 }
@@ -4971,6 +5310,15 @@ private:
             };
         }
         if (m_mode == Mode::SeekSecondDirection) {
+            if (m_task && m_task->positionMode()
+                == TaskSectionView::PositionMode::CenterAndPoint) {
+                return {
+                    {QObject::tr("%1 choose half-section direction"),
+                     {MouseLeft}},
+                    {QObject::tr("%1 restart section-line placement"),
+                     {MouseRight}},
+                };
+            }
             return {
                 {QObject::tr("%1 place second section-line point"), {MouseLeft}},
                 {QObject::tr("%1 snap direction angle"),
@@ -4987,16 +5335,14 @@ private:
                 case TaskSectionView::PositionMode::Vertical:
                     action = QObject::tr("%1 choose left or right section direction");
                     break;
-                case TaskSectionView::PositionMode::CenterAndLeftPoint:
-                    action = QObject::tr("%1 place left section-line point");
-                    break;
-                case TaskSectionView::PositionMode::CenterAndRightPoint:
-                    action = QObject::tr("%1 place right section-line point");
+                case TaskSectionView::PositionMode::CenterAndPoint:
+                    action = QObject::tr("%1 place half-section endpoint");
                     break;
                 case TaskSectionView::PositionMode::CenterAndTwoPoints:
                     action = QObject::tr("%1 place first section-line point");
                     break;
                 case TaskSectionView::PositionMode::TwoPoints:
+                case TaskSectionView::PositionMode::TwoPointsPartial:
                     action = QObject::tr("%1 place second section-line point");
                     break;
                 default:
@@ -5239,6 +5585,65 @@ private:
         m_preview->draw();
     }
 
+    void updateHalfPreview(const QPointF& center,
+                           const Base::Vector3d& direction)
+    {
+        if (!m_preview || !m_baseItem) {
+            return;
+        }
+        QPointF tangent(-direction.y, -direction.x);
+        const double tangentLength = std::hypot(tangent.x(), tangent.y());
+        if (tangentLength <= std::numeric_limits<double>::epsilon()) {
+            return;
+        }
+        tangent /= tangentLength;
+        const auto bounds = sectionLineBounds(m_baseItem, center, direction);
+        const QPointF retainedEnd = center + tangent * bounds.second;
+
+        QPointF arrowDirection(direction.x, -direction.y);
+        const double arrowLength = std::hypot(
+            arrowDirection.x(), arrowDirection.y());
+        if (arrowLength > std::numeric_limits<double>::epsilon()) {
+            arrowDirection /= arrowLength;
+        }
+        QRectF viewBounds = m_baseItem->contentBoundingRect();
+        if (viewBounds.isEmpty()) {
+            viewBounds = m_baseItem->boundingRect();
+        }
+        double outside = std::numeric_limits<double>::max();
+        const std::array<QPointF, 4> corners{
+            viewBounds.topLeft(), viewBounds.topRight(),
+            viewBounds.bottomLeft(), viewBounds.bottomRight()};
+        for (const QPointF& corner : corners) {
+            outside = std::min(outside,
+                QPointF::dotProduct(corner - center, arrowDirection));
+        }
+        const QPointF leaderEnd = center
+            + arrowDirection * (outside - Rez::guiX(10.0));
+        const QPointF sceneCenter = m_baseItem->mapToScene(center);
+        const QPointF sceneRetainedEnd =
+            m_baseItem->mapToScene(retainedEnd);
+        const QPointF sceneLeaderEnd = m_baseItem->mapToScene(leaderEnd);
+        const QPointF sceneArrowEnd = m_baseItem->mapToScene(
+            center + QPointF(direction.x, -direction.y));
+        const QPointF sceneDirection = sceneArrowEnd - sceneCenter;
+
+        QPainterPath path;
+        path.moveTo(sceneCenter);
+        path.lineTo(sceneRetainedEnd);
+        path.moveTo(sceneCenter);
+        path.lineTo(sceneLeaderEnd);
+        m_preview->setPathMode(true);
+        m_preview->setPath(path);
+        m_preview->setEnds(
+            Base::Vector3d(sceneLeaderEnd.x(), sceneLeaderEnd.y(), 0.0),
+            Base::Vector3d(sceneRetainedEnd.x(), sceneRetainedEnd.y(), 0.0));
+        m_preview->setArrowDirections(
+            Base::Vector3d(sceneDirection.x(), -sceneDirection.y(), 0.0),
+            Base::Vector3d(sceneDirection.x(), -sceneDirection.y(), 0.0));
+        m_preview->draw();
+    }
+
     void clearPreview()
     {
         m_preview.reset();
@@ -5251,6 +5656,7 @@ private:
     Mode m_mode{Mode::SeekCenter};
     QPointF m_center;
     QPointF m_firstPoint;
+    QPointF m_secondPoint;
     Base::Vector3d m_lockedOrigin;
     Base::Vector3d m_direction{1.0, 0.0, 0.0};
     bool m_completed{false};

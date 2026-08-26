@@ -27,16 +27,22 @@
 
 # include <QGraphicsPathItem>
 # include <QLineF>
+# include <QTimer>
 
 #include <Mod/TechDraw/App/DrawComplexSection.h>
 #include <Mod/TechDraw/App/DrawViewSection.h>
 
+#include <App/Application.h>
+#include <App/Document.h>
 #include <Base/Tools.h>
+
+#include <Mod/TechDraw/App/DrawUtil.h>
 
 #include "QGIViewSection.h"
 #include "PreferencesGui.h"
 #include "QGIEdge.h"
 #include "QGIFace.h"
+#include "QGISectionLine.h"
 #include "Rez.h"
 #include "ViewProviderDrawingView.h"
 #include "ViewProviderViewSection.h"
@@ -93,13 +99,13 @@ void QGIViewSection::draw()
         QGIViewPart::draw();
     }
     drawSectionFace();
-    // During creation SectionPlacement can be assigned before this graphics
-    // item exists, so the property-change hook has nothing to constrain.  By
-    // the first completed draw the cut geometry and scene item are available;
-    // enforce the persisted mode here as well so no initial drag is required.
-    applySectionPlacementConstraint();
     connectPlacementConnectorToBase();
     updatePlacementConnector();
+
+    // Creating a section can schedule one more geometry/model update after
+    // this draw. Refresh after it settles so a persistent connector starts
+    // and ends at the final rendered centers.
+    schedulePlacementConnectorUpdate();
 }
 
 QVariant QGIViewSection::itemChange(GraphicsItemChange change,
@@ -117,7 +123,9 @@ QVariant QGIViewSection::itemChange(GraphicsItemChange change,
 void QGIViewSection::connectPlacementConnectorToBase()
 {
     QObject::disconnect(m_basePositionConnection);
+    QObject::disconnect(m_basePositionFinishedConnection);
     m_basePositionConnection = {};
+    m_basePositionFinishedConnection = {};
     auto* section =
         dynamic_cast<TechDraw::DrawViewSection*>(getViewObject());
     auto* base = section ? section->getBaseDVP() : nullptr;
@@ -128,17 +136,121 @@ void QGIViewSection::connectPlacementConnectorToBase()
         ? dynamic_cast<QGIView*>(baseProvider->getQView())
         : nullptr;
     if (baseItem) {
+        m_lastBaseScenePosition = baseItem->scenePos();
+        m_hasBaseScenePosition = true;
         m_basePositionConnection = connect(
             baseItem, &QGIView::positionChanged,
-            this, &QGIViewSection::updatePlacementConnector);
+            this, &QGIViewSection::basePositionChanged);
+        m_basePositionFinishedConnection = connect(
+            baseItem, &QGIView::positionChangeFinished,
+            this, &QGIViewSection::basePositionChangeFinished);
     }
+    else {
+        m_hasBaseScenePosition = false;
+    }
+}
+
+void QGIViewSection::basePositionChanged()
+{
+    auto* section =
+        dynamic_cast<TechDraw::DrawViewSection*>(getViewObject());
+    auto* base = section ? section->getBaseDVP() : nullptr;
+    auto* baseProvider = base
+        ? freecad_cast<ViewProviderDrawingView*>(getViewProvider(base))
+        : nullptr;
+    auto* baseItem = baseProvider
+        ? dynamic_cast<QGIView*>(baseProvider->getQView())
+        : nullptr;
+    if (!baseItem) {
+        m_hasBaseScenePosition = false;
+        updatePlacementConnector();
+        return;
+    }
+    const QPointF currentBasePosition = baseItem->scenePos();
+    if (section->LockRelativePositionToSource.getValue()
+        && m_hasBaseScenePosition) {
+        const QPointF movement = currentBasePosition - m_lastBaseScenePosition;
+        if (!movement.isNull()) {
+            const QPointF movedSceneOrigin = mapToScene(QPointF()) + movement;
+            const QPointF movedParentPosition = parentItem()
+                ? parentItem()->mapFromScene(movedSceneOrigin)
+                : movedSceneOrigin;
+            setPositionWithoutSnapping(movedParentPosition);
+            m_followingBasePosition = true;
+        }
+    }
+    m_lastBaseScenePosition = currentBasePosition;
+    m_hasBaseScenePosition = true;
+    updatePlacementConnector();
+}
+
+void QGIViewSection::basePositionChangeFinished()
+{
+    if (m_followingBasePosition) {
+        // The source view still owns the drag transaction at this point, so
+        // persist the dependent move as part of the same undoable action.
+        QGIViewPart::dragFinished();
+        m_followingBasePosition = false;
+    }
+    updatePlacementConnector();
+}
+
+void QGIViewSection::dragFinished()
+{
+    auto* section =
+        dynamic_cast<TechDraw::DrawViewSection*>(getViewObject());
+    const bool positionChanged = section
+        && (!TechDraw::DrawUtil::fpCompare(
+                section->X.getValue(), Rez::appX(pos().x()), 0.001)
+            || !TechDraw::DrawUtil::fpCompare(
+                section->Y.getValue(), Rez::appX(-pos().y()), 0.001));
+    App::Document* document = section ? section->getDocument() : nullptr;
+    const bool ownTransaction = positionChanged && document
+        && document->getTransactionID(true) == 0;
+    if (ownTransaction) {
+        document->openTransaction("Drag section view");
+    }
+    if (positionChanged) {
+        section->LockRelativePositionToSource.setValue(isPositionSnapped());
+    }
+    QGIViewPart::dragFinished();
+    if (ownTransaction) {
+        document->commitTransaction();
+    }
+    updatePlacementConnector();
+    // QGIView clears the transient snap state immediately after dragFinished.
+    // Refresh once more afterward so a disabled connection line does not stay
+    // visible merely because this drag ended on a snap target.
+    schedulePlacementConnectorUpdate();
+}
+
+void QGIViewSection::schedulePlacementConnectorUpdate()
+{
+    auto* viewObject = getViewObject();
+    App::Document* document = viewObject ? viewObject->getDocument() : nullptr;
+    if (!viewObject || !document) {
+        return;
+    }
+
+    const std::string documentName = document->getName();
+    const std::string objectName = viewObject->getNameInDocument();
+    QTimer::singleShot(0, this, [this, documentName, objectName]() {
+        App::Document* liveDocument =
+            App::GetApplication().getDocument(documentName.c_str());
+        if (!liveDocument
+            || liveDocument->getObject(objectName.c_str()) != getViewObject()) {
+            return;
+        }
+        updatePlacementConnector();
+    });
 }
 
 void QGIViewSection::updatePlacementConnector()
 {
     auto* section =
         dynamic_cast<TechDraw::DrawViewSection*>(getViewObject());
-    if (!section || section->SectionPlacement.getValue() == 0
+    if (!section
+        || (!section->ConnectionLine.getValue() && !isPositionSnapped())
         || !isVisible() || !scene()) {
         m_placementConnector->hide();
         return;
@@ -165,30 +277,81 @@ void QGIViewSection::updatePlacementConnector()
         base->projectPoint(baseShapeCenter, false);
     const Base::Vector3d baseOffset =
         (baseSectionOrigin - baseProjectedCenter) * base->getScale();
-    const QPointF baseAnchor = baseItem->scenePos()
-        + QPointF(Rez::guiX(baseOffset.x), -Rez::guiX(baseOffset.y));
+    const QPointF calculatedBaseAnchor = baseItem->mapToScene(
+        QPointF(Rez::guiX(baseOffset.x), -Rez::guiX(baseOffset.y)));
 
-    const Base::Vector3d sectionCutCenter =
-        section->projectPoint(section->getCutCentroid(), false);
-    const Base::Vector3d sectionProjectedOrigin =
-        section->projectPoint(sectionOrigin, false);
-    Base::Vector3d sectionOffset =
-        (sectionProjectedOrigin - sectionCutCenter) * section->getScale();
-    sectionOffset.RotateZ(Base::toRadians(section->Rotation.getValue()));
-    const QPointF sectionAnchor = scenePos()
-        + QPointF(Rez::guiX(sectionOffset.x),
-                  -Rez::guiX(sectionOffset.y));
+    QPointF baseAnchor = calculatedBaseAnchor;
+    QPointF lineCenterAnchor = calculatedBaseAnchor;
+    QPointF lineDirection;
+    const QString sectionName = QString::fromUtf8(
+        section->getNameInDocument());
+    // Attach to the section line that the user sees, including its rotation
+    // and any complex-section path, rather than to the base view centroid.
+    for (QGraphicsItem* child : baseItem->childItems()) {
+        auto* sectionLine = dynamic_cast<QGISectionLine*>(child);
+        if (sectionLine && child->data(10).toString() == sectionName) {
+            const QPointF lineCenter = sectionLine->mapToScene(
+                sectionLine->lineCenter());
+            lineCenterAnchor = lineCenter;
+            const QPointF localDirection = sectionLine->lineDirection();
+            if (!localDirection.isNull()) {
+                const QPointF directionEnd = sectionLine->mapToScene(
+                    sectionLine->lineCenter() + localDirection);
+                const QLineF renderedDirection(lineCenter, directionEnd);
+                if (renderedDirection.length() > 1.0e-6) {
+                    lineDirection =
+                        renderedDirection.unitVector().p2()
+                        - renderedDirection.unitVector().p1();
+                    baseAnchor = lineCenter + lineDirection
+                        * QPointF::dotProduct(
+                            calculatedBaseAnchor - lineCenter,
+                            lineDirection);
+                }
+            }
+            break;
+        }
+    }
+
+    const Base::Vector3d cutCenter = section->projectPoint(
+        section->getCutCentroid(), false);
+    Base::Vector3d sectionAnchorOffset =
+        (section->projectPoint(sectionOrigin, false) - cutCenter)
+        * section->getScale();
+    sectionAnchorOffset.RotateZ(
+        Base::toRadians(section->Rotation.getValue()));
+    const QPointF sectionAnchor = mapToScene(QPointF(
+        Rez::guiX(sectionAnchorOffset.x),
+        -Rez::guiX(sectionAnchorOffset.y)));
+    QPointF connectorEnd = sectionAnchor;
+    if (!lineDirection.isNull()) {
+        // Keep the endpoint attached to the station in the section that
+        // corresponds to the cutting-line midpoint. If the section is moved
+        // away from the view-direction guide, the connector is then free to
+        // angle instead of remaining artificially parallel to that guide.
+        const QPointF correspondingStation = sectionAnchor + lineDirection
+            * QPointF::dotProduct(
+                lineCenterAnchor - baseAnchor, lineDirection);
+        const QRectF visibleGeometry = frameRect();
+        // Captions remain in the frame even when the cut has no geometry.
+        // They must not move the connector away from the section datum.
+        const QPointF sliceCenter =
+            !section->hasGeometry() || visibleGeometry.isEmpty()
+            ? sectionAnchor : mapToScene(visibleGeometry.center());
+        connectorEnd = sliceCenter + lineDirection
+            * QPointF::dotProduct(
+                correspondingStation - sliceCenter, lineDirection);
+    }
 
     QPainterPath path;
-    path.moveTo(mapFromScene(baseAnchor));
-    path.lineTo(mapFromScene(sectionAnchor));
+    path.moveTo(mapFromScene(lineCenterAnchor));
+    path.lineTo(mapFromScene(connectorEnd));
     QPen pen = centerLinePen(sectionProvider->LineWidth.getValue());
     pen.setColor(PreferencesGui::getAccessibleQColor(
         PreferencesGui::normalQColor()));
     m_placementConnector->setPen(pen);
     m_placementConnector->setPath(path);
     m_placementConnector->setVisible(
-        QLineF(baseAnchor, sectionAnchor).length() > 1.0e-6);
+        QLineF(lineCenterAnchor, connectorEnd).length() > 1.0e-6);
 }
 
 void QGIViewSection::drawSectionFace()
@@ -224,6 +387,7 @@ void QGIViewSection::drawSectionFace()
     const bool partialSectionCutOnly =
         complexSection && complexSection->isPartialSection()
         && section->SectionCutOnly.getValue();
+    const QPainterPath partialClip = partialSectionClipPath();
 
     QPointF partialStart;
     QPointF partialEnd;
@@ -310,6 +474,7 @@ void QGIViewSection::drawSectionFace()
     int i = 0;
     for(; fit != sectionFaces.end(); fit++, i++) {
         QGIFace* newFace = drawFace(*fit, -1);
+        newFace->setPaintClip(partialClip);
         newFace->setZValue(ZVALUE::SECTIONFACE);
         // A normal cut-only view has no projected half-solid to provide the
         // boundary, so its section faces must draw their own outline. A
@@ -397,17 +562,22 @@ void QGIViewSection::drawSectionFace()
                          && isOnAlignedBoundary(edgePath, alignedStart))
                         || (alignedBoundaries.endPartial
                             && isOnAlignedBoundary(edgePath, alignedEnd));
+                    const bool partialBoundary =
+                        isPartialBoundary(edgePath)
+                        || alignedPartialBoundary;
                     auto* edge = new QGIEdge(-1);
                     addToGroupWithoutUpdate(edge);
                     edge->setPath(edgePath);
                     edge->setNormalColor(
                         PreferencesGui::getAccessibleQColor(
                             PreferencesGui::normalQColor()));
-                    edge->setStyle((isPartialBoundary(edgePath)
-                                    || alignedPartialBoundary)
-                                       ? Qt::DashLine
-                                       : Qt::SolidLine);
-                    edge->setWidth(Rez::guiX(lineWidth));
+                    if (partialBoundary) {
+                        edge->setLinePen(centerLinePen(lineWidth * 2.0));
+                    }
+                    else {
+                        edge->setStyle(Qt::SolidLine);
+                        edge->setWidth(Rez::guiX(lineWidth));
+                    }
                     edge->setPos(0.0, 0.0);
                     edge->setZValue(ZVALUE::EDGE);
                     edge->setPrettyNormal();
@@ -436,7 +606,6 @@ void QGIViewSection::drawSectionFace()
             PreferencesGui::getAccessibleQColor(
                 PreferencesGui::normalQColor()));
         centerEdge->setLinePen(centerLinePen(lineWidth));
-        centerEdge->setWidth(Rez::guiX(lineWidth));
         centerEdge->setPos(0.0, 0.0);
         centerEdge->setZValue(ZVALUE::EDGE + 1);
         centerEdge->setPrettyNormal();

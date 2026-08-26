@@ -73,6 +73,8 @@ public:
     void setPathMode(bool mode) { m_pathMode = mode; }
     void setShowLine(bool state) { m_showLine = state; }
     bool pathMode() const { return m_pathMode; }
+    QPointF lineCenter() const;
+    QPointF lineDirection() const;
     void setChangePoints(const TechDraw::ChangePointVector &changePoints);
     void clearChangePoints();
     void draw() override;

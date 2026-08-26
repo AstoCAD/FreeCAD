@@ -24,6 +24,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include <TopoDS_Face.hxx>
@@ -143,6 +145,10 @@ public:
     bool waitingForAlign() const { return m_waitingForAlign; }
 
     TopoDS_Shape getShapeForDetail() const override;
+    bool allowsEmptyGeometry() const override
+    {
+        return m_sectionCutEmpty.load();
+    }
 
     static std::pair<Base::Vector3d, Base::Vector3d> getSegmentEnds(const TopoDS_Edge& segment);
     static std::pair<Base::Vector3d, Base::Vector3d> getWireEnds(const TopoDS_Wire& wire);
@@ -182,7 +188,8 @@ private:
                                       double& pieceVertical,
                                       const Base::Vector3d& segmentStart,
                                       const Base::Vector3d& segmentDirection,
-                                      double& materialMinimum);
+                                      double& materialMinimum,
+                                      double& materialMaximum);
     TopoDS_Shape movePieceToPaperPlane(const TopoDS_Shape& piece, double sizeMax);
     TopoDS_Shape distributePiece(const TopoDS_Shape& piece,
                            double verticalDisplace,
@@ -221,6 +228,7 @@ private:
     QFutureWatcher<void> m_alignWatcher;
     QFuture<void> m_alignFuture;
     bool m_waitingForAlign;
+    std::atomic_bool m_sectionCutEmpty{false};
     bool m_alignedBoundaryValid{false};
     double m_alignedStartPosition{0.0};
     double m_alignedCenterPosition{0.0};

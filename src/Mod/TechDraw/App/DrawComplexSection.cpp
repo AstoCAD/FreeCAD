@@ -314,6 +314,7 @@ void DrawComplexSection::unsetupObject()
 
 TopoDS_Shape DrawComplexSection::makeCuttingTool(double dMax)
 {
+    m_toolFaceShape.Nullify();
     TopoDS_Wire profileWire = makeProfileWire();
     if (profileWire.IsNull()) {
         throw Base::RuntimeError("Can not make wire from cutting tool (1)");
@@ -325,6 +326,36 @@ TopoDS_Shape DrawComplexSection::makeCuttingTool(double dMax)
 
     // use "canBuild(profile, sectionnormal)" or validateProfileDirection?
     if (ProjectionStrategy.getValue() == 0) {
+        // Center-based construction keeps its center as a profile vertex even
+        // when both halves are collinear. For an offset cut that vertex would
+        // split the cut surface into two faces and expose their shared edge in
+        // the drawing. Use one cutting edge when the two segments describe one
+        // straight line; genuinely bent profiles retain both segments.
+        const auto profileEdges = getUniqueEdges(profileWire);
+        if (profileEdges.size() == 2) {
+            const auto firstEnds = getSegmentEnds(profileEdges.front());
+            const auto secondEnds = getSegmentEnds(profileEdges.back());
+            const Base::Vector3d firstDirection =
+                firstEnds.second - firstEnds.first;
+            const Base::Vector3d secondDirection =
+                secondEnds.second - secondEnds.first;
+            const double directionProduct =
+                firstDirection.Sqr() * secondDirection.Sqr();
+            const bool collinear = directionProduct > 0.0
+                && firstDirection.Cross(secondDirection).Sqr()
+                    <= EWTOLERANCE * EWTOLERANCE * directionProduct;
+            if (collinear) {
+                const auto outerEnds = getWireEnds(profileWire);
+                BRepBuilderAPI_MakeEdge mergedEdge(
+                    Base::convertTo<gp_Pnt>(outerEnds.first),
+                    Base::convertTo<gp_Pnt>(outerEnds.second));
+                if (mergedEdge.IsDone()) {
+                    profileWire =
+                        BRepBuilderAPI_MakeWire(mergedEdge.Edge()).Wire();
+                }
+            }
+        }
+
         // Offset. Warn if profile is not quite aligned with section normal. if
         // the profile and normal are misaligned, the check below for empty "solids"
         // will not be correct.
@@ -386,6 +417,21 @@ TopoDS_Shape DrawComplexSection::getShapeToPrepare() const
 //get the shape ready for projection and cut surface finding
 TopoDS_Shape DrawComplexSection::prepareShape(const TopoDS_Shape& cutShape, double shapeSize)
 {
+    // If the bounded profile did not cross the source, there is no section to
+    // project. Return a valid empty compound so every projection strategy
+    // remains empty without entering the null-shape error path.
+    if (m_sectionCutEmpty.load()) {
+        BRep_Builder builder;
+        TopoDS_Compound emptyResult;
+        builder.MakeCompound(emptyResult);
+        Base::Vector3d origin;
+        m_projectionCS = getProjectionCS(origin);
+        m_cutShapeRaw = emptyResult;
+        m_cutShape = emptyResult;
+        m_saveCentroid = origin;
+        return emptyResult;
+    }
+
     if (ProjectionStrategy.getValue() == 0) {
         //Offset. Use regular section behaviour
         return DrawViewSection::prepareShape(cutShape, shapeSize);
@@ -414,8 +460,30 @@ TopoDS_Shape DrawComplexSection::prepareShape(const TopoDS_Shape& cutShape, doub
 
 void DrawComplexSection::makeSectionCut(const TopoDS_Shape& baseShape)
 {
+    m_sectionCutEmpty = false;
     if (ProjectionStrategy.getValue() == 0) {
-        //Offset. Use regular section behaviour
+        // The offset tool describes the retained half-space and can intersect
+        // the source even when the bounded profile itself misses it. In that
+        // case there is no section, so do not project the retained material.
+        TopoDS_Shape profileIntersection;
+        if (!m_toolFaceShape.IsNull()) {
+            profileIntersection =
+                shapeShapeIntersect(m_toolFaceShape, baseShape);
+        }
+        TopExp_Explorer profileFaces(profileIntersection, TopAbs_FACE);
+        if (!m_toolFaceShape.IsNull() && !profileFaces.More()) {
+            BRep_Builder builder;
+            TopoDS_Compound emptyResult;
+            builder.MakeCompound(emptyResult);
+            m_saveShape = baseShape;
+            m_cutPieces = emptyResult;
+            m_sectionCutEmpty = true;
+            waitingForCut(false);
+            return;
+        }
+
+        // Offset with a real profile intersection uses regular section
+        // behaviour.
         return DrawViewSection::makeSectionCut(baseShape);
     }
 
@@ -442,9 +510,21 @@ void DrawComplexSection::makeSectionCut(const TopoDS_Shape& baseShape)
 
 void DrawComplexSection::onSectionCutFinished()
 {
-    if (m_cutFuture.isRunning() ||  //waitingForCut()
-        m_alignFuture.isRunning()) {//waitingForAlign()
-        //can not continue yet.  return until the other thread ends
+    if (m_sectionCutEmpty.load() && SectionCutOnly.getValue()) {
+        // There is no cut-only representation when the profile misses the
+        // model. Keep the empty view and return the option to its usable state.
+        SectionCutOnly.setValue(false);
+    }
+
+    if (ProjectionStrategy.getValue() == 0) {
+        // The inherited cut watcher calls this slot from its finished signal.
+        // Rechecking isRunning() here can still report true on some Qt versions.
+        DrawViewSection::onSectionCutFinished();
+        return;
+    }
+
+    if (!m_cutFuture.isFinished() || !m_alignFuture.isFinished()) {
+        // Both aligned-section operations must finish before post-processing.
         return;
     }
 
@@ -544,6 +624,7 @@ void DrawComplexSection::makeAlignedPieces(const TopoDS_Shape& rawShape)
     std::vector<TopoDS_Shape> pieces(edgesAll.size());       // results of cutting source with each segment's tool shape
     std::vector<double> pieceVerticalAll(edgesAll.size());   // displacement of piece in vertical direction
     std::vector<double> pieceUnfoldedMinimumAll(edgesAll.size());
+    std::vector<double> pieceUnfoldedMaximumAll(edgesAll.size());
 
     std::vector<Base::Vector3d> segmentStarts(edgesAll.size());
     std::vector<Base::Vector3d> segmentEnds(edgesAll.size());
@@ -633,10 +714,11 @@ void DrawComplexSection::makeAlignedPieces(const TopoDS_Shape& rawShape)
         segmentDirection.Normalize();
         double pieceVertical{0};
         double materialMinimum{0.0};
+        double materialMaximum{0.0};
         TopoDS_Shape rotatedPiece = cutAndRotatePiece(
             rawShape, face, segmentIndex, segmentNormal, pieceVertical,
             segmentStarts.at(segmentIndex), segmentDirection,
-            materialMinimum);
+            materialMinimum, materialMaximum);
         if (rotatedPiece.IsNull()) {
             // A complex path commonly has segments outside the source shape.
             // They do not contribute a piece, but must not prevent later
@@ -653,6 +735,8 @@ void DrawComplexSection::makeAlignedPieces(const TopoDS_Shape& rawShape)
         pieceVerticalAll.at(segmentIndex) = pieceVertical;
         pieceUnfoldedMinimumAll.at(segmentIndex) =
             segmentUnfoldedStarts.at(segmentIndex) + materialMinimum;
+        pieceUnfoldedMaximumAll.at(segmentIndex) =
+            segmentUnfoldedStarts.at(segmentIndex) + materialMaximum;
 
         if (debugSection()) {
             stringstream ss;
@@ -675,9 +759,7 @@ void DrawComplexSection::makeAlignedPieces(const TopoDS_Shape& rawShape)
         [](const TopoDS_Shape& piece) { return !piece.IsNull(); });
     if (!hasPieces) {
         m_alignResult = TopoDS_Compound();
-        Base::Console().warning(
-            "DCS::makeAlignedPieces - no profile segment intersected the source shape in {}\n",
-            getNameInDocument());
+        m_sectionCutEmpty = true;
         return;
     }
 
@@ -693,6 +775,10 @@ void DrawComplexSection::makeAlignedPieces(const TopoDS_Shape& rawShape)
 
     size_t stopAt = pieces.size();
     double centerCursorPosition = segmentUnfoldedEnds.at(centerAfterSegment);
+    double placedCenterCursorPosition = centerCursorPosition;
+    bool havePreviousPiece = false;
+    double previousPlacedMaximum = 0.0;
+    double previousUnfoldedMaximum = 0.0;
     for (size_t iPiece = 0; iPiece < stopAt; iPiece++) {
         if (pieces.at(iPiece).IsNull()) {
             continue;
@@ -708,13 +794,36 @@ void DrawComplexSection::makeAlignedPieces(const TopoDS_Shape& rawShape)
         const double localMinimum = isProfileVertical
             ? (movementReverser > 0.0 ? localYMin : -localYMax)
             : (movementReverser > 0.0 ? localXMin : -localXMax);
-        const double unfoldedDisplacement =
-            pieceUnfoldedMinimumAll.at(iPiece) - localMinimum;
+        const double localMaximum = isProfileVertical
+            ? (movementReverser > 0.0 ? localYMax : -localYMin)
+            : (movementReverser > 0.0 ? localXMax : -localXMin);
+        double placedMinimum = pieceUnfoldedMinimumAll.at(iPiece);
+        if (havePreviousPiece) {
+            const double unfoldedGap = std::max(
+                0.0,
+                pieceUnfoldedMinimumAll.at(iPiece)
+                    - previousUnfoldedMaximum);
+            placedMinimum = std::max(
+                placedMinimum,
+                previousPlacedMaximum + unfoldedGap);
+        }
+        const double unfoldedDisplacement = placedMinimum - localMinimum;
         auto movedPiece = distributePiece(
             pieces.at(iPiece), pieceVerticalAll.at(iPiece),
             alignmentAxis, gMovementVector,
             unfoldedDisplacement);
         pieces.at(iPiece) = movedPiece;
+        previousPlacedMaximum = placedMinimum + localMaximum - localMinimum;
+        previousUnfoldedMaximum = pieceUnfoldedMaximumAll.at(iPiece);
+        havePreviousPiece = true;
+        if (iPiece == centerAfterSegment) {
+            const double remainingToCenter = std::max(
+                0.0,
+                centerCursorPosition
+                    - pieceUnfoldedMaximumAll.at(iPiece));
+            placedCenterCursorPosition =
+                previousPlacedMaximum + remainingToCenter;
+        }
 
 
         if (debugSection()) {
@@ -773,7 +882,7 @@ void DrawComplexSection::makeAlignedPieces(const TopoDS_Shape& rawShape)
     m_alignResult = alignedCompound;
     m_alignedBoundaryValid = true;
     m_alignedStartPosition = axisMinimum - axisCenter;
-    m_alignedCenterPosition = centerCursorPosition - axisCenter;
+    m_alignedCenterPosition = placedCenterCursorPosition - axisCenter;
     m_alignedEndPosition = axisMaximum - axisCenter;
     m_alignedMovementDirection =
         Base::convertTo<Base::Vector3d>(gMovementVector);
@@ -786,6 +895,12 @@ void DrawComplexSection::makeAlignedPieces(const TopoDS_Shape& rawShape)
 TopoDS_Compound
 DrawComplexSection::findSectionPlaneIntersections(const TopoDS_Shape& shapeToIntersect)
 {
+    if (m_sectionCutEmpty.load()) {
+        BRep_Builder builder;
+        TopoDS_Compound result;
+        builder.MakeCompound(result);
+        return result;
+    }
     if (shapeToIntersect.IsNull()) {
         // this shouldn't happen
         Base::Console().warning("DCS::findSectionPlaneInter - {} - cut shape is Null\n",
@@ -1020,9 +1135,16 @@ std::pair<Base::Vector3d, Base::Vector3d>
 Base::Vector3d DrawComplexSection::getReferenceAxis() const
 {
     Base::Vector3d rawDirection = getBaseDVP()->Direction.getValue();
+    if (rawDirection.Sqr() <= EWTOLERANCE * EWTOLERANCE) {
+        return Base::Vector3d(0.0, 0.0, 1.0);
+    }
     rawDirection.Normalize();
 
-    return DU::closestBasisOriented(rawDirection);
+    // Profiles created on a section view lie in that view's actual projection
+    // plane.  Approximating an oblique view direction with the nearest global
+    // basis axis makes the profile and extrusion axis inconsistent, which can
+    // produce a degenerate tool and no segment view directions.
+    return rawDirection;
 }
 
 
@@ -1586,8 +1708,18 @@ TopoDS_Shape DrawComplexSection::cutAndRotatePiece(const TopoDS_Shape& rawShape,
                                                       double& pieceVertical,
                                                       const Base::Vector3d& segmentStart,
                                                       const Base::Vector3d& segmentDirection,
-                                                      double& materialMinimum)
+                                                      double& materialMinimum,
+                                                      double& materialMaximum)
 {
+    // The cutting prism represents the material retained beyond a profile
+    // segment.  It can reach the source even when the bounded segment itself
+    // misses it, which would manufacture an unrelated sliver in the unfolded
+    // view.  A segment contributes only when its actual cutting face crosses
+    // the source with a non-zero area.
+    if (faceShapeIntersect(segmentFace, rawShape).empty()) {
+        return {};
+    }
+
     auto segmentNormal = Base::convertTo<gp_Vec>(uOrientedSegmentNormal);
     auto rotateAxis = Base::convertTo<gp_Vec>(getReferenceAxis());
     gp_Vec extrudeVec = segmentNormal * m_shapeSize;
@@ -1617,7 +1749,7 @@ TopoDS_Shape DrawComplexSection::cutAndRotatePiece(const TopoDS_Shape& rawShape,
     }
 
     materialMinimum = std::numeric_limits<double>::max();
-    double materialMaximum = std::numeric_limits<double>::lowest();
+    materialMaximum = std::numeric_limits<double>::lowest();
     for (TopExp_Explorer vertexExplorer(intersect, TopAbs_VERTEX);
          vertexExplorer.More(); vertexExplorer.Next()) {
         const gp_Pnt point =
@@ -1639,9 +1771,11 @@ TopoDS_Shape DrawComplexSection::cutAndRotatePiece(const TopoDS_Shape& rawShape,
 
     // save the amount we moved this piece in the vertical direction so we can
     // put it back in the right place later
-    gp_Vec maskedVertical = DU::maskDirection(pieceCentroid, rotateAxis);
-    maskedVertical = pieceCentroid - maskedVertical;
-    pieceVertical = maskedVertical.X() + maskedVertical.Y() + maskedVertical.Z();
+    // Preserve the signed displacement along the source view's line of sight.
+    // Summing a cardinal-axis mask only worked while reference axes were
+    // restricted to global X/Y/Z and produces invalid offsets for nested,
+    // oblique section views.
+    pieceVertical = pieceCentroid.Dot(rotateAxis.Normalized());
 
     xPieceCenter.SetTranslation(pieceCentroid * -1.0);
     BRepBuilderAPI_Transform mkTransXLate(intersect, xPieceCenter, true);
@@ -2158,6 +2292,50 @@ TopoDS_Wire DrawComplexSection::closeSingleEdgeProfile(const TopoDS_Edge& single
 {
     std::pair<Base::Vector3d, Base::Vector3d> edgeEnds = getSegmentEnds(singleEdge);
 
+    // A single-edge tool must not end at an automatically positioned profile
+    // endpoint. Its perpendicular closing face can still graze the source
+    // shape even when the endpoint itself lies outside the projected outline,
+    // producing a phantom section face. Keep only explicitly partial
+    // endpoints finite and extend the others beyond the source shape, as the
+    // multi-edge tool does above.
+    bool keepFirstEndpoint = false;
+    bool keepSecondEndpoint = false;
+    if (const App::DocumentObject* profile = getGeneratedProfile()) {
+        const auto* partialProperty =
+            dynamic_cast<const App::PropertyBool*>(
+                profile->getPropertyByName("PartialSection"));
+        if (partialProperty && partialProperty->getValue()) {
+            const auto* firstProperty =
+                dynamic_cast<const App::PropertyBool*>(
+                    profile->getPropertyByName("PartialSectionStart"));
+            const auto* secondProperty =
+                dynamic_cast<const App::PropertyBool*>(
+                    profile->getPropertyByName("PartialSectionEnd"));
+            if (!firstProperty && !secondProperty) {
+                // Older/custom partial profiles do not distinguish their
+                // endpoints, so both remain explicit boundaries.
+                keepFirstEndpoint = true;
+                keepSecondEndpoint = true;
+            }
+            else {
+                keepFirstEndpoint = firstProperty && firstProperty->getValue();
+                keepSecondEndpoint = secondProperty && secondProperty->getValue();
+            }
+        }
+    }
+
+    Base::Vector3d profileDirection = edgeEnds.second - edgeEnds.first;
+    profileDirection.Normalize();
+    if (!keepFirstEndpoint) {
+        edgeEnds.first -= profileDirection * dMax;
+    }
+    if (!keepSecondEndpoint) {
+        edgeEnds.second += profileDirection * dMax;
+    }
+    const TopoDS_Edge nearEdge = BRepBuilderAPI_MakeEdge(
+        Base::convertTo<gp_Pnt>(edgeEnds.first),
+        Base::convertTo<gp_Pnt>(edgeEnds.second));
+
     Base::Vector3d awayDirection = SectionNormal.getValue();
     awayDirection.Normalize();
 
@@ -2171,7 +2349,7 @@ TopoDS_Wire DrawComplexSection::closeSingleEdgeProfile(const TopoDS_Edge& single
                                                         Base::convertTo<gp_Pnt>(edgeEnds.first));
 
     BRepBuilderAPI_MakeWire mkWire;
-    mkWire.Add(singleEdge);
+    mkWire.Add(nearEdge);
     mkWire.Add(nearToFarEdge);
     mkWire.Add(farEdge);
     mkWire.Add(farToNearEdge);

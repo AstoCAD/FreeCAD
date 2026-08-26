@@ -50,6 +50,7 @@
 #include <Mod/Part/App/FCBRepAlgoAPI_Cut.h>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
@@ -175,9 +176,6 @@ App::PropertyFloatConstraint::Constraints DrawViewSection::stretchRange = {
 
 PROPERTY_SOURCE(TechDraw::DrawViewSection, TechDraw::DrawViewPart)
 
-const char* DrawViewSection::SectionPlacementEnums[] = {
-    "Free", "Along section line", "Along view direction", nullptr};
-
 DrawViewSection::DrawViewSection()
     : m_waitingForCut(false)
     , m_shapeSize(0.0)
@@ -242,12 +240,21 @@ DrawViewSection::DrawViewSection()
                       sgroup,
                       App::Prop_None,
                       "Show only the geometry intersected by the section plane");
-    SectionPlacement.setEnums(SectionPlacementEnums);
-    ADD_PROPERTY_TYPE(SectionPlacement,
-                      ((long)0),
+    ADD_PROPERTY_TYPE(ShowOutsidePartialBoundaries,
+                      (true),
                       sgroup,
                       App::Prop_None,
-                      "Constrains placement of a straight-axis section view");
+                      "Show projected geometry outside partial section boundaries");
+    ADD_PROPERTY_TYPE(ConnectionLine,
+                      (false),
+                      sgroup,
+                      App::Prop_None,
+                      "Show a line connecting the section line to the section view");
+    ADD_PROPERTY_TYPE(LockRelativePositionToSource,
+                      (false),
+                      sgroup,
+                      App::Prop_None,
+                      "Move this section view with its source view after snapping");
 
     // properties related to the display of the cut surface
     CutSurfaceDisplay.setEnums(CutSurfaceEnums);    //NOLINT
@@ -366,7 +373,10 @@ void DrawViewSection::onChanged(const App::Property* prop)
         return;
     }
 
-    if (prop == &SectionCutOnly || prop == &SectionPlacement) {
+    if (prop == &SectionCutOnly
+        || prop == &ShowOutsidePartialBoundaries
+        || prop == &ConnectionLine
+        || prop == &LockRelativePositionToSource) {
         requestPaint();
         return;
     }
@@ -1031,7 +1041,44 @@ std::pair<Base::Vector3d, Base::Vector3d> DrawViewSection::sectionLineEnds()
 
     Base::Vector3d sectionOrg = SectionOrigin.getValue() - getBaseDVP()->getOriginalCentroid();
     sectionOrg = getBaseDVP()->projectPoint(sectionOrg);// convert to base view CS
-    const auto bounds = getBaseDVP()->getBoundsAlongVector(dir);
+    auto bounds = getBaseDVP()->getBoundsAlongVector(dir);
+
+    // The overall projected bounding box can extend far beyond the geometry
+    // crossed by the cutting line (assemblies make this especially visible).
+    // Prefer the first and last actual intersections with projected geometry,
+    // matching the interactive section-line preview.  GeometryObject stores
+    // its edges at the view scale, while this function returns unscaled BaseView
+    // coordinates.
+    const double scale = getBaseDVP()->getScale();
+    if (scale > std::numeric_limits<double>::epsilon()) {
+        const Base::Vector3d scaledOrigin = sectionOrg * scale;
+        const TopoDS_Edge cuttingEdge = BRepBuilderAPI_MakeEdge(
+            Base::convertTo<gp_Pnt>(scaledOrigin - dir),
+            Base::convertTo<gp_Pnt>(scaledOrigin + dir));
+        BaseGeomPtr cuttingLine = BaseGeom::baseFactory(cuttingEdge);
+        double firstIntersection = std::numeric_limits<double>::max();
+        double lastIntersection = std::numeric_limits<double>::lowest();
+        if (cuttingLine) {
+            for (const BaseGeomPtr& geometry : getBaseDVP()->getEdgeGeometry()) {
+                if (!geometry || geometry->source() != SourceType::GEOMETRY) {
+                    continue;
+                }
+                for (const Base::Vector3d& point : cuttingLine->intersection(geometry)) {
+                    // intersection() completes trimmed curves before intersecting;
+                    // discard solutions which are not on the original edge.
+                    if (geometry->minDist(point) > EWTOLERANCE * 10.0) {
+                        continue;
+                    }
+                    const double along = point.Dot(dir) / scale;
+                    firstIntersection = std::min(firstIntersection, along);
+                    lastIntersection = std::max(lastIntersection, along);
+                }
+            }
+        }
+        if (firstIntersection <= lastIntersection) {
+            bounds = {firstIntersection, lastIntersection};
+        }
+    }
     const double originAlong = sectionOrg.Dot(dir);
     const double stretch = SectionLineStretch.getValue();
     result.first = sectionOrg + dir * (bounds.second - originAlong) * stretch;
@@ -1241,10 +1288,10 @@ gp_Ax2 DrawViewSection::getSectionCS() const
 //! return the center of the shape resulting from the cut operation
 Base::Vector3d DrawViewSection::getCutCentroid() const
 {
-    // SectionPlacement can be changed while a newly created section is still
-    // waiting for its first cut.  In that state m_cutPieces is either null or
-    // an empty compound, whose bounding box is void.  Use the section origin
-    // as the temporary anchor until the generated geometry becomes available.
+    // A newly created section can still be waiting for its first cut.  In
+    // that state m_cutPieces is either null or an empty compound, whose
+    // bounding box is void.  Use the section origin as the temporary anchor
+    // until the generated geometry becomes available.
     if (m_cutPieces.IsNull()) {
         return SectionOrigin.getValue();
     }

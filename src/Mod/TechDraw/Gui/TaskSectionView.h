@@ -86,10 +86,10 @@ public:
         Horizontal,
         Vertical,
         CenterAndViewDirection,
-        CenterAndLeftPoint,
-        CenterAndRightPoint,
+        CenterAndPoint,
         CenterAndTwoPoints,
         TwoPoints,
+        TwoPointsPartial,
         SketchBased
     };
 
@@ -122,6 +122,9 @@ public:
         const QPointF& endpoint,
         const Base::Vector3d& displayedDirection,
         bool startEndpoint);
+    void updateTemporaryHalfSection(const QPointF& center,
+                                    const QPointF& endpoint,
+                                    const Base::Vector3d& displayedDirection);
     void updateTemporaryRotatedSectionEndpoint(
         const QPointF& endpoint,
         bool startEndpoint);
@@ -217,7 +220,6 @@ protected Q_SLOTS:
     void onProfileObjectUseSelectionClicked();
     void onProjectionStrategyChanged(int index);
     void onParallelToChanged(int index);
-    void onSectionPlacementChanged(int index);
     void onSectionLinePositionChanged(int index);
     void onResetSectionLineClicked();
     void onShowManualControlsToggled(bool checked);
@@ -233,7 +235,7 @@ private:
     bool hasAlignedPath() const;
     bool hasBentAxis() const;
     void updateParallelToVisibility();
-    void updateSectionPlacementVisibility();
+    void updatePartialDisplayVisibility();
     bool isGeneratedProfile(const App::DocumentObject* profile) const;
     void setCustomComplexSection(bool enabled);
     void setProfileObject(App::DocumentObject* profile);
@@ -250,10 +252,15 @@ private:
     void drawTemporarySingleOffset();
     std::vector<std::pair<QPointF, double>>
         sectionPathPoints(bool includePending) const;
+    std::pair<bool, bool> partialEndpointStatus(
+        const std::vector<std::pair<QPointF, double>>& pathPoints) const;
     QPointF rotateSectionPoint(const QPointF& point, double along) const;
     void ensureSectionHandles();
     void updateSectionHandles();
     void rebuildSelectableOffsetEdges();
+    QPointF halfSectionLeaderEnd() const;
+    void makeHalfSection(bool retainStartHalf);
+    void clearHalfSection();
     void removeOffsetStep(size_t index);
     void removeArcBend(size_t index);
     void ensureSectionControls();
@@ -320,6 +327,8 @@ private:
     bool m_endpointsEdited{false};
     bool m_startEndpointEdited{false};
     bool m_endEndpointEdited{false};
+    bool m_halfSection{false};
+    bool m_halfSectionTowardStart{false};
     int m_generationRequest{0};
     QPointF m_temporaryCenter;
     Base::Vector3d m_displayedDirection{1.0, 0.0, 0.0};
