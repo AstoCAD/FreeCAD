@@ -23,6 +23,7 @@
 #pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
+#include <Mod/TechDraw/App/DrawView.h>
 
 #include <fastsignals/signal.h>
 
@@ -33,8 +34,10 @@
 #include <QPen>
 #include <QPointF>
 
+#include <Base/BaseClass.h>
 #include <Base/Parameter.h>
 #include <Base/Vector3D.h>
+#include <Gui/ViewProvider.h>
 
 #include "QGIUserTypes.h"
 
@@ -102,6 +105,11 @@ public:
     const std::string getViewNameAsString() const;
     void setViewFeature(TechDraw::DrawView *obj);
     TechDraw::DrawView * getViewObject() const;
+    template<typename T>
+    T* getViewObject() const
+    {
+        return freecad_cast<T*>(getViewObject());
+    }
     MDIViewPage* getMDIViewPage() const;
 
     double getScale();
@@ -156,6 +164,11 @@ public:
     virtual void setStackFromVP();
 
     static Gui::ViewProvider* getViewProvider(App::DocumentObject* obj);
+    template<typename T>
+    static T* getViewProvider(App::DocumentObject* obj)
+    {
+        return freecad_cast<T*>(getViewProvider(obj));
+    }
     static ViewProviderPage* getViewProviderPage(TechDraw::DrawView* dView);
 
     static int calculateFontPixelSize(double sizeInMillimetres);
