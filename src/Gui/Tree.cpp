@@ -2590,6 +2590,17 @@ void TreeWidget::dragMoveEvent(QDragMoveEvent* event)
                     event->ignore();
                     return;
                 }
+                if ((da == Qt::LinkAction
+                     && !vp->canDropObjectToTarget(obj, vp->getObject()))
+                    || !canDropToParents(
+                        targetItemObj->getParentItem(),
+                        obj,
+                        vp->getObject()
+                    )) {
+                    TREE_TRACE("cannot drop into target hierarchy");
+                    event->ignore();
+                    return;
+                }
             }
         }
         catch (Base::Exception& e) {
@@ -3001,30 +3012,6 @@ bool TreeWidget::dropInObject(
 
         info.subs.swap(v.second);
 
-        // check if items can be dragged
-        if (da == Qt::MoveAction && item->myOwner == targetItemObj->myOwner
-            && vp->canDragAndDropObject(obj)) {
-            auto parentItem = item->getParentItem();
-            if (!parentItem) {
-                info.dragging = true;
-            }
-            else {
-
-                bool allParentsOK = canDragFromParents(parentItem, obj, targetObj);
-
-                if (allParentsOK) {
-                    auto vpp = parentItem->object();
-                    info.dragging = true;
-                    info.parent = vpp->getObject()->getNameInDocument();
-                    info.parentDoc = vpp->getObject()->getDocument()->getName();
-                }
-                else {
-                    App::GetApplication().abortTransaction(tid);
-                    return false;
-                }
-            }
-        }
-
         if (da != Qt::LinkAction
             && !vp->canDropObjectEx(obj, owner, info.subname.c_str(), item->mySubs)) {
             if (event->possibleActions() & Qt::LinkAction) {
@@ -3040,6 +3027,46 @@ bool TreeWidget::dropInObject(
                     return false;
                 }
                 da = Qt::LinkAction;
+            }
+        }
+        if ((da == Qt::LinkAction
+             && !vp->canDropObjectToTarget(obj, targetObj))
+            || !canDropToParents(targetItemObj->getParentItem(), obj, targetObj)) {
+            App::GetApplication().abortTransaction(tid);
+            return false;
+        }
+    }
+
+    // Complete destination preflight for every item before invoking source callbacks. Some source
+    // view providers prompt the user and modify the document when an object leaves its container.
+    if (da == Qt::MoveAction) {
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            auto item = items[i].first;
+            if (item->myOwner != targetItemObj->myOwner) {
+                continue;
+            }
+
+            auto& info = infos[i];
+            auto doc = App::GetApplication().getDocument(info.doc.c_str());
+            auto obj = doc ? doc->getObject(info.obj.c_str()) : nullptr;
+            if (!obj) {
+                App::GetApplication().abortTransaction(tid);
+                return false;
+            }
+
+            auto parentItem = item->getParentItem();
+            if (parentItem && !canDragFromParents(parentItem, obj, targetObj)) {
+                App::GetApplication().abortTransaction(tid);
+                return false;
+            }
+
+            if (vp->canDragAndDropObject(obj)) {
+                info.dragging = true;
+                if (parentItem) {
+                    auto vpp = parentItem->object();
+                    info.parent = vpp->getObject()->getNameInDocument();
+                    info.parentDoc = vpp->getObject()->getDocument()->getName();
+                }
             }
         }
     }
@@ -3317,6 +3344,22 @@ bool TreeWidget::canDragFromParents(
     }
 
     return allParentsOK;
+}
+
+bool TreeWidget::canDropToParents(
+    DocumentObjectItem* parentItem,
+    App::DocumentObject* obj,
+    App::DocumentObject* target
+)
+{
+    while (parentItem) {
+        if (!parentItem->object()->canDropObjectToTarget(obj, target)) {
+            return false;
+        }
+        parentItem = parentItem->getParentItem();
+    }
+
+    return true;
 }
 
 void TreeWidget::dropEvent(QDropEvent* event)

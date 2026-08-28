@@ -147,6 +147,10 @@ AssemblyExport double getFaceRadius(const App::DocumentObject* obj, const std::s
 AssemblyExport double getEdgeRadius(const App::DocumentObject* obj, const std::string& elName);
 
 AssemblyExport DistanceType getDistanceType(App::DocumentObject* joint);
+AssemblyExport bool isJoint(const App::DocumentObject* obj);
+AssemblyExport bool isJointGroupItem(const App::DocumentObject* obj);
+AssemblyExport bool isJointGroupFolder(const App::DocumentObject* obj);
+AssemblyExport bool containsJointGroupItem(const App::DocumentObject* obj);
 AssemblyExport JointGroup* getJointGroup(const App::Part* part);
 
 AssemblyExport std::vector<App::DocumentObject*> getAssemblyComponents(const AssemblyObject* assembly);

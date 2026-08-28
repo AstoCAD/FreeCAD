@@ -25,10 +25,10 @@
 #include <App/Application.h>
 #include <App/Document.h>
 #include <App/FeaturePythonPyImp.h>
-#include <App/PropertyPythonObject.h>
 #include <Base/Console.h>
 #include <Base/Tools.h>
 
+#include "AssemblyUtils.h"
 #include "Groups.h"
 #include "BomGroupPy.h"
 #include "JointGroupPy.h"
@@ -69,8 +69,7 @@ std::vector<App::DocumentObject*> JointGroup::getJoints()
 {
     std::vector<App::DocumentObject*> joints = {};
 
-    Base::PyGILStateLocker lock;
-    for (auto joint : getObjects()) {
+    for (auto joint : getAllChildren()) {
         if (!joint) {
             continue;
         }
@@ -81,17 +80,13 @@ std::vector<App::DocumentObject*> JointGroup::getJoints()
             continue;
         }
 
-        auto proxy = dynamic_cast<App::PropertyPythonObject*>(joint->getPropertyByName("Proxy"));
-        if (proxy) {
-            if (proxy->getValue().hasAttr("setJointConnectors")) {
-                joints.push_back(joint);
-            }
+        if (Assembly::isJoint(joint)) {
+            joints.push_back(joint);
         }
     }
 
     return joints;
 }
-
 
 PyObject* SimulationGroup::getPyObject()
 {
