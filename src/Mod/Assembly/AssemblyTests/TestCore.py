@@ -110,6 +110,21 @@ class TestCore(AssemblyTestBase):
 
         self.assertTrue(hasattr(joint, "JointType"), "'{}' failed".format(operation))
 
+    def test_joints_in_nested_group_are_detected(self):
+        """Joints remain active when organized in a folder under JointGroup."""
+        box1 = self.assembly.newObject("Part::Box", "Box1")
+        box2 = self.assembly.newObject("Part::Box", "Box2")
+        folder = self.jointgroup.newObject("App::DocumentObjectGroup", "JointFolder")
+        joint = folder.newObject("App::FeaturePython", "NestedJoint")
+        JointObject.Joint(joint, 0)
+        self.doc.recompute()
+        joint.Proxy.setJointConnectors(
+            joint,
+            [[box1, ["Face1", "Face1"]], [box2, ["Face1", "Face1"]]],
+        )
+
+        self.assertIn(joint, self.assembly.Joints)
+
     def test_create_grounded_joint(self):
         """Create a grounded joint in an assembly."""
         operation = "Create Grounded Joint Object"

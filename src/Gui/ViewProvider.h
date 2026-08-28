@@ -487,6 +487,8 @@ public:
     virtual bool canDropObjects() const;
     /** Check whether the object can be dropped to the view provider by drag and drop or drop only*/
     virtual bool canDropObject(App::DocumentObject*) const;
+    /** Let an ancestor of the drop target restrict what may be dropped into its descendants. */
+    virtual bool canDropObjectToTarget(App::DocumentObject* obj, App::DocumentObject* target) const;
     /** Return false to force drop only operation for a given object*/
     virtual bool canDragAndDropObject(App::DocumentObject*) const;
     /** Add an object to the view provider by drag and drop */

@@ -34,12 +34,16 @@
 #include <App/Datums.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
+#include <App/DocumentObjectGroup.h>
+#include <App/GroupExtension.h>
 #include <App/PropertyStandard.h>
 #include <App/Link.h>
 
 #include <Base/Placement.h>
 #include <Base/Tools.h>
 #include <Base/Interpreter.h>
+
+#include <algorithm>
 
 #include <Mod/Part/App/DatumFeature.h>
 #include <Mod/Part/App/LinkArray.h>
@@ -409,6 +413,48 @@ JointGroup* getJointGroup(const App::Part* part)
         }
     }
     return nullptr;
+}
+
+bool isJoint(const App::DocumentObject* obj)
+{
+    return obj && obj->getPropertyByName<App::PropertyEnumeration>("JointType") != nullptr;
+}
+
+bool isJointGroupItem(const App::DocumentObject* obj)
+{
+    return isJoint(obj)
+        || (obj && obj->getPropertyByName<App::PropertyLink>("ObjectToGround") != nullptr)
+        || (obj && obj->getPropertyByName<App::PropertyLinkList>("ObjectsToRigidGroup") != nullptr);
+}
+
+bool isJointGroupFolder(const App::DocumentObject* obj)
+{
+    if (!obj || !obj->isDerivedFrom<App::DocumentObjectGroup>()) {
+        return false;
+    }
+
+    auto* group = obj->getExtensionByType<App::GroupExtension>(/*no_except=*/true);
+    if (!group) {
+        return false;
+    }
+
+    return std::ranges::all_of(group->Group.getValues(), [](const auto* child) {
+        return isJointGroupItem(child) || isJointGroupFolder(child);
+    });
+}
+
+bool containsJointGroupItem(const App::DocumentObject* obj)
+{
+    if (isJointGroupItem(obj)) {
+        return true;
+    }
+
+    if (!obj) {
+        return false;
+    }
+
+    auto* group = obj->getExtensionByType<App::GroupExtension>(/*no_except=*/true);
+    return group && std::ranges::any_of(group->getAllChildren(), &isJointGroupItem);
 }
 
 void setJointActivated(const App::DocumentObject* joint, bool val)
