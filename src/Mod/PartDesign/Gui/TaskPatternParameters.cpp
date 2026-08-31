@@ -350,28 +350,12 @@ void TaskPatternParameters::setInstanceSuppressed(int index, bool suppress)
         return;
     }
 
-    const long suppressedIndex = static_cast<long>(index);
-    std::vector<long> suppressed = pattern->SuppressedIndices.getValues();
-    auto it = std::find(suppressed.begin(), suppressed.end(), suppressedIndex);
-    const bool alreadySuppressed = it != suppressed.end();
-    if (suppress == alreadySuppressed) {
+    if (suppress == pattern->isTransformationSuppressed(index)) {
         return;
     }
 
     setupTransaction();
-    if (suppress) {
-        suppressed.push_back(suppressedIndex);
-    }
-    else {
-        suppressed.erase(
-            std::remove(suppressed.begin(), suppressed.end(), suppressedIndex),
-            suppressed.end()
-        );
-    }
-
-    std::sort(suppressed.begin(), suppressed.end());
-    suppressed.erase(std::unique(suppressed.begin(), suppressed.end()), suppressed.end());
-    pattern->SuppressedIndices.setValues(suppressed);
+    pattern->setTransformationSuppressed(index, suppress);
     recomputeFeature();
     updateInstanceControls();
 }
@@ -428,7 +412,7 @@ void TaskPatternParameters::enterReferenceSelectionMode()
             AllowSelection::EDGE | AllowSelection::FACE | AllowSelection::WHOLE
         );
         Gui::getMainWindow()->showMessage(
-            tr("Select a sketch, SubShapeBinder, or path edge")
+            tr("Select a sketch, Sub-Shape Binder, or path edge")
         );
     }
     else {
@@ -499,7 +483,7 @@ void TaskPatternParameters::onSelectionChanged(const Gui::SelectionChanges& msg)
             patternObj->isDerivedFrom<PartDesign::PointPattern>()
             ? tr("Invalid selection. Select a sketch or shape containing points.")
             : (patternObj->isDerivedFrom<PartDesign::PathPattern>()
-                   ? tr("Invalid selection. Select a sketch, SubShapeBinder, or path edge.")
+                   ? tr("Invalid selection. Select a sketch, Sub-Shape Binder, or path edge.")
                    : tr("Invalid selection. Select an edge, planar face, or datum line."));
         Base::Console().warning("%s\n", warning.toUtf8().constData());
         return;

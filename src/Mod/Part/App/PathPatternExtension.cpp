@@ -313,7 +313,7 @@ PathPatternExtension::PathPatternExtension()
         ReversePath, (false), "PathPattern", App::Prop_None, "Traverse the path in reverse."
     );
     EXTENSION_ADD_PROPERTY_TYPE(
-        Align, (false), "PathPattern", App::Prop_None, "Align occurrence X axes to the path."
+        Align, (false), "PathPattern", App::Prop_None, "Aligns the occurrence X axes to the path."
     );
     EXTENSION_ADD_PROPERTY_TYPE(
         VerticalVector,

@@ -290,6 +290,23 @@ bool Transformed::isTransformationSuppressed(int index) const
     return std::ranges::find(suppressed, static_cast<long>(index)) != suppressed.end();
 }
 
+void Transformed::setTransformationSuppressed(int index, bool suppress)
+{
+    if (index < 0 || isTransformationSuppressed(index) == suppress) {
+        return;
+    }
+    auto suppressed = SuppressedIndices.getValues();
+    if (suppress) {
+        suppressed.push_back(index);
+    }
+    else {
+        std::erase(suppressed, static_cast<long>(index));
+    }
+    std::ranges::sort(suppressed);
+    suppressed.erase(std::unique(suppressed.begin(), suppressed.end()), suppressed.end());
+    SuppressedIndices.setValues(suppressed);
+}
+
 const std::list<gp_Trsf> Transformed::getFilteredTransformations(
     const std::vector<App::DocumentObject*> originals
 )
