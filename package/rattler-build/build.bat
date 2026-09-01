@@ -33,6 +33,7 @@ cmake ^
 if %ERRORLEVEL% neq 0 exit 1
 
 ninja -C build install
+if %ERRORLEVEL% neq 0 exit 1
 
 :: --- START ASTOCAD CHANGES ---
 :: Rename binaries
