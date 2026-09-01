@@ -195,7 +195,7 @@ LinearPatternExtension::LinearPatternExtension()
 
     EXTENSION_ADD_PROPERTY_TYPE(
         SuppressedPositions,
-        ({}),
+        (std::vector<Base::Vector3d> {}),
         "Pattern",
         App::Prop_None,
         "Suppressed instances as zero-based (direction 1, direction 2, 0) indices. "
