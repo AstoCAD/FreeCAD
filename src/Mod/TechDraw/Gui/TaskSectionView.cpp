@@ -47,7 +47,7 @@
 #include <sstream>
 
 #include "Widgets/CompassWidget.h"
-#include "Widgets/VectorEditWidget.h"
+#include <Gui/VectorEditWidget.h>
 #include <App/Application.h>
 #include <App/Document.h>
 #include <App/Link.h>
@@ -965,12 +965,12 @@ void TaskSectionView::setUiCommon(const QPointF& center)
     connect(m_compass, &CompassWidget::directionReversed,
             this, &TaskSectionView::reverseSectionDirection);
 
-    m_viewDirectionWidget = new VectorEditWidget(this);
+    m_viewDirectionWidget = new Gui::VectorEditWidget(this);
     m_viewDirectionWidget->setLabel(QObject::tr("As vector"));
     m_viewDirectionWidget->setToolTip(QObject::tr("The view direction in BaseView coordinates"));
     auto editLayout = ui->viewDirectionLayout;
     editLayout->addWidget(m_viewDirectionWidget);
-    connect(m_viewDirectionWidget, &VectorEditWidget::valueChanged, this,
+    connect(m_viewDirectionWidget, &Gui::VectorEditWidget::valueChanged, this,
             &TaskSectionView::slotViewDirectionChanged);
 }
 

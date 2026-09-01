@@ -48,6 +48,10 @@ namespace App {
     class DocumentObject;
 }
 
+namespace Gui {
+    class VectorEditWidget;
+}
+
 namespace TechDrawGui
 {
 
@@ -55,7 +59,6 @@ class CompassWidget;
 class QGISectionLine;
 class QGIViewPart;
 class QGVPage;
-class VectorEditWidget;
 
 // QGraphicsScene owns every item added to it. This deleter lets task-local
 // handles remove their items early, while becoming a no-op if the scene has
@@ -306,7 +309,7 @@ private:
     std::string m_savePageName;
 
     CompassWidget* m_compass;
-    VectorEditWidget* m_viewDirectionWidget;
+    Gui::VectorEditWidget* m_viewDirectionWidget;
 
     bool m_scaleEdited;
     bool m_directionChanged{false};
