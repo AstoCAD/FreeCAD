@@ -74,6 +74,7 @@
 
 #include <Mod/Part/App/PartFeature.h>
 #include <Mod/Part/App/Tools.h>
+#include <Mod/Material/Gui/MaterialSelector.h>
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRep_Builder.hxx>
@@ -328,6 +329,13 @@ TaskMassProperties::TaskMassProperties()
         this,
         &TaskMassProperties::onLcsButtonPressed
     );
+    panel->ui.materialButton->setRequirePhysical(true);
+    connect(
+        panel->ui.materialButton,
+        &MatGui::MaterialSelector::materialChanged,
+        this,
+        &TaskMassProperties::tryUpdate
+    );
 
     const int preferredSchemaIndex = getPreferredUnitsSchemaIndex();
 
@@ -510,6 +518,7 @@ void TaskMassProperties::removeTemporaryObjects()
 
 void TaskMassProperties::clearUiFields()
 {
+    panel->ui.materialButton->clearObjects();
     panel->ui.volumeEdit->clear();
     panel->ui.massEdit->clear();
     panel->ui.densityEdit->clear();
@@ -535,6 +544,18 @@ void TaskMassProperties::clearUiFields()
     panel->ui.inertiaJzText->clear();
 
     panel->ui.axisInertiaText->clear();
+}
+
+void TaskMassProperties::updateMaterialSelector()
+{
+    std::vector<App::DocumentObject*> objects;
+    objects.reserve(objectsToMeasure.size());
+    for (const auto& input : objectsToMeasure) {
+        if (input.object) {
+            objects.push_back(input.object);
+        }
+    }
+    panel->ui.materialButton->setObjects(objects);
 }
 
 void TaskMassProperties::onSelectionChanged(const Gui::SelectionChanges& msg)
@@ -1157,6 +1178,8 @@ void TaskMassProperties::tryUpdate()
         this->removeTemporaryObjects();
         return;
     }
+
+    updateMaterialSelector();
 
     updateInertiaVisibility();
 
