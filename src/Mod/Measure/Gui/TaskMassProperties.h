@@ -79,6 +79,7 @@ private:
     void escape();
     void removeTemporaryObjects();
     void clearUiFields();
+    void updateMaterialSelector();
     void saveResult();
 
     TaskMassPropertiesWidget* panel = nullptr;
