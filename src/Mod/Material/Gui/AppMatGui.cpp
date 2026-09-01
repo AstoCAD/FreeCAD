@@ -33,6 +33,7 @@
 #include "WorkbenchManipulator.h"
 #include "MaterialTreeWidget.h"
 #include "MaterialTreeWidgetPy.h"
+#include "MaterialSelector.h"
 
 #if defined(BUILD_MATERIAL_EXTERNAL)
 #include "DlgSettingsExternal.h"
@@ -127,6 +128,7 @@ PyMOD_INIT_FUNC(MatGui)
 
     // Add custom widgets
     new Gui::WidgetProducer<MatGui::MaterialTreeWidget>;
+    new Gui::WidgetProducer<MatGui::MaterialSelector>;
 
 
     PyMOD_Return(matGuiModule);
