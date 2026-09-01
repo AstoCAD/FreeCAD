@@ -29,3 +29,7 @@
 
 import Measure
 import MeasureGui
+
+import FreeCAD
+
+FreeCAD.__unit_test__ += ["TestMeasureGui"]
