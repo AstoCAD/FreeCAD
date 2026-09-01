@@ -56,6 +56,7 @@
 #endif
 
 #include "InputField.h"
+#include "VectorEditWidget.h"
 #include "QuantitySpinBox.h"
 #include "PrefWidgets.h"
 #include "ToolBarManager.h"
@@ -130,6 +131,7 @@ WidgetFactorySupplier::WidgetFactorySupplier()
     new WidgetProducer<Gui::IntSpinBox>;
     new WidgetProducer<Gui::DoubleSpinBox>;
     new WidgetProducer<Gui::QuantitySpinBox>;
+    new WidgetProducer<Gui::VectorEditWidget>;
     new WidgetProducer<Gui::ExpLineEdit>;
 }
 // clang-format on
