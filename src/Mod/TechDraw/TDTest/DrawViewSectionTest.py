@@ -1,5 +1,6 @@
 import FreeCAD
 import Part
+import time
 import unittest
 from .TechDrawTestUtilities import createPageWithSVGTemplate
 from PySide import QtCore
@@ -144,15 +145,15 @@ class DrawViewSectionTest(unittest.TestCase):
         section.Scale = 1.0
         FreeCAD.ActiveDocument.recompute()
 
-        loop = QtCore.QEventLoop()
-        timer = QtCore.QTimer()
-        timer.setSingleShot(True)
-        timer.timeout.connect(loop.quit)
-        timer.start(2000)
-        loop.exec_()
+        deadline = time.monotonic() + 10.0
+        visible_edges = section.getVisibleEdges()
+        while not visible_edges and time.monotonic() < deadline:
+            QtCore.QCoreApplication.processEvents(QtCore.QEventLoop.AllEvents, 50)
+            time.sleep(0.01)
+            visible_edges = section.getVisibleEdges()
 
         vertical_x = []
-        for edge in section.getVisibleEdges():
+        for edge in visible_edges:
             if len(edge.Vertexes) != 2:
                 continue
             first = edge.Vertexes[0].Point
