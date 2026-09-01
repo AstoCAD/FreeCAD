@@ -33,6 +33,7 @@
 #include <QPainterPath>
 #include <QPainterPathStroker>
 #include <QPen>
+#include <QPushButton>
 #include <QTimer>
 
 #include <App/Document.h>
