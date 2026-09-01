@@ -529,6 +529,7 @@ SET(Dialog_CPP_SRCS
     TaskCommandLink.cpp
     Dialogs/DlgUndoRedo.cpp
     InputVector.cpp
+    VectorEditWidget.cpp
     Placement.cpp
     PropertyPage.cpp
     SceneInspector.cpp
@@ -573,6 +574,7 @@ SET(Dialog_HPP_SRCS
     TaskCommandLink.h
     Dialogs/DlgUndoRedo.h
     InputVector.h
+    VectorEditWidget.h
     Placement.h
     PropertyPage.h
     SceneInspector.h

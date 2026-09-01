@@ -23,6 +23,7 @@
 #pragma once
 
 #include <QWidget>
+#include <FCConfig.h>
 #include <QSize>
 #include <QString>
 
@@ -36,31 +37,67 @@ class QToolButton;
 class QSpacerItem;
 QT_END_NAMESPACE
 
-namespace Gui {
+namespace Gui
+{
 class DoubleSpinBox;
 }
 
 #include <Base/Vector3D.h>
 
-namespace TechDrawGui {
+namespace Gui
+{
 
-class VectorEditWidget : public QWidget
+class GuiExport VectorEditWidget: public QWidget
 {
     Q_OBJECT
+    Q_PROPERTY(QString label READ label WRITE setLabel)
+    Q_PROPERTY(double vectorX READ x WRITE setX NOTIFY vectorChanged)
+    Q_PROPERTY(double vectorY READ y WRITE setY NOTIFY vectorChanged)
+    Q_PROPERTY(double vectorZ READ z WRITE setZ NOTIFY vectorChanged)
 
 public:
     VectorEditWidget(QWidget* parent = 0);
     ~VectorEditWidget() override = default;
 
     QSize minimumSizeHint() const override;
-    bool eventFilter(QObject *target, QEvent *event) override;
+    bool eventFilter(QObject* target, QEvent* event) override;
 
     void setLabel(std::string newLabel);
     void setLabel(QString newLabel);
-    Base::Vector3d value() const { return m_value; }
+    QString label() const;
+    double x() const
+    {
+        return m_value.x;
+    }
+    double y() const
+    {
+        return m_value.y;
+    }
+    double z() const
+    {
+        return m_value.z;
+    }
+    void setX(double x)
+    {
+        setValue(Base::Vector3d(x, m_value.y, m_value.z));
+    }
+    void setY(double y)
+    {
+        setValue(Base::Vector3d(m_value.x, y, m_value.z));
+    }
+    void setZ(double z)
+    {
+        setValue(Base::Vector3d(m_value.x, m_value.y, z));
+    }
+    Base::Vector3d value() const
+    {
+        return m_value;
+    }
 
 Q_SIGNALS:
     void valueChanged(Base::Vector3d newValue);
+    // Argument-free signal and scalar properties also work through PySide.
+    void vectorChanged();
 
 public Q_SLOTS:
     void setValue(Base::Vector3d newValue);
@@ -87,19 +124,19 @@ private:
 
     Base::Vector3d m_value;
 
-    QVBoxLayout *vectorEditLayout;
-    QHBoxLayout *VectorEditButtonLayout;
-    QLabel *lvectorName;
-    QLineEdit *leVectorDisplay;
-    QToolButton *tbExpand;
-    QGridLayout *VectorEditItemLayout;
-    Gui::DoubleSpinBox *dsbX;
-    Gui::DoubleSpinBox *dsbY;
-    Gui::DoubleSpinBox *dsbZ;
-    QLabel *lX;
-    QLabel *lY;
-    QLabel *lZ;
-    QSpacerItem *verticalSpacer;
+    QVBoxLayout* vectorEditLayout;
+    QHBoxLayout* VectorEditButtonLayout;
+    QLabel* lvectorName;
+    QLineEdit* leVectorDisplay;
+    QToolButton* tbExpand;
+    QGridLayout* VectorEditItemLayout;
+    QWidget* componentEditor;
+    Gui::DoubleSpinBox* dsbX;
+    Gui::DoubleSpinBox* dsbY;
+    Gui::DoubleSpinBox* dsbZ;
+    QLabel* lX;
+    QLabel* lY;
+    QLabel* lZ;
 };
 
-} //namespace TechDrawGui
+}  // namespace Gui
