@@ -3552,7 +3552,12 @@ bool ViewProviderSketch::doubleClicked()
                 }
             }
         }
-        document->setEdit(this);
+        if (document->getInEdit() == this && isInEditMode()) {
+            Gui::Application::Instance->commandManager().runCommandByName("Sketcher_ViewSketch");
+        }
+        else {
+            document->setEdit(this);
+        }
     }
     return true;
 }
