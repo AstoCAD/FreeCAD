@@ -127,7 +127,7 @@ int getConstraintId(std::string_view name)
     return std::atoi(name.substr(constr.size(), maxlen).data()) - 1;
 }
 
-std::vector<int> getListOfSelectedGeoIds(bool forceInternalSelection)
+std::vector<int> getListOfSelectedGeoIds(bool forceInternalSelection, bool expandGroups = false)
 {
     std::vector<int> listOfGeoIds = {};
 
@@ -170,6 +170,25 @@ std::vector<int> getListOfSelectedGeoIds(bool forceInternalSelection)
                 }
             }
         }
+    }
+
+    if (expandGroups) {
+        std::vector<int> expanded;
+        std::set<int> seen;
+        for (int geoId : listOfGeoIds) {
+            const int root = Obj->getGroupHandleIfInGroup(geoId);
+            if (seen.insert(root).second) {
+                expanded.push_back(root);
+            }
+            if (Obj->isGroupHandle(root)) {
+                for (int member : Obj->getGroupGeometries(root)) {
+                    if (seen.insert(member).second) {
+                        expanded.push_back(member);
+                    }
+                }
+            }
+        }
+        listOfGeoIds = std::move(expanded);
     }
 
     if (forceInternalSelection) {
@@ -2522,7 +2541,7 @@ CmdSketcherRotate::CmdSketcherRotate()
 void CmdSketcherRotate::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    std::vector<int> listOfGeoIds = getListOfSelectedGeoIds(true);
+    std::vector<int> listOfGeoIds = getListOfSelectedGeoIds(true, true);
 
     if (!listOfGeoIds.empty()) {
         ActivateHandler(getActiveGuiDocument(), std::make_unique<DrawSketchHandlerRotate>(listOfGeoIds));
@@ -2556,7 +2575,7 @@ CmdSketcherScale::CmdSketcherScale()
 void CmdSketcherScale::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    std::vector<int> listOfGeoIds = getListOfSelectedGeoIds(true);
+    std::vector<int> listOfGeoIds = getListOfSelectedGeoIds(true, true);
 
     if (!listOfGeoIds.empty()) {
         ActivateHandler(getActiveGuiDocument(), std::make_unique<DrawSketchHandlerScale>(listOfGeoIds));
@@ -2590,7 +2609,7 @@ CmdSketcherTranslate::CmdSketcherTranslate()
 void CmdSketcherTranslate::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    std::vector<int> listOfGeoIds = getListOfSelectedGeoIds(true);
+    std::vector<int> listOfGeoIds = getListOfSelectedGeoIds(true, true);
 
     if (!listOfGeoIds.empty()) {
         ActivateHandler(getActiveGuiDocument(), std::make_unique<DrawSketchHandlerTranslate>(listOfGeoIds));
