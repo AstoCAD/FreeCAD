@@ -21,6 +21,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketchCarbonCopyReverseMapping.py
     SketcherTests/TestSketchCarbonCopyReverseMapping.FCStd
     SketcherTests/TestSketchInternalFaces.py
+    SketcherTests/TestSketchGroups.py
 )
 
 if(BUILD_GUI)
@@ -32,6 +33,7 @@ if(BUILD_GUI)
           SketcherTests/TestConstraintPreselectionGui.py
           SketcherTests/TestConstraintCommandsGui.py
           SketcherTests/GuiTestCase.py
+          SketcherTests/TestSketchGroupsGui.py
           SketcherTests/TestPlacementUpdate.py
           SketcherTests/TestOnViewParameterGui.py
           SketcherTests/TestExternalFacePreselection.py
