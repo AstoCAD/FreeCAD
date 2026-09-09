@@ -28,6 +28,9 @@ set(AssemblyGui_UIC_SRCS
     TaskAssemblyCreateBom.ui
     TaskAssemblyCreateJoint.ui
     TaskAssemblyCreateSimulation.ui
+    TaskAssemblyCreateMotion.ui
+    TaskAssemblyCreateLoad.ui
+    TaskAssemblyCreateInitialVelocity.ui
     TaskAssemblyCreateView.ui
     TaskAssemblyInsertLink.ui
     TaskAssemblyInsertFastener.ui

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TaskAssemblyCreateContact</class>
+ <widget class="QDialog" name="TaskAssemblyCreateContact">
+  <property name="minimumSize"><size><width>400</width><height>0</height></size></property>
+  <property name="windowTitle"><string>Contact</string></property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QLabel" name="DescriptionLabel">
+     <property name="text"><string>Prevents solid components from penetrating while dragging and in simulation. Impact and optional friction properties define the contact response.</string></property>
+     <property name="wordWrap"><bool>true</bool></property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QFormLayout" name="formLayout">
+     <item row="0" column="0"><widget class="QLabel" name="ScopeLabel"><property name="text"><string>Scope</string></property></widget></item>
+     <item row="0" column="1"><widget class="QLabel" name="ScopeValueLabel"><property name="text"><string/></property><property name="wordWrap"><bool>true</bool></property></widget></item>
+     <item row="1" column="0"><widget class="QLabel" name="ModeLabel"><property name="text"><string>Mode</string></property><property name="buddy"><cstring>ModeComboBox</cstring></property><property name="toolTip"><string>Check either one selected component pair or every component pair in the assembly.</string></property></widget></item>
+     <item row="1" column="1"><widget class="QComboBox" name="ModeComboBox"><property name="toolTip"><string>Check either one selected component pair or every component pair in the assembly.</string></property></widget></item>
+     <item row="2" column="0" colspan="2"><widget class="QLabel" name="GeneralWarningLabel"><property name="text"><string>Checks every pair of components. This is computationally expensive and is intended only for very small assemblies.</string></property><property name="toolTip"><string>The number of possible contact pairs grows rapidly with each additional component.</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
+     <item row="3" column="0"><widget class="QLabel" name="FirstComponentLabel"><property name="text"><string>First component</string></property><property name="buddy"><cstring>FirstComponentComboBox</cstring></property></widget></item>
+     <item row="3" column="1"><widget class="QComboBox" name="FirstComponentComboBox"/></item>
+     <item row="4" column="0"><widget class="QLabel" name="SecondComponentLabel"><property name="text"><string>Second component</string></property><property name="buddy"><cstring>SecondComponentComboBox</cstring></property></widget></item>
+     <item row="4" column="1"><widget class="QComboBox" name="SecondComponentComboBox"/></item>
+     <item row="5" column="0"><widget class="QLabel" name="StiffnessLabel"><property name="text"><string>Stiffness</string></property><property name="buddy"><cstring>StiffnessSpinBox</cstring></property><property name="toolTip"><string>Effective normal stiffness of the two contacting materials. Higher values reduce penetration but require smaller integration steps.</string></property></widget></item>
+     <item row="5" column="1"><widget class="Gui::PrefQuantitySpinBox" name="StiffnessSpinBox"><property name="toolTip"><string>Effective normal stiffness of the two contacting materials. Higher values reduce penetration but require smaller integration steps.</string></property><property name="minimum"><double>0.000001</double></property></widget></item>
+     <item row="6" column="0"><widget class="QLabel" name="DampingLabel"><property name="text"><string>Damping</string></property><property name="buddy"><cstring>DampingSpinBox</cstring></property><property name="toolTip"><string>Normal viscous damping. Zero gives an undamped elastic impact; larger values dissipate more rebound energy.</string></property></widget></item>
+     <item row="6" column="1"><widget class="Gui::PrefQuantitySpinBox" name="DampingSpinBox"><property name="toolTip"><string>Normal viscous damping. Zero gives an undamped elastic impact; larger values dissipate more rebound energy.</string></property><property name="minimum"><double>0.000000</double></property></widget></item>
+     <item row="7" column="0" colspan="2">
+      <widget class="QGroupBox" name="FrictionGroupBox">
+       <property name="title"><string>Friction</string></property>
+       <property name="checkable"><bool>true</bool></property>
+       <property name="checked"><bool>false</bool></property>
+       <property name="toolTip"><string>Apply tangential friction while dragging and during forward dynamics.</string></property>
+       <layout class="QFormLayout" name="frictionLayout">
+     <item row="0" column="0"><widget class="QLabel" name="StaticFrictionLabel"><property name="text"><string>Static coefficient</string></property><property name="buddy"><cstring>StaticFrictionSpinBox</cstring></property><property name="toolTip"><string>Maximum friction ratio near zero sliding speed. Typical dry material pairs range from about 0.1 to 1.0.</string></property></widget></item>
+     <item row="0" column="1"><widget class="QDoubleSpinBox" name="StaticFrictionSpinBox"><property name="toolTip"><string>Maximum friction ratio near zero sliding speed. This value must be at least the dynamic coefficient.</string></property><property name="decimals"><number>3</number></property><property name="maximum"><double>10.000000</double></property><property name="singleStep"><double>0.050000</double></property></widget></item>
+     <item row="1" column="0"><widget class="QLabel" name="DynamicFrictionLabel"><property name="text"><string>Dynamic coefficient</string></property><property name="buddy"><cstring>DynamicFrictionSpinBox</cstring></property><property name="toolTip"><string>Friction ratio after the surfaces are sliding. It is normally lower than the static coefficient.</string></property></widget></item>
+     <item row="1" column="1"><widget class="QDoubleSpinBox" name="DynamicFrictionSpinBox"><property name="toolTip"><string>Friction ratio after the surfaces are sliding. It is normally lower than the static coefficient.</string></property><property name="decimals"><number>3</number></property><property name="maximum"><double>10.000000</double></property><property name="singleStep"><double>0.050000</double></property></widget></item>
+     <item row="2" column="0"><widget class="QLabel" name="TransitionVelocityLabel"><property name="text"><string>Transition velocity</string></property><property name="buddy"><cstring>TransitionVelocitySpinBox</cstring></property><property name="toolTip"><string>Sliding-speed scale over which simulation friction changes smoothly from static to dynamic behavior. Smaller values approximate Coulomb friction more sharply but may require smaller integration steps.</string></property></widget></item>
+     <item row="2" column="1"><widget class="Gui::PrefQuantitySpinBox" name="TransitionVelocitySpinBox"><property name="toolTip"><string>Sliding-speed scale over which simulation friction changes smoothly from static to dynamic behavior. Smaller values approximate Coulomb friction more sharply but may require smaller integration steps.</string></property><property name="minimum"><double>0.000001</double></property></widget></item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item><spacer name="verticalSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget><class>Gui::PrefQuantitySpinBox</class><extends>QWidget</extends><header>Gui/PrefWidgets.h</header></customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

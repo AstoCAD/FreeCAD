@@ -106,6 +106,14 @@ public:
     ~ViewProviderSimulationGroup() override = default;
 
     QIcon getIcon() const override;
+
+    bool canDragObjects() const override { return true; }
+    bool canDropObjects() const override { return true; }
+    bool canDragObject(App::DocumentObject* obj) const override;
+    bool canDropObject(App::DocumentObject* obj) const override;
+    bool canDragAndDropObject(App::DocumentObject* obj) const override;
+    void dragObject(App::DocumentObject* obj) override;
+    void dropObject(App::DocumentObject* obj) override;
 };
 
 
