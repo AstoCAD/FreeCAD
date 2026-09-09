@@ -38,6 +38,8 @@
 #include <App/FeaturePythonPyImp.h>
 #include <App/Link.h>
 #include <App/PropertyPythonObject.h>
+#include <App/PropertyStandard.h>
+#include <App/PropertyUnits.h>
 #include <Base/Console.h>
 #include <Base/Placement.h>
 #include <Base/Rotation.h>
@@ -83,6 +85,7 @@
 
 #include "AssemblyLink.h"
 #include "AssemblyObject.h"
+#include "ContactGroups.h"
 #include "AssemblyObjectPy.h"
 #include "AssemblyUtils.h"
 #include "Groups.h"
@@ -336,6 +339,7 @@ int AssemblyObject::solve(bool enableRedo)
     removeUnconnectedJoints(joints, groundedObjs);
 
     jointParts(joints);
+    contactParts(getContacts());
 
     if (enableRedo) {
         savePlacementsForUndo();
@@ -478,6 +482,7 @@ int AssemblyObject::generateSimulation(App::DocumentObject* sim)
     removeUnconnectedJoints(joints, groundedObjs);
 
     jointParts(joints);
+    contactParts(getContacts(sim));
 
     create_mbdSimulationParameters(sim);
 
@@ -506,7 +511,36 @@ std::vector<App::DocumentObject*> AssemblyObject::getMotionsFromSimulation(App::
         return {};
     }
 
-    return prop->getValue();
+    // Direct non-study children of the SimulationGroup are global inputs that
+    // apply to every study, as in the dynamics path.
+    std::vector<App::DocumentObject*> inputs;
+    for (auto* child : Group.getValues()) {
+        if (!child || !child->isDerivedFrom<SimulationGroup>()) {
+            continue;
+        }
+        for (auto* input : static_cast<SimulationGroup*>(child)->Group.getValues()) {
+            if (input && !input->getPropertyByName("Assembly")) {
+                inputs.push_back(input);
+            }
+        }
+        break;
+    }
+    const auto local = prop->getValues();
+    inputs.insert(inputs.end(), local.begin(), local.end());
+
+    std::vector<App::DocumentObject*> result;
+    for (auto* object : inputs) {
+        if (!object || !object->getPropertyByName("MotionType")) {
+            continue;
+        }
+        auto* suppressed = dynamic_cast<App::PropertyBool*>(
+            object->getPropertyByName("Suppressed")
+        );
+        if (!suppressed || !suppressed->getValue()) {
+            result.push_back(object);
+        }
+    }
+    return result;
 }
 
 int Assembly::AssemblyObject::updateForFrame(size_t index)
@@ -541,6 +575,25 @@ bool AssemblyObject::requiresRigidSolveForMove(const std::vector<App::DocumentOb
     });
 }
 
+bool AssemblyObject::requiresContactSolveForMove(
+    const std::vector<App::DocumentObject*>& movedParts
+)
+{
+    const std::set<App::DocumentObject*> moved(movedParts.begin(), movedParts.end());
+    return std::ranges::any_of(getContacts(), [&](App::DocumentObject* contact) {
+        std::vector<std::pair<App::DocumentObject*, App::DocumentObject*>> pairs;
+        try {
+            pairs = contactComponentPairs(contact, getAssemblyComponents(this));
+        }
+        catch (const std::invalid_argument&) {
+            return false;  // contactParts() skips and reports an invalid contact.
+        }
+        return std::ranges::any_of(pairs, [&](const auto& pair) {
+            return moved.contains(pair.first) || moved.contains(pair.second);
+        });
+    });
+}
+
 void AssemblyObject::preDrag(std::vector<App::DocumentObject*> dragParts)
 {
     bundleFixed = true;
@@ -570,7 +623,7 @@ void AssemblyObject::preDrag(std::vector<App::DocumentObject*> dragParts)
         // During ungrounded island dragging, prepareMbdForIslandDrag seeds the MBD system from
         // the dragged parts, so objectPartMap is the source of truth instead.
         // - Active rigid-cluster members are solver-connected through the shared MbD part.
-        if (!isPartConnected(part) && (!objectPartMap.contains(part) || !isRigidClustered)) {
+        if (!isPartConnected(part) && !objectPartMap.contains(part)) {
             continue;
         }
 
@@ -615,14 +668,23 @@ void AssemblyObject::prepareMbdForIslandDrag(std::vector<App::DocumentObject*> d
     }
 
     std::vector<App::DocumentObject*> joints = getJoints();
+    const auto contacts = getContacts();
     removeUnconnectedJoints(joints, seededParts);
-    if (joints.empty()) {
+    if (joints.empty() && contacts.empty()) {
         objectPartMap.clear();
         mbdAssembly.reset();
         return;
     }
 
     jointParts(joints);
+    const size_t solverContacts = contactParts(contacts);
+    if (joints.empty() && solverContacts == 0) {
+        // Arbitrary BRep contact is resolved directly from CAD placements while
+        // dragging. Do not run an unconstrained MbD system for those pairs.
+        objectPartMap.clear();
+        mbdAssembly.reset();
+        return;
+    }
 
     try {
         mbdAssembly->runPreDrag();
@@ -834,6 +896,7 @@ void AssemblyObject::exportAsASMT(std::string fileName)
     std::vector<App::DocumentObject*> joints = getJoints();
 
     jointParts(joints);
+    contactParts(getContacts());
 
     mbdAssembly->outputFile(fileName);
 }
@@ -1776,14 +1839,14 @@ bool AssemblyObject::isPartConnected(App::DocumentObject* obj)
     return false;
 }
 
-void AssemblyObject::jointParts(std::vector<App::DocumentObject*> joints)
+void AssemblyObject::jointParts(std::vector<App::DocumentObject*> joints, bool dynamics)
 {
     for (auto* joint : joints) {
         if (!joint) {
             continue;
         }
 
-        std::vector<std::shared_ptr<MbD::ASMTJoint>> mbdJoints = makeMbdJoint(joint);
+        std::vector<std::shared_ptr<MbD::ASMTJoint>> mbdJoints = makeMbdJoint(joint, dynamics);
         for (auto& mbdJoint : mbdJoints) {
             mbdAssembly->addJoint(mbdJoint);
         }
@@ -1796,19 +1859,22 @@ void Assembly::AssemblyObject::create_mbdSimulationParameters(App::DocumentObjec
     if (!sim) {
         return;
     }
-    auto valueOf = [](DocumentObject* docObj, const char* propName) {
+    auto valueOf = [](DocumentObject* docObj, const char* propName, const char* alternate) {
         auto* prop = dynamic_cast<App::PropertyFloat*>(docObj->getPropertyByName(propName));
+        if (!prop) {
+            prop = dynamic_cast<App::PropertyFloat*>(docObj->getPropertyByName(alternate));
+        }
         if (!prop) {
             return 0.0;
         }
         return prop->getValue();
     };
-    mbdSim->settstart(valueOf(sim, "aTimeStart"));
-    mbdSim->settend(valueOf(sim, "bTimeEnd"));
-    mbdSim->sethout(valueOf(sim, "cTimeStepOutput"));
+    mbdSim->settstart(valueOf(sim, "aTimeStart", "StartTime"));
+    mbdSim->settend(valueOf(sim, "bTimeEnd", "EndTime"));
+    mbdSim->sethout(valueOf(sim, "cTimeStepOutput", "OutputStep"));
     mbdSim->sethmin(1.0e-9);
     mbdSim->sethmax(1.0);
-    mbdSim->seterrorTol(valueOf(sim, "fGlobalErrorTolerance"));
+    mbdSim->seterrorTol(valueOf(sim, "fGlobalErrorTolerance", "Tolerance"));
 }
 
 std::shared_ptr<ASMTJoint> AssemblyObject::makeMbdJointOfType(App::DocumentObject* joint, JointType type)
@@ -2050,7 +2116,8 @@ std::shared_ptr<ASMTJoint> AssemblyObject::makeMbdJointDistance(App::DocumentObj
     }
 }
 
-std::vector<std::shared_ptr<MbD::ASMTJoint>> AssemblyObject::makeMbdJoint(App::DocumentObject* joint)
+std::vector<std::shared_ptr<MbD::ASMTJoint>>
+AssemblyObject::makeMbdJoint(App::DocumentObject* joint, bool dynamics)
 {
     if (!joint) {
         return {};
@@ -2083,8 +2150,48 @@ std::vector<std::shared_ptr<MbD::ASMTJoint>> AssemblyObject::makeMbdJoint(App::D
     mbdJoint->setMarkerI(fullMarkerNameI);
     mbdJoint->setMarkerJ(fullMarkerNameJ);
 
-    // Add limits if needed. We do not add if this is a simulation or their might clash.
-    if (motions.empty()) {
+    // Joint limits are part of the joint definition in every solver mode.  A
+    // prescribed motion on the same axis is rejected by the dynamics bridge;
+    // limits on other joints or on the other cylindrical axis remain valid.
+    {
+        auto quantity = [joint](const char* name, const char* unit, double scale) {
+            auto* value = dynamic_cast<App::PropertyQuantity*>(joint->getPropertyByName(name));
+            if (!value) {
+                throw Base::RuntimeError(std::string("Missing joint-limit property ") + name);
+            }
+            const double result = scale
+                * value->getQuantityValue().getValueAs(Base::Quantity(1, unit));
+            if (!std::isfinite(result)) {
+                throw Base::ValueError(std::string("Joint-limit property must be finite: ") + name);
+            }
+            return result;
+        };
+        auto configureCompliance = [&](const std::shared_ptr<ASMTLimit>& limit,
+                                       const char* behaviorName,
+                                       const char* stiffnessName,
+                                       const char* dampingName) {
+            auto* behavior = dynamic_cast<App::PropertyEnumeration*>(
+                joint->getPropertyByName(behaviorName)
+            );
+            if (dynamics && behavior
+                && std::string(behavior->getValueAsString()) == "Compliant") {
+                const bool angular = std::string(behaviorName).starts_with("Angle");
+                const double stiffness = quantity(
+                    stiffnessName, angular ? "N*mm/rad" : "N/mm", 1000.0
+                );
+                const double damping = quantity(
+                    dampingName, angular ? "N*mm*s/rad" : "kg/s", angular ? 1000.0 : 1.0
+                );
+                if (!(stiffness > 0.0) || damping < 0.0) {
+                    throw Base::ValueError(
+                        "Compliant joint-limit stiffness must be positive and damping nonnegative"
+                    );
+                }
+                limit->setcompliance(
+                    std::to_string(stiffness), std::to_string(damping)
+                );
+            }
+        };
         if (jointType == JointType::Slider || jointType == JointType::Cylindrical) {
             auto* pLenMin = dynamic_cast<App::PropertyFloat*>(joint->getPropertyByName("LengthMin"));
             auto* pLenMax = dynamic_cast<App::PropertyFloat*>(joint->getPropertyByName("LengthMax"));
@@ -2122,6 +2229,12 @@ std::vector<std::shared_ptr<MbD::ASMTJoint>> AssemblyObject::makeMbdJoint(App::D
                     limit->settype("=>");
                     limit->setlimit(std::to_string(minLength));
                     limit->settol("1.0e-9");
+                    configureCompliance(
+                        limit,
+                        "LengthMinLimitBehavior",
+                        "LengthMinLimitStiffness",
+                        "LengthMinLimitDamping"
+                    );
                     mbdAssembly->addLimit(limit);
                 }
 
@@ -2133,6 +2246,12 @@ std::vector<std::shared_ptr<MbD::ASMTJoint>> AssemblyObject::makeMbdJoint(App::D
                     limit2->settype("=<");
                     limit2->setlimit(std::to_string(maxLength));
                     limit2->settol("1.0e-9");
+                    configureCompliance(
+                        limit2,
+                        "LengthMaxLimitBehavior",
+                        "LengthMaxLimitStiffness",
+                        "LengthMaxLimitDamping"
+                    );
                     mbdAssembly->addLimit(limit2);
                 }
             }
@@ -2173,6 +2292,12 @@ std::vector<std::shared_ptr<MbD::ASMTJoint>> AssemblyObject::makeMbdJoint(App::D
                     limit->settype("=>");
                     limit->setlimit(std::to_string(minAngle) + "*pi/180.0");
                     limit->settol("1.0e-9");
+                    configureCompliance(
+                        limit,
+                        "AngleMinLimitBehavior",
+                        "AngleMinLimitStiffness",
+                        "AngleMinLimitDamping"
+                    );
                     mbdAssembly->addLimit(limit);
                 }
 
@@ -2184,6 +2309,12 @@ std::vector<std::shared_ptr<MbD::ASMTJoint>> AssemblyObject::makeMbdJoint(App::D
                     limit2->settype("=<");
                     limit2->setlimit(std::to_string(maxAngle) + "*pi/180.0");
                     limit2->settol("1.0e-9");
+                    configureCompliance(
+                        limit2,
+                        "AngleMaxLimitBehavior",
+                        "AngleMaxLimitStiffness",
+                        "AngleMaxLimitDamping"
+                    );
                     mbdAssembly->addLimit(limit2);
                 }
             }
