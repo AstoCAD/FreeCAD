@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TaskAssemblyCreateLoad</class>
+ <widget class="QWidget" name="TaskAssemblyCreateLoad">
+  <property name="windowTitle">
+   <string>Load</string>
+  </property>
+    <property name="minimumSize">
+	    <size>
+		    <width>400</width>
+		    <height>0</height>
+	    </size>
+    </property>
+  <layout class="QFormLayout" name="formLayout">
+   <item row="0" column="0">
+    <widget class="QLabel" name="TypeLabel">
+     <property name="text"><string>Type</string></property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="QComboBox" name="TypeComboBox"/>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="ComponentLabel">
+     <property name="text"><string>Component</string></property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QComboBox" name="ComponentComboBox"/>
+   </item>
+   <item row="2" column="0" colspan="2">
+    <widget class="QStackedWidget" name="LoadTypeStack">
+     <widget class="QWidget" name="WrenchPage">
+      <layout class="QFormLayout" name="WrenchLayout">
+       <property name="leftMargin"><number>0</number></property>
+       <property name="topMargin"><number>0</number></property>
+       <property name="rightMargin"><number>0</number></property>
+       <property name="bottomMargin"><number>0</number></property>
+       <item row="0" column="0">
+        <widget class="QLabel" name="MagnitudeLabel">
+         <property name="text"><string>Magnitude</string></property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="Gui::QuantitySpinBox" name="MagnitudeSpinBox"/>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="FormulaLabel"><property name="text"><string>Formula</string></property></widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLineEdit" name="FormulaLineEdit"><property name="placeholderText"><string>Optional expression using time</string></property><property name="toolTip"><string>Magnitude as a function of time in seconds, in N for force or N mm for torque; for example 10*sin(2*pi*time)</string></property></widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="SpringPage">
+      <layout class="QFormLayout" name="SpringLayout">
+       <property name="leftMargin"><number>0</number></property>
+       <property name="topMargin"><number>0</number></property>
+       <property name="rightMargin"><number>0</number></property>
+       <property name="bottomMargin"><number>0</number></property>
+       <item row="0" column="0">
+        <widget class="QLabel" name="ReactionComponentLabel">
+         <property name="text"><string>Second component</string></property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="ReactionComponentComboBox"/>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="EndpointJLabel">
+         <property name="text"><string>Second point</string></property>
+         <property name="toolTip"><string>Position in the second component's coordinates, or assembly coordinates for ground</string></property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <layout class="QHBoxLayout" name="EndpointJLayout">
+         <item><widget class="Gui::QuantitySpinBox" name="EndpointJX"><property name="toolTip"><string>X coordinate of the second attachment point</string></property></widget></item>
+         <item><widget class="Gui::QuantitySpinBox" name="EndpointJY"><property name="toolTip"><string>Y coordinate of the second attachment point</string></property></widget></item>
+         <item><widget class="Gui::QuantitySpinBox" name="EndpointJZ"><property name="toolTip"><string>Z coordinate of the second attachment point</string></property></widget></item>
+        </layout>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="StiffnessLabel"><property name="text"><string>Stiffness</string></property></widget>
+       </item>
+       <item row="2" column="1"><widget class="Gui::QuantitySpinBox" name="StiffnessSpinBox"/></item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="DampingLabel"><property name="text"><string>Damping</string></property></widget>
+       </item>
+       <item row="3" column="1"><widget class="Gui::QuantitySpinBox" name="DampingSpinBox"/></item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="RestLengthLabel"><property name="text"><string>Free length</string></property></widget>
+       </item>
+       <item row="4" column="1">
+        <layout class="QHBoxLayout" name="RestLengthLayout">
+         <item><widget class="Gui::QuantitySpinBox" name="RestLengthSpinBox"/></item>
+         <item><widget class="QToolButton" name="UseCurrentLengthButton"><property name="text"><string>Use current</string></property><property name="toolTip"><string>Use the current distance between the attachment points as the free length</string></property></widget></item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="BushingPage">
+      <layout class="QVBoxLayout" name="BushingLayout">
+       <property name="leftMargin"><number>0</number></property>
+       <property name="topMargin"><number>0</number></property>
+       <property name="rightMargin"><number>0</number></property>
+       <property name="bottomMargin"><number>0</number></property>
+       <item>
+        <layout class="QFormLayout" name="BushingComponentsLayout">
+         <item row="0" column="0"><widget class="QLabel" name="BushingReactionComponentLabel"><property name="text"><string>Second component</string></property></widget></item>
+         <item row="0" column="1"><widget class="QComboBox" name="BushingReactionComponentComboBox"/></item>
+         <item row="1" column="0" colspan="2"><widget class="QPushButton" name="UseCurrentPoseButton"><property name="text"><string>Use current pose as free pose</string></property><property name="toolTip"><string>Align the second attachment frame with the first at the current component positions. This defines the pose at which the bushing applies no force or torque.</string></property></widget></item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="BushingTranslationGroup"><property name="title"><string>Translation</string></property>
+         <layout class="QGridLayout" name="BushingTranslationLayout">
+          <item row="0" column="1"><widget class="QLabel" name="BushingTranslationXLabel"><property name="text"><string>X</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item>
+          <item row="0" column="2"><widget class="QLabel" name="BushingTranslationYLabel"><property name="text"><string>Y</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item>
+          <item row="0" column="3"><widget class="QLabel" name="BushingTranslationZLabel"><property name="text"><string>Z</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item>
+          <item row="1" column="0"><widget class="QLabel" name="BushingLinearStiffnessLabel"><property name="text"><string>Stiffness</string></property><property name="toolTip"><string>Restoring force per unit displacement along each local attachment axis</string></property></widget></item>
+          <item row="1" column="1"><widget class="Gui::QuantitySpinBox" name="BushingLinearStiffnessX"/></item>
+          <item row="1" column="2"><widget class="Gui::QuantitySpinBox" name="BushingLinearStiffnessY"/></item>
+          <item row="1" column="3"><widget class="Gui::QuantitySpinBox" name="BushingLinearStiffnessZ"/></item>
+          <item row="2" column="0"><widget class="QLabel" name="BushingLinearDampingLabel"><property name="text"><string>Damping</string></property><property name="toolTip"><string>Force opposing relative velocity along each local attachment axis</string></property></widget></item>
+          <item row="2" column="1"><widget class="Gui::QuantitySpinBox" name="BushingLinearDampingX"/></item>
+          <item row="2" column="2"><widget class="Gui::QuantitySpinBox" name="BushingLinearDampingY"/></item>
+          <item row="2" column="3"><widget class="Gui::QuantitySpinBox" name="BushingLinearDampingZ"/></item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="BushingRotationGroup"><property name="title"><string>Rotation</string></property>
+         <layout class="QGridLayout" name="BushingRotationLayout">
+          <item row="0" column="1"><widget class="QLabel" name="BushingRotationXLabel"><property name="text"><string>X</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item>
+          <item row="0" column="2"><widget class="QLabel" name="BushingRotationYLabel"><property name="text"><string>Y</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item>
+          <item row="0" column="3"><widget class="QLabel" name="BushingRotationZLabel"><property name="text"><string>Z</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item>
+          <item row="1" column="0"><widget class="QLabel" name="BushingAngularStiffnessLabel"><property name="text"><string>Stiffness</string></property><property name="toolTip"><string>Restoring torque per radian about each local attachment axis</string></property></widget></item>
+          <item row="1" column="1"><widget class="Gui::QuantitySpinBox" name="BushingAngularStiffnessX"/></item>
+          <item row="1" column="2"><widget class="Gui::QuantitySpinBox" name="BushingAngularStiffnessY"/></item>
+          <item row="1" column="3"><widget class="Gui::QuantitySpinBox" name="BushingAngularStiffnessZ"/></item>
+          <item row="2" column="0"><widget class="QLabel" name="BushingAngularDampingLabel"><property name="text"><string>Damping</string></property><property name="toolTip"><string>Torque opposing relative angular velocity about each local attachment axis</string></property></widget></item>
+          <item row="2" column="1"><widget class="Gui::QuantitySpinBox" name="BushingAngularDampingX"/></item>
+          <item row="2" column="2"><widget class="Gui::QuantitySpinBox" name="BushingAngularDampingY"/></item>
+          <item row="2" column="3"><widget class="Gui::QuantitySpinBox" name="BushingAngularDampingZ"/></item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>Gui::QuantitySpinBox</class>
+   <extends>QAbstractSpinBox</extends>
+   <header>Gui/QuantitySpinBox.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

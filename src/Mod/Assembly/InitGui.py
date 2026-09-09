@@ -71,6 +71,10 @@ class AssemblyWorkbench(Workbench):
         import CommandExportASMT
         import CommandCreateView
         import CommandCreateSimulation
+        import CommandCreateLoad
+        import CommandCreateContact
+        import CommandCreateInitialVelocity
+        import CommandCreateFriction
         import CommandCreateSnapshot
         import CommandCreateBom
         import Preferences
@@ -91,8 +95,24 @@ class AssemblyWorkbench(Workbench):
             "Assembly_SolveAssembly",
             "Assembly_CreateView",
             "Assembly_CreateSnapshot",
-            "Assembly_CreateSimulation",
             "Assembly_CreateBom",
+        ]
+
+        cmdListSimulationToolbar = [
+            "Assembly_CreateSimulation",
+            "Assembly_CreateMotion",
+            "Assembly_CreateLoad",
+            "Assembly_CreateInitialVelocity",
+            "Assembly_CreateContact",
+            "Assembly_CreateFriction",
+        ]
+        cmdListSimulationMenu = [
+            "Assembly_CreateSimulation",
+            "Assembly_CreateMotion",
+            "Assembly_CreateLoad",
+            "Assembly_CreateContact",
+            "Assembly_CreateInitialVelocity",
+            "Assembly_CreateFriction",
         ]
 
         cmdListMenuOnly = [
@@ -123,10 +143,14 @@ class AssemblyWorkbench(Workbench):
 
         self.appendToolbar(QT_TRANSLATE_NOOP("Workbench", "Assembly"), cmdList)
         self.appendToolbar(QT_TRANSLATE_NOOP("Workbench", "Assembly Joints"), cmdListJoints)
+        self.appendToolbar(
+            QT_TRANSLATE_NOOP("Workbench", "Assembly Simulation"), cmdListSimulationToolbar
+        )
 
         self.appendMenu(
             [QT_TRANSLATE_NOOP("Workbench", "&Assembly")],
-            cmdList + cmdListMenuOnly + ["Separator"] + cmdListJoints,
+            cmdList + cmdListMenuOnly + ["Separator"] + cmdListJoints
+            + ["Separator"] + cmdListSimulationMenu,
         )
 
     def Activated(self):
@@ -196,8 +220,12 @@ class AssemblyWorkbench(Workbench):
                             break
 
                 assembly = UtilsAssembly.activeAssembly()
-
-                return has_assembly and (assembly is None or assembly.Document != doc)
+                try:
+                    return has_assembly and (assembly is None or assembly.Document != doc)
+                except ReferenceError:
+                    # The active-assembly cache can briefly retain the Python
+                    # wrapper while its document is being closed.
+                    return has_assembly
 
         class AssemblyBaseWatcher:
             """Base class for watchers that require an active assembly."""
@@ -209,7 +237,11 @@ class AssemblyWorkbench(Workbench):
                 doc = FreeCAD.ActiveDocument
 
                 self.assembly = UtilsAssembly.activeAssembly()
-                return self.assembly is not None and self.assembly.Document == doc
+                try:
+                    return self.assembly is not None and self.assembly.Document == doc
+                except ReferenceError:
+                    self.assembly = None
+                    return False
 
         class AssemblyInsertWatcher(AssemblyBaseWatcher):
             """Shows 'Insert Component' when an assembly is active."""
@@ -279,7 +311,7 @@ class AssemblyWorkbench(Workbench):
                 return UtilsAssembly.assembly_has_at_least_n_parts(1)
 
         class AssemblySimulationWatcher(AssemblyBaseWatcher):
-            """Shows 'Create Simulation' when specific motional joints exist."""
+            """Shows 'Create Simulation' when the assembly has a component."""
 
             def __init__(self):
                 super().__init__()
@@ -290,9 +322,7 @@ class AssemblyWorkbench(Workbench):
                 if not super().shouldShow():
                     return False
 
-                joint_types = ["Revolute", "Slider", "Cylindrical"]
-                joints = UtilsAssembly.getJointsOfType(self.assembly, joint_types)
-                return len(joints) > 0
+                return UtilsAssembly.number_of_components_in(self.assembly) > 0
 
         watchers = [
             AssemblyCreateWatcher(),

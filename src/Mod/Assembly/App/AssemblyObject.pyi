@@ -62,6 +62,15 @@ class AssemblyObject(Part):
         ...
 
     @constmethod
+    def getSimulationResults(self) -> dict:
+        """Return sampled body motion from the most recent kinematic simulation.
+
+        Joint reactions and loads are empty because a kinematic simulation does
+        not solve force equilibrium. Length units are mm and time is seconds.
+        """
+        ...
+
+    @constmethod
     def updateForFrame(self, index: int, /) -> None:
         """
         Update entire assembly to frame number specified.
@@ -70,6 +79,31 @@ class AssemblyObject(Part):
             index: index of frame.
 
         Returns: None
+        """
+        ...
+
+    @constmethod
+    def generateDynamics(self, simulation: DocumentObject, /) -> dict:
+        """Run a headless dynamics study. Raises on invalid input or solver failure.
+
+        Returns sampled placements, velocities, accelerations and reactions.
+        Document placements are not changed. Length units are mm, mass kg,
+        force N and torque N mm. Existing joints are reused.
+        """
+        ...
+
+    @constmethod
+    def getComponents(self, /) -> list[DocumentObject]:
+        """Return solver components, keeping App::Parts consolidated and excluding suppressed occurrences."""
+        ...
+
+    @constmethod
+    def getMassProperties(self, component: DocumentObject, /) -> dict:
+        """Return material-derived mass, local centre and inertia (kg, mm, kg mm^2).
+
+        Requires solid components with ShapeMaterial and positive Density.
+        App::Parts aggregate their children's materials, including linked Parts.
+        IsAggregate identifies containers; their Density is the mean density.
         """
         ...
 

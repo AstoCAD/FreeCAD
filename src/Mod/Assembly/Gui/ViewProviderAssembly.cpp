@@ -118,6 +118,7 @@ ViewProviderAssembly::ViewProviderAssembly()
     , moveInCommand(true)
     , ctrlPressed(false)
     , forceSolveOnMoveForRigid(false)
+    , forceSolveOnMoveForContact(false)
     , ungroundedJointDrag(false)
     , lastClickTime(0)
     , jointVisibilitiesBackup({})
@@ -495,6 +496,12 @@ bool ViewProviderAssembly::tryMouseMove(const SbVec2s& cursorPos, Gui::View3DInv
 
     // Do the dragging of parts
     if (partMoving) {
+        std::map<App::DocumentObject*, Base::Placement> previousPlacements;
+        for (const auto& movingObj : docsToMove) {
+            if (auto* placement = movingObj.obj->getPlacementProperty()) {
+                previousPlacements.emplace(movingObj.obj, placement->getValue());
+            }
+        }
         Base::Vector3d newPos, newPosRot;
         Base::Vector3d ungroundedDragTranslation;
         Base::Placement dragJcsGlobalPlc = jcsGlobalPlc;
@@ -645,7 +652,9 @@ bool ViewProviderAssembly::tryMouseMove(const SbVec2s& cursorPos, Gui::View3DInv
         );
         bool solveOnMove = hGrp->GetBool("SolveOnMove", true);
         // HACK: Re-solve assembly to update rigid groups while dragging.
-        if (solveOnMove && (dragMode != DragMode::TranslationNoSolve || forceSolveOnMoveForRigid)) {
+        if (solveOnMove
+            && (dragMode != DragMode::TranslationNoSolve || forceSolveOnMoveForRigid
+                || forceSolveOnMoveForContact)) {
             if (forceSolveOnMoveForRigid) {
                 assemblyPart->solve();
             }
@@ -655,6 +664,14 @@ bool ViewProviderAssembly::tryMouseMove(const SbVec2s& cursorPos, Gui::View3DInv
         }
         else {
             assemblyPart->redrawJointPlacements(assemblyPart->getJoints());
+        }
+        if (forceSolveOnMoveForContact) {
+            std::vector<App::DocumentObject*> movedParts;
+            movedParts.reserve(docsToMove.size());
+            for (const auto& movingObj : docsToMove) {
+                movedParts.push_back(movingObj.obj);
+            }
+            assemblyPart->resolveContactMove(movedParts, previousPlacements);
         }
     }
     return false;
@@ -1160,8 +1177,11 @@ void ViewProviderAssembly::tryInitMove(const SbVec2s& cursorPos, Gui::View3DInve
         dragParts.push_back(movingObj.obj);
     }
     forceSolveOnMoveForRigid = assemblyPart->requiresRigidSolveForMove(dragParts);
+    forceSolveOnMoveForContact = assemblyPart->requiresContactSolveForMove(dragParts);
 
-    if (solveOnMove && (dragMode != DragMode::TranslationNoSolve || forceSolveOnMoveForRigid)) {
+    if (solveOnMove
+        && (dragMode != DragMode::TranslationNoSolve || forceSolveOnMoveForRigid
+            || forceSolveOnMoveForContact)) {
         objectMasses.clear();
         for (auto& movingObj : docsToMove) {
             objectMasses.push_back({movingObj.obj, 10.0});
@@ -1181,6 +1201,7 @@ void ViewProviderAssembly::endMove()
     partMoving = false;
     canStartDragging = false;
     forceSolveOnMoveForRigid = false;
+    forceSolveOnMoveForContact = false;
 
     auto* assemblyPart = getObject<AssemblyObject>();
     auto joints = assemblyPart->getJoints();

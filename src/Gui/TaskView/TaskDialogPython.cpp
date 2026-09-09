@@ -802,6 +802,10 @@ bool TaskDialogPython::tryLoadForm()
 void TaskDialogPython::appendForm(QWidget* form, const QPixmap& icon)
 {
     form->installEventFilter(this);
+    if (auto* existingTaskBox = qobject_cast<Gui::TaskView::TaskBox*>(form)) {
+        Content.push_back(existingTaskBox);
+        return;
+    }
     auto taskbox = new Gui::TaskView::TaskBox(icon, form->windowTitle(), true, nullptr);
     taskbox->groupLayout()->addWidget(form);
     Content.push_back(taskbox);

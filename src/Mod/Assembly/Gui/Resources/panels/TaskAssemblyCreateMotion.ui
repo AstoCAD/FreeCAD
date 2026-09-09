@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TaskAssemblyCreateMotion</class>
+ <widget class="QWidget" name="TaskAssemblyCreateMotion">
+  <property name="minimumSize"><size><width>400</width><height>0</height></size></property>
+  <property name="windowTitle"><string>Prescribed Motion</string></property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QFormLayout" name="formLayout">
+     <item row="0" column="0"><widget class="QLabel" name="JointLabel"><property name="text"><string>Joint</string></property></widget></item>
+     <item row="0" column="1"><widget class="QComboBox" name="JointComboBox"/></item>
+     <item row="1" column="0"><widget class="QLabel" name="MotionTypeLabel"><property name="text"><string>Motion type</string></property></widget></item>
+     <item row="1" column="1"><widget class="QComboBox" name="MotionTypeComboBox"/></item>
+     <item row="2" column="0"><widget class="QLabel" name="FormulaLabel"><property name="text"><string>Formula</string></property></widget></item>
+     <item row="2" column="1"><widget class="QLineEdit" name="FormulaLineEdit"><property name="placeholderText"><string>Enter your formula…</string></property></widget></item>
+    </layout>
+   </item>
+   <item><widget class="QToolButton" name="HelpButton"><property name="text"><string>Help</string></property><property name="checkable"><bool>true</bool></property><property name="toolButtonStyle"><enum>Qt::ToolButtonTextOnly</enum></property></widget></item>
+   <item>
+    <widget class="QLabel" name="HelpLabel">
+     <property name="visible"><bool>false</bool></property>
+     <property name="text"><string>Time is in seconds. In a legacy formula, initialValue uses the joint's current angle or distance at generation. In the profile editor, initialValue uses the explicit position at profile start; it is not reevaluated from the joint on each run.
+
+Linear: C + VEL*time
+Quadratic: C + VEL*time + 0.5*ACC*time^2
+Harmonic: C + AMP*sin(VEL*time - PHASE)
+Exponential: C*exp(time/TIMEC)</string></property>
+     <property name="wordWrap"><bool>true</bool></property>
+     <property name="textInteractionFlags"><set>Qt::TextSelectableByMouse</set></property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

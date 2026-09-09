@@ -123,6 +123,9 @@ class TestCommandInsertLink(AssemblyTestBase):
 
         # Add all objects to insertion stack
         for obj_data in test_objects:
+            # All real document objects provide this method, independently of
+            # whether their linked target is valid.
+            obj_data["addedObject"].isDerivedFrom = lambda type_name: False
             task.insertionStack.append(obj_data)
 
         # Should handle the mix gracefully - invalid objects skipped, valid ones processed
