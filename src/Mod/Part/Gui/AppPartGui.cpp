@@ -24,6 +24,7 @@
  ***************************************************************************/
 
 #include <Base/Console.h>
+#include <Base/Exception.h>
 #include <Base/Interpreter.h>
 #include <Base/PyObjectBase.h>
 #include <Base/ServiceProvider.h>
@@ -81,6 +82,13 @@
 #include "ViewProviderTorusParametric.h"
 #include "Workbench.h"
 #include "WorkbenchManipulator.h"
+#include "TaskAttacher.h"
+
+#include <App/DocumentObjectPy.h>
+#include <Gui/Application.h>
+#include <Gui/Document.h>
+#include <Gui/PythonWrapper.h>
+#include <Gui/ViewProviderDocumentObject.h>
 
 
 // use a different name to CreateCommand()
@@ -105,10 +113,53 @@ public:
     Module()
         : Py::ExtensionModule<Module>("PartGui")
     {
+        add_varargs_method(
+            "createAttachmentTaskBox",
+            &Module::createAttachmentTaskBox,
+            "createAttachmentTaskBox(object) -> QWidget\n"
+            "Create the reusable attachment task box for an attachable object."
+        );
         initialize("This module is the PartGui module.");  // register with Python
     }
 
 private:
+    Py::Object createAttachmentTaskBox(const Py::Tuple& args)
+    {
+        PyObject* objectPy = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "O!", &App::DocumentObjectPy::Type, &objectPy)) {
+            throw Py::Exception();
+        }
+
+        auto* object = static_cast<App::DocumentObjectPy*>(objectPy)->getDocumentObjectPtr();
+        auto* guiDocument = Gui::Application::Instance->getDocument(object->getDocument());
+        auto* viewProvider = guiDocument
+            ? dynamic_cast<Gui::ViewProviderDocumentObject*>(guiDocument->getViewProvider(object))
+            : nullptr;
+        if (!viewProvider) {
+            throw Py::RuntimeError("The object has no document view provider");
+        }
+
+        PartGui::TaskAttacher* task = nullptr;
+        try {
+            task = new PartGui::TaskAttacher(
+                viewProvider,
+                nullptr,
+                QString(),
+                QObject::tr("Attachment")
+            );
+        }
+        catch (const Base::Exception& e) {
+            // C++ exceptions must not unwind through the PyCXX/CPython frames
+            e.setPyException();
+            throw Py::Exception();
+        }
+        catch (const std::exception& e) {
+            throw Py::RuntimeError(e.what());
+        }
+        Gui::PythonWrapper wrapper;
+        wrapper.loadWidgetsModule();
+        return wrapper.fromQWidget(task);
+    }
 };
 
 PyObject* initModule()
