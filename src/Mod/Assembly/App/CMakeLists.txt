@@ -5,6 +5,7 @@ set(Assembly_LIBS
     PartDesign
     Spreadsheet
     FreeCADApp
+    Materials
     OndselSolver
 )
 
@@ -48,6 +49,13 @@ SOURCE_GROUP("Module" FILES ${Module_SRCS})
 SET(Assembly_SRCS
     AssemblyObject.cpp
     AssemblyObject.h
+    Dynamics.cpp
+    Dynamics.h
+    EventRuntime.cpp
+    EventRuntime.h
+    ContactGeometry.cpp
+    ContactGeometry.h
+    ContactGroups.h
     AssemblyLink.cpp
     AssemblyLink.h
     AssemblyUtils.cpp
