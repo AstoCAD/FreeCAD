@@ -23,6 +23,7 @@
 
 
 #pragma once
+#include <set>
 
 #include <Mod/Assembly/AssemblyGlobal.h>
 
@@ -80,6 +81,12 @@ public:
     ~SimulationGroup() override = default;
 
     PyObject* getPyObject() override;
+
+protected:
+    void onChanged(const App::Property* prop) override;
+    std::set<std::string> globalInputs;
+
+public:
 
     /// returns the type name of the ViewProvider
     const char* getViewProviderName() const override

@@ -405,33 +405,24 @@ public:
      * \brief addQObject
      * \param obj
      * \param pyobj
-     * Connects destruction event of a QObject with invalidation of its PythonWrapper via a helper
-     * QObject.
+     * Connects native QObject destruction with immediate Python wrapper invalidation.
      */
     void addQObject(QObject* obj, PyObject* pyobj)
     {
-        // static array to contain created connections so they can be safely disconnected later
-        static std::map<QObject*, QMetaObject::Connection> connections = {};
-
-        const auto PyW_uniqueName = QString::number(reinterpret_cast<quintptr>(pyobj));
-        auto PyW_invalidator = findChild<QObject*>(PyW_uniqueName, Qt::FindDirectChildrenOnly);
-
-        if (!PyW_invalidator) {
-            PyW_invalidator = new QObject(this);
-            PyW_invalidator->setObjectName(PyW_uniqueName);
-
-            Py_INCREF(pyobj);
+        // Callers hold the GIL. Keep one reference/connection per wrapper,
+        // including wrappers exposed as named children by the UI loader.
+        static std::map<PyObject*, QMetaObject::Connection> connections;
+        if (connections.contains(pyobj)) {
+            return;
         }
-        else if (connections.contains(PyW_invalidator)) {
-            disconnect(connections[PyW_invalidator]);
-            connections.erase(PyW_invalidator);
-        }
+        Py_INCREF(pyobj);
 
         auto destroyedFun = [pyobj]() {
             Base::PyGILStateLocker lock;
+            connections.erase(pyobj);
 
             if (auto sbkPtr = reinterpret_cast<SbkObject*>(pyobj); sbkPtr) {
-                Shiboken::Object::setValidCpp(sbkPtr, false);
+                Shiboken::Object::invalidate(sbkPtr);
             }
             else {
                 Base::Console().developerError(
@@ -443,9 +434,11 @@ public:
             Py_DECREF(pyobj);
         };
 
-        connections[PyW_invalidator]
-            = connect(PyW_invalidator, &QObject::destroyed, this, destroyedFun);
-        connect(obj, &QObject::destroyed, PyW_invalidator, &QObject::deleteLater);
+        connections[pyobj]
+            = connect(obj, &QObject::destroyed, this, destroyedFun, Qt::DirectConnection);
+        // Invalidate at native destruction, not when the helper's deferred
+        // deletion is processed. A new task can reuse the native address in
+        // between; returning its predecessor's wrapper is a use-after-free.
     }
 
 private:
@@ -943,6 +936,7 @@ void PythonWrapper::createChildrenNameAttributes(PyObject* root, QObject* object
                 Shiboken::AutoDecRef pyChild(
                     Shiboken::Conversions::pointerToPython(getPyTypeObjectForTypeName<QObject>(), child)
                 );
+                WrapperManager::instance().addQObject(child, pyChild);
                 PyObject_SetAttrString(root, name.constData(), pyChild);
 #else
                 const char* className = qt_identifyType(child, "QtWidgets");

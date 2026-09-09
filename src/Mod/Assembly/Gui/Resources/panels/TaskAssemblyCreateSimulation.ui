@@ -2,6 +2,7 @@
 <ui version="4.0">
  <class>TaskAssemblyCreateSimulation</class>
  <widget class="QDialog" name="TaskAssemblyCreateSimulation">
+  <property name="minimumSize"><size><width>400</width><height>0</height></size></property>
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -14,150 +15,180 @@
    <string>Simulation</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_2">
+   <property name="leftMargin"><number>0</number></property>
+   <property name="topMargin"><number>0</number></property>
+   <property name="rightMargin"><number>0</number></property>
+   <property name="bottomMargin"><number>0</number></property>
    <item>
-    <widget class="QGroupBox" name="groupBox_motions">
-     <property name="title">
-      <string>Motions</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout">
-      <item row="0" column="0">
-       <widget class="QListWidget" name="motionList">
-        <property name="maximumSize">
-         <size>
-          <width>16777215</width>
-          <height>75</height>
-         </size>
-        </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <layout class="QVBoxLayout" name="motion_buttonsLayout">
-        <item>
-         <widget class="QToolButton" name="AddButton">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="toolTip">
-           <string>Add a prescribed motion</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-          <property name="icon">
-           <iconset resource="Icons/resource.qrc">
-           <normaloff>:/icons/list-add.svg</normaloff>:/icons/list-add.svg</iconset>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QToolButton" name="RemoveButton">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="toolTip">
-           <string>Delete selected motions</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-          <property name="icon">
-           <iconset resource="Icons/resource.qrc">
-           <normaloff>:/icons/edit-delete.svg</normaloff>:/icons/edit-delete.svg</iconset>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="groupBox_settings">
-     <property name="title">
-      <string>Simulation Settings</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="TimeStartLabel">
-        <property name="text">
-         <string>Start</string>
-        </property>
-        <property name="toolTip">
-         <string>Start time of the simulation</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="Gui::PrefQuantitySpinBox" name="TimeStartSpinBox">
-        <property name="toolTip">
-         <string>Start time of the simulation</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="TimeEndLabel">
-        <property name="text">
-         <string>End</string>
-        </property>
-        <property name="toolTip">
-         <string>End time of the simulation</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="Gui::PrefQuantitySpinBox" name="TimeEndSpinBox">
-        <property name="toolTip">
-         <string>End time of the simulation</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="TimeStepOutputLabel">
-        <property name="text">
-         <string>Step</string>
-        </property>
-        <property name="toolTip">
-         <string>Time step</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="Gui::PrefQuantitySpinBox" name="TimeStepOutputSpinBox">
-        <property name="toolTip">
-         <string>Time step</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="GlobalErrorToleranceLabel">
-        <property name="text">
-         <string>Tolerance</string>
-        </property>
-        <property name="toolTip">
-         <string>Global error tolerance</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="1">
-       <widget class="Gui::PrefQuantitySpinBox" name="GlobalErrorToleranceSpinBox">
-        <property name="toolTip">
-         <string>Global error tolerance</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex"><number>0</number></property>
+     <widget class="QWidget" name="settingsTab">
+      <attribute name="title"><string>Settings</string></attribute>
+      <layout class="QVBoxLayout" name="settingsTabLayout">
+       <property name="leftMargin"><number>6</number></property>
+       <property name="topMargin"><number>6</number></property>
+       <property name="rightMargin"><number>6</number></property>
+       <property name="bottomMargin"><number>6</number></property>
+       <item>
+        <layout class="QHBoxLayout" name="analysisTypeLayout">
+         <item><widget class="QLabel" name="AnalysisTypeLabel"><property name="text"><string>Analysis</string></property><property name="buddy"><cstring>AnalysisTypeComboBox</cstring></property></widget></item>
+         <item><widget class="QComboBox" name="AnalysisTypeComboBox"><property name="toolTip"><string>Dynamics calculates forces and actuator torques, including motion-only studies. Kinematics uses prescribed motion only and requires physical inputs to be disabled. Automatic selects dynamics when gravity or physical inputs are enabled.</string></property></widget></item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupBox_gravity">
+         <property name="title"><string>Gravity</string></property>
+         <property name="checkable"><bool>true</bool></property>
+         <property name="checked"><bool>false</bool></property>
+         <property name="toolTip"><string>Enable rigid-body dynamics with gravity. Moving parts require a physical material with density.</string></property>
+         <layout class="QVBoxLayout" name="gravityLayout">
+          <item>
+           <layout class="QHBoxLayout" name="gravityMagnitudeLayout">
+            <item><widget class="QLabel" name="GravityMagnitudeLabel"><property name="text"><string>Acceleration</string></property><property name="buddy"><cstring>GravityMagnitudeSpinBox</cstring></property></widget></item>
+            <item><widget class="Gui::PrefQuantitySpinBox" name="GravityMagnitudeSpinBox"><property name="toolTip"><string>Gravitational acceleration (standard gravity: 9.81 m/s²)</string></property></widget></item>
+           </layout>
+          </item>
+          <item><widget class="Gui::VectorEditWidget" name="GravityDirectionEdit"><property name="toolTip"><string>Direction in assembly coordinates. The vector is normalized when running the simulation.</string></property></widget></item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupBox_settings">
+         <property name="title"><string>Simulation Settings</string></property>
+         <layout class="QGridLayout" name="settingsGridLayout">
+          <item row="0" column="0"><widget class="QLabel" name="TimeStartLabel"><property name="text"><string>Start</string></property><property name="toolTip"><string>Start time of the simulation</string></property></widget></item>
+          <item row="0" column="1"><widget class="Gui::PrefQuantitySpinBox" name="TimeStartSpinBox"><property name="toolTip"><string>Start time of the simulation</string></property></widget></item>
+          <item row="1" column="0"><widget class="QLabel" name="TimeEndLabel"><property name="text"><string>End</string></property><property name="toolTip"><string>End time of the simulation</string></property></widget></item>
+          <item row="1" column="1"><widget class="Gui::PrefQuantitySpinBox" name="TimeEndSpinBox"><property name="toolTip"><string>End time of the simulation</string></property></widget></item>
+          <item row="2" column="0"><widget class="QLabel" name="TimeStepOutputLabel"><property name="text"><string>Step</string></property><property name="toolTip"><string>Time step</string></property></widget></item>
+          <item row="2" column="1"><widget class="Gui::PrefQuantitySpinBox" name="TimeStepOutputSpinBox"><property name="toolTip"><string>Time step</string></property></widget></item>
+          <item row="3" column="0"><widget class="QLabel" name="GlobalErrorToleranceLabel"><property name="text"><string>Tolerance</string></property><property name="toolTip"><string>Global error tolerance</string></property></widget></item>
+          <item row="3" column="1"><widget class="Gui::PrefQuantitySpinBox" name="GlobalErrorToleranceSpinBox"><property name="toolTip"><string>Global error tolerance</string></property></widget></item>
+         </layout>
+        </widget>
+       </item>
+       <item><spacer name="settingsSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="motionsTab">
+      <attribute name="title"><string>Motions</string></attribute>
+      <layout class="QHBoxLayout" name="motionsTabLayout">
+       <property name="leftMargin"><number>6</number></property>
+       <property name="topMargin"><number>6</number></property>
+       <property name="rightMargin"><number>6</number></property>
+       <property name="bottomMargin"><number>6</number></property>
+       <item><widget class="QListWidget" name="motionList"/></item>
+       <item>
+        <layout class="QVBoxLayout" name="motionButtonsLayout">
+         <item><widget class="QToolButton" name="AddMotionButton"><property name="toolTip"><string>Add a prescribed motion</string></property><property name="text"><string/></property><property name="icon"><iconset resource="Icons/resource.qrc"><normaloff>:/icons/list-add.svg</normaloff>:/icons/list-add.svg</iconset></property></widget></item>
+         <item><widget class="QToolButton" name="RemoveMotionButton"><property name="toolTip"><string>Delete selected motions</string></property><property name="text"><string/></property><property name="icon"><iconset resource="Icons/resource.qrc"><normaloff>:/icons/edit-delete.svg</normaloff>:/icons/edit-delete.svg</iconset></property></widget></item>
+         <item><spacer name="motionButtonsSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="loadsTab">
+      <attribute name="title"><string>Loads</string></attribute>
+      <layout class="QHBoxLayout" name="loadsTabLayout">
+       <property name="leftMargin"><number>6</number></property>
+       <property name="topMargin"><number>6</number></property>
+       <property name="rightMargin"><number>6</number></property>
+       <property name="bottomMargin"><number>6</number></property>
+       <item><widget class="QListWidget" name="loadList"/></item>
+       <item>
+        <layout class="QVBoxLayout" name="loadButtonsLayout">
+         <item><widget class="QToolButton" name="AddLoadButton"><property name="toolTip"><string>Add a load</string></property><property name="text"><string/></property><property name="icon"><iconset resource="Icons/resource.qrc"><normaloff>:/icons/list-add.svg</normaloff>:/icons/list-add.svg</iconset></property></widget></item>
+         <item><widget class="QToolButton" name="RemoveLoadButton"><property name="toolTip"><string>Delete selected loads</string></property><property name="text"><string/></property><property name="icon"><iconset resource="Icons/resource.qrc"><normaloff>:/icons/edit-delete.svg</normaloff>:/icons/edit-delete.svg</iconset></property></widget></item>
+         <item><spacer name="loadButtonsSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="initialTab">
+      <attribute name="title"><string>Initial</string></attribute>
+      <layout class="QHBoxLayout" name="initialTabLayout">
+       <property name="leftMargin"><number>6</number></property>
+       <property name="topMargin"><number>6</number></property>
+       <property name="rightMargin"><number>6</number></property>
+       <property name="bottomMargin"><number>6</number></property>
+       <item><widget class="QListWidget" name="initialVelocityList"/></item>
+       <item>
+        <layout class="QVBoxLayout" name="initialVelocityButtonsLayout">
+         <item><widget class="QToolButton" name="AddInitialVelocityButton"><property name="toolTip"><string>Add an initial velocity</string></property><property name="text"><string/></property><property name="icon"><iconset resource="Icons/resource.qrc"><normaloff>:/icons/list-add.svg</normaloff>:/icons/list-add.svg</iconset></property></widget></item>
+         <item><widget class="QToolButton" name="RemoveInitialVelocityButton"><property name="toolTip"><string>Delete selected initial velocities</string></property><property name="text"><string/></property><property name="icon"><iconset resource="Icons/resource.qrc"><normaloff>:/icons/edit-delete.svg</normaloff>:/icons/edit-delete.svg</iconset></property></widget></item>
+         <item><spacer name="initialVelocityButtonsSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="contactsTab">
+      <attribute name="title"><string>Contacts</string></attribute>
+      <layout class="QHBoxLayout" name="contactsTabLayout">
+       <property name="leftMargin"><number>6</number></property>
+       <property name="topMargin"><number>6</number></property>
+       <property name="rightMargin"><number>6</number></property>
+       <property name="bottomMargin"><number>6</number></property>
+       <item><widget class="QListWidget" name="contactList"><property name="toolTip"><string>Contacts used by this simulation. Global contacts are marked and also apply while dragging.</string></property></widget></item>
+       <item>
+        <layout class="QVBoxLayout" name="contactButtonsLayout">
+         <item><widget class="QToolButton" name="AddContactButton"><property name="toolTip"><string>Add a contact for this simulation</string></property><property name="text"><string/></property><property name="icon"><iconset resource="Icons/resource.qrc"><normaloff>:/icons/list-add.svg</normaloff>:/icons/list-add.svg</iconset></property></widget></item>
+         <item><widget class="QToolButton" name="RemoveContactButton"><property name="toolTip"><string>Delete selected simulation contacts</string></property><property name="text"><string/></property><property name="icon"><iconset resource="Icons/resource.qrc"><normaloff>:/icons/edit-delete.svg</normaloff>:/icons/edit-delete.svg</iconset></property></widget></item>
+         <item><spacer name="contactButtonsSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="frictionTab">
+      <attribute name="title"><string>Friction</string></attribute>
+      <layout class="QHBoxLayout" name="frictionTabLayout">
+       <property name="leftMargin"><number>6</number></property><property name="topMargin"><number>6</number></property><property name="rightMargin"><number>6</number></property><property name="bottomMargin"><number>6</number></property>
+       <item><widget class="QListWidget" name="frictionList"/></item>
+       <item><layout class="QVBoxLayout" name="frictionButtonsLayout">
+        <item><widget class="QToolButton" name="AddFrictionButton"><property name="toolTip"><string>Add joint friction for this simulation</string></property><property name="text"><string/></property><property name="icon"><iconset resource="Icons/resource.qrc"><normaloff>:/icons/list-add.svg</normaloff>:/icons/list-add.svg</iconset></property></widget></item>
+        <item><widget class="QToolButton" name="RemoveFrictionButton"><property name="toolTip"><string>Delete selected friction inputs</string></property><property name="text"><string/></property><property name="icon"><iconset resource="Icons/resource.qrc"><normaloff>:/icons/edit-delete.svg</normaloff>:/icons/edit-delete.svg</iconset></property></widget></item>
+        <item><spacer name="frictionButtonsSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+       </layout></item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="resultsTab">
+      <attribute name="title"><string>Results</string></attribute>
+      <layout class="QVBoxLayout" name="resultsTabLayout">
+       <property name="leftMargin"><number>6</number></property>
+       <property name="topMargin"><number>6</number></property>
+       <property name="rightMargin"><number>6</number></property>
+       <property name="bottomMargin"><number>6</number></property>
+       <item>
+        <layout class="QFormLayout" name="resultsSelectionLayout">
+         <item row="0" column="0"><widget class="QLabel" name="ResultCategoryLabel"><property name="text"><string>Category</string></property></widget></item>
+         <item row="0" column="1"><widget class="QComboBox" name="ResultCategoryComboBox"/></item>
+         <item row="1" column="0"><widget class="QLabel" name="ResultEntityLabel"><property name="text"><string>Entity</string></property></widget></item>
+         <item row="1" column="1"><widget class="QComboBox" name="ResultEntityComboBox"/></item>
+         <item row="2" column="0"><widget class="QLabel" name="ResultQuantityLabel"><property name="text"><string>Quantity</string></property></widget></item>
+         <item row="2" column="1"><widget class="QComboBox" name="ResultQuantityComboBox"/></item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="NoResultsLabel">
+         <property name="text"><string>Generate the simulation to inspect numerical results.</string></property>
+         <property name="alignment"><set>Qt::AlignCenter</set></property>
+         <property name="wordWrap"><bool>true</bool></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTableWidget" name="ResultTable">
+         <property name="alternatingRowColors"><bool>true</bool></property>
+         <property name="editTriggers"><set>QAbstractItemView::NoEditTriggers</set></property>
+         <property name="selectionBehavior"><enum>QAbstractItemView::SelectRows</enum></property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="resultButtonsLayout">
+         <item><widget class="QPushButton" name="PlotResultButton"><property name="text"><string>Plot</string></property><property name="toolTip"><string>Plot the selected result against time</string></property></widget></item>
+         <item><widget class="QPushButton" name="ExportResultButton"><property name="text"><string>Export CSV</string></property><property name="toolTip"><string>Export the selected result table as CSV</string></property></widget></item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
    <item>
@@ -447,6 +478,11 @@
   </layout>
  </widget>
  <customwidgets>
+  <customwidget>
+   <class>Gui::VectorEditWidget</class>
+   <extends>QWidget</extends>
+   <header>Gui/VectorEditWidget.h</header>
+  </customwidget>
   <customwidget>
    <class>Gui::QuantitySpinBox</class>
    <extends>QWidget</extends>

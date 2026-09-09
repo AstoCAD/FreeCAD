@@ -228,6 +228,7 @@ public:
     bool moveInCommand;
     bool ctrlPressed;
     bool forceSolveOnMoveForRigid;
+    bool forceSolveOnMoveForContact;
     bool ungroundedJointDrag;
 
     long lastClickTime;  // Store last click time as milliseconds

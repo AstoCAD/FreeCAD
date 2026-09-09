@@ -23,6 +23,7 @@
 
 import re
 import os
+import csv
 import time
 import tempfile
 from pathlib import Path
@@ -36,30 +37,29 @@ from PySide.QtCore import QT_TRANSLATE_NOOP
 
 if App.GuiUp:
     import FreeCADGui as Gui
-    from PySide import QtCore, QtGui, QtWidgets
+    from PySide import QtCore, QtWidgets
     from PySide.QtWidgets import (
-        QPushButton,
-        QMenu,
-        QDialog,
-        QComboBox,
-        QLineEdit,
-        QGridLayout,
-        QLabel,
-        QDialogButtonBox,
         QFileDialog,
         QProgressDialog,
     )
-    from PySide.QtCore import Qt, QPoint
-    from PySide.QtGui import QCursor, QIcon, QGuiApplication, QMessageBox
+    from PySide.QtCore import Qt
+    from PySide.QtGui import QIcon, QMessageBox
 
 import UtilsAssembly
 import Preferences
+import Dynamics
 
 translate = App.Qt.translate
 
 __title__ = "Assembly Command Create Simulation"
 __author__ = "Ondsel"
 __url__ = "https://www.freecad.org"
+
+_active_simulation_task = None
+
+
+def activeSimulationTask():
+    return _active_simulation_task
 
 
 class CommandCreateSimulation:
@@ -83,9 +83,8 @@ class CommandCreateSimulation:
             return False
 
         assembly = UtilsAssembly.activeAssembly()
-        joint_types = ["Revolute", "Slider", "Cylindrical"]
-        joints = UtilsAssembly.getJointsOfType(assembly, joint_types)
-        return len(joints) > 0
+        # Gravity can act on a free body without any joint or prescribed motion.
+        return UtilsAssembly.number_of_components_in(assembly) > 0
 
     def Activated(self):
         assembly = UtilsAssembly.activeAssembly()
@@ -99,8 +98,37 @@ class CommandCreateSimulation:
             dialog.setDocumentName(App.ActiveDocument.Name)
 
 
+class CommandCreateMotion:
+    def GetResources(self):
+        return {
+            "Pixmap": "button_right",
+            "MenuText": QT_TRANSLATE_NOOP("Assembly", "Add Prescribed Motion"),
+            "ToolTip": QT_TRANSLATE_NOOP(
+                "Assembly", "Creates a prescribed motion. While editing a simulation it is "
+                "local to that simulation; otherwise it is global and used by every simulation."
+            ),
+            "CmdType": "ForEdit",
+        }
+
+    def IsActive(self):
+        task = activeSimulationTask()
+        if task is None and not UtilsAssembly.isAssemblyCommandActive():
+            return False
+        assembly = task.assembly if task else UtilsAssembly.activeAssembly()
+        return bool(
+            UtilsAssembly.getJointsOfType(
+                assembly, ["Revolute", "Slider", "Cylindrical"]
+            )
+            and (not Gui.Control.activeDialog() or task)
+        )
+
+    def Activated(self):
+        task = activeSimulationTask()
+        startCreateMotion(task)
+
+
 ######### Simulation Object ###########
-class Simulation:
+class Simulation(Dynamics.Study):
     def __init__(self, feaPy):
         feaPy.Proxy = self
         feaPy.addExtension("App::GroupExtensionPython")
@@ -172,6 +200,15 @@ class Simulation:
         feaPy.jFramesPerSecond = 30
 
         self.motionsChangedCallback = None
+        self._properties(feaPy, legacy=True)
+
+    def onDocumentRestored(self, feaPy):
+        self._properties(feaPy, legacy=True)
+        self.motionsChangedCallback = None
+        if feaPy.Status == "Running":
+            feaPy.Status = "Failed"
+            feaPy.LastError = translate("Assembly", "The previous run did not finish.")
+        Dynamics.purge_touched(feaPy)
 
     def dumps(self):
         return None
@@ -180,6 +217,7 @@ class Simulation:
         return None
 
     def onChanged(self, feaPy, prop):
+        super().onChanged(feaPy, prop)
         if prop == "Group" and hasattr(self, "motionsChangedCallback"):
             if self.motionsChangedCallback is not None:
                 self.motionsChangedCallback()
@@ -193,10 +231,7 @@ class Simulation:
 
     def getAssembly(self, feaPy):
         assert feaPy.isDerivedFrom("App::FeaturePython"), "Type error"
-        for obj in feaPy.InList:
-            if obj.isDerivedFrom("Assembly::AssemblyObject"):
-                return obj
-        return None
+        return feaPy.Assembly
 
 
 class ViewProviderSimulation:
@@ -259,6 +294,43 @@ class ViewProviderSimulation:
     def claimChildren(self):
         return self.app_obj.Group
 
+    @staticmethod
+    def isSimulationInput(obj):
+        return any(
+            hasattr(obj, name)
+            for name in ("MotionType", "LoadType", "InitialVelocityType", "ContactType", "FrictionModel")
+        )
+
+    def canDragObjects(self):
+        return True
+
+    def canDropObjects(self):
+        return True
+
+    def canDragObject(self, obj):
+        return self.isSimulationInput(obj)
+
+    def canDropObject(self, obj):
+        return self.isSimulationInput(obj) and Dynamics.assembly_for_owner(
+            Dynamics.input_owner(obj)
+        ) == self.app_obj.Assembly
+
+    def canDragAndDropObject(self, obj):
+        return self.canDropObject(obj)
+
+    def dragObject(self, _view_object, obj):
+        Dynamics.invalidate_results(obj)
+        self.app_obj.removeObject(obj)
+
+    def dropObject(self, _view_object, obj):
+        old_owner = Dynamics.input_owner(obj)
+        if old_owner and Dynamics.assembly_for_owner(old_owner) != self.app_obj.Assembly:
+            raise ValueError("Simulation inputs cannot be moved between assemblies.")
+        if old_owner and old_owner != self.app_obj:
+            old_owner.removeObject(obj)
+        self.app_obj.addObject(obj)
+        Dynamics.invalidate_results(obj)
+
     def doubleClicked(self, vpDoc):
         task = Gui.Control.activeTaskDialog()
         if task:
@@ -308,6 +380,10 @@ class Motion:
         self.createProperties(feaPy)
 
     def createProperties(self, feaPy):
+        import MotionProfile
+        MotionProfile.ensure_properties(feaPy)
+        if not feaPy.hasExtension("App::SuppressibleExtensionPython"):
+            feaPy.addExtension("App::SuppressibleExtensionPython")
         if not hasattr(feaPy, "Joint"):
             feaPy.addProperty(
                 "App::PropertyXLinkSubHidden",
@@ -345,7 +421,14 @@ class Motion:
         return None
 
     def onChanged(self, feaPy, prop):
-        pass
+        if App.isRestoring():
+            return
+        if prop == "Formula" and getattr(self, "_updating_profile", False):
+            return
+        if prop == "Formula" and getattr(feaPy, "ProfileData", ""):
+            feaPy.ProfileData = ""
+        if prop in ("Joint", "Formula", "MotionType", "Suppressed", "ProfileData"):
+            Dynamics.invalidate_results(feaPy)
 
     def execute(self, feaPy):
         """Do something when doing a recomputation, this method is mandatory"""
@@ -359,19 +442,20 @@ class Motion:
         return None
 
     def getAssembly(self, feaPy):
-        simulation = self.getSimulation(feaPy)
-        if simulation is not None:
-            return simulation.Proxy.getAssembly(simulation)
-        return None
+        return Dynamics.assembly_for_owner(Dynamics.input_owner(feaPy))
 
 
 class ViewProviderMotion:
     def __init__(self, vp):
+        if not vp.hasExtension("Gui::ViewProviderSuppressibleExtensionPython"):
+            vp.addExtension("Gui::ViewProviderSuppressibleExtensionPython")
         vp.Proxy = self
         self.updateLabel()
 
     def attach(self, vpDoc):
         """Setup the scene sub-graph of the view provider, this method is mandatory"""
+        if not vpDoc.hasExtension("Gui::ViewProviderSuppressibleExtensionPython"):
+            vpDoc.addExtension("Gui::ViewProviderSuppressibleExtensionPython")
         self.app_obj = vpDoc.Object
 
         self.display_mode = coin.SoType.fromName("SoFCSelection").createInstance()
@@ -413,25 +497,14 @@ class ViewProviderMotion:
         return None
 
     def doubleClicked(self, vpDoc):
-        self.openEditDialog()
+        motion = vpDoc.Object
+        # Defer replacing the task dialog until the double-click event has
+        # returned; GUIApplication::notify may still reference its widgets.
+        QtCore.QTimer.singleShot(0, lambda: editMotion(motion))
+        return True
 
     def openEditDialog(self):
-        assembly = self.getAssembly()
-
-        if assembly is None:
-            return False
-
-        joint = None
-        if self.app_obj.Joint is not None:
-            joint = self.app_obj.Joint[0]
-
-        dialog = MotionEditDialog(assembly, self.app_obj.MotionType, joint, self.app_obj.Formula)
-        if dialog.exec_():
-            self.app_obj.MotionType = dialog.motionType
-            self.app_obj.Joint = dialog.joint
-            self.app_obj.Formula = dialog.formula
-
-            self.updateLabel()
+        return editMotion(self.app_obj)
 
     def updateLabel(self):
         if self.app_obj.Joint is None:
@@ -455,335 +528,176 @@ class ViewProviderMotion:
         return assembly
 
 
-class MotionEditDialog:
-    def __init__(
-        self, assembly, motionType=MotionTypes[0], joint=None, formula="initialValue + 5*time"
-    ):
-        self.assembly = assembly
-        self.motionType = motionType
-        self.joint = joint
-        self.formula = formula
+def _motionTypesForJoint(joint):
+    if joint is None:
+        return []
+    if joint.JointType == "Revolute":
+        return ["Angular"]
+    if joint.JointType == "Slider":
+        return ["Linear"]
+    return ["Angular", "Linear"]
 
-        # Create a non-modal, frameless dialog
-        self.dialog = QDialog()
-        self.dialog.setWindowFlags(Qt.Popup)
-        self.initialPos = QCursor.pos()
-        self.dialog.setMinimumSize(500, 200)  # Set a reasonable minimum size
 
-        # Create the joints combobox
-        self.joint_combo = QComboBox(self.dialog)
-        self.setup_joint_combo()
+def _showMotionTask(motion, owner, resume_simulation=None):
+    panel = TaskAssemblyCreateMotion(motion, owner, resume_simulation)
+    dialog = Gui.Control.showDialog(panel)
+    if dialog is not None:
+        dialog.setAutoCloseOnDeletedDocument(True)
+        dialog.setDocumentName(motion.Document.Name)
 
-        # Create the motion type combobox
-        self.motion_type_combo = QComboBox(self.dialog)
-        self.setup_motiontype_combo()
 
-        def on_motion_type_changed(text):
-            self.motionType = text
+def _createMotion(simulation, joint):
+    owner = Dynamics.normalize_input_owner(simulation)
+    motion_type = _motionTypesForJoint(joint)[0]
+    motion = owner.Document.addObject("App::FeaturePython", "Motion")
+    Motion(motion, motion_type, joint, "initialValue + 5*time")
+    ViewProviderMotion(motion.ViewObject)
+    owner.addObject(motion)
+    Dynamics.purge_touched(owner, motion)
+    return motion
 
-        self.motion_type_combo.currentTextChanged.connect(on_motion_type_changed)
 
-        def on_joint_changed(index):
-            self.joint = self.joint_combo.itemData(index)
-            self.setup_motiontype_combo()  # Refresh the motion combo box based on the new joint type
+def startCreateMotion(simulation_task):
+    simulation = simulation_task.simFeaturePy if simulation_task else None
+    assembly = simulation_task.assembly if simulation_task else UtilsAssembly.activeAssembly()
+    joints = UtilsAssembly.getJointsOfType(
+        assembly, ["Revolute", "Slider", "Cylindrical"]
+    )
+    if not joints:
+        return False
+    resume = simulation_task.suspendForChildTask() if simulation_task else None
+    Gui.ActiveDocument.openCommand("Add Prescribed Motion")
+    motion = _createMotion(simulation or assembly, joints[0])
+    _showMotionTask(motion, Dynamics.input_owner(motion), resume)
+    return True
 
-        self.joint_combo.currentIndexChanged.connect(on_joint_changed)
 
-        # Create the line edit for the formula
-        formula_edit = QLineEdit(self.dialog)
-        formula_edit.setText(self.formula)
-        formula_edit.setPlaceholderText(translate("Assembly", "Enter your formula…"))
+def editMotion(motion):
+    owner = Dynamics.input_owner(motion)
+    assembly = Dynamics.assembly_for_owner(owner)
+    if owner is None or assembly is None:
+        return False
 
-        # Connect the line edit to update the Formula property
-        def on_formula_changed(text):
-            self.formula = text
+    simulation_task = activeSimulationTask()
+    if simulation_task is not None:
+        resume = simulation_task.suspendForChildTask()
+    else:
+        resume = None
+        task = Gui.Control.activeTaskDialog()
+        if task:
+            task.reject()
 
-        formula_edit.textChanged.connect(on_formula_changed)
+    if UtilsAssembly.activeAssembly() != assembly:
+        Gui.ActiveDocument.setEdit(assembly)
+    # A tree double-click may already own the generic Edit transaction. Keep
+    # it alive until the task accepts or rejects; aborting it from inside the
+    # event callback can invalidate GUI state still used by the tree.
+    if motion.Document.getBookedTransactionID() == 0:
+        Gui.ActiveDocument.openCommand("Edit " + motion.Label)
+    _showMotionTask(motion, owner, resume)
+    return True
 
-        self.setupHelpSection()
 
-        # Create Ok and Cancel buttons
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel, Qt.Horizontal, self.dialog
+class TaskAssemblyCreateMotion:
+    def __init__(self, motion, simulation, resume_simulation=None):
+        self.motion = motion
+        self.owner = simulation
+        self.simulation = simulation if Dynamics.is_study(simulation) else None
+        self.resume_simulation = resume_simulation
+        self.assembly = Dynamics.assembly_for_owner(simulation)
+        self.form = Gui.PySideUic.loadUi(":/panels/TaskAssemblyCreateMotion.ui")
+        self.form.setWindowIcon(Gui.getIcon("button_right"))
+        self.joints = UtilsAssembly.getJointsOfType(
+            self.assembly, ["Revolute", "Slider", "Cylindrical"]
         )
-        button_box.accepted.connect(self.dialog.accept)
-        button_box.rejected.connect(self.dialog.reject)
+        for joint in self.joints:
+            self.form.JointComboBox.addItem(QIcon(joint.ViewObject.Icon), joint.Label, joint)
 
-        # Set up the layout of the dialog
-        layout = QGridLayout(self.dialog)
+        current_joint = motion.Joint[0] if motion.Joint else None
+        current_index = self.joints.index(current_joint) if current_joint in self.joints else 0
+        self.form.JointComboBox.setCurrentIndex(current_index)
+        self.updateMotionTypes()
+        if motion.MotionType in [
+            self.form.MotionTypeComboBox.itemText(i)
+            for i in range(self.form.MotionTypeComboBox.count())
+        ]:
+            self.form.MotionTypeComboBox.setCurrentText(motion.MotionType)
+        self.form.FormulaLineEdit.setText(motion.Formula)
+        self.form.HelpButton.toggled.connect(self.form.HelpLabel.setVisible)
+        self.form.JointComboBox.currentIndexChanged.connect(self.onJointChanged)
+        self.form.MotionTypeComboBox.currentTextChanged.connect(self.onMotionTypeChanged)
+        self.form.FormulaLineEdit.textChanged.connect(self.onFormulaChanged)
+        import ProfileEditor
+        self.profileField = ProfileEditor.ProfileField(motion, self.form.FormulaLineEdit, self.form)
+        self.form.layout().insertWidget(1, self.profileField)
+        self.form.FormulaLabel.hide()
+        self.form.HelpButton.hide()
+        Dynamics.purge_touched(self.owner, self.motion)
 
-        # Add labels and widgets to the layout
-        layout.addWidget(QLabel("Joint"), 0, 0)
-        layout.addWidget(self.joint_combo, 0, 1)
+    def updateMotionTypes(self):
+        joint = self.currentJoint()
+        self.form.MotionTypeComboBox.blockSignals(True)
+        self.form.MotionTypeComboBox.clear()
+        self.form.MotionTypeComboBox.addItems(_motionTypesForJoint(joint))
+        self.form.MotionTypeComboBox.blockSignals(False)
 
-        layout.addWidget(QLabel("Motion Type"), 1, 0)
-        layout.addWidget(self.motion_type_combo, 1, 1)
+    def currentJoint(self):
+        index = self.form.JointComboBox.currentIndex()
+        return self.joints[index] if 0 <= index < len(self.joints) else None
 
-        layout.addWidget(QLabel("Formula"), 2, 0)
-        layout.addWidget(formula_edit, 2, 1)
+    def onJointChanged(self, _index):
+        joint = self.currentJoint()
+        self.motion.Joint = joint
+        self.updateMotionTypes()
+        self.onMotionTypeChanged(self.form.MotionTypeComboBox.currentText())
 
-        # Add the help label above the buttons
-        layout.addWidget(self.help_label0, 3, 0, 1, 2)
-        layout.addWidget(self.help_label1, 4, 0, 1, 2)
-        layout.addWidget(self.help_label2, 5, 0, 1, 2)
-        layout.addWidget(self.help_label3, 6, 0, 1, 2)
-        layout.addWidget(self.help_label4, 7, 0, 1, 2)
-        layout.addWidget(self.help_label5, 8, 0, 1, 2)
-        layout.addWidget(self.help_label6, 9, 0, 1, 2)
-        layout.addWidget(self.help_label7, 10, 0, 1, 2)
-        # Add the help button and button box in the next row
-        layout.addWidget(self.help_button, 11, 0)
+    def onMotionTypeChanged(self, motion_type):
+        if motion_type:
+            self.motion.MotionType = motion_type
+            if hasattr(self, "profileField"):
+                self.profileField.contextChanged()
+            self.motion.ViewObject.Proxy.updateLabel()
+            self.invalidateResult()
 
-        layout.addWidget(button_box, 11, 1)
+    def onFormulaChanged(self, formula):
+        self.motion.Formula = formula
+        self.invalidateResult()
 
-        self.positionDialog()
+    def invalidateResult(self):
+        Dynamics.invalidate_results(self.motion)
 
-    def setupHelpSection(self):
+    def accept(self):
+        Dynamics.purge_touched(self.owner, self.motion)
+        Gui.ActiveDocument.commitCommand()
+        self.reopenSimulation()
+        return True
 
-        # Create the help QLabels and set them to be initially hidden
-        self.help_label0 = QLabel(
-            translate(
-                "Assembly",
-                "In capital are variables that you need to replace with actual values. 'initialValue' is dynamically replaced by the current angle or distance. More details about each example in its tooltip.",
-            ),
-            self.dialog,
-        )
-        self.help_label1 = QLabel(translate("Assembly", " - Linear: C + VEL*time"), self.dialog)
-        self.help_label2 = QLabel(
-            translate("Assembly", " - Quadratic: C + VEL*time + ACC*time^2"), self.dialog
-        )
-        self.help_label3 = QLabel(
-            translate("Assembly", " - Harmonic: C + AMP*sin(VEL*time - PHASE)"), self.dialog
-        )
-        self.help_label4 = QLabel(
-            translate("Assembly", " - Exponential: C*exp(time/TIMEC)"), self.dialog
-        )
-        self.help_label5 = QLabel(
-            translate(
-                "Assembly",
-                " - Smooth Step: L1 + (L2 - L1)*((1/2) + (1/pi)*arctan(SLOPE*(time - T0)))",
-            ),
-            self.dialog,
-        )
-        self.help_label6 = QLabel(
-            translate(
-                "Assembly",
-                " - Smooth Square Impulse: (H/pi)*(arctan(SLOPE*(time - T1)) - arctan(SLOPE*(time - T2)))",
-            ),
-            self.dialog,
-        )
-        self.help_label7 = QLabel(
-            translate(
-                "Assembly",
-                " - Smooth Ramp Top Impulse: ((1/pi)*(arctan(1000*(time - T1)) - arctan(1000*(time - T2))))*(((H2 - H1)/(T2 - T1))*(time - T1) + H1)",
-            ),
-            self.dialog,
-        )
+    def reject(self):
+        Gui.ActiveDocument.abortCommand()
+        self.reopenSimulation()
+        return True
 
-        self.help_label1.setToolTip(
-            translate(
-                "Assembly",
-                """C is a constant offset.
-VEL is a velocity or slope or gradient of the straight line.""",
+    def reopenSimulation(self):
+        if self.resume_simulation:
+            QtCore.QTimer.singleShot(
+                0,
+                lambda: TaskAssemblyCreateSimulation.reopen(
+                    self.resume_simulation, "motionsTab"
+                ),
             )
-        )
-        self.help_label2.setToolTip(
-            translate(
-                "Assembly",
-                """C is a constant offset.
-VEL is the velocity or slope or gradient of the straight line.
-ACC is the acceleration or coefficient of the second order. The function is a parabola.""",
-            )
-        )
-        self.help_label3.setToolTip(
-            translate(
-                "Assembly",
-                """C is a constant offset.
-AMP is the amplitude of the sine wave.
-VEL is the angular velocity in radians per second.
-PHASE is the phase of the sine wave.""",
-            )
-        )
-        self.help_label4.setToolTip(
-            translate(
-                "Assembly",
-                """C is a constant.
-TIMEC is the time constant of the exponential function.""",
-            )
-        )
-        self.help_label5.setToolTip(
-            translate(
-                "Assembly",
-                """L1 is step level before time = T0.
-L2 is step level after time = T0.
-SLOPE defines the steepness of the transition between L1 and L2 about time = T0. Higher values gives sharper cornered steps. SLOPE = 1000 or greater are suitable.""",
-            )
-        )
-        self.help_label6.setToolTip(
-            translate(
-                "Assembly",
-                """H is the height of the impulse.
-T1 is the start of the impulse.
-T2 is the end of the impulse.
-SLOPE defines the steepness of the transition between 0 and H about time = T1 and T2. Higher values gives sharper cornered impulses. SLOPE = 1000 or greater are suitable.""",
-            )
-        )
-        self.help_label7.setToolTip(
-            translate(
-                "Assembly",
-                """This is similar to the square impulse but the top has a sloping ramp. It is good for building a smooth piecewise linear function by adding a series of these.
-T1 is the start of the impulse.
-T2 is the end of the impulse.
-H1 is the height at T1 at the beginning of the ramp.
-H2 is the height at T2 at the end of the ramp.
-SLOPE defines the steepness of the transition between 0 and H1 and H2 to 0 about time = T1 and T2 respectively. Higher values gives sharper cornered impulses. SLOPE = 1000 or greater are suitable.""",
-            )
-        )
-
-        self.help_label0.setWordWrap(True)
-        self.help_label1.setWordWrap(True)
-        self.help_label2.setWordWrap(True)
-        self.help_label3.setWordWrap(True)
-        self.help_label4.setWordWrap(True)
-        self.help_label5.setWordWrap(True)
-        self.help_label6.setWordWrap(True)
-        self.help_label7.setWordWrap(True)
-
-        width = 1000
-        self.help_label0.setFixedWidth(width)
-        self.help_label1.setFixedWidth(width)
-        self.help_label2.setFixedWidth(width)
-        self.help_label3.setFixedWidth(width)
-        self.help_label4.setFixedWidth(width)
-        self.help_label5.setFixedWidth(width)
-        self.help_label6.setFixedWidth(width)
-        self.help_label7.setFixedWidth(width)
-
-        self.help_label0.setVisible(False)
-        self.help_label1.setVisible(False)
-        self.help_label2.setVisible(False)
-        self.help_label3.setVisible(False)
-        self.help_label4.setVisible(False)
-        self.help_label5.setVisible(False)
-        self.help_label6.setVisible(False)
-        self.help_label7.setVisible(False)
-
-        self.help_label1.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.help_label2.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.help_label3.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.help_label4.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.help_label5.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.help_label6.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.help_label7.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        # Create the Help button
-        self.help_button = QPushButton(translate("Assembly", "Help"), self.dialog)
-
-        # Slot to toggle help visibility and button text
-        def toggle_help():
-            show = not self.help_label1.isVisible()
-            self.help_label0.setVisible(show)
-            self.help_label1.setVisible(show)
-            self.help_label2.setVisible(show)
-            self.help_label3.setVisible(show)
-            self.help_label4.setVisible(show)
-            self.help_label5.setVisible(show)
-            self.help_label6.setVisible(show)
-            self.help_label7.setVisible(show)
-
-            if show:
-                self.help_button.setText(translate("Assembly", "Hide help"))
-            else:
-                self.help_button.setText(translate("Assembly", "Help"))
-
-            self.positionDialog()
-
-        self.help_button.clicked.connect(toggle_help)
-
-    def positionDialog(self):
-        self.dialog.adjustSize()
-
-        # Get the screen where the mouse is located
-        screen = QGuiApplication.screenAt(self.initialPos)
-        screen_geometry = (
-            screen.availableGeometry()
-            if screen
-            else QApplication.primaryScreen().availableGeometry()
-        )
-
-        # Calculate the position of the dialog to ensure it stays within the screen
-        dialog_position = self.initialPos
-
-        # Adjust position to keep the dialog within the screen bounds
-        if dialog_position.x() + self.dialog.width() > screen_geometry.right():
-            dialog_position.setX(screen_geometry.right() - self.dialog.width())
-        if dialog_position.y() + self.dialog.height() > screen_geometry.bottom():
-            dialog_position.setY(screen_geometry.bottom() - self.dialog.height())
-
-        # Ensure the dialog does not go above or to the left of the screen
-        if dialog_position.x() < screen_geometry.left():
-            dialog_position.setX(screen_geometry.left())
-        if dialog_position.y() < screen_geometry.top():
-            dialog_position.setY(screen_geometry.top())
-
-        # Move the dialog to the final position
-        self.dialog.move(dialog_position)
-
-    def setup_joint_combo(self):
-        # Function to set up the joint combo box based on the selected motion type
-
-        self.joint_combo.clear()  # Clear existing items
-
-        jointTypes = ["Revolute", "Slider", "Cylindrical"]
-
-        joints = UtilsAssembly.getJointsOfType(self.assembly, jointTypes)
-
-        # Add joints to the combo box with labels and icons
-        for joint in joints:
-            joint_label = joint.Label
-            joint_icon = QIcon(joint.ViewObject.Icon)
-            self.joint_combo.addItem(joint_icon, joint_label, userData=joint)
-
-        # Set the current value based on the object's Joint property
-        if self.joint in joints:
-            self.joint_combo.setCurrentText(self.joint.Label)
-        elif len(joints) > 0:
-            self.joint = joints[0]
-
-    def setup_motiontype_combo(self):
-        self.motion_type_combo.clear()  # Clear existing items
-
-        if self.joint is None:
-            return
-
-        if self.joint.JointType == "Revolute":
-            types = ["Angular"]
-        elif self.joint.JointType == "Slider":
-            types = ["Linear"]
-        else:
-            types = ["Angular", "Linear"]
-
-        self.motion_type_combo.addItems(types)
-
-        # Set current value based on the object's MotionType
-        if self.motionType in types:
-            self.motion_type_combo.setCurrentText(self.motionType)
-        else:
-            # self.motionType is no longer available, so we reset it to first entry
-            self.motionType = types[0]
-
-    def exec_(self):
-        return self.dialog.exec()
 
 
 ######### Create Simulation Task ###########
 class TaskAssemblyCreateSimulation(QtCore.QObject):
     def __init__(self, simFeaturePy=None):
         super().__init__()
+        global _active_simulation_task
         Gui.Selection.clearSelection()
 
         self.assembly = UtilsAssembly.activeAssembly()
 
         self.initialPlcs = UtilsAssembly.saveAssemblyPartsPlacements(self.assembly)
+        self.frameTimes = {}
 
         self.doc = self.assembly.Document
         self.gui_doc = Gui.getDocument(self.doc)
@@ -802,28 +716,95 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.animationTimer.timeout.connect(self.playAnimation)
 
         self.form = Gui.PySideUic.loadUi(":/panels/TaskAssemblyCreateSimulation.ui")
+        self.form.setWindowIcon(Gui.getIcon("Assembly_CreateSimulation"))
+        self.form.tabWidget.setTabIcon(
+            self.form.tabWidget.indexOf(self.form.settingsTab),
+            QIcon(":/icons/preferences-general.svg"),
+        )
+        self.form.tabWidget.setTabIcon(
+            self.form.tabWidget.indexOf(self.form.motionsTab),
+            QIcon(":/icons/button_right.svg"),
+        )
+        self.form.tabWidget.setTabIcon(
+            self.form.tabWidget.indexOf(self.form.loadsTab),
+            QIcon(":/icons/Assembly_CreateLoad.svg"),
+        )
+        self.form.tabWidget.setTabIcon(
+            self.form.tabWidget.indexOf(self.form.initialTab),
+            QIcon(":/icons/button_right.svg"),
+        )
+        self.form.tabWidget.setTabIcon(
+            self.form.tabWidget.indexOf(self.form.contactsTab),
+            QIcon(":/icons/Assembly_CreateContact.svg"),
+        )
+        self.form.tabWidget.setTabIcon(
+            self.form.tabWidget.indexOf(self.form.frictionTab),
+            QIcon(":/icons/Assembly_CreateFriction.svg"),
+        )
+        self.form.tabWidget.setTabIcon(
+            self.form.tabWidget.indexOf(self.form.resultsTab),
+            QIcon(":/icons/Std_DependencyGraph.svg"),
+        )
         self.form.motionList.installEventFilter(self)
+        self.form.loadList.installEventFilter(self)
+        self.form.initialVelocityList.installEventFilter(self)
+        self.form.contactList.installEventFilter(self)
+        self.form.frictionList.installEventFilter(self)
         self.setSpinboxPrecision(self.form.TimeStartSpinBox, 9)
         self.setSpinboxPrecision(self.form.TimeEndSpinBox, 9)
         self.setSpinboxPrecision(self.form.TimeStepOutputSpinBox, 9)
+        self.setSpinboxPrecision(self.form.GravityMagnitudeSpinBox, 6, App.Units.Acceleration)
+        self.form.GravityMagnitudeSpinBox.setProperty("minimum", 0.0)
+        self.form.GravityDirectionEdit.setProperty("label", translate("Assembly", "Direction"))
         self.setSpinboxPrecision(self.form.GlobalErrorToleranceSpinBox, 9, App.Units.Length)
-        self.form.motionList.itemDoubleClicked.connect(self.onItemDoubleClicked)
-        self.form.TimeStartSpinBox.valueChanged.connect(self.onTimeStartChanged)
-        self.form.TimeEndSpinBox.valueChanged.connect(self.onTimeEndChanged)
-        self.form.TimeStepOutputSpinBox.valueChanged.connect(self.onTimeStepOutputChanged)
-        self.form.GlobalErrorToleranceSpinBox.valueChanged.connect(
-            self.onGlobalErrorToleranceChanged
+        self.form.motionList.itemDoubleClicked.connect(self.onMotionDoubleClicked)
+        self.form.loadList.itemDoubleClicked.connect(self.onLoadDoubleClicked)
+        self.form.initialVelocityList.itemDoubleClicked.connect(
+            self.onInitialVelocityDoubleClicked
         )
+        self.form.contactList.itemDoubleClicked.connect(self.onContactDoubleClicked)
+        self.form.frictionList.itemDoubleClicked.connect(self.onFrictionDoubleClicked)
         self.form.RunKinematicsButton.clicked.connect(self.runKinematics)
         self.form.frameSlider.valueChanged.connect(self.onFrameChanged)
-        self.form.FramesPerSecondSpinBox.valueChanged.connect(self.onFramesPerSecondChanged)
         self.form.PlayBackwardButton.clicked.connect(self.animationTimerStartBackward)
         self.form.PlayForwardButton.clicked.connect(self.animationTimerStartForward)
         self.form.StepBackwardButton.clicked.connect(self.stepBackward)
         self.form.StepForwardButton.clicked.connect(self.stepForward)
         self.form.StopButton.clicked.connect(self.stopAnimation)
-        self.form.AddButton.clicked.connect(self.addMotionClicked)
-        self.form.RemoveButton.clicked.connect(self.deleteSelectedMotions)
+        self.form.AddMotionButton.clicked.connect(self.addMotionClicked)
+        self.form.RemoveMotionButton.clicked.connect(self.deleteSelectedMotions)
+        self.form.AddLoadButton.clicked.connect(self.addLoadClicked)
+        self.form.RemoveLoadButton.clicked.connect(self.deleteSelectedLoads)
+        self.form.AddInitialVelocityButton.clicked.connect(
+            self.addInitialVelocityClicked
+        )
+        self.form.RemoveInitialVelocityButton.clicked.connect(
+            self.deleteSelectedInitialVelocities
+        )
+        self.form.AddContactButton.clicked.connect(self.addContactClicked)
+        self.form.RemoveContactButton.clicked.connect(self.deleteSelectedContacts)
+        self.form.AddFrictionButton.clicked.connect(self.addFrictionClicked)
+        self.form.RemoveFrictionButton.clicked.connect(self.deleteSelectedFrictions)
+        self.form.ResultCategoryComboBox.currentIndexChanged.connect(
+            self.onResultCategoryChanged
+        )
+        self.form.ResultEntityComboBox.currentIndexChanged.connect(
+            self.onResultSelectionChanged
+        )
+        self.form.ResultQuantityComboBox.currentIndexChanged.connect(
+            self.onResultSelectionChanged
+        )
+        self.form.PlotResultButton.clicked.connect(self.plotResult)
+        self.form.ExportResultButton.clicked.connect(self.exportResult)
+        self.pointMeasurementButton = QtWidgets.QPushButton(translate("Assembly", "Point measurement…"))
+        self.form.resultsTab.layout().addWidget(self.pointMeasurementButton)
+        self.pointMeasurementButton.clicked.connect(self.addPointMeasurement)
+        self.measurementList = QtWidgets.QListWidget()
+        self.measurementList.setMaximumHeight(100)
+        self.form.resultsTab.layout().addWidget(self.measurementList)
+        self.measurementList.itemDoubleClicked.connect(self.editPointMeasurement)
+        import CommandSimulationEvent
+        CommandSimulationEvent.add_tab(self)
         self.form.groupBox_player.hide()
         self.form.SaveAnimationButton.clicked.connect(self.saveAnimation)
         self.form.SaveAnimationButton.hide()
@@ -837,8 +818,38 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
             self.createSimulationObject()
 
         self.setUiInitialValues()
+        self.form.AnalysisTypeComboBox.currentIndexChanged.connect(self.onAnalysisTypeChanged)
+        self.form.TimeStartSpinBox.valueChanged.connect(self.onTimeStartChanged)
+        self.form.TimeEndSpinBox.valueChanged.connect(self.onTimeEndChanged)
+        self.form.TimeStepOutputSpinBox.valueChanged.connect(self.onTimeStepOutputChanged)
+        self.form.GlobalErrorToleranceSpinBox.valueChanged.connect(
+            self.onGlobalErrorToleranceChanged
+        )
+        self.form.FramesPerSecondSpinBox.valueChanged.connect(self.onFramesPerSecondChanged)
+        self.form.groupBox_gravity.toggled.connect(self.onGravityChanged)
+        self.form.GravityMagnitudeSpinBox.valueChanged.connect(self.onGravityChanged)
+        self.form.GravityDirectionEdit.vectorChanged.connect(self.onGravityChanged)
 
-        self.simFeaturePy.Proxy.setMotionsChangedCallback(self.onMotionsChanged)
+        self.simFeaturePy.Proxy.setMotionsChangedCallback(self.onInputsChanged)
+        _active_simulation_task = self
+        self.onMotionsChanged()
+        self.onLoadsChanged()
+        self.onInitialVelocitiesChanged()
+        self.onContactsChanged()
+        self.onFrictionsChanged()
+        self.resultData = None
+        if self.simFeaturePy.Status == "Complete" and self.simFeaturePy.ResultData:
+            try:
+                self.resultData = Dynamics.results(self.simFeaturePy)
+            except ValueError:
+                pass
+        self.refreshResults()
+        self.configurePlayback()
+        self.form.AddMotionButton.setEnabled(
+            bool(UtilsAssembly.getJointsOfType(self.assembly, ["Revolute", "Slider", "Cylindrical"]))
+        )
+        self.form.AddLoadButton.setEnabled(bool(self.assembly.getComponents()))
+        self.updateInitialVelocityButton()
 
         self.currentFrm = 1
         self.startFrm = 1
@@ -847,8 +858,41 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.deltaTime = 1.0 / self.fps
         self.startTime = time.time()
         self.index = 0
+        Dynamics.purge_touched(self.simFeaturePy)
+        self.inputRefreshTimer = QtCore.QTimer(self.form)
+        self.inputRefreshTimer.setSingleShot(True)
+        self.inputRefreshTimer.timeout.connect(self.onInputsChanged)
+        self.resultRefreshTimer = QtCore.QTimer(self.form)
+        self.resultRefreshTimer.setSingleShot(True)
+        self.resultRefreshTimer.timeout.connect(self.syncResults)
+        App.addDocumentObserver(self)
+
+    def slotChangedObject(self, obj, prop):
+        if obj == self.simFeaturePy and prop in ("Status", "ResultData"):
+            self.resultRefreshTimer.start(0)
+        if prop in ("Suppressed", "Label") and obj.Document == self.doc:
+            if obj in Dynamics.inputs_for_study(self.simFeaturePy):
+                self.inputRefreshTimer.start(0)
 
     def setUiInitialValues(self):
+        # Schema migration happens during restore. Avoid rewriting properties
+        # merely because the user opened this task panel.
+        if self.simFeaturePy.Assembly != self.assembly:
+            self.simFeaturePy.Assembly = self.assembly
+        for name, label in (
+            ("Automatic", translate("Assembly", "Automatic")),
+            ("Kinematics", translate("Assembly", "Kinematics")),
+            ("Dynamics", translate("Assembly", "Dynamics")),
+        ):
+            self.form.AnalysisTypeComboBox.addItem(label, name)
+        self.form.AnalysisTypeComboBox.setCurrentIndex(
+            self.form.AnalysisTypeComboBox.findData(str(self.simFeaturePy.AnalysisType))
+        )
+        self.form.groupBox_gravity.setChecked(self.simFeaturePy.GravityEnabled)
+        self.form.GravityMagnitudeSpinBox.setProperty("rawValue", self.simFeaturePy.GravityMagnitude.Value)
+        direction = self.simFeaturePy.GravityDirection
+        for axis, value in zip(("vectorX", "vectorY", "vectorZ"), direction):
+            self.form.GravityDirectionEdit.setProperty(axis, value)
         self.form.TimeStartSpinBox.setProperty("rawValue", self.simFeaturePy.aTimeStart.Value)
         self.form.TimeEndSpinBox.setProperty("rawValue", self.simFeaturePy.bTimeEnd.Value)
         self.form.TimeStepOutputSpinBox.setProperty(
@@ -859,6 +903,13 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         )
         self.form.FramesPerSecondSpinBox.setValue(self.simFeaturePy.jFramesPerSecond)
 
+    def onAnalysisTypeChanged(self):
+        self.animationTimer.stop()
+        self.simFeaturePy.AnalysisType = self.form.AnalysisTypeComboBox.currentData()
+        self.invalidateResult()
+        self.form.groupBox_player.hide()
+        self.form.SaveAnimationButton.hide()
+
     def setSpinboxPrecision(self, spinbox, precision, unit=App.Units.TimeSpan):
         q = App.Units.Quantity()
         q.Unit = unit
@@ -868,6 +919,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
     def accept(self):
         self.deactivate()
         UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initialPlcs)
+        Dynamics.purge_touched(self.simFeaturePy, *self.simFeaturePy.Group)
         Gui.ActiveDocument.commitCommand()
         return True
 
@@ -877,68 +929,478 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         return True
 
     def deactivate(self):
+        global _active_simulation_task
+        App.removeDocumentObserver(self)
+        self.inputRefreshTimer.stop()
+        self.resultRefreshTimer.stop()
         self.animationTimer.stop()
+        self.runKinematicsTimer.stop()
         self.simFeaturePy.Proxy.setMotionsChangedCallback(None)
+        if _active_simulation_task is self:
+            _active_simulation_task = None
         if Gui.Control.activeDialog():
             Gui.Control.closeDialog()
 
+    def suspendForChildTask(self):
+        """Commit the simulation edits and temporarily replace this task dialog."""
+        self.animationTimer.stop()
+        self.runKinematicsTimer.stop()
+        UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initialPlcs)
+        self.simFeaturePy.Proxy.setMotionsChangedCallback(None)
+        Dynamics.purge_touched(self.simFeaturePy, *self.simFeaturePy.Group)
+        Gui.ActiveDocument.commitCommand()
+        self.deactivate()
+        return self.simFeaturePy
+
+    @staticmethod
+    def reopen(simulation, tab=None):
+        if not simulation or not simulation.Document:
+            return
+        panel = TaskAssemblyCreateSimulation(simulation)
+        if tab and hasattr(panel.form, tab):
+            panel.form.tabWidget.setCurrentWidget(getattr(panel.form, tab))
+        dialog = Gui.Control.showDialog(panel)
+        if dialog is not None:
+            dialog.setAutoCloseOnDeletedDocument(True)
+            dialog.setDocumentName(simulation.Document.Name)
+
     def onTimeStartChanged(self, quantity):
         self.simFeaturePy.aTimeStart = self.form.TimeStartSpinBox.property("rawValue")
+        self.invalidateResult()
 
     def onTimeEndChanged(self, quantity):
         self.simFeaturePy.bTimeEnd = self.form.TimeEndSpinBox.property("rawValue")
+        self.invalidateResult()
 
     def onTimeStepOutputChanged(self, quantity):
         self.simFeaturePy.cTimeStepOutput = self.form.TimeStepOutputSpinBox.property("rawValue")
+        self.invalidateResult()
 
     def onGlobalErrorToleranceChanged(self, quantity):
         self.simFeaturePy.fGlobalErrorTolerance = self.form.GlobalErrorToleranceSpinBox.property(
             "rawValue"
         )
+        self.invalidateResult()
 
-    def onItemDoubleClicked(self, item):
-        row = self.form.motionList.row(item)
-        if row < len(self.simFeaturePy.Group):
-            motion = self.simFeaturePy.Group[row]
-            motion.ViewObject.Proxy.openEditDialog()
-            self.onMotionsChanged()
+    def onGravityChanged(self, *args):
+        self.animationTimer.stop()
+        self.simFeaturePy.GravityEnabled = self.form.groupBox_gravity.isChecked()
+        self.simFeaturePy.GravityMagnitude = self.form.GravityMagnitudeSpinBox.property("rawValue")
+        self.simFeaturePy.GravityDirection = App.Vector(
+            *(self.form.GravityDirectionEdit.property(axis) for axis in ("vectorX", "vectorY", "vectorZ"))
+        )
+        self.invalidateResult()
+
+    def onMotionDoubleClicked(self, item):
+        motion = self.doc.getObject(item.data(QtCore.Qt.UserRole))
+        if motion:
+            motion.ViewObject.Proxy.doubleClicked(motion.ViewObject)
+
+    def onLoadDoubleClicked(self, item):
+        load = self.doc.getObject(item.data(QtCore.Qt.UserRole))
+        if load:
+            load.ViewObject.Proxy.doubleClicked(load.ViewObject)
+
+    def onInitialVelocityDoubleClicked(self, item):
+        initial = self.doc.getObject(item.data(QtCore.Qt.UserRole))
+        if initial:
+            initial.ViewObject.Proxy.doubleClicked(initial.ViewObject)
+
+    def onContactDoubleClicked(self, item):
+        contact = self.doc.getObject(item.data(QtCore.Qt.UserRole))
+        if contact:
+            contact.ViewObject.Proxy.doubleClicked(contact.ViewObject)
+
+    def onFrictionDoubleClicked(self, item):
+        friction = self.doc.getObject(item.data(QtCore.Qt.UserRole))
+        if friction:
+            friction.ViewObject.Proxy.doubleClicked(friction.ViewObject)
 
     def createSimulationObject(self):
+        existing_group = next(
+            (
+                obj
+                for obj in self.assembly.OutList
+                if obj.TypeId == "Assembly::SimulationGroup"
+            ),
+            None,
+        )
+        group_was_touched = (
+            existing_group is not None and "Touched" in existing_group.State
+        )
         sim_group = UtilsAssembly.getSimulationGroup(self.assembly)
         self.simFeaturePy = sim_group.newObject("App::FeaturePython", "Simulation")
         Simulation(self.simFeaturePy)
         ViewProviderSimulation(self.simFeaturePy.ViewObject)
-
-    def createMotionObject(self, motionType, joint, formula):
-        motion = self.assembly.newObject("App::FeaturePython", "Motion")
-        Motion(motion, motionType, joint, formula)
-        ViewProviderMotion(motion.ViewObject)
-
-        listOfMotions = self.simFeaturePy.Group
-        listOfMotions.append(motion)
-        self.simFeaturePy.Group = listOfMotions
+        Dynamics.purge_touched(self.simFeaturePy)
+        if not group_was_touched:
+            sim_group.purgeTouched()
 
     def onMotionsChanged(self):
         self.form.motionList.clear()
-        for motion in self.simFeaturePy.Group:
-            self.form.motionList.addItem(motion.Label)
+        for motion in Dynamics.inputs_for_study(self.simFeaturePy):
+            if not hasattr(motion, "MotionType"):
+                continue
+            item = QtWidgets.QListWidgetItem(self.inputLabel(motion))
+            item.setData(QtCore.Qt.UserRole, motion.Name)
+            self.form.motionList.addItem(item)
+
+    def onInputsChanged(self):
+        self.onMotionsChanged()
+        self.onLoadsChanged()
+        self.onInitialVelocitiesChanged()
+        self.onContactsChanged()
+        self.onFrictionsChanged()
+        import CommandSimulationEvent
+        CommandSimulationEvent.refresh_tab(self)
+
+    def onLoadsChanged(self):
+        self.form.loadList.clear()
+        for load in Dynamics.inputs_for_study(self.simFeaturePy):
+            if not hasattr(load, "LoadType"):
+                continue
+            item = QtWidgets.QListWidgetItem(self.inputLabel(load))
+            item.setData(QtCore.Qt.UserRole, load.Name)
+            self.form.loadList.addItem(item)
+
+    def onInitialVelocitiesChanged(self):
+        self.form.initialVelocityList.clear()
+        for initial in Dynamics.inputs_for_study(self.simFeaturePy):
+            if not hasattr(initial, "InitialVelocityType"):
+                continue
+            item = QtWidgets.QListWidgetItem(self.inputLabel(initial))
+            item.setData(QtCore.Qt.UserRole, initial.Name)
+            self.form.initialVelocityList.addItem(item)
+        self.updateInitialVelocityButton()
+
+    def onContactsChanged(self):
+        self.form.contactList.clear()
+        for contact in Dynamics.inputs_for_study(self.simFeaturePy):
+            if not hasattr(contact, "ContactType"):
+                continue
+            item = QtWidgets.QListWidgetItem(self.inputLabel(contact))
+            item.setData(QtCore.Qt.UserRole, contact.Name)
+            self.form.contactList.addItem(item)
+
+    def onFrictionsChanged(self):
+        self.form.frictionList.clear()
+        for friction in Dynamics.inputs_for_study(self.simFeaturePy):
+            if not hasattr(friction, "FrictionModel"):
+                continue
+            item = QtWidgets.QListWidgetItem(self.inputLabel(friction))
+            item.setData(QtCore.Qt.UserRole, friction.Name)
+            self.form.frictionList.addItem(item)
+
+    @staticmethod
+    def inputLabel(obj):
+        suffix = translate("Assembly", " (global)") if Dynamics.is_global_input(obj) else ""
+        if getattr(obj, "Suppressed", False):
+            suffix += translate("Assembly", " (suppressed)")
+        return obj.Label + suffix
+
+    def updateInitialVelocityButton(self):
+        if not hasattr(self.form, "AddInitialVelocityButton"):
+            return
+        import CommandCreateInitialVelocity
+
+        self.form.AddInitialVelocityButton.setEnabled(
+            bool(CommandCreateInitialVelocity._eligible_components(self.simFeaturePy))
+        )
+
+    RESULT_QUANTITIES = {
+        "Bodies": (
+            ("Position", "Placements", "mm"),
+            ("Linear velocity", "Velocity", "mm/s"),
+            ("Linear acceleration", "Acceleration", "mm/s²"),
+            ("Angular velocity", "AngularVelocity", "rad/s"),
+            ("Angular acceleration", "AngularAcceleration", "rad/s²"),
+            ("Translational kinetic energy", "TranslationalKineticEnergy", "mJ"),
+            ("Rotational kinetic energy", "RotationalKineticEnergy", "mJ"),
+            ("Gravitational potential energy", "GravitationalPotentialEnergy", "mJ"),
+            ("Mechanical energy", "MechanicalEnergy", "mJ"),
+        ),
+        "JointReactions": (
+            ("Reaction force", "Force", "N"),
+            ("Reaction moment", "Torque", "N mm"),
+            ("Constraint or actuator power", "Power", "mW"),
+            ("Constraint or actuator work", "Work", "mJ"),
+        ),
+        "Loads": (
+            ("Force", "Force", "N"),
+            ("Torque", "Torque", "N mm"),
+            ("Power delivered", "Power", "mW"),
+            ("Stored energy", "StoredEnergy", "mJ"),
+            ("Dissipated power", "DissipatedPower", "mW"),
+            ("Work delivered", "Work", "mJ"),
+            ("Dissipated energy", "DissipatedEnergy", "mJ"),
+        ),
+        "Limits": (
+            ("Power delivered", "Power", "mW"),
+            ("Stored energy", "StoredEnergy", "mJ"),
+            ("Dissipated power", "DissipatedPower", "mW"),
+            ("Dissipated energy", "DissipatedEnergy", "mJ"),
+        ),
+        "Energy": (
+            ("Translational kinetic energy", "TranslationalKineticEnergy", "mJ"),
+            ("Rotational kinetic energy", "RotationalKineticEnergy", "mJ"),
+            ("Total kinetic energy", "KineticEnergy", "mJ"),
+            ("Gravitational potential energy", "GravitationalPotentialEnergy", "mJ"),
+            ("Stored elastic energy", "StoredEnergy", "mJ"),
+            ("Total mechanical energy", "MechanicalEnergy", "mJ"),
+            ("External power", "ExternalPower", "mW"),
+            ("Dissipated power", "DissipatedPower", "mW"),
+            ("External work", "ExternalWork", "mJ"),
+            ("Dissipated energy", "DissipatedEnergy", "mJ"),
+            ("Energy balance residual", "EnergyBalanceResidual", "mJ"),
+        ),
+    }
+
+    def addPointMeasurement(self):
+        import CommandPointMeasurement
+        CommandPointMeasurement.edit(self.simFeaturePy)
+
+    def editPointMeasurement(self, item):
+        obj = self.doc.getObject(item.data(QtCore.Qt.UserRole))
+        if obj:
+            obj.ViewObject.Proxy.doubleClicked(obj.ViewObject)
+
+    def refreshResults(self):
+        import CommandSimulationEvent
+        CommandSimulationEvent.refresh_tab(self)
+        self.pointMeasurementButton.setEnabled(bool(self.resultData))
+        self.measurementList.clear()
+        for obj in self.simFeaturePy.Group:
+            if getattr(obj, "IsPointMeasurement", False):
+                item = QtWidgets.QListWidgetItem(obj.Label)
+                item.setData(QtCore.Qt.UserRole, obj.Name)
+                self.measurementList.addItem(item)
+        self.measurementList.setVisible(self.measurementList.count() > 0)
+        category_combo = self.form.ResultCategoryComboBox
+        previous = category_combo.currentData()
+        category_combo.blockSignals(True)
+        category_combo.clear()
+        labels = {
+            "Bodies": translate("Assembly", "Component motion"),
+            "JointReactions": translate("Assembly", "Joint reactions"),
+            "Loads": translate("Assembly", "Loads"),
+            "Limits": translate("Assembly", "Contacts and compliant stops"),
+            "Energy": translate("Assembly", "Energy and power"),
+        }
+        if self.resultData:
+            for key in ("Bodies", "JointReactions", "Loads", "Limits", "Energy"):
+                if self.resultData.get(key):
+                    category_combo.addItem(labels[key], key)
+        if previous:
+            index = category_combo.findData(previous)
+            if index >= 0:
+                category_combo.setCurrentIndex(index)
+        category_combo.blockSignals(False)
+        available = category_combo.count() > 0
+        self.form.NoResultsLabel.setVisible(not available)
+        for widget in (
+            self.form.ResultCategoryLabel,
+            category_combo,
+            self.form.ResultEntityLabel,
+            self.form.ResultEntityComboBox,
+            self.form.ResultQuantityLabel,
+            self.form.ResultQuantityComboBox,
+            self.form.ResultTable,
+            self.form.PlotResultButton,
+            self.form.ExportResultButton,
+        ):
+            widget.setVisible(available)
+        if available:
+            self.onResultCategoryChanged(category_combo.currentIndex())
+        else:
+            self.form.ResultTable.clear()
+            self.form.ResultTable.setRowCount(0)
+
+    def resultEntityLabel(self, key):
+        candidates = (key, key.rsplit("#", 1)[-1], key.rsplit("/", 1)[-1])
+        for name in candidates:
+            obj = self.doc.getObject(name)
+            if obj:
+                return obj.Label
+        return key
+
+    def onResultCategoryChanged(self, _index):
+        category = self.form.ResultCategoryComboBox.currentData()
+        entity_combo = self.form.ResultEntityComboBox
+        quantity_combo = self.form.ResultQuantityComboBox
+        entity_combo.blockSignals(True)
+        quantity_combo.blockSignals(True)
+        entity_combo.clear()
+        quantity_combo.clear()
+        if category and self.resultData:
+            for key in self.resultData.get(category, {}):
+                entity_combo.addItem(self.resultEntityLabel(key), key)
+            entities = self.resultData.get(category, {})
+            first = next(iter(entities.values()), {})
+            for label, key, unit in self.RESULT_QUANTITIES[category]:
+                if key in first or key + "X" in first:
+                    quantity_combo.addItem(translate("Assembly", label), (key, unit))
+        entity_combo.blockSignals(False)
+        quantity_combo.blockSignals(False)
+        self.onResultSelectionChanged()
+
+    def resultVectors(self):
+        if not self.resultData:
+            return [], [], "", ""
+        category = self.form.ResultCategoryComboBox.currentData()
+        entity = self.form.ResultEntityComboBox.currentData()
+        quantity_data = self.form.ResultQuantityComboBox.currentData()
+        if not category or not entity or not quantity_data:
+            return [], [], "", ""
+        quantity, unit = quantity_data
+        data = self.resultData[category][entity]
+        if category in ("Bodies", "Energy", "Limits") or quantity not in ("Force", "Torque"):
+            vectors = data[quantity]
+            if quantity == "Placements":
+                vectors = [value[:3] for value in vectors]
+            elif vectors and not isinstance(vectors[0], (list, tuple)):
+                vectors = [(value,) for value in vectors]
+        else:
+            vectors = [
+                tuple(values)
+                for values in zip(
+                    data[quantity + "X"],
+                    data[quantity + "Y"],
+                    data[quantity + "Z"],
+                )
+            ]
+        return self.resultData["Times"], vectors, unit, entity
+
+    def onResultSelectionChanged(self, *_args):
+        times, vectors, unit, _entity = self.resultVectors()
+        table = self.form.ResultTable
+        headers = [translate("Assembly", "Time (s)")]
+        scalar = bool(vectors) and len(vectors[0]) == 1
+        if scalar:
+            headers.append(f"{translate('Assembly', 'Value')} ({unit})")
+        else:
+            headers.extend(f"{axis} ({unit})" for axis in ("X", "Y", "Z"))
+            headers.append(f"{translate('Assembly', 'Magnitude')} ({unit})")
+        table.setColumnCount(len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        table.setRowCount(len(times))
+        for row, (sample_time, vector) in enumerate(zip(times, vectors)):
+            values = (sample_time, *vector)
+            if not scalar:
+                values += (sum(component * component for component in vector) ** 0.5,)
+            for column, value in enumerate(values):
+                item = QtWidgets.QTableWidgetItem(f"{value:.9g}")
+                item.setTextAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+                table.setItem(row, column, item)
+        table.resizeColumnsToContents()
+        enabled = bool(times)
+        self.form.PlotResultButton.setEnabled(enabled)
+        self.form.ExportResultButton.setEnabled(enabled)
+
+    def resultTableData(self):
+        table = self.form.ResultTable
+        headers = [
+            table.horizontalHeaderItem(column).text()
+            for column in range(table.columnCount())
+        ]
+        rows = [
+            [table.item(row, column).text() for column in range(table.columnCount())]
+            for row in range(table.rowCount())
+        ]
+        return headers, rows
+
+    def plotResult(self):
+        times, vectors, unit, entity = self.resultVectors()
+        if not times:
+            return
+        try:
+            import Plot
+        except ImportError as error:
+            QtWidgets.QMessageBox.warning(
+                self.form, translate("Assembly", "Plot unavailable"), str(error)
+            )
+            return
+        quantity = self.form.ResultQuantityComboBox.currentText()
+        figure = Plot.figure(f"{self.resultEntityLabel(entity)} — {quantity}")
+        if figure is None:
+            return
+        if len(vectors[0]) == 1:
+            figure.plot(times, [value[0] for value in vectors], quantity)
+        else:
+            for axis, values in zip("XYZ", zip(*vectors)):
+                figure.plot(times, values, axis)
+            magnitudes = [sum(value * value for value in vector) ** 0.5 for vector in vectors]
+            figure.plot(times, magnitudes, translate("Assembly", "Magnitude"))
+        figure.axes.set_xlabel(translate("Assembly", "Time (s)"))
+        for firing in (self.resultData or {}).get("EventLog", []):
+            figure.axes.axvline(firing["Time"], color="0.5", linestyle="--", linewidth=0.8)
+        figure.axes.set_ylabel(f"{quantity} ({unit})")
+        figure.axes.grid(True)
+        figure.legend = True
+        figure.update()
+
+    def exportResult(self):
+        headers, rows = self.resultTableData()
+        if not rows:
+            return
+        filename, _filter = QFileDialog.getSaveFileName(
+            self.form,
+            translate("Assembly", "Export Simulation Result"),
+            "",
+            translate("Assembly", "CSV files (*.csv)"),
+        )
+        if not filename:
+            return
+        if not filename.lower().endswith(".csv"):
+            filename += ".csv"
+        with open(filename, "w", newline="", encoding="utf-8") as output:
+            writer = csv.writer(output)
+            writer.writerow(headers)
+            writer.writerows(rows)
 
     def runKinematics(self):
-        self.assembly.generateSimulation(self.simFeaturePy)
-        nFrms = self.assembly.numberOfFrames()
-        self.form.frameSlider.setMaximum(nFrms - 1)
-        self.setFrameValue(nFrms - 1)
-        self.form.groupBox_player.show()
-        self.form.SaveAnimationButton.show()
+        self.animationTimer.stop()
+        self.form.groupBox_player.hide()
+        self.form.SaveAnimationButton.hide()
+        # Playback must never become the input pose of the next run.
+        UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initialPlcs)
+        try:
+            self.resultData = Dynamics.run(self.simFeaturePy)
+        except Exception as error:
+            self.clearResultPreview()
+            QtWidgets.QMessageBox.warning(self.form, translate("Assembly", "Simulation failed"), str(error))
+            return
+        self.configurePlayback()
+        self.setFrameValue(self.form.frameSlider.maximum())
+        self.refreshResults()
 
     def onFrameChanged(self, val):
-        self.assembly.updateForFrame(val)
+        if not self.resultData or self.simFeaturePy.Status != "Complete":
+            return
+        index = val - 1
+        if not 0 <= index < len(self.resultData.get("Times", [])):
+            return
+        # Play the study's saved snapshot, not the assembly's shared solver cache
+        # (which may belong to another study or be absent after reopening a file).
+        for name, body in self.resultData.get("Bodies", {}).items():
+            component = self.doc.getObject(name)
+            if component is not None and hasattr(component, "Placement"):
+                pose = body["Placements"][index]
+                parent = Dynamics.component_placement(component) * component.Placement.inverse()
+                component.Placement = parent.inverse() * App.Placement(
+                    App.Vector(*pose[:3]), App.Rotation(*pose[3:])
+                )
+        for child in Dynamics.inputs_for_study(self.simFeaturePy):
+            if hasattr(child, "LoadType") and child.ViewObject.Proxy:
+                child.ViewObject.Proxy.updateVisual(child)
+            if hasattr(child, "InitialVelocityType") and child.ViewObject.Proxy:
+                child.ViewObject.Proxy.updateVisual(child)
         self.form.FrameLabel.setText(translate("Assembly", "Frame" + " " + str(val)))
-        time = float(val * self.simFeaturePy.cTimeStepOutput)
-        self.form.FrameTimeLabel.setText(f"{time:.2f} s")
+        sample_time = self.frameTimes[val]
+        self.form.FrameTimeLabel.setText(f"{sample_time:.6g} s")
 
     def onFramesPerSecondChanged(self):
         self.simFeaturePy.jFramesPerSecond = self.form.FramesPerSecondSpinBox.value()
+        Dynamics.purge_touched(self.simFeaturePy)
 
     def playBackward(self):
         pass
@@ -953,6 +1415,8 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
 
     def animationTimerStart(self):
         self.animationTimer.stop()
+        if not self.resultData or self.simFeaturePy.Status != "Complete":
+            return
         self.currentFrm = self.form.frameSlider.value()
         self.startFrm = 1
         self.endFrm = self.form.frameSlider.maximum()
@@ -967,15 +1431,14 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.animationTimer.start()
 
     def playAnimation(self):
-        range_ = self.endFrm - self.startFrm
+        range_ = self.endFrm - self.startFrm + 1
         offset = self.currentFrm - self.startFrm
         count = int((time.time() - self.startTime) / self.deltaTime)
         self.index = ((self.direction * count + offset) % range_) + self.startFrm
         self.setFrameValue(self.index)
 
     def displayLastFrame(self):
-        nFrms = self.assembly.numberOfFrames()
-        self.setFrameValue(nFrms - 1)
+        self.setFrameValue(self.form.frameSlider.maximum())
 
     def stepBackward(self):
         self.animationTimer.stop()
@@ -999,19 +1462,38 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         if val > self.form.frameSlider.maximum():
             val = self.form.frameSlider.maximum()
 
-        self.form.frameSlider.setValue(val)
+        if val == self.form.frameSlider.value():
+            self.onFrameChanged(val)
+        else:
+            self.form.frameSlider.setValue(val)
 
     def stopAnimation(self):
         self.animationTimer.stop()
 
     def addMotionClicked(self):
-        dialog = MotionEditDialog(self.assembly)
-        if dialog.exec_():
-            self.createMotionObject(dialog.motionType, dialog.joint, dialog.formula)
+        Gui.runCommand("Assembly_CreateMotion")
+
+    def addLoadClicked(self):
+        Gui.runCommand("Assembly_CreateLoad")
+
+    def addInitialVelocityClicked(self):
+        Gui.runCommand("Assembly_CreateInitialVelocity")
+
+    def addContactClicked(self):
+        Gui.runCommand("Assembly_CreateContact")
+
+    def addFrictionClicked(self):
+        Gui.runCommand("Assembly_CreateFriction")
 
     # Taskbox keyboard event handler
     def eventFilter(self, watched, event):
-        if self.form is not None and watched == self.form.motionList:
+        if self.form is not None and watched in (
+            self.form.motionList,
+            self.form.loadList,
+            self.form.initialVelocityList,
+            self.form.contactList,
+            self.form.frictionList,
+        ):
             if event.type() == QtCore.QEvent.ShortcutOverride:
                 if event.key() == QtCore.Qt.Key_Delete:
                     event.accept()
@@ -1020,25 +1502,144 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
 
             elif event.type() == QtCore.QEvent.KeyPress:
                 if event.key() == QtCore.Qt.Key_Delete:
-                    self.deleteSelectedMotions()
+                    if watched == self.form.motionList:
+                        self.deleteSelectedMotions()
+                    elif watched == self.form.loadList:
+                        self.deleteSelectedLoads()
+                    elif watched == self.form.contactList:
+                        self.deleteSelectedContacts()
+                    elif watched == self.form.frictionList:
+                        self.deleteSelectedFrictions()
+                    else:
+                        self.deleteSelectedInitialVelocities()
                     return True  # Consume the event
 
         return super().eventFilter(watched, event)
 
     def deleteSelectedMotions(self):
+        if not self.confirmInputDeletion(self.form.motionList):
+            return
         selected_indexes = self.form.motionList.selectedIndexes()
         sorted_indexes = sorted(selected_indexes, key=lambda x: x.row(), reverse=True)
         for index in sorted_indexes:
             row = index.row()
-            if row < len(self.simFeaturePy.Group):
-                motion = self.simFeaturePy.Group[row]
-                # First remove the link from the viewObj
-                self.simFeaturePy.Group.remove(motion)
-                # Delete the object
+            item = self.form.motionList.item(row)
+            motion = self.doc.getObject(item.data(QtCore.Qt.UserRole)) if item else None
+            if motion:
                 motion.Document.removeObject(motion.Name)
+        self.onMotionsChanged()
+        self.invalidateResult()
+
+    def deleteSelectedLoads(self):
+        if not self.confirmInputDeletion(self.form.loadList):
+            return
+        selected = [
+            self.doc.getObject(item.data(QtCore.Qt.UserRole))
+            for item in self.form.loadList.selectedItems()
+        ]
+        for load in selected:
+            if load:
+                load.Document.removeObject(load.Name)
+        self.onLoadsChanged()
+        self.invalidateResult()
+
+    def deleteSelectedInitialVelocities(self):
+        if not self.confirmInputDeletion(self.form.initialVelocityList):
+            return
+        selected = [
+            self.doc.getObject(item.data(QtCore.Qt.UserRole))
+            for item in self.form.initialVelocityList.selectedItems()
+        ]
+        for initial in selected:
+            if initial:
+                initial.Document.removeObject(initial.Name)
+        self.onInitialVelocitiesChanged()
+        self.invalidateResult()
+
+    def deleteSelectedContacts(self):
+        if not self.confirmInputDeletion(self.form.contactList):
+            return
+        selected = [
+            self.doc.getObject(item.data(QtCore.Qt.UserRole))
+            for item in self.form.contactList.selectedItems()
+        ]
+        for contact in selected:
+            if contact:
+                contact.Document.removeObject(contact.Name)
+        self.onContactsChanged()
+        self.invalidateResult()
+
+    def deleteSelectedFrictions(self):
+        if not self.confirmInputDeletion(self.form.frictionList):
+            return
+        selected = [
+            self.doc.getObject(item.data(QtCore.Qt.UserRole))
+            for item in self.form.frictionList.selectedItems()
+        ]
+        for friction in selected:
+            if friction:
+                friction.Document.removeObject(friction.Name)
+        self.onFrictionsChanged()
+        self.invalidateResult()
+
+    def confirmInputDeletion(self, widget):
+        global_inputs = [
+            obj for item in widget.selectedItems()
+            if (obj := self.doc.getObject(item.data(QtCore.Qt.UserRole)))
+            and Dynamics.is_global_input(obj)
+        ]
+        if not global_inputs:
+            return True
+        answer = QtWidgets.QMessageBox.question(
+            self.form,
+            translate("Assembly", "Delete global simulation inputs?"),
+            translate("Assembly", "These global inputs will be deleted from the assembly and every simulation that uses them, not just this simulation:\n\n")
+            + "\n".join(obj.Label for obj in global_inputs),
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No,
+        )
+        return answer == QtWidgets.QMessageBox.Yes
+
+    def invalidateResult(self):
+        Dynamics.invalidate_study(self.simFeaturePy)
+        self.clearResultPreview()
+        Dynamics.purge_touched(self.simFeaturePy)
+
+    def clearResultPreview(self):
+        self.animationTimer.stop()
+        self.runKinematicsTimer.stop()
+        self.resultData = None
+        self.configurePlayback()
+        self.refreshResults()
+
+    def syncResults(self):
+        if self.simFeaturePy.Status != "Complete" or not self.simFeaturePy.ResultData:
+            self.clearResultPreview()
+            return
+        try:
+            self.resultData = Dynamics.results(self.simFeaturePy)
+        except ValueError:
+            self.clearResultPreview()
+            return
+        self.configurePlayback()
+        self.refreshResults()
+
+    def configurePlayback(self):
+        times = self.resultData.get("Times", []) if self.resultData else []
+        self.frameTimes = dict(enumerate(times, 1))
+        blocker = QtCore.QSignalBlocker(self.form.frameSlider)
+        self.form.frameSlider.setRange(1, max(1, len(times)))
+        del blocker
+        self.form.groupBox_player.setVisible(bool(times))
+        self.form.SaveAnimationButton.setVisible(len(times) > 1)
+        if times:
+            frame = self.form.frameSlider.value()
+            self.form.FrameLabel.setText(translate("Assembly", "Frame") + f" {frame}")
+            self.form.FrameTimeLabel.setText(f"{self.frameTimes[frame]:.6g} s")
 
     def saveAnimation(self):
-        num_frames = self.assembly.numberOfFrames()
+        self.animationTimer.stop()
+        num_frames = len(self.resultData.get("Times", [])) if self.resultData and self.simFeaturePy.Status == "Complete" else 0
         if num_frames <= 1:
             QMessageBox.warning(
                 self.form,
@@ -1117,7 +1718,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
                         App.Console.PrintMessage("Animation save cancelled.\n")
                         return
 
-                    self.assembly.updateForFrame(i)
+                    self.setFrameValue(i + 1)
                     Gui.updateGui()  # Ensure the 3D view is redrawn
 
                     frame_filename = temp_path / f"frame_{i:05d}.png"
@@ -1154,7 +1755,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
             finally:
                 progress.close()
                 # Restore original state
-                self.assembly.updateForFrame(original_frame)
+                self.setFrameValue(original_frame)
                 self.form.frameSlider.setValue(original_frame)
 
     def create_gif(self, output_path, frame_files, fps):
@@ -1225,3 +1826,4 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
 
 if App.GuiUp:
     Gui.addCommand("Assembly_CreateSimulation", CommandCreateSimulation())
+    Gui.addCommand("Assembly_CreateMotion", CommandCreateMotion())

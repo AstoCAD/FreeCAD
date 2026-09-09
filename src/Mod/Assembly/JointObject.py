@@ -357,10 +357,87 @@ class Joint:
         if not hasattr(joint, "AngleMax"):
             self.addAngleMaxProperty(joint)
 
+        for side in ("Min", "Max"):
+            self.addLimitBehaviorProperty(joint, f"Length{side}LimitBehavior")
+            self.addLimitQuantityProperty(
+                joint,
+                f"Length{side}LimitStiffness",
+                f"Linear {side.lower()}imum stop stiffness",
+                "1 N/mm",
+                "N/mm",
+            )
+            self.addLimitQuantityProperty(
+                joint,
+                f"Length{side}LimitDamping",
+                f"Linear {side.lower()}imum stop viscous damping",
+                "0 kg/s",
+                "kg/s",
+            )
+            self.addLimitBehaviorProperty(joint, f"Angle{side}LimitBehavior")
+            self.addLimitQuantityProperty(
+                joint,
+                f"Angle{side}LimitStiffness",
+                f"Angular {side.lower()}imum stop stiffness",
+                "100 N*mm/rad",
+                "N*mm/rad",
+            )
+            self.addLimitQuantityProperty(
+                joint,
+                f"Angle{side}LimitDamping",
+                f"Angular {side.lower()}imum stop viscous damping",
+                "0 N*mm*s/rad",
+                "N*mm*s/rad",
+            )
+
         joint.setPropertyStatus("Distance", "AllowNegativeValues")
         joint.setPropertyStatus("Distance2", "AllowNegativeValues")
         joint.setPropertyStatus("LengthMin", "AllowNegativeValues")
         joint.setPropertyStatus("LengthMax", "AllowNegativeValues")
+
+    def addLimitBehaviorProperty(self, joint, name):
+        if hasattr(joint, name):
+            return
+        joint.addProperty(
+            "App::PropertyEnumeration",
+            name,
+            "Limits",
+            QT_TRANSLATE_NOOP(
+                "App::Property",
+                "Rigid stops prevent penetration; compliant stops apply spring and damping forces during simulation",
+            ),
+            locked=True,
+        )
+        setattr(joint, name, ["Rigid", "Compliant"])
+        setattr(joint, name, "Rigid")
+
+    def addLimitQuantityProperty(self, joint, name, description, default, unit):
+        if hasattr(joint, name):
+            # PropertyQuantity does not persist its dynamically assigned unit.
+            setattr(joint, name, App.Units.Unit(unit))
+            return
+        joint.addProperty(
+            "App::PropertyQuantity",
+            name,
+            "Limits",
+            QT_TRANSLATE_NOOP("App::Property", description),
+            locked=True,
+        )
+        setattr(joint, name, App.Units.Unit(unit))
+        setattr(joint, name, default)
+
+    def addSimulationQuantityProperty(self, joint, name, description, default, unit):
+        if hasattr(joint, name):
+            setattr(joint, name, App.Units.Unit(unit))
+            return
+        joint.addProperty(
+            "App::PropertyQuantity",
+            name,
+            "Friction (simulation)",
+            QT_TRANSLATE_NOOP("App::Property", description),
+            locked=True,
+        )
+        setattr(joint, name, App.Units.Unit(unit))
+        setattr(joint, name, default)
 
     def addReference1Property(self, joint):
         joint.addProperty(
@@ -1808,6 +1885,8 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
             self.createJointObject()
             self.visibilityBackup = False
 
+            self.updateLimitStopControlsFromJoint()
+
         self.jForm.angleSpinbox.valueChanged.connect(self.onAngleChanged)
         self.jForm.distanceSpinbox.valueChanged.connect(self.onDistanceChanged)
         self.jForm.distanceSpinbox2.valueChanged.connect(self.onDistance2Changed)
@@ -1835,7 +1914,6 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
         self.jForm.limitCheckbox2.stateChanged.connect(self.adaptUi)
         self.jForm.limitCheckbox3.stateChanged.connect(self.adaptUi)
         self.jForm.limitCheckbox4.stateChanged.connect(self.adaptUi)
-
         self.jForm.limitLenMinSpinbox.valueChanged.connect(self.onLimitLenMinChanged)
         self.jForm.limitLenMaxSpinbox.valueChanged.connect(self.onLimitLenMaxChanged)
         self.jForm.limitRotMinSpinbox.valueChanged.connect(self.onLimitRotMinChanged)
@@ -1844,6 +1922,31 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
         bind = Gui.ExpressionBinding(self.jForm.limitLenMaxSpinbox).bind(self.joint, "LengthMax")
         bind = Gui.ExpressionBinding(self.jForm.limitRotMinSpinbox).bind(self.joint, "AngleMin")
         bind = Gui.ExpressionBinding(self.jForm.limitRotMaxSpinbox).bind(self.joint, "AngleMax")
+        for controls in self.limitStopControls():
+            propertyPrefix, _checkbox, expand, _details, behavior = controls[:5]
+            _stiffnessLabel, stiffness, _dampingLabel, damping = controls[5:]
+            expand.toggled.connect(
+                lambda expanded, button=expand: self.onLimitStopExpanded(button, expanded)
+            )
+            behavior.currentIndexChanged.connect(
+                lambda index, name=f"{propertyPrefix}LimitBehavior": self.onLimitBehaviorChanged(
+                    name, index
+                )
+            )
+            stiffness.valueChanged.connect(
+                lambda _quantity,
+                name=f"{propertyPrefix}LimitStiffness",
+                spinBox=stiffness: self.onLimitQuantityChanged(name, spinBox)
+            )
+            damping.valueChanged.connect(
+                lambda _quantity,
+                name=f"{propertyPrefix}LimitDamping",
+                spinBox=damping: self.onLimitQuantityChanged(name, spinBox)
+            )
+            Gui.ExpressionBinding(stiffness).bind(
+                self.joint, f"{propertyPrefix}LimitStiffness"
+            )
+            Gui.ExpressionBinding(damping).bind(self.joint, f"{propertyPrefix}LimitDamping")
 
         self.adaptUi()
 
@@ -2034,6 +2137,77 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
         if self.jForm.limitCheckbox4.isChecked():
             self.joint.AngleMax = self.jForm.limitRotMaxSpinbox.property("rawValue")
 
+    def onLimitBehaviorChanged(self, propertyName, index):
+        setattr(self.joint, propertyName, index)
+        self.adaptUi()
+
+    def onLimitQuantityChanged(self, propertyName, spinBox):
+        setattr(self.joint, propertyName, spinBox.property("value"))
+
+    def onLimitStopExpanded(self, button, expanded):
+        button.setArrowType(QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow)
+        self.adaptUi()
+
+    def limitStopControls(self):
+        return (
+            (
+                "LengthMin",
+                self.jForm.limitCheckbox1,
+                self.jForm.lengthMinLimitExpandButton,
+                self.jForm.lengthMinLimitDetails,
+                self.jForm.lengthMinLimitBehaviorComboBox,
+                self.jForm.lengthMinLimitStiffnessLabel,
+                self.jForm.lengthMinLimitStiffnessSpinBox,
+                self.jForm.lengthMinLimitDampingLabel,
+                self.jForm.lengthMinLimitDampingSpinBox,
+            ),
+            (
+                "LengthMax",
+                self.jForm.limitCheckbox2,
+                self.jForm.lengthMaxLimitExpandButton,
+                self.jForm.lengthMaxLimitDetails,
+                self.jForm.lengthMaxLimitBehaviorComboBox,
+                self.jForm.lengthMaxLimitStiffnessLabel,
+                self.jForm.lengthMaxLimitStiffnessSpinBox,
+                self.jForm.lengthMaxLimitDampingLabel,
+                self.jForm.lengthMaxLimitDampingSpinBox,
+            ),
+            (
+                "AngleMin",
+                self.jForm.limitCheckbox3,
+                self.jForm.angleMinLimitExpandButton,
+                self.jForm.angleMinLimitDetails,
+                self.jForm.angleMinLimitBehaviorComboBox,
+                self.jForm.angleMinLimitStiffnessLabel,
+                self.jForm.angleMinLimitStiffnessSpinBox,
+                self.jForm.angleMinLimitDampingLabel,
+                self.jForm.angleMinLimitDampingSpinBox,
+            ),
+            (
+                "AngleMax",
+                self.jForm.limitCheckbox4,
+                self.jForm.angleMaxLimitExpandButton,
+                self.jForm.angleMaxLimitDetails,
+                self.jForm.angleMaxLimitBehaviorComboBox,
+                self.jForm.angleMaxLimitStiffnessLabel,
+                self.jForm.angleMaxLimitStiffnessSpinBox,
+                self.jForm.angleMaxLimitDampingLabel,
+                self.jForm.angleMaxLimitDampingSpinBox,
+            ),
+        )
+
+    def updateLimitStopControlsFromJoint(self):
+        for controls in self.limitStopControls():
+            propertyPrefix, _checkbox, _expand, _details, behavior = controls[:5]
+            _stiffnessLabel, stiffness, _dampingLabel, damping = controls[5:]
+            behavior.setCurrentIndex(
+                0 if getattr(self.joint, f"{propertyPrefix}LimitBehavior") == "Rigid" else 1
+            )
+            stiffness.setProperty(
+                "value", getattr(self.joint, f"{propertyPrefix}LimitStiffness")
+            )
+            damping.setProperty("value", getattr(self.joint, f"{propertyPrefix}LimitDamping"))
+
     def onReverseClicked(self):
         self.joint.Proxy.flipOnePart(self.joint)
 
@@ -2128,6 +2302,21 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
             self.jForm.limitCheckbox4.setVisible(needAngleLimits)
             self.jForm.limitRotMinSpinbox.setVisible(needAngleLimits)
             self.jForm.limitRotMaxSpinbox.setVisible(needAngleLimits)
+
+            for controls in self.limitStopControls():
+                propertyPrefix, checkbox, expand, details, behavior = controls[:5]
+                stiffnessLabel, stiffness, dampingLabel, damping = controls[5:]
+                relevant = needLengthLimits if propertyPrefix.startswith("Length") else needAngleLimits
+                enabled = relevant and checkbox.isChecked()
+                expand.setVisible(relevant)
+                expand.setEnabled(enabled)
+                details.setVisible(enabled and expand.isChecked())
+
+                compliant = behavior.currentIndex() == 1
+                stiffnessLabel.setVisible(compliant)
+                stiffness.setVisible(compliant)
+                dampingLabel.setVisible(compliant)
+                damping.setVisible(compliant)
 
             if needLengthLimits:
                 self.jForm.limitLenMinSpinbox.setEnabled(self.joint.EnableLengthMin)
@@ -2232,6 +2421,7 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
         self.jForm.limitLenMaxSpinbox.setProperty("rawValue", self.joint.LengthMax.Value)
         self.jForm.limitRotMinSpinbox.setProperty("rawValue", self.joint.AngleMin.Value)
         self.jForm.limitRotMaxSpinbox.setProperty("rawValue", self.joint.AngleMax.Value)
+        self.updateLimitStopControlsFromJoint()
 
         self.jForm.jointType.setCurrentIndex(JointTypes.index(self.joint.JointType))
         self.updateJointList()

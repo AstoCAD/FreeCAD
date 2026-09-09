@@ -31,6 +31,7 @@
 #include <App/FeaturePythonPyImp.h>
 #include <App/Link.h>
 #include <App/PropertyPythonObject.h>
+#include <App/PropertyUnits.h>
 #include <Base/Console.h>
 #include <Base/Placement.h>
 #include <Base/Rotation.h>
@@ -721,7 +722,18 @@ void AssemblyLink::synchronizeJoints()
         copyPropertyIfDifferent<App::PropertyBool>(joint, lJoint, "EnableAngleMin");
         copyPropertyIfDifferent<App::PropertyBool>(joint, lJoint, "EnableLengthMax");
         copyPropertyIfDifferent<App::PropertyBool>(joint, lJoint, "EnableLengthMin");
-
+        copyPropertyIfDifferent<App::PropertyEnumeration>(joint, lJoint, "LengthMinLimitBehavior");
+        copyPropertyIfDifferent<App::PropertyQuantity>(joint, lJoint, "LengthMinLimitStiffness");
+        copyPropertyIfDifferent<App::PropertyQuantity>(joint, lJoint, "LengthMinLimitDamping");
+        copyPropertyIfDifferent<App::PropertyEnumeration>(joint, lJoint, "LengthMaxLimitBehavior");
+        copyPropertyIfDifferent<App::PropertyQuantity>(joint, lJoint, "LengthMaxLimitStiffness");
+        copyPropertyIfDifferent<App::PropertyQuantity>(joint, lJoint, "LengthMaxLimitDamping");
+        copyPropertyIfDifferent<App::PropertyEnumeration>(joint, lJoint, "AngleMinLimitBehavior");
+        copyPropertyIfDifferent<App::PropertyQuantity>(joint, lJoint, "AngleMinLimitStiffness");
+        copyPropertyIfDifferent<App::PropertyQuantity>(joint, lJoint, "AngleMinLimitDamping");
+        copyPropertyIfDifferent<App::PropertyEnumeration>(joint, lJoint, "AngleMaxLimitBehavior");
+        copyPropertyIfDifferent<App::PropertyQuantity>(joint, lJoint, "AngleMaxLimitStiffness");
+        copyPropertyIfDifferent<App::PropertyQuantity>(joint, lJoint, "AngleMaxLimitDamping");
         // The reference needs to be handled specifically
         handleJointReference(joint, lJoint, "Reference1");
         handleJointReference(joint, lJoint, "Reference2");

@@ -97,6 +97,39 @@ PyObject* SimulationGroup::getPyObject()
     return Py::new_reference_to(PythonObject);
 }
 
+void SimulationGroup::onChanged(const App::Property* prop)
+{
+    App::DocumentObjectGroup::onChanged(prop);
+    if (prop != &Group || !getDocument()) {
+        return;
+    }
+    std::set<std::string> inputs;
+    for (auto* child : Group.getValues()) {
+        if (child && (child->getPropertyByName("LoadType")
+                || child->getPropertyByName("MotionType")
+                || child->getPropertyByName("ContactType")
+                || child->getPropertyByName("InitialVelocityType")
+                || child->getPropertyByName("FrictionModel")))
+            inputs.insert(child->getNameInDocument());
+    }
+    const bool changed = inputs != globalInputs;
+    globalInputs = std::move(inputs);
+    if (!changed || getDocument()->testStatus(App::Document::Restoring)) return;
+    // Global input membership affects every study, including headless edits,
+    // deletion and undo. View-provider drag/drop callbacks are not sufficient.
+    for (auto* child : Group.getValues()) {
+        auto* data = dynamic_cast<App::PropertyString*>(child->getPropertyByName("ResultData"));
+        auto* status = dynamic_cast<App::PropertyString*>(child->getPropertyByName("Status"));
+        auto* error = dynamic_cast<App::PropertyString*>(child->getPropertyByName("LastError"));
+        if (data && status && error) {
+            data->setValue("");
+            status->setValue("NotRun");
+            error->setValue("");
+            child->purgeTouched();
+        }
+    }
+}
+
 PyObject* SnapshotGroup::getPyObject()
 {
     if (PythonObject.is(Py::_None())) {

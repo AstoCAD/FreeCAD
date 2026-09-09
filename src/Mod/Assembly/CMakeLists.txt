@@ -28,6 +28,17 @@ set(Assembly_Scripts
     CommandCreateJoint.py
     CommandCreateView.py
     CommandCreateSimulation.py
+    CommandCreateLoad.py
+    CommandCreateContact.py
+    CommandCreateInitialVelocity.py
+    CommandCreateFriction.py
+    Dynamics.py
+    PointMeasurement.py
+    MotionProfile.py
+    SimulationEvents.py
+    CommandSimulationEvent.py
+    ProfileEditor.py
+    CommandPointMeasurement.py
     CommandCreateSnapshot.py
     CommandExportASMT.py
     TestAssemblyWorkbench.py
@@ -57,9 +68,21 @@ SET(AssemblyScripts_SRCS
 SET(AssemblyTests_SRCS
     AssemblyTests/__init__.py
     AssemblyTests/TestCore.py
+    AssemblyTests/TestDynamics.py
+    AssemblyTests/TestPointMeasurement.py
+    AssemblyTests/TestSimulationEvents.py
+    AssemblyTests/TestSimulationRegression.py
+    AssemblyTests/TestMotionProfile.py
+    AssemblyTests/TestLoadUI.py
+    AssemblyTests/TestContact.py
+    AssemblyTests/TestContactGroups.py
+    AssemblyTests/TestInitialVelocityUI.py
+    AssemblyTests/TestMassProperties.py
     AssemblyTests/TestCommandCreateView.py
     AssemblyTests/TestCommandInsertLink.py
     AssemblyTests/TestSimulationExport.py
+    AssemblyTests/TestSimulationGravity.py
+    AssemblyTests/TestSimulationTabs.py
     AssemblyTests/mocks/__init__.py
     AssemblyTests/mocks/MockGui.py
 )
