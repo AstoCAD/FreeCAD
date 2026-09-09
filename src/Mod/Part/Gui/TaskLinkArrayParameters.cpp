@@ -373,7 +373,7 @@ void TaskLinkArrayParameters::setupLinkedObjectButton()
 void TaskLinkArrayParameters::updateLinkedObjectButton()
 {
     if (linkedObjectSelectionMode) {
-        ui->linkedObjectButton->setText(translate("Selecting…"));
+        ui->linkedObjectButton->setText(translate("Selectingâ€¦"));
         return;
     }
 
@@ -622,7 +622,7 @@ void TaskLinkArrayParameters::fillDirectionCombo(Gui::ComboLinks& combo,
 
     combo.addLink(nullptr,
                   std::string(),
-                  translate("Select reference…"),
+                  translate("Select referenceâ€¦"),
                   PatternParametersWidget::SelectReferenceUserData);
 }
 
