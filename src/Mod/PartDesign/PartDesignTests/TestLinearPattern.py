@@ -99,6 +99,46 @@ class TestLinearPattern(unittest.TestCase):
         self.Doc.recompute()
         self.assertEqual(pattern.SuppressedIndices, [6])
 
+    def testSuppressedOriginalInMultiTransform(self):
+        pattern = self.makeSuppressionPattern()
+        pattern.Occurrences2 = 1
+        multi = self.Doc.Body.newObject("PartDesign::MultiTransform", "MultiTransform")
+        multi.Originals = [self.Doc.Box]
+        multi.Transformations = [pattern]
+        self.Doc.recompute()
+        pattern.SuppressedIndices = [0]
+        self.Doc.recompute()
+        self.assertAlmostEqual(multi.Shape.Volume, 2000)
+        self.assertAlmostEqual(multi.Shape.BoundBox.XMin, 10)
+        self.assertFalse(multi.Shape.isInside(FreeCAD.Vector(5, 5, 5), 1e-7, True))
+        self.assertTrue(multi.Shape.isInside(FreeCAD.Vector(15, 5, 5), 1e-7, True))
+
+        pattern.SuppressedIndices = [0, 1, 2]
+        self.Doc.recompute()
+        self.assertTrue(multi.Shape.isNull() or multi.Shape.Volume == 0)
+        pattern.SuppressedIndices = []
+        self.Doc.recompute()
+        self.assertAlmostEqual(multi.Shape.Volume, 3000)
+
+    def testSuppressionComposesAcrossHelpers(self):
+        pattern = self.makeSuppressionPattern()
+        pattern.Occurrences2 = 1
+        multi = self.Doc.Body.newObject("PartDesign::MultiTransform", "MultiTransform")
+        multi.Originals = [self.Doc.Box]
+        second = self.Doc.Body.newObject("PartDesign::LinearPattern", "SecondPattern")
+        second.Direction = (self.Doc.Y_Axis, [""])
+        second.Mode = "Spacing"
+        second.Offset = 10
+        second.Occurrences = 2
+        multi.Transformations = [pattern, second]
+        pattern.SuppressedIndices = [0]
+        self.Doc.recompute()
+        self.assertAlmostEqual(multi.Shape.Volume, 4000)
+        self.assertAlmostEqual(multi.Shape.BoundBox.XMin, 10)
+        pattern.SuppressedIndices = [0, 1, 2]
+        self.Doc.recompute()
+        self.assertTrue(multi.Shape.isNull() or multi.Shape.Volume == 0)
+
     def testSuppressionInMultiTransform(self):
         pattern = self.makeSuppressionPattern()
         multi = self.Doc.Body.newObject("PartDesign::MultiTransform", "MultiTransform")

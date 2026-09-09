@@ -65,6 +65,7 @@ protected:
     void syncGeneratedElementPlacements(const std::vector<Base::Placement>& placements);
     void syncGeneratedElementLinkPlacements(const std::vector<Base::Placement>& placements);
     void enforceLinkArrayPropertyStatus();
+    bool hasSuppressedElements() const;
 
     static Base::Placement placementFromTransform(const gp_Trsf& transform);
     static std::vector<Base::Placement> placementsFromTransforms(

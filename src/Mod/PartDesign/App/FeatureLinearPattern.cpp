@@ -90,7 +90,8 @@ void LinearPattern::updateSuppressedIndices()
             && position.y < Occurrences2.getValue() && position.x == std::floor(position.x)
             && position.y == std::floor(position.y) && position.z == 0) {
             const double index = position.x * Occurrences2.getValue() + position.y;
-            if (index <= std::numeric_limits<long>::max()) {
+            // Use an exact exclusive bound: LONG_MAX can round up when converted to double.
+            if (index < std::ldexp(1.0, std::numeric_limits<long>::digits)) {
                 indices.push_back(static_cast<long>(index));
             }
         }

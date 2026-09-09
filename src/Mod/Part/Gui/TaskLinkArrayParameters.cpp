@@ -492,7 +492,7 @@ void TaskLinkArrayParameters::setupInstanceControls(Gui::View3DInventorViewer* v
 
 void TaskLinkArrayParameters::updateInstanceControls()
 {
-    if (!instanceControls) {
+    if (!instanceControls || !instanceControlsViewer) {
         return;
     }
 
@@ -889,6 +889,9 @@ bool TaskLinkArrayParameters::reject()
 
 TaskDlgLinkArrayParameters::TaskDlgLinkArrayParameters(Part::LinkArray* array)
 {
+    associateToObject3dView(array);
+    setAutoCloseOnDeletedDocument(true);
+    setAutoCloseOnTransactionChange(true);
     parameter = new TaskLinkArrayParameters(array);
     Content.push_back(parameter);
 }

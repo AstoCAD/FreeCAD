@@ -100,15 +100,22 @@ class TestLinkArrayLinear(unittest.TestCase):
         self.doc.recompute()
         self.assertSuppressed([6])
 
-    def testSuppressionSurvivesCollapseAndExpand(self):
+    def testCannotCollapseSuppressedInstances(self):
         self.array.ElementList[5].Suppressed = True
+        # Also protect the interval before the array is recomputed.
+        with self.assertRaises((RuntimeError, ValueError)):
+            self.array.ShowElement = False
+        self.assertTrue(self.array.ShowElement)
+        self.doc.recompute()
+        self.assertSuppressed([5])
+        self.array.ElementList[5].Suppressed = False
+        self.doc.recompute()
         self.array.ShowElement = False
         self.doc.recompute()
-        self.array.Occurrences2 = 4
-        self.doc.recompute()
+        self.assertFalse(self.array.ShowElement)
         self.array.ShowElement = True
         self.doc.recompute()
-        self.assertSuppressed([6])
+        self.assertSuppressed([])
 
     def testFailedResizeKeepsExistingElementCoordinates(self):
         self.array.Occurrences2 = 4

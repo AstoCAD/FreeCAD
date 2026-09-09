@@ -88,6 +88,11 @@ public:
         return std::list<gp_Trsf>();  // Default method
     }
 
+    /// Whether the first transformation is already represented by the original support.
+    virtual bool hasOriginalTransformation() const
+    {
+        return true;
+    }
     virtual bool isTransformationSuppressed(int index) const;
     virtual void setTransformationSuppressed(int index, bool suppressed);
     const std::list<gp_Trsf> getFilteredTransformations(

@@ -33,6 +33,8 @@
 #include <Base/Console.h>
 #include <Base/Tools.h>
 #include <Gui/Command.h>
+#include <Gui/Application.h>
+#include <Gui/Macro.h>
 
 #include <Mod/Part/App/PolarPatternExtension.h>
 
@@ -43,6 +45,24 @@
 #include "TaskPatternParameters.h"
 
 using namespace PartGui;
+
+namespace
+{
+std::string patternReferenceCommand(
+    const App::DocumentObject* object,
+    const std::vector<std::string>& subnames
+)
+{
+    if (!object) {
+        return "None";
+    }
+    std::string command = "(" + Gui::Command::getObjectCmd(object) + ", [";
+    for (const auto& subname : subnames) {
+        command += Base::Tools::quoted(Base::Tools::escapeEncodeString(subname)) + ", ";
+    }
+    return command + "])";
+}
+}  // namespace
 
 TaskPatternParameters::TaskPatternParameters() = default;
 
@@ -342,7 +362,7 @@ void TaskPatternParameters::applyPatternParameters(App::DocumentObject* pattern)
         App::DocumentObject* object = nullptr;
         pathParametersWidget->getPath(object, subnames);
         if (object) {
-            const std::string path = buildDirectionReferencePythonString(object, subnames);
+            const std::string path = patternReferenceCommand(object, subnames);
             FCMD_OBJ_CMD(pattern, "Path = " << path.c_str());
         }
         pathParametersWidget->applyQuantitySpinboxes();
@@ -350,10 +370,13 @@ void TaskPatternParameters::applyPatternParameters(App::DocumentObject* pattern)
     }
 
     if (pointParametersWidget) {
-        // PointObject is updated directly when the reference is selected. Unlike the other
-        // pattern widgets, this panel has no deferred values to commit. Reassigning the same
-        // PropertyLinkSub through a Python command during dialog acceptance can invalidate its
-        // linked storage while the bound widget still exists.
+        App::DocumentObject* object = nullptr;
+        std::vector<std::string> subnames;
+        pointParametersWidget->getPointObject(object, subnames);
+        // Selection already applied the property. Record a copied reference without assigning it again.
+        const std::string command = Gui::Command::getObjectCmd(pattern)
+            + ".PointObject = " + patternReferenceCommand(object, subnames);
+        Gui::Application::Instance->macroManager()->addLine(Gui::MacroManager::App, command.c_str());
         return;
     }
 

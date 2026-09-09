@@ -468,7 +468,7 @@ App::DocumentObjectExecReturn* Transformed::execute()
     supportShape.setTransform(Base::Matrix4D());
     wholeShapeSource.setTransform(Base::Matrix4D());
 
-    if (isTransformationSuppressed(0)) {
+    if (!hasOriginalTransformation() || isTransformationSuppressed(0)) {
         if (mode == Mode::WholeShape) {
             supportShape.setShape(TopoDS_Shape());
         }
@@ -484,7 +484,7 @@ App::DocumentObjectExecReturn* Transformed::execute()
                 Part::TopoShape after = transformToSupport(feature->Shape.getShape());
 
                 Part::TopoShape delta;
-                if (feature->getAddSubType() == FeatureAddSub::Additive) {
+                if (feature->getAddSubType() == FeatureAddSub::Type::Additive) {
                     if (before.isNull()) {
                         delta = after;
                     }
@@ -516,9 +516,9 @@ App::DocumentObjectExecReturn* Transformed::execute()
             shapes.push_back(supportShape);
         }
         TopoShape shape(origShape);
-        int idx = 1;
+        int idx = hasOriginalTransformation() ? 1 : 0;
         auto transformIter = transformations.cbegin();
-        transformIter++;
+        std::advance(transformIter, idx);
         for (; transformIter != transformations.end(); transformIter++) {
             if (Base::Sequencer().wasCanceled()) {
                 return std::vector<TopoShape>();
@@ -599,10 +599,16 @@ App::DocumentObjectExecReturn* Transformed::execute()
         }
     }
 
+    if (supportShape.isNull()) {
+        this->Shape.setValue(TopoDS_Shape());
+        rejected.Nullify();
+        return App::DocumentObject::StdReturn;
+    }
     supportShape = refineShapeIfActive((supportShape));
 
     this->Shape.setValue(getSolid(supportShape));
-    if (singleSolidRuleMode() == SingleSolidRuleMode::Enforced) {
+    if (singleSolidRuleMode() == SingleSolidRuleMode::Enforced
+        && supportShape.countSubShapes(TopAbs_SOLID) > 0) {
         rejected = getRemainingSolids(supportShape.getShape());
     }
     else {

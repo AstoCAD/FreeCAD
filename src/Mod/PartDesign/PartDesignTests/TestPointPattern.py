@@ -50,8 +50,8 @@ class TestPointPattern(unittest.TestCase):
         points = body.newObject("PartDesign::Feature", "Points")
         points.Shape = Part.makeCompound(
             [
-                Part.Vertex(FreeCAD.Vector()),
-                Part.Vertex(FreeCAD.Vector(5, 0, 0)),
+                Part.Vertex(FreeCAD.Vector(5, 5, 5)),
+                Part.Vertex(FreeCAD.Vector(10, 5, 5)),
             ]
         )
 
@@ -72,3 +72,6 @@ class TestPointPattern(unittest.TestCase):
 
         self.assertEqual(multi.getStatusString(), "Valid")
         self.assertAlmostEqual(multi.Shape.Volume, 2 * box.Shape.Volume)
+        self.assertAlmostEqual(multi.Shape.BoundBox.XMin, 5)
+        self.assertAlmostEqual(multi.Shape.BoundBox.YMin, 5)
+        self.assertAlmostEqual(multi.Shape.BoundBox.ZMin, 5)

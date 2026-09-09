@@ -28,6 +28,8 @@
 #include <gp_Trsf.hxx>
 
 #include <App/Document.h>
+#include <App/SuppressibleExtension.h>
+#include <Base/Exception.h>
 #include <Base/Matrix.h>
 #include <Base/Tools.h>
 
@@ -59,6 +61,11 @@ void LinkArray::onParentLabelChanged(App::DocumentObject* /*parent*/)
 
 void LinkArray::onChanged(const App::Property* prop)
 {
+    if (prop == &ShowElement && !ShowElement.getValue() && !isRestoring() && hasSuppressedElements()) {
+        // The inherited handler deletes ElementList when collapsing the array.
+        ShowElement.setValue(true);
+        throw Base::ValueError("Restore suppressed instances before hiding array elements");
+    }
     const bool keepLabel = prop == &LinkedObject && !isRestoring();
     std::string label;
     if (keepLabel) {
@@ -187,11 +194,23 @@ void LinkArray::syncGeneratedElementLinkPlacements(const std::vector<Base::Place
     }
 }
 
+bool LinkArray::hasSuppressedElements() const
+{
+    for (auto* element : ElementList.getValues()) {
+        auto* extension = element ? element->getExtensionByType<App::SuppressibleExtension>(true)
+                                  : nullptr;
+        if (extension && extension->Suppressed.getValue()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void LinkArray::enforceLinkArrayPropertyStatus()
 {
     _LinkTouched.setStatus(App::Property::Output, true);
     _LinkTouched.setStatus(App::Property::NoRecompute, true);
-    ShowElement.setStatus(App::Property::Immutable, false);
+    ShowElement.setStatus(App::Property::Immutable, hasSuppressedElements());
     ShowElement.setStatus(App::Property::Hidden, false);
     ShowElement.setStatus(App::Property::NoRecompute, false);
     ElementCount.setStatus(App::Property::Immutable, true);

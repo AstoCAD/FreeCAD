@@ -85,14 +85,18 @@ std::list<gp_Trsf> CircularPatternExtension::calculateTransformations() const
     const int circleCount = NumberCircles.getValue();
     const int symmetry = std::max(1, static_cast<int>(Symmetry.getValue()));
 
-    if (radialDistance <= Precision::Confusion()) {
+    if (!std::isfinite(radialDistance) || radialDistance <= Precision::Confusion()) {
         throw Base::ValueError("Radial distance must be greater than zero");
     }
-    if (tangentialDistance <= Precision::Confusion()) {
+    if (!std::isfinite(tangentialDistance) || tangentialDistance <= Precision::Confusion()) {
         throw Base::ValueError("Tangential distance must be greater than zero");
     }
     if (circleCount < 2) {
         throw Base::ValueError("At least two concentric circles are required");
+    }
+
+    if (circleCount > 10000) {
+        throw Base::ValueError("Circular pattern would create more than 10000 circles");
     }
 
     const gp_Ax2 axis = getRotation();
@@ -111,8 +115,15 @@ std::list<gp_Trsf> CircularPatternExtension::calculateTransformations() const
     const double fullCircle = 2.0 * std::acos(-1.0);
     for (int circle = 1; circle < circleCount; ++circle) {
         const double radius = circle * radialDistance;
-        int elementCount =
-            static_cast<int>(std::floor(fullCircle * radius / tangentialDistance));
+        const double requestedCount = std::floor(fullCircle * radius / tangentialDistance);
+        // Bound the allocation before narrowing to int or constructing any instances.
+        constexpr int maximumOccurrences = 10000;
+        if (!std::isfinite(requestedCount) || requestedCount > maximumOccurrences
+            || transformations.size() + static_cast<std::size_t>(requestedCount)
+                > maximumOccurrences) {
+            throw Base::ValueError("Circular pattern would create more than 10000 occurrences");
+        }
+        int elementCount = static_cast<int>(requestedCount);
         elementCount = elementCount / symmetry * symmetry;
         if (elementCount == 0) {
             continue;

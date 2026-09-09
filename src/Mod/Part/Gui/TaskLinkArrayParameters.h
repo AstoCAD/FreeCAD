@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <QPointer>
+
 #include <memory>
 #include <vector>
 
@@ -100,7 +102,7 @@ private:
     std::unique_ptr<Ui_TaskLinkArrayParameters> ui;
     std::unique_ptr<PatternInstanceControls> instanceControls;
     QWidget* proxy = nullptr;
-    Gui::View3DInventorViewer* instanceControlsViewer = nullptr;
+    QPointer<Gui::View3DInventorViewer> instanceControlsViewer;
     Part::LinkArray* array = nullptr;
     bool blockUpdate = false;
     bool linkedObjectSelectionMode = false;
