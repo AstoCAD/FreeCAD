@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TaskAssemblyCreateFriction</class>
+ <widget class="QWidget" name="TaskAssemblyCreateFriction">
+  <property name="minimumSize"><size><width>400</width><height>0</height></size></property>
+  <property name="windowTitle"><string>Joint Friction</string></property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item><layout class="QFormLayout" name="headerLayout">
+    <item row="0" column="0"><widget class="QLabel" name="JointLabel"><property name="text"><string>Joint</string></property></widget></item>
+    <item row="0" column="1"><widget class="QComboBox" name="JointComboBox"/></item>
+    <item row="1" column="0"><widget class="QLabel" name="ModelLabel"><property name="text"><string>Model</string></property></widget></item>
+    <item row="1" column="1"><widget class="QComboBox" name="ModelComboBox"/></item>
+   </layout></item>
+   <item><widget class="QGroupBox" name="SpecifiedGroup"><property name="title"><string>Specified resistance</string></property><layout class="QFormLayout" name="specifiedLayout">
+    <item row="0" column="0"><widget class="QLabel" name="StaticLabel"><property name="text"><string>Static resistance</string></property></widget></item>
+    <item row="0" column="1"><widget class="Gui::QuantitySpinBox" name="StaticSpinBox"><property name="minimum"><double>0.0</double></property><property name="toolTip"><string>Maximum breakaway force or torque near zero joint speed. It must be at least the dynamic resistance.</string></property></widget></item>
+    <item row="1" column="0"><widget class="QLabel" name="DynamicLabel"><property name="text"><string>Dynamic resistance</string></property></widget></item>
+    <item row="1" column="1"><widget class="Gui::QuantitySpinBox" name="DynamicSpinBox"><property name="minimum"><double>0.0</double></property><property name="toolTip"><string>Force or torque opposing the joint after it is moving above the transition speed.</string></property></widget></item>
+   </layout></widget></item>
+   <item><widget class="QGroupBox" name="ReactionGroup"><property name="title"><string>Reaction based</string></property><layout class="QVBoxLayout" name="reactionOuter"><item><layout class="QFormLayout" name="reactionLayout">
+    <item row="0" column="0"><widget class="QLabel" name="StaticCoefficientLabel"><property name="text"><string>Static coefficient</string></property></widget></item>
+    <item row="0" column="1"><widget class="QDoubleSpinBox" name="StaticCoefficientSpinBox"><property name="maximum"><double>1000000.000000000000000</double></property><property name="decimals"><number>6</number></property><property name="toolTip"><string>Low-speed coefficient multiplied by the transverse joint reaction. It must be at least the dynamic coefficient.</string></property></widget></item>
+    <item row="1" column="0"><widget class="QLabel" name="DynamicCoefficientLabel"><property name="text"><string>Dynamic coefficient</string></property></widget></item>
+    <item row="1" column="1"><widget class="QDoubleSpinBox" name="DynamicCoefficientSpinBox"><property name="maximum"><double>1000000.000000000000000</double></property><property name="decimals"><number>6</number></property><property name="toolTip"><string>Sliding coefficient multiplied by the transverse joint reaction.</string></property></widget></item>
+   </layout></item><item><widget class="QWidget" name="RadiusRow"><layout class="QHBoxLayout" name="radiusLayout"><property name="leftMargin"><number>0</number></property><property name="topMargin"><number>0</number></property><property name="rightMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property><item><widget class="QLabel" name="RadiusLabel"><property name="text"><string>Effective radius</string></property></widget></item><item><widget class="Gui::QuantitySpinBox" name="RadiusSpinBox"><property name="minimum"><double>0.000001</double></property><property name="toolTip"><string>Bearing contact radius used to convert transverse reaction force into revolute friction torque.</string></property></widget></item></layout></widget></item></layout></widget></item>
+   <item><layout class="QFormLayout" name="regularizationLayout">
+    <item row="0" column="0"><widget class="QLabel" name="TransitionLabel"><property name="text"><string>Transition velocity</string></property></widget></item>
+    <item row="0" column="1"><widget class="Gui::QuantitySpinBox" name="TransitionSpinBox"><property name="minimum"><double>0.000001</double></property><property name="toolTip"><string>Speed interval over which friction reverses smoothly near zero. Smaller values approximate Coulomb friction more closely but can require smaller integration steps.</string></property></widget></item>
+    <item row="1" column="0"><widget class="QLabel" name="ViscousLabel"><property name="text"><string>Viscous damping</string></property></widget></item>
+    <item row="1" column="1"><widget class="Gui::QuantitySpinBox" name="ViscousSpinBox"><property name="minimum"><double>0.0</double></property><property name="toolTip"><string>Additional resistance proportional to relative joint speed.</string></property></widget></item>
+   </layout></item>
+   <item><spacer name="verticalSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+  </layout>
+ </widget>
+ <customwidgets><customwidget><class>Gui::QuantitySpinBox</class><extends>QAbstractSpinBox</extends><header>Gui/QuantitySpinBox.h</header></customwidget></customwidgets>
+ <resources/><connections/>
+</ui>

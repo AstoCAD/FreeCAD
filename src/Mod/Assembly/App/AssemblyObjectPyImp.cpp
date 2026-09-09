@@ -25,6 +25,9 @@
 // inclusion of the generated files (generated out of AssemblyObject.xml)
 #include "AssemblyObjectPy.h"
 #include "AssemblyObjectPy.cpp"
+#include "Dynamics.h"
+#include "AssemblyUtils.h"
+#include <Standard_Failure.hxx>
 
 using namespace Assembly;
 
@@ -78,6 +81,24 @@ PyObject* AssemblyObjectPy::generateSimulation(PyObject* args) const
     return Py_BuildValue("i", ret);
 }
 
+PyObject* AssemblyObjectPy::getSimulationResults(PyObject* args) const
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    try {
+        return getAssemblyObjectPtr()->getSimulationResults();
+    }
+    catch (const Standard_Failure& error) {
+        PyErr_SetString(PyExc_RuntimeError, error.GetMessageString());
+        return nullptr;
+    }
+    catch (const std::exception& error) {
+        PyErr_SetString(PyExc_RuntimeError, error.what());
+        return nullptr;
+    }
+}
+
 PyObject* AssemblyObjectPy::ensureIdentityPlacements(PyObject* args) const
 {
     if (!PyArg_ParseTuple(args, "")) {
@@ -85,6 +106,58 @@ PyObject* AssemblyObjectPy::ensureIdentityPlacements(PyObject* args) const
     }
     this->getAssemblyObjectPtr()->ensureIdentityPlacements();
     Py_Return;
+}
+
+PyObject* AssemblyObjectPy::generateDynamics(PyObject* args) const
+{
+    PyObject* object;
+    if (!PyArg_ParseTuple(args, "O!", &App::DocumentObjectPy::Type, &object)) {
+        return nullptr;
+    }
+    try {
+        return getAssemblyObjectPtr()->generateDynamics(
+            static_cast<App::DocumentObjectPy*>(object)->getDocumentObjectPtr());
+    }
+    catch (const Standard_Failure& error) {
+        PyErr_SetString(PyExc_RuntimeError, error.GetMessageString());
+        return nullptr;
+    }
+    catch (const std::exception& error) {
+        PyErr_SetString(PyExc_RuntimeError, error.what());
+        return nullptr;
+    }
+}
+
+PyObject* AssemblyObjectPy::getComponents(PyObject* args) const
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    Py::List result;
+    for (auto* object : getAssemblyComponents(getAssemblyObjectPtr())) {
+        result.append(Py::Object(object->getPyObject(), true));
+    }
+    return Py::new_reference_to(result);
+}
+
+PyObject* AssemblyObjectPy::getMassProperties(PyObject* args) const
+{
+    PyObject* object;
+    if (!PyArg_ParseTuple(args, "O!", &App::DocumentObjectPy::Type, &object)) {
+        return nullptr;
+    }
+    try {
+        return dynamicsMassProperties(
+            static_cast<App::DocumentObjectPy*>(object)->getDocumentObjectPtr());
+    }
+    catch (const Standard_Failure& error) {
+        PyErr_SetString(PyExc_ValueError, error.GetMessageString());
+        return nullptr;
+    }
+    catch (const std::exception& error) {
+        PyErr_SetString(PyExc_ValueError, error.what());
+        return nullptr;
+    }
 }
 
 PyObject* AssemblyObjectPy::updateForFrame(PyObject* args) const

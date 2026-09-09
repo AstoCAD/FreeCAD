@@ -24,12 +24,36 @@
 import TestApp
 
 from AssemblyTests.TestCore import TestCore
+from AssemblyTests.TestDynamics import TestDynamics
+from AssemblyTests.TestPointMeasurement import TestPointMeasurement
+from AssemblyTests.TestMotionProfile import TestMotionProfile
+from AssemblyTests.TestSimulationEvents import TestSimulationEvents
+from AssemblyTests.TestSimulationRegression import TestSimulationRegression
+from AssemblyTests.TestContact import TestContact
+from AssemblyTests.TestContactGroups import TestContactGroups
+from AssemblyTests.TestLoadUI import TestLoadUI
+from AssemblyTests.TestInitialVelocityUI import TestInitialVelocityUI
+from AssemblyTests.TestMassProperties import TestMassProperties
 from AssemblyTests.TestCommandInsertLink import TestCommandInsertLink
 from AssemblyTests.TestCommandCreateView import TestCommandCreateView
 from AssemblyTests.TestSimulationExport import TestSimulationExport
+from AssemblyTests.TestSimulationGravity import TestSimulationGravity
+from AssemblyTests.TestSimulationTabs import TestSimulationTabs
 
 # Use the modules so that code checkers don't complain (flake8)
 True if TestCore else False
+True if TestDynamics else False
+True if TestPointMeasurement else False
+True if TestMotionProfile else False
+True if TestSimulationEvents else False
+True if TestSimulationRegression else False
+True if TestContact else False
+True if TestContactGroups else False
+True if TestLoadUI else False
+True if TestInitialVelocityUI else False
+True if TestMassProperties else False
 True if TestCommandInsertLink else False
 True if TestCommandCreateView else False
 True if TestSimulationExport else False
+True if TestSimulationGravity else False
+True if TestSimulationTabs else False
