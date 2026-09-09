@@ -25,6 +25,7 @@
 #pragma once
 
 #include <boost/signals2.hpp>
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -95,6 +96,8 @@ public:
     being in an active transaction (joint creation).*/
     int solve(bool enableRedo = false);
     int generateSimulation(App::DocumentObject* sim);
+    PyObject* getSimulationResults();
+    PyObject* generateDynamics(App::DocumentObject* sim);
     int updateForFrame(size_t index);
     size_t numberOfFrames();
     void preDrag(std::vector<App::DocumentObject*> dragParts);
@@ -106,6 +109,11 @@ public:
 
     void exportAsASMT(std::string fileName);
     bool requiresRigidSolveForMove(const std::vector<App::DocumentObject*>& movedParts);
+    bool requiresContactSolveForMove(const std::vector<App::DocumentObject*>& movedParts);
+    void resolveContactMove(
+        const std::vector<App::DocumentObject*>& movedParts,
+        const std::map<App::DocumentObject*, Base::Placement>& previousPlacements
+    );
 
     Base::Placement getMbdPlacement(std::shared_ptr<MbD::ASMTPart> mbdPart);
     bool validateNewPlacements();
@@ -138,7 +146,10 @@ public:
     };
     MbDPartData getMbDData(App::DocumentObject* part);
     std::shared_ptr<MbD::ASMTMarker> makeMbdMarker(std::string& name, Base::Placement& plc);
-    std::vector<std::shared_ptr<MbD::ASMTJoint>> makeMbdJoint(App::DocumentObject* joint);
+    std::vector<std::shared_ptr<MbD::ASMTJoint>> makeMbdJoint(
+        App::DocumentObject* joint,
+        bool dynamics = false
+    );
     std::shared_ptr<MbD::ASMTJoint> makeMbdJointOfType(App::DocumentObject* joint, JointType jointType);
     std::shared_ptr<MbD::ASMTJoint> makeMbdJointDistance(App::DocumentObject* joint);
     std::string handleOneSideOfJoint(
@@ -154,7 +165,9 @@ public:
     );
     int slidingPartIndex(App::DocumentObject* joint);
 
-    void jointParts(std::vector<App::DocumentObject*> joints);
+    void jointParts(std::vector<App::DocumentObject*> joints, bool dynamics = false);
+    std::vector<App::DocumentObject*> getContacts(App::DocumentObject* simulation = nullptr);
+    size_t contactParts(std::vector<App::DocumentObject*> contacts, bool dynamics = false);
     JointGroup* getJointGroup() const;
     ViewGroup* getExplodedViewGroup() const;
     template<typename T>

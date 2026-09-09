@@ -44,6 +44,7 @@
 #include <Base/Interpreter.h>
 
 #include <algorithm>
+#include <set>
 
 #include <Mod/Part/App/DatumFeature.h>
 #include <Mod/Part/App/LinkArray.h>
@@ -809,11 +810,12 @@ namespace
 // namespace as it's an implementation detail of getAssemblyComponents.
 void collectComponentsRecursively(
     const std::vector<App::DocumentObject*>& objects,
-    std::vector<App::DocumentObject*>& results
+    std::vector<App::DocumentObject*>& results,
+    std::set<App::DocumentObject*>& visited
 )
 {
     for (auto* obj : objects) {
-        if (!obj || isSuppressedLinkElement(obj)) {
+        if (!obj || !visited.insert(obj).second || isSuppressedLinkElement(obj)) {
             continue;
         }
 
@@ -824,14 +826,14 @@ void collectComponentsRecursively(
                 results.push_back(asmLink);
             }
             else {
-                collectComponentsRecursively(asmLink->Group.getValues(), results);
+                collectComponentsRecursively(asmLink->Group.getValues(), results, visited);
             }
             continue;
         }
         else if (obj->isLinkGroup()) {
             auto* linkGroup = static_cast<App::Link*>(obj);
             for (auto* elt : linkGroup->ElementList.getValues()) {
-                if (!elt || isSuppressedLinkElement(elt)) {
+                if (!elt || !visited.insert(elt).second || isSuppressedLinkElement(elt)) {
                     continue;
                 }
                 results.push_back(elt);
@@ -843,7 +845,7 @@ void collectComponentsRecursively(
             continue;
         }
         else if (auto* group = freecad_cast<App::DocumentObjectGroup*>(obj)) {
-            collectComponentsRecursively(group->Group.getValues(), results);
+            collectComponentsRecursively(group->Group.getValues(), results, visited);
             continue;
         }
         else if (auto* link = freecad_cast<App::Link*>(obj)) {
@@ -874,7 +876,10 @@ std::vector<App::DocumentObject*> getAssemblyComponents(const AssemblyObject* as
     }
 
     std::vector<App::DocumentObject*> components;
-    collectComponentsRecursively(assembly->Group.getValues(), components);
+    // GeoFeatureGroup members may also appear through plain folders. Deduplicate
+    // occurrence objects, not their linked sources.
+    std::set<App::DocumentObject*> visited;
+    collectComponentsRecursively(assembly->Group.getValues(), components, visited);
     return components;
 }
 

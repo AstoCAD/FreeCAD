@@ -25,10 +25,15 @@
 #include <App/DocumentObject.h>
 #include <App/DocumentObjectGroup.h>
 #include <App/GroupExtension.h>
+#include <App/GeoFeatureGroupExtension.h>
+#include <App/PropertyStandard.h>
+#include <App/PropertyLinks.h>
+#include <Base/Exception.h>
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
 
 #include <Mod/Assembly/App/AssemblyUtils.h>
+#include <Mod/Assembly/App/AssemblyObject.h>
 #include <Mod/Assembly/App/Groups.h>
 
 #include "ViewProviderGroups.h"
@@ -124,6 +129,91 @@ bool ViewProviderJointGroup::canDropObjectToTarget(
 QIcon ViewProviderSimulationGroup::getIcon() const
 {
     return Gui::BitmapFactory().pixmap("Assembly_SimulationGroup.svg");
+}
+
+namespace
+{
+bool isSimulationInput(const App::DocumentObject* obj)
+{
+    return obj && (obj->getPropertyByName("MotionType") || obj->getPropertyByName("LoadType")
+                   || obj->getPropertyByName("InitialVelocityType")
+                   || obj->getPropertyByName("ContactType")
+                   || obj->getPropertyByName("FrictionModel"));
+}
+
+App::DocumentObject* simulationAssembly(const App::DocumentObject* owner)
+{
+    if (!owner) return nullptr;
+    if (auto* link = dynamic_cast<App::PropertyLink*>(owner->getPropertyByName("Assembly"))) {
+        return link->getValue();
+    }
+    auto* parent = App::GeoFeatureGroupExtension::getGroupOfObject(owner);
+    return dynamic_cast<Assembly::AssemblyObject*>(parent);
+}
+
+void invalidateStudies(Assembly::SimulationGroup* group)
+{
+    if (!group) {
+        return;
+    }
+    for (auto* child : group->Group.getValues()) {
+        auto* status = child
+            ? dynamic_cast<App::PropertyString*>(child->getPropertyByName("Status"))
+            : nullptr;
+        auto* data = child
+            ? dynamic_cast<App::PropertyString*>(child->getPropertyByName("ResultData"))
+            : nullptr;
+        if (!status || !data) {
+            continue;
+        }
+        data->setValue("");
+        status->setValue("NotRun");
+        if (auto* error = dynamic_cast<App::PropertyString*>(
+                child->getPropertyByName("LastError")
+            )) {
+            error->setValue("");
+        }
+        child->purgeTouched();
+    }
+    group->purgeTouched();
+}
+}  // namespace
+
+bool ViewProviderSimulationGroup::canDragObject(App::DocumentObject* obj) const
+{
+    return isSimulationInput(obj);
+}
+
+bool ViewProviderSimulationGroup::canDropObject(App::DocumentObject* obj) const
+{
+    if (!isSimulationInput(obj)) return false;
+    auto* source = simulationAssembly(App::GroupExtension::getGroupOfObject(obj));
+    return source && source == simulationAssembly(getObject<Assembly::SimulationGroup>());
+}
+
+bool ViewProviderSimulationGroup::canDragAndDropObject(App::DocumentObject* obj) const
+{
+    return canDropObject(obj);
+}
+
+void ViewProviderSimulationGroup::dragObject(App::DocumentObject* obj)
+{
+    if (auto* group = getObject<Assembly::SimulationGroup>()) {
+        invalidateStudies(group);
+        group->removeObject(obj);
+    }
+}
+
+void ViewProviderSimulationGroup::dropObject(App::DocumentObject* obj)
+{
+    auto* source = simulationAssembly(App::GroupExtension::getGroupOfObject(obj));
+    if (source && source != simulationAssembly(getObject<Assembly::SimulationGroup>())) {
+        throw Base::ValueError("Simulation inputs cannot be moved between assemblies.");
+    }
+    if (auto* group = getObject<Assembly::SimulationGroup>()) {
+        group->addObject(obj);
+        invalidateStudies(group);
+    }
 }
 
 QIcon ViewProviderSnapshotGroup::getIcon() const
