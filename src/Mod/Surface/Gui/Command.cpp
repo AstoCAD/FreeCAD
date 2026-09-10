@@ -352,6 +352,56 @@ bool CmdSurfaceSections::isActive()
     return hasActiveDocument();
 }
 
+DEF_STD_CMD_A(CmdSurfaceIntersectionCurve)
+
+CmdSurfaceIntersectionCurve::CmdSurfaceIntersectionCurve()
+    : Command("Surface_IntersectionCurve")
+{
+    sAppModule = "Surface";
+    sGroup = QT_TR_NOOP("Surface");
+    sMenuText = QT_TR_NOOP("Intersection Curve");
+    sToolTipText = QT_TR_NOOP(
+        "Creates the intersection of two sketches or planar wires extruded along their normals.\n"
+        "Select two whole profiles. Extrusion directions can be edited in the properties."
+    );
+    sStatusTip = sToolTipText;
+    sWhatsThis = "Surface_IntersectionCurve";
+    sPixmap = "Surface_IntersectionCurve";
+}
+
+void CmdSurfaceIntersectionCurve::activated(int)
+{
+    const auto selection = getSelection().getSelectionEx();
+    if (selection.size() != 2 || selection[0].hasSubNames() || selection[1].hasSubNames()
+        || !Part::Feature::hasShapeOwner(selection[0].getObject())
+        || !Part::Feature::hasShapeOwner(selection[1].getObject())) {
+        QMessageBox::warning(
+            Gui::getMainWindow(),
+            qApp->translate("Surface_IntersectionCurve", "Invalid selection"),
+            qApp->translate("Surface_IntersectionCurve", "Select two whole sketches or wires.")
+        );
+        return;
+    }
+
+    const std::string name = getUniqueObjectName("IntersectionCurve");
+    openCommand(QT_TRANSLATE_NOOP("Command", "Create intersection curve"));
+    doCommand(Doc, "App.ActiveDocument.addObject('Surface::IntersectionCurve', '%s')", name.c_str());
+    for (size_t index = 0; index < selection.size(); ++index) {
+        doCommand(
+            Doc, "App.ActiveDocument.%s.Curve%d = App.getDocument('%s').getObject('%s')",
+            name.c_str(), static_cast<int>(index + 1), selection[index].getDocName(),
+            selection[index].getFeatName()
+        );
+    }
+    updateActive();
+    commitCommand();
+}
+
+bool CmdSurfaceIntersectionCurve::isActive()
+{
+    return hasActiveDocument() && !Gui::Control().activeDialog();
+}
+
 void CreateSurfaceCommands()
 {
     Gui::CommandManager& rcCmdMgr = Gui::Application::Instance->commandManager();
@@ -364,4 +414,5 @@ void CreateSurfaceCommands()
     rcCmdMgr.addCommand(new CmdSurfaceExtendFace());
     rcCmdMgr.addCommand(new CmdSurfaceCurveOnMesh());
     rcCmdMgr.addCommand(new CmdBlendCurve());
+    rcCmdMgr.addCommand(new CmdSurfaceIntersectionCurve());
 }
