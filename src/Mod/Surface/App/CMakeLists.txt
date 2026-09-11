@@ -54,6 +54,7 @@ SET(Surface_SRCS
 add_library(Surface SHARED ${Surface_SRCS})
 
 include(FreehandBSpline.cmake)
+include(GordonSurface.cmake)
 
 if(FREECAD_USE_PCH)
     target_precompile_headers(Surface PRIVATE
