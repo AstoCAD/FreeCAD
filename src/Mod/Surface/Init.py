@@ -3,4 +3,4 @@
 # SPDX-FileNotice: Part of the FreeCAD project.
 
 
-FreeCAD.__unit_test__ += ["TestSurfaceApp", "TestSurfaceFreehandBSpline"]
+FreeCAD.__unit_test__ += ["TestSurfaceApp", "TestSurfaceFreehandBSpline", "TestSurfaceGordonSurface"]
