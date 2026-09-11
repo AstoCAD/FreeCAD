@@ -39,23 +39,16 @@
 #include <utility>
 #include <vector>
 
-#include <BRepBndLib.hxx>
-#include <BRepBuilderAPI_Copy.hxx>
-#include <BRepMesh_IncrementalMesh.hxx>
-#include <BRep_Tool.hxx>
-#include <Bnd_Box.hxx>
-#include <Poly_Triangulation.hxx>
+#include <Inventor/nodes/SoFrustumCamera.h>
+#include <Inventor/nodes/SoMaterial.h>
+#include <Inventor/nodes/SoMatrixTransform.h>
+#include <Inventor/actions/SoGetBoundingBoxAction.h>
+#include <Inventor/nodes/SoOrthographicCamera.h>
+#include <Inventor/nodes/SoSeparator.h>
+
 #include <Precision.hxx>
-#include <Standard_Version.hxx>
-#include <TopAbs_Orientation.hxx>
-#include <TopExp_Explorer.hxx>
-#include <TopLoc_Location.hxx>
-#include <TopoDS.hxx>
-#include <TopoDS_Face.hxx>
-#if OCC_VERSION_HEX < 0x070600
-#include <Poly_Array1OfTriangle.hxx>
-#include <TColgp_Array1OfPnt.hxx>
-#endif
+#include <gp_Ax3.hxx>
+#include <gp_Trsf.hxx>
 
 #include <App/Application.h>
 #include <App/Document.h>
@@ -63,24 +56,30 @@
 #include <Base/Parameter.h>
 #include <Base/Tools.h>
 #include <Base/Vector3D.h>
+#include <Gui/Application.h>
+#include <Gui/Document.h>
 #include <Gui/Selection/Selection.h>
+#include <Gui/Utilities.h>
+#include <Gui/View3DInventor.h>
+#include <Gui/View3DInventorViewer.h>
 #include <Mod/TechDraw/App/CenterLine.h>
 #include <Mod/TechDraw/App/Cosmetic.h>
 #include <Mod/TechDraw/App/DrawComplexSection.h>
 #include <Mod/TechDraw/App/DrawGeomHatch.h>
 #include <Mod/TechDraw/App/DrawHatch.h>
 #include <Mod/TechDraw/App/DrawUtil.h>
-#include <Mod/TechDraw/App/ShapeUtils.h>
 #include <Mod/TechDraw/App/DrawViewDetail.h>
 #include <Mod/TechDraw/App/DrawViewBrokenOutSection.h>
 #include <Mod/TechDraw/App/DrawViewPart.h>
 #include <Mod/TechDraw/App/DrawViewSection.h>
 #include <Mod/TechDraw/App/Geometry.h>
+#include <Mod/TechDraw/App/GeometryObject.h>
 #include <Mod/TechDraw/App/Preferences.h>
 #include <Mod/TechDraw/App/DrawBrokenView.h>
 #include <Mod/TechDraw/App/DrawProjGroup.h>
 #include <Mod/TechDraw/App/DrawProjGroupItem.h>
 #include <Mod/Part/App/Tools.h>
+#include <Mod/Part/Gui/ViewProviderExt.h>
 
 #include "DrawGuiUtil.h"
 #include "BrokenOutSectionUtils.h"
@@ -119,6 +118,7 @@ namespace {
 constexpr double ShadedPixelsPerMillimetre = 12.0;  // approximately 300 dpi
 constexpr int ShadedMaxImageDimension = 4096;
 constexpr double ShadedAngularDeflection = 0.20;
+constexpr double ShadedDeviation = 0.2;
 constexpr double BreakLineClipInset = 2.0;
 
 QRectF breakLineClipBounds(const DrawViewPart* view)
@@ -146,18 +146,6 @@ QRectF breakLineClipBounds(const DrawViewPart* view)
     bounds.adjust(inset, inset, -inset, -inset);
     return bounds;
 }
-
-struct ShadedVertex
-{
-    QPointF point;
-    double depth;
-    gp_Vec normal;
-};
-
-struct ShadedTriangle
-{
-    ShadedVertex vertices[3];
-};
 
 struct ShadedImage
 {
@@ -327,261 +315,131 @@ QPainterPath clipMaterialFaceAtBrokenOutBoundary(
     return face;
 }
 
-double edgeFunction(const QPointF& a, const QPointF& b, double x, double y)
-{
-    return (x - a.x()) * (b.y() - a.y()) - (y - a.y()) * (b.x() - a.x());
-}
-
-QColor shadePixel(const QColor& base,
-                  gp_Vec normal,
-                  const gp_Vec& lightDirection,
-                  const gp_Vec& viewDirection,
-                  const gp_Vec& halfDirection)
-{
-    if (normal.SquareMagnitude() <= Precision::SquareConfusion()) {
-        return base;
-    }
-    normal.Normalize();
-
-    // TechDraw shades both sides of open shells. Make the normal face the camera
-    // before applying a camera-relative light.
-    if (normal.Dot(viewDirection) < 0.0) {
-        normal.Reverse();
-    }
-
-    const double diffuse = std::max(0.0, normal.Dot(lightDirection));
-    const double specular = std::pow(std::max(0.0, normal.Dot(halfDirection)), 24.0);
-    const double intensity = std::clamp(0.28 + 0.62 * diffuse + 0.18 * specular, 0.0, 1.15);
-
-    auto channel = [intensity](int value) {
-        return std::clamp(static_cast<int>(std::lround(value * intensity)), 0, 255);
-    };
-    return QColor(channel(base.red()), channel(base.green()), channel(base.blue()), base.alpha());
-}
-
+// Render the prepared HLR shape through the shared screenshot pipeline.
 std::optional<ShadedImage> makeShadedImage(DrawViewPart* viewPart, QColor baseColor)
 {
-    TopoDS_Shape sourceShape = viewPart->getSourceShape();
-    if (sourceShape.IsNull()) {
+    const auto geometry = viewPart->getGeometryObject();
+    if (!geometry || geometry->getProjectionShape().IsNull()) {
         return {};
     }
+    // Part owns the shape-to-Coin conversion, including meshing, face orientation
+    // and normals. Only the projection and page coordinates belong to TechDraw.
+    const Gui::CoinPtr<SoSeparator> root(new SoSeparator);
+    auto* material = new SoMaterial;
+    material->diffuseColor.setValue(float(baseColor.redF()), float(baseColor.greenF()),
+                                    float(baseColor.blueF()));
+    root->addChild(material);
+    gp_Trsf projectionTransform;
+    projectionTransform.SetTransformation(gp_Ax3(geometry->getProjectionAxis()));
+    auto* transform = new SoMatrixTransform;
+    transform->matrix = Base::convertTo<SbMatrix>(
+        Base::convertTo<Base::Placement>(projectionTransform).toMatrix()
+    );
+    root->addChild(transform);
+    root->addChild(
+        PartGui::ViewProviderPartExt::createFaceGeometry(
+            geometry->getProjectionShape(),
+            ShadedDeviation,
+            Base::toDegrees(ShadedAngularDeflection)
+        )
+    );
 
-    // Work on a topology copy so tessellation never modifies the source object's mesh.
-    BRepBuilderAPI_Copy copier(sourceShape, false, false);
-    TopoDS_Shape displayShape = copier.Shape();
-    displayShape = viewPart->scaleAndRotate(
-        TechDraw::ShapeUtils::centerShape(displayShape, viewPart->getCurrentCentroid()));
-
-    Bnd_Box shapeBox;
-    BRepBndLib::Add(displayShape, shapeBox);
-    if (shapeBox.IsVoid()) {
+    SoGetBoundingBoxAction boundsAction(SbViewportRegion(1, 1));
+    boundsAction.apply(root);
+    const SbBox3f bounds = boundsAction.getBoundingBox();
+    if (bounds.isEmpty()) {
         return {};
     }
-
-    double xMin = 0.0;
-    double yMin = 0.0;
-    double zMin = 0.0;
-    double xMax = 0.0;
-    double yMax = 0.0;
-    double zMax = 0.0;
-    shapeBox.Get(xMin, yMin, zMin, xMax, yMax, zMax);
-    const double extent =
-        std::max({xMax - xMin, yMax - yMin, zMax - zMin});
-    const double deflection = std::max(Precision::Confusion(), extent / 500.0);
-    BRepMesh_IncrementalMesh mesher(
-        displayShape, deflection, false, ShadedAngularDeflection, true);
-    if (!mesher.IsDone()) {
+    const SbVec3f low = bounds.getMin(), high = bounds.getMax();
+    const double minZ = low[2], maxZ = high[2];
+    const double extent = std::max({double(high[0] - low[0]), double(high[1] - low[1]), maxZ - minZ});
+    const bool perspective = geometry->isPerspective();
+    const double focus = std::max(Precision::Confusion(), geometry->getFocus());
+    // HLR projects from (0, 0, focus) onto z=0. There are no finite image
+    // bounds if any geometry crosses the eye plane.
+    if (perspective && focus - maxZ <= Precision::Confusion()) {
         return {};
     }
-
-    const gp_Ax2 projection = viewPart->getProjectionCS();
-    const gp_Pnt origin = projection.Location();
-    const gp_Dir xDirection = projection.XDirection();
-    const gp_Dir yDirection = projection.YDirection();
-    const gp_Dir projectionDirection = projection.Direction();
-
-    gp_Vec lightDirection(projectionDirection);
-    lightDirection += gp_Vec(xDirection).Multiplied(-0.35);
-    lightDirection += gp_Vec(yDirection).Multiplied(-0.45);
-    lightDirection.Normalize();
-    gp_Vec viewDirection(projectionDirection);
-    gp_Vec halfDirection = lightDirection + viewDirection;
-    halfDirection.Normalize();
-
-    std::vector<ShadedTriangle> triangles;
-    double sceneMinX = std::numeric_limits<double>::infinity();
-    double sceneMinY = std::numeric_limits<double>::infinity();
-    double sceneMaxX = -std::numeric_limits<double>::infinity();
-    double sceneMaxY = -std::numeric_limits<double>::infinity();
-
-    for (TopExp_Explorer explorer(displayShape, TopAbs_FACE);
-         explorer.More();
-         explorer.Next()) {
-        const TopoDS_Face face = TopoDS::Face(explorer.Current());
-        TopLoc_Location location;
-        Handle(Poly_Triangulation) triangulation =
-            BRep_Tool::Triangulation(face, location);
-        if (triangulation.IsNull()) {
-            continue;
-        }
-
-        std::vector<gp_Vec> normals;
-        Part::Tools::getPointNormals(face, triangulation, normals);
-        Part::Tools::applyTransformationOnNormals(location, normals);
-
-#if OCC_VERSION_HEX < 0x070600
-        const TColgp_Array1OfPnt& nodes = triangulation->Nodes();
-        const Poly_Array1OfTriangle& meshTriangles = triangulation->Triangles();
-#endif
-        std::vector<ShadedVertex> vertices;
-        vertices.reserve(triangulation->NbNodes());
-        for (int nodeIndex = 1; nodeIndex <= triangulation->NbNodes(); ++nodeIndex) {
-#if OCC_VERSION_HEX < 0x070600
-            gp_Pnt point = nodes(nodeIndex);
-#else
-            gp_Pnt point = triangulation->Node(nodeIndex);
-#endif
-            if (!location.IsIdentity()) {
-                point.Transform(location.Transformation());
-            }
-
-            const gp_Vec relative(origin, point);
-            const QPointF projected(
-                Rez::guiX(relative.Dot(gp_Vec(xDirection))),
-                Rez::guiX(-relative.Dot(gp_Vec(yDirection))));
-            vertices.push_back(
-                {projected,
-                 relative.Dot(gp_Vec(projectionDirection)),
-                 normals.at(static_cast<size_t>(nodeIndex - 1))});
-
-            sceneMinX = std::min(sceneMinX, projected.x());
-            sceneMinY = std::min(sceneMinY, projected.y());
-            sceneMaxX = std::max(sceneMaxX, projected.x());
-            sceneMaxY = std::max(sceneMaxY, projected.y());
-        }
-
-        for (int triangleIndex = 1;
-             triangleIndex <= triangulation->NbTriangles();
-             ++triangleIndex) {
-            int indices[3];
-#if OCC_VERSION_HEX < 0x070600
-            meshTriangles(triangleIndex).Get(
-                indices[0], indices[1], indices[2]);
-#else
-            triangulation->Triangle(triangleIndex).Get(
-                indices[0], indices[1], indices[2]);
-#endif
-            ShadedTriangle triangle;
-            for (int vertexIndex = 0; vertexIndex < 3; ++vertexIndex) {
-                triangle.vertices[vertexIndex] =
-                    vertices.at(static_cast<size_t>(indices[vertexIndex] - 1));
-            }
-            triangles.push_back(std::move(triangle));
+    double minX = low[0], minY = low[1], maxX = high[0], maxY = high[1];
+    if (perspective) {
+        minX = minY = std::numeric_limits<double>::infinity();
+        maxX = maxY = -minX;
+        for (int corner = 0; corner < 8; ++corner) {
+            const double x = corner & 1 ? high[0] : low[0];
+            const double y = corner & 2 ? high[1] : low[1];
+            const double z = corner & 4 ? maxZ : minZ;
+            const double factor = focus / (focus - z);
+            minX = std::min(minX, x * factor);
+            maxX = std::max(maxX, x * factor);
+            minY = std::min(minY, y * factor);
+            maxY = std::max(maxY, y * factor);
         }
     }
-
-    const QRectF sceneBoundsUnpadded(
-        QPointF(sceneMinX, sceneMinY),
-        QPointF(sceneMaxX, sceneMaxY));
-    if (triangles.empty() || sceneBoundsUnpadded.isEmpty()) {
+    if (!std::isfinite(minX) || maxX <= minX || maxY <= minY) {
         return {};
     }
-
-    QRectF sceneBounds = sceneBoundsUnpadded;
-    double pixelsPerSceneUnit = ShadedPixelsPerMillimetre / Rez::getRezFactor();
-    const double longestSceneSide = std::max(sceneBounds.width(), sceneBounds.height());
-    if (longestSceneSide * pixelsPerSceneUnit > ShadedMaxImageDimension) {
-        pixelsPerSceneUnit = ShadedMaxImageDimension / longestSceneSide;
+    const Gui::CoinPtr<SoCamera> camera(
+        perspective ? static_cast<SoCamera*>(new SoFrustumCamera)
+                    : static_cast<SoCamera*>(new SoOrthographicCamera)
+    );
+    const double pixelsPerUnit = std::min(ShadedPixelsPerMillimetre,
+        (ShadedMaxImageDimension - 4.0) / std::max(maxX - minX, maxY - minY));
+    minX -= 2.0 / pixelsPerUnit;
+    maxX += 2.0 / pixelsPerUnit;
+    minY -= 2.0 / pixelsPerUnit;
+    maxY += 2.0 / pixelsPerUnit;
+    const int width = std::min(ShadedMaxImageDimension,
+        std::max(2, int(std::ceil((maxX - minX) * pixelsPerUnit))));
+    const int height = std::min(ShadedMaxImageDimension,
+        std::max(2, int(std::ceil((maxY - minY) * pixelsPerUnit))));
+    // Account for rounding so Coin and QPainter use exactly the same aspect ratio.
+    const double centerX = (minX + maxX) / 2.0;
+    const double halfWidth = (maxY - minY) * width / height / 2.0;
+    minX = centerX - halfWidth;
+    maxX = centerX + halfWidth;
+    const double padding = std::max(extent * 0.1, 0.001);
+    const double eye = perspective ? focus : maxZ + padding;
+    const double nearDistance = std::max(Precision::Confusion(), (eye - maxZ) * 0.5);
+    camera->nearDistance = float(nearDistance);
+    camera->farDistance = float(eye - minZ + padding);
+    camera->viewportMapping = SoCamera::LEAVE_ALONE;
+    camera->aspectRatio = float(width) / height;
+    if (perspective) {
+        camera->position.setValue(0, 0, float(eye));
+        auto* frustum = static_cast<SoFrustumCamera*>(camera.get());
+        frustum->left = float(minX * nearDistance / focus);
+        frustum->right = float(maxX * nearDistance / focus);
+        frustum->bottom = float(minY * nearDistance / focus);
+        frustum->top = float(maxY * nearDistance / focus);
     }
-    pixelsPerSceneUnit = std::max(pixelsPerSceneUnit, 0.01);
-
-    const double margin = 1.0 / pixelsPerSceneUnit;
-    sceneBounds.adjust(-margin, -margin, margin, margin);
-    const int imageWidth =
-        std::max(2, static_cast<int>(std::ceil(sceneBounds.width() * pixelsPerSceneUnit)));
-    const int imageHeight =
-        std::max(2, static_cast<int>(std::ceil(sceneBounds.height() * pixelsPerSceneUnit)));
-
-    QImage image(imageWidth, imageHeight, QImage::Format_ARGB32);
-    image.fill(Qt::transparent);
-    std::vector<double> depthBuffer(
-        static_cast<size_t>(imageWidth) * static_cast<size_t>(imageHeight),
-        -std::numeric_limits<double>::infinity());
-
-    auto toImagePoint = [&sceneBounds, pixelsPerSceneUnit](const QPointF& point) {
-        return QPointF(
-            (point.x() - sceneBounds.left()) * pixelsPerSceneUnit,
-            (point.y() - sceneBounds.top()) * pixelsPerSceneUnit);
-    };
-
-    for (const auto& triangle : triangles) {
-        QPointF points[3] = {
-            toImagePoint(triangle.vertices[0].point),
-            toImagePoint(triangle.vertices[1].point),
-            toImagePoint(triangle.vertices[2].point)
-        };
-        const double area = edgeFunction(points[0], points[1], points[2].x(), points[2].y());
-        if (std::abs(area) <= std::numeric_limits<double>::epsilon()) {
-            continue;
-        }
-
-        const int left = std::max(
-            0, static_cast<int>(std::floor(std::min({points[0].x(), points[1].x(), points[2].x()}))));
-        const int right = std::min(
-            imageWidth - 1,
-            static_cast<int>(std::ceil(std::max({points[0].x(), points[1].x(), points[2].x()}))));
-        const int top = std::max(
-            0, static_cast<int>(std::floor(std::min({points[0].y(), points[1].y(), points[2].y()}))));
-        const int bottom = std::min(
-            imageHeight - 1,
-            static_cast<int>(std::ceil(std::max({points[0].y(), points[1].y(), points[2].y()}))));
-
-        for (int y = top; y <= bottom; ++y) {
-            auto* scanline = reinterpret_cast<QRgb*>(image.scanLine(y));
-            for (int x = left; x <= right; ++x) {
-                const double sampleX = x + 0.5;
-                const double sampleY = y + 0.5;
-                const double w0 =
-                    edgeFunction(points[1], points[2], sampleX, sampleY) / area;
-                const double w1 =
-                    edgeFunction(points[2], points[0], sampleX, sampleY) / area;
-                const double w2 = 1.0 - w0 - w1;
-                constexpr double edgeTolerance = -1.0e-8;
-                if (w0 < edgeTolerance || w1 < edgeTolerance || w2 < edgeTolerance) {
-                    continue;
-                }
-
-                const double depth =
-                    w0 * triangle.vertices[0].depth
-                    + w1 * triangle.vertices[1].depth
-                    + w2 * triangle.vertices[2].depth;
-                const size_t bufferIndex =
-                    static_cast<size_t>(y) * static_cast<size_t>(imageWidth)
-                    + static_cast<size_t>(x);
-                if (depth <= depthBuffer[bufferIndex]) {
-                    continue;
-                }
-
-                depthBuffer[bufferIndex] = depth;
-                const gp_Vec normal(
-                    w0 * triangle.vertices[0].normal.X()
-                        + w1 * triangle.vertices[1].normal.X()
-                        + w2 * triangle.vertices[2].normal.X(),
-                    w0 * triangle.vertices[0].normal.Y()
-                        + w1 * triangle.vertices[1].normal.Y()
-                        + w2 * triangle.vertices[2].normal.Y(),
-                    w0 * triangle.vertices[0].normal.Z()
-                        + w1 * triangle.vertices[1].normal.Z()
-                        + w2 * triangle.vertices[2].normal.Z());
-                const QColor shaded =
-                    shadePixel(baseColor, normal, lightDirection, viewDirection, halfDirection);
-                scanline[x] = qRgba(
-                    shaded.red(), shaded.green(), shaded.blue(), shaded.alpha());
-            }
-        }
+    else {
+        camera->position.setValue(float(centerX), float((minY + maxY) / 2.0), float(eye));
+        static_cast<SoOrthographicCamera*>(camera.get())->height = float(maxY - minY);
     }
 
-    return ShadedImage{std::move(image), sceneBounds};
+    auto* guiDocument = Gui::Application::Instance->getDocument(viewPart->getDocument());
+    Gui::View3DInventorViewer* viewer = nullptr;
+    if (guiDocument) {
+        const auto views = guiDocument->getMDIViewsOfType(Gui::View3DInventor::getClassTypeId());
+        if (!views.empty()) {
+            viewer = static_cast<Gui::View3DInventor*>(views.front())->getViewer();
+        }
+    }
+    Gui::View3DInventorViewer::RenderImageOptions options;
+    options.width = width;
+    options.height = height;
+    options.samples = 4;
+    options.background = Qt::transparent;
+    options.alphaMode = Gui::View3DInventorViewer::AlphaMode::PerPixel;
+    options.camera = camera;
+    options.scene = root;
+    QImage image = Gui::View3DInventorViewer::renderSceneToImage(options, viewer);
+    if (image.isNull()) {
+        return {};
+    }
+    return ShadedImage{std::move(image),
+        QRectF(QPointF(Rez::guiX(minX), Rez::guiX(-maxY)),
+               QPointF(Rez::guiX(maxX), Rez::guiX(-minY)))};
 }
 
 }  // namespace
@@ -850,8 +708,7 @@ void QGIViewPart::drawViewPart()
 void QGIViewPart::drawBrokenOutSectionFaces()
 {
     auto* viewPart = dynamic_cast<TechDraw::DrawViewPart*>(getViewObject());
-    auto* viewProvider =
-        dynamic_cast<ViewProviderViewPart*>(getViewProvider(getViewObject()));
+    auto* viewProvider = getViewProvider<ViewProviderViewPart>(getViewObject());
     if (!viewPart || !viewProvider) {
         return;
     }
@@ -881,8 +738,7 @@ void QGIViewPart::drawBrokenOutSectionFaces()
 void QGIViewPart::drawBrokenOutSectionOutlines()
 {
     auto* viewPart = dynamic_cast<TechDraw::DrawViewPart*>(getViewObject());
-    auto* viewProvider =
-        dynamic_cast<ViewProviderViewPart*>(getViewProvider(getViewObject()));
+    auto* viewProvider = getViewProvider<ViewProviderViewPart>(getViewObject());
     if (!viewPart || !viewProvider) {
         return;
     }
@@ -937,17 +793,27 @@ void QGIViewPart::drawBrokenOutSectionOutlines()
 void QGIViewPart::drawShaded()
 {
     auto* viewPart = static_cast<TechDraw::DrawViewPart*>(getViewObject());
-    auto* viewProvider =
-        dynamic_cast<ViewProviderViewPart*>(getViewProvider(getViewObject()));
+    auto* viewProvider = getViewProvider<ViewProviderViewPart>(getViewObject());
     if (!viewProvider) {
         return;
     }
 
+    // Shaded styles always render opaque. FaceTransparency (initialised from the
+    // "Transparent faces" preference) is meant for the edge styles, where it would
+    // otherwise make the shaded image fully invisible.
     QColor faceColor = viewProvider->FaceColor.getValue().asValue<QColor>();
-    faceColor.setAlpha(
-        (100 - viewProvider->FaceTransparency.getValue()) * 255 / 100);
+    faceColor.setAlpha(255);
 
-    auto shaded = makeShadedImage(viewPart, faceColor);
+    std::optional<ShadedImage> shaded;
+    try {
+        shaded = makeShadedImage(viewPart, faceColor);
+    }
+    catch (const Standard_Failure& error) {
+        Base::Console().warning("TechDraw shading: %s\n", error.GetMessageString());
+    }
+    catch (const std::exception& error) {
+        Base::Console().warning("TechDraw shading: %s\n", error.what());
+    }
     if (!shaded) {
         Base::Console().warning(
             "Could not create shaded image for %s\n",
@@ -967,7 +833,7 @@ void QGIViewPart::drawAllFaces(void)
     auto dvp(static_cast<TechDraw::DrawViewPart*>(getViewObject()));
 
     QColor faceColor;
-    auto vpp = dynamic_cast<ViewProviderViewPart *>(getViewProvider(getViewObject()));
+    auto vpp = getViewProvider<ViewProviderViewPart>(getViewObject());
     if (vpp) {
         faceColor = vpp->FaceColor.getValue().asValue<QColor>();
         faceColor.setAlpha((100 - vpp->FaceTransparency.getValue())*255/100);
