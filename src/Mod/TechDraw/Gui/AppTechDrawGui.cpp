@@ -39,6 +39,7 @@
 #include "DlgPrefsTechDrawHLRImp.h"
 #include "DlgPrefsTechDrawScaleImp.h"
 #include "MDIViewPage.h"
+#include "TemplateTranslationService.h"
 #include "ViewProviderAnnotation.h"
 #include "ViewProviderBalloon.h"
 #include "ViewProviderCosmeticExtension.h"
@@ -182,6 +183,7 @@ PyMOD_INIT_FUNC(TechDrawGui)
 
     // add resources and reloads the translators
     loadTechDrawResource();
+    TechDrawGui::registerTemplateTranslationService();
 
     PyMOD_Return(mod);
 }
