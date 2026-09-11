@@ -39,6 +39,7 @@
 // use a different name to CreateCommand()
 void CreateSurfaceCommands();
 void initSurfaceFreehandBSplineGui();
+void initSurfaceGordonSurfaceGui();
 
 
 namespace SurfaceGui
@@ -74,6 +75,7 @@ PyMOD_INIT_FUNC(SurfaceGui)
     Base::Interpreter().runString("import PartGui");
 
     initSurfaceFreehandBSplineGui();
+    initSurfaceGordonSurfaceGui();
 
     // clang-format off
     // instantiating the commands
