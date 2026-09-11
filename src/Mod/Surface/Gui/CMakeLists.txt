@@ -64,6 +64,7 @@ add_library(SurfaceGui SHARED
 )
 
 include(FreehandBSpline.cmake)
+include(GordonSurface.cmake)
 
 if(FREECAD_USE_PCH)
     target_precompile_headers(SurfaceGui PRIVATE
