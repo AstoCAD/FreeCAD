@@ -45,28 +45,37 @@ public:
     bool isTemplateValid() const;
     void updatePreviewAndPath();
 
-    // For TaskDlgNewPage to delegate accept
     bool acceptPageCreation();
+
+Q_SIGNALS:
+    void templateValidityChanged(bool valid);
 
 protected:
     void changeEvent(QEvent* e) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 public Q_SLOTS:
     void onOpenTemplateFolderClicked();
 
 private Q_SLOTS:
+    void onBrowseTemplate();
     void onStandardChanged(int index);
     void onSizeChanged(int index);
     void onOrientationChanged();
 
 private:
+    bool isManualSelection() const;
     void populateStandards();
     void populateSizes();
+    QStringList validSizes(const QString& standard) const;
+    void updateOrientationAvailability();
+    void updatePreviewSize();
     QString findTemplateFile(const QString& standard, const QString& size, bool landscape) const;
 
     std::unique_ptr<Ui_TaskNewPage> ui;
     QString m_baseTemplateDir;
     QString m_currentTemplateFile;
+    QString m_browsedTemplateFile;
     QButtonGroup* m_orientationGroup;
 };
 
@@ -78,6 +87,7 @@ class TaskDlgNewPage: public Gui::TaskView::TaskDialog
 public:
     explicit TaskDlgNewPage();
 
+    void modifyStandardButtons(QDialogButtonBox* buttons) override;
     void open() override;
     bool accept() override;
     bool reject() override;
