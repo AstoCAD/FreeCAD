@@ -41,6 +41,8 @@
 
 #include "Measure.h"
 
+void initSurfaceFreehandBSplineTypes();
+
 
 namespace Surface
 {
@@ -75,6 +77,7 @@ PyMOD_INIT_FUNC(Surface)
     }
 
     PyObject* mod = Surface::initModule();
+    initSurfaceFreehandBSplineTypes();
     Base::Console().log("Loading Surface module… done\n");
     Base::Interpreter().addType(&Surface::BlendPointPy::Type, mod, "BlendPoint");
     Base::Interpreter().addType(&Surface::BlendCurvePy::Type, mod, "BlendCurve");
