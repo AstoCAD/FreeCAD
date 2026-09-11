@@ -57,6 +57,8 @@ Gui::MenuItem* Workbench::setupMenuBar() const
      *surface << "Surface_Cut";
      */
 
+    *surface << "Separator" << "Surface_FreehandBSpline";
+
     return root;
 }
 
@@ -78,6 +80,8 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     /*
      *surface << "Surface_Cut";
      */
+
+    *surface << "Separator" << "Surface_FreehandBSpline";
 
     return root;
 }
