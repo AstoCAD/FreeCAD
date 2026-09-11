@@ -134,14 +134,6 @@ const char* DrawViewPart::DisplayStyleEnums[] = {
     nullptr
 };
 
-const char* DrawViewPart::BreakTypeEnums[] = {
-    QT_TRANSLATE_NOOP("DrawBrokenView", "None"),
-    QT_TRANSLATE_NOOP("DrawBrokenView", "ZigZag"),
-    QT_TRANSLATE_NOOP("DrawBrokenView", "Simple"),
-    QT_TRANSLATE_NOOP("DrawBrokenView", "Sinusoid"),
-    nullptr
-};
-
 namespace
 {
 
@@ -544,17 +536,6 @@ DrawViewBreak* DrawViewPart::addBreak(
     breaks.push_back(viewBreak);
     Breaks.setValues(breaks);
     return viewBreak;
-}
-
-bool DrawViewPart::removeBreak(std::size_t index)
-{
-    const auto definitions = viewBreakDefinitions(*this);
-    App::Document* document = getDocument();
-    if (!document || index >= definitions.size()) {
-        return false;
-    }
-    document->removeObject(definitions[index].object->getNameInDocument());
-    return true;
 }
 
 DrawViewBrokenOutSection* DrawViewPart::addBrokenOutSection(
@@ -988,28 +969,22 @@ short DrawViewPart::mustExecute() const
 
 void DrawViewPart::onChanged(const App::Property* prop)
 {
-    if (!m_syncingDisplayStyle && prop == &DisplayStyle) {
-        m_syncingDisplayStyle = true;
+    if (!m_syncingDisplayStyle && (prop == &DisplayStyle || prop == &HardHidden)) {
+        const Base::StateLocker guard(m_syncingDisplayStyle);
         const auto style = getDisplayStyle();
         const bool showHardHidden =
             style == ViewDisplayStyle::AllEdges || style == ViewDisplayStyle::HiddenEdges;
-        if (HardHidden.getValue() != showHardHidden) {
-            HardHidden.setValue(showHardHidden);
+        if (prop == &DisplayStyle) {
+            if (HardHidden.getValue() != showHardHidden) {
+                HardHidden.setValue(showHardHidden);
+            }
         }
-        m_syncingDisplayStyle = false;
-    }
-    else if (!m_syncingDisplayStyle && prop == &HardHidden) {
-        m_syncingDisplayStyle = true;
-        const auto style = getDisplayStyle();
-        const bool styleShowsHardHidden =
-            style == ViewDisplayStyle::AllEdges || style == ViewDisplayStyle::HiddenEdges;
-        if (HardHidden.getValue() && !styleShowsHardHidden) {
+        else if (HardHidden.getValue() && !showHardHidden) {
             DisplayStyle.setValue(static_cast<long>(ViewDisplayStyle::HiddenEdges));
         }
-        else if (!HardHidden.getValue() && styleShowsHardHidden) {
+        else if (!HardHidden.getValue() && showHardHidden) {
             DisplayStyle.setValue(static_cast<long>(ViewDisplayStyle::VisibleEdges));
         }
-        m_syncingDisplayStyle = false;
     }
 
     // If the user has set PropertyVector Direction to zero, set it along the default value instead (Front View).

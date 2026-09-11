@@ -152,7 +152,6 @@ public:
     App::PropertyInteger ScrubCount;
 
     static const char* DisplayStyleEnums[];
-    static const char* BreakTypeEnums[];
 
     App::PropertyLinkList Breaks;
     App::PropertyLinkList BrokenOutSections;
@@ -171,7 +170,6 @@ public:
                             const Base::Vector3d& direction,
                             double gap,
                             BreakType lineType);
-    bool removeBreak(std::size_t index);
     DrawViewBrokenOutSection* addBrokenOutSection(
         const std::vector<Base::Vector3d>& outline,
         double depth);

@@ -75,6 +75,18 @@ public:
     void setBreakType(BreakType style) { m_breakType = style; }
     BreakType breakType() const { return m_breakType; }
 
+    /// The area of a view's scene item in which its break lines are drawn.
+    static QRectF clipBounds(const TechDraw::DrawViewPart* view);
+    /// The part inside bounds of the line through point along tangent.
+    static std::optional<std::pair<QPointF, QPointF>>
+        clipLine(const QPointF& point, const QPointF& tangent, const QRectF& bounds);
+    /// A break line from start to end in the given style. A non-zero outwardSign keeps the
+    /// waveform on that side of the line.
+    static QPainterPath styledLine(const QPointF& start,
+                                   const QPointF& end,
+                                   BreakType type,
+                                   double outwardSign = 0.0);
+
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
@@ -82,11 +94,6 @@ protected:
 private:
     void drawLargeZigZag();
     void drawGenericLines();
-    QPainterPath makeStyledLine(const QPointF& start,
-                                const QPointF& end,
-                                double outwardSign = 0.0) const;
-    std::optional<std::pair<QPointF, QPointF>>
-        clippedLine(const QPointF& point, const QPointF& tangent) const;
     QPainterPath makeHorizontalZigZag(Base::Vector3d start) const;
     QPainterPath makeVerticalZigZag(Base::Vector3d start) const;
     void drawSimpleLines();
