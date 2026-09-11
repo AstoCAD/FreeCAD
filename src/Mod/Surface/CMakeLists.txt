@@ -26,6 +26,12 @@ list(APPEND Surface_TestScripts
     SurfaceTests/TestFreehandBSplineGui.py
 )
 
+list(APPEND Surface_Scripts TestSurfaceGordonSurface.py)
+list(APPEND Surface_TestScripts
+    SurfaceTests/TestGordonSurface.py
+    SurfaceTests/TestGordonSurfaceGui.py
+)
+
 add_custom_target(SurfaceScripts ALL
     SOURCES ${Surface_Scripts} ${Surface_TestScripts}
 )
