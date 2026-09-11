@@ -42,6 +42,7 @@
 
 #include <Mod/TechDraw/App/Preferences.h>
 #include <Mod/TechDraw/App/DrawUtil.h>
+#include <Mod/TechDraw/App/DrawViewPart.h>
 
 #include "QGIBreakLine.h"
 #include "PreferencesGui.h"
@@ -54,6 +55,8 @@ using DU = DrawUtil;
 
 constexpr double zigzagWidth{30.0};
 constexpr double segments{8};
+// distance in mm between a view's outline and the ends of its break lines
+constexpr double breakLineClipInset{2.0};
 
 QGIBreakLine::QGIBreakLine()
 {
@@ -181,27 +184,54 @@ void QGIBreakLine::setLineGeometry(const QPointF& first,
     m_genericGeometry = true;
 }
 
+QRectF QGIBreakLine::clipBounds(const TechDraw::DrawViewPart* view)
+{
+    if (!view) {
+        return {};
+    }
+
+    const Base::BoundBox3d box = view->getBoundingBox();
+    if (!box.IsValid()) {
+        return {};
+    }
+
+    QRectF bounds(QPointF(Rez::guiX(box.MinX), Rez::guiX(-box.MaxY)),
+                  QPointF(Rez::guiX(box.MaxX), Rez::guiX(-box.MinY)));
+    bounds = bounds.normalized();
+
+    // Keep the break decoration, including its waveform and pen, inside the
+    // projected geometry.  In particular, never derive this extent from
+    // QGIViewPart::boundingRect(): it already contains previously drawn break
+    // lines and would make them grow on every redraw.
+    const double inset = std::min(
+        Rez::guiX(breakLineClipInset),
+        0.25 * std::min(bounds.width(), bounds.height()));
+    bounds.adjust(inset, inset, -inset, -inset);
+    return bounds;
+}
+
 std::optional<std::pair<QPointF, QPointF>>
-QGIBreakLine::clippedLine(const QPointF& point, const QPointF& tangent) const
+QGIBreakLine::clipLine(const QPointF& point, const QPointF& tangent, const QRectF& rectangle)
 {
     constexpr double epsilon = 1.0e-9;
+    const QRectF bounds = rectangle.normalized();
     std::vector<std::pair<double, QPointF>> hits;
     auto addHit = [&](double parameter) {
         const QPointF hit = point + tangent * parameter;
-        if (hit.x() >= m_clipBounds.left() - epsilon
-            && hit.x() <= m_clipBounds.right() + epsilon
-            && hit.y() >= m_clipBounds.top() - epsilon
-            && hit.y() <= m_clipBounds.bottom() + epsilon) {
+        if (hit.x() >= bounds.left() - epsilon
+            && hit.x() <= bounds.right() + epsilon
+            && hit.y() >= bounds.top() - epsilon
+            && hit.y() <= bounds.bottom() + epsilon) {
             hits.emplace_back(parameter, hit);
         }
     };
     if (std::abs(tangent.x()) > epsilon) {
-        addHit((m_clipBounds.left() - point.x()) / tangent.x());
-        addHit((m_clipBounds.right() - point.x()) / tangent.x());
+        addHit((bounds.left() - point.x()) / tangent.x());
+        addHit((bounds.right() - point.x()) / tangent.x());
     }
     if (std::abs(tangent.y()) > epsilon) {
-        addHit((m_clipBounds.top() - point.y()) / tangent.y());
-        addHit((m_clipBounds.bottom() - point.y()) / tangent.y());
+        addHit((bounds.top() - point.y()) / tangent.y());
+        addHit((bounds.bottom() - point.y()) / tangent.y());
     }
     if (hits.size() < 2) {
         return std::nullopt;
@@ -218,12 +248,13 @@ QGIBreakLine::clippedLine(const QPointF& point, const QPointF& tangent) const
     return std::pair{hits.front().second, hits.back().second};
 }
 
-QPainterPath QGIBreakLine::makeStyledLine(const QPointF& start,
-                                          const QPointF& end,
-                                          double outwardSign) const
+QPainterPath QGIBreakLine::styledLine(const QPointF& start,
+                                      const QPointF& end,
+                                      BreakType type,
+                                      double outwardSign)
 {
     QPainterPath path(start);
-    if (breakType() == BreakType::SIMPLE) {
+    if (type == BreakType::SIMPLE) {
         path.lineTo(end);
         return path;
     }
@@ -236,12 +267,12 @@ QPainterPath QGIBreakLine::makeStyledLine(const QPointF& start,
     tangent /= length;
     const QPointF normal(-tangent.y(), tangent.x());
     const double amplitude = Rez::guiX(1.5);
-    const int segments = breakType() == BreakType::SINUSOID ? 100 : 12;
+    const int segments = type == BreakType::SINUSOID ? 100 : 12;
     for (int segment = 1; segment <= segments; ++segment) {
         const double fraction =
             static_cast<double>(segment) / static_cast<double>(segments);
         double offset = 0.0;
-        if (breakType() == BreakType::SINUSOID) {
+        if (type == BreakType::SINUSOID) {
             const double phase = fraction * 10.0 * std::numbers::pi;
             offset = outwardSign == 0.0
                 ? amplitude * std::sin(phase)
@@ -267,8 +298,8 @@ void QGIBreakLine::drawGenericLines()
         return;
     }
 
-    const auto firstLine = clippedLine(m_firstPoint, m_tangent);
-    const auto secondLine = clippedLine(m_secondPoint, m_tangent);
+    const auto firstLine = clipLine(m_firstPoint, m_tangent, m_clipBounds);
+    const auto secondLine = clipLine(m_secondPoint, m_tangent, m_clipBounds);
     if (!firstLine || !secondLine) {
         m_background->setPath({});
         m_line0->setPath({});
@@ -296,9 +327,9 @@ void QGIBreakLine::drawGenericLines()
     }
 
     const QPainterPath firstPath =
-        makeStyledLine(firstLine->first, firstLine->second, firstOutward);
+        styledLine(firstLine->first, firstLine->second, breakType(), firstOutward);
     const QPainterPath secondPath =
-        makeStyledLine(secondLine->first, secondLine->second, secondOutward);
+        styledLine(secondLine->first, secondLine->second, breakType(), secondOutward);
     m_line0->setPath(firstPath);
     m_line1->setPath(secondPath);
 

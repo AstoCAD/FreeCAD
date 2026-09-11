@@ -1,8 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""TechDraw_BrokenView creates a broken view from a selected object and break sketch.
-
-https://github.com/AstoCAD/FreeCAD/issues/154
-"""
+"""TechDraw_BrokenView creates a broken view from a selected object and break sketch."""
 
 from pathlib import Path
 import unittest

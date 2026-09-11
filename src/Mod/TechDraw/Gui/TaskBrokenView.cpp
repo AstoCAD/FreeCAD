@@ -32,11 +32,8 @@
 #include <QPointer>
 #include <QTimer>
 
-#include <algorithm>
 #include <cmath>
-#include <numbers>
-#include <optional>
-#include <vector>
+#include <list>
 
 #include <App/Document.h>
 #include <Base/Converter.h>
@@ -52,6 +49,7 @@
 #include <Mod/TechDraw/App/DrawViewPart.h>
 
 #include "ui_TaskBrokenView.h"
+#include "QGIBreakLine.h"
 #include "QGIViewPart.h"
 #include "QGSPage.h"
 #include "QGVPage.h"
@@ -64,102 +62,6 @@ using namespace TechDrawGui;
 
 namespace
 {
-
-constexpr double BreakLineClipInset = 2.0;
-
-QRectF breakLineClipBounds(const DrawViewPart* view)
-{
-    if (!view) {
-        return {};
-    }
-
-    const Base::BoundBox3d box = view->getBoundingBox();
-    if (!box.IsValid()) {
-        return {};
-    }
-
-    QRectF bounds(QPointF(Rez::guiX(box.MinX), Rez::guiX(-box.MaxY)),
-                  QPointF(Rez::guiX(box.MaxX), Rez::guiX(-box.MinY)));
-    bounds = bounds.normalized();
-    const double inset = std::min(
-        Rez::guiX(BreakLineClipInset),
-        0.25 * std::min(bounds.width(), bounds.height()));
-    bounds.adjust(inset, inset, -inset, -inset);
-    return bounds;
-}
-
-QPainterPath styledBreakPath(const QPointF& start,
-                             const QPointF& end,
-                             DrawViewPart::BreakType type)
-{
-    QPainterPath path(start);
-    QPointF tangent = end - start;
-    const double length = std::hypot(tangent.x(), tangent.y());
-    if (length <= 1.0e-9 || type == DrawViewPart::BreakType::SIMPLE) {
-        path.lineTo(end);
-        return path;
-    }
-    tangent /= length;
-    const QPointF normal(-tangent.y(), tangent.x());
-    const double amplitude = Rez::guiX(1.5);
-    const int segments =
-        type == DrawViewPart::BreakType::SINUSOID ? 100 : 12;
-    for (int segment = 1; segment <= segments; ++segment) {
-        const double fraction =
-            static_cast<double>(segment) / static_cast<double>(segments);
-        double offset = 0.0;
-        if (type == DrawViewPart::BreakType::SINUSOID) {
-            offset =
-                amplitude * std::sin(fraction * 10.0 * std::numbers::pi);
-        }
-        else if (segment < segments) {
-            offset = segment % 2 == 0 ? -amplitude : amplitude;
-        }
-        path.lineTo(
-            start + tangent * (length * fraction) + normal * offset);
-    }
-    return path;
-}
-
-std::optional<std::pair<QPointF, QPointF>>
-clipLine(const QPointF& point,
-         const QPointF& tangent,
-         const QRectF& rectangle)
-{
-    constexpr double epsilon = 1.0e-9;
-    const QRectF bounds = rectangle.normalized();
-    std::vector<std::pair<double, QPointF>> hits;
-    auto add = [&](double parameter) {
-        const QPointF hit = point + tangent * parameter;
-        if (hit.x() >= bounds.left() - epsilon
-            && hit.x() <= bounds.right() + epsilon
-            && hit.y() >= bounds.top() - epsilon
-            && hit.y() <= bounds.bottom() + epsilon) {
-            hits.emplace_back(parameter, hit);
-        }
-    };
-    if (std::abs(tangent.x()) > epsilon) {
-        add((bounds.left() - point.x()) / tangent.x());
-        add((bounds.right() - point.x()) / tangent.x());
-    }
-    if (std::abs(tangent.y()) > epsilon) {
-        add((bounds.top() - point.y()) / tangent.y());
-        add((bounds.bottom() - point.y()) / tangent.y());
-    }
-    if (hits.size() < 2) {
-        return std::nullopt;
-    }
-    std::sort(hits.begin(), hits.end(),
-              [](const auto& left, const auto& right) {
-                  return left.first < right.first;
-              });
-    if (std::hypot(hits.back().second.x() - hits.front().second.x(),
-                   hits.back().second.y() - hits.front().second.y())
-        <= epsilon) {
-        return std::nullopt;
-    }
-    return std::pair{hits.front().second, hits.back().second};
-}
 
 class BrokenViewHandler final : public TechDrawHandler
 {
@@ -228,8 +130,8 @@ public:
         else {
             const double radians = Base::toRadians(m_angle);
             const QPointF tangent(std::cos(radians), -std::sin(radians));
-            if (!clipLine(
-                    local, tangent, breakLineClipBounds(m_base))) {
+            if (!QGIBreakLine::clipLine(
+                    local, tangent, QGIBreakLine::clipBounds(m_base))) {
                 event->accept();
                 return;
             }
@@ -327,14 +229,14 @@ private:
         }
         const double radians = Base::toRadians(angle);
         const QPointF tangent(std::cos(radians), -std::sin(radians));
-        const auto ends =
-            clipLine(localPoint, tangent, breakLineClipBounds(m_base));
+        const auto ends = QGIBreakLine::clipLine(
+            localPoint, tangent, QGIBreakLine::clipBounds(m_base));
         if (!ends) {
             preview->hide();
             return false;
         }
         const QPainterPath localPath =
-            styledBreakPath(ends->first, ends->second, type);
+            QGIBreakLine::styledLine(ends->first, ends->second, type);
         preview->setPath(m_baseItem->sceneTransform().map(localPath));
         preview->show();
         return true;

@@ -43,15 +43,15 @@ class DrawDimensionViewBreakTest(unittest.TestCase):
         viewBreak.Direction = App.Vector(1, 0, 0)
         viewBreak.Gap = 10
         view.Breaks = [viewBreak]
-        self.recomputeView(view)
         # both pieces are drawn: the break is applied
-        self.assertEqual(len(view.getVisibleVertexes()), 8)
+        self.recomputeView(view, 8)
         return view
 
-    def recomputeView(self, view):
+    def recomputeView(self, view, vertexCount):
+        """Recompute and wait for the projection to give vertexCount visible vertices."""
         self.doc.recompute()
         deadline = time.monotonic() + 10
-        while not (view.isProjectionReady() and view.getVisibleVertexes()):
+        while len(view.getVisibleVertexes()) != vertexCount:
             self.assertLess(time.monotonic(), deadline, "projection did not finish")
             loop = QtCore.QEventLoop()
             QtCore.QTimer.singleShot(20, loop.quit)
@@ -91,8 +91,7 @@ class DrawDimensionViewBreakTest(unittest.TestCase):
         """Without an applied break the drawing length is the model length."""
         view = self.brokenView(0)
         view.Breaks[0].Suppressed = True
-        self.recomputeView(view)
-        self.assertEqual(len(view.getVisibleVertexes()), 4)
+        self.recomputeView(view, 4)
         vertices = self.farthestVertices(view)
         self.assertAlmostEqual(self.dimension(view, "DistanceX", vertices), 100, places=6)
 
