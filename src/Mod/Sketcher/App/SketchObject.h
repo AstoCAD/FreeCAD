@@ -355,6 +355,13 @@ public:
     /// get the datum of a Distance or Angle constraint
     double getDatum(int ConstrId) const;
     /// set the text and font of a text constraint
+    /// Replace a group's members from a snapshot, retaining its handle and metadata.
+    int replaceGroupGeometry(
+        int constraintId,
+        const std::vector<Part::Geometry*>& source,
+        const Base::Vector3d& sourceHandle = Base::Vector3d()
+    );
+
     SketchSolveStatus setTextAndFont(
         int ConstrId,
         std::string& newText,
