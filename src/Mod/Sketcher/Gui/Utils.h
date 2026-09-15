@@ -83,7 +83,10 @@ class ViewProviderSketch;
 
 /// Copy a complete Group/Text constraint, remapping every member into a transformed copy.
 std::unique_ptr<Sketcher::Constraint> copyTransformedGroup(
-    const Sketcher::Constraint& constraint, const std::vector<int>& geometry, int firstGeometry);
+    const Sketcher::Constraint& constraint,
+    const std::vector<int>& geometry,
+    int firstGeometry
+);
 
 enum OffsetMode : bool
 {
@@ -200,6 +203,8 @@ bool isSketchInEdit(Gui::Document* doc);
 bool isCommandActive(Gui::Document* doc);
 bool isCommandNeedingConstraintActive(Gui::Document* doc);
 bool isCommandNeedingGeometryActive(Gui::Document* doc);
+/// True when at least two distinct edges of the sketch in edit are selected.
+bool isCreateBlockActive(Gui::Document* doc);
 bool isCommandNeedingBSplineActive(Gui::Document* doc);
 
 SketcherGui::ViewProviderSketch* getInactiveHandlerEditModeSketchViewProvider(Gui::Document* doc);
@@ -246,8 +251,14 @@ inline void scrollTo(QListWidget* list, int i, bool select)
 // Model TreeWidget helpers
 Gui::TreeWidget* findModelTreeWidget();
 
-
-QMap<QString, QString> findAvailableSymbolFiles();
+std::vector<std::unique_ptr<Part::Geometry>> readBlockGeometry(
+    const std::string& filename,
+    bool* fixedSize = nullptr,
+    Base::Vector3d* sourceHandle = nullptr
+);
+int selectedBlockConstraint(Gui::Document* doc);
+void editFileBlock(ViewProviderSketch* view, int constraintId);
+void reloadFileGroup(ViewProviderSketch* view, int constraintId);
 
 }  // namespace SketcherGui
 
