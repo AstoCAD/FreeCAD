@@ -32,11 +32,14 @@
 #include <App/Application.h>
 #include <App/Transactions.h>
 #include <Base/Quantity.h>
+#include <Base/Interpreter.h>
 #include <Base/UnitsApi.h>
 #include <Gui/CommandT.h>
 #include <Gui/Document.h>
 #include <Gui/Selection/Selection.h>
+#include <Gui/Notifications.h>
 #include <Mod/Sketcher/App/GeometryFacade.h>
+#include <Mod/Part/App/GeometryPy.h>
 #include <Mod/Sketcher/App/SketchObject.h>
 
 #include "DrawSketchHandler.h"
@@ -54,7 +57,10 @@ bool Sketcher::isCircle(const Part::Geometry& geom)
 }
 
 std::unique_ptr<Sketcher::Constraint> SketcherGui::copyTransformedGroup(
-    const Sketcher::Constraint& constraint, const std::vector<int>& geometry, int firstGeometry)
+    const Sketcher::Constraint& constraint,
+    const std::vector<int>& geometry,
+    int firstGeometry
+)
 {
     auto result = std::unique_ptr<Sketcher::Constraint>(constraint.copy());
     for (int index = 0; constraint.hasElement(index); ++index) {
@@ -607,6 +613,33 @@ bool SketcherGui::isCommandNeedingGeometryActive(Gui::Document* doc)
     return false;
 }
 
+bool SketcherGui::isCreateBlockActive(Gui::Document* doc)
+{
+    if (!isCommandActive(doc)) {
+        return false;
+    }
+    const auto selection = Gui::Selection().getSelectionEx(
+        doc->getDocument()->getName(),
+        Sketcher::SketchObject::getClassTypeId()
+    );
+    auto* sketch = static_cast<ViewProviderSketch*>(doc->getInEdit())->getSketchObject();
+    if (selection.size() != 1 || selection[0].getObject() != sketch) {
+        return false;
+    }
+    std::set<int> edges;
+    for (const auto& name : selection[0].getSubNames()) {
+        if (name.starts_with("Edge") || name.starts_with("ExternalEdge")) {
+            int geoId;
+            PointPos posId;
+            getIdsFromName(name, sketch, geoId, posId);
+            if (sketch->getGeometry(geoId)) {
+                edges.insert(geoId);
+            }
+        }
+    }
+    return edges.size() >= 2;
+}
+
 bool SketcherGui::isCommandNeedingBSplineActive(Gui::Document* doc)
 {
     if (!isCommandActive(doc)) {
@@ -1031,39 +1064,143 @@ int SketcherGui::indexOfGeoId(const std::vector<int>& vec, int elem)
     }
     return -1;
 }
-/**
- * @brief Scans the FreeCAD resource directory for available SVG symbol files.
- * @return A map of friendly names (e.g., "fcc-logo") to their full file paths.
- */
-QMap<QString, QString> SketcherGui::findAvailableSymbolFiles()
+
+std::vector<std::unique_ptr<Part::Geometry>> SketcherGui::readBlockGeometry(
+    const std::string& filename,
+    bool* fixedSize,
+    Base::Vector3d* sourceHandle
+)
 {
-    QMap<QString, QString> symbolMap;
-
-    // Get the path to FreeCAD's data/Mod directory
-    std::string defaultDir = App::Application::getResourceDir() + "Mod/Sketcher/Symbols/";
-    QString symbolPath = QString::fromStdString(defaultDir);
-    QDir symbolDir(symbolPath);
-
-    if (!symbolDir.exists()) {
-        Base::Console().warning("Symbol directory not found at: {}\n", symbolPath.toStdString());
-        return symbolMap;
+    Base::PyGILStateLocker lock;
+    try {
+        PyObject* module = PyImport_ImportModule("SketcherBlock");
+        if (!module) {
+            throw Py::Exception();
+        }
+        Py::Module blocks(module, true);
+        Py::Tuple args(1);
+        args.setItem(0, Py::String(filename));
+        Py::List list(blocks.callMemberFunction("read", args));
+        if (fixedSize || sourceHandle) {
+            Py::Dict options(blocks.callMemberFunction("metadata", args));
+            if (fixedSize) {
+                *fixedSize = Py::Boolean(options.getItem("fixed_size")).isTrue();
+            }
+            if (sourceHandle) {
+                Py::Tuple handle(options.getItem("handle"));
+                *sourceHandle = Base::Vector3d(Py::Float(handle[0]), Py::Float(handle[1]), 0);
+            }
+        }
+        std::vector<std::unique_ptr<Part::Geometry>> result;
+        for (const auto& item : list) {
+            if (!PyObject_TypeCheck(item.ptr(), &Part::GeometryPy::Type)) {
+                throw Base::TypeError("Expected Part geometry in block file");
+            }
+            result.emplace_back(static_cast<Part::GeometryPy*>(item.ptr())->getGeometryPtr()->copy());
+        }
+        return result;
     }
+    catch (Py::Exception&) {
+        Base::PyException error;
+        throw Base::RuntimeError(error.what());
+    }
+}
 
-    // Iterate through all .svg files in the directory (and subdirectories)
-    QDirIterator it(
-        symbolPath,
-        QStringList() << QString::fromUtf8("*.svg"),
-        QDir::Files,
-        QDirIterator::Subdirectories
+void SketcherGui::reloadFileGroup(ViewProviderSketch* view, int constraintId)
+{
+    if (!view) {
+        return;
+    }
+    auto* sketch = view->getSketchObject();
+    const auto& constraints = sketch->Constraints.getValues();
+    if (constraintId < 0 || constraintId >= static_cast<int>(constraints.size())) {
+        return;
+    }
+    const QString file = QString::fromStdString(constraints[constraintId]->getFile());
+    const bool svg = QFileInfo(file).suffix().compare(QStringLiteral("svg"), Qt::CaseInsensitive)
+        == 0;
+    const char* module = svg ? "importSVG" : "SketcherBlock";
+    const char* function = svg ? "reloadSketchGroup" : "reload";
+    auto* doc = view->getDocument();
+    doc->openCommand(QT_TRANSLATE_NOOP("Command", "Reload group from file"));
+    try {
+        Gui::Command::doCommand(Gui::Command::App, "import %s", module);
+        Gui::Command::doCommand(
+            Gui::Command::Doc,
+            "%s.%s(%s, %d)",
+            module,
+            function,
+            Gui::Command::getObjectCmd(sketch).c_str(),
+            constraintId
+        );
+        if (sketch->solve() != Sketcher::SketchSolveStatus::Success) {
+            throw Base::RuntimeError("The reloaded group could not be solved");
+        }
+        doc->commitCommand();
+        view->draw(false, false);
+    }
+    catch (const Base::Exception& error) {
+        doc->abortCommand();
+        Gui::NotifyError(view, QT_TRANSLATE_NOOP("Notifications", "Cannot reload group"), error.what());
+    }
+}
+
+int SketcherGui::selectedBlockConstraint(Gui::Document* doc)
+{
+    if (!isCommandActive(doc)) {
+        return -1;
+    }
+    auto* sketch = static_cast<ViewProviderSketch*>(doc->getInEdit())->getSketchObject();
+    const auto selection = Gui::Selection().getSelectionEx(
+        doc->getDocument()->getName(),
+        Sketcher::SketchObject::getClassTypeId()
     );
-
-    while (it.hasNext()) {
-        QString filePath = it.next();
-        QFileInfo fileInfo(filePath);
-        // Use the filename without extension as the user-friendly "friendly name"
-        // The map automatically handles duplicates; the last one found wins.
-        symbolMap[fileInfo.baseName()] = filePath;
+    if (selection.size() != 1 || selection[0].getObject() != sketch) {
+        return -1;
     }
+    std::set<int> candidates;
+    const auto& constraints = sketch->Constraints.getValues();
+    for (const auto& name : selection[0].getSubNames()) {
+        int geoId = GeoEnum::GeoUndef;
+        PointPos posId = PointPos::none;
+        getIdsFromName(name, sketch, geoId, posId);
+        for (int i = 0; i < static_cast<int>(constraints.size()); ++i) {
+            const auto* c = constraints[i];
+            if (c->Type != Sketcher::Group
+                || QFileInfo(QString::fromStdString(c->getFile()))
+                        .suffix()
+                        .compare(QStringLiteral("txt"), Qt::CaseInsensitive)
+                    != 0) {
+                continue;
+            }
+            if (name == "Constraint" + std::to_string(i + 1)) {
+                candidates.insert(i);
+            }
+            for (int j = 0; c->hasElement(j); ++j) {
+                if (geoId != GeoEnum::GeoUndef && c->getGeoId(j) == geoId) {
+                    candidates.insert(i);
+                }
+            }
+        }
+    }
+    return candidates.size() == 1 ? *candidates.begin() : -1;
+}
 
-    return symbolMap;
+void SketcherGui::editFileBlock(ViewProviderSketch* view, int constraintId)
+{
+    if (!view) {
+        return;
+    }
+    try {
+        Gui::Command::doCommand(Gui::Command::App, "import SketcherBlock");
+        Gui::Command::doCommand(
+            Gui::Command::App,
+            "SketcherBlock.edit(%s, %d)",
+            Gui::Command::getObjectCmd(view->getSketchObject()).c_str(),
+            constraintId
+        );
+    }
+    catch (const Base::Exception& error) {
+        Gui::NotifyError(view, QT_TRANSLATE_NOOP("Notifications", "Cannot edit block"), error.what());
+    }
 }

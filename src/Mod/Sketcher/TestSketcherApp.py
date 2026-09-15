@@ -32,9 +32,26 @@ from SketcherTests.TestSketchCarbonCopyReverseMapping import TestSketchCarbonCop
 from SketcherTests.TestSketchInternalFaces import TestSketchInternalFaces
 from SketcherTests.TestSketcherEllipse import TestSketcherEllipse
 from SketcherTests.TestSketchGroups import TestSketchGroups
+from SketcherTests.TestSketchBlocks import TestSketchBlocks
 
 # Path and PartDesign tests use these functions that used to live here
 # but moved to SketcherTests/TestSketcherSolver.py
 from SketcherTests.TestSketcherSolver import CreateCircleSketch
 from SketcherTests.TestSketcherSolver import CreateRectangleSketch
 from SketcherTests.TestSketcherSolver import CreateSlotPlateSet
+
+# Export test cases for unittest discovery and the legacy sketch helpers.
+__all__ = [
+    "TestSketcherSolver",
+    "TestSketchFillet",
+    "TestSketchExpression",
+    "TestSketchValidateCoincidents",
+    "TestSketchCarbonCopyReverseMapping",
+    "TestSketchInternalFaces",
+    "TestSketcherEllipse",
+    "TestSketchGroups",
+    "TestSketchBlocks",
+    "CreateCircleSketch",
+    "CreateRectangleSketch",
+    "CreateSlotPlateSet",
+]
