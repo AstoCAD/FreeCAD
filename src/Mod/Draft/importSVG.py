@@ -1303,6 +1303,20 @@ def insert(filename, docname):
         doc = FreeCAD.newDocument(docname)
     FreeCAD.ActiveDocument = doc
 
+    if FreeCAD.GuiUp:
+        import FreeCADGui
+        gui_doc = FreeCADGui.getDocument(doc.Name)
+        editing = gui_doc.getInEdit() if gui_doc else None
+        if editing and editing.Object.isDerivedFrom("Sketcher::SketchObject"):
+            import SketcherBlock
+            sketch = editing.Object
+            geometry = readSketchGeometry(filename)
+            SketcherBlock.insert_geometry(sketch, geometry, filename)
+            if sketch.solve() != 0:
+                raise ValueError("The imported SVG group could not be solved")
+            doc.recompute()
+            return doc
+
     # Set up the parser
     parser = xml.sax.make_parser()
     parser.setFeature(xml.sax.handler.feature_external_ges, False)
@@ -1552,46 +1566,46 @@ def replace_use_with_reference(file_path):
     return ET.tostring(root, encoding="unicode", xml_declaration=True)
 
 
-def _get_shapes_from_svg(filename):
-    """
-    Internal helper function to import an SVG file and return its shapes
-    without adding them to the active document. Called from C++.
-    """
+def readShapes(filename):
+    """Read SVG shapes in a private document without changing the active document."""
+    from io import StringIO
+    from uuid import uuid4
 
-    # Create a temporary, hidden document to perform the import
-    temp_doc_name = "___svg_import_temp___"
-
+    active = FreeCAD.ActiveDocument
+    doc = FreeCAD.newDocument("SvgImport_" + uuid4().hex, hidden=True, temp=True)
     try:
-        FreeCAD.closeDocument(temp_doc_name)
-    except NameError:
-        pass
-
-    doc = FreeCAD.newDocument(temp_doc_name, hidden=True, temp=True)
-
-    try:
-        # Set up the parser, same as the open() function
+        handler = svgHandler(headless=True)
+        handler.doc = doc
         parser = xml.sax.make_parser()
         parser.setFeature(xml.sax.handler.feature_external_ges, False)
-        handler = svgHandler(headless=True)
-        # Crucially, direct the handler to our temporary document
         parser.setContentHandler(handler)
-        parser._cont_handler.doc = doc
-
-        # Preprocess file to handle <use> tags
-        new_svg_content = replace_use_with_reference(filename)
-        xml.sax.parseString(new_svg_content, handler)
+        parser.parse(StringIO(replace_use_with_reference(filename)))
         doc.recompute()
-
-        # Extract the .Shape property from all created objects
-        shapes = [obj.Shape for obj in doc.Objects if hasattr(obj, "Shape")]
-
-        return shapes
-
-    except Exception as e:
-        FreeCAD.Console.PrintError("Error in _get_shapes_from_svg: {}\n".format(str(e)))
-        return []
-
+        return [obj.Shape.copy() for obj in doc.Objects if hasattr(obj, "Shape")]
     finally:
-        # Always ensure the temporary document is closed
-        if FreeCAD.getDocument(temp_doc_name):
-            FreeCAD.closeDocument(temp_doc_name)
+        FreeCAD.closeDocument(doc.Name)
+        FreeCAD.setActiveDocument(active.Name if active else "")
+
+
+def readSketchGeometry(filename):
+    """Convert SVG edges to geometry in the sketch's local XY plane."""
+    import Part
+    from draftgeoutils.edges import orientEdge
+
+    geometry = []
+    for shape in readShapes(filename):
+        for edge in shape.Edges:
+            if isinstance(edge.Curve, Part.BezierCurve):
+                edge = edge.Curve.toBSpline(edge.FirstParameter, edge.LastParameter).toShape()
+            geometry.append(orientEdge(edge, FreeCAD.Vector(0, 0, 1), make_arc=True))
+    if not geometry:
+        raise ValueError("The SVG file contains no sketch geometry")
+    return geometry
+
+
+def reloadSketchGroup(sketch, constraint_index):
+    """Reload an SVG Group; the caller owns the undo transaction."""
+    group = sketch.Constraints[constraint_index]
+    if group.Type != "Group" or not group.File:
+        raise ValueError("The selected group has no source file")
+    return sketch.replaceGroupGeometry(constraint_index, readSketchGeometry(group.File))

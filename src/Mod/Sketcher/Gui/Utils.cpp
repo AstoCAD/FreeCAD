@@ -32,11 +32,14 @@
 #include <App/Application.h>
 #include <App/Transactions.h>
 #include <Base/Quantity.h>
+#include <Base/Interpreter.h>
 #include <Base/UnitsApi.h>
 #include <Gui/CommandT.h>
 #include <Gui/Document.h>
 #include <Gui/Selection/Selection.h>
+#include <Gui/Notifications.h>
 #include <Mod/Sketcher/App/GeometryFacade.h>
+#include <Mod/Part/App/GeometryPy.h>
 #include <Mod/Sketcher/App/SketchObject.h>
 
 #include "DrawSketchHandler.h"
@@ -607,6 +610,32 @@ bool SketcherGui::isCommandNeedingGeometryActive(Gui::Document* doc)
     return false;
 }
 
+bool SketcherGui::isCreateBlockActive(Gui::Document* doc)
+{
+    if (!isCommandActive(doc)) {
+        return false;
+    }
+    const auto selection = Gui::Selection().getSelectionEx(
+        doc->getDocument()->getName(), Sketcher::SketchObject::getClassTypeId()
+    );
+    auto* sketch = static_cast<ViewProviderSketch*>(doc->getInEdit())->getSketchObject();
+    if (selection.size() != 1 || selection[0].getObject() != sketch) {
+        return false;
+    }
+    std::set<int> edges;
+    for (const auto& name : selection[0].getSubNames()) {
+        if (name.starts_with("Edge") || name.starts_with("ExternalEdge")) {
+            int geoId;
+            PointPos posId;
+            getIdsFromName(name, sketch, geoId, posId);
+            if (sketch->getGeometry(geoId)) {
+                edges.insert(geoId);
+            }
+        }
+    }
+    return edges.size() >= 2;
+}
+
 bool SketcherGui::isCommandNeedingBSplineActive(Gui::Document* doc)
 {
     if (!isCommandActive(doc)) {
@@ -1075,39 +1104,88 @@ QMap<QString, QString> SketcherGui::findAvailableFontFiles()
     return fontMap;
 }
 
-/**
- * @brief Scans the FreeCAD resource directory for available SVG symbol files.
- * @return A map of friendly names (e.g., "fcc-logo") to their full file paths.
- */
-QMap<QString, QString> SketcherGui::findAvailableSymbolFiles()
+std::vector<std::unique_ptr<Part::Geometry>> SketcherGui::readBlockGeometry(const std::string& filename)
 {
-    QMap<QString, QString> symbolMap;
-
-    // Get the path to FreeCAD's data/Mod directory
-    std::string defaultDir = App::Application::getResourceDir() + "Mod/Sketcher/Symbols/";
-    QString symbolPath = QString::fromStdString(defaultDir);
-    QDir symbolDir(symbolPath);
-
-    if (!symbolDir.exists()) {
-        Base::Console().warning("Symbol directory not found at: %s\n", symbolPath.toStdString().c_str());
-        return symbolMap;
+    Base::PyGILStateLocker lock;
+    try {
+        PyObject* module = PyImport_ImportModule("SketcherBlock");
+        if (!module) {
+            throw Py::Exception();
+        }
+        Py::Module blocks(module, true);
+        Py::Tuple args(1);
+        args.setItem(0, Py::String(filename));
+        Py::List list(blocks.callMemberFunction("read", args));
+        std::vector<std::unique_ptr<Part::Geometry>> result;
+        for (const auto& item : list) {
+            if (!PyObject_TypeCheck(item.ptr(), &Part::GeometryPy::Type)) {
+                throw Base::TypeError("Expected Part geometry in block file");
+            }
+            result.emplace_back(static_cast<Part::GeometryPy*>(item.ptr())->getGeometryPtr()->copy());
+        }
+        return result;
     }
-
-    // Iterate through all .svg files in the directory (and subdirectories)
-    QDirIterator it(
-        symbolPath,
-        QStringList() << QString::fromUtf8("*.svg"),
-        QDir::Files,
-        QDirIterator::Subdirectories
-    );
-
-    while (it.hasNext()) {
-        QString filePath = it.next();
-        QFileInfo fileInfo(filePath);
-        // Use the filename without extension as the user-friendly "friendly name"
-        // The map automatically handles duplicates; the last one found wins.
-        symbolMap[fileInfo.baseName()] = filePath;
+    catch (Py::Exception&) {
+        Base::PyException error;
+        throw Base::RuntimeError(error.what());
     }
+}
 
-    return symbolMap;
+QMap<QString, QString> SketcherGui::findAvailableBlockFiles()
+{
+    QMap<QString, QString> blocks;
+    const QStringList paths {
+        QString::fromStdString(App::Application::getResourceDir() + "Mod/Sketcher/Blocks/"),
+        QString::fromStdString(App::Application::getUserAppDataDir() + "Mod/Sketcher/Blocks/")
+    };
+    for (const auto& path : paths) {
+        QDir directory(path);
+        QDirIterator it(path, {QStringLiteral("*.txt")}, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            const QString file = it.next();
+            QString name = directory.relativeFilePath(file);
+            name.chop(4);
+            blocks[name] = file;
+        }
+    }
+    return blocks;
+}
+
+void SketcherGui::reloadFileGroup(ViewProviderSketch* view, int constraintId)
+{
+    if (!view) {
+        return;
+    }
+    auto* sketch = view->getSketchObject();
+    const auto& constraints = sketch->Constraints.getValues();
+    if (constraintId < 0 || constraintId >= static_cast<int>(constraints.size())) {
+        return;
+    }
+    const QString file = QString::fromStdString(constraints[constraintId]->getFile());
+    const bool svg = QFileInfo(file).suffix().compare(QStringLiteral("svg"), Qt::CaseInsensitive)
+        == 0;
+    const char* module = svg ? "importSVG" : "SketcherBlock";
+    const char* function = svg ? "reloadSketchGroup" : "reload";
+    auto* doc = view->getDocument();
+    doc->openCommand(QT_TRANSLATE_NOOP("Command", "Reload group from file"));
+    try {
+        Gui::Command::doCommand(Gui::Command::App, "import %s", module);
+        Gui::Command::doCommand(
+            Gui::Command::Doc,
+            "%s.%s(%s, %d)",
+            module,
+            function,
+            Gui::Command::getObjectCmd(sketch).c_str(),
+            constraintId
+        );
+        if (sketch->solve() != 0) {
+            throw Base::RuntimeError("The reloaded group could not be solved");
+        }
+        doc->commitCommand();
+        view->draw(false, false);
+    }
+    catch (const Base::Exception& error) {
+        doc->abortCommand();
+        Gui::NotifyError(view, QT_TRANSLATE_NOOP("Notifications", "Cannot reload group"), error.what());
+    }
 }

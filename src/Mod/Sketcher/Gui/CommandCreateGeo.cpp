@@ -68,7 +68,7 @@
 #include "DrawSketchHandlerPolygon.h"
 #include "DrawSketchHandlerRectangle.h"
 #include "DrawSketchHandlerSlot.h"
-#include "DrawSketchHandlerSymbol.h"
+#include "DrawSketchHandlerBlock.h"
 #include "DrawSketchHandlerSplitting.h"
 #include "DrawSketchHandlerText.h"
 #include "DrawSketchHandlerTrimming.h"
@@ -1439,38 +1439,37 @@ bool CmdSketcherCreateText::isActive()
     return isCommandActive(getActiveGuiDocument());
 }
 
-// Symbol ================================================================
+// Block ================================================================
 
-DEF_STD_CMD_AU(CmdSketcherCreateSymbol)
+DEF_STD_CMD_AU(CmdSketcherInsertBlock)
 
-CmdSketcherCreateSymbol::CmdSketcherCreateSymbol()
-    : Command("Sketcher_CreateSymbol")
+CmdSketcherInsertBlock::CmdSketcherInsertBlock()
+    : Command("Sketcher_InsertBlock")
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Symbol");
+    sMenuText = QT_TR_NOOP("Insert Block");
     sToolTipText = QT_TR_NOOP(
-        "Creates text geometries controlled by a Group constraint.\n"
-        "To Position/Size: Apply constraints to the group's construction line.\n"
-        "Note: While the Group constraint is active, any constraints applied directly to the "
-        "grouped geometries will be ignored.\n"
+        "Inserts a block from a Sketcher geometry text file as a Group.\n"
+        "Position and size are controlled by constraints on the group's construction line.\n"
+        "Constraints on grouped geometry are ignored while the Group is active."
     );
-    sWhatsThis = "Sketcher_CreateSymbol";
+    sWhatsThis = "Sketcher_InsertBlock";
     sStatusTip = sToolTipText;
-    sPixmap = "Sketcher_CreateSymbol";
+    sPixmap = "Sketcher_InsertBlock";
     sAccel = "G, U";
     eType = ForEdit;
 }
 
-CONSTRUCTION_UPDATE_ACTION(CmdSketcherCreateSymbol, "Sketcher_CreateSymbol")
+CONSTRUCTION_UPDATE_ACTION(CmdSketcherInsertBlock, "Sketcher_InsertBlock")
 
-void CmdSketcherCreateSymbol::activated(int iMsg)
+void CmdSketcherInsertBlock::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    ActivateHandler(getActiveGuiDocument(), std::make_unique<DrawSketchHandlerSymbol>());
+    ActivateHandler(getActiveGuiDocument(), std::make_unique<DrawSketchHandlerBlock>());
 }
 
-bool CmdSketcherCreateSymbol::isActive()
+bool CmdSketcherInsertBlock::isActive()
 {
     return isCommandActive(getActiveGuiDocument());
 }
@@ -1495,7 +1494,7 @@ public:
         setCheckable(false);
 
         addCommand("Sketcher_CreateText");
-        addCommand("Sketcher_CreateSymbol");
+        addCommand("Sketcher_InsertBlock");
     }
 
     const char* className() const override
@@ -2091,7 +2090,7 @@ void CreateSketcherCommandsCreateGeo()
     rcCmdMgr.addCommand(new CmdSketcherCreateSlot());
     rcCmdMgr.addCommand(new CmdSketcherCreateArcSlot());
     rcCmdMgr.addCommand(new CmdSketcherCreateText());
-    rcCmdMgr.addCommand(new CmdSketcherCreateSymbol());
+    rcCmdMgr.addCommand(new CmdSketcherInsertBlock());
     rcCmdMgr.addCommand(new CmdSketcherCreateFillet());
     rcCmdMgr.addCommand(new CmdSketcherCreateChamfer());
     // rcCmdMgr.addCommand(new CmdSketcherCreateText());

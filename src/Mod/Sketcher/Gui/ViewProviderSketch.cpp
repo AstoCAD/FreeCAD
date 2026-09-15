@@ -5600,6 +5600,9 @@ void ViewProviderSketch::generateContextMenu()
                  << "Sketcher_ToggleActiveConstraint"
                  << "Sketcher_SelectElementsAssociatedWithConstraints";
         }
+        if (isCreateBlockActive(Gui::Application::Instance->activeDocument())) {
+            menu << "Separator" << "Sketcher_CreateBlock";
+        }
         // add the rest of the context menu if geometry is selected
         if (selectedPoints != 0 || selectedEdges != 0) {
             menu << "Separator"

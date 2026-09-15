@@ -590,7 +590,8 @@ inline void SketcherAddWorkbenchTools<Gui::MenuItem>(Gui::MenuItem& consaccel)
               << "Separator"
               << "Sketcher_CopyClipboard"
               << "Sketcher_Cut"
-              << "Sketcher_Paste";
+              << "Sketcher_Paste"
+              << "Sketcher_CreateBlock";
 }
 
 template<>

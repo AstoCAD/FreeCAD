@@ -1452,5 +1452,5 @@ PartExport std::vector<TopoDS_Shape> makeTextWires(
     double tracking = 0.0
 );
 
-PartExport std::vector<TopoDS_Shape> getShapesFromSVG(const std::string& fileName);
+
 }  // namespace Part
