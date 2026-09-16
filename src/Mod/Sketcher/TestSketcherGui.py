@@ -3,6 +3,7 @@ from SketcherTests.TestConstraintPreselectionGui import SketcherGuiTestCases
 from SketcherTests.TestConstraintCommandsGui import TestConstraintCommandsGui
 from SketcherTests.TestOnViewParameterGui import TestOnViewParameterGui
 from SketcherTests.TestPlacementUpdate import TestSketchPlacementUpdate
+from SketcherTests.TestSolverUpdateGui import TestSolverUpdateGui
 from SketcherTests.TestExternalFacePreselection import TestExternalFacePreselection
 from SketcherTests.TestSketchGroupsGui import TestSketchGroupsGui
 from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
@@ -13,6 +14,7 @@ from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
     if SketcherGuiTestCases
     and TestConstraintCommandsGui
     and TestSketchPlacementUpdate
+    and TestSolverUpdateGui
     and TestOnViewParameterGui
     and TestExternalFacePreselection
     and TestSketchGroupsGui
