@@ -2648,7 +2648,10 @@ int Sketch::addConstraint(const Constraint* constraint)
             // Check that the first element is correctly the group construction line
             const int handle = constraint->getGeoId(0);
             if (handle < 0 || handle >= static_cast<int>(Geoms.size())
-                || !Geoms[handle].geo->is<Part::GeomLineSegment>()) {
+                || !(
+                    Geoms[handle].geo->is<Part::GeomLineSegment>()
+                    || (constraint->Type == Group && Geoms[handle].geo->is<Part::GeomPoint>())
+                )) {
                 return -1;
             }
 
@@ -5789,7 +5792,8 @@ Sketch::GroupLineState Sketch::getGroupLineState(int geoId) const
 {
     GroupLineState state;
     state.startPoint = getPoint(geoId, PointPos::start);
-    state.endPoint = getPoint(geoId, PointPos::end);
+    state.endPoint = Geoms[checkGeoId(geoId)].type == Point ? state.startPoint + Base::Vector3d::UnitX
+                                                            : getPoint(geoId, PointPos::end);
     return state;
 }
 

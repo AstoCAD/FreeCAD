@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 #include <Base/Exception.h>
+#include <Base/FileInfo.h>
 #include <Base/Tools.h>
 #include "GeometryFacade.h"
 #include "GroupGeometry.h"
@@ -9,7 +10,8 @@
 
 int Sketcher::SketchObject::replaceGroupGeometry(
     int constraintId,
-    const std::vector<Part::Geometry*>& source
+    const std::vector<Part::Geometry*>& source,
+    const Base::Vector3d& sourceHandle
 )
 {
     const auto& constraints = Constraints.getValues();
@@ -20,16 +22,21 @@ int Sketcher::SketchObject::replaceGroupGeometry(
     const auto* group = constraints[constraintId];
     const int handle = group->getGeoId(0);
     const auto* line = dynamic_cast<const Part::GeomLineSegment*>(getGeometry(handle));
+    const auto* point = dynamic_cast<const Part::GeomPoint*>(getGeometry(handle));
     GroupHierarchy hierarchy(constraints, false);
-    if (!line || !hierarchy.valid) {
+    if ((!line && !point) || !hierarchy.valid) {
         throw Base::ValueError("Invalid group handle or hierarchy");
     }
-    auto replacements = transformGroupGeometry(
-        source,
-        line->getStartPoint(),
-        line->getEndPoint(),
-        group->getFileHeight()
-    );
+    auto replacements = point
+        ? transformFixedGroupGeometry(source, point->getPoint(), group->getFileAngle())
+        : transformGroupGeometry(
+              source,
+              line->getStartPoint(),
+              line->getEndPoint(),
+              group->getFileHeight(),
+              Base::FileInfo(group->getFile()).hasExtension("txt"),
+              sourceHandle
+          );
     const auto removed = hierarchy.descendants(handle);
     const auto& geometry = getInternalGeometry();
 

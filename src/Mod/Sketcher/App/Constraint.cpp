@@ -176,12 +176,12 @@ void Constraint::Save(Writer& writer) const
     // Save elements
     {
         // Ensure backwards compatibility with old versions
-        writer.Stream() << "First=\"" << getGeoId(0) << "\" "
-                        << "FirstPos=\"" << getPosIdAsInt(0) << "\" "
-                        << "Second=\"" << getGeoId(1) << "\" "
-                        << "SecondPos=\"" << getPosIdAsInt(1) << "\" "
-                        << "Third=\"" << getGeoId(2) << "\" "
-                        << "ThirdPos=\"" << getPosIdAsInt(2) << "\" ";
+        writer.Stream() << "First=\"" << (hasElement(0) ? getGeoId(0) : GeoEnum::GeoUndef) << "\" "
+                        << "FirstPos=\"" << (hasElement(0) ? getPosIdAsInt(0) : 0) << "\" "
+                        << "Second=\"" << (hasElement(1) ? getGeoId(1) : GeoEnum::GeoUndef) << "\" "
+                        << "SecondPos=\"" << (hasElement(1) ? getPosIdAsInt(1) : 0) << "\" "
+                        << "Third=\"" << (hasElement(2) ? getGeoId(2) : GeoEnum::GeoUndef) << "\" "
+                        << "ThirdPos=\"" << (hasElement(2) ? getPosIdAsInt(2) : 0) << "\" ";
 #if SKETCHER_CONSTRAINT_USE_LEGACY_ELEMENTS
         auto elements = std::views::iota(size_t {0}, this->elements.size())
             | std::views::transform([&](size_t i) { return getElement(i); });
@@ -634,11 +634,32 @@ void Constraint::setFile(const std::string& file)
     if (file.empty()) {
         data.erase("File");
         data.erase("FileHeight");
+        data.erase("FileAngle");
     }
     else {
         data["File"] = file;
     }
     MetaData = data.empty() ? std::string() : data.dump();
+}
+
+double Constraint::getFileAngle() const
+{
+    const auto data = nlohmann::json::parse(MetaData, nullptr, false);
+    return data.is_object() && data.contains("FileAngle") && data["FileAngle"].is_number()
+        ? data["FileAngle"].get<double>() : 0.0;
+}
+
+void Constraint::setFileAngle(double angle)
+{
+    if (!std::isfinite(angle)) {
+        throw Base::ValueError("Block angle must be finite");
+    }
+    auto data = nlohmann::json::parse(MetaData, nullptr, false);
+    if (!data.is_object()) {
+        data = nlohmann::json::object();
+    }
+    data["FileAngle"] = angle;
+    MetaData = data.dump();
 }
 
 bool Constraint::getFileHeight() const

@@ -27,7 +27,8 @@ class TestSketchBlocks(unittest.TestCase):
     def write(self, replacement=False):
         geometries = (
             ["Part.Circle(App.Vector(5, 5, 0), App.Vector(0, 0, 1), 5)"]
-            if replacement else [
+            if replacement
+            else [
                 "Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0))",
                 "Part.LineSegment(App.Vector(10, 0, 0), App.Vector(10, 5, 0))",
             ]
@@ -153,9 +154,12 @@ class TestSketchBlocks(unittest.TestCase):
     def testInvalidSourceLeavesGroupUnchanged(self):
         index = self.insert()
         before = self.snapshot()
-        for text in ("", "# Copied from sketcher.\nimport os\n",
-                     "# Copied from sketcher.\nobjectStr.Document.clearUndos()\n",
-                     "# Copied from sketcher.\ngeoList=[]\n"):
+        for text in (
+            "",
+            "# Copied from sketcher.\nimport os\n",
+            "# Copied from sketcher.\nobjectStr.Document.clearUndos()\n",
+            "# Copied from sketcher.\ngeoList=[]\n",
+        ):
             with self.subTest(text=text):
                 self.file.write_text(text, encoding="utf-8")
                 with self.assertRaises(ValueError):
@@ -167,10 +171,122 @@ class TestSketchBlocks(unittest.TestCase):
 
     def testLibrary(self):
         directory = Path(App.getResourceDir()) / "Mod/Sketcher/Blocks"
-        files = list(directory.glob("*.txt"))
-        self.assertEqual(len(files), 9)
-        for filename in files:
+        names = (
+            "CE",
+            "FCC",
+            "Open hardware (no text)",
+            "Open hardware",
+            "Recycling",
+            "Sign - Attention",
+            "Sign - High voltage",
+            "Tidyman",
+            "WEEE",
+        )
+        # The default folder may also contain blocks saved by the user.
+        for name in names:
+            filename = directory / (name + ".txt")
+            self.assertTrue(filename.is_file())
             with self.subTest(filename=filename.name):
                 geometry = SketcherBlock.read(filename)
+                self.assertFalse(SketcherBlock.metadata(filename)["fixed_size"])
                 self.assertTrue(geometry)
                 self.assertTrue(all(geo.toShape().isValid() for geo in geometry))
+
+    def testBlockInsertionDefaults(self):
+        self.assertFalse(SketcherBlock.metadata(self.file)["fixed_size"])
+        for value in ("true", "false"):
+            self.write()
+            text = self.file.read_text(encoding="utf-8")
+            text = text.replace(
+                "# Copied from sketcher. From:",
+                "# Copied from sketcher. From:\n# Sketcher block fixed size: " + value,
+            )
+            self.file.write_text(text, encoding="utf-8")
+            self.assertEqual(SketcherBlock.metadata(self.file)["fixed_size"], value == "true")
+            self.assertEqual(len(SketcherBlock.read(self.file)), 2)
+
+    def testScaledBlockReloadUsesSourceOrigin(self):
+        self.file.write_text(
+            "# Copied from sketcher.\n"
+            "objectStr.addGeometry([Part.Circle(App.Vector(-2,3,0),App.Vector(0,0,1),5)],False)\n",
+            encoding="utf-8",
+        )
+        index = self.insert()
+        group = self.sketch.Constraints[index]
+        handle = self.sketch.Geometry[group.First]
+        self.assertLess(handle.StartPoint.Length, 1e-7)
+        self.sketch.moveGeometry(group.First, 1, App.Vector(20, 30, 0), 0)
+        self.sketch.moveGeometry(group.First, 2, App.Vector(40, 30, 0), 0)
+        self.assertEqual(self.sketch.solve(), 0)
+        index = SketcherBlock.reload(self.sketch, index)
+        circle = self.sketch.Geometry[self.sketch.Constraints[index].Second]
+        self.assertLess((circle.Center - App.Vector(16, 36, 0)).Length, 1e-6)
+        self.assertAlmostEqual(circle.Radius, 10, places=6)
+
+    def testCustomHandleInsertionAndReload(self):
+        self.file.write_text(
+            "# Copied from sketcher.\n# Sketcher block handle: 6 8\n"
+            "objectStr.addGeometry([Part.Circle(App.Vector(-2,3,0),App.Vector(0,0,1),5)],False)\n",
+            encoding="utf-8",
+        )
+        index = self.insert()
+        group = self.sketch.Constraints[index]
+        self.assertLess(
+            (self.sketch.Geometry[group.First].EndPoint - App.Vector(6, 8, 0)).Length, 1e-7
+        )
+        # Double the scale, rotate 90 degrees, and move away from the source origin.
+        self.sketch.moveGeometry(group.First, 1, App.Vector(20, 30, 0), 0)
+        self.sketch.moveGeometry(group.First, 2, App.Vector(4, 42, 0), 0)
+        self.assertEqual(self.sketch.solve(), 0)
+        index = SketcherBlock.reload(self.sketch, index)
+        group = self.sketch.Constraints[index]
+        circle = self.sketch.Geometry[group.Second]
+        self.assertLess((circle.Center - App.Vector(14, 26, 0)).Length, 1e-6)
+        self.assertAlmostEqual(circle.Radius, 10, places=6)
+        # Changing the source bounds must not change the scale defined by the handle.
+        self.file.write_text(
+            self.file.read_text(encoding="utf-8").replace(",5)]", ",7)]"), encoding="utf-8"
+        )
+        index = SketcherBlock.reload(self.sketch, index)
+        circle = self.sketch.Geometry[self.sketch.Constraints[index].Second]
+        self.assertAlmostEqual(circle.Radius, 14, places=6)
+        self.assertLess((circle.Center - App.Vector(14, 26, 0)).Length, 1e-6)
+
+    def testInvalidHandleMetadataLeavesGroupUnchanged(self):
+        index = self.insert()
+        before = self.snapshot()
+        original = self.file.read_text(encoding="utf-8")
+        for handle in ("0 0", "nan 2", "1 inf", "1", "1 2 3", "text 2"):
+            with self.subTest(handle=handle):
+                self.file.write_text(
+                    original + "# Sketcher block handle: " + handle + "\n", encoding="utf-8"
+                )
+                with self.assertRaises(ValueError):
+                    SketcherBlock.reload(self.sketch, index)
+                self.assertEqual(self.snapshot(), before)
+
+    def testNonBlockGroupKeepsBoundsOrigin(self):
+        geometry = [Part.Circle(App.Vector(-2, 3, 0), App.Vector(0, 0, 1), 5)]
+        index = SketcherBlock.insert_geometry(self.sketch, geometry, self.file.with_suffix(".svg"))
+        group = self.sketch.Constraints[index]
+        self.assertLess(
+            (self.sketch.Geometry[group.First].StartPoint - App.Vector(-7, -2, 0)).Length, 1e-6
+        )
+        index = self.sketch.replaceGroupGeometry(index, geometry)
+        self.assertLess(
+            (
+                self.sketch.Geometry[self.sketch.Constraints[index].Second].Center
+                - App.Vector(-2, 3, 0)
+            ).Length,
+            1e-6,
+        )
+
+    def testFixedBlockRejectsNonPlanarReload(self):
+        index = SketcherBlock.insert_geometry(
+            self.sketch, SketcherBlock.read(self.file), self.file, fixed_size=True
+        )
+        before = self.snapshot()
+        invalid = [Part.Circle(App.Vector(0, 0, 4), App.Vector(0, 0, 1), 2)]
+        with self.assertRaises(ValueError):
+            self.sketch.replaceGroupGeometry(index, invalid)
+        self.assertEqual(self.snapshot(), before)

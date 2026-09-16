@@ -83,7 +83,10 @@ class ViewProviderSketch;
 
 /// Copy a complete Group/Text constraint, remapping every member into a transformed copy.
 std::unique_ptr<Sketcher::Constraint> copyTransformedGroup(
-    const Sketcher::Constraint& constraint, const std::vector<int>& geometry, int firstGeometry);
+    const Sketcher::Constraint& constraint,
+    const std::vector<int>& geometry,
+    int firstGeometry
+);
 
 enum OffsetMode : bool
 {
@@ -246,8 +249,13 @@ inline void scrollTo(QListWidget* list, int i, bool select)
 }
 
 QMap<QString, QString> findAvailableFontFiles();
-QMap<QString, QString> findAvailableBlockFiles();
-std::vector<std::unique_ptr<Part::Geometry>> readBlockGeometry(const std::string& filename);
+std::vector<std::unique_ptr<Part::Geometry>> readBlockGeometry(
+    const std::string& filename,
+    bool* fixedSize = nullptr,
+    Base::Vector3d* sourceHandle = nullptr
+);
+int selectedBlockConstraint(Gui::Document* doc);
+void editFileBlock(ViewProviderSketch* view, int constraintId);
 void reloadFileGroup(ViewProviderSketch* view, int constraintId);
 
 }  // namespace SketcherGui

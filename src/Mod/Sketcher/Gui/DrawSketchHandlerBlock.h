@@ -1,4 +1,4 @@
-// SPDX - License - Identifier: LGPL - 2.1 - or -later
+// SPDX-License-Identifier: LGPL-2.1-or-later
 /****************************************************************************
  *                                                                          *
  *   Copyright (c) 2025 Pierre-Louis Boyer                                  *
@@ -25,8 +25,9 @@
 #ifndef SKETCHERGUI_DrawSketchHandlerBlock_H
 #define SKETCHERGUI_DrawSketchHandlerBlock_H
 
-#include <QMap>
 #include <QFileInfo>
+#include <BRepBndLib.hxx>
+#include <Bnd_Box.hxx>
 
 #include <App/Application.h>
 #include <Gui/BitmapFactory.h>
@@ -39,7 +40,8 @@
 #include <Mod/Sketcher/App/SketchObject.h>
 #include <Mod/Sketcher/App/GroupGeometry.h>
 
-#include "DrawSketchDefaultWidgetController.h"
+#include "DrawSketchController.h"
+#include "SketcherBlockWidget.h"
 #include "DrawSketchControllableHandler.h"
 
 #include "GeometryCreationMode.h"
@@ -66,19 +68,48 @@ enum class BlockConstructionMethod
 
 }  // namespace ConstructionMethods
 
-using DSHBlockController = DrawSketchDefaultWidgetController<
+using DSHBlockControllerBase = DrawSketchController<
     DrawSketchHandlerBlock,
-    /*SelectModeT*/ StateMachines::TwoSeekEnd,
-    /*PAutoConstraintSize =*/2,
-    /*OnViewParametersT =*/OnViewParameters<4, 4>,  // NOLINT
-    /*WidgetParametersT =*/WidgetParameters<0, 0>,  // NOLINT
-    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0>,  // NOLINT
-    /*WidgetComboboxesT =*/WidgetComboboxes<2, 2>,  // NOLINT
-    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0>,    // NOLINT
-    ConstructionMethods::BlockConstructionMethod,
-    /*bool PFirstComboboxIsConstructionMethod =*/true>;
+    StateMachines::TwoSeekEnd,
+    2,
+    OnViewParameters<4, 4>,
+    ConstructionMethods::BlockConstructionMethod>;
 
-using DSHBlockControllerBase = DSHBlockController::ControllerBase;
+class DSHBlockController: public DSHBlockControllerBase
+{
+public:
+    using ControllerBase = DSHBlockControllerBase;
+    explicit DSHBlockController(DrawSketchHandlerBlock* handler)
+        : ControllerBase(handler)
+    {}
+    ~DSHBlockController() override
+    {
+        for (const auto& connection : connections) {
+            QObject::disconnect(connection);
+        }
+    }
+    void adaptParameters(Base::Vector2d position) override;
+    void computeNextDrawSketchHandlerMode() override;
+    void addConstraints() override;
+    void firstKeyShortcut() override
+    {
+        toolWidget->toggleFixedSize();
+    }
+    void secondKeyShortcut() override
+    {
+        toolWidget->toggleFixedOrientation();
+    }
+
+protected:
+    void doInitControls(QWidget* widget) override;
+    void doResetControls() override;
+
+private:
+    SketcherBlockWidget* toolWidget = nullptr;
+    std::vector<QMetaObject::Connection> connections;
+    void configureToolWidget();
+    void placementChanged(int method, bool size, bool orientation);
+};
 
 using DrawSketchHandlerBlockBase = DrawSketchControllableHandler<DSHBlockController>;
 
@@ -105,6 +136,8 @@ private:
                 toolWidgetManager.drawPositionAtCursor(onSketchPos);
 
                 startPoint = onSketchPos;
+                endPoint = fixedSize ? startPoint + nativeLength() * originalDirection() : startPoint;
+                CreateAndDrawShapeGeometry();
 
                 seekAndRenderAutoConstraint(sugConstraints[0], onSketchPos, Base::Vector2d(0.f, 0.f));
             } break;
@@ -119,7 +152,11 @@ private:
                 catch (const Base::ValueError&) {
                 }  // equal points while hovering raise an objection that can be safely ignored
 
-                seekAndRenderAutoConstraint(sugConstraints[1], onSketchPos, onSketchPos - startPoint);
+                // A constrained placement endpoint need not coincide with the mouse target.
+                sugConstraints[1].clear();
+                if (!fixedSize && !fixedOrientation) {
+                    seekAndRenderAutoConstraint(sugConstraints[1], onSketchPos, onSketchPos - startPoint);
+                }
             } break;
             default:
                 break;
@@ -142,6 +179,31 @@ private:
             std::vector<Sketcher::GeoElementId> elts;
             for (int i = firstCurve; i < handleId; ++i) {
                 elts.push_back(Sketcher::GeoElementId(i));
+            }
+            if (fixedSize) {
+                const double angle = (endPoint - startPoint).Angle() - originalDirection().Angle();
+                Gui::Command::doCommand(Gui::Command::App, "import SketcherBlock");
+                Gui::cmdAppObjectArgs(
+                    getSketchObject(),
+                    "addGeometry(Part.Point(App.Vector(%.17g,%.17g,0)), True)",
+                    startPoint.x,
+                    startPoint.y
+                );
+                std::string elements = "[" + std::to_string(handleId) + ", 1";
+                for (int i = firstCurve; i < handleId; ++i) {
+                    elements += ", " + std::to_string(i) + ", 0";
+                }
+                elements += "]";
+                Gui::cmdAppObjectArgs(
+                    getSketchObject(),
+                    "addConstraint(Sketcher.Constraint('Group', %s, '%s', %s, True, %.17g))",
+                    elements.c_str(),
+                    escapeForPython(fileName).c_str(),
+                    constructionMethod() == ConstructionMethod::Height ? "True" : "False",
+                    angle
+                );
+                commitCommand();
+                return;
             }
             bool isHeight = constructionMethod() == ConstructionMethod::Height;
             if (!addListConstraint(
@@ -191,7 +253,9 @@ private:
         auto& ac2 = sugConstraints[1];
 
         generateAutoConstraintsOnElement(ac1, handleId, Sketcher::PointPos::start);
-        generateAutoConstraintsOnElement(ac2, handleId, Sketcher::PointPos::end);
+        if (!fixedSize) {
+            generateAutoConstraintsOnElement(ac2, handleId, Sketcher::PointPos::end);
+        }
 
         // Ensure temporary autoconstraints do not generate a redundancy and that the geometry
         // parameters are accurate This is particularly important for adding widget mandated
@@ -220,7 +284,7 @@ private:
 
     std::unique_ptr<QWidget> createWidget() const override
     {
-        return std::make_unique<SketcherToolDefaultWidget>();
+        return std::make_unique<SketcherBlockWidget>();
     }
 
     bool isWidgetVisible() const override
@@ -230,7 +294,7 @@ private:
 
     QPixmap getToolIcon() const override
     {
-        return Gui::BitmapFactory().pixmap("Sketcher_InsertBlock");
+        return Gui::BitmapFactory().pixmap("Sketcher_BlockInsert");
     }
 
     QString getToolWidgetText() const override
@@ -241,7 +305,7 @@ private:
     bool canGoToNextMode() override
     {
         if (fileName.empty()
-            || (state() == SelectMode::SeekSecond
+            || ((state() == SelectMode::SeekSecond || fixedSize)
                 && (length < Precision::Confusion() || ShapeGeometry.empty()))) {
             // Prevent validation of null Block.
             return false;
@@ -249,9 +313,22 @@ private:
         return true;
     }
 
+    void onButtonPressed(Base::Vector2d onSketchPos) override
+    {
+        updateDataAndDrawToPosition(onSketchPos);
+        if (canGoToNextMode()) {
+            if (fixedSize && fixedOrientation) {
+                setState(SelectMode::End);
+            }
+            else {
+                moveToNextMode();
+            }
+        }
+    }
+
     void angleSnappingControl() override
     {
-        if (state() == SelectMode::SeekSecond) {
+        if (state() == SelectMode::SeekSecond && !fixedOrientation) {
             setAngleSnapping(true, startPoint);
         }
 
@@ -261,10 +338,42 @@ private:
     }
 
 private:
-    QMap<QString, QString> pathMap;
     Base::Vector2d startPoint, endPoint;
     double length;
     int handleId;
+    bool fixedSize = false;
+    bool fixedOrientation = false;
+    double sourceWidth = 0.0;
+    double sourceHeight = 0.0;
+    Base::Vector3d sourceHandle;
+
+    bool hasSourceHandle() const
+    {
+        return sourceHandle.Length() > Precision::Confusion();
+    }
+
+    double nativeLength() const
+    {
+        if (hasSourceHandle()) {
+            return sourceHandle.Length();
+        }
+        const double size = constructionMethod() == ConstructionMethod::Height ? sourceHeight
+                                                                               : sourceWidth;
+        // A fixed-size block uses this line only to preview its rotation. Points
+        // and vertical outlines still need a nonzero ray even with zero width.
+        return fixedSize && size < Precision::Confusion()
+            ? std::max({sourceWidth, sourceHeight, 1.0})
+            : size;
+    }
+
+    Base::Vector2d originalDirection() const
+    {
+        if (hasSourceHandle()) {
+            return Base::Vector2d(sourceHandle.x, sourceHandle.y).Normalize();
+        }
+        return constructionMethod() == ConstructionMethod::Height ? Base::Vector2d(0.0, 1.0)
+                                                                  : Base::Vector2d(1.0, 0.0);
+    }
 
     std::string fileName;
     std::vector<std::unique_ptr<Part::Geometry>> cachedGeometry;
@@ -273,11 +382,25 @@ private:
     {
         fileName.clear();
         cachedGeometry.clear();
+        sourceWidth = sourceHeight = 0.0;
+        sourceHandle = Base::Vector3d();
+        fixedSize = false;
         if (path.isEmpty()) {
             return;
         }
         try {
-            cachedGeometry = readBlockGeometry(path.toStdString());
+            cachedGeometry = readBlockGeometry(path.toStdString(), &fixedSize, &sourceHandle);
+            Bnd_Box bounds;
+            for (const auto& geo : cachedGeometry) {
+                BRepBndLib::AddOptimal(geo->toShape(), bounds, false, false);
+            }
+            if (bounds.IsVoid() || bounds.IsOpen()) {
+                throw Base::ValueError("The source file contains no finite geometry");
+            }
+            double xmin, ymin, zmin, xmax, ymax, zmax;
+            bounds.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+            sourceWidth = xmax - xmin;
+            sourceHeight = ymax - ymin;
             fileName = QFileInfo(path).absoluteFilePath().toStdString();
         }
         catch (const Base::Exception& error) {
@@ -302,17 +425,22 @@ private:
         if (fileName.empty()) {
             return;
         }
-        std::vector<Part::Geometry*> source;
-        for (const auto& geo : cachedGeometry) {
-            source.push_back(geo.get());
+        const auto source = toPointerVector(cachedGeometry);
+        if (fixedSize) {
+            const double angle = vecL.Angle() - originalDirection().Angle();
+            ShapeGeometry
+                = Sketcher::transformFixedGroupGeometry(source, toVector3d(startPoint), angle);
         }
-        ShapeGeometry = Sketcher::transformGroupGeometry(
-            source,
-            toVector3d(startPoint),
-            toVector3d(endPoint),
-            constructionMethod() == ConstructionMethod::Height
-        );
-
+        else {
+            ShapeGeometry = Sketcher::transformGroupGeometry(
+                source,
+                toVector3d(startPoint),
+                toVector3d(endPoint),
+                constructionMethod() == ConstructionMethod::Height,
+                true,
+                sourceHandle
+            );
+        }
         // 3. Set construction mode on the newly created geometry
         if (isConstructionMode() && !onlyeditoutline) {
             for (auto& geo : ShapeGeometry) {
@@ -323,6 +451,35 @@ private:
 
     std::list<Gui::InputHint> getToolHints() const override
     {
+        if (hasSourceHandle()) {
+            if (state() == SelectMode::SeekFirst) {
+                return {{QObject::tr("%1 place block origin"), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+            return {
+                {fixedSize ? QObject::tr("%1 set orientation")
+                           : QObject::tr("%1 place the end of the block handle"),
+                 {Gui::InputHint::UserInput::MouseLeft}}
+            };
+        }
+        if (state() == SelectMode::SeekFirst && fixedSize && !fixedOrientation) {
+            return {
+                {QObject::tr("%1 place block origin"), {Gui::InputHint::UserInput::MouseLeft}},
+                switchModeHint()
+            };
+        }
+        if (state() == SelectMode::SeekFirst && fixedSize && fixedOrientation) {
+            return {
+                {QObject::tr("%1 place block"), {Gui::InputHint::UserInput::MouseLeft}},
+                switchModeHint()
+            };
+        }
+        if (state() == SelectMode::SeekSecond && (fixedSize || fixedOrientation)) {
+            return {
+                {fixedSize ? QObject::tr("%1 set orientation") : QObject::tr("%1 set size"),
+                 {Gui::InputHint::UserInput::MouseLeft}},
+                switchModeHint()
+            };
+        }
         return lookupBlockHints(static_cast<int>(constructionMethod()), static_cast<int>(state()));
     }
 
@@ -349,42 +506,60 @@ auto DSHBlockControllerBase::getState(int labelindex) const
             return SelectMode::SeekFirst;
             break;
         case OnViewParameter::Third:
+            return handler->fixedSize ? SelectMode::End : SelectMode::SeekSecond;
         case OnViewParameter::Fourth:
-            return SelectMode::SeekSecond;
+            return handler->fixedOrientation ? SelectMode::End : SelectMode::SeekSecond;
             break;
         default:
             THROWM(Base::ValueError, "Label index without an associated machine state")
     }
 }
 
-template<>
+void DSHBlockController::doInitControls(QWidget* widget)
+{
+    toolWidget = static_cast<SketcherBlockWidget*>(widget);
+    connections.push_back(
+        QObject::connect(
+            toolWidget,
+            &SketcherBlockWidget::fileSelected,
+            toolWidget,
+            [this](const QString& path) {
+                handler->loadFile(path);
+                unsetOnViewParameter(onViewParameters[OnViewParameter::Third].get());
+                configureToolWidget();
+                handler->updateHint();
+                onHandlerModeChanged();
+                finishControlsChanged();
+            }
+        )
+    );
+    connections.push_back(
+        QObject::connect(
+            toolWidget,
+            &SketcherBlockWidget::placementChanged,
+            toolWidget,
+            [this](int method, bool size, bool orientation) {
+                placementChanged(method, size, orientation);
+            }
+        )
+    );
+    handler->loadFile(toolWidget->selectedFile());
+}
+
+void DSHBlockController::doResetControls()
+{
+    ControllerBase::doResetControls();
+    configureToolWidget();
+}
+
 void DSHBlockController::configureToolWidget()
 {
-    if (!init) {  // Code to be executed only upon initialisation
-        QStringList names = {
-            QApplication::translate("TaskSketcherTool_c1_text", "Width"),
-            QApplication::translate("TaskSketcherTool_c1_text", "Height")
-        };
-        toolWidget->setComboboxElements(WCombobox::FirstCombo, names);
-
-        toolWidget->setComboboxLabel(
-            WCombobox::SecondCombo,
-            QApplication::translate("TaskSketcherTool_Block", "Block")
-        );
-
-        // 1. Scan for block files and store the map
-        handler->pathMap = findAvailableBlockFiles();
-
-        // 2. Populate combobox with friendly names (the keys of the map)
-        QStringList blocksNames = handler->pathMap.keys();
-        blocksNames.sort(Qt::CaseInsensitive);
-        blocksNames.append(QApplication::translate("TaskSketcherTool_Block", "Choose file…"));
-        toolWidget->setComboboxElements(WCombobox::SecondCombo, blocksNames);
-        if (!handler->pathMap.isEmpty()) {
-            handler->loadFile(handler->pathMap.value(blocksNames.first()));
-        }
-    }
-
+    toolWidget->setPlacementOptions(
+        static_cast<int>(handler->constructionMethod()),
+        handler->fixedSize,
+        handler->fixedOrientation,
+        handler->hasSourceHandle()
+    );
     onViewParameters[OnViewParameter::First]->setLabelType(Gui::SoDatumLabel::DISTANCEX);
     onViewParameters[OnViewParameter::Second]->setLabelType(Gui::SoDatumLabel::DISTANCEY);
 
@@ -398,26 +573,24 @@ void DSHBlockController::configureToolWidget()
     );
 }
 
-template<>
-void DSHBlockController::adaptDrawingToComboboxChange(int comboboxindex, int value)
+void DSHBlockController::placementChanged(int method, bool size, bool orientation)
 {
-    if (comboboxindex == WCombobox::FirstCombo) {
-        handler->setConstructionMethod(static_cast<ConstructionMethod>(value));
+    if (handler->fixedSize != size) {
+        handler->fixedSize = size;
+        unsetOnViewParameter(onViewParameters[OnViewParameter::Third].get());
     }
-    else if (comboboxindex == WCombobox::SecondCombo) {
-        const QString name = toolWidget->getComboboxCurrentText(WCombobox::SecondCombo);
-        QString path = handler->pathMap.value(name);
-        if (path.isEmpty() && value >= 0) {
-            path = Gui::FileDialog::getOpenFileName(
-                toolWidget,
-                QObject::tr("Insert Block"),
-                QString::fromStdString(App::Application::getResourceDir() + "Mod/Sketcher/Blocks/"),
-                {{QObject::tr("Sketcher block files"), {QStringLiteral("*.txt")}}}
-            );
-        }
-        handler->loadFile(path);
-        // The redraw is handled by the controller's finishControlsChanged()
+    if (handler->fixedOrientation != orientation) {
+        handler->fixedOrientation = orientation;
+        unsetOnViewParameter(onViewParameters[OnViewParameter::Fourth].get());
     }
+    if (static_cast<int>(handler->constructionMethod()) != method) {
+        handler->setConstructionMethod(static_cast<ConstructionMethod>(method));
+    }
+    handler->sugConstraints[1].clear();
+    handler->angleSnappingControl();
+    handler->updateHint();
+    onHandlerModeChanged();
+    finishControlsChanged();
 }
 
 template<>
@@ -446,7 +619,7 @@ void DSHBlockControllerBase::doEnforceControlParameters(Base::Vector2d& onSketch
             }
             double length = dir.Length();
 
-            if (thirdParam->isSet) {
+            if (thirdParam->isSet && !handler->fixedSize) {
                 length = thirdParam->getValue();
                 if (length < Precision::Confusion()) {
                     unsetOnViewParameter(thirdParam.get());
@@ -456,14 +629,26 @@ void DSHBlockControllerBase::doEnforceControlParameters(Base::Vector2d& onSketch
                 onSketchPos = handler->startPoint + length * dir.Normalize();
             }
 
-            if (fourthParam->isSet) {
+            if (fourthParam->isSet && !handler->fixedOrientation) {
                 double angle = Base::toRadians(fourthParam->getValue());
-                if (handler->constructionMethod() == ConstructionMethod::Height) {
-                    angle += M_PI * 0.5;
-                }
+                angle += handler->originalDirection().Angle();
                 Base::Vector2d dir(cos(angle), sin(angle));
-                onSketchPos.ProjectToLine(onSketchPos - handler->startPoint, dir);
-                onSketchPos += handler->startPoint;
+                if (handler->fixedSize) {
+                    onSketchPos = handler->startPoint + handler->nativeLength() * dir;
+                }
+                else {
+                    onSketchPos.ProjectToLine(onSketchPos - handler->startPoint, dir);
+                    onSketchPos += handler->startPoint;
+                }
+            }
+
+            if (handler->fixedSize || handler->fixedOrientation) {
+                dir = onSketchPos - handler->startPoint;
+                length = handler->fixedSize ? handler->nativeLength() : dir.Length();
+                if (handler->fixedOrientation || dir.Length() < Precision::Confusion()) {
+                    dir = handler->originalDirection();
+                }
+                onSketchPos = handler->startPoint + length * dir.Normalize();
             }
 
             if (thirdParam->isSet && fourthParam->isSet
@@ -477,7 +662,6 @@ void DSHBlockControllerBase::doEnforceControlParameters(Base::Vector2d& onSketch
     }
 }
 
-template<>
 void DSHBlockController::adaptParameters(Base::Vector2d onSketchPos)
 {
     switch (handler->state()) {
@@ -511,15 +695,9 @@ void DSHBlockController::adaptParameters(Base::Vector2d onSketchPos)
                 setOnViewParameterValue(OnViewParameter::Third, vec.Length());
             }
 
-            double range;
-            if (handler->constructionMethod() == ConstructionMethod::Height) {
-                Base::Vector2d norm(vec.y, -vec.x);
-                Base::Vector2d textAlignPoint = handler->startPoint + norm;
-                range = (textAlignPoint - handler->startPoint).Angle();
-            }
-            else {
-                range = (handler->endPoint - handler->startPoint).Angle();
-            }
+            const double angle = (handler->endPoint - handler->startPoint).Angle()
+                - handler->originalDirection().Angle();
+            const double range = std::atan2(std::sin(angle), std::cos(angle));
 
 
             if (!fourthParam->isSet) {
@@ -549,7 +727,6 @@ void DSHBlockController::adaptParameters(Base::Vector2d onSketchPos)
     }
 }
 
-template<>
 void DSHBlockController::computeNextDrawSketchHandlerMode()
 {
     switch (handler->state()) {
@@ -558,14 +735,19 @@ void DSHBlockController::computeNextDrawSketchHandlerMode()
             auto& secondParam = onViewParameters[OnViewParameter::Second];
 
             if (firstParam->hasFinishedEditing && secondParam->hasFinishedEditing) {
-                handler->setNextState(SelectMode::SeekSecond);
+                handler->setNextState(
+                    handler->fixedSize && handler->fixedOrientation ? SelectMode::End
+                                                                    : SelectMode::SeekSecond
+                );
             }
         } break;
         case SelectMode::SeekSecond: {
             auto& thirdParam = onViewParameters[OnViewParameter::Third];
             auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
 
-            if (thirdParam->hasFinishedEditing && fourthParam->hasFinishedEditing) {
+            if ((!handler->fixedSize || !handler->fixedOrientation)
+                && (handler->fixedSize || thirdParam->hasFinishedEditing)
+                && (handler->fixedOrientation || fourthParam->hasFinishedEditing)) {
                 handler->setNextState(SelectMode::End);
             }
         } break;
@@ -574,7 +756,6 @@ void DSHBlockController::computeNextDrawSketchHandlerMode()
     }
 }
 
-template<>
 void DSHBlockController::addConstraints()
 {
     App::DocumentObject* obj = handler->sketchgui->getObject();
@@ -588,8 +769,9 @@ void DSHBlockController::addConstraints()
 
     auto x0set = onViewParameters[OnViewParameter::First]->isSet;
     auto y0set = onViewParameters[OnViewParameter::Second]->isSet;
-    auto p3set = onViewParameters[OnViewParameter::Third]->isSet;
-    auto p4set = onViewParameters[OnViewParameter::Fourth]->isSet;
+    auto p3set = !handler->fixedSize && onViewParameters[OnViewParameter::Third]->isSet;
+    auto p4set = !handler->fixedSize && !handler->fixedOrientation
+        && onViewParameters[OnViewParameter::Fourth]->isSet;
 
     using namespace Sketcher;
 
@@ -616,9 +798,7 @@ void DSHBlockController::addConstraints()
 
     auto constraintp4angle = [&]() {
         double angle = Base::toRadians(p4);
-        if (handler->constructionMethod() == ConstructionMethod::Height) {
-            angle += M_PI * 0.5;
-        }
+        angle += handler->originalDirection().Angle();
 
         ConstraintLineByAngle(firstCurve, angle, obj);
     };
@@ -655,7 +835,8 @@ void DSHBlockController::addConstraints()
             handler->diagnoseWithAutoConstraints();  // ensure we have recalculated parameters after
                                                      // each constraint addition
 
-            startpointinfo = handler->getPointInfo(GeoElementId(firstCurve, PointPos::start)
+            startpointinfo = handler->getPointInfo(
+                GeoElementId(firstCurve, PointPos::start)
             );  // get updated point position
         }
 
@@ -665,10 +846,14 @@ void DSHBlockController::addConstraints()
             handler->diagnoseWithAutoConstraints();  // ensure we have recalculated parameters after
                                                      // each constraint addition
 
-            startpointinfo = handler->getPointInfo(GeoElementId(firstCurve, PointPos::start)
+            startpointinfo = handler->getPointInfo(
+                GeoElementId(firstCurve, PointPos::start)
             );  // get updated point position
         }
 
+        if (handler->fixedSize) {
+            return;
+        }
         auto endpointinfo = handler->getPointInfo(GeoElementId(firstCurve, PointPos::end));
 
         int DoFs = startpointinfo.getDoFs();
@@ -693,23 +878,22 @@ Gui::InputHint DrawSketchHandlerBlock::switchModeHint()
 DrawSketchHandlerBlock::HintTable DrawSketchHandlerBlock::getBlockHintTable()
 {
     const auto switchHint = switchModeHint();
-    return {// Structure: {constructionMethod, state, {hints...}}
-            {static_cast<int>(ConstructionMethod::Height),
-             0,
-             {{QObject::tr("%1 pick bottom-left point"), {Gui::InputHint::UserInput::MouseLeft}},
-              switchHint}},
-            {static_cast<int>(ConstructionMethod::Height),
-             1,
-             {{QObject::tr("%1 pick top-left point"), {Gui::InputHint::UserInput::MouseLeft}},
-              switchHint}},
-            {static_cast<int>(ConstructionMethod::Width),
-             0,
-             {{QObject::tr("%1 pick bottom-left point"), {Gui::InputHint::UserInput::MouseLeft}},
-              switchHint}},
-            {static_cast<int>(ConstructionMethod::Width),
-             1,
-             {{QObject::tr("%1 pick bottom-right point"), {Gui::InputHint::UserInput::MouseLeft}},
-              switchHint}}
+    return {
+        // Structure: {constructionMethod, state, {hints...}}
+        {static_cast<int>(ConstructionMethod::Height),
+         0,
+         {{QObject::tr("%1 place block origin"), {Gui::InputHint::UserInput::MouseLeft}}, switchHint}},
+        {static_cast<int>(ConstructionMethod::Height),
+         1,
+         {{QObject::tr("%1 set height and orientation"), {Gui::InputHint::UserInput::MouseLeft}},
+          switchHint}},
+        {static_cast<int>(ConstructionMethod::Width),
+         0,
+         {{QObject::tr("%1 place block origin"), {Gui::InputHint::UserInput::MouseLeft}}, switchHint}},
+        {static_cast<int>(ConstructionMethod::Width),
+         1,
+         {{QObject::tr("%1 set width and orientation"), {Gui::InputHint::UserInput::MouseLeft}},
+          switchHint}}
     };
 }
 

@@ -98,17 +98,17 @@ public:
      0 refers to sketch axes and external geometry.  posId is a PointPos enum, documented in
      Constraint.h.
     */
-    Part ::PropertyGeometryList Geometry;
+    Part::PropertyGeometryList Geometry;
     Sketcher::PropertyConstraintList Constraints;
-    App ::PropertyLinkSubList ExternalGeometry;
+    App::PropertyLinkSubList ExternalGeometry;
     App::PropertyIntegerList ExternalTypes;
-    App ::PropertyLinkListHidden Exports;
-    Part ::PropertyGeometryList ExternalGeo;
-    App ::PropertyBool FullyConstrained;
-    App ::PropertyPrecision ArcFitTolerance;
-    Part ::PropertyPartShape InternalShape;
-    App ::PropertyPrecision InternalTolerance;
-    App ::PropertyBool MakeInternals;
+    App::PropertyLinkListHidden Exports;
+    Part::PropertyGeometryList ExternalGeo;
+    App::PropertyBool FullyConstrained;
+    App::PropertyPrecision ArcFitTolerance;
+    Part::PropertyPartShape InternalShape;
+    App::PropertyPrecision InternalTolerance;
+    App::PropertyBool MakeInternals;
     // Internal-face pipeline: 1 = legacy FaceMakerRing (<= 1.1), 2 = FaceMakerBuildFace.
     // Kept so old documents' internal-face names stay stable and references resolve.
     App::PropertyInteger _InternalFaceVersion;
@@ -362,7 +362,11 @@ public:
     double getDatum(int ConstrId) const;
     /// set the text and font of a text constraint
     /// Replace a group's members from a snapshot, retaining its handle and metadata.
-    int replaceGroupGeometry(int constraintId, const std::vector<Part::Geometry*>& source);
+    int replaceGroupGeometry(
+        int constraintId,
+        const std::vector<Part::Geometry*>& source,
+        const Base::Vector3d& sourceHandle = Base::Vector3d()
+    );
 
     int setTextAndFont(
         int ConstrId,
