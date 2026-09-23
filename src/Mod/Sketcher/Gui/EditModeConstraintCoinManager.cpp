@@ -116,7 +116,7 @@ void EditModeConstraintCoinManager::updateVirtualSpace()
             const bool nestedGroup = (constraint->Type == Group || constraint->Type == Text)
                 && viewProvider.getSketchObject()->isInGroup(constraint->getGeoId(0), false);
             sws[i] = !(constrlist[i]->isInVirtualSpace != isshownvirtualspace)
-                && constrlist[i]->isVisible
+                && constrlist[i]->isVisible && viewProvider.isConstraintVisible(constrlist[i])
                 && !nestedGroup;
         }
 
@@ -2508,7 +2508,7 @@ void EditModeConstraintCoinManager::drawConstraintIcons(const GeoListFacade& geo
         thisIcon.position = absPos;
         thisIcon.destination = coinIconPtr;
         thisIcon.infoPtr = infoPtr;
-        thisIcon.visible = (constraint->isInVirtualSpace
+        thisIcon.visible = viewProvider.isConstraintVisible(constraint) && (constraint->isInVirtualSpace
                             == ViewProviderSketchCoinAttorney::isShownVirtualSpace(viewProvider))
             && constraint->isVisible;
 

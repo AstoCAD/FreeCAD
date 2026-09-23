@@ -31,6 +31,7 @@ from SketcherTests.TestSketchValidateCoincidents import TestSketchValidateCoinci
 from SketcherTests.TestSketchCarbonCopyReverseMapping import TestSketchCarbonCopyReverseMapping
 from SketcherTests.TestSketchInternalFaces import TestSketchInternalFaces
 from SketcherTests.TestSketchGroups import TestSketchGroups
+from SketcherTests.TestSketchLayers import TestSketchLayers
 from SketcherTests.TestSketchBlocks import TestSketchBlocks
 
 # Path and PartDesign tests use these functions that used to live here
@@ -48,6 +49,7 @@ __all__ = [
     "TestSketchCarbonCopyReverseMapping",
     "TestSketchInternalFaces",
     "TestSketchGroups",
+    "TestSketchLayers",
     "TestSketchBlocks",
     "CreateCircleSketch",
     "CreateRectangleSketch",
