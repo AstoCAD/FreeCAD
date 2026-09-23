@@ -35,6 +35,7 @@
 
 #include <Mod/TechDraw/App/LineGroup.h>
 #include <Mod/TechDraw/App/DrawLeaderLine.h>
+#include <Mod/TechDraw/App/DrawUtil.h>
 #include <Mod/TechDraw/App/DrawRichAnno.h>
 #include <Mod/TechDraw/App/DrawWeldSymbol.h>
 
@@ -77,6 +78,9 @@ ViewProviderLeader::ViewProviderLeader()
 
 bool ViewProviderLeader::setEdit(int ModNum)
 {
+    if (TechDraw::DrawUtil::isSourceOwnedAnnotation(getObject())) {
+        return false;  // The leader mirrors a sketch annotation and is not editable here.
+    }
 //    Base::Console().message("VPL::setEdit(%d)\n", ModNum);
     if (ModNum != ViewProvider::Default) {
         return ViewProviderDrawingView::setEdit(ModNum);

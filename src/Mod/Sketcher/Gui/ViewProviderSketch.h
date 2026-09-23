@@ -102,6 +102,7 @@ class SketchObject;
 namespace SketcherGui
 {
 
+class AnnotationManager;
 class EditModeCoinManager;
 class SnapManager;
 class DrawSketchHandler;
@@ -546,7 +547,9 @@ public:
     App::PropertyString EditingWorkbench;
     SketcherGui::PropertyVisualLayerList VisualLayerList;
     App::PropertyIntegerList HiddenLayers;
+    App::PropertyIntegerList HiddenAnnotations;
     App::PropertyIntegerList LayerOrder;
+    AnnotationManager& annotationManager();
     App::PropertyMap LayerColors;
     App::PropertyMap LayerPatterns;
     App::PropertyMap LayerLineWidths;
@@ -560,6 +563,8 @@ public:
     void updateVisual() override;
     std::vector<int> getLayerOrder() const;
     bool areLayersEnabled() const { return showLayers; }
+    /// Whether cosmetics are offered in the interface (their task box and toolbar).
+    bool areCosmeticsEnabled() const { return showCosmetics; }
     fastsignals::signal<void()> signalLayersChanged;
     int getGeometryCoinLayer(const Sketcher::GeometryFacade* geometry) const;
     int getGeometryCoinLayerCount() const;
@@ -743,6 +748,10 @@ public:
     void deleteSelected();
 
     bool isSelected(const std::string& ss) const;
+    /// Edges joined end to end with geoId, including geoId itself (first). Closed curves
+    /// (circles, ellipses, periodic B-splines) have no end points: the result is empty
+    /// for them and they never join another edge.
+    std::vector<int> getConnectedEdges(int geoId, bool includeExternal = true) const;
     void rmvSelection(const std::string& subNameSuffix);
     bool addSelection(const std::string& subNameSuffix, float x = 0, float y = 0, float z = 0);
     bool addSelection2(const std::string& subNameSuffix, float x = 0, float y = 0, float z = 0);
@@ -884,9 +893,16 @@ private:
         const SbVec2s& pos,
         const Gui::View3DInventorViewer* viewer
     ) const;
+    /// Fills an existing list so a single ray pick can serve several consumers.
+    void collectPickedPointsOnRay(
+        const SbVec2s& pos,
+        const Gui::View3DInventorViewer* viewer,
+        SoPickedPointList& picks
+    ) const;
     EditModeCoinManager::PreselectionResult getPreselectionResultAtViewportPos(
         const SbVec2s& pos,
-        const Gui::View3DInventorViewer* viewer
+        const Gui::View3DInventorViewer* viewer,
+        const SoPickedPointList* picked = nullptr
     ) const;
     void cachePreselectionResult(
         const SbVec2s& pos,
@@ -1070,6 +1086,10 @@ private:
     //@}
 
 private:
+    std::unique_ptr<AnnotationManager> annotations;
+    /// Moves the annotation scene between the display-mode and edit-mode parents. The
+    /// node must have exactly one parent or it is traversed, drawn and picked twice.
+    void reparentAnnotations(bool editing);
     void initializeNewLayerStyles();
     std::set<int> knownLayerIds;
     fastsignals::connection connectUndoDocument;
@@ -1115,6 +1135,7 @@ private:
 
     ViewProviderParameters viewProviderParameters;
     bool showLayers {false};
+    bool showCosmetics {true};
 
     using Connection = fastsignals::connection;
     Connection connectionToolWidget;

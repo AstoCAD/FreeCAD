@@ -7,6 +7,7 @@ if(BUILD_GUI)
 endif(BUILD_GUI)
 
 set(TechDraw_Scripts
+    SketchAnnotations.py
     Init.py
     TestTechDrawApp.py
     TestTechDrawGui.py
@@ -176,6 +177,8 @@ endif(BUILD_GUI)
 #unit test files
 SET(TDTest_SRCS
     TDTest/__init__.py
+    TDTest/SketchAnnotationsTest.py
+    TDTest/SketchAnnotationsGuiTest.py
     TDTest/DrawHatchTest.py
     TDTest/DrawPageSketchTest.py
     TDTest/DrawProjectionGroupTest.py

@@ -6,6 +6,7 @@ from SketcherTests.TestPlacementUpdate import TestSketchPlacementUpdate
 from SketcherTests.TestSolverUpdateGui import TestSolverUpdateGui
 from SketcherTests.TestExternalFacePreselection import TestExternalFacePreselection
 from SketcherTests.TestSketchGroupsGui import TestSketchGroupsGui
+from SketcherTests.TestSketchAnnotationsGui import TestSketchAnnotationsGui
 from SketcherTests.TestSketchLayersGui import TestSketchLayersGui
 from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
 
@@ -19,6 +20,7 @@ from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
     and TestOnViewParameterGui
     and TestExternalFacePreselection
     and TestSketchGroupsGui
+    and TestSketchAnnotationsGui
     and TestSketchLayersGui
     and TestSketchBlocksGui
     else False

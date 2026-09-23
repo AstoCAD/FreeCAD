@@ -29,6 +29,7 @@
 #include <Gui/Selection/Selection.h>
 
 #include <Mod/TechDraw/App/DrawGeomHatch.h>
+#include <Mod/TechDraw/App/DrawUtil.h>
 #include <Mod/TechDraw/App/DrawViewPart.h>
 #include <Mod/TechDraw/App/LineGroup.h>
 
@@ -66,6 +67,9 @@ ViewProviderGeomHatch::~ViewProviderGeomHatch()
 
 bool ViewProviderGeomHatch::setEdit(int ModNum)
 {
+    if (TechDraw::DrawUtil::isSourceOwnedAnnotation(getObject())) {
+        return false;  // The hatch mirrors a sketch annotation and is not editable here.
+    }
     if (ModNum != ViewProvider::Default) {
         return Gui::ViewProviderDocumentObject::setEdit(ModNum);
     }

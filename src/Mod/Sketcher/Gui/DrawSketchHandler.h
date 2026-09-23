@@ -195,6 +195,10 @@ public:
         return false;
     }
 
+    /// The construction toggle switched the creation mode while this tool is active.
+    virtual void onConstructionModeChanged()
+    {}
+
     /// Whether the tool adds geometry to the active layer, so that it cannot run while that
     /// layer is locked. Tools that only constrain or modify existing geometry do not.
     virtual bool addsToActiveLayer() const

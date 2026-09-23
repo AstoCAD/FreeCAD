@@ -45,6 +45,7 @@ DrawRichAnno::DrawRichAnno()
     // Necessary to support legacy files made before #24624.
     ADD_PROPERTY_TYPE(OriginCentered, (false), group, App::Prop_None, "Center the annotation on it's origin.");
     ADD_PROPERTY_TYPE(MaxWidth, (-1.0), group, App::Prop_None, "Width limit before auto wrap");
+    ADD_PROPERTY_TYPE(TextHeight, (0.0), group, App::Prop_None, "Model text height in mm; zero uses the HTML font sizes");
     Caption.setStatus(App::Property::Hidden, true);
     Scale.setStatus(App::Property::Hidden, true);
     ScaleType.setStatus(App::Property::Hidden, true);
@@ -53,36 +54,10 @@ DrawRichAnno::DrawRichAnno()
 
 void DrawRichAnno::Restore(Base::XMLReader& reader)
 {
-    bool originCenteredFound = false;
-
-    // Start parsing the properties block.
-    reader.readElement("Properties");
-    int propCount = reader.getAttribute<long>("Count");
-
-    for (int i = 0; i < propCount; i++) {
-        reader.readElement("Property");
-        const char* propName = reader.getAttribute<const char*>("name");
-
-        // The "checking" part:
-        if (strcmp(propName, "OriginCentered") == 0) {
-            originCenteredFound = true;
-        }
-
-        // The "restoring" part:
-        App::Property* prop = getPropertyByName(propName);
-        if (prop) {
-            prop->Restore(reader);  // Restore the value
-        }
-
-        reader.readEndElement("Property");
-    }
-
-    reader.readEndElement("Properties");
-
-    // Ensure backward compatibility: Old files have their anno centered on origin.
-    if (!originCenteredFound) {
-        OriginCentered.setValue(true);
-    }
+    // Legacy documents lack OriginCentered. The base restores it when present,
+    // including dynamic properties and their status flags.
+    OriginCentered.setValue(true);
+    DrawView::Restore(reader);
 }
 
 void DrawRichAnno::onChanged(const App::Property* prop)
@@ -90,7 +65,7 @@ void DrawRichAnno::onChanged(const App::Property* prop)
     if (!isRestoring()) {
         if ((prop == &AnnoText) ||
             (prop == &ShowFrame) ||
-            (prop == &MaxWidth) ) {
+            (prop == &MaxWidth) || (prop == &TextHeight) ) {
             requestPaint();
         }
     }
