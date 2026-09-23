@@ -75,3 +75,5 @@ from TDTest.DrawTaskUndoGuiTest import DrawTaskUndoGuiTest  # noqa: F401
 from TDTest.DrawSectionTabOrderGuiTest import DrawSectionTabOrderGuiTest  # noqa: F401
 from TDTest.TechDrawTaskTest import TechDrawTaskTest  # noqa: F401
 
+
+from TDTest.SketchAnnotationsGuiTest import SketchAnnotationsGuiTest  # noqa: F401
