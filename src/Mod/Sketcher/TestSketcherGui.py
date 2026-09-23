@@ -13,6 +13,8 @@ from SketcherTests.TestCarbonCopyModelTreeDragging import TestCarbonCopyModelTre
 from SketcherTests.TestViewSectionGui import TestViewSectionGui
 from SketcherTests.TestConvertToNURBSGui import TestConvertToNURBSGui
 from SketcherTests.TestSketchGroupsGui import TestSketchGroupsGui
+from SketcherTests.TestSketchAnnotationsGui import TestSketchAnnotationsGui
+from SketcherTests.TestSketchLayersGui import TestSketchLayersGui
 from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
 
 # Use the module so that code checkers don't complain (flake8)
@@ -30,6 +32,8 @@ from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
     and TestViewSectionGui
     and TestConvertToNURBSGui
     and TestSketchGroupsGui
+    and TestSketchAnnotationsGui
+    and TestSketchLayersGui
     and TestSketchBlocksGui
     else False
 )

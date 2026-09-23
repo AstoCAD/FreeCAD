@@ -21,6 +21,7 @@ int Sketcher::SketchObject::replaceGroupGeometry(
     }
     const auto* group = constraints[constraintId];
     const int handle = group->getGeoId(0);
+    checkGeometryUnlocked(handle);
     const auto* line = dynamic_cast<const Part::GeomLineSegment*>(getGeometry(handle));
     const auto* point = dynamic_cast<const Part::GeomPoint*>(getGeometry(handle));
     GroupHierarchy hierarchy(constraints, false);
@@ -56,6 +57,7 @@ int Sketcher::SketchObject::replaceGroupGeometry(
         construction = construction && GeometryFacade::getConstruction(getGeometry(member));
     }
     for (auto& geo : replacements) {
+        GeometryFacade::getFacade(geo.get())->setGeometryLayerId(getGeometryLayer(handle));
         if (construction) {
             GeometryFacade::setConstruction(geo.get(), true);
         }

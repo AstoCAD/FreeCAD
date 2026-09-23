@@ -10,6 +10,7 @@ if(BUILD_GUI)
 endif(BUILD_GUI)
 
 set(TechDraw_Scripts
+    SketchAnnotations.py
     Init.py
     TestTechDrawApp.py
     TestTechDrawGui.py
@@ -180,6 +181,8 @@ endif(BUILD_GUI)
 SET(TDTest_SRCS
     TDTest/__init__.py
     TDTest/DrawBrokenOutSectionDepthTest.py
+    TDTest/SketchAnnotationsTest.py
+    TDTest/SketchAnnotationsGuiTest.py
     TDTest/DrawHatchTest.py
     TDTest/DrawDimensionApiTest.py
     TDTest/DrawDimensionShapeNameTest.py
