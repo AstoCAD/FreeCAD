@@ -23,6 +23,7 @@
 #include "EditModeCoinManager.h"
 #include "Utils.h"
 #include "ViewProviderSketch.h"
+#include "SketchAnnotations.h"
 
 using namespace SketcherGui;
 
@@ -158,6 +159,7 @@ void ViewProviderSketch::refreshLayers()
         signalElementsChanged();
         signalConstraintsChanged();
     }
+    if (annotations) annotations->scheduleUpdate();
     signalLayersChanged();
 }
 
@@ -170,11 +172,18 @@ void ViewProviderSketch::appendLayerMenu(QMenu* menu)
     }
     auto* sketch = getSketchObject();
     std::set<int> ids;
+    std::set<long> annotationIds;
     for (const auto& object : Gui::Selection().getSelectionEx(sketch->getDocument()->getName())) {
         if (object.getObject() != sketch) {
             continue;
         }
         for (const auto& name : object.getSubNames()) {
+            if (const long annotationId = annotationIdFromSubName(name)) {
+                if (sketch->findAnnotation(annotationId)) {
+                    annotationIds.insert(annotationId);
+                }
+                continue;
+            }
             int id;
             Sketcher::PointPos pos;
             if (sketch->geoIdFromShapeType(name.c_str(), id, pos)
@@ -184,7 +193,7 @@ void ViewProviderSketch::appendLayerMenu(QMenu* menu)
             }
         }
     }
-    if (ids.empty()) {
+    if (ids.empty() && annotationIds.empty()) {
         return;
     }
     menu->addSeparator();
@@ -205,19 +214,43 @@ void ViewProviderSketch::appendLayerMenu(QMenu* menu)
         action->setCheckable(true);
         action->setChecked(std::all_of(ids.begin(), ids.end(), [sketch, layer](int id) {
             return sketch->getGeometryLayer(id) == layer;
+        }) && std::all_of(annotationIds.begin(), annotationIds.end(), [sketch, layer](long id) {
+            const auto* annotation = sketch->findAnnotation(id);
+            return annotation && annotation->layer == layer;
         }));
+        const auto annotationLocked = [sketch](long id) {
+            const auto* annotation = sketch->findAnnotation(id);
+            return annotation && sketch->isLayerLocked(annotation->layer);
+        };
         const auto geometryLocked = [sketch](int id) {
             return sketch->isLayerLocked(sketch->getGeometryLayer(id));
         };
         action->setEnabled(
-            !sketch->isLayerLocked(layer) && std::none_of(ids.begin(), ids.end(), geometryLocked)
+            !sketch->isLayerLocked(layer)
+            && std::none_of(ids.begin(), ids.end(), geometryLocked)
+            && std::none_of(annotationIds.begin(), annotationIds.end(), annotationLocked)
         );
-        QObject::connect(action, &QAction::triggered, submenu, [this, sketch, arguments, layer]() {
+        QObject::connect(action, &QAction::triggered, submenu, [this, sketch, arguments, annotationIds, layer]() {
             sketch->getDocument()->openTransaction(
                 QT_TRANSLATE_NOOP("Command", "Move geometry to layer")
             );
             try {
-                Gui::cmdAppObjectArgs(sketch, "setGeometryLayer([%s], %d)", arguments.c_str(), layer);
+                if (!arguments.empty()) {
+                    Gui::cmdAppObjectArgs(
+                        sketch,
+                        "setGeometryLayer([%s], %d)",
+                        arguments.c_str(),
+                        layer
+                    );
+                }
+                for (long id : annotationIds) {
+                    Gui::cmdAppObjectArgs(
+                        sketch,
+                        "updateAnnotation(%ld, {'Layer': %d})",
+                        id,
+                        layer
+                    );
+                }
                 sketch->getDocument()->commitTransaction();
                 refreshLayers();
             }

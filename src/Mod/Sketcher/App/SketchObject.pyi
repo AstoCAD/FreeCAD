@@ -97,7 +97,7 @@ class SketchObject(Part2DObject):
         ...
 
     def delAnnotations(self, annotationIds: List[int], /) -> None:
-        """Delete annotations by stable ID."""
+        """Delete annotations by stable ID, respecting locked layers."""
         ...
 
     def getAnnotationFace(self, annotationId: int, /):

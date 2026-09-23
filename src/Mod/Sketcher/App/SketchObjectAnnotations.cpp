@@ -56,6 +56,12 @@ const Annotation& SketchObject::getAnnotation(long id) const
 long SketchObject::addAnnotation(Annotation a)
 {
     a.validate();
+    if (!hasLayer(a.layer)) {
+        throw Base::ValueError("Unknown annotation layer");
+    }
+    if (isLayerLocked(a.layer)) {
+        throw Base::ValueError("Unlock the layer before adding annotations");
+    }
     if (a.kind == Annotation::Kind::Hatch) {
         annotationFace(a);
     }
@@ -86,6 +92,12 @@ long SketchObject::addAnnotation(Annotation a)
 void SketchObject::updateAnnotation(long id, Annotation a)
 {
     const auto& old = getAnnotation(id);
+    if (!hasLayer(a.layer)) {
+        throw Base::ValueError("Unknown annotation layer");
+    }
+    if (isLayerLocked(old.layer) || isLayerLocked(a.layer)) {
+        throw Base::ValueError("Unlock the layer before changing annotations");
+    }
     if (a.kind != old.kind) {
         throw Base::ValueError("Annotation type cannot be changed");
     }
@@ -112,7 +124,9 @@ void SketchObject::delAnnotations(const std::vector<long>& ids)
     }
     const std::set<long> removed(ids.begin(), ids.end());
     for (long id : removed) {
-        getAnnotation(id);  // Throws for an unknown ID, before anything is removed.
+        if (isLayerLocked(getAnnotation(id).layer)) {
+            throw Base::ValueError("Unlock the layer before deleting annotations");
+        }
     }
     auto values = Annotations.getValues();
     std::erase_if(values, [&](const auto& a) { return removed.contains(a.id); });

@@ -82,6 +82,7 @@
 #include "DrawSketchHandler.h"
 #include "GeometryCreationMode.h"
 #include "SketchAnnotations.h"
+#include "LayerListDelegate.h"
 #include "ViewProviderSketch.h"
 #include "Utils.h"
 
@@ -156,8 +157,8 @@ QString typeName(Annotation::Kind kind)
     }
     return QObject::tr("Leader Line");
 }
-/// Whether two versions of an annotation draw the same strokes. Renaming a hatch must not
-/// redo its boolean clipping.
+/// Whether two versions of an annotation draw the same strokes. Renaming a hatch or
+/// moving it to another layer must not redo its boolean clipping.
 bool sameStrokes(const Annotation& a, const Annotation& b)
 {
     if (a.kind != b.kind) {
@@ -477,7 +478,7 @@ QColor annotationInk(const ViewProviderSketch& view, const Annotation& a)
         );
     }
     else {
-        color = view.LineColor.getValue();
+        color = view.getLayerColor(a.layer, view.LineColor.getValue());
     }
     return QColor::fromRgbF(color.r, color.g, color.b);
 }
@@ -981,6 +982,7 @@ public:
             return true;
         }
         settings.position = Base::Vector3d(p.x, p.y, 0);
+        settings.layer = sketchgui->getSketchObject()->ActiveLayer.getValue();
         settings.construction = isConstructionMode();
         settings.html.clear();
         startEditing();
@@ -1450,6 +1452,7 @@ private:
         auto a = settings;
         a.id = -1;  // Preview only: the document allocates the real ID.
         a.boundary = boundary();
+        a.layer = sketchgui->getSketchObject()->ActiveLayer.getValue();
         a.construction = isConstructionMode();
         return a;
     }
@@ -1560,7 +1563,7 @@ private:
         }
         auto& manager = sketchgui->annotationManager();
         if (!manager.save(a, true)) {
-            return;  // Refused and explained; the loops stay picked.
+            return;  // Refused and explained (a locked layer); the loops stay picked.
         }
         auto parameters = annotationParameters();
         parameters->SetASCII("HatchPattern", settings.pattern);
@@ -1766,6 +1769,7 @@ private:
     {
         auto a = settings;
         a.id = -1;  // Preview only: the document allocates the real ID.
+        a.layer = sketchgui->getSketchObject()->ActiveLayer.getValue();
         a.construction = isConstructionMode();
         for (const auto& p : points) {
             a.points.emplace_back(p.x, p.y, 0);
@@ -1934,7 +1938,7 @@ void AnnotationManager::scheduleUpdate(bool geometryChanged)
     }
     if (dragging) {
         auto* sketch = view.getSketchObject();
-        if (!sketch->findAnnotation(dragging)) {
+        if (!sketch->findAnnotation(dragging) || sketch->isLayerLocked(dragOriginal.layer)) {
             dragging = 0;
         }
     }
@@ -2055,7 +2059,8 @@ void AnnotationManager::update()
     for (const auto& stored : displayed) {
         live.insert(stored.id);
         const auto& a = dragging == stored.id ? dragPreview : stored;
-        if (a.id == textEditing || !isVisible(a.id) || (a.construction && !view.isInEditMode())) {
+        if (a.id == textEditing || !isVisible(a.id) || !view.isLayerVisible(a.layer)
+            || (a.construction && !view.isInEditMode())) {
             // A hidden hatch misses the rebuild after its boundary moved; forget its strokes
             // so that showing it again cannot draw the old ones.
             if (const auto it = cache.find(a.id); it != cache.end() && it->second.stale) {
@@ -2071,7 +2076,8 @@ void AnnotationManager::update()
         const auto& preselection = Gui::Selection().getPreselection();
         const bool hovered = preselection.Object.getObject() == view.getObject()
             && preselection.Object.getSubName() == subname;
-        const auto color = a.construction ? constructionColor : view.LineColor.getValue();
+        const auto color = a.construction ? constructionColor
+                                          : view.getLayerColor(a.layer, view.LineColor.getValue());
         auto* pickStyle = new SoPickStyle;
         pickStyle->style = a.kind == Annotation::Kind::Hatch ? SoPickStyle::UNPICKABLE
                                                              : SoPickStyle::SHAPE;
@@ -2095,7 +2101,7 @@ void AnnotationManager::update()
             const bool contentChanged = !raster.valid || raster.html != a.html
                 || raster.textSize != a.textSize || raster.textWidth != a.textWidth
                 || raster.color != packedColor;
-            // Moving text must not cost a re-raster; only content and
+            // Moving or re-layering text must not cost a re-raster; only content and
             // resolution do. The hysteresis keeps small zoom steps free.
             if (contentChanged || pixelsPerMM > raster.density * 1.5
                 || pixelsPerMM < raster.density / 2.0) {
@@ -2225,7 +2231,10 @@ void AnnotationManager::update()
                 continue;
             }
             auto* style = new SoDrawStyle;
-            style->lineWidth = view.LineWidth.getValue();
+            style->lineWidth = a.construction
+                ? view.LineWidth.getValue()
+                : view.getLayerLineWidth(a.layer, view.LineWidth.getValue());
+            style->linePattern = a.construction ? 0xffff : view.getLayerPattern(a.layer);
             item->addChild(style);
             auto* coords = new SoCoordinate3;
             std::vector<SbVec3f> vertices;
@@ -2298,6 +2307,9 @@ bool AnnotationManager::mouseButton(int button, bool pressed, Base::Vector3d pos
         if (extend) {
             return true;
         }
+        if (view.getSketchObject()->isLayerLocked(a.layer)) {
+            return true;
+        }
         if (previousClick == id && clickTimer.isValid()
             && clickTimer.elapsed() < QApplication::doubleClickInterval()) {
             previousClick = 0;
@@ -2327,7 +2339,7 @@ bool AnnotationManager::mouseButton(int button, bool pressed, Base::Vector3d pos
         // Sub-pixel wobble while clicking is not a drag and must not create an undo step.
         const bool moved = (position - dragStart).Length() * viewportDensity() > 1.0;
         dragging = 0;
-        if (moved) {
+        if (moved && !view.getSketchObject()->isLayerLocked(a.layer)) {
             save(a, false);
         }
         scheduleUpdate();
@@ -2386,7 +2398,13 @@ bool AnnotationManager::cancelDrag()
 }
 bool AnnotationManager::save(const Annotation& a, bool create)
 {
-    auto* doc = view.getSketchObject()->getDocument();
+    auto* sketch = view.getSketchObject();
+    const auto* old = create ? nullptr : sketch->findAnnotation(a.id);
+    if (sketch->isLayerLocked(a.layer) || (old && sketch->isLayerLocked(old->layer))) {
+        notify(tr("Cosmetics on a locked layer cannot be changed"));
+        return false;
+    }
+    auto* doc = sketch->getDocument();
     doc->openTransaction(
         create ? QT_TRANSLATE_NOOP("Command", "Create cosmetic")
                : QT_TRANSLATE_NOOP("Command", "Edit cosmetic")
@@ -2419,12 +2437,20 @@ void AnnotationManager::remove(const std::vector<long>& ids)
     }
     auto* sketch = view.getSketchObject();
     std::vector<long> removable;
+    bool blocked = false;
     for (long id : ids) {
         const auto* a = sketch->findAnnotation(id);
         if (!a) {
             continue;
         }
+        if (sketch->isLayerLocked(a->layer)) {
+            blocked = true;
+            continue;
+        }
         removable.push_back(id);
+    }
+    if (blocked) {
+        notify(tr("Cosmetics on a locked layer were not deleted"));
     }
     if (removable.empty()) {
         return;
@@ -2452,6 +2478,10 @@ void AnnotationManager::remove(const std::vector<long>& ids)
 }
 void AnnotationManager::create(Annotation::Kind kind)
 {
+    if (view.getSketchObject()->isLayerLocked(view.getSketchObject()->ActiveLayer.getValue())) {
+        notify(tr("The active layer is locked; cosmetics cannot be added to it"));
+        return;
+    }
     if (kind == Annotation::Kind::Hatch) {
         view.activateHandler(std::make_unique<HatchHandler>(selectedEdges(view)));
     }
@@ -2466,6 +2496,10 @@ void AnnotationManager::edit(long id)
 {
     const auto* found = view.getSketchObject()->findAnnotation(id);
     if (!found) {
+        return;
+    }
+    if (view.getSketchObject()->isLayerLocked(found->layer)) {
+        notify(tr("Cosmetics on a locked layer cannot be edited"));
         return;
     }
     if (found->kind != Annotation::Kind::Text) {
@@ -2496,6 +2530,15 @@ void AnnotationManager::editInDialog(Annotation a)
     label->setObjectName("annotationLabel");
     label->setToolTip(tr("Sets the name shown in the Cosmetics list"));
     form->addRow(tr("Name"), label);
+    auto* layer = new QComboBox;
+    for (const auto& [id, name] : view.getSketchObject()->getLayers()) {
+        if (!view.getSketchObject()->isLayerLocked(id)) {
+            layer->addItem(QString::fromStdString(name), id);
+        }
+    }
+    layer->setCurrentIndex(layer->findData(a.layer));
+    layer->setToolTip(tr("Sets the layer of the cosmetic. Locked layers are not listed."));
+    form->addRow(tr("Layer"), layer);
     auto* construction = new QCheckBox(tr("Construction (edit mode only)"));
     construction->setObjectName("annotationConstruction");
     construction->setToolTip(
@@ -2585,6 +2628,7 @@ void AnnotationManager::editInDialog(Annotation a)
         if (const auto name = label->text().trimmed(); !name.isEmpty()) {
             a.label = name.toStdString();
         }
+        a.layer = layer->currentData().toInt();
         a.construction = construction->isChecked();
         a.position = Base::Vector3d(x->rawValue(), y->rawValue(), 0);
         a.rotation = rotation->rawValue();
@@ -2635,6 +2679,7 @@ void AnnotationManager::editInDialog(Annotation a)
     // Preview is scene-only: cancel never mutates the document or consumes an ID.
     auto preview = [&] {
         auto candidate = a;
+        candidate.layer = layer->currentData().toInt();
         candidate.construction = construction->isChecked();
         candidate.position = Base::Vector3d(x->rawValue(), y->rawValue(), 0);
         candidate.rotation = rotation->rawValue();
@@ -2681,6 +2726,7 @@ void AnnotationManager::editInDialog(Annotation a)
         }
     }
     connect(construction, &QCheckBox::toggled, &dialog, preview);
+    connect(layer, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, preview);
     for (auto* combo : {pattern, arrowStyle}) {
         if (combo) {
             connect(combo, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, preview);
@@ -2711,13 +2757,14 @@ TaskSketcherAnnotations::TaskSketcherAnnotations(ViewProviderSketch* view)
     auto* controls = new QHBoxLayout;
     filterEnabled = new QCheckBox;
     filterEnabled->setObjectName("cosmeticFilterEnabled");
-    filterEnabled->setToolTip(tr("Enables the type filter of the list"));
+    filterEnabled->setToolTip(tr("Enables the type and layer filters of the list"));
     controls->addWidget(filterEnabled);
     filterButton = new QToolButton;
     filterButton->setObjectName("cosmeticFilterButton");
     filterButton->setText(tr("Filter"));
     filterButton->setToolTip(
-        tr("Chooses the types the list shows. The filter does not change what the view shows.")
+        tr("Chooses the types and layers the list shows. The filters do not change what the "
+           "view shows.")
     );
     filterButton->setPopupMode(QToolButton::InstantPopup);
     filterButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
@@ -2728,13 +2775,25 @@ TaskSketcherAnnotations::TaskSketcherAnnotations(ViewProviderSketch* view)
     connect(filters, &QMenu::aboutToShow, this, &TaskSketcherAnnotations::populateFilters);
     controls->addWidget(filterButton);
     layout->addLayout(controls);
-    list = new QListWidget;
+    list = new LayerListWidget;
     list->setObjectName("sketchCosmetics");
     list->setIconSize(QSize(24, 24));
     list->setMinimumHeight(70);
     list->setMaximumHeight(200);
     list->setSelectionMode(QAbstractItemView::ExtendedSelection);
     list->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    delegate = new LayerListDelegate(list, view, [this](const QModelIndex& index, int layer) {
+        auto* sketch = this->view->getSketchObject();
+        const auto* current = sketch->findAnnotation(index.data(Qt::UserRole).toLongLong());
+        if (!current || current->layer == layer || sketch->isLayerLocked(layer)
+            || sketch->isLayerLocked(current->layer)) {
+            return;
+        }
+        auto a = *current;
+        a.layer = layer;
+        this->view->annotationManager().save(a, false);
+    });
+    list->setItemDelegate(delegate);
     layout->addWidget(list);
     groupLayout()->addWidget(container);
     list->installEventFilter(this);
@@ -2778,8 +2837,9 @@ TaskSketcherAnnotations::TaskSketcherAnnotations(ViewProviderSketch* view)
             auto* edit = menu.addAction(tr("Edit"), this, [this, id] {
                 this->view->annotationManager().edit(id);
             });
-            edit->setEnabled(current != nullptr);
+            edit->setEnabled(current && !sketch->isLayerLocked(current->layer));
             std::vector<long> selected;
+            bool unlocked = true;
             for (auto* row : list->selectedItems()) {
                 const long selectedId = row->data(Qt::UserRole).toLongLong();
                 const auto* a = sketch->findAnnotation(selectedId);
@@ -2787,12 +2847,13 @@ TaskSketcherAnnotations::TaskSketcherAnnotations(ViewProviderSketch* view)
                     continue;
                 }
                 selected.push_back(selectedId);
+                unlocked = unlocked && !sketch->isLayerLocked(a->layer);
             }
             menu.addAction(
                     tr("Delete"),
                     this,
                     [this, selected] { this->view->annotationManager().remove(selected); }
-            );
+            )->setEnabled(unlocked);
             menu.addSeparator();
         }
         std::vector<long> all;
@@ -2839,6 +2900,24 @@ void TaskSketcherAnnotations::populateFilters()
             updateFilters();
         });
     }
+    if (view->areLayersEnabled()) {
+        menu->addSection(tr("Layer"));
+        for (const auto& [id, name] : view->getSketchObject()->getLayers()) {
+            auto* action = menu->addAction(QString::fromStdString(name));
+            action->setObjectName("cosmeticLayerFilter" + QString::number(id));
+            action->setCheckable(true);
+            action->setChecked(!excludedLayers.contains(id));
+            connect(action, &QAction::toggled, this, [this, id](bool checked) {
+                if (checked) {
+                    excludedLayers.erase(id);
+                }
+                else {
+                    excludedLayers.insert(id);
+                }
+                updateFilters();
+            });
+        }
+    }
 }
 void TaskSketcherAnnotations::updateFilters()
 {
@@ -2849,7 +2928,9 @@ void TaskSketcherAnnotations::updateFilters()
         if (!a) {
             continue;  // The list is one refresh behind the model.
         }
-        const bool filtered = filterEnabled->isChecked() && excludedTypes.contains(a->kind);
+        const bool filtered = filterEnabled->isChecked()
+            && (excludedTypes.contains(a->kind)
+                || (view->areLayersEnabled() && excludedLayers.contains(a->layer)));
         row->setHidden(filtered);
     }
 }
@@ -2871,6 +2952,7 @@ void TaskSketcherAnnotations::refresh()
     if (rebuild) {
         list->clear();
     }
+    delegate->setLayersEnabled(view->areLayersEnabled());
     for (size_t i = 0; i < values.size(); ++i) {
         const auto& a = values[i];
         auto* row = rebuild ? new QListWidgetItem(list) : list->item(i);
@@ -2879,6 +2961,11 @@ void TaskSketcherAnnotations::refresh()
             row->setIcon(Gui::BitmapFactory().iconFromTheme(typeIcon(a.kind)));
         }
         row->setData(Qt::UserRole, qlonglong(a.id));
+        row->setData(LayerListDelegate::LayerRole, a.layer);
+        row->setData(
+            LayerListDelegate::LayerEditableRole,
+            !view->getSketchObject()->isLayerLocked(a.layer)
+        );
         row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
         row->setCheckState(view->annotationManager().isVisible(a.id) ? Qt::Checked : Qt::Unchecked);
         row->setSelected(
@@ -2895,6 +2982,20 @@ void TaskSketcherAnnotations::refresh()
         }
         row->setToolTip(tooltip);
         row->setForeground(error.empty() ? QBrush() : QBrush(Qt::red));
+        // Reopening a persistent editor allocates a fresh widget and drops any edit in
+        // progress, so only open it once and refresh the data of the existing one.
+        if (view->areLayersEnabled()) {
+            if (!list->isPersistentEditorOpen(row)) {
+                list->openPersistentEditor(row);
+            }
+            const auto index = list->model()->index(static_cast<int>(i), 0);
+            if (auto* editor = list->indexWidget(index)) {
+                delegate->setEditorData(editor, index);
+            }
+        }
+        else if (list->isPersistentEditorOpen(row)) {
+            list->closePersistentEditor(row);
+        }
     }
     updateFilters();
     list->doItemsLayout();
@@ -3028,8 +3129,14 @@ void AnnotationManager::appendContextMenu(QMenu* menu)
         return;
     }
     menu->addSeparator();
+    const bool unlocked = std::none_of(selected.begin(), selected.end(), [this](long id) {
+        const auto* a = view.getSketchObject()->findAnnotation(id);
+        return a && view.getSketchObject()->isLayerLocked(a->layer);
+    });
     if (selected.size() == 1) {
-        menu->addAction(tr("Edit Cosmetic"), this, [this, id = selected.front()] { edit(id); });
+        menu->addAction(tr("Edit Cosmetic"), this, [this, id = selected.front()] { edit(id); })
+            ->setEnabled(unlocked);
     }
-    menu->addAction(tr("Delete Cosmetics"), this, [this, selected] { remove(selected); });
+    menu->addAction(tr("Delete Cosmetics"), this, [this, selected] { remove(selected); })
+        ->setEnabled(unlocked);
 }

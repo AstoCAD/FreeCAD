@@ -21,6 +21,7 @@
 #include <Gui/Selection/Selection.h>
 #include <Mod/Sketcher/App/LayerDefaults.h>
 #include <Mod/Sketcher/App/SketchObject.h>
+#include "SketchAnnotations.h"
 #include "TaskSketcherLayers.h"
 #include "ViewProviderSketch.h"
 
@@ -125,7 +126,12 @@ public:
         for (int index = 2; index < sketch->ExternalGeo.getSize(); ++index) {
             collect(-index - 1);
         }
-        if (removal.members.empty()) {
+        for (const auto& annotation : sketch->Annotations.getValues()) {
+            if (annotation.layer == id) {
+                removal.annotations.push_back(annotation.id);
+            }
+        }
+        if (removal.members.empty() && removal.annotations.empty()) {
             return true;
         }
         QDialog dialog(parent);
@@ -133,26 +139,26 @@ public:
         dialog.setWindowTitle(tr("Remove Layer"));
         auto* layout = new QVBoxLayout(&dialog);
         auto* label = new QLabel(
-            tr("Layer “%1” contains geometry. What would you like to do with it?")
+            tr("Layer “%1” contains geometry or cosmetics.")
                 .arg(QString::fromStdString(sketch->getLayers().at(id))),
             &dialog
         );
         label->setTextFormat(Qt::PlainText);
         label->setWordWrap(true);
         layout->addWidget(label);
-        auto* move = new QRadioButton(tr("Move geometry to another layer"), &dialog);
+        auto* move = new QRadioButton(tr("Move contents to another layer"), &dialog);
         move->setChecked(true);
         layout->addWidget(move);
         auto* target = new QComboBox(&dialog);
         target->setObjectName(QStringLiteral("sketchLayerDestination"));
-        target->setToolTip(tr("Sets the layer that receives the geometry"));
+        target->setToolTip(tr("Sets the layer that receives the contents"));
         for (const auto& [otherId, name] : sketch->getLayers()) {
             if (otherId != id && !sketch->isLayerLocked(otherId)) {
                 target->addItem(QString::fromStdString(name), otherId);
             }
         }
         layout->addWidget(target);
-        auto* remove = new QRadioButton(tr("Delete geometry"), &dialog);
+        auto* remove = new QRadioButton(tr("Delete contents"), &dialog);
         remove->setObjectName(QStringLiteral("deleteSketchLayerGeometry"));
         layout->addWidget(remove);
         if (target->count() == 0) {
@@ -187,6 +193,19 @@ public:
                     sketch,
                     "setGeometryLayer([%s], %d)",
                     members.c_str(),
+                    removal.destination
+                );
+            }
+        }
+        for (long annotationId : removal.annotations) {
+            if (removal.deleteContents) {
+                Gui::cmdAppObjectArgs(sketch, "delAnnotations([%ld])", annotationId);
+            }
+            else {
+                Gui::cmdAppObjectArgs(
+                    sketch,
+                    "updateAnnotation(%ld, {'Layer': %d})",
+                    annotationId,
                     removal.destination
                 );
             }
@@ -299,13 +318,13 @@ public:
     {
         const int id = toLayerId(layerId);
         menu->addAction(tr("Select Layer Geometry"), [this, id]() {
-            selectLayerContents(id, true, false);
+            selectLayerContents(id, true, false, false);
         });
         menu->addAction(tr("Select Layer Constraints"), [this, id]() {
-            selectLayerContents(id, false, true);
+            selectLayerContents(id, false, true, false);
         });
         menu->addAction(tr("Select Layer Contents"), [this, id]() {
-            selectLayerContents(id, true, true);
+            selectLayerContents(id, true, true, true);
         });
     }
 
@@ -366,10 +385,17 @@ private:
         );
     }
 
-    void selectLayerContents(int layerId, bool geometry, bool constraints)
+    void selectLayerContents(int layerId, bool geometry, bool constraints, bool annotations)
     {
         auto* sketch = view->getSketchObject();
         Gui::Selection().clearSelection();
+        if (annotations) {
+            for (const auto& annotation : sketch->Annotations.getValues()) {
+                if (annotation.layer == layerId) {
+                    view->addSelection(annotationSubName(annotation.id));
+                }
+            }
+        }
         if (geometry) {
             auto select = [&](int geoId) {
                 if (sketch->getGeometryLayer(geoId) != layerId) {
@@ -419,6 +445,7 @@ private:
     struct
     {
         std::vector<int> members;
+        std::vector<long> annotations;
         int destination = 0;
         bool deleteContents = false;
     } removal;

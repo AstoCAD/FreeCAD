@@ -1080,3 +1080,18 @@ class TestSketchLayersGui(SketcherGuiTestCase):
         self.layerPrefs.SetBool("ShowLayers", False)
         self.flush_gui(150)
         self.assertIsNone(elements.indexWidget(elements.model().index(0, 0)))
+
+    def testAnnotationOnlyLayerRemoval(self):
+        layer=self.sketch.addLayer("Notes")
+        annotation=self.sketch.addAnnotation({'Type':'Text','Html':'Note','Layer':layer})
+        self.flush_gui(100)
+        self.layer_action(layer, "Select Layer Contents")
+        self.assertIn("Annotation"+str(annotation), Gui.Selection.getSelectionEx()[0].SubElementNames)
+        self.remove_layer(layer, delete=False)
+        self.assertEqual(self.sketch.Annotations[0]['Layer'],0)
+        self.doc.undo();self.flush_gui(100)
+        self.assertEqual(self.sketch.Annotations[0]['Layer'],layer)
+        self.remove_layer(layer, delete=True, context=True)
+        self.assertEqual(self.sketch.Annotations,[])
+        self.doc.undo();self.flush_gui(100)
+        self.assertEqual(self.sketch.Annotations[0]['Id'],annotation)
