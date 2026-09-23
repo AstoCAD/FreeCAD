@@ -100,7 +100,9 @@ SET(SketcherGui_SRCS
     TaskSketcherConstraints.h
     TaskSketcherElements.ui
     TaskSketcherElements.cpp
+    SketchAnnotations.cpp
     LayerListDelegate.h
+    SketchAnnotations.h
     TaskSketcherLayers.cpp
     TaskSketcherLayers.h
     ViewProviderSketchLayers.cpp

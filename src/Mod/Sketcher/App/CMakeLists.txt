@@ -49,6 +49,10 @@ generate_from_py(Sketch)
 
 
 SET(Properties_SRCS
+    Annotation.cpp
+    Annotation.h
+    HatchPattern.cpp
+    HatchPattern.h
     PropertyConstraintList.cpp
     PropertyConstraintList.h
 )
@@ -71,6 +75,7 @@ SET(Features_SRCS
     SketchObjectGeometry.cpp
     LayerDefaults.h
     SketchObjectLayers.cpp
+    SketchObjectAnnotations.cpp
     SketchObjectGroup.cpp
     GroupGeometry.cpp
     GroupGeometry.h
