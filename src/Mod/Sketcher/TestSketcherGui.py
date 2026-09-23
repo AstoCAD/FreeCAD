@@ -10,6 +10,7 @@ from SketcherTests.TestVisualLayerListGui import TestVisualLayerListGui
 from SketcherTests.TestCarbonCopyModelTreeDragging import TestCarbonCopyModelTreeDragging
 from SketcherTests.TestViewSectionGui import TestViewSectionGui
 from SketcherTests.TestSketchGroupsGui import TestSketchGroupsGui
+from SketcherTests.TestSketchAnnotationsGui import TestSketchAnnotationsGui
 from SketcherTests.TestSketchLayersGui import TestSketchLayersGui
 from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
 
@@ -27,6 +28,7 @@ from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
     and TestCarbonCopyModelTreeDragging
     and TestViewSectionGui
     and TestSketchGroupsGui
+    and TestSketchAnnotationsGui
     and TestSketchLayersGui
     and TestSketchBlocksGui
     else False
