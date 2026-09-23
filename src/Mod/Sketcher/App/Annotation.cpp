@@ -120,6 +120,7 @@ PyObject* Annotation::toPython() const
     result.setItem("Id", Py::Long(id));
     result.setItem("Type", Py::String(kindName(kind)));
     result.setItem("Label", Py::String(label));
+    result.setItem("Layer", Py::Long(layer));
     result.setItem("Construction", Py::Boolean(construction));
     result.setItem("Position", Py::Object(new Base::VectorPy(position), true));
     result.setItem("Rotation", Py::Float(rotation));
@@ -164,6 +165,13 @@ Annotation Annotation::fromPython(PyObject* values, Annotation a)
         }
         else if (name == "Label") {
             a.label = Py::String(value).as_string();
+        }
+        else if (name == "Layer") {
+            const long layer = Py::Long(value).as_long();
+            if (layer < 0 || layer > std::numeric_limits<int>::max()) {
+                throw Base::ValueError("Invalid annotation layer");
+            }
+            a.layer = static_cast<int>(layer);
         }
         else if (name == "Construction") {
             a.construction = Py::Boolean(value).isTrue();
@@ -217,7 +225,7 @@ Annotation Annotation::fromPython(PyObject* values, Annotation a)
 
 void Annotation::validate() const
 {
-    if (!planar(position) || !std::isfinite(rotation) || !std::isfinite(textSize)
+    if (!planar(position) || !std::isfinite(rotation) || layer < 0 || !std::isfinite(textSize)
         || textSize <= 0 || !std::isfinite(textWidth) || textWidth < 0 || !std::isfinite(spacing)
         || spacing < 0.01 || !std::isfinite(arrowSize) || arrowSize <= 0) {
         throw Base::ValueError("Invalid annotation coordinates or size");
@@ -316,7 +324,7 @@ void PropertyAnnotationList::Save(Base::Writer& writer) const
         << "\" highestId=\"" << highestId << "\">\n";
     for (const auto& a : values) {
         out << writer.ind() << "<Annotation id=\"" << a.id << "\" type=\"" << kindName(a.kind)
-            << "\" label=\"" << encodeAttribute(a.label)
+            << "\" label=\"" << encodeAttribute(a.label) << "\" layer=\"" << a.layer
             << "\" construction=\"" << a.construction << "\" x=\"" << a.position.x << "\" y=\""
             << a.position.y << "\" rotation=\"" << a.rotation << "\" html=\""
             << encodeAttribute(a.html) << "\" textSize=\"" << a.textSize << "\" textWidth=\""
@@ -362,6 +370,7 @@ void PropertyAnnotationList::Restore(Base::XMLReader& reader)
             knownType = false;
         }
         a.label = reader.getAttribute<const char*>("label");
+        a.layer = reader.getAttribute<int>("layer", 0);  // Absent in files saved without layers.
         a.construction = reader.getAttribute<int>("construction") != 0;
         a.position
             = Base::Vector3d(reader.getAttribute<double>("x"), reader.getAttribute<double>("y"), 0);

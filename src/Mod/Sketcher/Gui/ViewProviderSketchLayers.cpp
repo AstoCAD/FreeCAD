@@ -23,6 +23,7 @@
 #include "EditModeCoinManager.h"
 #include "Utils.h"
 #include "ViewProviderSketch.h"
+#include "SketchAnnotations.h"
 
 using namespace SketcherGui;
 
@@ -126,6 +127,34 @@ void ViewProviderSketch::setLayerVisible(int layerId, bool visible)
 
 void ViewProviderSketch::refreshLayers()
 {
+    // Cosmetics are selectable in and out of edit mode; hiding their layer must
+    // deselect them, or Delete and layer moves act on items the user cannot see.
+    std::vector<std::string> hiddenAnnotations;
+    for (const auto& object :
+         Gui::Selection().getSelectionEx(getSketchObject()->getDocument()->getName())) {
+        if (object.getObject() != getSketchObject()) {
+            continue;
+        }
+        for (const auto& name : object.getSubNames()) {
+            const long id = annotationIdFromSubName(name);
+            const auto* annotation = id ? getSketchObject()->findAnnotation(id) : nullptr;
+            if (annotation && !isLayerVisible(annotation->layer)) {
+                hiddenAnnotations.push_back(name);
+            }
+        }
+    }
+    for (const auto& name : hiddenAnnotations) {
+        if (isInEditMode()) {
+            rmvSelection(name);
+        }
+        else {
+            Gui::Selection().rmvSelection(
+                getSketchObject()->getDocument()->getName(),
+                getSketchObject()->getNameInDocument(),
+                name.c_str()
+            );
+        }
+    }
     if (isInEditMode()) {
         const auto selection = Gui::Selection().getSelectionEx(
             getSketchObject()->getDocument()->getName()
@@ -158,6 +187,7 @@ void ViewProviderSketch::refreshLayers()
         signalElementsChanged();
         signalConstraintsChanged();
     }
+    if (annotations) annotations->scheduleUpdate();
     signalLayersChanged();
 }
 
@@ -170,11 +200,18 @@ void ViewProviderSketch::appendLayerMenu(QMenu* menu)
     }
     auto* sketch = getSketchObject();
     std::set<int> ids;
+    std::set<long> annotationIds;
     for (const auto& object : Gui::Selection().getSelectionEx(sketch->getDocument()->getName())) {
         if (object.getObject() != sketch) {
             continue;
         }
         for (const auto& name : object.getSubNames()) {
+            if (const long annotationId = annotationIdFromSubName(name)) {
+                if (sketch->findAnnotation(annotationId)) {
+                    annotationIds.insert(annotationId);
+                }
+                continue;
+            }
             int id;
             Sketcher::PointPos pos;
             if (sketch->geoIdFromShapeType(name.c_str(), id, pos)
@@ -184,7 +221,7 @@ void ViewProviderSketch::appendLayerMenu(QMenu* menu)
             }
         }
     }
-    if (ids.empty()) {
+    if (ids.empty() && annotationIds.empty()) {
         return;
     }
     menu->addSeparator();
@@ -205,19 +242,43 @@ void ViewProviderSketch::appendLayerMenu(QMenu* menu)
         action->setCheckable(true);
         action->setChecked(std::all_of(ids.begin(), ids.end(), [sketch, layer](int id) {
             return sketch->getGeometryLayer(id) == layer;
+        }) && std::all_of(annotationIds.begin(), annotationIds.end(), [sketch, layer](long id) {
+            const auto* annotation = sketch->findAnnotation(id);
+            return annotation && annotation->layer == layer;
         }));
+        const auto annotationLocked = [sketch](long id) {
+            const auto* annotation = sketch->findAnnotation(id);
+            return annotation && sketch->isLayerLocked(annotation->layer);
+        };
         const auto geometryLocked = [sketch](int id) {
             return sketch->isLayerLocked(sketch->getGeometryLayer(id));
         };
         action->setEnabled(
-            !sketch->isLayerLocked(layer) && std::none_of(ids.begin(), ids.end(), geometryLocked)
+            !sketch->isLayerLocked(layer)
+            && std::none_of(ids.begin(), ids.end(), geometryLocked)
+            && std::none_of(annotationIds.begin(), annotationIds.end(), annotationLocked)
         );
-        QObject::connect(action, &QAction::triggered, submenu, [this, sketch, arguments, layer]() {
+        QObject::connect(action, &QAction::triggered, submenu, [this, sketch, arguments, annotationIds, layer]() {
             sketch->getDocument()->openTransaction(
                 QT_TRANSLATE_NOOP("Command", "Move geometry to layer")
             );
             try {
-                Gui::cmdAppObjectArgs(sketch, "setGeometryLayer([%s], %d)", arguments.c_str(), layer);
+                if (!arguments.empty()) {
+                    Gui::cmdAppObjectArgs(
+                        sketch,
+                        "setGeometryLayer([%s], %d)",
+                        arguments.c_str(),
+                        layer
+                    );
+                }
+                for (long id : annotationIds) {
+                    Gui::cmdAppObjectArgs(
+                        sketch,
+                        "updateAnnotation(%ld, {'Layer': %d})",
+                        id,
+                        layer
+                    );
+                }
                 sketch->getDocument()->commitTransaction();
                 refreshLayers();
             }

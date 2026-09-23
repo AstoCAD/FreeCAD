@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <Base/Console.h>
 #include <Gui/Action.h>
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
@@ -258,6 +259,7 @@ void CmdSketcherToggleConstruction::activated(int iMsg)
 
         // go through the selected subelements
         bool verticesonly = true;
+        bool lockedCosmetics = false;
 
         for (const auto& subname : SubNames) {
             if ((subname.size() > 4 && subname.substr(0, 4) == "Edge")
@@ -283,6 +285,10 @@ void CmdSketcherToggleConstruction::activated(int iMsg)
             if (const long annotationId = Sketcher::Annotation::idFromSubName(subname)) {
                 const auto* annotation = Obj->findAnnotation(annotationId);
                 if (!annotation) {
+                    continue;
+                }
+                if (Obj->isLayerLocked(annotation->layer)) {
+                    lockedCosmetics = true;
                     continue;
                 }
                 Gui::cmdAppObjectArgs(
@@ -323,6 +329,16 @@ void CmdSketcherToggleConstruction::activated(int iMsg)
         }
         // finish the transaction and update
         commitCommand();
+
+        if (lockedCosmetics) {
+            const auto message = QObject::tr(
+                "Cosmetics on a locked layer were not toggled"
+            );
+            Base::Console().warning("%s\n", message.toUtf8().constData());
+            if (auto* window = Gui::getMainWindow()) {
+                window->showMessage(message, 4000);
+            }
+        }
 
         tryAutoRecompute(Obj);
 

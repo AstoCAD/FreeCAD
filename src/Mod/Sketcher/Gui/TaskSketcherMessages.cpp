@@ -112,7 +112,8 @@ void TaskSketcherMessages::createSettingsButtonActions()
 
     sketchView->getSketchObject()->noRecomputes = !state;
 
-    auto* autoUpdateAction = new QWidgetAction(this);
+    // One widget action for all the plain settings: a second one would space them apart.
+    auto* generalAction = new QWidgetAction(this);
     auto* containerWidget = new QWidget();
     auto* layout = new QGridLayout(containerWidget);
     auto* checkbox = new QCheckBox(tr("Auto-update"));
@@ -120,19 +121,28 @@ void TaskSketcherMessages::createSettingsButtonActions()
     checkbox->setChecked(state);
     layout->addWidget(checkbox, 0, 0, 1, 2);
 
+    auto* layersCheckbox = new QCheckBox(tr("Show layers"));
+    layersCheckbox->setObjectName(QStringLiteral("showSketchLayersCheckbox"));
+    layersCheckbox->setToolTip(tr("Shows the Layers task panel and the layer of each element"));
+    layersCheckbox->setChecked(hGrp->GetBool("ShowLayers", false));
+    layout->addWidget(layersCheckbox, 1, 0, 1, 2);
+
     auto* cosmeticsCheckbox = new QCheckBox(tr("Show cosmetics"));
     cosmeticsCheckbox->setObjectName(QStringLiteral("showSketchCosmeticsCheckbox"));
     cosmeticsCheckbox->setToolTip(tr("Shows the Cosmetics task panel and toolbar. Cosmetics stay visible in the 3D view."));
     cosmeticsCheckbox->setChecked(hGrp->GetBool("ShowCosmetics", true));
-    layout->addWidget(cosmeticsCheckbox, 1, 0, 1, 2);
+    layout->addWidget(cosmeticsCheckbox, 2, 0, 1, 2);
     containerWidget->setLayout(layout);
-    autoUpdateAction->setDefaultWidget(containerWidget);
+    generalAction->setDefaultWidget(containerWidget);
 
     connect(checkbox, &QCheckBox::toggled, this, [this](bool checked) {
         ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
             "User parameter:BaseApp/Preferences/Mod/Sketcher");
         hGrp->SetBool("AutoRecompute", checked);
         sketchView->getSketchObject()->noRecomputes = !checked;
+    });
+    connect(layersCheckbox, &QCheckBox::toggled, this, [hGrp](bool checked) {
+        hGrp->SetBool("ShowLayers", checked);
     });
     connect(cosmeticsCheckbox, &QCheckBox::toggled, this, [hGrp](bool checked) {
         hGrp->SetBool("ShowCosmetics", checked);
@@ -143,30 +153,13 @@ void TaskSketcherMessages::createSettingsButtonActions()
     auto* renderingAction = new RenderingOrderAction(this);
 
     QMenu* myMenu = new QMenu(this);
-    myMenu->addAction(autoUpdateAction);
-    connect(myMenu, &QMenu::aboutToShow, this, [cosmeticsCheckbox, hGrp]() {
-        // Another place may have changed the setting since the menu was built.
-        QSignalBlocker block(cosmeticsCheckbox);
+    myMenu->addAction(generalAction);
+    connect(myMenu, &QMenu::aboutToShow, this, [layersCheckbox, cosmeticsCheckbox, hGrp]() {
+        // Another place may have changed these settings since the menu was built.
+        QSignalBlocker blockLayers(layersCheckbox);
+        QSignalBlocker blockCosmetics(cosmeticsCheckbox);
+        layersCheckbox->setChecked(hGrp->GetBool("ShowLayers", false));
         cosmeticsCheckbox->setChecked(hGrp->GetBool("ShowCosmetics", true));
-    });
-    auto* layersAction = new QWidgetAction(myMenu);
-    auto* layersWidget = new QWidget();
-    auto* layersLayout = new QGridLayout(layersWidget);
-    auto* layersCheckbox = new QCheckBox(tr("Show layers"));
-    layersCheckbox->setObjectName(QStringLiteral("showSketchLayersCheckbox"));
-    layersLayout->addWidget(layersCheckbox, 0, 0, 1, 2);
-    layersAction->setDefaultWidget(layersWidget);
-    myMenu->addAction(layersAction);
-    layersAction->setObjectName(QStringLiteral("showSketchLayers"));
-    layersAction->setCheckable(true);
-    connect(layersAction, &QAction::toggled, layersCheckbox, &QCheckBox::setChecked);
-    connect(layersCheckbox, &QCheckBox::toggled, layersAction, &QAction::setChecked);
-    layersAction->setChecked(hGrp->GetBool("ShowLayers", false));
-    connect(layersAction, &QAction::toggled, this, [hGrp](bool checked) {
-        hGrp->SetBool("ShowLayers", checked);
-    });
-    connect(myMenu, &QMenu::aboutToShow, this, [layersAction, hGrp]() {
-        layersAction->setChecked(hGrp->GetBool("ShowLayers", false));
     });
     myMenu->addSeparator();
     myMenu->addAction(gridAction);

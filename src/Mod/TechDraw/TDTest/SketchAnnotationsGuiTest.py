@@ -9,12 +9,14 @@ import TechDraw
 import TechDrawGui
 import SketchAnnotations as Adapter
 from SketcherTests.GuiTestCase import SketcherGuiTestCase
+from SketcherTests.TestSketchLayers import isolatedLayerDefaults
 from .TechDrawTestUtilities import createPageWithSVGTemplate
 
 
 class SketchAnnotationsGuiTest(SketcherGuiTestCase):
     def setUp(self):
         super().setUp()
+        isolatedLayerDefaults(self)
         Gui.activateWorkbench("TechDrawWorkbench")
         self.doc = App.newDocument("VisualAnnotations")
         self.doc.UndoMode = 1
@@ -83,6 +85,41 @@ class SketchAnnotationsGuiTest(SketcherGuiTestCase):
                 lambda: all(not getattr(o, "AnnoText", "") for o in self.linked()), 3000
             )
         )
+
+    def testLayerVisibilityAndColor(self):
+        prefs = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Sketcher")
+        previous = prefs.GetBool("ShowLayers", False)
+        self.addCleanup(prefs.SetBool, "ShowLayers", previous)
+        prefs.SetBool("ShowLayers", True)
+        self.s.ViewObject.HiddenLayers = [0]
+        self.assertTrue(
+            self.wait_until(lambda: all(not o.ViewObject.Visibility for o in self.linked()), 3000)
+        )
+        prefs.SetBool("ShowLayers", False)
+        self.assertTrue(
+            self.wait_until(lambda: all(o.ViewObject.Visibility for o in self.linked()), 3000)
+        )
+        self.s.ViewObject.LayerColors = {"0": "#ff0000"}
+        text = next(o for o in self.linked() if o.SourceAnnotationId == self.text)
+        self.assertTrue(
+            self.wait_until(lambda: tuple(text.AnnotationColor)[:3] == (1.0, 0.0, 0.0), 3000)
+        )
+
+        class Changes:
+            def __init__(self):
+                self.changes = []
+
+            def slotChangedObject(self, obj, prop):
+                self.changes.append((obj.Name, prop))
+
+        self.flush_gui(150)
+        changes = Changes()
+        App.addDocumentObserver(changes)
+        try:
+            Adapter.synchronize(self.doc)
+            self.assertEqual(changes.changes, [])
+        finally:
+            App.removeDocumentObserver(changes)
 
     def testDeletedViewAndSourceUndo(self):
         names = [o.Name for o in self.linked()]

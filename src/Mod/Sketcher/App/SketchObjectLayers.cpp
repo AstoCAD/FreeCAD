@@ -62,6 +62,9 @@ int SketchObject::addLayer(const std::string& name)
             next = std::max(next, stored + 1);
         }
     }
+    for (const auto& annotation : Annotations.getValues()) {
+        next = std::max(next, static_cast<long>(annotation.layer) + 1);
+    }
     if (next >= std::numeric_limits<int>::max()) {
         throw Base::ValueError("Too many sketch layers");
     }
@@ -211,7 +214,24 @@ void SketchObject::removeLayer(int layerId)
             members.push_back(-i - 1);
         }
     }
-    setGeometryLayer(members, 0);
+    auto annotations = Annotations.getValues();
+    const bool movesAnnotations = std::any_of(
+        annotations.begin(),
+        annotations.end(),
+        [layerId](const auto& a) { return a.layer == layerId; }
+    );
+    if (movesAnnotations && (isLayerLocked(layerId) || isLayerLocked(0))) {
+        throw Base::ValueError("Unlock layers before moving their annotations");
+    }
+    for (auto& a : annotations) {
+        if (a.layer == layerId) {
+            a.layer = 0;
+        }
+    }
+    if (!members.empty()) {
+        setGeometryLayer(members, 0);
+    }
+    Annotations.setValues(std::move(annotations));
     if (ActiveLayer.getValue() == layerId) {
         setActiveLayer(0);
     }
