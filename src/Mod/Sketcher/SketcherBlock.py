@@ -209,7 +209,9 @@ def insert_geometry(sketch, geometry, filename, fixed_size=False, origin=None, a
         "Group", [handle, 0] + elements, str(Path(filename).resolve()), height
     )
     group.Name = Path(filename).stem
-    return sketch.addConstraint(group)
+    constraint = sketch.addConstraint(group)
+    sketch.setGeometryLayer([handle], sketch.ActiveLayer)
+    return constraint
 
 
 def reload(sketch, constraint_index):
