@@ -55,6 +55,7 @@
 #include "GeometryFacade.h"
 #include "GroupHierarchy.h"
 #include "Sketch.h"
+#include "SketchGeometry.h"
 #include "SolverGeometryExtension.h"
 
 
@@ -152,6 +153,9 @@ Sketch::~Sketch()
 
 void Sketch::clear()
 {
+    freeMoveOrigins.clear();
+    excludedLayerGeometry.clear();
+    lockedLayerGeometry.clear();
     // clear all internal data sets
     Points.clear();
     Lines.clear();
@@ -255,7 +259,9 @@ bool Sketch::analyseBlockedGeometry(
 int Sketch::setUpSketch(
     const std::vector<Part::Geometry*>& GeoList,
     const std::vector<Constraint*>& ConstraintList,
-    int extGeoCount
+    int extGeoCount,
+    const std::set<int>& excludedGeometry,
+    const std::set<int>& lockedGeometry
 )
 {
     Base::TimeElapsed start_time;
@@ -272,7 +278,7 @@ int Sketch::setUpSketch(
         }
         return 0;
     }
-    std::set<int> inGroupGeoIds;
+    std::set<int> inGroupGeoIds = excludedGeometry;
     for (const auto& [member, parent] : hierarchy.parents) {
         inGroupGeoIds.insert(member);
     }
@@ -288,6 +294,8 @@ int Sketch::setUpSketch(
     int restartCount = 0;
     while (true) {
         clear();
+        excludedLayerGeometry = excludedGeometry;
+        lockedLayerGeometry = lockedGeometry;
 
         // these constraints are unenforceable due to a Blocked constraint
         std::vector<bool> unenforceableConstraints(ConstraintList.size(), false);
@@ -303,10 +311,17 @@ int Sketch::setUpSketch(
         bool doesBlockAffectOtherConstraints
             = analyseBlockedGeometry(intGeoList, ConstraintList, onlyBlockedGeometry, blockedGeoIds);
 
+        for (int id : lockedGeometry) {
+            if (id >= 0 && id < static_cast<int>(onlyBlockedGeometry.size())) {
+                onlyBlockedGeometry[id] = true;
+            }
+        }
+
         // Remove from blockedGeoIds if they are already in onlyBlockedGeometry (e.g. from a
         // previous restart)
         auto newEnd = std::remove_if(blockedGeoIds.begin(), blockedGeoIds.end(), [&](int id) {
-            return id >= 0 && id < (int)onlyBlockedGeometry.size() && onlyBlockedGeometry[id];
+            return excludedGeometry.contains(id)
+                || (id >= 0 && id < (int)onlyBlockedGeometry.size() && onlyBlockedGeometry[id]);
         });
         blockedGeoIds.erase(newEnd, blockedGeoIds.end());
         if (blockedGeoIds.empty()) {
@@ -348,7 +363,17 @@ int Sketch::setUpSketch(
 
         addGeometry(intGeoList, onlyBlockedGeometry, inGroupGeoIds);
         int extStart = Geoms.size();
-        addGeometry(extGeoList, true);
+        for (size_t i = 0; i < extGeoList.size(); ++i) {
+            const int id = static_cast<int>(i) - extGeoCount;
+            if (excludedGeometry.contains(id)) {
+                GeoDef def;
+                def.geo = extGeoList[i]->clone();
+                Geoms.push_back(def);
+            }
+            else {
+                addGeometry(extGeoList[i], true);
+            }
+        }
         int extEnd = Geoms.size() - 1;
         for (int i = extStart; i <= extEnd; i++) {
             Geoms[i].external = true;
@@ -360,11 +385,30 @@ int Sketch::setUpSketch(
             for (size_t i = 0; i < ConstraintList.size(); ++i) {
                 const auto& c = ConstraintList[i];
 
+                // Group transforms operate on Part geometry and never add GCS equations.
                 if (c->Type == Group || c->Type == Text) {
                     continue;
                 }
-
-                bool hasSlaveReference = false;
+                bool excluded = false;
+                for (int j = 0; c->hasElement(j); ++j) {
+                    excluded |= excludedGeometry.contains(c->getGeoId(j));
+                }
+                if (excluded) {
+                    unenforceableConstraints[i] = true;
+                    continue;
+                }
+                // Existing constraints entirely on fixed geometry do not add equations.
+                bool touchesLocked = false;
+                bool allFixed = true;
+                for (int j = 0; c->hasElement(j); ++j) {
+                    const int id = c->getGeoId(j);
+                    touchesLocked |= lockedGeometry.contains(id);
+                    allFixed &= id < 0 || lockedGeometry.contains(id);
+                }
+                if (touchesLocked && allFixed) {
+                    unenforceableConstraints[i] = true;
+                    continue;
+                }
                 for (int j = 0; c->hasElement(j); ++j) {
                     if (inGroupGeoIds.count(c->getGeoId(j))) {
                         unenforceableConstraints[i] = true;
@@ -5210,6 +5254,18 @@ GCS::SolveStatus Sketch::internalSolve(std::string& solvername, int level)
 
 int Sketch::initMove(const std::vector<GeoElementId>& geoEltIds)
 {
+    for (const auto& element : geoEltIds) {
+        if (lockedLayerGeometry.contains(element.GeoId)) {
+            return -1;
+        }
+    }
+    freeMoveOrigins.clear();
+    for (const auto& element : geoEltIds) {
+        if (excludedLayerGeometry.contains(element.GeoId)) {
+            freeMoveOrigins.emplace(element.GeoId,
+                std::shared_ptr<const Part::Geometry>(Geoms[checkGeoId(element.GeoId)].geo->clone()));
+        }
+    }
     if (hasConflicts()) {
         // don't try to move sketches that contain conflicting constraints
         isInitMove = false;
@@ -5458,6 +5514,7 @@ int Sketch::initMove(int geoId, PointPos pos)
 void Sketch::resetInitMove()
 {
     isInitMove = false;
+    freeMoveOrigins.clear();
 }
 
 int Sketch::initBSplinePieceMove(int geoId, PointPos pos, const Base::Vector3d& firstPoint)
@@ -5535,7 +5592,9 @@ GCS::SolveStatus Sketch::moveGeometries(
     }
 
     if (!isInitMove) {
-        initMove(geoEltIds);
+        if (initMove(geoEltIds) != 0) {
+            return -1;
+        }
         initToPoint = toPoint;
         moveStep = 0;
     }
@@ -5555,7 +5614,7 @@ GCS::SolveStatus Sketch::moveGeometries(
     }
 
     if (relative) {
-        for (size_t i = 0; i < MoveParameters.size() - 1; i += 2) {
+        for (size_t i = 0; i + 1 < MoveParameters.size(); i += 2) {
             MoveParameters[i] = InitParameters[i] + toPoint.x;
             MoveParameters[i + 1] = InitParameters[i + 1] + toPoint.y;
         }
@@ -5637,6 +5696,11 @@ GCS::SolveStatus Sketch::moveGeometries(
         }
     }
 
+    if (!freeMoveOrigins.empty()) {
+        captureGroupStates();
+        moveFreeGeometry(geoEltIds, toPoint, relative);
+        applyGroupTransformations();
+    }
     return solve();
 }
 
@@ -5674,6 +5738,9 @@ int Sketch::getPointId(int geoId, PointPos pos) const
 Base::Vector3d Sketch::getPoint(int geoId, PointPos pos) const
 {
     geoId = checkGeoId(geoId);
+    if (Geoms[geoId].type == None) {
+        return SketchGeometryType::getPoint(Geoms[geoId].geo, pos);
+    }
     int pointId = getPointId(geoId, pos);
     if (pointId != -1) {
         return Base::Vector3d(*Points[pointId].x, *Points[pointId].y, 0);
@@ -5793,7 +5860,7 @@ Sketch::GroupLineState Sketch::getGroupLineState(int geoId) const
 {
     GroupLineState state;
     state.startPoint = getPoint(geoId, PointPos::start);
-    state.endPoint = Geoms[checkGeoId(geoId)].type == Point ? state.startPoint + Base::Vector3d::UnitX
+    state.endPoint = Geoms[checkGeoId(geoId)].geo->is<Part::GeomPoint>() ? state.startPoint + Base::Vector3d::UnitX
                                                             : getPoint(geoId, PointPos::end);
     return state;
 }
@@ -5902,4 +5969,47 @@ void Sketch::applyGroupTransformations()
     }
 
     preSolveGroupStates.clear();
+}
+
+void Sketch::moveFreeGeometry(const std::vector<GeoElementId>& elements,
+                              const Base::Vector3d& target, bool relative)
+{
+    // These geometries never acquire GCS parameters, including during dragging.
+    for (const auto& element : elements) {
+        const auto found = freeMoveOrigins.find(element.GeoId);
+        if (found == freeMoveOrigins.end()) {
+            continue;
+        }
+        auto& def = Geoms[checkGeoId(element.GeoId)];
+        auto copy = std::unique_ptr<Part::Geometry>(found->second->clone());
+        if (auto* line = dynamic_cast<Part::GeomLineSegment*>(copy.get())) {
+            auto start = line->getStartPoint();
+            auto end = line->getEndPoint();
+            if (element.Pos == PointPos::start) {
+                line->setPoints(relative ? start + target : target, end);
+            }
+            else if (element.Pos == PointPos::end) {
+                line->setPoints(start, relative ? end + target : target);
+            }
+            else {
+                line->translate(relative ? target : target - (start + end) * 0.5);
+            }
+        }
+        else if (auto* point = dynamic_cast<Part::GeomPoint*>(copy.get())) {
+            point->setPoint(relative ? point->getPoint() + target : target);
+        }
+        else if (auto* spline = dynamic_cast<Part::GeomBSplineCurve*>(copy.get());
+                 spline && (element.Pos == PointPos::start || element.Pos == PointPos::end)) {
+            const int pole = element.Pos == PointPos::start ? 1 : spline->countPoles();
+            const auto old = SketchGeometryType::getPoint(copy.get(), element.Pos);
+            spline->setPole(pole, relative ? old + target : target);
+        }
+        else {
+            auto pos = element.Pos == PointPos::none ? PointPos::mid : element.Pos;
+            const auto old = SketchGeometryType::getPoint(copy.get(), pos);
+            copy->translate(relative ? target : target - old);
+        }
+        delete def.geo;
+        def.geo = copy.release();
+    }
 }

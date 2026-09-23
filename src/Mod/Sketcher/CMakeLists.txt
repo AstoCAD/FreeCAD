@@ -26,6 +26,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketchInternalFaces.py
     SketcherTests/TestSketcherEllipse.py
     SketcherTests/TestSketchGroups.py
+    SketcherTests/TestSketchLayers.py
     SketcherTests/TestSketchBlocks.py
 )
 
@@ -41,6 +42,7 @@ if(BUILD_GUI)
           SketcherTests/TestCoincidentCommandGui.py
           SketcherTests/GuiTestCase.py
           SketcherTests/TestSketchGroupsGui.py
+          SketcherTests/TestSketchLayersGui.py
           SketcherTests/TestSketchBlocksGui.py
           SketcherTests/TestPlacementUpdate.py
           SketcherTests/TestOnViewParameterGui.py
