@@ -36,3 +36,5 @@ from TDTest.DrawViewBreakRemovalTest import DrawViewBreakRemovalTest  # noqa: F4
 from TDTest.DrawBrokenOutSectionDepthTest import DrawBrokenOutSectionDepthTest  # noqa: F401
 from TDTest.DrawDimensionViewBreakTest import DrawDimensionViewBreakTest  # noqa: F401
 
+
+from TDTest.SketchAnnotationsTest import SketchAnnotationsTest  # noqa: F401
