@@ -86,7 +86,10 @@ def _visible(sketch, annotation):
         sketch.ViewObject, "HiddenAnnotations", ()
     ):
         return False
-    return True
+    prefs = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Sketcher")
+    return not prefs.GetBool("ShowLayers", False) or annotation["Layer"] not in getattr(
+        sketch.ViewObject, "HiddenLayers", ()
+    )
 
 
 def _view_faces(view, cache):
@@ -256,10 +259,16 @@ def _update(obj, view, sketch, a, page, cache):
     _set(obj, "AnnotationStatus", error or ("Linked" if visible else "Hidden by source"))
     if App.GuiUp:
         _set(obj.ViewObject, "Visibility", visible)
-        # Cosmetics use black, the default page color.
-        rgb = (0.0, 0.0, 0.0)
+        # Explicit layer colors carry over to the page; other layers use black, the default
+        # page color.
+        colors = sketch.ViewObject.LayerColors
+        color = colors.get(str(a["Layer"]))
+        if color and len(color) == 7:
+            rgb = tuple(int(color[i : i + 2], 16) / 255.0 for i in (1, 3, 5))
+        else:
+            rgb = (0.0, 0.0, 0.0)
         if kind == "Text":
-            _property(obj, "Color", "AnnotationColor", "Linked color", True)
+            _property(obj, "Color", "AnnotationColor", "Linked layer color", True)
             _set(obj, "AnnotationColor", rgb)
         elif kind == "Leader":
             _set(obj.ViewObject, "Color", rgb)
@@ -477,19 +486,33 @@ App.addDocumentObserver(_sentinel)
 
 class _GuiObserver:
     def slotChangedObject(self, provider, prop):
-        if prop == "HiddenAnnotations":
+        if prop in (
+            "HiddenLayers",
+            "HiddenAnnotations",
+            "LayerColors",
+            "LayerPatterns",
+            "LayerLineWidths",
+        ):
             obj = provider.Object
             if hasattr(obj, "Annotations"):
                 _observer.queue(obj.Document)
 
+    def onChange(self, group, name):
+        if name == "ShowLayers":
+            for doc in App.listDocuments().values():
+                _observer.queue(doc)
+
 
 _guiObserver = None
+_guiParameters = None
 
 
 def installGuiObserver():
-    global _guiObserver
+    global _guiObserver, _guiParameters
     if _guiObserver is None:
         import FreeCADGui as Gui
 
         _guiObserver = _GuiObserver()
         Gui.addDocumentObserver(_guiObserver)
+        _guiParameters = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Sketcher")
+        _guiParameters.Attach(_guiObserver)

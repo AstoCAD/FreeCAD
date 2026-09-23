@@ -4,11 +4,13 @@ import Part
 from PySide import QtCore, QtGui
 from pivy import coin
 from SketcherTests.GuiTestCase import FreeCADGui as Gui, SketcherGuiTestCase
+from SketcherTests.TestSketchLayers import isolatedLayerDefaults
 
 
 class TestSketchAnnotationsGui(SketcherGuiTestCase):
     def setUp(self):
         super().setUp()
+        isolatedLayerDefaults(self)
         Gui.activateWorkbench("SketcherWorkbench")
         self.doc = App.newDocument("AnnotationGui")
         self.doc.UndoMode = 1
@@ -92,6 +94,14 @@ class TestSketchAnnotationsGui(SketcherGuiTestCase):
         self.flush_gui(100)
         self.assertEqual(len(self.s.Annotations), 2)
 
+    def testLockedDeleteIsIgnored(self):
+        self.enter()
+        self.s.LockedLayers = [0]
+        self.tree.setCurrentItem(self.tree.item(0))
+        self.tree.setFocus()
+        self.key_click(self.tree, QtCore.Qt.Key_Delete)
+        self.assertEqual(len(self.s.Annotations), 2)
+
     def testHatchTaskAndRendering(self):
         indices = self.s.addGeometry(
             [
@@ -114,7 +124,7 @@ class TestSketchAnnotationsGui(SketcherGuiTestCase):
         view.fitAll()
         self.flush_gui(250)
 
-    def testNativeDrag(self):
+    def testNativeDragAndLockedDrag(self):
         self.enter()
         view = Gui.activeDocument().activeView()
         view.setCamera(
@@ -152,6 +162,10 @@ class TestSketchAnnotationsGui(SketcherGuiTestCase):
             self.flush_gui(100)
 
         original = self.s.Annotations[1]["Points"]
+        self.s.LockedLayers = [0]
+        drag()
+        self.assertEqual(self.s.Annotations[1]["Points"], original)
+        self.s.LockedLayers = []
         drag()
         self.assertNotEqual(self.s.Annotations[1]["Points"], original)
         self.doc.undo()
@@ -168,6 +182,19 @@ class TestSketchAnnotationsGui(SketcherGuiTestCase):
         self.key_click(viewport, QtCore.Qt.Key_Escape)
         self.flush_gui(150)
         self.assertEqual(self.s.Annotations, before)
+        self.assertEqual(self.scene().getNumChildren(), 2)
+
+    def testLayerVisibilityPolicy(self):
+        self.enter()
+        preferences = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Sketcher")
+        previous = preferences.GetBool("ShowLayers", False)
+        self.addCleanup(preferences.SetBool, "ShowLayers", previous)
+        preferences.SetBool("ShowLayers", True)
+        self.s.ViewObject.HiddenLayers = [0]
+        self.flush_gui(150)
+        self.assertEqual(self.scene().getNumChildren(), 0)
+        preferences.SetBool("ShowLayers", False)
+        self.flush_gui(150)
         self.assertEqual(self.scene().getNumChildren(), 2)
 
     def testTextAndLeaderCreationCommands(self):
@@ -255,6 +282,26 @@ class TestSketchAnnotationsGui(SketcherGuiTestCase):
         self.assertFalse(values[self.text])
         self.assertTrue(values[self.leader])
 
+    def testMixedDeleteRejectsLockedGeometryBeforeDeletingAnnotation(self):
+        layer = self.s.addLayer("Unlocked notes")
+        note = self.s.addAnnotation({"Type": "Text", "Html": "Keep me", "Layer": layer})
+        self.s.LockedLayers = [0]
+        self.enter()
+        Gui.Selection.addSelection(self.s, "Annotation" + str(note))
+        Gui.Selection.addSelection(self.s, "Edge1")
+        Gui.runCommand("Std_Delete")
+        self.flush_gui(150)
+        self.assertEqual(self.s.GeometryCount, 1)
+        self.assertIn(note, [a["Id"] for a in self.s.Annotations])
+
+    def enableLayers(self):
+        prefs = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Sketcher")
+        previous = prefs.GetBool("ShowLayers", False)
+        self.addCleanup(prefs.SetBool, "ShowLayers", previous)
+        prefs.SetBool("ShowLayers", True)
+        self.flush_gui(120)
+        return prefs
+
     def listAction(self, label, row=None):
         errors = []
 
@@ -284,34 +331,38 @@ class TestSketchAnnotationsGui(SketcherGuiTestCase):
         self.flush_gui(120)
         self.assertFalse(errors, errors)
 
-    def testMouseSelectionVisibilityAndDelete(self):
+    def testMouseSelectionVisibilityAndDeleteWithLayers(self):
+        prefs = self.enableLayers()
         self.enter()
-        row = self.tree.item(0)
-        rect = self.tree.visualItemRect(row)
-        self.click(self.tree.viewport(), QtCore.QPoint(90, rect.center().y()))
-        self.flush_gui(100)
-        self.assertTrue(row.isSelected())
-        self.assertIn(
-            "Annotation" + str(self.text), Gui.Selection.getSelectionEx()[0].SubElementNames
-        )
-        self.click(self.tree.viewport(), QtCore.QPoint(10, rect.center().y()))
-        self.flush_gui(100)
-        self.assertEqual(row.checkState(), QtCore.Qt.Unchecked)
-        self.assertEqual(self.s.ViewObject.HiddenAnnotations, [self.text])
-        self.assertEqual(self.scene().getNumChildren(), 1)
-        self.click(self.tree.viewport(), QtCore.QPoint(10, rect.center().y()))
-        self.flush_gui(100)
-        self.assertEqual(row.checkState(), QtCore.Qt.Checked)
-        self.assertEqual(self.scene().getNumChildren(), 2)
-        # Select by mouse, then delete via the list's normal focus path.
-        self.click(self.tree.viewport(), QtCore.QPoint(90, rect.center().y()))
-        self.tree.setFocus()
-        self.key_click(self.tree, QtCore.Qt.Key_Delete)
-        self.flush_gui(100)
-        self.assertEqual([a["Id"] for a in self.s.Annotations], [self.leader])
-        self.doc.undo()
-        self.flush_gui(100)
-        self.assertEqual(self.tree.count(), 2)
+        for layers in (True, False):
+            prefs.SetBool("ShowLayers", layers)
+            self.flush_gui(100)
+            row = self.tree.item(0)
+            rect = self.tree.visualItemRect(row)
+            self.click(self.tree.viewport(), QtCore.QPoint(90, rect.center().y()))
+            self.flush_gui(100)
+            self.assertTrue(row.isSelected())
+            self.assertIn(
+                "Annotation" + str(self.text), Gui.Selection.getSelectionEx()[0].SubElementNames
+            )
+            self.click(self.tree.viewport(), QtCore.QPoint(10, rect.center().y()))
+            self.flush_gui(100)
+            self.assertEqual(row.checkState(), QtCore.Qt.Unchecked)
+            self.assertEqual(self.s.ViewObject.HiddenAnnotations, [self.text])
+            self.assertEqual(self.scene().getNumChildren(), 1)
+            self.click(self.tree.viewport(), QtCore.QPoint(10, rect.center().y()))
+            self.flush_gui(100)
+            self.assertEqual(row.checkState(), QtCore.Qt.Checked)
+            self.assertEqual(self.scene().getNumChildren(), 2)
+            # Select by mouse, then delete via the list's normal focus path.
+            self.click(self.tree.viewport(), QtCore.QPoint(90, rect.center().y()))
+            self.tree.setFocus()
+            self.key_click(self.tree, QtCore.Qt.Key_Delete)
+            self.flush_gui(100)
+            self.assertEqual([a["Id"] for a in self.s.Annotations], [self.leader])
+            self.doc.undo()
+            self.flush_gui(100)
+            self.assertEqual(self.tree.count(), 2)
 
     def testTaskboxPaddingMatchesElements(self):
         self.enter()
@@ -323,6 +374,7 @@ class TestSketchAnnotationsGui(SketcherGuiTestCase):
         )
 
     def testMouseMultiSelectionAndDelete(self):
+        self.enableLayers()
         self.enter()
         viewport = self.tree.viewport()
         first = self.tree.visualItemRect(self.tree.item(0))
@@ -389,16 +441,44 @@ class TestSketchAnnotationsGui(SketcherGuiTestCase):
         self.listAction("Show All")
         self.assertEqual(self.scene().getNumChildren(), 2)
 
-    def testCosmeticFilters(self):
+    def testCosmeticFiltersAndLayerSelectors(self):
+        layer = self.s.addLayer("Notes")
+        self.s.updateAnnotation(self.leader, {"Layer": layer})
+        prefs = self.enableLayers()
         self.enter()
+        model = self.tree.model()
+        combo = self.tree.indexWidget(model.index(0, 0))
+        self.assertIsInstance(combo, QtGui.QComboBox)
+        combo.setCurrentIndex(combo.findData(layer))
+        combo.activated.emit(combo.currentIndex())
+        self.flush_gui(150)
+        self.assertEqual(self.s.Annotations[0]["Layer"], layer)
+        self.doc.undo()
+        self.flush_gui(150)
+        self.assertEqual(combo.currentData(), 0)
+        self.s.renameLayer(layer, "Renamed")
+        self.flush_gui(150)
+        self.assertEqual(combo.itemText(combo.findData(layer)), "Renamed")
+        self.s.LockedLayers = [layer]
+        self.flush_gui(150)
+        self.assertFalse(combo.model().item(combo.findData(layer)).isEnabled())
+        self.assertFalse(self.tree.indexWidget(model.index(1, 0)).isEnabled())
+        self.s.LockedLayers = []
         enabled = Gui.getMainWindow().findChild(QtGui.QCheckBox, "cosmeticFilterEnabled")
         button = Gui.getMainWindow().findChild(QtGui.QToolButton, "cosmeticFilterButton")
         enabled.setChecked(True)
         menu = button.menu()
+        menu.aboutToShow.emit()
+        menu.findChild(QtGui.QAction, "cosmeticLayerFilter" + str(layer)).setChecked(False)
+        self.assertTrue(self.tree.item(1).isHidden())
+        self.assertFalse(self.tree.item(0).isHidden())
         self.assertEqual(self.scene().getNumChildren(), 2)
         self.listAction("Hide All")
         self.assertEqual(self.s.ViewObject.HiddenAnnotations, [self.text, self.leader])
         self.listAction("Show All")
+        prefs.SetBool("ShowLayers", False)
+        self.flush_gui(150)
+        self.assertIsNone(self.tree.indexWidget(model.index(0, 0)))
         self.assertFalse(self.tree.item(1).isHidden())
         menu.aboutToShow.emit()
         menu.findChild(QtGui.QAction, "cosmeticTypeFilter0").setChecked(False)

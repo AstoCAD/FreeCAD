@@ -78,6 +78,7 @@ PyObject* SketchObjectPy::addAnnotation(PyObject* args)
     }
     try {
         Annotation a;
+        a.layer = getSketchObjectPtr()->ActiveLayer.getValue();
         return PyLong_FromLong(getSketchObjectPtr()->addAnnotation(Annotation::fromPython(data, a)));
     }
     catch (const Py::Exception&) {

@@ -22,6 +22,7 @@ struct SketcherExport Annotation
     long id = 0;
     Kind kind = Kind::Text;
     std::string label;
+    int layer = 0;
     bool construction = false;
     Base::Vector3d position;
     double rotation = 0;

@@ -28,6 +28,7 @@ class QTimer;
 namespace SketcherGui
 {
 class ViewProviderSketch;
+class LayerListDelegate;
 /// Parses an "Annotation<id>" subelement name. Returns 0 for anything else, including
 /// names that merely start with the prefix, so stale or foreign names are ignored.
 long annotationIdFromSubName(std::string_view name);
@@ -43,7 +44,7 @@ public:
     explicit AnnotationManager(ViewProviderSketch& view);
     ~AnnotationManager() override;
     SoSeparator* root() const;
-    /// Annotation data or visibility changed: refresh scene and task box.
+    /// Annotation data, visibility or layer styling changed: refresh scene and task box.
     void scheduleUpdate(bool geometryChanged = false);
     /// The camera moved: only re-raster text whose resolution no longer fits.
     void cameraChanged();
@@ -58,7 +59,7 @@ public:
     void remove(const std::vector<long>& ids);
     void appendContextMenu(QMenu* menu);
     /// Adds or updates the annotation in one undo step. Returns false, having told the
-    /// user why, when it was refused (invalid data).
+    /// user why, when it was refused (locked layer, invalid data).
     bool save(const Sketcher::Annotation& annotation, bool create);
     /// Draws a not yet created annotation (ID -1 for a new one) until reset. Scene only:
     /// the document is untouched; error(-1) reports why a new preview cannot be drawn.
@@ -137,8 +138,10 @@ private:
     bool eventFilter(QObject*, QEvent*) override;
     ViewProviderSketch* view;
     QListWidget* list;
+    LayerListDelegate* delegate;
     QCheckBox* filterEnabled;
     QToolButton* filterButton;
+    std::set<int> excludedLayers;
     std::set<Sketcher::Annotation::Kind> excludedTypes;
     void updateFilters();
     void populateFilters();

@@ -4,10 +4,12 @@ import tempfile
 import unittest
 import FreeCAD as App
 import Part
+from SketcherTests.TestSketchLayers import isolatedLayerDefaults
 
 
 class TestSketchAnnotations(unittest.TestCase):
     def setUp(self):
+        isolatedLayerDefaults(self)
         self.doc = App.newDocument("SketchAnnotations")
         self.doc.UndoMode = 1
         self.s = self.doc.addObject("Sketcher::SketchObject", "Sketch")
@@ -62,6 +64,7 @@ class TestSketchAnnotations(unittest.TestCase):
             {"Position": (0.0, 0.0, 1.0)},
             {"TextSize": 0},
             {"Id": 5},
+            {"Layer": 999},
             {"Type": "Dimension"},
             {"Rotation": float("nan")},
             {"Points": [(0.0, 0.0, 0.0)], "Type": "Leader"},
@@ -126,6 +129,21 @@ class TestSketchAnnotations(unittest.TestCase):
                 )
             finally:
                 pass
+
+    def testLockedAndRemovedLayer(self):
+        layer = self.s.addLayer("Notes")
+        ident = self.text(Layer=layer)
+        self.s.LockedLayers = [layer]
+        for operation in (
+            lambda: self.text(Layer=layer),
+            lambda: self.s.updateAnnotation(ident, {"Layer": 0}),
+            lambda: self.s.delAnnotations([ident]),
+        ):
+            with self.assertRaises(ValueError):
+                operation()
+        self.s.LockedLayers = []
+        self.s.removeLayer(layer)
+        self.assertEqual(self.s.Annotations[0]["Layer"], 0)
 
     def testHatchHoleAndClipping(self):
         refs = self.square() + self.square(5, 5, 10)
@@ -247,6 +265,8 @@ class TestSketchAnnotations(unittest.TestCase):
         # Control characters cannot be written to the document and are refused.
         with self.assertRaises(ValueError):
             self.s.updateAnnotation(ident, {"Label": "bad\x01name"})
+        with self.assertRaises(ValueError):
+            self.s.updateAnnotation(ident, {"Layer": 2**40})
         self.doc.openTransaction("Nothing")
         self.s.delAnnotations([])
         self.doc.commitTransaction()

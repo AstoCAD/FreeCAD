@@ -5189,6 +5189,14 @@ void ViewProviderSketch::deleteSelected()
 
 bool ViewProviderSketch::onDelete(const std::vector<std::string>& subList)
 {
+    // A refused Delete must say why, or it looks like the key did nothing.
+    const auto refuse = [](const QString& message) {
+        Base::Console().warning("%s\n", message.toUtf8().constData());
+        if (auto* window = Gui::getMainWindow()) {
+            window->showMessage(message, 4000);
+        }
+        return false;
+    };
     std::vector<long> annotationIds;
     std::size_t annotationNames = 0;
     for (const auto& name : subList) {
@@ -5197,10 +5205,45 @@ bool ViewProviderSketch::onDelete(const std::vector<std::string>& subList)
             continue;
         }
         ++annotationNames;
-        if (!getSketchObject()->findAnnotation(id)) {
-            continue;  // Already gone: nothing to delete.
+        const auto* annotation = getSketchObject()->findAnnotation(id);
+        if (!annotation) {
+            continue;  // Already gone: nothing to delete, and nothing to refuse either.
+        }
+        if (getSketchObject()->isLayerLocked(annotation->layer)) {
+            return refuse(tr("Nothing was deleted: the selection contains cosmetics on a locked layer"));
         }
         annotationIds.push_back(id);
+    }
+    // Validate a mixed selection before deleting any annotation or geometry.
+    try {
+        const auto checkGeometry = [this](int id) {
+            getSketchObject()->checkGeometryUnlocked(id);
+            if (id >= 0) {
+                for (int member : getSketchObject()->getGroupGeometries(id)) {
+                    getSketchObject()->checkGeometryUnlocked(member);
+                }
+            }
+        };
+        for (const auto& name : subList) {
+            int id;
+            Sketcher::PointPos position;
+            if (getSketchObject()->geoIdFromShapeType(name.c_str(), id, position)) {
+                checkGeometry(id);
+            }
+            else if (name.starts_with("Constraint")) {
+                const int index = Sketcher::PropertyConstraintList::getIndexFromConstraintName(name);
+                const auto& constraints = getSketchObject()->Constraints.getValues();
+                if (index >= 0 && index < static_cast<int>(constraints.size())) {
+                    for (int geometry : {constraints[index]->First, constraints[index]->Second,
+                                         constraints[index]->Third}) {
+                        checkGeometry(geometry);
+                    }
+                }
+            }
+        }
+    }
+    catch (const Base::Exception&) {
+        return refuse(tr("Nothing was deleted: the selection contains geometry on a locked layer"));
     }
     if (!annotationIds.empty()) {
         std::string ids;
