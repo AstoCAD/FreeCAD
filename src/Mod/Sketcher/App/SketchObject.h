@@ -38,6 +38,7 @@
 #include "GeoEnum.h"
 #include "GeoList.h"
 #include "GeometryFacade.h"
+#include "Annotation.h"
 #include "Sketch.h"
 
 #include "SketchGeometryExtension.h"
@@ -78,6 +79,13 @@ enum class ExtType
     Both
 };
 
+// Keep the existing Part::PropertyGeometryList persistence format and runtime type.
+class SketcherExport PropertyLayerGeometryList: public Part::PropertyGeometryList
+{
+protected:
+    void validateValue(const std::vector<Part::Geometry*>& values) const override;
+};
+
 class SketcherExport SketchObject: public Part::Part2DObject
 {
     typedef Part::Part2DObject inherited;
@@ -97,12 +105,52 @@ public:
      0 refers to sketch axes and external geometry.  posId is a PointPos enum, documented in
      Constraint.h.
     */
-    Part::PropertyGeometryList Geometry;
+    PropertyAnnotationList Annotations;
+    App::PropertyInteger NextAnnotationId;
+    /// Returns nullptr when the ID is unknown; prefer this wherever a stale
+    /// subelement name or a queued event may outlive the annotation.
+    const Annotation* findAnnotation(long id) const;
+    const Annotation& getAnnotation(long id) const;
+    long addAnnotation(Annotation annotation);
+    void updateAnnotation(long id, Annotation annotation);
+    void delAnnotations(const std::vector<long>& ids);
+    Part::TopoShape annotationFace(const Annotation& annotation) const;
+    std::vector<Base::Vector3d> annotationStrokes(const Annotation& annotation) const;
+    /// Filled parts (triangles, three points each), such as a filled leader arrowhead.
+    std::vector<Base::Vector3d> annotationFills(const Annotation& annotation) const;
+    PropertyLayerGeometryList Geometry;
+    /// Stable layer IDs (map keys) and user-visible names. Layer zero always exists.
+    App::PropertyMap Layers;
+    App::PropertyInteger ActiveLayer;
+    App::PropertyInteger NextLayerId;
+    App::PropertyIntegerList LockedLayers;
+    App::PropertyIntegerList UnconstrainedLayers;
+    bool isLayerLocked(int layerId) const;
+    bool layerUsesConstraints(int layerId) const;
+    bool geometryUsesConstraints(int geoId) const;
+    bool constraintUsesLayers(const Constraint* constraint) const;
+    /// Whether a user may add *constraint* given the layers' "Use constraints" state.
+    /// Structural constraints (internal alignment, groups, text) are always accepted.
+    bool constraintAcceptedByLayers(const Constraint* constraint) const;
+    void checkGeometryUnlocked(int geoId) const;
+    std::set<int> getLockedGeometry() const;
+    std::set<int> getUnconstrainedGeometry() const;
+
+    std::map<int, std::string> getLayers() const;
+    bool hasLayer(int layerId) const;
+    int addLayer(const std::string& name);
+    void renameLayer(int layerId, const std::string& name);
+    void removeLayer(int layerId);
+    void setActiveLayer(int layerId);
+    int getGeometryLayer(int geoId) const;
+    void setGeometryLayer(const std::vector<int>& geoIds, int layerId);
+    /// Give fresh geometry the active layer; preserve valid membership on copies.
+    void initializeGeometryLayer(Part::Geometry* geometry) const;
     Sketcher::PropertyConstraintList Constraints;
     App::PropertyLinkSubList ExternalGeometry;
     App::PropertyIntegerList ExternalTypes;
     App::PropertyLinkListHidden Exports;
-    Part::PropertyGeometryList ExternalGeo;
+    PropertyLayerGeometryList ExternalGeo;
     App::PropertyBool FullyConstrained;
     App::PropertyPrecision ArcFitTolerance;
     Part::PropertyPartShape InternalShape;
@@ -1152,6 +1200,7 @@ public:
     void changeConstraintAfterDeletingGeo(Constraint* constr, const int deletedGeoId) const;
 
 private:
+    void applyLayerDefaults(int layerId);
     /// As getGeometry, but warns instead of quietly returning nullptr when @p geoId cannot be
     /// resolved, so that a constraint left without an orientation is traceable.
     const Part::Geometry* getGeometryOrWarn(int geoId) const;
@@ -1257,6 +1306,11 @@ inline int SketchObject::initTemporaryMove(std::vector<GeoElementId> moved)
         solve();
     }
 
+    for (const auto& element : moved) {
+        if (element.GeoId >= 0 && isLayerLocked(getGeometryLayer(element.GeoId))) {
+            return -1;
+        }
+    }
     return solvedSketch.initMove(moved);
 }
 
@@ -1279,12 +1333,23 @@ inline int SketchObject::initTemporaryBSplinePieceMove(
         solve();
     }
 
+    if (geoId >= 0 && isLayerLocked(getGeometryLayer(geoId))) {
+        return -1;
+    }
+    if (!geometryUsesConstraints(geoId)) {
+        return solvedSketch.initMove(geoId, pos);
+    }
     return solvedSketch.initBSplinePieceMove(geoId, pos, firstPoint);
 }
 
 inline GCS::SolveStatus SketchObject::
     moveGeometriesTemporary(std::vector<GeoElementId> geoEltIds, Base::Vector3d toPoint, bool relative /*=false*/)
 {
+    for (const auto& element : geoEltIds) {
+        if (element.GeoId >= 0 && isLayerLocked(getGeometryLayer(element.GeoId))) {
+            return GCS::SolveStatus::Failed;
+        }
+    }
     return solvedSketch.moveGeometries(geoEltIds, toPoint, relative);
 }
 inline GCS::SolveStatus SketchObject::

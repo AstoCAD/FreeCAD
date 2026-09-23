@@ -10,6 +10,8 @@ from SketcherTests.TestVisualLayerListGui import TestVisualLayerListGui
 from SketcherTests.TestCarbonCopyModelTreeDragging import TestCarbonCopyModelTreeDragging
 from SketcherTests.TestViewSectionGui import TestViewSectionGui
 from SketcherTests.TestSketchGroupsGui import TestSketchGroupsGui
+from SketcherTests.TestSketchAnnotationsGui import TestSketchAnnotationsGui
+from SketcherTests.TestSketchLayersGui import TestSketchLayersGui
 from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
 
 # Use the module so that code checkers don't complain (flake8)
@@ -26,6 +28,8 @@ from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
     and TestCarbonCopyModelTreeDragging
     and TestViewSectionGui
     and TestSketchGroupsGui
+    and TestSketchAnnotationsGui
+    and TestSketchLayersGui
     and TestSketchBlocksGui
     else False
 )

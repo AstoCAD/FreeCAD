@@ -31,6 +31,8 @@ from SketcherTests.TestSketchValidateCoincidents import TestSketchValidateCoinci
 from SketcherTests.TestSketchCarbonCopyReverseMapping import TestSketchCarbonCopyReverseMapping
 from SketcherTests.TestSketchInternalFaces import TestSketchInternalFaces
 from SketcherTests.TestSketcherEllipse import TestSketcherEllipse
+from SketcherTests.TestSketchLayers import TestSketchLayers
+from SketcherTests.TestSketchAnnotations import TestSketchAnnotations
 from SketcherTests.TestSketchGroups import TestSketchGroups
 from SketcherTests.TestSketchBlocks import TestSketchBlocks
 
@@ -50,6 +52,8 @@ __all__ = [
     "TestSketchInternalFaces",
     "TestSketcherEllipse",
     "TestSketchGroups",
+    "TestSketchAnnotations",
+    "TestSketchLayers",
     "TestSketchBlocks",
     "CreateCircleSketch",
     "CreateRectangleSketch",

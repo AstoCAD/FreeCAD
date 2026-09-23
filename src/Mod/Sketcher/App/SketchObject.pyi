@@ -88,6 +88,58 @@ class SketchObject(Part2DObject):
         """
         ...
 
+    def addAnnotation(self, data: dict, /) -> int:
+        """Create Text, Hatch, or Leader visual annotation from a dictionary. Return its stable ID."""
+        ...
+
+    def updateAnnotation(self, annotationId: int, changes: dict, /) -> None:
+        """Atomically update annotation fields. Geometry and solver state are unchanged."""
+        ...
+
+    def delAnnotations(self, annotationIds: List[int], /) -> None:
+        """Delete annotations by stable ID, respecting locked layers."""
+        ...
+
+    def getAnnotationFace(self, annotationId: int, /):
+        """Return a transient local face for a hatch, or raise for a broken boundary."""
+        ...
+
+    def getAnnotationStrokes(self, annotationId: int, /) -> List[Vector]:
+        """Return pairs of local endpoints for hatch strokes or a leader and its arrowhead."""
+        ...
+
+    def getAnnotationPattern(self, annotationId: int, /) -> List[dict]:
+        """Return a hatch's PAT line families in sketch coordinates.
+
+        Each family is a dictionary with Origin, Direction (unit), Offset (from one line
+        to the next) and Dashes (positive drawn, negative gap, zero dot), in millimetres.
+        """
+        ...
+
+    def addLayer(self, name: str, /) -> int:
+        """Create a named layer and return its stable ID."""
+        ...
+
+    def renameLayer(self, layerId: int, name: str, /) -> None:
+        """Rename a layer without changing its ID."""
+        ...
+
+    def removeLayer(self, layerId: int, /) -> None:
+        """Remove a layer, moving its geometry to layer zero."""
+        ...
+
+    def setActiveLayer(self, layerId: int, /) -> None:
+        """Select the layer for newly created geometry."""
+        ...
+
+    def getGeometryLayer(self, geoId: int, /) -> int:
+        """Return the named layer of internal or external geometry."""
+        ...
+
+    def setGeometryLayer(self, geoIds: List[int], layerId: int, /) -> None:
+        """Move geometry and its internal alignment geometry to a layer."""
+        ...
+
     @overload
     def addGeometry(self, geo: Geometry, is_construction: bool = False, /) -> int: ...
     @overload

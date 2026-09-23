@@ -188,6 +188,17 @@ PROPERTY_SOURCE(Sketcher::SketchObject, Part::Part2DObject)
 
 SketchObject::SketchObject() : geoLastId(0)
 {
+    ADD_PROPERTY_TYPE(Layers, (), "Layers", App::Prop_ReadOnly,
+                      "Layer names indexed by stable layer ID");
+    ADD_PROPERTY_TYPE(ActiveLayer, (0), "Layers", App::Prop_ReadOnly,
+                      "Layer receiving new geometry");
+    ADD_PROPERTY_TYPE(NextLayerId, (1), "Layers", App::Prop_Hidden,
+                      "Next unused layer ID");
+    ADD_PROPERTY_TYPE(LockedLayers, (), "Layers", App::Prop_Hidden,
+                      "Layers whose geometry cannot be modified");
+    ADD_PROPERTY_TYPE(UnconstrainedLayers, (), "Layers", App::Prop_Hidden,
+                      "Layers excluded from constraint creation and solving");
+    Layers.setValue("0", "Default");
     ADD_PROPERTY_TYPE(
         Geometry, (nullptr), "Sketch", (App::PropertyType)(App::Prop_None), "Sketch geometry");
     ADD_PROPERTY_TYPE(Constraints,
@@ -236,6 +247,12 @@ SketchObject::SketchObject() : geoLastId(0)
                       (App::PropertyType)(App::Prop_Hidden | App::Prop_ReadOnly),
                       "");
 
+    ADD_PROPERTY_TYPE(Annotations, (), "Annotations",
+                      (App::PropertyType)(App::Prop_ReadOnly | App::Prop_Hidden | App::Prop_NoRecompute),
+                      "Visual annotations, independent of sketch geometry");
+    ADD_PROPERTY_TYPE(NextAnnotationId, (1), "Annotations",
+                      (App::PropertyType)(App::Prop_ReadOnly | App::Prop_Hidden | App::Prop_NoRecompute),
+                      "Next stable annotation ID");
     Geometry.setOrderRelevant(true);
 
     allowOtherBody = true;
@@ -287,6 +304,7 @@ void SketchObject::setupObject()
     MakeInternals.setValue(hGrpp->GetBool("MakeInternals", true));
     // New sketches build internal faces with FaceMakerBuildFace.
     _InternalFaceVersion.setValue(2);
+    applyLayerDefaults(0);
     inherited::setupObject();
 }
 
@@ -742,6 +760,11 @@ SketchSolveStatus SketchObject::setTextAndFont(
     bool hasExistingText = firstTextGeoId != GeoEnum::GeoUndef;
     bool handleLast = handleGeoId > firstTextGeoId;
 
+    // The glyphs belong to the handle's layer, not to the active one. Refuse a locked
+    // layer before anything is deleted.
+    checkGeometryUnlocked(handleGeoId);
+    const int textLayer = getGeometryLayer(handleGeoId);
+
     if (hasExistingText) {
         // Check if text is construction or normal geos
         auto* geo1 = getGeometry(firstTextGeoId);
@@ -788,6 +811,7 @@ SketchSolveStatus SketchObject::setTextAndFont(
         if (isConstruction) {
             Sketcher::GeometryFacade::setConstruction(geo_ptr.get(), isConstruction);
         }
+        Sketcher::GeometryFacade::getFacade(geo_ptr.get())->setGeometryLayerId(textLayer);
         // Add the raw pointer to the new vector.
         newGeosRawPtrs.push_back(geo_ptr.get());
         // Release ownership from the unique_ptr. The SketchObject will now manage this memory.
@@ -800,8 +824,10 @@ SketchSolveStatus SketchObject::setTextAndFont(
 
     // If there was text geos, they were deleted, which deleted the text constraint.
     // In this case create a new constraint to replace it.
+    std::unique_ptr<Constraint> replacement;
     if (hasExistingText) {
-        constr = new Constraint();
+        replacement = std::make_unique<Constraint>();
+        constr = replacement.get();
         constr->Type = Text;
         constr->truncateElements(0);  // remove the First/Second/Third that are created automatically
         constr->addElement(GeoElementId(handleGeoId));
@@ -814,12 +840,13 @@ SketchSolveStatus SketchObject::setTextAndFont(
     constr->setIsTextHeight(isHeight);
 
     if (hasExistingText) {
-        addConstraint(constr);
+        addConstraint(std::move(replacement));
     }
 
     auto status = solve();
 
-    if (status == SketchSolveStatus::Success) {
+    // The replacement constraint is stored as is and keeps the new text.
+    if (status == SketchSolveStatus::Success && !hasExistingText) {
         constr->setText(oldText);
         constr->setFont(oldFont);
         constr->setIsTextHeight(oldIsHeight);
@@ -837,6 +864,7 @@ void SketchObject::acceptGeometry()
 }
 
 int SketchObject::setGeometry(int GeoId, const Part::Geometry *geo) {
+    checkGeometryUnlocked(GeoId);
     std::unique_ptr<Part::Geometry> g(geo->clone());
     if(GeoId>=0 && GeoId <Geometry.getSize()) {
         Geometry.set1Value(GeoId,std::move(g));
@@ -942,7 +970,7 @@ unsigned int SketchObject::getMemSize() const
 void SketchObject::Save(Writer& writer) const
 {
     int index = -1;
-    auto &geos = const_cast<Part::PropertyGeometryList&>(ExternalGeo).getValues();
+    auto &geos = const_cast<PropertyLayerGeometryList&>(ExternalGeo).getValues();
     for(auto geo : geos)
         ExternalGeometryFacade::getFacade(geo)->setRefIndex(-1);
 
@@ -1004,7 +1032,13 @@ static inline bool checkMigration(Part::PropertyGeometryList &prop)
 
 void SketchObject::onChanged(const App::Property* prop)
 {
-    if (prop == &Geometry) {
+    if (prop == &LockedLayers || prop == &UnconstrainedLayers) {
+        solverNeedsUpdate = true;
+        if (!isRestoring() && getDocument() && !getDocument()->isPerformingTransaction()) {
+            solve();
+        }
+    }
+    else if (prop == &Geometry) {
         onGeometryChanged();
     }
     else if (prop == &Constraints) {
@@ -1065,6 +1099,10 @@ void SketchObject::onGeometryChanged()
     for (long i = 0; i < (long)vals.size(); ++i) {
         auto geo = vals[i];
         auto gf = GeometryFacade::getFacade(geo);
+        if (gf->getGeometryLayerId() < 0) {
+            // Legacy geometry and direct property assignments have no layer selection.
+            gf->setGeometryLayerId(0);
+        }
         if (gf->getId() == 0) {
             gf->setId(++geoLastId);
         }
@@ -1688,6 +1726,23 @@ App::DocumentObject *SketchObject::getSubObject(
     const char *mapped = Data::isMappedElement(subname);
     if(!subname || !subname[0]) {
         return Part2DObject::getSubObject(subname,pyObj,pmat,transform,depth);
+    }
+    // Only names that actually parse as annotations are claimed here; anything else
+    // must fall through to the normal element handling below.
+    if (const long annotationId = Annotation::idFromSubName(subname)) {
+        for (const auto& annotation : Annotations.getValues()) {
+            if (annotation.id != annotationId) {
+                continue;
+            }
+            if (pmat && transform) {
+                *pmat *= Placement.getValue().toMatrix();
+            }
+            if (pyObj) {
+                *pyObj = annotation.toPython();
+            }
+            return const_cast<SketchObject*>(this);
+        }
+        return nullptr;
     }
     const char *element = Data::findElementName(subname);
     if(element != subname) {

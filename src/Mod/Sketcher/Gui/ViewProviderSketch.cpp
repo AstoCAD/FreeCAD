@@ -93,7 +93,10 @@
 #include "TaskDlgEditSketch.h"
 #include "TaskSketcherValidation.h"
 #include "Utils.h"
+#include <optional>
+
 #include "ViewProviderSketch.h"
+#include "SketchAnnotations.h"
 #include "ViewProviderSketchGeometryExtension.h"
 #include "Workbench.h"
 
@@ -352,6 +355,27 @@ void ViewProviderSketch::ParameterObserver::initParameters()
               updateBoolProperty(string, property, true);
           },
           &Client.AvoidRedundant}},
+        {"ShowLayers",
+         {[this](const std::string&, App::Property*) {
+              Client.showLayers = App::GetApplication().GetParameterGroupByPath(
+                  "User parameter:BaseApp/Preferences/Mod/Sketcher")->GetBool("ShowLayers", false);
+              Client.refreshLayers();
+          },
+          nullptr}},
+        {"ShowCosmetics",
+         {[this](const std::string&, App::Property*) {
+              Client.showCosmetics = SketcherGui::areCosmeticsShown();
+              // The annotations only exist from attach() on; this also runs before that.
+              if (Client.annotations) {
+                  // The task box hides itself on refresh; the toolbar follows the setting.
+                  Client.annotations->scheduleUpdate();
+              }
+              // Only a sketch being edited shows that toolbar at all.
+              if (Client.isInEditMode()) {
+                  SketcherGui::updateCosmeticsToolbar();
+              }
+          },
+          nullptr}},
         {"LeaveSketchWithEscape",
          {[this](const std::string& string, App::Property* property) {
               updateEscapeKeyBehaviour(string, property);
@@ -662,6 +686,16 @@ ViewProviderSketch::ViewProviderSketch()
                       "Layers",
                       (App::PropertyType)(App::Prop_ReadOnly),
                       "Information about the Visual Representation of layers");
+    ADD_PROPERTY_TYPE(HiddenAnnotations, (), "Cosmetics", App::Prop_Hidden, "Hidden cosmetic IDs");
+    ADD_PROPERTY_TYPE(HiddenLayers, (), "Layers", App::Prop_Hidden,
+                      "Hidden named sketch layer IDs");
+    ADD_PROPERTY_TYPE(LayerColors, (), "Layers", App::Prop_Hidden, "Normal geometry colors by layer ID");
+    ADD_PROPERTY_TYPE(LayerPatterns, (), "Layers", App::Prop_Hidden, "Normal geometry patterns by layer ID");
+    ADD_PROPERTY_TYPE(LayerLineWidths, (), "Layers", App::Prop_Hidden, "Normal geometry screen widths by layer ID");
+    ADD_PROPERTY_TYPE(LayerSolverColorsDisabled, (), "Layers", App::Prop_Hidden,
+                      "Layers that use their own color instead of solver status colors");
+    ADD_PROPERTY_TYPE(LayerOrder, (), "Layers", App::Prop_Hidden,
+                      "Display order of named sketch layer IDs");
 
     ADD_PROPERTY_TYPE(
         AutoColor,
@@ -756,8 +790,32 @@ void ViewProviderSketch::forceUpdateData()
 
 /***************************** handler management ************************************/
 
+namespace
+{
+/// Whether a preselection result names a sketch point, edge or constraint (the axes are
+/// drawn across the whole view and must not hide a cosmetic).
+bool hitsSketchElement(const EditModeCoinManager::PreselectionResult& result)
+{
+    using Kind = EditModeCoinManager::PreselectionResult::HitKind;
+    return result.Kind != Kind::None && result.Kind != Kind::Axis;
+}
+}  // namespace
+
 void ViewProviderSketch::activateHandler(std::unique_ptr<DrawSketchHandler> newHandler)
 {
+    const int activeLayer = getSketchObject()->ActiveLayer.getValue();
+    if (newHandler->addsToActiveLayer()) {
+        if (getSketchObject()->isLayerLocked(activeLayer)) {
+            const auto message = tr("The active layer is locked; geometry cannot be added to it");
+            Base::Console().warning("%s\n", message.toUtf8().constData());
+            if (auto* window = Gui::getMainWindow()) {
+                window->showMessage(message, 4000);
+            }
+            return;
+        }
+        // New geometry must not disappear into a hidden layer.
+        setLayerVisible(activeLayer, true);
+    }
     assert(editCoinManager);
     assert(!sketchHandler);
 
@@ -898,6 +956,20 @@ SoPickedPointList ViewProviderSketch::getPickedPointsOnRay(
         return picks;
     }
 
+    collectPickedPointsOnRay(pos, viewer, picks);
+    return picks;
+}
+
+void ViewProviderSketch::collectPickedPointsOnRay(
+    const SbVec2s& pos,
+    const Gui::View3DInventorViewer* viewer,
+    SoPickedPointList& picks
+) const
+{
+    if (!viewer || !isInEditMode()) {
+        return;
+    }
+
     auto root = new SoSeparator;
     root->ref();
     root->addChild(viewer->getSoRenderManager()->getCamera());
@@ -923,16 +995,21 @@ SoPickedPointList ViewProviderSketch::getPickedPointsOnRay(
 
     root->unref();
     trans->unref();
-
-    return picks;
 }
 
 EditModeCoinManager::PreselectionResult ViewProviderSketch::getPreselectionResultAtViewportPos(
     const SbVec2s& pos,
-    const Gui::View3DInventorViewer* viewer
+    const Gui::View3DInventorViewer* viewer,
+    const SoPickedPointList* picked
 ) const
 {
-    SoPickedPointList points = getPickedPointsOnRay(pos, viewer);
+    // A ray pick walks the whole edit scene graph; callers that already have one pass it.
+    SoPickedPointList owned;
+    if (!picked) {
+        collectPickedPointsOnRay(pos, viewer, owned);
+        picked = &owned;
+    }
+    const SoPickedPointList& points = *picked;
     int hoveredPointIndex = EditModeCoinManager::PreselectionResult::InvalidPoint;
     if (viewProviderParameters.hasLastPreselectionResult
         && viewProviderParameters.lastPreselectionResult.Kind
@@ -1040,6 +1117,9 @@ bool ViewProviderSketch::getPreselectionAtViewportPos(
 
 bool ViewProviderSketch::keyPressed(bool pressed, int key)
 {
+    if (pressed && key == SoKeyboardEvent::ESCAPE && annotations && annotations->cancelDrag()) {
+        return true;
+    }
     if (getEditingMode() != ViewProviderSketch::Default) {
         return ViewProvider2DObject::keyPressed(pressed, key);
     }
@@ -1230,8 +1310,12 @@ bool ViewProviderSketch::mouseButtonPressed(int Button, bool pressed, const SbVe
 
     // use scoped_ptr to make sure that instance gets deleted in all cases
     boost::scoped_ptr<SoPickedPoint> pp(this->getPointOnRay(cursorPos, viewer));
+    // A ray pick traverses the whole edit scene graph, so do it once per event and
+    // share it between preselection and the annotation hit test below.
+    SoPickedPointList picks;
+    collectPickedPointsOnRay(cursorPos, viewer, picks);
     EditModeCoinManager::PreselectionResult clickResult
-        = getPreselectionResultAtViewportPos(cursorPos, viewer);
+        = getPreselectionResultAtViewportPos(cursorPos, viewer, &picks);
     EditModeCoinManager::PreselectionResult resolvedClickResult
         = resolveClickPreselectionResult(clickResult, cursorPos, viewer);
 
@@ -1262,6 +1346,19 @@ bool ViewProviderSketch::mouseButtonPressed(int Button, bool pressed, const SbVe
     }
     snapHandle = std::make_unique<SnapManager::SnapHandle>(snapManager.get(), Base::Vector2d(x, y));
 
+    if (annotations && !sketchHandler && Mode == STATUS_NONE) {
+        long annotationId = 0;
+        // Sketch points and edges win over a cosmetic drawn across them, so that geometry
+        // under a text or leader stays selectable.
+        if (!hitsSketchElement(resolvedClickResult)) {
+            for (int i = 0; i < picks.getLength() && !annotationId; ++i) {
+                annotationId = annotations->picked(picks[i]);
+            }
+        }
+        if (annotations->mouseButton(Button, pressed, Base::Vector3d(x, y, 0), annotationId)) {
+            return true;
+        }
+    }
     // Left Mouse button ****************************************************
     if (Button == 1) {
         if (pressed) {
@@ -1677,27 +1774,17 @@ void ViewProviderSketch::editDoubleClicked()
     }
 }
 
-void ViewProviderSketch::toggleWireSelection(int clickedGeoId)
+std::vector<int> ViewProviderSketch::getConnectedEdges(int clickedGeoId, bool includeExternal) const
 {
-    Sketcher::SketchObject* obj = getSketchObject();
+    const Sketcher::SketchObject* obj = getSketchObject();
 
-    const Part::Geometry* geo1 = obj->getGeometry(clickedGeoId);
-    if (!geo1 || isPoint(*geo1) || isCircle(*geo1) || isEllipse(*geo1) || isPeriodicBSplineCurve(*geo1)) {
-        return;
-    }
-
-    auto getSelectionName = [](int id) {
-        std::stringstream ss;
-        if (id >= 0) {
-            ss << "Edge" << (id + 1);
-        }
-        else {
-            ss << "ExternalEdge" << (Sketcher::GeoEnum::RefExt - id + 1);
-        }
-        return ss.str();
+    auto isOpenCurve = [](const Part::Geometry* geo) {
+        return geo && !isPoint(*geo) && !isCircle(*geo) && !isEllipse(*geo)
+            && !isPeriodicBSplineCurve(*geo);
     };
-
-    bool selecting = isSelected(getSelectionName(clickedGeoId));
+    if (!isOpenCurve(obj->getGeometry(clickedGeoId))) {
+        return {};
+    }
 
     struct CandidateEdge {
         int geoId;
@@ -1706,9 +1793,10 @@ void ViewProviderSketch::toggleWireSelection(int clickedGeoId)
     };
     std::vector<CandidateEdge> candidateEdges;
 
-    auto addCandidate = [&obj, &candidateEdges](int geoId) {
-        const Part::Geometry* geo = obj->getGeometry(geoId);
-        if (!geo || isPoint(*geo) || isCircle(*geo) || isEllipse(*geo) || isPeriodicBSplineCurve(*geo)) {
+    auto addCandidate = [&](int geoId) {
+        // Edges on hidden layers are not part of what the user sees as a wire.
+        if (!isOpenCurve(obj->getGeometry(geoId))
+            || (geoId != clickedGeoId && !isGeometryVisible(geoId))) {
             return;
         }
         Base::Vector3d p1 = obj->getPoint(geoId, PointPos::start);
@@ -1719,26 +1807,21 @@ void ViewProviderSketch::toggleWireSelection(int clickedGeoId)
     for (int geoId = 0; geoId <= obj->getHighestCurveIndex(); geoId++) {
         addCandidate(geoId);
     }
-    for (int extGeoId = 0; extGeoId < obj->getExternalGeometryCount(); extGeoId++) {
-        addCandidate(Sketcher::GeoEnum::RefExt - extGeoId);
-    }
-
-    std::vector<CandidateEdge> connectedEdges;
-    auto itClicked = candidateEdges.end();
-    for (auto it = candidateEdges.begin(); it != candidateEdges.end(); ++it) {
-        if (it->geoId == clickedGeoId) {
-            itClicked = it;
-            break;
+    if (includeExternal) {
+        for (int extGeoId = 0; extGeoId < obj->getExternalGeometryCount(); extGeoId++) {
+            addCandidate(Sketcher::GeoEnum::RefExt - extGeoId);
         }
     }
 
-    if (itClicked != candidateEdges.end()) {
-        connectedEdges.push_back(*itClicked);
-        candidateEdges.erase(itClicked);
+    std::vector<CandidateEdge> connectedEdges;
+    auto itClicked = std::find_if(candidateEdges.begin(), candidateEdges.end(), [&](const auto& edge) {
+        return edge.geoId == clickedGeoId;
+    });
+    if (itClicked == candidateEdges.end()) {
+        return {};
     }
-    else {
-        return;
-    }
+    connectedEdges.push_back(*itClicked);
+    candidateEdges.erase(itClicked);
 
     bool partHasBeenAdded = true;
     while (partHasBeenAdded) {
@@ -1765,8 +1848,36 @@ void ViewProviderSketch::toggleWireSelection(int clickedGeoId)
         }
     }
 
+    std::vector<int> result;
+    result.reserve(connectedEdges.size());
     for (const auto& edge : connectedEdges) {
-        std::string selName = getSelectionName(edge.geoId);
+        result.push_back(edge.geoId);
+    }
+    return result;
+}
+
+void ViewProviderSketch::toggleWireSelection(int clickedGeoId)
+{
+    auto getSelectionName = [](int id) {
+        std::stringstream ss;
+        if (id >= 0) {
+            ss << "Edge" << (id + 1);
+        }
+        else {
+            ss << "ExternalEdge" << (Sketcher::GeoEnum::RefExt - id + 1);
+        }
+        return ss.str();
+    };
+
+    const auto connectedEdges = getConnectedEdges(clickedGeoId);
+    if (connectedEdges.empty()) {
+        return;
+    }
+
+    bool selecting = isSelected(getSelectionName(clickedGeoId));
+
+    for (int geoId : connectedEdges) {
+        std::string selName = getSelectionName(geoId);
         if (!selecting && isSelected(selName)) {
             rmvSelection(selName);
         }
@@ -1827,11 +1938,40 @@ bool ViewProviderSketch::mouseMove(const SbVec2s& cursorPos, Gui::View3DInventor
     }
     snapHandle = std::make_unique<SnapManager::SnapHandle>(snapManager.get(), Base::Vector2d(x, y));
 
+    // Computed at most once per mouse move, and only for the modes that need it.
+    SoPickedPointList picks;
+    bool picksReady = false;
+    const auto pickedPoints = [&]() -> const SoPickedPointList& {
+        if (!picksReady) {
+            collectPickedPointsOnRay(cursorPos, viewer, picks);
+            picksReady = true;
+        }
+        return picks;
+    };
+
+    // Computed at most once per move, and shared with the cosmetic hit test.
+    std::optional<EditModeCoinManager::PreselectionResult> geometryHit;
+    if (annotations && !sketchHandler && Mode == STATUS_NONE) {
+        long annotationId = 0;
+        const auto& hits = pickedPoints();
+        geometryHit = getPreselectionResultAtViewportPos(cursorPos, viewer, &hits);
+        // Sketch points and edges win over a cosmetic drawn across them.
+        if (!hitsSketchElement(*geometryHit)) {
+            for (int i = 0; i < hits.getLength() && !annotationId; ++i) {
+                annotationId = annotations->picked(hits[i]);
+            }
+        }
+        if (annotations->mouseMove(Base::Vector3d(x, y, 0), annotationId)) {
+            return true;
+        }
+    }
     bool preselectChanged = false;
     if (Mode != STATUS_SELECT_Point && Mode != STATUS_SELECT_Edge
         && Mode != STATUS_SELECT_Constraint && Mode != STATUS_SKETCH_Drag
         && Mode != STATUS_SKETCH_DragConstraint && Mode != STATUS_SKETCH_UseRubberBand) {
-        auto result = getPreselectionResultAtViewportPos(cursorPos, viewer);
+        const auto& hits = pickedPoints();
+        auto result = geometryHit ? *geometryHit
+                                  : getPreselectionResultAtViewportPos(cursorPos, viewer, &hits);
         cachePreselectionResult(cursorPos, result);
         preselectChanged = detectAndShowPreselection(result);
     }
@@ -1956,6 +2096,11 @@ void ViewProviderSketch::initDragging(int geoId, Sketcher::PointPos pos, Gui::Vi
         return; // don't drag externals
     }
 
+    if (getSketchObject()->isLayerLocked(getSketchObject()->getGeometryLayer(geoId))) {
+        setSketchMode(STATUS_NONE);
+        return;
+    }
+
     // If we are trying to drag an edge that is in a group, we drag the group handle instead.
     int oldgeoId = geoId;
     geoId = getSketchObject()->getGroupHandleIfInGroup(geoId);
@@ -2024,12 +2169,6 @@ void ViewProviderSketch::initDragging(int geoId, Sketcher::PointPos pos, Gui::Vi
         }
     }
 
-    if (!dragAutoConstraintHandler) {
-        dragAutoConstraintHandler = std::make_unique<DrawSketchHandlerDragAutoConstraint>();
-        dragAutoConstraintHandler->setSketchGui(this);
-    }
-    dragAutoConstraintHandler->initDragging(drag.Dragged);
-
     auto cancelDrag = [&]() {
         if (dragAutoConstraintHandler) {
             dragAutoConstraintHandler->clear();
@@ -2037,6 +2176,21 @@ void ViewProviderSketch::initDragging(int geoId, Sketcher::PointPos pos, Gui::Vi
         drag.reset();
         setSketchMode(STATUS_NONE);
     };
+
+    // Reject the entire gesture if a selected member is locked, before preview or commit.
+    if (std::ranges::any_of(drag.Dragged, [this](const auto& element) {
+            return getSketchObject()->isLayerLocked(
+                getSketchObject()->getGeometryLayer(element.GeoId));
+        })) {
+        cancelDrag();
+        return;
+    }
+
+    if (!dragAutoConstraintHandler) {
+        dragAutoConstraintHandler = std::make_unique<DrawSketchHandlerDragAutoConstraint>();
+        dragAutoConstraintHandler->setSketchGui(this);
+    }
+    dragAutoConstraintHandler->initDragging(drag.Dragged);
 
     auto setRelative = [&]() {
         drag.relative = true;
@@ -2141,10 +2295,12 @@ void ViewProviderSketch::initDragging(int geoId, Sketcher::PointPos pos, Gui::Vi
         }
 
         if (geo->is<Part::GeomBSplineCurve>()) {
-            getSketchObject()->initTemporaryBSplinePieceMove(
+            if (getSketchObject()->initTemporaryBSplinePieceMove(
                 geoId,
                 Sketcher::PointPos::none,
-                Base::Vector3d(drag.xInit, drag.yInit, 0.0));
+                Base::Vector3d(drag.xInit, drag.yInit, 0.0)) != 0) {
+                cancelDrag();
+            }
             return;
         }
     }
@@ -2154,7 +2310,9 @@ void ViewProviderSketch::initDragging(int geoId, Sketcher::PointPos pos, Gui::Vi
         }
     }
 
-    getSketchObject()->initTemporaryMove(drag.Dragged);
+    if (getSketchObject()->initTemporaryMove(drag.Dragged) != 0) {
+        cancelDrag();
+    }
 }
 
 bool ViewProviderSketch::doDragStep(double x, double y)
@@ -2210,6 +2368,19 @@ bool ViewProviderSketch::doDragStep(double x, double y)
 
 void ViewProviderSketch::commitDragMove(double x, double y)
 {
+    // A layer can also be locked after the gesture has started.
+    if (std::ranges::any_of(drag.Dragged, [this](const auto& element) {
+            return getSketchObject()->isLayerLocked(
+                getSketchObject()->getGeometryLayer(element.GeoId));
+        })) {
+        if (dragAutoConstraintHandler) {
+            dragAutoConstraintHandler->clear();
+        }
+        drag.reset();
+        resetPositionText();
+        draw(false, true);
+        return;
+    }
     const char* cmdName = (drag.Dragged.size() == 1) ?
         (drag.Dragged[0].Pos == Sketcher::PointPos::none ?
         QT_TRANSLATE_NOOP("Command", "Drag Curve") : QT_TRANSLATE_NOOP("Command", "Drag Point"))
@@ -3184,6 +3355,12 @@ void ViewProviderSketch::doBoxSelection(const SbVec2s& startPos, const SbVec2s& 
     batchSelection.reserve(geomlist.size());
 
     auto addConvertedName = [this, sketchObject, &batchSelection](const std::string& suffix) {
+        int geoId;
+        Sketcher::PointPos pos;
+        if (sketchObject->geoIdFromShapeType(suffix.c_str(), geoId, pos)
+            && !isGeometryVisible(geoId)) {
+            return;
+        }
         std::string finalName = editSubName + sketchObject->convertSubName(suffix);
         batchSelection.push_back(finalName);
     };
@@ -3377,6 +3554,9 @@ void ViewProviderSketch::setGeometryCreationMode(GeometryCreationMode newMode)
     }
 
     geometryCreationMode = newMode;
+    if (sketchHandler) {
+        sketchHandler->onConstructionModeChanged();
+    }
 
     if (!editCoinManager) {
         return;
@@ -3491,7 +3671,8 @@ bool ViewProviderSketch::selectAll()
                 GeoId = -extGeoCount;
             }
 
-            if (focusedList && std::ranges::find(ids, GeoId) == ids.end()) {
+            if ((!focusOnElementWidget && !isGeometryVisible(GeoId))
+                || (focusedList && std::ranges::find(ids, GeoId) == ids.end())) {
                 continue;
             }
 
@@ -3530,7 +3711,10 @@ bool ViewProviderSketch::selectAll()
     if (focusOnConstraintWidget || noWidgetSelected) {
         const std::vector<Sketcher::Constraint*>& constraints = sketchObject->Constraints.getValues();
         for (size_t i = 0; i < constraints.size(); ++i) {
-            if (focusedList && std::ranges::find(ids, i) == ids.end()) {
+            if ((!focusOnConstraintWidget
+                 && (!constraints[i]->isVisible || !isConstraintVisible(constraints[i])
+                     || constraints[i]->isInVirtualSpace != getIsShownVirtualSpace()))
+                || (focusedList && std::ranges::find(ids, i) == ids.end())) {
                 continue;
             }
             addConvertedName(std::format("Constraint{}", i + 1));
@@ -3880,6 +4064,23 @@ void ViewProviderSketch::drawEditMarkers(const std::vector<Base::Vector2d>& Edit
 }
 
 void ViewProviderSketch::updateData(const App::Property* prop) {
+    if (annotations) {
+        // Geometry changes only matter to hatches, which are rebuilt once the drag settles.
+        annotations->scheduleUpdate(prop == &getSketchObject()->Geometry);
+    }
+    if (prop == &getSketchObject()->Layers) {
+        initializeNewLayerStyles();
+    }
+    if (prop == &getSketchObject()->Layers || prop == &getSketchObject()->LockedLayers
+        || prop == &getSketchObject()->UnconstrainedLayers) {
+        refreshLayers();
+    }
+    else if (prop == &getSketchObject()->ActiveLayer) {
+        if (!isRestoring() && !getSketchObject()->getDocument()->isPerformingTransaction()) {
+            setLayerVisible(getSketchObject()->ActiveLayer.getValue(), true);
+        }
+        signalLayersChanged();
+    }
     if (std::string(prop->getName()) != "ShapeMaterial") {
         // We don't want material to override the colors of sketches.
         ViewProvider2DObject::updateData(prop);
@@ -3899,6 +4100,9 @@ void ViewProviderSketch::updateData(const App::Property* prop) {
 
     if (prop != &getSketchObject()->Constraints) {
         signalElementsChanged();
+    }
+    if (prop == &getSketchObject()->Shape || prop == &getSketchObject()->Geometry) {
+        updateLayerStyles();
     }
 }
 
@@ -3956,12 +4160,31 @@ void ViewProviderSketch::slotConstraintAdded(Sketcher::Constraint* constraint)
 void ViewProviderSketch::onChanged(const App::Property* prop)
 {
     ViewProvider2DObject::onChanged(prop);
+    if (annotations) {
+        annotations->scheduleUpdate();
+    }
+
+    if (prop == &LayerColors || prop == &LayerPatterns || prop == &LayerLineWidths
+        || prop == &LayerSolverColorsDisabled) {
+        refreshLayers();
+        updateLayerStyles();
+        return;
+    }
+    if (prop == &LineColor || prop == &LineWidth || prop == &DrawStyle || prop == &LineColorArray) {
+        updateLayerStyles();
+    }
+    if (prop == &LayerOrder) {
+        signalLayersChanged();
+        return;
+    }
+
+    if (prop == &HiddenLayers) {
+        refreshLayers();
+        return;
+    }
 
     if (prop == &VisualLayerList) {
-        if (isInEditMode()) {
-            // Configure and rebuild Coin SceneGraph
-            editCoinManager->updateGeometryLayersConfiguration();
-        }
+        refreshLayers();
         return;
     }
 
@@ -4051,6 +4274,12 @@ void SketcherGui::ViewProviderSketch::finishRestoring()
 // clang-format on
 bool ViewProviderSketch::getElementPicked(const SoPickedPoint* pp, std::string& subname) const
 {
+    if (annotations) {
+        if (const long id = annotations->picked(pp)) {
+            subname = annotationSubName(id);
+            return true;
+        }
+    }
     if (pp->getPath()->containsNode(pcSketchFaces) && !isInEditMode()) {
         if (ViewProvider2DObject::getElementPicked(pp, subname)) {
             subname = SketchObject::internalPrefix() + subname;
@@ -4130,6 +4359,32 @@ bool ViewProviderSketch::getDetailPath(
     SoDetail*& det
 ) const
 {
+    if (const long annotationId = subname && annotations ? annotationIdFromSubName(subname) : 0) {
+        const SbName nodeName(annotationNodeName(annotationId).c_str());
+        auto* scene = annotations->root();
+        for (int i = 0; i < scene->getNumChildren(); ++i) {
+            if (scene->getChild(i)->getName() != nodeName) {
+                continue;
+            }
+            if (append) {
+                pPath->append(pcRoot);
+                // The scene hangs off whichever parent is active; see reparentAnnotations.
+                // getOrCreateAnnotation() is not const, and attach() has already made it.
+                SoNode* parent = isInEditMode() && editCoinManager
+                    ? static_cast<SoNode*>(editCoinManager->getRootEditNode())
+                    : static_cast<SoNode*>(pcAnnotation);
+                if (!parent) {
+                    return false;
+                }
+                pPath->append(parent);
+            }
+            pPath->append(scene);
+            pPath->append(i);
+            det = nullptr;
+            return true;
+        }
+        return false;
+    }
     const auto getLastPartOfName = [](const char* subname) -> const char* {
         const char* realName = strrchr(subname, '.');
 
@@ -4165,6 +4420,41 @@ void ViewProviderSketch::attach(App::DocumentObject* pcFeat)
     ViewProvider2DObject::attach(pcFeat);
 
     getOrCreateAnnotation()->addChild(pcSketchFacesToggle);
+    initializeNewLayerStyles();
+    if (!annotations) {
+        annotations = std::make_unique<AnnotationManager>(*this);
+    }
+    reparentAnnotations(false);
+    annotations->scheduleUpdate(true);
+}
+
+void ViewProviderSketch::reparentAnnotations(bool editing)
+{
+    if (!annotations) {
+        return;
+    }
+    auto* scene = annotations->root();
+    auto* display = getOrCreateAnnotation();
+    auto* edit = editCoinManager ? editCoinManager->getRootEditNode() : nullptr;
+    auto* from = editing ? display : edit;
+    auto* to = editing ? edit : display;
+    if (!to) {
+        return;
+    }
+    // Coin allows several parents, but two live paths would draw and pick every
+    // annotation twice and leave getDetailPath pointing at only one of them.
+    if (from && from->findChild(scene) >= 0) {
+        from->removeChild(scene);
+    }
+    if (to->findChild(scene) < 0) {
+        to->addChild(scene);
+    }
+    annotations->scheduleUpdate();
+}
+
+AnnotationManager& ViewProviderSketch::annotationManager()
+{
+    return *annotations;
 }
 
 void ViewProviderSketch::setupContextMenu(QMenu* menu, QObject* receiver, const char* member)
@@ -4173,6 +4463,10 @@ void ViewProviderSketch::setupContextMenu(QMenu* menu, QObject* receiver, const 
     act->setData(QVariant((int)ViewProvider::Default));
     // Call the extensions
     ViewProvider::setupContextMenu(menu, receiver, member);
+    if (annotations) {
+        annotations->appendContextMenu(menu);
+    }
+    appendLayerMenu(menu);
 }
 
 bool ViewProviderSketch::setEdit(int ModNum)
@@ -4248,6 +4542,7 @@ bool ViewProviderSketch::setEdit(int ModNum)
     preselection.reset();
     selection.reset();
     editCoinManager = std::make_unique<EditModeCoinManager>(*this);
+    reparentAnnotations(true);
     if (auto* activeView = getDocument()->getActiveView();
         activeView && activeView->property("SketcherLightBackground").toBool()) {
         editCoinManager->useLightBackgroundColors();
@@ -4560,6 +4855,7 @@ void ViewProviderSketch::unsetEdit(int ModNum)
             deactivateHandler();
         }
 
+        reparentAnnotations(false);
         editCoinManager = nullptr;
         snapManager = nullptr;
         preselection.reset();
@@ -4690,6 +4986,9 @@ void ViewProviderSketch::setEditViewer(Gui::View3DInventorViewer* viewer, int Mo
         viewer->viewObjects(objs);
     }
 
+    if (annotations) {
+        annotations->scheduleUpdate();
+    }
     viewer->setEditing(true);
     viewer->setSelectionEnabled(false);
 
@@ -4728,6 +5027,10 @@ void ViewProviderSketch::unsetEditViewer(Gui::View3DInventorViewer* viewer)
     cameraSensor.detach();
 
     viewer->removeGraphicsItem(rubberband.get());
+    if (annotations) {
+        annotations->cancelDrag();
+        annotations->scheduleUpdate();
+    }
     viewer->setEditing(false);
     viewer->setSelectionEnabled(true);
 
@@ -4769,6 +5072,7 @@ void ViewProviderSketch::camSensCB(void* data, SoSensor*)
 
 void ViewProviderSketch::onCameraChanged(SoCamera* cam)
 {
+    // AnnotationManager watches the camera itself, inside and outside edit mode.
     auto rotSk = Base::Rotation(getDocument()->getEditingTransform());// sketch orientation
     auto rotc = cam->orientation.getValue().getValue();
     auto rotCam =
@@ -4885,8 +5189,87 @@ void ViewProviderSketch::deleteSelected()
     }
 }
 
+bool ViewProviderSketch::handlesSubElementDeletion(const std::vector<std::string>& subNames) const
+{
+    // Cosmetics are deleted by onDelete() whether or not the sketch is in edit mode.
+    return !subNames.empty() && std::ranges::all_of(subNames, [](const std::string& name) {
+        return annotationIdFromSubName(name) != 0;
+    });
+}
+
 bool ViewProviderSketch::onDelete(const std::vector<std::string>& subList)
 {
+    // A refused Delete must say why, or it looks like the key did nothing.
+    const auto refuse = [](const QString& message) {
+        Base::Console().warning("%s\n", message.toUtf8().constData());
+        if (auto* window = Gui::getMainWindow()) {
+            window->showMessage(message, 4000);
+        }
+        return false;
+    };
+    std::vector<long> annotationIds;
+    std::size_t annotationNames = 0;
+    for (const auto& name : subList) {
+        const long id = annotationIdFromSubName(name);
+        if (!id) {
+            continue;
+        }
+        ++annotationNames;
+        const auto* annotation = getSketchObject()->findAnnotation(id);
+        if (!annotation) {
+            continue;  // Already gone: nothing to delete, and nothing to refuse either.
+        }
+        if (getSketchObject()->isLayerLocked(annotation->layer)) {
+            return refuse(tr("Nothing was deleted: the selection contains cosmetics on a locked layer"));
+        }
+        annotationIds.push_back(id);
+    }
+    // Validate a mixed selection before deleting any annotation or geometry.
+    try {
+        const auto checkGeometry = [this](int id) {
+            getSketchObject()->checkGeometryUnlocked(id);
+            if (id >= 0) {
+                for (int member : getSketchObject()->getGroupGeometries(id)) {
+                    getSketchObject()->checkGeometryUnlocked(member);
+                }
+            }
+        };
+        for (const auto& name : subList) {
+            int id;
+            Sketcher::PointPos position;
+            if (getSketchObject()->geoIdFromShapeType(name.c_str(), id, position)) {
+                checkGeometry(id);
+            }
+            else if (name.starts_with("Constraint")) {
+                const int index = Sketcher::PropertyConstraintList::getIndexFromConstraintName(name);
+                const auto& constraints = getSketchObject()->Constraints.getValues();
+                if (index >= 0 && index < static_cast<int>(constraints.size())) {
+                    for (int geometry : {constraints[index]->First, constraints[index]->Second,
+                                         constraints[index]->Third}) {
+                        checkGeometry(geometry);
+                    }
+                }
+            }
+        }
+    }
+    catch (const Base::Exception&) {
+        return refuse(tr("Nothing was deleted: the selection contains geometry on a locked layer"));
+    }
+    if (!annotationIds.empty()) {
+        std::string ids;
+        for (long id : annotationIds) {
+            if (!ids.empty()) {
+                ids += ",";
+            }
+            ids += std::to_string(id);
+        }
+        Gui::cmdAppObjectArgs(getObject(), "delAnnotations([%s])", ids.c_str());
+    }
+    if (!subList.empty() && annotationNames == subList.size()) {
+        // Only annotations were selected; the sketch itself must not be deleted.
+        // An empty subList means the whole object is being deleted, which must proceed.
+        return false;
+    }
     if (isInEditMode()) {
         std::vector<std::string> SubNames = subList;
 
@@ -5426,7 +5809,7 @@ void ViewProviderSketch::generateContextMenu(const Gui::View3DInventorViewer* vi
 
     Gui::MenuItem menu;
     menu.setCommand("Sketcher Context");
-    menu << "Sketcher_ContextActionRow" << "Separator"; 
+    menu << "Sketcher_ContextActionRow" << "Separator";
 
     std::vector<Gui::SelectionObject> selection =
         Gui::Selection().getSelectionEx(0, Sketcher::SketchObject::getClassTypeId());
@@ -5675,6 +6058,10 @@ void ViewProviderSketch::generateContextMenu(const Gui::View3DInventorViewer* vi
 
     QMenu contextMenu(viewer->getGLWidget());
     Gui::MenuManager::getInstance()->setupContextMenu(&menu, contextMenu);
+    appendLayerMenu(&contextMenu);
+    if (annotations) {
+        annotations->appendContextMenu(&contextMenu);
+    }
     contextMenu.exec(QCursor::pos());
 }
 
