@@ -538,13 +538,20 @@ bool ViewProviderAssembly::tryMouseMove(const SbVec2s& cursorPos, Gui::View3DInv
             newPos = Base::Vector3d(vec[0], vec[1], vec[2]);
         }
 
+        // Mouse positions are global but part placements are relative to the assembly.
+        // Rotate the global translation deltas in case the assembly is transformed.
+        Base::Rotation asmRotInv
+            = App::GeoFeature::getGlobalPlacement(getObject<AssemblyObject>()).getRotation().inverse();
+
         for (auto& objToMove : docsToMove) {
             App::DocumentObject* obj = objToMove.obj;
             auto* propPlacement = obj->getPlacementProperty();
             if (propPlacement) {
                 Base::Placement plc = objToMove.plc;
                 if (ungroundedJointDrag) {
-                    plc.setPosition(plc.getPosition() + ungroundedDragTranslation);
+                    plc.setPosition(
+                        plc.getPosition() + asmRotInv.multVec(ungroundedDragTranslation)
+                    );
                     if (obj != docsToMove[0].obj) {
                         propPlacement->setValue(plc);
                         continue;
@@ -587,7 +594,8 @@ bool ViewProviderAssembly::tryMouseMove(const SbVec2s& cursorPos, Gui::View3DInv
                     }
                 }
                 else if (dragMode == DragMode::TranslationOnAxis) {
-                    Base::Vector3d pos = plc.getPosition() + (newPos - initialPosition);
+                    Base::Vector3d pos = plc.getPosition()
+                        + asmRotInv.multVec(newPos - initialPosition);
                     plc.setPosition(pos);
                 }
                 else if (dragMode == DragMode::TranslationOnAxisAndRotationOnePlane) {
@@ -620,11 +628,12 @@ bool ViewProviderAssembly::tryMouseMove(const SbVec2s& cursorPos, Gui::View3DInv
                     plc = rotatedGlovalJcsPlc * jcsPlcRelativeToPart.inverse();
                 }
                 else if (dragMode == DragMode::TranslationOnPlane) {
-                    Base::Vector3d pos = plc.getPosition() + (newPos - initialPosition);
+                    Base::Vector3d pos = plc.getPosition()
+                        + asmRotInv.multVec(newPos - initialPosition);
                     plc.setPosition(pos);
                 }
                 else {  // DragMode::Translation
-                    Base::Vector3d delta = newPos - prevPosition;
+                    Base::Vector3d delta = asmRotInv.multVec(newPos - prevPosition);
 
                     Base::Vector3d pos = propPlacement->getValue().getPosition() + delta;
                     plc.setPosition(pos);
