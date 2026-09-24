@@ -549,7 +549,9 @@ bool ViewProviderAssembly::tryMouseMove(const SbVec2s& cursorPos, Gui::View3DInv
             if (propPlacement) {
                 Base::Placement plc = objToMove.plc;
                 if (ungroundedJointDrag) {
-                    plc.setPosition(plc.getPosition() + ungroundedDragTranslation);
+                    plc.setPosition(
+                        plc.getPosition() + asmInvRot.multVec(ungroundedDragTranslation)
+                    );
                     if (obj != docsToMove[0].obj) {
                         propPlacement->setValue(plc);
                         continue;
@@ -592,7 +594,8 @@ bool ViewProviderAssembly::tryMouseMove(const SbVec2s& cursorPos, Gui::View3DInv
                     }
                 }
                 else if (dragMode == DragMode::TranslationOnAxis) {
-                    Base::Vector3d pos = plc.getPosition() + (newPos - initialPosition);
+                    Base::Vector3d pos = plc.getPosition()
+                        + asmInvRot.multVec(newPos - initialPosition);
                     plc.setPosition(pos);
                 }
                 else if (dragMode == DragMode::TranslationOnAxisAndRotationOnePlane) {
@@ -620,7 +623,8 @@ bool ViewProviderAssembly::tryMouseMove(const SbVec2s& cursorPos, Gui::View3DInv
                     plc = rotatedGlovalJcsPlc * jcsPlcRelativeToPart.inverse();
                 }
                 else if (dragMode == DragMode::TranslationOnPlane) {
-                    Base::Vector3d pos = plc.getPosition() + (newPos - initialPosition);
+                    Base::Vector3d pos = plc.getPosition()
+                        + asmInvRot.multVec(newPos - initialPosition);
                     plc.setPosition(pos);
                 }
                 else {  // DragMode::Translation / TranslationNoSolve
