@@ -778,7 +778,7 @@ bool TaskHelixParameters::showPreview(PartDesign::Helix* helix)
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/PartDesign"
     );
-    if ((hGrp->GetBool("SubractiveHelixPreview", true)
+    if ((hGrp->GetBool("SubtractiveHelixPreview", true)
          && helix->getAddSubType() == PartDesign::FeatureAddSub::Subtractive)
         || (hGrp->GetBool("AdditiveHelixPreview", false)
             && helix->getAddSubType() == PartDesign::FeatureAddSub::Additive)) {
