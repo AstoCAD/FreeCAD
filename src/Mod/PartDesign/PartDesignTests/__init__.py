@@ -21,6 +21,7 @@ from . import TestPolarPattern
 from . import TestPrimitive
 from . import TestRevolve
 from . import TestShapeBinder
+from . import TestSprocket
 from . import TestSuppressed
 from . import TestThickness
 from . import TestTopologicalNamingProblem
