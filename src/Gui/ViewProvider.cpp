@@ -839,6 +839,14 @@ bool ViewProvider::canDropObject(App::DocumentObject* obj) const
     return false;
 }
 
+bool ViewProvider::canDropObjectToTarget(
+    [[maybe_unused]] App::DocumentObject* obj,
+    [[maybe_unused]] App::DocumentObject* target
+) const
+{
+    return true;
+}
+
 bool ViewProvider::canDropObjects() const
 {
 
