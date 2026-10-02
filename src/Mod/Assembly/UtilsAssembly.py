@@ -728,18 +728,28 @@ def getSnapshotGroup(assembly):
     return snapshot_group
 
 
+def getGroundedJoints(assembly):
+    """The grounded joints of the assembly, including the ones in folders of its joint
+    group, like AssemblyObject::getGroundedJoints() used by the solver."""
+
+    def collect(group):
+        joints = []
+        for obj in group.Group:
+            if hasattr(obj, "ObjectToGround"):
+                joints.append(obj)
+            elif obj.isDerivedFrom("App::DocumentObjectGroup"):
+                joints.extend(collect(obj))
+        return joints
+
+    return collect(getJointGroup(assembly))
+
+
 def isAssemblyGrounded():
     assembly = activeAssembly()
     if not assembly:
         return False
 
-    jointGroup = getJointGroup(assembly)
-
-    for joint in jointGroup.Group:
-        if hasattr(joint, "ObjectToGround"):
-            return True
-
-    return False
+    return len(getGroundedJoints(assembly)) > 0
 
 
 def removeObjAndChilds(obj):

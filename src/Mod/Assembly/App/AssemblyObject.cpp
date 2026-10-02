@@ -1285,7 +1285,7 @@ std::vector<App::DocumentObject*> AssemblyObject::getJoints(bool delBadJoints, b
     }
 
     Base::PyGILStateLocker lock;
-    for (auto joint : jointGroup->getObjects()) {
+    for (auto joint : jointGroup->getAllChildren()) {
         if (!joint) {
             continue;
         }
@@ -1336,7 +1336,7 @@ std::vector<App::DocumentObject*> AssemblyObject::getGroundedJoints()
     }
 
     Base::PyGILStateLocker lock;
-    for (auto obj : jointGroup->getObjects()) {
+    for (auto obj : jointGroup->getAllChildren()) {
         if (!obj) {
             continue;
         }
@@ -1361,7 +1361,7 @@ std::vector<App::DocumentObject*> AssemblyObject::getRigidGroups()
     }
 
     Base::PyGILStateLocker lock;
-    for (auto const obj : jointGroup->getObjects()) {
+    for (auto const obj : jointGroup->getAllChildren()) {
         if (!obj || obj->isError()) {
             continue;
         }

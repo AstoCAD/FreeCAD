@@ -219,6 +219,21 @@ class TestCore(AssemblyTestBase):
 
         self.assertTrue(hasattr(joint, "JointType"), "'{}' failed".format(operation))
 
+    def test_joints_in_nested_group_are_detected(self):
+        """Joints remain active when organized in a folder under JointGroup."""
+        box1 = self.assembly.newObject("Part::Box", "Box1")
+        box2 = self.assembly.newObject("Part::Box", "Box2")
+        folder = self.jointgroup.newObject("App::DocumentObjectGroup", "JointFolder")
+        joint = folder.newObject("App::FeaturePython", "NestedJoint")
+        JointObject.Joint(joint, 0)
+        self.doc.recompute()
+        joint.Proxy.setJointConnectors(
+            joint,
+            [[box1, ["Face1", "Face1"]], [box2, ["Face1", "Face1"]]],
+        )
+
+        self.assertIn(joint, self.assembly.Joints)
+
     def test_create_grounded_joint(self):
         """Create a grounded joint in an assembly."""
         operation = "Create Grounded Joint Object"
@@ -241,6 +256,22 @@ class TestCore(AssemblyTestBase):
             groundedjoint.ObjectToGround == box,
             "'{}' failed: ObjectToGround not set correctly.".format(operation),
         )
+
+    def test_grounded_joint_in_nested_folder_grounds_the_assembly(self):
+        """A grounded joint organized in a folder of the joint group still grounds the
+        assembly, as for the solver: Toggle Grounded must find it to unground the part,
+        and inserting a component must not ground another one."""
+        box = self.assembly.newObject("Part::Box", "Box")
+        folder = self.jointgroup.newObject("App::DocumentObjectGroup", "JointFolder")
+        subfolder = folder.newObject("App::DocumentObjectGroup", "JointSubFolder")
+        grounded = subfolder.newObject("App::FeaturePython", "GroundedJoint")
+        JointObject.GroundedJoint(grounded, box)
+        self.doc.recompute()
+
+        self.assertTrue(self.assembly.isPartGrounded(box))
+        with patch("UtilsAssembly.activeAssembly", return_value=self.assembly):
+            self.assertTrue(UtilsAssembly.isAssemblyGrounded())
+        self.assertEqual(UtilsAssembly.getGroundedJoints(self.assembly), [grounded])
 
     def test_toggle_grounded_joint(self):
         """test grounding and ungrounding a part, added because of github.com/freecad/freecad/issues/28440"""

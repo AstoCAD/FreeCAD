@@ -472,8 +472,6 @@ class CommandToggleGrounded:
         if not assembly:
             return
 
-        joint_group = UtilsAssembly.getJointGroup(assembly)
-
         selection = Gui.Selection.getSelectionEx("*", 0)
         if not selection:
             return
@@ -508,8 +506,8 @@ class CommandToggleGrounded:
 
                 # Check if part is grounded and if so delete the joint.
                 ungrounded = False
-                for joint in joint_group.Group:
-                    if hasattr(joint, "ObjectToGround") and joint.ObjectToGround == moving_part:
+                for joint in UtilsAssembly.getGroundedJoints(assembly):
+                    if joint.ObjectToGround == moving_part:
                         commands = (
                             "doc = App.ActiveDocument\n"
                             f'doc.removeObject("{joint.Name}")\n'
