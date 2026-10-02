@@ -197,7 +197,7 @@ public:
                 );
             }
         }
-        for (long annotationId : removal.annotations) {
+        for (AnnotationId annotationId : removal.annotations) {
             if (removal.deleteContents) {
                 Gui::cmdAppObjectArgs(sketch, "delAnnotations([%ld])", annotationId);
             }
@@ -451,7 +451,7 @@ private:
     struct
     {
         std::vector<int> members;
-        std::vector<long> annotations;
+        std::vector<AnnotationId> annotations;
         int destination = 0;
         bool deleteContents = false;
     } removal;

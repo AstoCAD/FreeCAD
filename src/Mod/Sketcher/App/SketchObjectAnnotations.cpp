@@ -35,7 +35,7 @@ constexpr double maxHatchStrokes = 200000;
 constexpr double hatchDotLength = 0.1;
 }  // namespace
 
-const Annotation* SketchObject::findAnnotation(long id) const
+const Annotation* SketchObject::findAnnotation(Annotation::Id id) const
 {
     const auto& values = Annotations.getValues();
     const auto it = std::find_if(values.begin(), values.end(), [id](const auto& a) {
@@ -44,7 +44,7 @@ const Annotation* SketchObject::findAnnotation(long id) const
     return it == values.end() ? nullptr : &*it;
 }
 
-const Annotation& SketchObject::getAnnotation(long id) const
+const Annotation& SketchObject::getAnnotation(Annotation::Id id) const
 {
     const auto* annotation = findAnnotation(id);
     if (!annotation) {
@@ -53,7 +53,7 @@ const Annotation& SketchObject::getAnnotation(long id) const
     return *annotation;
 }
 
-long SketchObject::addAnnotation(Annotation a)
+Annotation::Id SketchObject::addAnnotation(Annotation a)
 {
     a.validate();
     if (!hasLayer(a.layer)) {
@@ -68,14 +68,15 @@ long SketchObject::addAnnotation(Annotation a)
     if (Annotations.highestAllocatedId() >= std::numeric_limits<int>::max() - 1) {
         throw Base::ValueError("Too many annotations");
     }
-    long next = std::max(NextAnnotationId.getValue(), Annotations.highestAllocatedId() + 1);
+    Annotation::Id next =
+        std::max(NextAnnotationId.getValue(), Annotations.highestAllocatedId() + 1);
     for (const auto& existing : Annotations.getValues()) {
         if (existing.id >= std::numeric_limits<int>::max() - 1) {
             throw Base::ValueError("Too many annotations");
         }
         next = std::max(next, existing.id + 1);
     }
-    if (next <= 0 || next >= std::numeric_limits<int>::max()) {
+    if (next <= Annotation::NoId || next >= std::numeric_limits<int>::max()) {
         throw Base::ValueError("Too many annotations");
     }
     a.id = next;
@@ -89,7 +90,7 @@ long SketchObject::addAnnotation(Annotation a)
     return next;
 }
 
-void SketchObject::updateAnnotation(long id, Annotation a)
+void SketchObject::updateAnnotation(Annotation::Id id, Annotation a)
 {
     const auto& old = getAnnotation(id);
     if (!hasLayer(a.layer)) {
@@ -117,13 +118,13 @@ void SketchObject::updateAnnotation(long id, Annotation a)
     Annotations.setValues(std::move(values));
 }
 
-void SketchObject::delAnnotations(const std::vector<long>& ids)
+void SketchObject::delAnnotations(const std::vector<Annotation::Id>& ids)
 {
     if (ids.empty()) {
         return;  // Nothing to change, so no undo step either.
     }
-    const std::set<long> removed(ids.begin(), ids.end());
-    for (long id : removed) {
+    const std::set<Annotation::Id> removed(ids.begin(), ids.end());
+    for (Annotation::Id id : removed) {
         if (isLayerLocked(getAnnotation(id).layer)) {
             throw Base::ValueError("Unlock the layer before deleting annotations");
         }

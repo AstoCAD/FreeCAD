@@ -416,7 +416,7 @@ class TaskAssemblyInsertLink(QtCore.QObject):
             objType = "App::Link"
 
         addedObject = self.assembly.newObject(objType, selectedPart.Label)
-        
+
         if self.form.CheckBox_Mirror.isChecked():
             addedObject.Scale = -addedObject.Scale
 

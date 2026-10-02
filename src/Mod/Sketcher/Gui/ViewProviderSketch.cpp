@@ -804,7 +804,7 @@ void ViewProviderSketch::activateHandler(std::unique_ptr<DrawSketchHandler> newH
     if (newHandler->addsToActiveLayer()) {
         if (getSketchObject()->isLayerLocked(activeLayer)) {
             const auto message = tr("The active layer is locked; geometry cannot be added to it");
-            Base::Console().warning("%s\n", message.toUtf8().constData());
+            Base::Console().warning("{}\n", message.toUtf8().constData());
             if (auto* window = Gui::getMainWindow()) {
                 window->showMessage(message, 4000);
             }
@@ -1344,11 +1344,12 @@ bool ViewProviderSketch::mouseButtonPressed(int Button, bool pressed, const SbVe
     snapHandle = std::make_unique<SnapManager::SnapHandle>(snapManager.get(), Base::Vector2d(x, y));
 
     if (annotations && !sketchHandler && Mode == STATUS_NONE) {
-        long annotationId = 0;
+        AnnotationId annotationId = Sketcher::Annotation::NoId;
         // Sketch points and edges win over a cosmetic drawn across them, so that geometry
         // under a text or leader stays selectable.
         if (!hitsSketchElement(resolvedClickResult)) {
-            for (int i = 0; i < picks.getLength() && !annotationId; ++i) {
+            for (int i = 0; i < picks.getLength() && annotationId == Sketcher::Annotation::NoId;
+                 ++i) {
                 annotationId = annotations->picked(picks[i]);
             }
         }
@@ -1947,12 +1948,13 @@ bool ViewProviderSketch::mouseMove(const SbVec2s& cursorPos, Gui::View3DInventor
     // Computed at most once per move, and shared with the cosmetic hit test.
     std::optional<EditModeCoinManager::PreselectionResult> geometryHit;
     if (annotations && !sketchHandler && Mode == STATUS_NONE) {
-        long annotationId = 0;
+        AnnotationId annotationId = Sketcher::Annotation::NoId;
         const auto& hits = pickedPoints();
         geometryHit = getPreselectionResultAtViewportPos(cursorPos, viewer, &hits);
         // Sketch points and edges win over a cosmetic drawn across them.
         if (!hitsSketchElement(*geometryHit)) {
-            for (int i = 0; i < hits.getLength() && !annotationId; ++i) {
+            for (int i = 0; i < hits.getLength() && annotationId == Sketcher::Annotation::NoId;
+                 ++i) {
                 annotationId = annotations->picked(hits[i]);
             }
         }
@@ -4270,7 +4272,7 @@ void SketcherGui::ViewProviderSketch::finishRestoring()
 bool ViewProviderSketch::getElementPicked(const SoPickedPoint* pp, std::string& subname) const
 {
     if (annotations) {
-        if (const long id = annotations->picked(pp)) {
+        if (const AnnotationId id = annotations->picked(pp); id != Sketcher::Annotation::NoId) {
             subname = annotationSubName(id);
             return true;
         }
@@ -4354,7 +4356,10 @@ bool ViewProviderSketch::getDetailPath(
     SoDetail*& det
 ) const
 {
-    if (const long annotationId = subname && annotations ? annotationIdFromSubName(subname) : 0) {
+    if (const AnnotationId annotationId = subname && annotations
+            ? annotationIdFromSubName(subname)
+            : Sketcher::Annotation::NoId;
+        annotationId != Sketcher::Annotation::NoId) {
         const SbName nodeName(annotationNodeName(annotationId).c_str());
         auto* scene = annotations->root();
         for (int i = 0; i < scene->getNumChildren(); ++i) {
@@ -5188,7 +5193,7 @@ bool ViewProviderSketch::handlesSubElementDeletion(const std::vector<std::string
 {
     // Cosmetics are deleted by onDelete() whether or not the sketch is in edit mode.
     return !subNames.empty() && std::ranges::all_of(subNames, [](const std::string& name) {
-        return annotationIdFromSubName(name) != 0;
+        return annotationIdFromSubName(name) != Sketcher::Annotation::NoId;
     });
 }
 
@@ -5196,17 +5201,17 @@ bool ViewProviderSketch::onDelete(const std::vector<std::string>& subList)
 {
     // A refused Delete must say why, or it looks like the key did nothing.
     const auto refuse = [](const QString& message) {
-        Base::Console().warning("%s\n", message.toUtf8().constData());
+        Base::Console().warning("{}\n", message.toUtf8().constData());
         if (auto* window = Gui::getMainWindow()) {
             window->showMessage(message, 4000);
         }
         return false;
     };
-    std::vector<long> annotationIds;
+    std::vector<AnnotationId> annotationIds;
     std::size_t annotationNames = 0;
     for (const auto& name : subList) {
-        const long id = annotationIdFromSubName(name);
-        if (!id) {
+        const AnnotationId id = annotationIdFromSubName(name);
+        if (id == Sketcher::Annotation::NoId) {
             continue;
         }
         ++annotationNames;
@@ -5252,7 +5257,7 @@ bool ViewProviderSketch::onDelete(const std::vector<std::string>& subList)
     }
     if (!annotationIds.empty()) {
         std::string ids;
-        for (long id : annotationIds) {
+        for (AnnotationId id : annotationIds) {
             if (!ids.empty()) {
                 ids += ",";
             }

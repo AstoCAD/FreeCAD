@@ -97,20 +97,20 @@ constexpr const char* annotationNode = "SketchAnnotation_";
 constexpr int boundarySettleDelay = 150;
 }  // namespace
 
-long SketcherGui::annotationIdFromSubName(std::string_view name)
+AnnotationId SketcherGui::annotationIdFromSubName(std::string_view name)
 {
     return Annotation::idFromSubName(name);
 }
 
-std::string SketcherGui::annotationSubName(long id)
+std::string SketcherGui::annotationSubName(AnnotationId id)
 {
     return Annotation::subName(id);
 }
 
-std::string SketcherGui::annotationNodeName(long id)
+std::string SketcherGui::annotationNodeName(AnnotationId id)
 {
-    // Coin names allow no '-': previews of annotations not yet created use ID -1.
-    return id < 0 ? std::string(annotationNode) + "Preview" : annotationNode + std::to_string(id);
+    // Coin names allow no '-', which a preview's ID has.
+    return id == PreviewAnnotationId ? std::string(annotationNode) + "Preview" : annotationNode + std::to_string(id);
 }
 
 namespace
@@ -119,14 +119,14 @@ namespace
 /// be both intrusive and untestable; this reaches the report view and the status bar.
 void notify(const QString& message)
 {
-    Base::Console().warning("%s\n", message.toUtf8().constData());
+    Base::Console().warning("{}\n", message.toUtf8().constData());
     if (auto* window = Gui::getMainWindow()) {
         window->showMessage(message, 4000);
     }
 }
 /// Selection in edit mode is recorded against the edited object path (a Body, for a
 /// sketch inside one), so ask the view provider rather than the sketch object.
-bool isAnnotationSelected(const ViewProviderSketch& view, long id)
+bool isAnnotationSelected(const ViewProviderSketch& view, AnnotationId id)
 {
     const auto subname = annotationSubName(id);
     if (view.isInEditMode()) {
@@ -134,7 +134,7 @@ bool isAnnotationSelected(const ViewProviderSketch& view, long id)
     }
     return Gui::Selection().isSelected(view.getObject(), subname.c_str());
 }
-void deselectAnnotation(ViewProviderSketch& view, long id)
+void deselectAnnotation(ViewProviderSketch& view, AnnotationId id)
 {
     const auto subname = annotationSubName(id);
     if (view.isInEditMode()) {
@@ -1084,7 +1084,7 @@ private:
         editor = new TextEditOverlay(*sketchgui, target, settings);
         editor->finished = [this] { finishEditing(); };
         // The scene would draw the stored text under the editor; hide it meanwhile.
-        sketchgui->annotationManager().setTextEditing(existing ? existing->id : 0);
+        sketchgui->annotationManager().setTextEditing(existing ? existing->id : Annotation::NoId);
         updateHint();
     }
     void dropEditor()
@@ -1096,7 +1096,7 @@ private:
         editor->deleteLater();
         editor = nullptr;
         if (sketchgui) {
-            sketchgui->annotationManager().setTextEditing(0);
+            sketchgui->annotationManager().setTextEditing(Annotation::NoId);
         }
     }
     /// Stores the edited text. Returns false when that was refused, so the editor stays.
@@ -1126,7 +1126,7 @@ private:
         if (empty) {
             return true;
         }
-        a.id = 0;
+        a.id = Annotation::NoId;
         auto parameters = App::GetApplication().GetParameterGroupByPath(
             "User parameter:BaseApp/Preferences/Mod/Sketcher/Annotations"
         );
@@ -1566,7 +1566,7 @@ private:
     Annotation annotation() const
     {
         auto a = settings;
-        a.id = -1;  // Preview only: the document allocates the real ID.
+        a.id = PreviewAnnotationId;  // The document allocates the real ID.
         a.boundary = boundary();
         a.layer = sketchgui->getSketchObject()->ActiveLayer.getValue();
         a.construction = isConstructionMode();
@@ -1646,7 +1646,7 @@ private:
         manager.setPreview(loops.empty() ? std::nullopt : std::optional(annotation()));
         if (toolwidget) {
             if (auto* status = toolwidget->findChild<QLabel*>("hatchStatus")) {
-                const auto error = loops.empty() ? std::string() : manager.error(-1);
+                const auto error = loops.empty() ? std::string() : manager.error(PreviewAnnotationId);
                 if (!error.empty()) {
                     status->setText(QString::fromStdString(error));
                 }
@@ -1667,7 +1667,7 @@ private:
             return;
         }
         auto a = annotation();
-        a.id = 0;
+        a.id = Annotation::NoId;
         try {
             a.validate();
             // Spacing and angle can still make the pattern invalid (too dense, say).
@@ -1884,7 +1884,7 @@ private:
     Annotation annotation(bool withCursor) const
     {
         auto a = settings;
-        a.id = -1;  // Preview only: the document allocates the real ID.
+        a.id = PreviewAnnotationId;  // The document allocates the real ID.
         a.layer = sketchgui->getSketchObject()->ActiveLayer.getValue();
         a.construction = isConstructionMode();
         for (const auto& p : points) {
@@ -1909,7 +1909,7 @@ private:
             return;
         }
         auto a = annotation(false);
-        a.id = 0;
+        a.id = Annotation::NoId;
         try {
             a.validate();
         }
@@ -2052,10 +2052,10 @@ void AnnotationManager::scheduleUpdate(bool geometryChanged)
     if (geometryChanged) {
         markBoundaryDependentsStale();
     }
-    if (dragging) {
+    if (dragging != Annotation::NoId) {
         auto* sketch = view.getSketchObject();
         if (!sketch->findAnnotation(dragging) || sketch->isLayerLocked(dragOriginal.layer)) {
-            dragging = 0;
+            dragging = Annotation::NoId;
         }
     }
     requestUpdate(true);
@@ -2078,19 +2078,19 @@ void AnnotationManager::requestUpdate(bool notifyObservers)
         }
     });
 }
-bool AnnotationManager::isVisible(long id) const
+bool AnnotationManager::isVisible(AnnotationId id) const
 {
     const auto& hidden = view.HiddenAnnotations.getValues();
     return std::find(hidden.begin(), hidden.end(), id) == hidden.end();
 }
-void AnnotationManager::setVisible(const std::vector<long>& ids, bool visible)
+void AnnotationManager::setVisible(const std::vector<AnnotationId>& ids, bool visible)
 {
     if (ids.empty()) {
         return;
     }
     auto values = view.HiddenAnnotations.getValues();
-    std::set<long> hidden(values.begin(), values.end());
-    for (long id : ids) {
+    std::set<AnnotationId> hidden(values.begin(), values.end());
+    for (AnnotationId id : ids) {
         if (visible) {
             hidden.erase(id);
         }
@@ -2102,7 +2102,7 @@ void AnnotationManager::setVisible(const std::vector<long>& ids, bool visible)
         return;
     }
     std::string data;
-    for (long id : hidden) {
+    for (AnnotationId id : hidden) {
         if (!data.empty()) {
             data += ",";
         }
@@ -2121,13 +2121,13 @@ void AnnotationManager::setVisible(const std::vector<long>& ids, bool visible)
         return;
     }
     if (!visible) {
-        for (long id : ids) {
+        for (AnnotationId id : ids) {
             deselectAnnotation(view, id);
         }
         Gui::Selection().rmvPreselect();
     }
 }
-void AnnotationManager::setTextEditing(long id)
+void AnnotationManager::setTextEditing(AnnotationId id)
 {
     if (textEditing == id) {
         return;
@@ -2143,7 +2143,7 @@ void AnnotationManager::setPreview(std::optional<Annotation> preview)
     editorPreview = std::move(preview);
     update();
 }
-std::string AnnotationManager::error(long id) const
+std::string AnnotationManager::error(AnnotationId id) const
 {
     auto it = cache.find(id);
     return it == cache.end() ? std::string() : it->second.error;
@@ -2166,7 +2166,7 @@ void AnnotationManager::update()
     selectionColor.setPackedValue(viewParameters->GetUnsigned("SelectionColor", 0x00ff00ff));
     Base::Color preselectionColor;
     preselectionColor.setPackedValue(viewParameters->GetUnsigned("HighlightColor", 0xffff00ff));
-    std::set<long> live;
+    std::set<AnnotationId> live;
     auto displayed = sketch->Annotations.getValues();
     if (editorPreview) {
         std::erase_if(displayed, [this](const auto& a) { return a.id == editorPreview->id; });
@@ -2382,10 +2382,10 @@ void AnnotationManager::update()
     std::erase_if(textCache, [&](const auto& entry) { return !live.contains(entry.first); });
     std::erase_if(cache, [&](const auto& entry) { return !live.contains(entry.first); });
 }
-long AnnotationManager::picked(const SoPickedPoint* point) const
+AnnotationId AnnotationManager::picked(const SoPickedPoint* point) const
 {
     if (!point) {
-        return 0;
+        return Annotation::NoId;
     }
     const auto* path = point->getPath();
     for (int i = 0; i < path->getLength(); ++i) {
@@ -2394,17 +2394,17 @@ long AnnotationManager::picked(const SoPickedPoint* point) const
             return std::strtol(name.c_str() + std::strlen(annotationNode), nullptr, 10);
         }
     }
-    return 0;
+    return Annotation::NoId;
 }
-bool AnnotationManager::mouseButton(int button, bool pressed, Base::Vector3d position, long id)
+bool AnnotationManager::mouseButton(int button, bool pressed, Base::Vector3d position, AnnotationId id)
 {
     if (button != 1) {
-        if (dragging) {
+        if (dragging != Annotation::NoId) {
             return cancelDrag();
         }
         return false;
     }
-    if (pressed && id) {
+    if (pressed && id != Annotation::NoId) {
         const auto* found = view.getSketchObject()->findAnnotation(id);
         if (!found) {
             return false;  // A pick left over from an annotation that has since gone.
@@ -2428,7 +2428,7 @@ bool AnnotationManager::mouseButton(int button, bool pressed, Base::Vector3d pos
         }
         if (previousClick == id && clickTimer.isValid()
             && clickTimer.elapsed() < QApplication::doubleClickInterval()) {
-            previousClick = 0;
+            previousClick = Annotation::NoId;
             QTimer::singleShot(0, this, [this, id] { edit(id); });
             return true;
         }
@@ -2449,12 +2449,12 @@ bool AnnotationManager::mouseButton(int button, bool pressed, Base::Vector3d pos
         }
         return true;
     }
-    if (!pressed && dragging) {
-        mouseMove(position, 0);
+    if (!pressed && dragging != Annotation::NoId) {
+        mouseMove(position, Annotation::NoId);
         const auto a = dragPreview;
         // Sub-pixel wobble while clicking is not a drag and must not create an undo step.
         const bool moved = (position - dragStart).Length() * viewportDensity() > 1.0;
-        dragging = 0;
+        dragging = Annotation::NoId;
         if (moved && !view.getSketchObject()->isLayerLocked(a.layer)) {
             save(a, false);
         }
@@ -2463,9 +2463,9 @@ bool AnnotationManager::mouseButton(int button, bool pressed, Base::Vector3d pos
     }
     return false;
 }
-bool AnnotationManager::mouseMove(Base::Vector3d position, long id)
+bool AnnotationManager::mouseMove(Base::Vector3d position, AnnotationId id)
 {
-    if (dragging) {
+    if (dragging != Annotation::NoId) {
         dragPreview = dragOriginal;
         const auto delta = position - dragStart;
         if (dragPreview.kind == Annotation::Kind::Leader) {
@@ -2484,7 +2484,7 @@ bool AnnotationManager::mouseMove(Base::Vector3d position, long id)
         update();
         return true;
     }
-    if (id) {
+    if (id != Annotation::NoId) {
         const auto world = view.getDocument()->getEditingTransform() * position;
         Gui::Selection().setPreselect(
             view.getSketchObject()->getDocument()->getName(),
@@ -2498,17 +2498,17 @@ bool AnnotationManager::mouseMove(Base::Vector3d position, long id)
     }
     const auto& preselection = Gui::Selection().getPreselection();
     if (preselection.Object.getObject() == view.getObject()
-        && annotationIdFromSubName(preselection.Object.getSubName())) {
+        && annotationIdFromSubName(preselection.Object.getSubName()) != Annotation::NoId) {
         Gui::Selection().rmvPreselect();
     }
     return false;
 }
 bool AnnotationManager::cancelDrag()
 {
-    if (!dragging) {
+    if (dragging == Annotation::NoId) {
         return false;
     }
-    dragging = 0;
+    dragging = Annotation::NoId;
     scheduleUpdate();
     return true;
 }
@@ -2546,15 +2546,15 @@ bool AnnotationManager::save(const Annotation& a, bool create)
     }
     return false;
 }
-void AnnotationManager::remove(const std::vector<long>& ids)
+void AnnotationManager::remove(const std::vector<AnnotationId>& ids)
 {
     if (ids.empty()) {
         return;
     }
     auto* sketch = view.getSketchObject();
-    std::vector<long> removable;
+    std::vector<AnnotationId> removable;
     bool blocked = false;
-    for (long id : ids) {
+    for (AnnotationId id : ids) {
         const auto* a = sketch->findAnnotation(id);
         if (!a) {
             continue;
@@ -2572,7 +2572,7 @@ void AnnotationManager::remove(const std::vector<long>& ids)
         return;
     }
     std::string text;
-    for (long id : removable) {
+    for (AnnotationId id : removable) {
         if (!text.empty()) {
             text += ",";
         }
@@ -2618,7 +2618,7 @@ void AnnotationManager::create(Annotation::Kind kind)
         view.activateHandler(std::make_unique<TextHandler>(std::nullopt));
     }
 }
-void AnnotationManager::edit(long id)
+void AnnotationManager::edit(AnnotationId id)
 {
     const auto* found = view.getSketchObject()->findAnnotation(id);
     if (!found) {
@@ -2934,7 +2934,7 @@ TaskSketcherAnnotations::TaskSketcherAnnotations(ViewProviderSketch* view)
         updateFilters();
     });
     connect(list, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
-        const long id = item->data(Qt::UserRole).toLongLong();
+        const AnnotationId id = item->data(Qt::UserRole).toLongLong();
         const bool visible = item->checkState() == Qt::Checked;
         if (visible != this->view->annotationManager().isVisible(id)) {
             this->view->annotationManager().setVisible({id}, visible);
@@ -2963,16 +2963,16 @@ TaskSketcherAnnotations::TaskSketcherAnnotations(ViewProviderSketch* view)
                 list->setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
             }
             auto* sketch = this->view->getSketchObject();
-            const long id = item->data(Qt::UserRole).toLongLong();
+            const AnnotationId id = item->data(Qt::UserRole).toLongLong();
             const auto* current = sketch->findAnnotation(id);
             auto* edit = menu.addAction(tr("Edit"), this, [this, id] {
                 this->view->annotationManager().edit(id);
             });
             edit->setEnabled(current && !sketch->isLayerLocked(current->layer));
-            std::vector<long> selected;
+            std::vector<AnnotationId> selected;
             bool unlocked = true;
             for (auto* row : list->selectedItems()) {
-                const long selectedId = row->data(Qt::UserRole).toLongLong();
+                const AnnotationId selectedId = row->data(Qt::UserRole).toLongLong();
                 const auto* a = sketch->findAnnotation(selectedId);
                 if (!a) {
                     continue;
@@ -2987,7 +2987,7 @@ TaskSketcherAnnotations::TaskSketcherAnnotations(ViewProviderSketch* view)
             )->setEnabled(unlocked);
             menu.addSeparator();
         }
-        std::vector<long> all;
+        std::vector<AnnotationId> all;
         for (const auto& annotation : this->view->getSketchObject()->Annotations.getValues()) {
             all.push_back(annotation.id);
         }
@@ -3139,7 +3139,7 @@ bool TaskSketcherAnnotations::eventFilter(QObject* object, QEvent* event)
         if (key->key() == Qt::Key_Delete) {
             event->accept();
             if (event->type() == QEvent::KeyPress) {
-                std::vector<long> ids;
+                std::vector<AnnotationId> ids;
                 for (auto* item : list->selectedItems()) {
                     ids.push_back(item->data(Qt::UserRole).toLongLong());
                 }
@@ -3243,15 +3243,15 @@ void SketcherGui::CreateSketcherAnnotationCommands()
 
 void AnnotationManager::appendContextMenu(QMenu* menu)
 {
-    std::vector<long> selected;
+    std::vector<AnnotationId> selected;
     for (const auto& selection :
          Gui::Selection().getSelectionEx(view.getObject()->getDocument()->getName())) {
         if (selection.getObject() != view.getObject()) {
             continue;
         }
         for (const auto& name : selection.getSubNames()) {
-            const long id = annotationIdFromSubName(name);
-            if (id && view.getSketchObject()->findAnnotation(id)) {
+            const AnnotationId id = annotationIdFromSubName(name);
+            if (id != Annotation::NoId && view.getSketchObject()->findAnnotation(id)) {
                 selected.push_back(id);
             }
         }
@@ -3260,7 +3260,7 @@ void AnnotationManager::appendContextMenu(QMenu* menu)
         return;
     }
     menu->addSeparator();
-    const bool unlocked = std::none_of(selected.begin(), selected.end(), [this](long id) {
+    const bool unlocked = std::none_of(selected.begin(), selected.end(), [this](AnnotationId id) {
         const auto* a = view.getSketchObject()->findAnnotation(id);
         return a && view.getSketchObject()->isLayerLocked(a->layer);
     });

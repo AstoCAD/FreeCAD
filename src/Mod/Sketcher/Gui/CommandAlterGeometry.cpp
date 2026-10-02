@@ -279,7 +279,9 @@ void CmdSketcherToggleConstruction::activated(int iMsg)
 
 
             // Cosmetics (text, hatch, leader) carry their own construction flag.
-            if (const long annotationId = Sketcher::Annotation::idFromSubName(subname)) {
+            if (const Sketcher::Annotation::Id annotationId
+                = Sketcher::Annotation::idFromSubName(subname);
+                annotationId != Sketcher::Annotation::NoId) {
                 const auto* annotation = Obj->findAnnotation(annotationId);
                 if (!annotation) {
                     continue;
@@ -331,7 +333,7 @@ void CmdSketcherToggleConstruction::activated(int iMsg)
             const auto message = QObject::tr(
                 "Cosmetics on a locked layer were not toggled"
             );
-            Base::Console().warning("%s\n", message.toUtf8().constData());
+            Base::Console().warning("{}\n", message.toUtf8().constData());
             if (auto* window = Gui::getMainWindow()) {
                 window->showMessage(message, 4000);
             }
