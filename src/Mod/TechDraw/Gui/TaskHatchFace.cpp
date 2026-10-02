@@ -189,7 +189,7 @@ TaskHatchFace::TaskHatchFace(App::DocumentObject* hatchObjectToEdit, QWidget* pa
         }
         else if (sourceObj) {
             Base::Console().warning(
-                "TaskHatchFace: Source of hatch is not a DrawViewPart but a %s.\n",
+                "TaskHatchFace: Source of hatch is not a DrawViewPart but a {}.\n",
                 sourceObj->getTypeId().getName());
         }
         m_subNames = pSource->getSubValues();
@@ -412,7 +412,7 @@ void TaskHatchFace::loadFromObject(App::DocumentObject* obj)
         ui->patternComboBox->setCurrentIndex(indexToSelect);
     }
     else {
-        Base::Console().warning("TaskHatchFace: Current hatch pattern '%s' not found in lists. UI "
+        Base::Console().warning("TaskHatchFace: Current hatch pattern '{}' not found in lists. UI "
                                 "may not reflect true state.\n",
                                 currentPattern.displayName.toStdString().c_str());
         if (!currentPattern.displayName.isEmpty()) {
@@ -640,7 +640,7 @@ void TaskHatchFace::onOpenPatternsFolder()
 
     QDir patternsDir(patternsPathString);
     if (!patternsDir.exists()) {
-        Base::Console().warning("TaskHatchFace: SVG patterns folder does not exist at '%s'\n",
+        Base::Console().warning("TaskHatchFace: SVG patterns folder does not exist at '{}'\n",
                                 patternsPathString.toStdString().c_str());
     }
 
@@ -651,7 +651,7 @@ void TaskHatchFace::onOpenPatternsFolder()
 
     // Open the folder in the system's default file explorer
     if (!QDesktopServices::openUrl(patternsUrl)) {
-        Base::Console().error("TaskHatchFace: Could not open SVG patterns folder at '%s'\n",
+        Base::Console().error("TaskHatchFace: Could not open SVG patterns folder at '{}'\n",
                               patternsUrl.toString().toStdString().c_str());
     }
 }
@@ -755,7 +755,7 @@ bool TaskHatchFace::applyToDocumentObject(App::DocumentObject* obj, const Patter
     }
     if (!obj->getDocument()) {  // Safety check
         Base::Console().error(
-            "TaskHatchFace: Object %s has no document in applyToDocumentObject.\n",
+            "TaskHatchFace: Object {} has no document in applyToDocumentObject.\n",
             obj->getNameInDocument());
         return false;
     }
