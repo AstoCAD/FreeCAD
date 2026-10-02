@@ -807,7 +807,7 @@ void ViewProviderSketch::activateHandler(std::unique_ptr<DrawSketchHandler> newH
     if (newHandler->addsToActiveLayer()) {
         if (getSketchObject()->isLayerLocked(activeLayer)) {
             const auto message = tr("The active layer is locked; geometry cannot be added to it");
-            Base::Console().warning("%s\n", message.toUtf8().constData());
+            Base::Console().warning("{}\n", message.toUtf8().constData());
             if (auto* window = Gui::getMainWindow()) {
                 window->showMessage(message, 4000);
             }
@@ -5192,7 +5192,7 @@ bool ViewProviderSketch::onDelete(const std::vector<std::string>& subList)
 {
     // A refused Delete must say why, or it looks like the key did nothing.
     const auto refuse = [](const QString& message) {
-        Base::Console().warning("%s\n", message.toUtf8().constData());
+        Base::Console().warning("{}\n", message.toUtf8().constData());
         if (auto* window = Gui::getMainWindow()) {
             window->showMessage(message, 4000);
         }

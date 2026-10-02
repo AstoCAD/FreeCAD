@@ -1225,13 +1225,13 @@ void AssemblyObject::resolveContactMove(
                 }
                 catch (const Standard_Failure& e) {
                     Base::Console().warning(
-                        "Assembly contact detection failed: %s\n",
+                        "Assembly contact detection failed: {}\n",
                         e.GetMessageString()
                     );
                     continue;
                 }
                 catch (const std::exception& e) {
-                    Base::Console().warning("Assembly contact detection failed: %s\n", e.what());
+                    Base::Console().warning("Assembly contact detection failed: {}\n", e.what());
                     continue;
                 }
                 const Base::Placement target = driverPlacement->getValue();

@@ -931,14 +931,14 @@ void QGIViewPart::drawShaded()
         shaded = makeShadedImage(viewPart, faceColor);
     }
     catch (const Standard_Failure& error) {
-        Base::Console().warning("TechDraw shading: %s\n", error.GetMessageString());
+        Base::Console().warning("TechDraw shading: {}\n", error.GetMessageString());
     }
     catch (const std::exception& error) {
-        Base::Console().warning("TechDraw shading: %s\n", error.what());
+        Base::Console().warning("TechDraw shading: {}\n", error.what());
     }
     if (!shaded) {
         Base::Console().warning(
-            "Could not create shaded image for %s\n",
+            "Could not create shaded image for {}\n",
             viewPart->getNameInDocument());
         return;
     }

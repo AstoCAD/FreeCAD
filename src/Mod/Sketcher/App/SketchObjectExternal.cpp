@@ -943,7 +943,7 @@ int SketchObject::addExternals(App::DocumentObject* Obj,
         rebuildExternalGeometry();
     }
     catch (const Base::Exception& e) {
-        Base::Console().error("%s\n", e.what());
+        Base::Console().error("{}\n", e.what());
         ExternalGeometry.setValues(originalObjects, originalSubElements);
         ExternalTypes.setValues(originalTypes);
         return -1;

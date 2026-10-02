@@ -158,7 +158,7 @@ bool TaskNewSketch::createSketch()
     }
     catch (const Base::Exception& error) {
         Gui::Command::abortCommand(transactionId);
-        Base::Console().error("TechDraw new sketch: %s\n", error.what());
+        Base::Console().error("TechDraw new sketch: {}\n", error.what());
         return false;
     }
 

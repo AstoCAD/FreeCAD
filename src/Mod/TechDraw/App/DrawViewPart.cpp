@@ -566,7 +566,7 @@ TopoDS_Shape DrawViewPart::applyBrokenOutSections(const TopoDS_Shape& shape)
             interpolate.Perform();
         }
         catch (const Standard_Failure&) {
-            Base::Console().warning("%s: failed to interpolate broken-out section outline.\n",
+            Base::Console().warning("{}: failed to interpolate broken-out section outline.\n",
                                     getNameInDocument());
             continue;
         }
@@ -598,7 +598,7 @@ TopoDS_Shape DrawViewPart::applyBrokenOutSections(const TopoDS_Shape& shape)
             m_brokenOutSectionPlanes.push_back(front - depth);
         }
         else {
-            Base::Console().warning("%s: failed to apply a broken-out section.\n",
+            Base::Console().warning("{}: failed to apply a broken-out section.\n",
                                     getNameInDocument());
         }
     }
@@ -740,7 +740,7 @@ TopoDS_Shape DrawViewPart::applyViewBreaks(const TopoDS_Shape& shape)
         const TopoDS_Shape previous = cutShape;
         cutShape = applyCut(cutShape, item);
         if (cutShape.IsNull()) {
-            Base::Console().warning("%s: failed to apply an interactive break.\n", getNameInDocument());
+            Base::Console().warning("{}: failed to apply an interactive break.\n", getNameInDocument());
             cutShape = previous;
         }
     }
@@ -1203,7 +1203,7 @@ void DrawViewPart::extractFaces()
             findFacesV26_3(goEdges);
             break;
         default:
-            Base::Console().warning("DVP::extractFaces - Unsupported algorithm id %d\n",
+            Base::Console().warning("DVP::extractFaces - Unsupported algorithm id {}\n",
                                     static_cast<int>(Preferences::faceFinderVersion()));
             return;
     }
@@ -1232,14 +1232,14 @@ void DrawViewPart::findFacesV26_3(const std::vector<BaseGeomPtr> &goEdges)
         Standard_SStream errStream;
         builder.DumpErrors(errStream);
         const std::string &errStr = errStream.str();
-        Base::Console().error("FaceFinder v26.3: OCC General Fuse algorithm failed with error(s):\n%s\n", errStr.c_str());
+        Base::Console().error("FaceFinder v26.3: OCC General Fuse algorithm failed with error(s):\n{}\n", errStr.c_str());
         return;
     }
     if (builder.HasWarnings()) {
         Standard_SStream warnStream;
         builder.DumpWarnings(warnStream);
         const std::string &warnStr = warnStream.str();
-        Base::Console().warning("FaceFinder v26.3: OCC General Fuse algorithm raised warning(s):\n%s\n", warnStr.c_str());
+        Base::Console().warning("FaceFinder v26.3: OCC General Fuse algorithm raised warning(s):\n{}\n", warnStr.c_str());
     }
 
     // Go through the resulting faces while discarding the hole-in-plane face and the really tiny ones
@@ -1285,7 +1285,7 @@ void DrawViewPart::findFacesV26_3(const std::vector<BaseGeomPtr> &goEdges)
     // Report possible face representation problems, were there any
     for (unsigned int i = 0; i < faceGeoms.size(); ++i) {
         if (faceGeoms[i]->getRepresentation() == FaceRepresentation::Failed) {
-            Base::Console().warning("FaceFinder v26.3: Failed to determine how to display face %s.Face%d\n",
+            Base::Console().warning("FaceFinder v26.3: Failed to determine how to display face {}.Face{}\n",
                                     getNameInDocument(), i);
         }
     }

@@ -119,7 +119,7 @@ namespace
 /// be both intrusive and untestable; this reaches the report view and the status bar.
 void notify(const QString& message)
 {
-    Base::Console().warning("%s\n", message.toUtf8().constData());
+    Base::Console().warning("{}\n", message.toUtf8().constData());
     if (auto* window = Gui::getMainWindow()) {
         window->showMessage(message, 4000);
     }

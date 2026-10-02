@@ -334,7 +334,7 @@ void CmdSketcherToggleConstruction::activated(int iMsg)
             const auto message = QObject::tr(
                 "Cosmetics on a locked layer were not toggled"
             );
-            Base::Console().warning("%s\n", message.toUtf8().constData());
+            Base::Console().warning("{}\n", message.toUtf8().constData());
             if (auto* window = Gui::getMainWindow()) {
                 window->showMessage(message, 4000);
             }

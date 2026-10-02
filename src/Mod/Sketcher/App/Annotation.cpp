@@ -415,7 +415,7 @@ void PropertyAnnotationList::Restore(Base::XMLReader& reader)
         reader.readEndElement("Annotation");
         if (!knownType) {
             Base::Console().warning(
-                "Skipped sketch annotation %ld of unknown type '%s'\n",
+                "Skipped sketch annotation {} of unknown type '{}'\n",
                 a.id,
                 type.c_str()
             );
@@ -425,11 +425,11 @@ void PropertyAnnotationList::Restore(Base::XMLReader& reader)
             a.validate();
         }
         catch (const Base::Exception& error) {
-            Base::Console().warning("Skipped invalid sketch annotation %ld: %s\n", a.id, error.what());
+            Base::Console().warning("Skipped invalid sketch annotation {}: {}\n", a.id, error.what());
             continue;
         }
         if (a.id <= 0 || !ids.insert(a.id).second) {
-            Base::Console().warning("Skipped sketch annotation with invalid ID %ld\n", a.id);
+            Base::Console().warning("Skipped sketch annotation with invalid ID {}\n", a.id);
             continue;
         }
         restored.push_back(std::move(a));
