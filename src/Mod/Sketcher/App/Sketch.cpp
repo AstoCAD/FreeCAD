@@ -5593,7 +5593,7 @@ GCS::SolveStatus Sketch::moveGeometries(
 
     if (!isInitMove) {
         if (initMove(geoEltIds) != 0) {
-            return -1;
+            return GCS::SolveStatus::Failed;
         }
         initToPoint = toPoint;
         moveStep = 0;
