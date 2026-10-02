@@ -610,7 +610,7 @@ TopoDS_Shape DrawViewPart::applyBrokenOutSections(const TopoDS_Shape& shape)
             interpolate.Perform();
         }
         catch (const Standard_Failure&) {
-            Base::Console().warning("%s: failed to interpolate broken-out section outline.\n",
+            Base::Console().warning("{}: failed to interpolate broken-out section outline.\n",
                                     getNameInDocument());
             continue;
         }
@@ -642,7 +642,7 @@ TopoDS_Shape DrawViewPart::applyBrokenOutSections(const TopoDS_Shape& shape)
             m_brokenOutSectionPlanes.push_back(front - depth);
         }
         else {
-            Base::Console().warning("%s: failed to apply a broken-out section.\n",
+            Base::Console().warning("{}: failed to apply a broken-out section.\n",
                                     getNameInDocument());
         }
     }
@@ -785,7 +785,7 @@ TopoDS_Shape DrawViewPart::applyViewBreaks(const TopoDS_Shape& shape)
         const TopoDS_Shape previous = cutShape;
         cutShape = applyCut(cutShape, item);
         if (cutShape.IsNull()) {
-            Base::Console().warning("%s: failed to apply an interactive break.\n", getNameInDocument());
+            Base::Console().warning("{}: failed to apply an interactive break.\n", getNameInDocument());
             cutShape = previous;
         }
     }

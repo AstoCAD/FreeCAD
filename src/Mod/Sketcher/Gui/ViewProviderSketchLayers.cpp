@@ -142,8 +142,10 @@ void ViewProviderSketch::refreshLayers()
             continue;
         }
         for (const auto& name : object.getSubNames()) {
-            const long id = annotationIdFromSubName(name);
-            const auto* annotation = id ? getSketchObject()->findAnnotation(id) : nullptr;
+            const AnnotationId id = annotationIdFromSubName(name);
+            const auto* annotation = id != Sketcher::Annotation::NoId
+                ? getSketchObject()->findAnnotation(id)
+                : nullptr;
             if (annotation && !isLayerVisible(annotation->layer)) {
                 hiddenAnnotations.push_back(name);
             }
@@ -208,13 +210,14 @@ void ViewProviderSketch::appendLayerMenu(QMenu* menu)
     }
     auto* sketch = getSketchObject();
     std::set<int> ids;
-    std::set<long> annotationIds;
+    std::set<AnnotationId> annotationIds;
     for (const auto& object : Gui::Selection().getSelectionEx(sketch->getDocument()->getName())) {
         if (object.getObject() != sketch) {
             continue;
         }
         for (const auto& name : object.getSubNames()) {
-            if (const long annotationId = annotationIdFromSubName(name)) {
+            if (const AnnotationId annotationId = annotationIdFromSubName(name);
+                annotationId != Sketcher::Annotation::NoId) {
                 if (sketch->findAnnotation(annotationId)) {
                     annotationIds.insert(annotationId);
                 }
@@ -250,11 +253,11 @@ void ViewProviderSketch::appendLayerMenu(QMenu* menu)
         action->setCheckable(true);
         action->setChecked(std::all_of(ids.begin(), ids.end(), [sketch, layer](int id) {
             return sketch->getGeometryLayer(id) == layer;
-        }) && std::all_of(annotationIds.begin(), annotationIds.end(), [sketch, layer](long id) {
+        }) && std::all_of(annotationIds.begin(), annotationIds.end(), [sketch, layer](AnnotationId id) {
             const auto* annotation = sketch->findAnnotation(id);
             return annotation && annotation->layer == layer;
         }));
-        const auto annotationLocked = [sketch](long id) {
+        const auto annotationLocked = [sketch](AnnotationId id) {
             const auto* annotation = sketch->findAnnotation(id);
             return annotation && sketch->isLayerLocked(annotation->layer);
         };
@@ -279,7 +282,7 @@ void ViewProviderSketch::appendLayerMenu(QMenu* menu)
                         layer
                     );
                 }
-                for (long id : annotationIds) {
+                for (AnnotationId id : annotationIds) {
                     Gui::cmdAppObjectArgs(
                         sketch,
                         "updateAnnotation(%ld, {'Layer': %d})",
