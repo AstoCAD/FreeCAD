@@ -183,6 +183,11 @@ private:
         App::DocumentObject* obj,
         App::DocumentObject* target
     );
+    bool canDropToParents(
+        DocumentObjectItem* parentItem,
+        App::DocumentObject* obj,
+        App::DocumentObject* target
+    );
     void sortDroppedObjects(TargetItemInfo& targetInfo, std::vector<App::DocumentObject*> draggedObjects);
     //@}
 

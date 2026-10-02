@@ -75,6 +75,25 @@ public:
 
     QIcon getIcon() const override;
 
+    bool canDragObjects() const override
+    {
+        return true;
+    }
+    bool canDragObject(App::DocumentObject* obj) const override;
+    bool canDragObjectToTarget(
+        App::DocumentObject* obj,
+        App::DocumentObject* target
+    ) const override;
+    bool canDropObjects() const override
+    {
+        return true;
+    }
+    bool canDropObject(App::DocumentObject* obj) const override;
+    bool canDropObjectToTarget(
+        App::DocumentObject* obj,
+        App::DocumentObject* target
+    ) const override;
+
     bool onDelete(const std::vector<std::string>&) override;
 };
 
