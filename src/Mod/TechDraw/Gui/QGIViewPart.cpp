@@ -708,8 +708,7 @@ void QGIViewPart::drawViewPart()
 void QGIViewPart::drawBrokenOutSectionFaces()
 {
     auto* viewPart = dynamic_cast<TechDraw::DrawViewPart*>(getViewObject());
-    auto* viewProvider =
-        dynamic_cast<ViewProviderViewPart*>(getViewProvider(getViewObject()));
+    auto* viewProvider = getViewProvider<ViewProviderViewPart>(getViewObject());
     if (!viewPart || !viewProvider) {
         return;
     }
@@ -739,8 +738,7 @@ void QGIViewPart::drawBrokenOutSectionFaces()
 void QGIViewPart::drawBrokenOutSectionOutlines()
 {
     auto* viewPart = dynamic_cast<TechDraw::DrawViewPart*>(getViewObject());
-    auto* viewProvider =
-        dynamic_cast<ViewProviderViewPart*>(getViewProvider(getViewObject()));
+    auto* viewProvider = getViewProvider<ViewProviderViewPart>(getViewObject());
     if (!viewPart || !viewProvider) {
         return;
     }
@@ -795,8 +793,7 @@ void QGIViewPart::drawBrokenOutSectionOutlines()
 void QGIViewPart::drawShaded()
 {
     auto* viewPart = static_cast<TechDraw::DrawViewPart*>(getViewObject());
-    auto* viewProvider =
-        dynamic_cast<ViewProviderViewPart*>(getViewProvider(getViewObject()));
+    auto* viewProvider = getViewProvider<ViewProviderViewPart>(getViewObject());
     if (!viewProvider) {
         return;
     }
@@ -836,7 +833,7 @@ void QGIViewPart::drawAllFaces(void)
     auto dvp(static_cast<TechDraw::DrawViewPart*>(getViewObject()));
 
     QColor faceColor;
-    auto vpp = dynamic_cast<ViewProviderViewPart *>(getViewProvider(getViewObject()));
+    auto vpp = getViewProvider<ViewProviderViewPart>(getViewObject());
     if (vpp) {
         faceColor = vpp->FaceColor.getValue().asValue<QColor>();
         faceColor.setAlpha((100 - vpp->FaceTransparency.getValue())*255/100);
