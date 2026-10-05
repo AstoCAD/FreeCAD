@@ -81,9 +81,6 @@ protected:
     static void SetUpTestSuite()
     {
         tests::initApplication();
-        Part::LinearPatternExtension::init();
-        Part::LinkArray::init();
-        Part::LinkArrayLinear::init();
         Part::AttachExtension::init();
         Part::Primitive::init();
         Part::Box::init();
