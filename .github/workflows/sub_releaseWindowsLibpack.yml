@@ -29,6 +29,11 @@ on:
         required: false
         type: string
         default: ""
+      cmakeGenerator:
+        description: "Visual Studio generator matching the runner image"
+        required: false
+        type: string
+        default: "Visual Studio 17 2022"
       libpackDownloadUrl:
         required: false
         type: string
@@ -90,12 +95,14 @@ jobs:
       - name: Install cmake
         uses: jwlawson/actions-setup-cmake@0d6a7d60b009d01c9e7523be22153ff8f19460d3 # v2.2.0
         with:
-          cmake-version: '3.31.6'
+          # Visual Studio 2026 support requires CMake 4.2 or newer.
+          cmake-version: '4.4.4'
 
       - name: Configuring CMake
         run: >
           cmake -B"${{ env.builddir }}" .
           --preset ${{ env.config }}
+          -G "${{ inputs.cmakeGenerator }}"
           ${{ inputs.cmakeArchitecture != '' && format('-A {0}', inputs.cmakeArchitecture) || '' }}
           -DCMAKE_VS_NO_COMPILE_BATCHING=ON
           -DCMAKE_BUILD_TYPE=Release

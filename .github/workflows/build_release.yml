@@ -395,6 +395,7 @@ jobs:
           - arch: arm64
             runner: windows-11-arm
             cmakeArchitecture: ARM64
+            cmakeGenerator: "Visual Studio 18 2026"
             makeInstaller: "false"
             libpackDownloadUrl: https://github.com/FreeCAD/FreeCAD-LibPack/releases/download/3.5.5/LibPack-26.3.0-v3.5.5-ARM64-Release.7z
             libpackName: LibPack-26.3.0-v3.5.5-ARM64-Release
@@ -404,6 +405,7 @@ jobs:
       arch: ${{ matrix.arch }}
       runner: ${{ matrix.runner }}
       cmakeArchitecture: ${{ matrix.cmakeArchitecture }}
+      cmakeGenerator: ${{ matrix.cmakeGenerator }}
       libpackDownloadUrl: ${{ matrix.libpackDownloadUrl }}
       libpackName: ${{ matrix.libpackName }}
       makeInstaller: ${{ matrix.makeInstaller }}
