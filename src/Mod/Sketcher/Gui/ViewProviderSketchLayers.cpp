@@ -127,6 +127,34 @@ void ViewProviderSketch::setLayerVisible(int layerId, bool visible)
 
 void ViewProviderSketch::refreshLayers()
 {
+    // Cosmetics are selectable in and out of edit mode; hiding their layer must
+    // deselect them, or Delete and layer moves act on items the user cannot see.
+    std::vector<std::string> hiddenAnnotations;
+    for (const auto& object :
+         Gui::Selection().getSelectionEx(getSketchObject()->getDocument()->getName())) {
+        if (object.getObject() != getSketchObject()) {
+            continue;
+        }
+        for (const auto& name : object.getSubNames()) {
+            const long id = annotationIdFromSubName(name);
+            const auto* annotation = id ? getSketchObject()->findAnnotation(id) : nullptr;
+            if (annotation && !isLayerVisible(annotation->layer)) {
+                hiddenAnnotations.push_back(name);
+            }
+        }
+    }
+    for (const auto& name : hiddenAnnotations) {
+        if (isInEditMode()) {
+            rmvSelection(name);
+        }
+        else {
+            Gui::Selection().rmvSelection(
+                getSketchObject()->getDocument()->getName(),
+                getSketchObject()->getNameInDocument(),
+                name.c_str()
+            );
+        }
+    }
     if (isInEditMode()) {
         const auto selection = Gui::Selection().getSelectionEx(
             getSketchObject()->getDocument()->getName()
