@@ -421,7 +421,7 @@ class Motion:
         return None
 
     def onChanged(self, feaPy, prop):
-        if App.isRestoring():
+        if App.isRestoring() or Dynamics.is_replaying(feaPy):
             return
         if prop == "Formula" and getattr(self, "_updating_profile", False):
             return

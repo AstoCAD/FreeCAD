@@ -213,9 +213,19 @@ def invalidate_results(obj):
     purge_touched(obj, owner)
 
 
+def is_replaying(obj):
+    """Return True while undo/redo restores the document owning *obj*.
+
+    Undo replays every recorded property, derived ones included, in no fixed
+    order. Recomputing derived state from a partially restored object would
+    overwrite the values being restored.
+    """
+    return bool(getattr(getattr(obj, "Document", None), "Transacting", False))
+
+
 def invalidate_study(study):
     """Clear a study snapshot without triggering a solve or changing its inputs."""
-    if App.isRestoring() or not hasattr(study, "ResultData"):
+    if App.isRestoring() or is_replaying(study) or not hasattr(study, "ResultData"):
         return
     study.ResultData = ""
     study.Status = "NotRun"
@@ -353,7 +363,7 @@ class Load:
         purge_touched(obj)
 
     def onChanged(self, obj, prop):
-        if App.isRestoring() or getattr(self, "_restoring", False):
+        if App.isRestoring() or getattr(self, "_restoring", False) or is_replaying(obj):
             return
         if prop == "Formula" and getattr(self, "_updating_profile", False):
             return
@@ -750,7 +760,7 @@ class InitialVelocity:
         purge_touched(obj)
 
     def onChanged(self, obj, prop):
-        if App.isRestoring() or getattr(self, "_restoring", False):
+        if App.isRestoring() or getattr(self, "_restoring", False) or is_replaying(obj):
             return
         if prop == "InitialVelocityType":
             self._update_editor_modes(obj)
