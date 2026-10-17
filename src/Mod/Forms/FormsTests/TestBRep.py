@@ -35,7 +35,12 @@ from Forms import (
     unweld_segment,
     weld_boundaries,
 )
-from Forms.brep import cage_to_solid, cage_to_surface
+from Forms.brep import (
+    LocalEdgeInsert,
+    apply_local_edge_inserts,
+    cage_to_solid,
+    cage_to_surface,
+)
 from Forms.box import FormFeatureProxy
 from Forms.cage import (
     ControlCage,
@@ -962,6 +967,23 @@ class BRepConversionTest(unittest.TestCase):
         self.assertTrue(shape.isValid())
         self.assertLessEqual(deviation, 0.05)
         self.assertEqual(level, 2)
+
+    def test_legacy_insert_edge_keeps_both_sides_of_open_split(self):
+        # BRepFeat_SplitShape.Left() alone dropped one side of an open split.
+        for x_segments, edge in ((1, (0, 2)), (2, (0, 3))):
+            with self.subTest(x_segments=x_segments):
+                vertices, faces = face_control_cage(20, 10, x_segments, 1)
+                shape, _deviation, level = cage_to_surface(vertices, faces, 0.05, 3)
+                insert = LocalEdgeInsert(tuple(faces[0]), edge, 0.5)
+
+                split = apply_local_edge_inserts(
+                    shape, vertices, faces, level, [insert], 0.05
+                )
+
+                self.assertTrue(split.isValid())
+                self.assertEqual(len(split.Faces), len(shape.Faces) + 1)
+                self.assertAlmostEqual(split.Area, shape.Area, delta=shape.Area * 1.0e-6)
+                self.assertAlmostEqual(split.BoundBox.XLength, shape.BoundBox.XLength, places=6)
 
     def test_thicken_surface_produces_a_valid_editable_solid(self):
         document = App.newDocument("FormsTestThicken")

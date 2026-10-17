@@ -1296,30 +1296,39 @@ def apply_local_edge_inserts(
             split_edge = surface.vIso(parameter).toShape(u_min, u_max)
         split_pairs.append((split_edge, target_face))
 
-    split_result = Part.makeSplitShape(shape, split_pairs)
-    if len(split_result) < 2 or not split_result[1]:
-        raise ConversionError("OCCT did not produce a locally split shape")
-    if not shape.Solids and shape.ShapeType == "Face":
-        split_faces = [face for result_shape in split_result[1] for face in result_shape.Faces]
-        shell = Part.makeShell(split_faces)
+    if not shape.Solids:
+        # BRepFeat_SplitShape.Left() only floods one side of the split edges,
+        # which drops the other half of an open face or strip.  The general
+        # fuse keeps every piece of every split face.
+        fused, _pieces = shape.generalFuse([edge for edge, _face in split_pairs])
+        split_faces = fused.Faces
+        if not split_faces or abs(
+            sum(face.Area for face in split_faces) - shape.Area
+        ) > max(shape.Area * 1.0e-6, matching_tolerance * matching_tolerance):
+            raise ConversionError("OCCT did not preserve the locally split surface")
+        split_shape = Part.makeCompound(split_faces)
+        split_shape.sewShape(max(float(tolerance), 1.0e-7))
+        if len(split_shape.Shells) != 1:
+            raise ConversionError("Local edge insertion did not produce one shell")
+        shell = split_shape.Shells[0]
         if shell.isNull() or not shell.isValid():
             raise ConversionError("OCCT rejected the locally split surface")
         return shell.Faces[0] if len(shell.Faces) == 1 else shell
+
+    split_result = Part.makeSplitShape(shape, split_pairs)
+    if len(split_result) < 2 or not split_result[1]:
+        raise ConversionError("OCCT did not produce a locally split shape")
     split_shape = Part.makeCompound(split_result[1])
     split_shape.sewShape(max(float(tolerance), 1.0e-7))
     if len(split_shape.Shells) != 1:
         raise ConversionError("Local edge insertion did not produce one shell")
     shell = split_shape.Shells[0]
-    if shape.Solids:
-        if not shell.isClosed():
-            raise ConversionError("Local edge insertion opened the solid")
-        result = Part.makeSolid(shell)
-        if result.isNull() or not result.isValid():
-            raise ConversionError("OCCT rejected the locally split solid")
-        return result
-    if shell.isNull() or not shell.isValid():
-        raise ConversionError("OCCT rejected the locally split surface")
-    return shell.Faces[0] if len(shell.Faces) == 1 else shell
+    if not shell.isClosed():
+        raise ConversionError("Local edge insertion opened the solid")
+    result = Part.makeSolid(shell)
+    if result.isNull() or not result.isValid():
+        raise ConversionError("OCCT rejected the locally split solid")
+    return result
 
 
 def _cage_to_shape(
