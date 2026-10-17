@@ -396,7 +396,7 @@ public:
      * @return          true if the deletion is approved by the view provider.
      */
     virtual bool onDelete(const std::vector<std::string>& subNames);
-    /** Whether deleting  subNames removes only those subelements.
+    /** Whether deleting \a subNames removes only those subelements.
      *
      * When true, the delete command passes the selection to onDelete() and
      * never deletes the object itself, even if other objects depend on it.
