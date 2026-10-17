@@ -760,6 +760,11 @@ SketchSolveStatus SketchObject::setTextAndFont(
     bool hasExistingText = firstTextGeoId != GeoEnum::GeoUndef;
     bool handleLast = handleGeoId > firstTextGeoId;
 
+    // The glyphs belong to the handle's layer, not to the active one. Refuse a locked
+    // layer before anything is deleted.
+    checkGeometryUnlocked(handleGeoId);
+    const int textLayer = getGeometryLayer(handleGeoId);
+
     if (hasExistingText) {
         // Check if text is construction or normal geos
         auto* geo1 = getGeometry(firstTextGeoId);
@@ -806,6 +811,7 @@ SketchSolveStatus SketchObject::setTextAndFont(
         if (isConstruction) {
             Sketcher::GeometryFacade::setConstruction(geo_ptr.get(), isConstruction);
         }
+        Sketcher::GeometryFacade::getFacade(geo_ptr.get())->setGeometryLayerId(textLayer);
         // Add the raw pointer to the new vector.
         newGeosRawPtrs.push_back(geo_ptr.get());
         // Release ownership from the unique_ptr. The SketchObject will now manage this memory.
@@ -818,8 +824,10 @@ SketchSolveStatus SketchObject::setTextAndFont(
 
     // If there was text geos, they were deleted, which deleted the text constraint.
     // In this case create a new constraint to replace it.
+    std::unique_ptr<Constraint> replacement;
     if (hasExistingText) {
-        constr = new Constraint();
+        replacement = std::make_unique<Constraint>();
+        constr = replacement.get();
         constr->Type = Text;
         constr->truncateElements(0);  // remove the First/Second/Third that are created automatically
         constr->addElement(GeoElementId(handleGeoId));
@@ -832,12 +840,13 @@ SketchSolveStatus SketchObject::setTextAndFont(
     constr->setIsTextHeight(isHeight);
 
     if (hasExistingText) {
-        addConstraint(constr);
+        addConstraint(std::move(replacement));
     }
 
     auto status = solve();
 
-    if (status == SketchSolveStatus::Success) {
+    // The replacement constraint is stored as is and keeps the new text.
+    if (status == SketchSolveStatus::Success && !hasExistingText) {
         constr->setText(oldText);
         constr->setFont(oldFont);
         constr->setIsTextHeight(oldIsHeight);
