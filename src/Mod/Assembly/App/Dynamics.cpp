@@ -112,6 +112,16 @@ double elapsedMilliseconds(ContactClock::time_point start)
     );
 }
 
+// Ordinary solving and dragging skip a misconfigured contact instead of failing the
+// whole assembly; report each distinct problem once rather than on every drag step.
+void warnSkippedContact(const std::string& message)
+{
+    static std::set<std::string> reported;
+    if (reported.insert(message).second) {
+        Base::Console().warning("Contact ignored: {}\n", message);
+    }
+}
+
 template<class T>
 T& property(Object* object, const char* name)
 {
@@ -1018,15 +1028,34 @@ size_t AssemblyObject::contactParts(std::vector<Object*> contacts, bool dynamics
     const auto components = getAssemblyComponents(this);
     const std::set<Object*> membership(components.begin(), components.end());
     for (auto* contact : contacts) {
-        for (const auto& [componentI, componentJ] : contactComponentPairs(contact, components)) {
+        std::vector<std::pair<Object*, Object*>> pairs;
+        try {
+            pairs = contactComponentPairs(contact, components);
+        }
+        catch (const std::invalid_argument& error) {
+            if (dynamics) {
+                throw;
+            }
+            warnSkippedContact(error.what());
+            continue;
+        }
+        for (const auto& [componentI, componentJ] : pairs) {
             const auto pair = std::less<Object*>{}(componentI, componentJ)
                 ? std::pair{componentI, componentJ} : std::pair{componentJ, componentI};
             if (!processed.insert(pair).second) continue;
+            const char* problem = nullptr;
             if (!componentI || !componentJ || componentI == componentJ) {
-                invalid(contact, "Contact requires two different components");
+                problem = "Contact requires two different components";
             }
-            if (!membership.contains(componentI) || !membership.contains(componentJ)) {
-                invalid(contact, "Contact components must belong to this assembly");
+            else if (!membership.contains(componentI) || !membership.contains(componentJ)) {
+                problem = "Contact components must belong to this assembly";
+            }
+            if (problem) {
+                if (dynamics) {
+                    invalid(contact, problem);
+                }
+                warnSkippedContact(contact->getFullName() + ": " + problem);
+                continue;
             }
             const auto dataI = getMbDData(componentI);
             const auto dataJ = getMbDData(componentJ);
@@ -1188,7 +1217,15 @@ void AssemblyObject::resolveContactMove(
         bool expandedMovingIsland = false;
         std::set<std::pair<Object*, Object*>> processed;
         for (auto* contact : contacts) {
-            for (auto [first, second] : contactComponentPairs(contact, components)) {
+            std::vector<std::pair<Object*, Object*>> pairs;
+            try {
+                pairs = contactComponentPairs(contact, components);
+            }
+            catch (const std::invalid_argument& error) {
+                warnSkippedContact(error.what());
+                continue;
+            }
+            for (auto [first, second] : pairs) {
                 ++timing.pairs;
                 if (!first || !second || first == second) {
                     continue;

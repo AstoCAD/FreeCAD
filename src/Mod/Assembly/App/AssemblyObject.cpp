@@ -564,7 +564,13 @@ bool AssemblyObject::requiresContactSolveForMove(
 {
     const std::set<App::DocumentObject*> moved(movedParts.begin(), movedParts.end());
     return std::ranges::any_of(getContacts(), [&](App::DocumentObject* contact) {
-        const auto pairs = contactComponentPairs(contact, getAssemblyComponents(this));
+        std::vector<std::pair<App::DocumentObject*, App::DocumentObject*>> pairs;
+        try {
+            pairs = contactComponentPairs(contact, getAssemblyComponents(this));
+        }
+        catch (const std::invalid_argument&) {
+            return false;  // contactParts() skips and reports an invalid contact.
+        }
         return std::ranges::any_of(pairs, [&](const auto& pair) {
             return moved.contains(pair.first) || moved.contains(pair.second);
         });
