@@ -52,7 +52,16 @@ int SketchObject::addLayer(const std::string& name)
 {
     const auto layers = getLayers();
     validateLayerName(name, layers, -1);
-    const long next = std::max(NextLayerId.getValue(), static_cast<long>(layers.rbegin()->first) + 1);
+    long next = std::max(NextLayerId.getValue(), static_cast<long>(layers.rbegin()->first) + 1);
+    // Never hand out an id still stored on geometry, e.g. after a round trip through a
+    // FreeCAD version that keeps geometryLayer but drops Layers and NextLayerId: that
+    // geometry would silently join the new layer.
+    for (const auto* list : {&Geometry, &ExternalGeo}) {
+        for (const auto* geo : list->getValues()) {
+            const long stored = GeometryFacade::getFacade(geo)->getGeometryLayerId();
+            next = std::max(next, stored + 1);
+        }
+    }
     if (next >= std::numeric_limits<int>::max()) {
         throw Base::ValueError("Too many sketch layers");
     }
