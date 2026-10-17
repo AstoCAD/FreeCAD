@@ -1787,7 +1787,9 @@ std::vector<int> ViewProviderSketch::getConnectedEdges(int clickedGeoId, bool in
     std::vector<CandidateEdge> candidateEdges;
 
     auto addCandidate = [&](int geoId) {
-        if (!isOpenCurve(obj->getGeometry(geoId))) {
+        // Edges on hidden layers are not part of what the user sees as a wire.
+        if (!isOpenCurve(obj->getGeometry(geoId))
+            || (geoId != clickedGeoId && !isGeometryVisible(geoId))) {
             return;
         }
         Base::Vector3d p1 = obj->getPoint(geoId, PointPos::start);
