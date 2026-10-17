@@ -393,7 +393,8 @@ private:
         Gui::Selection().clearSelection();
         if (annotations) {
             for (const auto& annotation : sketch->Annotations.getValues()) {
-                if (annotation.layer == layerId) {
+                if (annotation.layer == layerId && view->isLayerVisible(annotation.layer)
+                    && view->annotationManager().isVisible(annotation.id)) {
                     view->addSelection(annotationSubName(annotation.id));
                 }
             }
@@ -429,10 +430,10 @@ private:
             const auto& values = sketch->Constraints.getValues();
             for (size_t index = 0; index < values.size(); ++index) {
                 const auto* constraint = values[index];
-                for (int element = 0; constraint->hasElement(element); ++element) {
                 if (!view->isConstraintVisible(constraint)) {
                     continue;
                 }
+                for (int element = 0; constraint->hasElement(element); ++element) {
                     const int geoId = constraint->getGeoId(element);
                     if (geoId != Sketcher::GeoEnum::GeoUndef
                         && (geoId >= 0 || geoId <= Sketcher::GeoEnum::RefExt)
