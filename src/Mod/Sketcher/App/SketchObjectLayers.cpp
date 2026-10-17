@@ -5,6 +5,7 @@
 #include <limits>
 #include <set>
 #include <unordered_set>
+#include <Precision.hxx>
 #include <App/Document.h>
 #include <Base/Exception.h>
 #include <Base/Tools.h>
@@ -320,10 +321,13 @@ void PropertyLayerGeometryList::validateValue(const std::vector<Part::Geometry*>
             throw Base::ValueError("Cannot delete geometry on a locked layer");
         }
         const auto replacement = GeometryFacade::getFacade(found->second);
+        // The solver writes locked geometry back too; conics lose a few ulps of their
+        // coordinates on that round trip, which far from the origin exceeds 1e-12.
         if (old->getGeometryLayerId() != replacement->getGeometryLayerId()
             || old->getConstruction() != replacement->getConstruction()
             || old->getInternalType() != replacement->getInternalType()
-            || (!followsLinks && !geo->isSame(*found->second, 1e-12, 1e-12))) {
+            || (!followsLinks
+                && !geo->isSame(*found->second, Precision::Confusion(), Precision::Confusion()))) {
             throw Base::ValueError("Cannot modify geometry on a locked layer");
         }
     }
