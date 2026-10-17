@@ -283,10 +283,14 @@ class FormSurfaceProxy(FormFeatureProxy):
         return face_control_cage(_linked_face(obj), obj.USegments, obj.VSegments)
 
     def execute(self, obj):
-        source_shape = None
+        # Resolve the preceding solid before the face, so a broken face name
+        # (upstream topology change) still falls back to the source solid.
+        source = obj.SourceFace[0] if obj.SourceFace else None
+        source_shape = source.Shape if source is not None else None
+        if source_shape is not None and source_shape.isNull():
+            source_shape = None
         try:
             source_face = _linked_face(obj)
-            source_shape = obj.SourceFace[0].Shape
             if obj.CageMode == "Parametric":
                 vertices, faces = self._topology(obj)
                 reset_cage(obj, vertices, faces)
@@ -343,10 +347,12 @@ class FormSurfaceProxy(FormFeatureProxy):
             obj.MaximumDeviation = 0.0
             obj.ConversionLevel = 0
             obj.ConversionStatus = status
-        except (Part.OCCError, ValueError, RuntimeError) as error:
+        except (Part.OCCError, ValueError, RuntimeError, IndexError) as error:
             # Never make the preceding Part Design result disappear when an
             # intermediate deformation cannot be sewn into a valid solid.
-            obj.Shape = source_shape if source_shape is not None else Part.Shape()
+            # Without a source solid, keep the last published shape.
+            if source_shape is not None:
+                obj.Shape = source_shape
             obj.FormSurfaceFaces = []
             obj.FormSurfaceFaceMap = []
             obj.MaximumDeviation = 0.0
