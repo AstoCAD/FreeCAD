@@ -2482,8 +2482,18 @@ void AnnotationManager::create(Annotation::Kind kind)
         notify(tr("The active layer is locked; cosmetics cannot be added to it"));
         return;
     }
+    // Read the selection first: purging a running tool may clear it.
+    std::vector<int> edges;
     if (kind == Annotation::Kind::Hatch) {
-        view.activateHandler(std::make_unique<HatchHandler>(selectedEdges(view)));
+        edges = selectedEdges(view);
+    }
+    // Like SketcherGui::ActivateHandler: let a running tool deactivate (abort its transaction,
+    // clear its preview, restore the cursor) before replacing it.
+    if (view.getSketchMode() == ViewProviderSketch::STATUS_SKETCH_UseHandler) {
+        view.purgeHandler();
+    }
+    if (kind == Annotation::Kind::Hatch) {
+        view.activateHandler(std::make_unique<HatchHandler>(std::move(edges)));
     }
     else if (kind == Annotation::Kind::Leader) {
         view.activateHandler(std::make_unique<LeaderHandler>());
@@ -2508,6 +2518,11 @@ void AnnotationManager::edit(long id)
     }
     // Text is edited in the view, with its settings in the tool widget. Purging a running
     // tool can store a text being edited (possibly this one), so read it afterwards.
+    // Tools need the edit-mode scene: the object context menu also offers this outside it.
+    if (!view.isInEditMode()) {
+        notify(tr("Edit the sketch to edit a cosmetic text"));
+        return;
+    }
     if (view.getSketchMode() == ViewProviderSketch::STATUS_SKETCH_UseHandler) {
         view.purgeHandler();
     }
