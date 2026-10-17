@@ -37,6 +37,7 @@ from .cage import (
     canonical_subelement_name,
     control_surface_points,
 )
+from .controlcage import clear_match_data
 from .edit_tools import FormEditToolsMixin
 from .edit_journal import EditJournal
 from .callbacks import DeferredCallbacks, weak_callback
@@ -782,6 +783,9 @@ class FormEditSession(FormEditToolsMixin):
             return_sharpness=True,
         )
         self._clear_editor_selection()
+        # Resizing renumbers the structured cage; boundary-match indices
+        # would otherwise point at unrelated controls.
+        clear_match_data(self.obj)
         setattr(self.obj, property_name, value)
         self.parameter_widgets[property_name].setMinimum(value)
         self.obj.ControlPoints = [App.Vector(*point) for point in resized_points]

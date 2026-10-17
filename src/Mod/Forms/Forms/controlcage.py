@@ -35,6 +35,15 @@ def _edge(start, end):
     return tuple(sorted((int(start), int(end))))
 
 
+def clear_match_data(obj):
+    """Remove associative boundary-match data that refers to cage indices."""
+    if "MatchSupport" in obj.PropertiesList:
+        obj.MatchSupport = None
+    for name in ("MatchBoundary", "MatchParameters", "MatchCornerVertices", "MatchCornerEdges"):
+        if name in obj.PropertiesList and getattr(obj, name):
+            setattr(obj, name, [])
+
+
 class ControlCage:
     """Editable manifold polygon cage, independent of a primitive type."""
 
@@ -78,8 +87,12 @@ class ControlCage:
 
     def write(self, obj):
         """Store this cage and all index-dependent data on *obj*."""
+        faces = [" ".join(str(index) for index in face) for face in self.faces]
+        topology_changed = list(getattr(obj, "ControlFaces", ())) != faces or len(
+            getattr(obj, "ControlPoints", ())
+        ) != len(self.vertices)
         obj.ControlPoints = [App.Vector(*point) for point in self.vertices]
-        obj.ControlFaces = [" ".join(str(index) for index in face) for face in self.faces]
+        obj.ControlFaces = faces
         obj.VertexSharpness = list(self.vertex_sharpness)
         valid_edges = set(cage_edges(self.faces))
         obj.EdgeSharpness = [
@@ -98,6 +111,11 @@ class ControlCage:
             obj.TMeshData = ""
         if "DissolvedEdges" in obj.PropertiesList:
             obj.DissolvedEdges = []
+        # Match data stores cage vertex indices and boundary parameters.  A
+        # topology change renumbers or reshapes the boundary, so keeping it
+        # would snap unrelated controls onto the support on next recompute.
+        if topology_changed:
+            clear_match_data(obj)
 
     def validate(self):
         if not self.vertices:

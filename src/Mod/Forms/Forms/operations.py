@@ -28,6 +28,7 @@ import math
 import FreeCAD as App
 
 from .cage import ControlCage
+from .controlcage import clear_match_data
 from .capabilities import require_base_topology, validate_local_creases
 from .limits import check_sampling
 from .numerics import DenseLU
@@ -694,13 +695,7 @@ def bridge_boundaries(obj, boundary_edges):
 
 def _clear_match_constraint(obj):
     """Remove associative boundary data invalidated by a topology split/join."""
-    if "MatchSupport" in obj.PropertiesList:
-        obj.MatchSupport = None
-    for name in ("MatchBoundary", "MatchParameters", "MatchCornerVertices"):
-        if name in obj.PropertiesList:
-            setattr(obj, name, [])
-    if "MatchCornerEdges" in obj.PropertiesList:
-        obj.MatchCornerEdges = []
+    clear_match_data(obj)
 
 
 def unweld_segment(obj, segment_edges, separate_forms=True) -> tuple[App.DocumentObject, ...]:

@@ -25,12 +25,16 @@
 
 import FreeCAD as App
 from .cage import update_object_shape
+from .controlcage import clear_match_data
 
 
 def reset_cage(obj, vertices, faces):
     """Replace parametric topology and reset all index-dependent properties."""
+    encoded_faces = [" ".join(str(index) for index in face) for face in faces]
+    if list(obj.ControlFaces) != encoded_faces or len(obj.ControlPoints) != len(vertices):
+        clear_match_data(obj)
     obj.ControlPoints = [App.Vector(*point) for point in vertices]
-    obj.ControlFaces = [" ".join(str(index) for index in face) for face in faces]
+    obj.ControlFaces = encoded_faces
     obj.VertexSharpness = [0.0] * len(vertices)
     obj.EdgeSharpness = []
     obj.LocalEdgeInserts = []
