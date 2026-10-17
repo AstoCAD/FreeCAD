@@ -257,6 +257,12 @@ bool SketchObject::constraintUsesLayers(const Constraint* constraint) const
     return true;
 }
 
+bool SketchObject::constraintAcceptedByLayers(const Constraint* constraint) const
+{
+    return constraint->Type == InternalAlignment || constraint->Type == Group
+        || constraint->Type == Text || constraintUsesLayers(constraint);
+}
+
 void SketchObject::checkGeometryUnlocked(int geoId) const
 {
     if (geoId == GeoEnum::GeoUndef || geoId == GeoEnum::HAxis || geoId == GeoEnum::VAxis) {
