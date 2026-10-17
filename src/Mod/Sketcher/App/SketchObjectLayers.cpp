@@ -62,6 +62,9 @@ int SketchObject::addLayer(const std::string& name)
             next = std::max(next, stored + 1);
         }
     }
+    for (const auto& annotation : Annotations.getValues()) {
+        next = std::max(next, static_cast<long>(annotation.layer) + 1);
+    }
     if (next >= std::numeric_limits<int>::max()) {
         throw Base::ValueError("Too many sketch layers");
     }
