@@ -163,7 +163,8 @@ class TaskPointMeasurement:
         controls = QtWidgets.QHBoxLayout()
         playerLayout.addLayout(controls)
         self.timer = QtCore.QTimer(self.form)
-        self.timer.setInterval(max(1, round(1000 / getattr(study, "jFramesPerSecond", 30))))
+        fps = max(1, int(getattr(study, "jFramesPerSecond", 30) or 30))
+        self.timer.setInterval(max(1, round(1000 / fps)))
         self.direction = 1
         self.timer.timeout.connect(self.advance)
         for icon, tooltip, callback in (

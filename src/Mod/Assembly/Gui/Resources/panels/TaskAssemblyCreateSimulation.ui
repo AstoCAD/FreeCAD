@@ -269,7 +269,17 @@
          </widget>
         </item>
         <item>
-         <widget class="QSpinBox" name="FramesPerSecondSpinBox"/>
+         <widget class="QSpinBox" name="FramesPerSecondSpinBox">
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>240</number>
+          </property>
+          <property name="value">
+           <number>30</number>
+          </property>
+         </widget>
         </item>
        </layout>
       </item>

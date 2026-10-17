@@ -1423,7 +1423,8 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         if self.startFrm >= self.endFrm:
             return
 
-        self.fps = self.simFeaturePy.jFramesPerSecond
+        # Older documents may store 0 frames per second.
+        self.fps = max(1, self.simFeaturePy.jFramesPerSecond)
         self.deltaTime = 1.0 / self.fps
         self.startTime = time.time()
         self.index = self.currentFrm
@@ -1763,7 +1764,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         from PIL import Image
 
         pil_images = [Image.open(f) for f in frame_files]
-        duration_ms = int(1000 / fps)
+        duration_ms = int(1000 / max(1, fps))
         pil_images[0].save(
             output_path,
             save_all=True,
