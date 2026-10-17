@@ -65,9 +65,11 @@ def local_frame(reference, point=False):
     if component is None:
         raise ValueError("The selected component no longer exists.")
     subname = names[0] if names else ""
-    obj, matrix, shape = component.getSubObject(subname, retType=2)
-    if obj is None:
+    # getSubObject returns None (not a tuple) when the sub-object is gone.
+    result = component.getSubObject(subname, retType=2)
+    if result is None or result[0] is None:
         raise ValueError("The selected reference no longer exists.")
+    obj, matrix, shape = result
     inverse = component.Placement.inverse()
     if point and shape is not None and getattr(shape, "ShapeType", "") == "Vertex":
         return App.Placement(inverse.multVec(shape.Point), App.Rotation())
