@@ -24,6 +24,7 @@
  ***************************************************************************/
 
 #include <Base/Console.h>
+#include <Base/Exception.h>
 #include <Base/Interpreter.h>
 #include <Base/PyObjectBase.h>
 #include <Base/ServiceProvider.h>
@@ -138,12 +139,23 @@ private:
             throw Py::RuntimeError("The object has no document view provider");
         }
 
-        auto* task = new PartGui::TaskAttacher(
-            viewProvider,
-            nullptr,
-            QString(),
-            QObject::tr("Attachment")
-        );
+        PartGui::TaskAttacher* task = nullptr;
+        try {
+            task = new PartGui::TaskAttacher(
+                viewProvider,
+                nullptr,
+                QString(),
+                QObject::tr("Attachment")
+            );
+        }
+        catch (const Base::Exception& e) {
+            // C++ exceptions must not unwind through the PyCXX/CPython frames
+            e.setPyException();
+            throw Py::Exception();
+        }
+        catch (const std::exception& e) {
+            throw Py::RuntimeError(e.what());
+        }
         Gui::PythonWrapper wrapper;
         wrapper.loadWidgetsModule();
         return wrapper.fromQWidget(task);
