@@ -568,6 +568,9 @@ def delete_faces(obj, face_indices):
         mesh = mesh.delete_faces(face_indices)
         _write_object_tmesh(obj, cage, mesh)
         return obj
+    # The base-cage rewrite below clears DissolvedEdges and legacy local
+    # inserts on the whole Form, so refuse like the sibling operations do.
+    require_base_topology(obj, "Delete faces")
     if axis is not None:
         face_indices = mirror_faces(
             enumerate(cage.vertices), enumerate(cage.faces), face_indices, axis

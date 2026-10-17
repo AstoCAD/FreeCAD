@@ -1027,6 +1027,23 @@ class BRepConversionTest(unittest.TestCase):
         self.assertEqual(len(merged), 6)
         self.assertIn(tuple(merged), [mapper.indices(face) for face in obj.Shape.Faces])
 
+    def test_delete_faces_refuses_to_discard_dissolved_edges(self):
+        document = App.newDocument("FormsTestDeleteFacesKeepsDissolve")
+        obj = create_box(document)
+        document.recompute()
+        cage = ControlCage.from_object(obj)
+        edge = next(edge for edge, count in cage.edge_counts().items() if count == 2)
+        dissolve_edges(obj, [edge])
+        document.recompute()
+        dissolved = list(obj.DissolvedEdges)
+        self.assertTrue(dissolved)
+
+        with self.assertRaises(ValueError):
+            delete_faces(obj, [0])
+
+        self.assertEqual(list(obj.DissolvedEdges), dissolved)
+        self.assertEqual(len(obj.ControlFaces), len(cage.faces))
+
     def test_delete_whole_edge_segment_merges_a_face_strip(self):
         document = App.newDocument("FormsTestDissolveEdgeSegment")
         obj = create_face(document)
