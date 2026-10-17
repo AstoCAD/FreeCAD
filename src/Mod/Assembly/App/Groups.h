@@ -84,6 +84,8 @@ public:
 
 protected:
     void onChanged(const App::Property* prop) override;
+    void onDocumentRestored() override;
+    std::set<std::string> collectGlobalInputs() const;
     std::set<std::string> globalInputs;
 
 public:

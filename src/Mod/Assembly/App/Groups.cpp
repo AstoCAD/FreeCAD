@@ -97,27 +97,47 @@ PyObject* SimulationGroup::getPyObject()
     return Py::new_reference_to(PythonObject);
 }
 
-void SimulationGroup::onChanged(const App::Property* prop)
+std::set<std::string> SimulationGroup::collectGlobalInputs() const
 {
-    App::DocumentObjectGroup::onChanged(prop);
-    if (prop != &Group || !getDocument()) {
-        return;
-    }
     std::set<std::string> inputs;
     for (auto* child : Group.getValues()) {
         if (child && (child->getPropertyByName("LoadType")
                 || child->getPropertyByName("MotionType")
                 || child->getPropertyByName("ContactType")
                 || child->getPropertyByName("InitialVelocityType")
-                || child->getPropertyByName("FrictionModel")))
-            inputs.insert(child->getNameInDocument());
+                || child->getPropertyByName("FrictionModel"))) {
+            if (const char* name = child->getNameInDocument()) {
+                inputs.insert(name);
+            }
+        }
     }
+    return inputs;
+}
+
+void SimulationGroup::onDocumentRestored()
+{
+    App::DocumentObjectGroup::onDocumentRestored();
+    // Group is restored before the children's dynamic input properties exist,
+    // so rebuild the snapshot here without invalidating the saved results.
+    globalInputs = collectGlobalInputs();
+}
+
+void SimulationGroup::onChanged(const App::Property* prop)
+{
+    App::DocumentObjectGroup::onChanged(prop);
+    if (prop != &Group || !getDocument()) {
+        return;
+    }
+    std::set<std::string> inputs = collectGlobalInputs();
     const bool changed = inputs != globalInputs;
     globalInputs = std::move(inputs);
     if (!changed || getDocument()->testStatus(App::Document::Restoring)) return;
     // Global input membership affects every study, including headless edits,
     // deletion and undo. View-provider drag/drop callbacks are not sufficient.
     for (auto* child : Group.getValues()) {
+        if (!child) {
+            continue;
+        }
         auto* data = dynamic_cast<App::PropertyString*>(child->getPropertyByName("ResultData"));
         auto* status = dynamic_cast<App::PropertyString*>(child->getPropertyByName("Status"));
         auto* error = dynamic_cast<App::PropertyString*>(child->getPropertyByName("LastError"));
