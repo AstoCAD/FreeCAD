@@ -1746,6 +1746,23 @@ void StdCmdDelete::activated(int iMsg)
             std::set<QString> affectedLabels;
             bool more = false;
             auto sels = getDeleteSelection();
+            // Subelements a view provider deletes by itself (e.g. sketch cosmetics) must not
+            // go through the dependency check, which could delete the whole object.
+            std::vector<SelectionObject> objectSels;
+            for (auto& sel : sels) {
+                auto obj = sel.getObject();
+                auto vp = obj ? Application::Instance->getViewProvider(obj) : nullptr;
+                if (vp && !sel.getSubNames().empty()
+                    && vp->handlesSubElementDeletion(sel.getSubNames())) {
+                    manageDocCommand(obj->getDocument());
+                    vp->onDelete(sel.getSubNames());
+                    docs.insert(obj->getDocument());
+                }
+                else {
+                    objectSels.push_back(sel);
+                }
+            }
+            sels = std::move(objectSels);
             bool autoDeletion = true;
             bool forceDeletion = false;
             for (auto& sel : sels) {

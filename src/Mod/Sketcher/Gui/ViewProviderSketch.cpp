@@ -5188,6 +5188,14 @@ void ViewProviderSketch::deleteSelected()
     }
 }
 
+bool ViewProviderSketch::handlesSubElementDeletion(const std::vector<std::string>& subNames) const
+{
+    // Cosmetics are deleted by onDelete() whether or not the sketch is in edit mode.
+    return !subNames.empty() && std::ranges::all_of(subNames, [](const std::string& name) {
+        return annotationIdFromSubName(name) != 0;
+    });
+}
+
 bool ViewProviderSketch::onDelete(const std::vector<std::string>& subList)
 {
     // A refused Delete must say why, or it looks like the key did nothing.

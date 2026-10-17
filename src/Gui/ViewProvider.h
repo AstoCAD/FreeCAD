@@ -396,6 +396,16 @@ public:
      * @return          true if the deletion is approved by the view provider.
      */
     virtual bool onDelete(const std::vector<std::string>& subNames);
+    /** Whether deleting  subNames removes only those subelements.
+     *
+     * When true, the delete command passes the selection to onDelete() and
+     * never deletes the object itself, even if other objects depend on it.
+     */
+    virtual bool handlesSubElementDeletion(const std::vector<std::string>& subNames) const
+    {
+        (void)subNames;
+        return false;
+    }
     /** Allow a view provider to redirect deletion of a selected subobject path.
      *
      * The delete command calls this for each object in the selected path. The
