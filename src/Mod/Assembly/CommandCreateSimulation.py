@@ -59,7 +59,15 @@ _active_simulation_task = None
 
 
 def activeSimulationTask():
-    return _active_simulation_task
+    """Return the open simulation task of the active document, if any.
+
+    Task dialogs are per document: a simulation panel left open in another
+    document must not be suspended, committed or closed from this one.
+    """
+    task = _active_simulation_task
+    if task is not None and getattr(task, "doc", None) != App.ActiveDocument:
+        return None
+    return task
 
 
 class CommandCreateSimulation:
@@ -566,7 +574,7 @@ def startCreateMotion(simulation_task):
     if not joints:
         return False
     resume = simulation_task.suspendForChildTask() if simulation_task else None
-    Gui.ActiveDocument.openCommand("Add Prescribed Motion")
+    Gui.getDocument(assembly.Document).openCommand("Add Prescribed Motion")
     motion = _createMotion(simulation or assembly, joints[0])
     _showMotionTask(motion, Dynamics.input_owner(motion), resume)
     return True
@@ -601,6 +609,7 @@ def editMotion(motion):
 class TaskAssemblyCreateMotion:
     def __init__(self, motion, simulation, resume_simulation=None):
         self.motion = motion
+        self.gui_doc = Gui.getDocument(motion.Document)
         self.owner = simulation
         self.simulation = simulation if Dynamics.is_study(simulation) else None
         self.resume_simulation = resume_simulation
@@ -668,12 +677,12 @@ class TaskAssemblyCreateMotion:
 
     def accept(self):
         Dynamics.purge_touched(self.owner, self.motion)
-        Gui.ActiveDocument.commitCommand()
+        self.gui_doc.commitCommand()
         self.reopenSimulation()
         return True
 
     def reject(self):
-        Gui.ActiveDocument.abortCommand()
+        self.gui_doc.abortCommand()
         self.reopenSimulation()
         return True
 
@@ -811,10 +820,10 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
 
         if simFeaturePy:
             self.simFeaturePy = simFeaturePy
-            Gui.ActiveDocument.openCommand("Edit " + simFeaturePy.Label + " Simulation")
+            self.gui_doc.openCommand("Edit " + simFeaturePy.Label + " Simulation")
             self.onMotionsChanged()
         else:
-            Gui.ActiveDocument.openCommand("Create Simulation")
+            self.gui_doc.openCommand("Create Simulation")
             self.createSimulationObject()
 
         self.setUiInitialValues()
@@ -920,12 +929,12 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.deactivate()
         UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initialPlcs)
         Dynamics.purge_touched(self.simFeaturePy, *self.simFeaturePy.Group)
-        Gui.ActiveDocument.commitCommand()
+        self.gui_doc.commitCommand()
         return True
 
     def reject(self):
         self.deactivate()
-        Gui.ActiveDocument.abortCommand()
+        self.gui_doc.abortCommand()
         return True
 
     def deactivate(self):
@@ -938,8 +947,8 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.simFeaturePy.Proxy.setMotionsChangedCallback(None)
         if _active_simulation_task is self:
             _active_simulation_task = None
-        if Gui.Control.activeDialog():
-            Gui.Control.closeDialog()
+        if Gui.Control.activeDialog(self.gui_doc):
+            Gui.Control.closeDialog(self.gui_doc)
 
     def suspendForChildTask(self):
         """Commit the simulation edits and temporarily replace this task dialog."""
@@ -948,7 +957,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initialPlcs)
         self.simFeaturePy.Proxy.setMotionsChangedCallback(None)
         Dynamics.purge_touched(self.simFeaturePy, *self.simFeaturePy.Group)
-        Gui.ActiveDocument.commitCommand()
+        self.gui_doc.commitCommand()
         self.deactivate()
         return self.simFeaturePy
 
