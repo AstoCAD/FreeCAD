@@ -643,6 +643,7 @@ class ReviewTest(unittest.TestCase):
         self.assertIsNotNone(restored.ViewObject.Proxy._cage_coordinates)
         self.assertTrue(restored.Shape.isValid())
 
+    @unittest.skipUnless(App.GuiUp, "Task panels require FreeCADGui")
     def test_task_panel_bindings_follow_the_primitive_type(self):
         from Forms.taskpanels import bind_edit_panel
 

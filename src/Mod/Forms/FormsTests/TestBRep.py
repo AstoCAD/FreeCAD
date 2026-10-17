@@ -607,6 +607,7 @@ class BRepConversionTest(unittest.TestCase):
         self.assertEqual(len(obj.Shape.Faces), 1)
         self.assertAlmostEqual(obj.Shape.Area, profile.Area, places=7)
 
+    @unittest.skipUnless(App.GuiUp, "Edit sessions require FreeCADGui")
     def test_profile_form_face_creation_session_exposes_control_patches(self):
         from Forms.edit import FormEditSession
 
