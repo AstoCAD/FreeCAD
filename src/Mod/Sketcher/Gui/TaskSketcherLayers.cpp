@@ -387,6 +387,8 @@ private:
 
     void selectLayerContents(int layerId, bool geometry, bool constraints, bool annotations)
     {
+        // Only visible items are selected: a following Delete must not remove
+        // elements the user cannot see.
         auto* sketch = view->getSketchObject();
         Gui::Selection().clearSelection();
         if (annotations) {
@@ -398,7 +400,7 @@ private:
         }
         if (geometry) {
             auto select = [&](int geoId) {
-                if (sketch->getGeometryLayer(geoId) != layerId) {
+                if (sketch->getGeometryLayer(geoId) != layerId || !view->isGeometryVisible(geoId)) {
                     return;
                 }
                 if (sketch->getGeometry(geoId)->is<Part::GeomPoint>()) {
@@ -428,6 +430,9 @@ private:
             for (size_t index = 0; index < values.size(); ++index) {
                 const auto* constraint = values[index];
                 for (int element = 0; constraint->hasElement(element); ++element) {
+                if (!view->isConstraintVisible(constraint)) {
+                    continue;
+                }
                     const int geoId = constraint->getGeoId(element);
                     if (geoId != Sketcher::GeoEnum::GeoUndef
                         && (geoId >= 0 || geoId <= Sketcher::GeoEnum::RefExt)
