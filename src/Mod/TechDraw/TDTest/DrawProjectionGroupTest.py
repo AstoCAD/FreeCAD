@@ -35,6 +35,21 @@ class DrawProjectionGroupTest(unittest.TestCase):
     def tearDown(self):
         FreeCAD.closeDocument("TDGroup")
 
+    def testMissingProjectionPosition(self):
+        """An absent projection must raise instead of dereferencing a null view."""
+        group = self.document.addObject("TechDraw::DrawProjGroup", "ProjGroup")
+        self.page.addView(group)
+        group.ProjectionType = "Third angle"
+        group.AutoDistribute = False
+        with self.assertRaises(ValueError):
+            group.getXYPosition("Right")
+        self.assertEqual(group.getXYPosition("Front"), FreeCAD.Vector())
+        group.addProjection("Front")
+        right = group.addProjection("Right")
+        right.X = 12
+        right.Y = 34
+        self.assertEqual(group.getXYPosition("Right"), FreeCAD.Vector(12, 34, 0))
+
     def testMakeProjectionGroup(self):
         """Tests if a projection group can be added to view1"""
         # make projection group
