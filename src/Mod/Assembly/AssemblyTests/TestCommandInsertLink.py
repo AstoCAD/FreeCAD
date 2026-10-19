@@ -213,6 +213,78 @@ class TestCommandInsertLink(AssemblyTestBase):
     def test_macro_preserves_multiline_label(self):
         self._check_macro_label_round_trip("First line\nSecond line")
 
+    def _check_macro_source_document(self, external, collision, close_source=False):
+        storage = tempfile.TemporaryDirectory()
+        self.addCleanup(storage.cleanup)
+        directory = Path(storage.name)
+        source_document = self.doc
+        replay_doc = None
+        try:
+            self.doc.saveAs(str(directory / "Assembly.FCStd"))
+            if external:
+                source_document = App.newDocument("InsertMacroExternalSource")
+            source = source_document.addObject("Part::Box", "MacroSource")
+            source_document.recompute()
+            if external:
+                source_document.saveAs(str(directory / "Component.FCStd"))
+            App.setActiveDocument(self.doc.Name)
+            link = self.assembly.newObject("App::Link", "MacroOccurrence")
+            link.setLink(source)
+            self.doc.recompute()
+            task = SimpleNamespace(
+                deactivated=MagicMock(),
+                groundedObj=None,
+                insertionStack=[{"addedObject": link, "translation": App.Vector()}],
+            )
+            captured = []
+            self.doc.openTransaction("Insert Component")
+            with patch.object(CommandInsertLink.Gui, "doCommandSkip", side_effect=captured.append):
+                self.assertTrue(CommandInsertLink.TaskAssemblyInsertLink.accept(task))
+            self.assertEqual(len(captured), 1)
+
+            replay_doc = App.newDocument("InsertMacroSourceDocumentReplay")
+            replay_assembly = replay_doc.addObject("Assembly::AssemblyObject", "Assembly")
+            local_source = None
+            if not external or collision:
+                local_source = replay_doc.addObject("Part::Box", source.Name)
+            replay_doc.saveAs(str(directory / "Replay.FCStd"))
+            if close_source:
+                App.closeDocument(source_document.Name)
+                source_document = None
+                App.setActiveDocument(replay_doc.Name)
+            namespace = {"App": App, "UtilsAssembly": CommandInsertLink.UtilsAssembly}
+            with patch.object(
+                CommandInsertLink.UtilsAssembly, "activeAssembly", return_value=replay_assembly
+            ):
+                command = compile(captured[0], "<Insert Component macro>", "exec")
+                if close_source:
+                    with self.assertRaisesRegex(NameError, "Unknown document"):
+                        exec(command, namespace)
+                    self.assertIsNone(namespace["item"].LinkedObject)
+                else:
+                    exec(command, namespace)
+                    self.assertEqual(
+                        namespace["item"].LinkedObject, source if external else local_source
+                    )
+        finally:
+            if replay_doc is not None:
+                App.closeDocument(replay_doc.Name)
+            if source_document is not None and source_document != self.doc:
+                App.closeDocument(source_document.Name)
+            App.setActiveDocument(self.doc.Name)
+
+    def test_macro_replays_same_document_source_in_new_document(self):
+        self._check_macro_source_document(external=False, collision=False)
+
+    def test_macro_preserves_external_source_without_local_namesake(self):
+        self._check_macro_source_document(external=True, collision=False)
+
+    def test_macro_preserves_external_source_with_local_namesake(self):
+        self._check_macro_source_document(external=True, collision=True)
+
+    def test_macro_does_not_replace_closed_external_source_with_local_namesake(self):
+        self._check_macro_source_document(external=True, collision=True, close_source=True)
+
     def test_open_files_with_same_basename_in_different_directories(self):
         """Distinct component files must both be available for insertion."""
         with tempfile.TemporaryDirectory() as directory:
@@ -352,6 +424,10 @@ class TestCommandInsertLink(AssemblyTestBase):
             # All real document objects provide this method, independently of
             # whether their linked target is valid.
             obj_data["addedObject"].isDerivedFrom = lambda type_name: False
+            obj_data["addedObject"].Document = self.doc
+            linked = getattr(obj_data["addedObject"], "LinkedObject", None)
+            if linked is not None:
+                linked.Document = self.doc
             task.insertionStack.append(obj_data)
 
         # Should handle the mix gracefully - invalid objects skipped, valid ones processed

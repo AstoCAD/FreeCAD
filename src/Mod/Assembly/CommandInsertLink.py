@@ -164,9 +164,13 @@ class TaskAssemblyInsertLink(QtCore.QObject):
 
             objType = "Assembly::AssemblyLink" if object.isDerivedFrom("Assembly::AssemblyLink") else "App::Link"
 
+            sourceDocument = "App.ActiveDocument"
+            if object.LinkedObject.Document != object.Document:
+                sourceDocument = f"App.getDocument({object.LinkedObject.Document.Name!r})"
+
             commands = commands + (
                 f'item = assembly.newObject("{objType}", "{object.Name}")\n'
-                f'item.LinkedObject = App.ActiveDocument.getObject("{object.LinkedObject.Name}")\n'
+                f"item.LinkedObject = {sourceDocument}.getObject({object.LinkedObject.Name!r})\n"
                 f"item.Label = {object.Label!r}\n"
             )
 
