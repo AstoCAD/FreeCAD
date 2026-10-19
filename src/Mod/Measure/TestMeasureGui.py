@@ -81,6 +81,14 @@ class TestMeasureDistanceDisplayUnit(unittest.TestCase):
             },
         )
 
+    def test_delta_annotation_background_preserves_blue_channel(self):
+        expected = (0.1, 0.2, 0.8)
+        self.measure.ViewObject.TextBackgroundColor = expected
+        Gui.updateGui()
+        for node in self.annotation_nodes():
+            actual = node.getField("backgroundColor").getValue().getValue()
+            for channel, value in zip(actual, expected):
+                self.assertAlmostEqual(channel, value, places=6)
 
 
 class TestMassPropertiesMaterial(unittest.TestCase):
