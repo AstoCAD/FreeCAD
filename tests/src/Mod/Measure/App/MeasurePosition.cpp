@@ -4,6 +4,7 @@
 #include <App/Document.h>
 #include <App/Part.h>
 #include <App/GeoFeatureGroupExtension.h>
+#include <App/Link.h>
 #include <App/MeasureManager.h>
 #include <Mod/Measure/App/MeasurePosition.h>
 #include <Mod/Part/App/PartFeature.h>
@@ -59,6 +60,28 @@ protected:
         container->Placement.setValue(placement);
         container->getExtensionByType<App::GeoFeatureGroupExtension>()->addObject(child);
         return container;
+    }
+
+    void checkNestedLinkScale(const Base::Vector3d& scale) const
+    {
+        auto feature = makeVertexFeature("Leaf", gp_Pnt(3.0, 4.0, 5.0));
+        auto container = makeContainer("Source", Base::Placement(), feature);
+        auto link = document->addObject<App::Link>("Link");
+        link->setLink(-1, container);
+        link->LinkPlacement.setValue(Base::Placement(
+            Base::Vector3d(10.0, 20.0, 30.0),
+            Base::Rotation(Base::Vector3d(0.0, 0.0, 1.0), std::numbers::pi / 2.0)
+        ));
+        link->ScaleVector.setValue(scale);
+
+        auto position = document->addObject<Measure::MeasurePosition>("Position");
+        position->Element.setValue(link, {"Leaf.Vertex1"});
+        document->recompute();
+
+        const auto value = position->Position.getValue();
+        EXPECT_NEAR(value.x, 10.0 - 4.0 * scale.y, 1e-7);
+        EXPECT_NEAR(value.y, 20.0 + 3.0 * scale.x, 1e-7);
+        EXPECT_NEAR(value.z, 30.0 + 5.0 * scale.z, 1e-7);
     }
 
 private:
@@ -172,5 +195,95 @@ TEST_F(MeasurePosition, testVertexContainerAndLocalPlacementCombine)
     doc->recompute();
 
     EXPECT_EQ(mp->Position.getValue(), Base::Vector3d(11.0, 20.0, 31.0));
+}
+
+// Regression: https://github.com/FreeCAD/FreeCAD/issues/29822.
+TEST_F(MeasurePosition, testVertexInTranslatedRotatedUnscaledLink)
+{
+    checkNestedLinkScale(Base::Vector3d(1.0, 1.0, 1.0));
+}
+
+TEST_F(MeasurePosition, testVertexInUniformlyScaledNestedLink)
+{
+    checkNestedLinkScale(Base::Vector3d(2.0, 2.0, 2.0));
+}
+
+TEST_F(MeasurePosition, testVertexInNegativelyScaledNestedLink)
+{
+    checkNestedLinkScale(Base::Vector3d(-1.0, -1.0, -1.0));
+}
+
+TEST_F(MeasurePosition, testVertexInReflectedNestedLink)
+{
+    checkNestedLinkScale(Base::Vector3d(-1.0, 1.0, 1.0));
+}
+
+TEST_F(MeasurePosition, testVertexInNonuniformlyScaledNestedLink)
+{
+    checkNestedLinkScale(Base::Vector3d(2.0, 3.0, 4.0));
+}
+
+TEST_F(MeasurePosition, testVertexInNestedLinkWithTwoReflectedAxesXY)
+{
+    checkNestedLinkScale(Base::Vector3d(-1.0, -1.0, 1.0));
+}
+
+TEST_F(MeasurePosition, testVertexInNestedLinkWithTwoReflectedAxesXZ)
+{
+    checkNestedLinkScale(Base::Vector3d(-1.0, 1.0, -1.0));
+}
+
+TEST_F(MeasurePosition, testVertexInNestedLinkWithTwoReflectedAxesYZ)
+{
+    checkNestedLinkScale(Base::Vector3d(1.0, -1.0, -1.0));
+}
+
+TEST_F(MeasurePosition, testReciprocalLinkScalesKeepIntermediateTranslation)
+{
+    auto feature = makeVertexFeature("Leaf", gp_Pnt(3.0, 4.0, 5.0));
+    feature->Placement.setValue(Base::Placement(Base::Vector3d(1.0, 2.0, 3.0), Base::Rotation()));
+    auto source = makeContainer("Source", Base::Placement(), feature);
+    auto inner = getDocument()->addObject<App::Link>("Inner");
+    inner->setLink(-1, source);
+    inner->Scale.setValue(0.5);
+    inner->LinkPlacement.setValue(Base::Placement(Base::Vector3d(5.0, 6.0, 7.0), Base::Rotation()));
+    auto middle = makeContainer("Middle", Base::Placement(), inner);
+    auto outer = getDocument()->addObject<App::Link>("Outer");
+    outer->setLink(-1, middle);
+    outer->Scale.setValue(2.0);
+    outer->LinkPlacement.setValue(Base::Placement(
+        Base::Vector3d(10.0, 20.0, 30.0),
+        Base::Rotation(Base::Vector3d(0.0, 0.0, 1.0), std::numbers::pi / 2.0)
+    ));
+    auto position = getDocument()->addObject<Measure::MeasurePosition>("Position");
+    position->Element.setValue(outer, {"Inner.Leaf.Vertex1"});
+    getDocument()->recompute();
+
+    // Leaf (3,4,5) + (1,2,3), inner scale 1/2 + (5,6,7), then outer
+    // scale 2, rotation 90 degrees about Z, and translation (10,20,30).
+    const auto value = position->Position.getValue();
+    EXPECT_NEAR(value.x, -8.0, 1e-7);
+    EXPECT_NEAR(value.y, 34.0, 1e-7);
+    EXPECT_NEAR(value.z, 52.0, 1e-7);
+}
+
+TEST_F(MeasurePosition, testDirectScaledLinkPreservesTransform)
+{
+    auto feature = makeVertexFeature("Vertex", gp_Pnt(3.0, 4.0, 5.0));
+    auto link = getDocument()->addObject<App::Link>("Link");
+    link->setLink(-1, feature);
+    link->Scale.setValue(2.0);
+    link->LinkPlacement.setValue(Base::Placement(
+        Base::Vector3d(10.0, 20.0, 30.0),
+        Base::Rotation(Base::Vector3d(0.0, 0.0, 1.0), std::numbers::pi / 2.0)
+    ));
+    auto position = getDocument()->addObject<Measure::MeasurePosition>("Position");
+    position->Element.setValue(link, {"Vertex1"});
+    getDocument()->recompute();
+
+    const auto value = position->Position.getValue();
+    EXPECT_NEAR(value.x, 2.0, 1e-7);
+    EXPECT_NEAR(value.y, 26.0, 1e-7);
+    EXPECT_NEAR(value.z, 40.0, 1e-7);
 }
 // NOLINTEND
