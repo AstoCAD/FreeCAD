@@ -63,11 +63,11 @@ class TaskMoveView:
 
     def accept(self):
 #        print ("Accept")
-        App.ActiveDocument.commitTransaction()
         view = App.ActiveDocument.getObject(self.viewName)
         fromPage = App.ActiveDocument.getObject(self.fromPageName)
         toPage = App.ActiveDocument.getObject(self.toPageName)
         TDToolsMovers.moveView(view, fromPage, toPage)
+        App.ActiveDocument.commitTransaction()
         return True
 
     def reject(self):
