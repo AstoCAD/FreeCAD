@@ -602,6 +602,9 @@ Base::Vector3d DrawProjGroup::getXYPosition(const char* viewTypeCStr)
     std::array<DrawProjGroupItem*, MAXPROJECTIONCOUNT> viewPtrs;
     arrangeViewPointers(viewPtrs);
     int viewIndex = getViewIndex(viewTypeCStr);
+    if (!viewPtrs[viewIndex]) {
+        throw Base::ValueError("The requested projection does not exist in the group");
+    }
 
     //TODO: bounding boxes do not take view orientation into account
     //      i.e. X&Y widths might be swapped on page
