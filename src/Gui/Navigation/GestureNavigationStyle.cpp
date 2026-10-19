@@ -1131,8 +1131,9 @@ void GestureNavigationStyle::EventQueue::forwardAll()
 {
     while (!this->empty()) {
         auto v = this->front();
-        this->ns.processSoEvent_bypass(&v);
+        // Scene callbacks can run a modal event loop and consume this queue.
         this->pop();
+        this->ns.processSoEvent_bypass(&v);
     }
 }
 
