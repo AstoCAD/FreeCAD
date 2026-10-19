@@ -162,29 +162,31 @@ void ViewProviderSketch::refreshLayers()
         }
     }
     if (isInEditMode()) {
-        const auto selection = Gui::Selection().getSelectionEx(
-            getSketchObject()->getDocument()->getName()
+        const auto selection = Gui::Selection().getSelectionT(
+            sketch->getDocument()->getName(), Gui::ResolveMode::NoResolve
         );
         for (const auto& object : selection) {
-            if (object.getObject() != getSketchObject()) {
+            if (object.getSubObject() != sketch) {
                 continue;
             }
-            for (const auto& name : object.getSubNames()) {
-                int id;
-                Sketcher::PointPos pos;
-                bool hidden = getSketchObject()->geoIdFromShapeType(name.c_str(), id, pos)
-                    && !isGeometryVisible(id);
-                if (name.starts_with("Constraint")) {
-                    const int index = Sketcher::PropertyConstraintList::getIndexFromConstraintName(name
-                    );
-                    const auto& constraints = getSketchObject()->Constraints.getValues();
-                    hidden = index >= 0 && index < static_cast<int>(constraints.size())
-                        && !isConstraintVisible(constraints[index]);
-                }
-                if (hidden) {
-                    // The edit path (a Body, for a sketch inside one) owns the selection.
-                    rmvSelection(name);
-                }
+            const std::string name = object.getElementName();
+            int id;
+            Sketcher::PointPos pos;
+            bool hidden = sketch->geoIdFromShapeType(name.c_str(), id, pos)
+                && !isGeometryVisible(id);
+            if (name.starts_with("Constraint")) {
+                const int index = Sketcher::PropertyConstraintList::getIndexFromConstraintName(name);
+                const auto& constraints = sketch->Constraints.getValues();
+                hidden = index >= 0 && index < static_cast<int>(constraints.size())
+                    && !isConstraintVisible(constraints[index]);
+            }
+            if (hidden) {
+                // Preserve the original owner/path and raw or mapped element spelling.
+                Gui::Selection().rmvSelection(
+                    object.getDocumentName().c_str(),
+                    object.getObjectName().c_str(),
+                    object.getSubName().c_str()
+                );
             }
         }
         Gui::Selection().rmvPreselect();
