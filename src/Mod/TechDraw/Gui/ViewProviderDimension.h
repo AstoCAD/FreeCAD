@@ -25,6 +25,9 @@
 
 #pragma once
 
+#include <vector>
+
+#include <App/DocumentObserver.h>
 #include <App/PropertyUnits.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
 #include <Mod/TechDraw/App/DrawViewDimension.h>
@@ -73,6 +76,7 @@ public:
     App::PropertyFloat LineSpacingFactorISO;
 
     void attach(App::DocumentObject *pcFeat) override;
+    void reattach(App::DocumentObject *pcFeat) override;
     bool useNewSelectionModel() const override {return false;}
     void updateData(const App::Property* prop) override;
     void onChanged(const App::Property* p) override;
@@ -103,6 +107,9 @@ protected:
     void handleChangedPropertyType(Base::XMLReader &reader, const char *TypeName, App::Property * prop) override;
 
 private:
+    void updateTreeOwners();
+    std::vector<App::DocumentObjectT> m_treeOwners;
+
     static const char *StandardAndStyleEnums[];  // NOLINT
     static const char *RenderingExtentEnums[];   // NOLINT
 
