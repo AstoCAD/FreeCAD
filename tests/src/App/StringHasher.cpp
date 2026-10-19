@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 #include "App/MappedName.h"
+#include "InitApplication.h"
 #include <gtest/gtest.h>
 
+#include <Base/Interpreter.h>
 #include <App/StringHasher.h>
 #include <App/StringHasherPy.h>
 #include <App/StringIDPy.h>
-#include <Base/Interpreter.h>
 
 #include <QCryptographicHash>
 #include <array>
@@ -221,7 +222,7 @@ TEST_F(StringIDTest, postfix)  // NOLINT
 TEST_F(StringIDTest, getPyObject)  // NOLINT
 {
     // Arrange
-    Py_Initialize();
+    tests::initApplication();
     Base::PyGILStateLocker lock;
     auto id = new App::StringID(1, nullptr);
     id->ref();
@@ -237,7 +238,7 @@ TEST_F(StringIDTest, getPyObject)  // NOLINT
 TEST_F(StringIDTest, getPyObjectWithIndex)  // NOLINT
 {
     // Arrange
-    Py_Initialize();
+    tests::initApplication();
     Base::PyGILStateLocker lock;
     auto id = new App::StringID(1, nullptr);
     id->ref();
@@ -774,7 +775,6 @@ TEST_F(StringIDRefTest, assignmentFromSelf)  // NOLINT
 TEST_F(StringIDRefTest, assignmentToEmptyFromStringID)  // NOLINT
 {
     // Arrange
-    Py_Initialize();
     auto idRef = App::StringIDRef();
     ASSERT_FALSE(idRef);  // Verify setup
 
@@ -1009,9 +1009,9 @@ TEST_F(StringIDRefTest, toBytes)  // NOLINT
 
 TEST_F(StringIDRefTest, getPyObject)  // NOLINT
 {
-    Py_Initialize();
-    Base::PyGILStateLocker lock;
     // Arrange
+    tests::initApplication();
+    Base::PyGILStateLocker lock;
     auto ref = App::StringIDRef(createStringID());
     auto empty = App::StringIDRef();
 
@@ -1077,7 +1077,6 @@ class StringHasherTest: public ::testing::Test
 protected:
     void SetUp() override
     {
-        Py_Initialize();
         _hasher = Base::Reference<App::StringHasher>(new App::StringHasher);
     }
 
@@ -1528,7 +1527,8 @@ TEST_F(StringHasherTest, count)  // NOLINT
 
 TEST_F(StringHasherTest, getPyObject)  // NOLINT
 {
-    // Arrange - done in setUp()
+    // Arrange
+    tests::initApplication();
     Base::PyGILStateLocker lock;
 
     // Act
