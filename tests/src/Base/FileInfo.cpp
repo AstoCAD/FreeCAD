@@ -4,6 +4,36 @@
 #include <Base/TimeInfo.h>
 #include <src/TempDirectory.h>
 
+TEST(FileInfoExtensionTest, IgnoresDotsInParentDirectories)
+{
+    for (const auto* path : {"parent.with.dots/file", "./file", "../file",
+                             "C:\\parent.with.dots\\file", "\\\\server.name\\share\\file"}) {
+        SCOPED_TRACE(path);
+        Base::FileInfo info(path);
+        EXPECT_TRUE(info.extension().empty());
+        EXPECT_TRUE(info.completeExtension().empty());
+    }
+}
+
+TEST(FileInfoExtensionTest, PreservesFilenameExtensionRules)
+{
+    for (const auto* parent : {"", "parent.with.dots/", "C:\\parent.with.dots\\"}) {
+        SCOPED_TRACE(parent);
+        Base::FileInfo archive(std::string(parent) + "file.tar.gz");
+        EXPECT_EQ(archive.extension(), "gz");
+        EXPECT_EQ(archive.completeExtension(), "tar.gz");
+        EXPECT_TRUE(archive.hasExtension("gz"));
+
+        Base::FileInfo hidden(std::string(parent) + ".config");
+        EXPECT_EQ(hidden.extension(), "config");
+        EXPECT_EQ(hidden.completeExtension(), "config");
+
+        Base::FileInfo trailing(std::string(parent) + "file.");
+        EXPECT_TRUE(trailing.extension().empty());
+        EXPECT_TRUE(trailing.completeExtension().empty());
+    }
+}
+
 class FileInfoTest: public ::testing::Test
 {
 protected:

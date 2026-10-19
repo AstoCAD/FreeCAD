@@ -248,20 +248,22 @@ std::wstring FileInfo::toStdWString() const
 
 std::string FileInfo::extension() const
 {
-    std::string::size_type pos = FileName.find_last_of('.');
+    const auto name = fileName();
+    std::string::size_type pos = name.find_last_of('.');
     if (pos == std::string::npos) {
         return {};
     }
-    return FileName.substr(pos + 1);
+    return name.substr(pos + 1);
 }
 
 std::string FileInfo::completeExtension() const
 {
-    std::string::size_type pos = FileName.find_first_of('.');
+    const auto name = fileName();
+    std::string::size_type pos = name.find_first_of('.');
     if (pos == std::string::npos) {
         return {};
     }
-    return FileName.substr(pos + 1);
+    return name.substr(pos + 1);
 }
 
 bool FileInfo::hasExtension(const char* Ext) const
