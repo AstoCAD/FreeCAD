@@ -89,6 +89,27 @@ class AssemblyTestBase(unittest.TestCase):
 
 
 class TestCore(AssemblyTestBase):
+    def test_simulation_rejects_non_document_object_arguments(self):
+        for value in (None, True, 1, 1.25, "invalid", [], {}, object()):
+            with self.subTest(argument_type=type(value).__name__):
+                with self.assertRaises(TypeError):
+                    self.assembly.generateSimulation(value)
+
+    def _check_origin_only_simulation(self, study_type):
+        study = self.doc.addObject(study_type, "Study")
+        self.assertEqual(study.Group, [])
+        self.assertIsNotNone(self.assembly.Origin)
+        self.assertEqual(self.assembly.getComponents(), [])
+        # The origin is grounded even without components, so this is a valid
+        # empty simulation and must retain the successful return value.
+        self.assertEqual(self.assembly.generateSimulation(study), 0)
+
+    def test_simulation_accepts_document_object_group(self):
+        self._check_origin_only_simulation("App::DocumentObjectGroup")
+
+    def test_simulation_accepts_python_document_object_group(self):
+        self._check_origin_only_simulation("App::DocumentObjectGroupPython")
+
     def _check_generated_property_strings(self, value, enumeration=False):
         source = self.doc.addObject("App::FeaturePython", "RecordedObject")
         source.addProperty("App::PropertyString", "Text")
@@ -215,6 +236,11 @@ class TestCore(AssemblyTestBase):
         self.assertEqual(int(float(bom.get("B2"))), 1)
         self.assertEqual(int(float(bom.get("B3"))), 1)
         self.assertNotIn("Invalid", bom.State)
+
+
+
+
+
 
     def test_component_count_for_link_array(self):
         source = self.doc.addObject("Part::Box", "ArraySource")
