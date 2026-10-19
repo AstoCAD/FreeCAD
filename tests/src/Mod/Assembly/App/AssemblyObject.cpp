@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 #include <gtest/gtest.h>
+#include <limits>
 
 #include <FCConfig.h>
 
@@ -18,6 +19,7 @@
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <Mod/Assembly/App/AssemblyObject.h>
+#include <Mod/Assembly/App/BomObject.h>
 #include <Mod/Assembly/App/AssemblyUtils.h>
 #include <Mod/Assembly/App/Groups.h>
 #include <Mod/Part/App/FeaturePartBox.h>
@@ -123,6 +125,90 @@ TEST_F(AssemblyObjectTest, createAssemblyObject)  // NOLINT
     // Act
 
     // Assert
+}
+
+TEST_F(AssemblyObjectTest, bomMirrorDetectionUsesActualLinkScaleVector)
+{
+    auto* doc = getObject()->getDocument();
+    auto* bom = doc->addObject<Assembly::BomObject>("Bom");
+    auto* link = doc->addObject<App::Link>("ComponentLink");
+    EXPECT_FALSE(bom->isObjMirrored(link));
+
+    link->Scale.setValue(-1.0);
+    EXPECT_TRUE(bom->isObjMirrored(link));
+    link->ScaleVector.setValue(-1.0, -1.0, 1.0);
+    EXPECT_EQ(link->Scale.getValue(), -1.0);
+    EXPECT_FALSE(bom->isObjMirrored(link));
+
+    link->Scale.setValue(1.0);
+    link->ScaleVector.setValue(-1.0, 2.0, 3.0);
+    EXPECT_EQ(link->Scale.getValue(), 1.0);
+    EXPECT_TRUE(bom->isObjMirrored(link));
+}
+
+TEST_F(AssemblyObjectTest, bomMirrorDetectionHandlesPlainObjectsAndUnownedElements)
+{
+    auto* doc = getObject()->getDocument();
+    auto* bom = doc->addObject<Assembly::BomObject>("Bom");
+    auto* plain = doc->addObject<App::DocumentObject>("Plain");
+    EXPECT_FALSE(bom->isObjMirrored(nullptr));
+    EXPECT_FALSE(bom->isObjMirrored(plain));
+
+    auto* element = doc->addObject<App::LinkElement>("UnownedElement");
+    ASSERT_EQ(element->getLinkGroup(), nullptr);
+    element->ScaleVector.setValue(-1.0, 1.0, 1.0);
+    EXPECT_TRUE(bom->isObjMirrored(element));
+    element->ScaleVector.setValue(-1.0, -1.0, 1.0);
+    EXPECT_FALSE(bom->isObjMirrored(element));
+    element->Scale.setValue(-1.0);
+    EXPECT_TRUE(bom->isObjMirrored(element));
+}
+
+TEST_F(AssemblyObjectTest, bomMirrorDetectionCombinesArrayElementAndOwnerReflections)
+{
+    auto* doc = getObject()->getDocument();
+    auto* bom = doc->addObject<Assembly::BomObject>("Bom");
+    auto* source = doc->addObject<App::DocumentObject>("Source");
+    auto* array = doc->addObject<App::Link>("Array");
+    array->LinkedObject.setValue(source);
+    array->ElementCount.setValue(2);
+    array->ShowElement.setValue(true);
+    doc->recompute();
+    const auto elements = array->ElementList.getValues();
+    ASSERT_EQ(elements.size(), 2);
+    auto* element = dynamic_cast<App::LinkElement*>(elements.front());
+    ASSERT_NE(element, nullptr);
+    ASSERT_EQ(element->getLinkGroup(), array);
+
+    element->ScaleVector.setValue(-1.0, 1.0, 1.0);
+    EXPECT_TRUE(bom->isObjMirrored(element));
+    array->ScaleVector.setValue(1.0, -1.0, 1.0);
+    EXPECT_FALSE(bom->isObjMirrored(element));
+
+    element->ScaleVector.setValue(-1.0, -1.0, 1.0);
+    EXPECT_TRUE(bom->isObjMirrored(element));
+    array->ScaleVector.setValue(1.0, -1.0, -1.0);
+    EXPECT_FALSE(bom->isObjMirrored(element));
+
+    element->ScaleVector.setValue(0.0, -1.0, 1.0);
+    EXPECT_FALSE(bom->isObjMirrored(element));
+}
+
+TEST_F(AssemblyObjectTest, bomMirrorDetectionUsesSignWithoutMagnitudeOverflowOrUnderflow)
+{
+    auto* doc = getObject()->getDocument();
+    auto* bom = doc->addObject<Assembly::BomObject>("Bom");
+    auto* link = doc->addObject<App::Link>("ComponentLink");
+    link->ScaleVector.setValue(-1e-200, 1e-200, 1e-200);
+    EXPECT_TRUE(bom->isObjMirrored(link));
+    link->ScaleVector.setValue(-1e200, 1e200, 1e200);
+    EXPECT_TRUE(bom->isObjMirrored(link));
+    link->ScaleVector.setValue(-1e200, -1e200, 1e200);
+    EXPECT_FALSE(bom->isObjMirrored(link));
+    link->ScaleVector.setValue(-1.0, 0.0, 1.0);
+    EXPECT_FALSE(bom->isObjMirrored(link));
+    link->ScaleVector.setValue(-1.0, std::numeric_limits<double>::quiet_NaN(), 1.0);
+    EXPECT_FALSE(bom->isObjMirrored(link));
 }
 
 TEST_F(AssemblyObjectTest, detectsNestedGroundedJointsAndRigidGroups)  // NOLINT
