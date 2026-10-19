@@ -1331,12 +1331,14 @@ private:
         int iEndSymbol = 0;
         TechDraw::DrawViewPart* dvp = nullptr;
 
-        if (!PyArg_ParseTuple(args.ptr(), "OO!|ii", &pDvp, &(PyList_Type), &pPointList, &iStartSymbol, &iEndSymbol)) {
+        if (!PyArg_ParseTuple(args.ptr(), "O!O!|ii", &(TechDraw::DrawViewPartPy::Type), &pDvp,
+                             &(PyList_Type), &pPointList, &iStartSymbol, &iEndSymbol)) {
             throw Py::TypeError("expected (DrawViewPart, listofpoints, startsymbolindex, endsymbolindex");
         }
-        if (PyObject_TypeCheck(pDvp, &(TechDraw::DrawViewPartPy::Type))) {
-            App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(pDvp)->getDocumentObjectPtr();
-            dvp = static_cast<TechDraw::DrawViewPart*>(obj);
+        App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(pDvp)->getDocumentObjectPtr();
+        dvp = static_cast<TechDraw::DrawViewPart*>(obj);
+        if (!dvp->findParentPage()) {
+            throw Py::ValueError("The parent view must belong to a page");
         }
 
         std::vector<Base::Vector3d> pointList;
@@ -1347,10 +1349,16 @@ private:
                         Base::Vector3d temp = static_cast<Base::VectorPy*>((*it).ptr())->value();
                         pointList.push_back(temp);
                     }
+                    else {
+                        throw Py::TypeError("Expected a list of vectors");
+                    }
             }
         }
         catch (Standard_Failure& e) {
             throw Py::Exception(Part::PartExceptionOCCError, e.GetMessageString());
+        }
+        if (pointList.size() < 2) {
+            throw Py::ValueError("At least two leader points are required");
         }
         auto newLeader = DrawLeaderLine::makeLeader(dvp, pointList, iStartSymbol, iEndSymbol);
 
