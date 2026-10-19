@@ -2365,11 +2365,12 @@ bool EditModeConstraintCoinManager::resolveIconScreenGeometry(
         }
     }
 
-    SbVec3f iconWorldPos = absPos + scaleFactor * trans;
-    iconScreenCenter = ViewProviderSketchCoinAttorney::getScreenCoordinates(viewProvider, iconWorldPos);
+    SbVec3f iconSketchPos = absPos + scaleFactor * trans;
+    iconScreenCenter = ViewProviderSketchCoinAttorney::getScreenCoordinates(viewProvider, iconSketchPos);
 
     if (pickedPoint) {
-        *pickedPoint = Base::convertTo<Base::Vector3d>(iconWorldPos);
+        const auto placement = ViewProviderSketchCoinAttorney::getEditingPlacement(viewProvider);
+        placement.multVec(Base::convertTo<Base::Vector3d>(iconSketchPos), *pickedPoint);
     }
 
     return true;

@@ -223,6 +223,50 @@ class SketcherGuiTestCases(unittest.TestCase):
             detail,
         )
 
+    def testConstraintIconPickedPointUsesEditingPlacement(self):
+        # Issue #31412: icon picking must return world coordinates, as geometry
+        # picking does. Click/release handling projects these points onto the sketch.
+        line = self.sketch.addGeometry(
+            Part.LineSegment(FreeCAD.Vector(80, 100, 0), FreeCAD.Vector(120, 100, 0)),
+            False,
+        )
+        constraint = self.sketch.addConstraint(Sketcher.Constraint("Horizontal", line))
+        expected_constraint = f"Constraint{constraint + 1}"
+
+        placements = (
+            FreeCAD.Placement(),
+            FreeCAD.Placement(FreeCAD.Vector(17, 23, 41), FreeCAD.Rotation()),
+            FreeCAD.Placement(
+                FreeCAD.Vector(17, 23, 41), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90)
+            ),
+        )
+        for placement in placements:
+            with self.subTest(placement=placement):
+                FreeCADGui.ActiveDocument.resetEdit()
+                self.sketch.Placement = placement
+                self.doc.recompute()
+                FreeCADGui.ActiveDocument.setEdit(self.sketch.Name)
+                self.pump_gui_events()
+                self.view = FreeCADGui.ActiveDocument.ActiveView
+                self.view.setCameraOrientation(placement.Rotation)
+                self.view.fitAll()
+                self.pump_gui_events()
+
+                center = placement.multVec(FreeCAD.Vector(100, 100, 0))
+                probe = self.find_constraint_probe_viewport_point(
+                    self.view, center, expected_constraint
+                )
+                self.assertIsNotNone(probe, "Expected to locate the horizontal constraint icon")
+                info = SketcherGui.getActiveSketchPreselection(probe)
+                self.assertIn(expected_constraint, info["SubElementNames"])
+                picked = FreeCAD.Vector(*info["PickedPoints"][0])
+                local_point = placement.inverse().multVec(picked)
+                self.assertLess(
+                    abs(local_point.z),
+                    0.1,
+                    f"Constraint picked point {picked} is not on sketch plane {placement}",
+                )
+
     def testPointMarkerWinsOverOverlappingConstraintLabel(self):
         start_point = FreeCAD.Vector(80.0, 100.0, 0.0)
         end_point = FreeCAD.Vector(120.0, 140.0, 0.0)
