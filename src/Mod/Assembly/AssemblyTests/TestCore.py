@@ -89,6 +89,49 @@ class AssemblyTestBase(unittest.TestCase):
 
 
 class TestCore(AssemblyTestBase):
+    def _check_generated_property_strings(self, value, enumeration=False):
+        source = self.doc.addObject("App::FeaturePython", "RecordedObject")
+        source.addProperty("App::PropertyString", "Text")
+        source.addProperty("App::PropertyEnumeration", "Choice")
+        source.Choice = ["Initial", value] if enumeration else ["Initial", "Other"]
+        source.Choice = value if enumeration else "Other"
+        source.Text = value
+        source.Label = value
+        command = UtilsAssembly.generatePropertySettings(source)
+
+        replay_doc = App.newDocument("AssemblyPropertySettingsReplay")
+        try:
+            replayed = replay_doc.addObject("App::FeaturePython", source.Name)
+            replayed.addProperty("App::PropertyString", "Text")
+            replayed.addProperty("App::PropertyEnumeration", "Choice")
+            replayed.Choice = source.getEnumerationsOfProperty("Choice")
+            replayed.Choice = "Initial"
+            exec(compile(command, "<Assembly property settings>", "exec"), {"App": App})
+            self.assertEqual(replayed.Text, value)
+            self.assertEqual(replayed.Label, value)
+            self.assertEqual(replayed.Choice, value if enumeration else "Other")
+        finally:
+            App.closeDocument(replay_doc.Name)
+            App.setActiveDocument(self.doc.Name)
+
+    def test_generated_settings_preserve_ascii_strings(self):
+        self._check_generated_property_strings("Ordinary label")
+
+    def test_generated_settings_preserve_unicode_strings(self):
+        self._check_generated_property_strings("Café α 测量")
+
+    def test_generated_settings_preserve_quoted_strings(self):
+        self._check_generated_property_strings('Part "quoted"')
+
+    def test_generated_settings_preserve_literal_backslash(self):
+        self._check_generated_property_strings("C:\\new\\tool")
+
+    def test_generated_settings_preserve_multiline_strings(self):
+        self._check_generated_property_strings("First line\nSecond line")
+
+    def test_generated_settings_preserve_quoted_enumeration(self):
+        self._check_generated_property_strings('Option "quoted"', enumeration=True)
+
     def _check_grounded_part_with_assembly_type(self, tag):
         self.assembly.Type = tag
         free = self.assembly.newObject("Part::Box", "Free")
