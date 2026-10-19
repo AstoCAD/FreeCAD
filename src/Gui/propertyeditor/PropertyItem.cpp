@@ -845,7 +845,7 @@ QVariant PropertyStringItem::value(const App::Property* prop) const
 void PropertyStringItem::setValue(const QVariant& value)
 {
     if (!hasExpression() && value.canConvert<QString>()) {
-        std::string val = Base::InterpreterSingleton::strToPython(value.toString().toStdString());
+        std::string val = Base::Tools::escapeEncodeString(value.toString().toStdString());
         setPropertyValue(Base::Tools::quoted(val));
     }
 }
@@ -3067,11 +3067,8 @@ void PropertyEnumItem::setValue(const QVariant& value)
         QStringList values = value.toStringList();
         ss << "[";
         for (const auto& it : values) {
-            QString text(it);
-            text.replace(QStringLiteral("'"), QStringLiteral("\\'"));
-
-            std::string str = Base::Tools::escapedUnicodeFromUtf8(text.toUtf8());
-            str = Base::InterpreterSingleton::strToPython(str);
+            std::string str = Base::Tools::escapedUnicodeFromUtf8(it.toUtf8());
+            str = Base::Tools::escapeQuotesFromString(str);
             ss << "u\"" << str << "\", ";
         }
         ss << "]";
@@ -3079,6 +3076,7 @@ void PropertyEnumItem::setValue(const QVariant& value)
     }
     else if (value.canConvert<QString>()) {
         std::string str = Base::Tools::escapedUnicodeFromUtf8(value.toString().toUtf8());
+        str = Base::Tools::escapeQuotesFromString(str);
         ss << "u\"" << str << "\"";
         setPropertyValue(ss.str());
     }
