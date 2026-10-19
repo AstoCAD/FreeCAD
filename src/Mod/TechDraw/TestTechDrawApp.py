@@ -35,6 +35,15 @@ from TDTest.PythonFeatureTest import PythonFeatureTest  # noqa: F401
 from TDTest.DrawViewBreakRemovalTest import DrawViewBreakRemovalTest  # noqa: F401
 from TDTest.DrawBrokenOutSectionDepthTest import DrawBrokenOutSectionDepthTest  # noqa: F401
 from TDTest.DrawDimensionViewBreakTest import DrawDimensionViewBreakTest  # noqa: F401
+from TDTest.DrawViewRemovalTest import DrawViewRemovalTest  # noqa: F401
+from TDTest.DrawViewDimensionSavedGeometryTest import DrawViewDimensionSavedGeometryTest  # noqa: F401
+from TDTest.DrawCosmeticCircleRadiusTest import DrawCosmeticCircleRadiusTest  # noqa: F401
+from TDTest.DrawCosmeticEdgeLineNumberTest import DrawCosmeticEdgeLineNumberTest  # noqa: F401
+from TDTest.DrawEdgeWalkerNullEdgeTest import DrawEdgeWalkerNullEdgeTest  # noqa: F401
+from TDTest.DrawNearestFractionTest import DrawNearestFractionTest  # noqa: F401
+from TDTest.DrawViewSectionCycleTest import DrawViewSectionCycleTest  # noqa: F401
+from TDTest.DrawLeaderParentLoopTest import DrawLeaderParentLoopTest  # noqa: F401
+from TDTest.DrawViewDetailConsoleTest import DrawViewDetailConsoleTest  # noqa: F401
 
 
 from TDTest.SketchAnnotationsTest import SketchAnnotationsTest  # noqa: F401
