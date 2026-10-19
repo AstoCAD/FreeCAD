@@ -32,6 +32,37 @@ class TechDrawTaskTest(unittest.TestCase):
                 group.Anchor = anchor
                 self.assertFalse(group.ViewObject.doubleClicked())
 
+    def testMoveViewUndoRedo(self):
+        """Moving a view between pages is recorded by the task's transaction."""
+        from TechDrawTools.TaskMoveView import TaskMoveView
+
+        self.doc.UndoMode = 1
+        source_page = createPageWithSVGTemplate(self.doc)
+        target_page = self.doc.addObject("TechDraw::DrawPage", "TargetPage")
+        template = self.doc.addObject("TechDraw::DrawSVGTemplate", "TargetTemplate")
+        template.Template = source_page.Template.Template
+        target_page.Template = template
+        view = self.doc.addObject("TechDraw::DrawViewAnnotation", "Annotation")
+        view.Text = ["Move me"]
+        source_page.addView(view)
+        self.doc.recompute()
+        self.doc.clearUndos()
+
+        task = TaskMoveView()
+        try:
+            task.setValues(view.Name, source_page.Name, target_page.Name)
+            self.assertTrue(task.accept())
+            self.assertNotIn(view, source_page.Views)
+            self.assertIn(view, target_page.Views)
+            self.doc.undo()
+            self.assertIn(view, source_page.Views)
+            self.assertNotIn(view, target_page.Views)
+            self.doc.redo()
+            self.assertNotIn(view, source_page.Views)
+            self.assertIn(view, target_page.Views)
+        finally:
+            task.form.deleteLater()
+
 
     def testDrawViewSection(self):
         obj = self.doc.addObject("TechDraw::DrawViewSection")
