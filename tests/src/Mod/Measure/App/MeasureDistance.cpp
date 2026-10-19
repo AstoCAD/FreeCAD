@@ -12,8 +12,11 @@
 #include <Base/Rotation.h>
 #include <Base/Vector3D.h>
 #include <gtest/gtest.h>
+#include <cmath>
+#include <numbers>
 #include <BRep_Builder.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <gp_Circ.hxx>
@@ -54,6 +57,43 @@ protected:
         circle.SetRadius(1.0);
         BRepBuilderAPI_MakeEdge mkEdge(circle);
         return mkEdge.Edge();
+    }
+
+    void checkNestedLinkScale(const Base::Vector3d& scale) const
+    {
+        auto container = document->addObject<App::Part>("Source");
+        auto first = document->addObject<Part::Feature>("First");
+        first->Shape.setValue(BRepBuilderAPI_MakeVertex(gp_Pnt(0.0, 0.0, 0.0)).Vertex());
+        auto second = document->addObject<Part::Feature>("Second");
+        second->Shape.setValue(BRepBuilderAPI_MakeVertex(gp_Pnt(3.0, 4.0, 5.0)).Vertex());
+        auto group = container->getExtensionByType<App::GeoFeatureGroupExtension>();
+        group->addObject(first);
+        group->addObject(second);
+        auto link = document->addObject<App::Link>("Link");
+        link->setLink(-1, container);
+        link->LinkPlacement.setValue(Base::Placement(
+            Base::Vector3d(10.0, 20.0, 30.0),
+            Base::Rotation(Base::Vector3d(0.0, 0.0, 1.0), std::numbers::pi / 2.0)
+        ));
+        link->ScaleVector.setValue(scale);
+
+        auto distance = document->addObject<Measure::MeasureDistance>("Distance");
+        distance->Element1.setValue(link, {"First.Vertex1"});
+        distance->Element2.setValue(link, {"Second.Vertex1"});
+        document->recompute();
+
+        const double dx = 3.0 * scale.x;
+        const double dy = 4.0 * scale.y;
+        const double dz = 5.0 * scale.z;
+        EXPECT_NEAR(distance->Distance.getValue(), std::sqrt(dx * dx + dy * dy + dz * dz), 1e-7);
+        EXPECT_NEAR(distance->DistanceX.getValue(), std::abs(dy), 1e-7);
+        EXPECT_NEAR(distance->DistanceY.getValue(), std::abs(dx), 1e-7);
+        EXPECT_NEAR(distance->DistanceZ.getValue(), std::abs(dz), 1e-7);
+        EXPECT_EQ(distance->Position1.getValue(), Base::Vector3d(10.0, 20.0, 30.0));
+        const auto endpoint = distance->Position2.getValue();
+        EXPECT_NEAR(endpoint.x, 10.0 - dy, 1e-7);
+        EXPECT_NEAR(endpoint.y, 20.0 + dx, 1e-7);
+        EXPECT_NEAR(endpoint.z, 30.0 + dz, 1e-7);
     }
 
 private:
@@ -209,5 +249,92 @@ TEST_F(MeasureDistance, testLinkedCompoundKeepsInternalLocation)
     EXPECT_DOUBLE_EQ(md->Distance.getValue(), 20.0);
     EXPECT_EQ(md->Position1.getValue(), Base::Vector3d(100.0, 0.0, 20.0));
     EXPECT_EQ(md->Position2.getValue(), Base::Vector3d(100.0, 0.0, 0.0));
+}
+
+// Regression: https://github.com/FreeCAD/FreeCAD/issues/29822.
+TEST_F(MeasureDistance, testTranslatedRotatedUnscaledNestedLink)
+{
+    checkNestedLinkScale(Base::Vector3d(1.0, 1.0, 1.0));
+}
+
+TEST_F(MeasureDistance, testUniformlyScaledNestedLink)
+{
+    checkNestedLinkScale(Base::Vector3d(2.0, 2.0, 2.0));
+}
+
+TEST_F(MeasureDistance, testNegativelyScaledNestedLink)
+{
+    checkNestedLinkScale(Base::Vector3d(-1.0, -1.0, -1.0));
+}
+
+TEST_F(MeasureDistance, testReflectedNestedLink)
+{
+    checkNestedLinkScale(Base::Vector3d(-1.0, 1.0, 1.0));
+}
+
+TEST_F(MeasureDistance, testNonuniformlyScaledNestedLink)
+{
+    checkNestedLinkScale(Base::Vector3d(2.0, 3.0, 4.0));
+}
+
+TEST_F(MeasureDistance, testNestedLinkWithTwoReflectedAxesXY)
+{
+    checkNestedLinkScale(Base::Vector3d(-1.0, -1.0, 1.0));
+}
+
+TEST_F(MeasureDistance, testNestedLinkWithTwoReflectedAxesXZ)
+{
+    checkNestedLinkScale(Base::Vector3d(-1.0, 1.0, -1.0));
+}
+
+TEST_F(MeasureDistance, testNestedLinkWithTwoReflectedAxesYZ)
+{
+    checkNestedLinkScale(Base::Vector3d(1.0, -1.0, -1.0));
+}
+
+TEST_F(MeasureDistance, testReciprocalLinkScalesKeepIntermediateTranslation)
+{
+    auto doc = getDocument();
+    auto source = doc->addObject<App::Part>("Source");
+    auto first = doc->addObject<Part::Feature>("First");
+    first->Shape.setValue(BRepBuilderAPI_MakeVertex(gp_Pnt(0.0, 0.0, 0.0)).Vertex());
+    auto second = doc->addObject<Part::Feature>("Second");
+    second->Shape.setValue(BRepBuilderAPI_MakeVertex(gp_Pnt(3.0, 4.0, 5.0)).Vertex());
+    const Base::Placement leafPlacement(Base::Vector3d(1.0, 2.0, 3.0), Base::Rotation());
+    first->Placement.setValue(leafPlacement);
+    second->Placement.setValue(leafPlacement);
+    auto group = source->getExtensionByType<App::GeoFeatureGroupExtension>();
+    group->addObject(first);
+    group->addObject(second);
+    auto inner = doc->addObject<App::Link>("Inner");
+    inner->setLink(-1, source);
+    inner->Scale.setValue(0.5);
+    inner->LinkPlacement.setValue(Base::Placement(Base::Vector3d(5.0, 6.0, 7.0), Base::Rotation()));
+    auto middle = doc->addObject<App::Part>("Middle");
+    middle->getExtensionByType<App::GeoFeatureGroupExtension>()->addObject(inner);
+    auto outer = doc->addObject<App::Link>("Outer");
+    outer->setLink(-1, middle);
+    outer->Scale.setValue(2.0);
+    outer->LinkPlacement.setValue(Base::Placement(
+        Base::Vector3d(10.0, 20.0, 30.0),
+        Base::Rotation(Base::Vector3d(0.0, 0.0, 1.0), std::numbers::pi / 2.0)
+    ));
+    auto distance = doc->addObject<Measure::MeasureDistance>("Distance");
+    distance->Element1.setValue(outer, {"Inner.First.Vertex1"});
+    distance->Element2.setValue(outer, {"Inner.Second.Vertex1"});
+    doc->recompute();
+
+    EXPECT_NEAR(distance->Distance.getValue(), std::sqrt(50.0), 1e-7);
+    EXPECT_NEAR(distance->DistanceX.getValue(), 4.0, 1e-7);
+    EXPECT_NEAR(distance->DistanceY.getValue(), 3.0, 1e-7);
+    EXPECT_NEAR(distance->DistanceZ.getValue(), 5.0, 1e-7);
+    const auto firstPosition = distance->Position1.getValue();
+    EXPECT_NEAR(firstPosition.x, -4.0, 1e-7);
+    EXPECT_NEAR(firstPosition.y, 31.0, 1e-7);
+    EXPECT_NEAR(firstPosition.z, 47.0, 1e-7);
+    const auto secondPosition = distance->Position2.getValue();
+    EXPECT_NEAR(secondPosition.x, -8.0, 1e-7);
+    EXPECT_NEAR(secondPosition.y, 34.0, 1e-7);
+    EXPECT_NEAR(secondPosition.z, 52.0, 1e-7);
 }
 // NOLINTEND
