@@ -179,7 +179,8 @@ void BomObject::addObjectChildrenToBom(
     int quantityColIndex = getColumnIndex("Quantity");
     bool hasQuantityCol = hasQuantityColumn();
 
-    size_t siblingsInitialRow = row;
+    // Descendant rows belong to other parts and must not be grouped with these siblings.
+    std::vector<size_t> siblingRows;
 
     if (index != "") {
         index = index + ".";
@@ -217,14 +218,14 @@ void BomObject::addObjectChildrenToBom(
             continue;
         }
 
-        if (hasQuantityCol && row != siblingsInitialRow) {
+        if (hasQuantityCol) {
             // Check if the object is not already in (case of links). And if so just increment.
             // Note: an object can be used in several parts. In which case we do no want to blindly
             // increment.
             // We also check if the Mirror state matches. Mirrored parts should not group with
             // non-mirrored parts.
             bool found = false;
-            for (size_t i = siblingsInitialRow; i <= row; ++i) {
+            for (size_t i : siblingRows) {
                 size_t idInList = i - 1;  // -1 for the header
                 if (idInList < obj_list.size() && child == obj_list[idInList]
                     && idInList < obj_mirrored_list.size()
@@ -245,6 +246,7 @@ void BomObject::addObjectChildrenToBom(
         ++sub_i;
 
         addObjectToBom(child, row, sub_index, isMirrored);
+        siblingRows.push_back(row);
         ++row;
 
         if (isDraftArray) {
