@@ -89,6 +89,56 @@ class AssemblyTestBase(unittest.TestCase):
 
 
 class TestCore(AssemblyTestBase):
+    def _check_grounded_part_with_assembly_type(self, tag):
+        self.assembly.Type = tag
+        free = self.assembly.newObject("Part::Box", "Free")
+        free.Placement = App.Placement(App.Vector(40, 50, 60), App.Rotation())
+        grounded = self.assembly.newObject("Part::Box", "Grounded")
+        grounded.Placement = App.Placement(App.Vector(10, 20, 30), App.Rotation())
+        self.doc.recompute()
+        ground = self.jointgroup.newObject("App::FeaturePython", "Ground")
+        JointObject.GroundedJoint(ground, grounded)
+        self.doc.recompute()
+        initial_ground = App.Placement(grounded.Placement)
+        self.assertTrue(self.assembly.isPartConnected(grounded))
+        self.assertFalse(self.assembly.isPartConnected(free))
+
+        joint = self.jointgroup.newObject("App::FeaturePython", "Fixed")
+        JointObject.Joint(joint, JointObject.JointTypes.index("Fixed"))
+        self.assertEqual(joint.Proxy.getAssembly(joint), self.assembly)
+        joint.Proxy.setJointConnectors(
+            joint,
+            [[free, ["Face6", "Vertex7"]], [grounded, ["Face6", "Vertex7"]]],
+        )
+
+        self.assertTrue(grounded.Placement.isSame(initial_ground, 1e-6))
+
+    def test_empty_assembly_type_preserves_grounded_second_reference(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/32650 (Type metadata cause).
+        self._check_grounded_part_with_assembly_type("")
+
+    def test_canonical_assembly_type_preserves_grounded_second_reference(self):
+        self._check_grounded_part_with_assembly_type("Assembly")
+
+    def test_custom_assembly_type_preserves_grounded_second_reference(self):
+        self._check_grounded_part_with_assembly_type("Custom assembly metadata")
+
+    def test_plain_part_matching_still_moves_second_component(self):
+        part = self.doc.addObject("App::Part", "OrdinaryPart")
+        first = part.newObject("Part::Box", "First")
+        second = part.newObject("Part::Box", "Second")
+        second.Placement = App.Placement(App.Vector(100, 0, 0), App.Rotation())
+        self.doc.recompute()
+        joint = part.newObject("App::FeaturePython", "Match")
+        JointObject.Joint(joint, JointObject.JointTypes.index("Fixed"))
+        self.assertIsNone(joint.Proxy.getAssembly(joint))
+        joint.Proxy.setJointConnectors(
+            joint,
+            [[first, ["Face6", "Vertex7"]], [second, ["Face6", "Vertex7"]]],
+        )
+
+        self.assertTrue(second.Placement.isSame(first.Placement, 1e-6))
+
     def test_bom_accepts_plain_part_features(self):
         """Mirror detection must not treat every component as a LinkElement."""
         box = self.assembly.newObject("Part::Box", "Component")
