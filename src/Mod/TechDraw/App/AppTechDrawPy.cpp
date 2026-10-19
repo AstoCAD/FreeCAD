@@ -735,6 +735,9 @@ private:
                         int just = 1;                              //centered
                         Base::Vector3d loc(dva->X.getValue(), dva->Y.getValue(), 0.0);
                         auto lines = dva->Text.getValues();
+                        if (lines.empty()) {
+                            continue;
+                        }
                         writer.exportText(lines[0].c_str(), loc, loc, height, just);
 
                     } else if (view->isDerivedFrom<TechDraw::DrawViewDimension>()) {
