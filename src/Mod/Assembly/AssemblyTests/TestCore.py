@@ -26,6 +26,8 @@ import Part
 import os
 import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 import UtilsAssembly
 import JointObject
@@ -89,6 +91,70 @@ class AssemblyTestBase(unittest.TestCase):
 
 
 class TestCore(AssemblyTestBase):
+    def _check_export_asmt_path(self, filename="ordinary.asmt", native_path=False):
+        import CommandExportASMT
+
+        self.assembly.newObject("Part::Box", "Component")
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / filename
+            picker_path = str(path) if native_path else path.as_posix()
+            recorded = []
+            with (
+                patch.object(
+                    CommandExportASMT.UtilsAssembly, "activeAssembly", return_value=self.assembly
+                ),
+                patch.object(
+                    CommandExportASMT.QFileDialog, "getSaveFileName", return_value=(picker_path, "")
+                ),
+                patch.object(CommandExportASMT.Gui, "doCommand", side_effect=recorded.append),
+            ):
+                CommandExportASMT.CommandExportASMT().Activated()
+            self.assertEqual(len(recorded), 2)
+            namespace = {"App": App, "UtilsAssembly": CommandExportASMT.UtilsAssembly}
+            with patch.object(
+                CommandExportASMT.UtilsAssembly, "activeAssembly", return_value=self.assembly
+            ):
+                try:
+                    command = compile("\n".join(recorded), "<Export ASMT command>", "exec")
+                except SyntaxError as error:
+                    self.fail(f"Export command cannot represent the selected file path: {error}")
+                exec(command, namespace)
+            self.assertTrue(path.is_file(), f"Selected output file was not created: {picker_path!r}")
+            self.assertTrue(path.read_text(encoding="utf-8").startswith("OndselSolver\nAssembly\n"))
+
+    @unittest.skipIf(not App.GuiUp, "Export command tests require FreeCAD GUI mode")
+    def test_export_asmt_forward_slash_path(self):
+        self._check_export_asmt_path()
+
+    @unittest.skipIf(not App.GuiUp, "Export command tests require FreeCAD GUI mode")
+    def test_export_asmt_apostrophe_filename(self):
+        self._check_export_asmt_path("component's export.asmt")
+
+    @unittest.skipIf(not App.GuiUp, "Export command tests require FreeCAD GUI mode")
+    @unittest.skipUnless(os.sep == "\\", "Requires Windows native path separators")
+    def test_export_asmt_windows_native_backslash_path(self):
+        self._check_export_asmt_path(native_path=True)
+
+    @unittest.skipIf(not App.GuiUp, "Export command tests require FreeCAD GUI mode")
+    @unittest.skipIf(os.name == "nt", "Double quotes are not valid Windows file-name characters")
+    def test_export_asmt_posix_quoted_filename(self):
+        self._check_export_asmt_path('component "quoted".asmt')
+
+    @unittest.skipIf(not App.GuiUp, "Export command tests require FreeCAD GUI mode")
+    def test_export_asmt_cancel_does_not_record_or_export(self):
+        import CommandExportASMT
+
+        with (
+            patch.object(
+                CommandExportASMT.UtilsAssembly, "activeAssembly", return_value=self.assembly
+            ),
+            patch.object(CommandExportASMT.QFileDialog, "getSaveFileName", return_value=("", "")),
+            patch.object(CommandExportASMT.Gui, "doCommand") as execute,
+        ):
+            CommandExportASMT.CommandExportASMT().Activated()
+        execute.assert_not_called()
+
     def test_simulation_rejects_non_document_object_arguments(self):
         for value in (None, True, 1, 1.25, "invalid", [], {}, object()):
             with self.subTest(argument_type=type(value).__name__):
