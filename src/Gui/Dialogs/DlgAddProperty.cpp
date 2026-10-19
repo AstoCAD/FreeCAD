@@ -1041,6 +1041,10 @@ void DlgAddProperty::addDocumentation()
 
 void DlgAddProperty::accept()
 {
+    // This dialog has no PropertyItemDelegate to commit deferred editor values.
+    if (editor && propertyItem && propertyItem->commitOnEditorClose()) {
+        valueChanged();
+    }
     addDocumentation();
     auto* object = freecad_cast<App::DocumentObject*>(container);
     if (object) {

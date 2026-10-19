@@ -96,6 +96,7 @@ FreeCAD.__unit_test__ += [
     "Workbench",
     "Menu",
     "GuiDocument",
+    "TestAddPropertyGui",
     "TestPropertyEditorGui",
     "TestGraphicsViewWrapping",
     "TestMDIView",
