@@ -75,6 +75,43 @@ class DrawViewDimensionTest(unittest.TestCase):
         self.document.recompute()
         self.assertTrue("Up-to-date" in dimension.State)
 
+    def testToleranceUsesNominalUnit(self):
+        """Adaptive schemas must not change the unit of a numeric tolerance."""
+        dimension = self.document.addObject("TechDraw::DrawViewDimension", "Tolerance")
+        self.page.addView(dimension)
+        dimension.Type = "Distance"
+        dimension.MeasureType = "Projected"
+        dimension.References2D = [(self.view, "Edge0")]
+        dimension.FormatSpec = "%.6w"
+        dimension.FormatSpecOverTolerance = "%+.6w"
+        dimension.OverTolerance = 0.05
+        dimension.EqualTolerance = True
+        self.document.recompute()
+        self.assertAlmostEqual(dimension.getRawValue(), 10.0)
+
+        previous_schema = FreeCAD.Units.getSchema()
+        previous_document_schema = self.document.UnitSystem
+        previous_locale = QtCore.QLocale()
+        try:
+            QtCore.QLocale.setDefault(QtCore.QLocale.c())
+            for schema, expected, unit in (
+                (0, "10 ± 0.05", "mm"),  # Standard (adaptive)
+                (1, "10 ± 0.05", "mm"),  # MKS (adaptive)
+                (6, "10 ± 0.05", "mm"),  # Metric small parts (fixed)
+                (3, "0.393701 ± 0.001969", "in"),  # Imperial decimal (fixed)
+            ):
+                with self.subTest(schema=schema):
+                    self.document.UnitSystem = schema
+                    FreeCAD.Units.setSchema(schema)
+                    dimension.ShowUnits = False
+                    self.assertEqual(dimension.getText(), expected)
+                    dimension.ShowUnits = True
+                    self.assertEqual(dimension.getText(), expected + " " + unit)
+        finally:
+            self.document.UnitSystem = previous_document_schema
+            FreeCAD.Units.setSchema(previous_schema)
+            QtCore.QLocale.setDefault(previous_locale)
+
 
 if __name__ == "__main__":
     unittest.main()
