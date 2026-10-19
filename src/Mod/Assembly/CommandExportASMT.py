@@ -75,7 +75,7 @@ class CommandExportASMT:
         if filePath:
             Gui.addModule("UtilsAssembly")
             Gui.doCommand("assembly = UtilsAssembly.activeAssembly()")
-            Gui.doCommand(f'assembly.exportAsASMT("{filePath}")')
+            Gui.doCommand(f"assembly.exportAsASMT({filePath!r})")
 
 
 if App.GuiUp:
