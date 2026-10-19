@@ -144,8 +144,10 @@ JointParallelForbidden = [
 
 
 def solveIfAllowed(assembly, storePrev=False):
-    if assembly.Type == "Assembly" and Preferences.preferences().GetBool(
-        "SolveInJointCreation", True
+    if (
+        assembly is not None
+        and assembly.isDerivedFrom("Assembly::AssemblyObject")
+        and Preferences.preferences().GetBool("SolveInJointCreation", True)
     ):
         assembly.solve(storePrev)
 
@@ -877,7 +879,7 @@ class Joint:
             presolved = joint.JointType in JointUsingPreSolve and self.preSolve(joint, False)
 
             assembly = self.getAssembly(joint)
-            isAssembly = assembly is not None and assembly.Type == "Assembly"
+            isAssembly = assembly is not None
             if isAssembly and not presolved:
                 solveIfAllowed(assembly)
             else:
@@ -916,7 +918,7 @@ class Joint:
     def setJointConnectors(self, joint, refs, preservePosition=False):
         # current selection is a vector of strings like "Assembly.Assembly1.Assembly2.Body.Pad.Edge16" including both what selection return as obj_name and obj_sub
         assembly = self.getAssembly(joint)
-        isAssembly = assembly is not None and assembly.Type == "Assembly"
+        isAssembly = assembly is not None
 
         if len(refs) >= 1:
             joint.Reference1 = refs[0]
@@ -1012,7 +1014,7 @@ class Joint:
         if not part1 or not part2:
             return False
 
-        isAssembly = assembly is not None and assembly.Type == "Assembly"
+        isAssembly = assembly is not None
         if isAssembly:
             joint.Suppressed = True
             part1Connected = assembly.isPartConnected(part1)
@@ -1085,7 +1087,7 @@ class Joint:
         part1 = UtilsAssembly.getMovingPart(joint.Reference1)
         part2 = UtilsAssembly.getMovingPart(joint.Reference2)
 
-        isAssembly = assembly is not None and assembly.Type == "Assembly"
+        isAssembly = assembly is not None
         if isAssembly:
             part1ConnectedByJoint = assembly.isJointConnectingPartToGround(joint, "Reference1")
             part2ConnectedByJoint = assembly.isJointConnectingPartToGround(joint, "Reference2")
@@ -1124,7 +1126,7 @@ class Joint:
         # See https://github.com/FreeCAD/FreeCAD/issues/29355 for instance.
         # This function swap the references if possible to avoid those issues.
         assembly = self.getAssembly(joint)
-        if not assembly or assembly.Type != "Assembly":
+        if assembly is None:
             return
 
         part1 = UtilsAssembly.getMovingPart(joint.Reference1)
