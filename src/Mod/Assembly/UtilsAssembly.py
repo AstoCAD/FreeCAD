@@ -1448,7 +1448,7 @@ def generatePropertySettings(documentObject):
         elif propertyType == "App::PropertyInt" or propertyType == "App::PropertyBool":
             commands.append(f"obj.{propertyName} = {propertyValue}")
         elif propertyType == "App::PropertyString" or propertyType == "App::PropertyEnumeration":
-            commands.append(f'obj.{propertyName} = "{propertyValue}"')
+            commands.append(f"obj.{propertyName} = {propertyValue!r}")
         elif propertyType == "App::PropertyPlacement":
             commands.append(
                 f"obj.{propertyName} = App.Placement("
