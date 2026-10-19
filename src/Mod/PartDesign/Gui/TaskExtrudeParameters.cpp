@@ -162,35 +162,8 @@ void TaskExtrudeParameters::setupSideDialog(SideController& side)
     side.offsetEdit->bind(*side.Offset);
     side.taperEdit->bind(*side.TaperAngle);
 
-    // --- Handle "Up to face" label logic ---
-    App::DocumentObject* faceObj = side.UpToFace->getValue();
-    std::vector<std::string> subStrings = side.UpToFace->getSubValues();
-    std::string upToFaceName;
-    int faceId = -1;
-    if (faceObj && !subStrings.empty()) {
-        upToFaceName = subStrings.front();
-        if (upToFaceName.rfind("Face", 0) == 0) {  // starts_with
-            faceId = std::atoi(&upToFaceName[4]);
-        }
-    }
-
-    if (faceObj && PartDesign::Feature::isDatum(faceObj)) {
-        side.lineFaceName->setText(QString::fromUtf8(faceObj->Label.getValue()));
-        side.lineFaceName->setProperty("FeatureName", QByteArray(faceObj->getNameInDocument()));
-    }
-    else if (faceObj && faceId >= 0) {
-        side.lineFaceName->setText(QStringLiteral("%1:%2%3").arg(
-            QString::fromUtf8(faceObj->Label.getValue()),
-            tr("Face"),
-            QString::number(faceId)
-        ));
-        side.lineFaceName->setProperty("FeatureName", QByteArray(faceObj->getNameInDocument()));
-    }
-    else {
-        side.lineFaceName->clear();
-        side.lineFaceName->setProperty("FeatureName", QVariant());
-    }
-    side.lineFaceName->setProperty("FaceName", QByteArray(upToFaceName.c_str()));
+    // Keep nested datum paths, such as an LCS plane, when reopening the task.
+    updateReferenceName(side.lineFaceName, *side.UpToFace, QString());
 
     // --- Update shape-related UI ---
     updateShapeName(side.lineShapeName, *side.UpToShape);
@@ -594,9 +567,8 @@ void PartDesignGui::TaskExtrudeParameters::selectedFace(
     if (refText.length() > 0) {
         QSignalBlocker block(side.lineFaceName);
 
-        side.lineFaceName->setText(refText);
-        side.lineFaceName->setProperty("FeatureName", QByteArray(msg.pObjectName));
-        side.lineFaceName->setProperty("FaceName", QByteArray(msg.pSubName));
+        // onAddSelection normalizes an LCS child plane to its LCS owner and path.
+        updateReferenceName(side.lineFaceName, *side.UpToFace, QString());
 
         // Turn off reference selection mode
         side.buttonFace->setChecked(false);
