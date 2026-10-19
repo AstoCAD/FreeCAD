@@ -144,6 +144,88 @@ class TestMeasureDistanceDisplayUnit(unittest.TestCase):
                 self.assertAlmostEqual(channel, value, places=6)
 
 
+class TestMassPropertiesDensity(unittest.TestCase):
+    def _check_density(self, density, save=False):
+        previous_document = App.ActiveDocument.Name if App.ActiveDocument else None
+        doc = App.newDocument("MassPropertiesDensityTest")
+        try:
+            material = Materials.Material()
+            material.Name = "Density test material"
+            material.addPhysicalModel(Materials.UUIDs().Density)
+            material.setPhysicalValue("Density", f"{density} kg/m^3")
+            obj = doc.addObject("Part::Feature", "DensitySample")
+            obj.Shape = Part.makeBox(10, 10, 10)
+            obj.ShapeMaterial = material
+            doc.recompute()
+            Gui.Selection.clearSelection()
+            Gui.Selection.addSelection(obj)
+            Gui.runCommand("Std_MassProperties")
+            Gui.updateGui()
+            task = Gui.Control.activeTaskDialog()
+            self.assertIsNotNone(task)
+
+            def widget(kind, name):
+                for content in task.getDialogContent():
+                    result = content.findChild(kind, name)
+                    if result:
+                        return result
+                self.fail("Missing mass-properties widget: " + name)
+
+            # This dropdown changes only this task's schema, leaving user
+            # preferences intact. MKS makes the expected density directly visible.
+            widget(QtWidgets.QComboBox, "unitsComboBox").setCurrentIndex(1)
+            Gui.updateGui()
+            density_text = widget(QtWidgets.QLineEdit, "densityEdit").text()
+            if save:
+                panel = task.getDialogContent()[0]
+                while panel.parentWidget() is not None and not isinstance(
+                    panel.parentWidget(), QtWidgets.QStackedWidget
+                ):
+                    panel = panel.parentWidget()
+                self.assertIsInstance(panel.parentWidget(), QtWidgets.QStackedWidget)
+                buttons = panel.findChild(QtWidgets.QDialogButtonBox)
+                self.assertIsNotNone(buttons)
+                save_button = buttons.button(QtWidgets.QDialogButtonBox.Apply)
+                self.assertIsNotNone(save_button)
+                save_button.click()
+                Gui.updateGui()
+                saved = doc.getObject("MassProperties")
+                self.assertIsNotNone(saved)
+                density_text = saved.Density
+            displayed = float(
+                App.Units.Quantity(density_text.replace("³", "^3")).getValueAs("kg/m^3")
+            )
+            decimals = App.ParamGet("User parameter:BaseApp/Preferences/Units").GetInt(
+                "Decimals", 2
+            )
+            self.assertAlmostEqual(displayed, density, delta=0.51 * 10 ** (-max(decimals, 0)))
+        finally:
+            if Gui.Control.activeDialog():
+                Gui.Control.closeDialog()
+            Gui.Selection.clearSelection()
+            App.closeDocument(doc.Name)
+            if previous_document in App.listDocuments():
+                App.setActiveDocument(previous_document)
+
+    def test_metal_density_display_control(self):
+        self._check_density(8500.0)
+
+    def test_foam_density_display_is_not_zero(self):
+        self._check_density(50.0)
+
+    def test_gas_density_display_is_not_zero(self):
+        self._check_density(1.2)
+
+    def test_saved_metal_density_control(self):
+        self._check_density(8500.0, save=True)
+
+    def test_saved_foam_density_is_not_zero(self):
+        self._check_density(50.0, save=True)
+
+    def test_saved_gas_density_is_not_zero(self):
+        self._check_density(1.2, save=True)
+
+
 class TestMassPropertiesMaterial(unittest.TestCase):
     def setUp(self):
         self.doc = App.newDocument("MassPropertiesMaterialTest")
