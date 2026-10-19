@@ -331,6 +331,24 @@ TEST_F(BackupPolicyTest, TimestampTargetHasNoExtension)
     EXPECT_TRUE(std::filesystem::exists(getTempPath() / expected));
 }
 
+TEST_F(BackupPolicyTest, TimestampExtensionlessTargetInDottedDirectory)
+{
+    setPolicyTerms(App::BackupPolicy::Policy::TimeStamp, 1, true, "%Y-%m-%d");
+    auto parent = getTempPath() / "parent.with.dots";
+    ASSERT_TRUE(std::filesystem::create_directory(parent));
+    auto source = parent / "source.fcstd";
+    auto target = parent / "target";
+    std::ofstream(source) << "New document";
+    std::ofstream(target) << "Previous document";
+
+    apply(source.string(), target.string());
+
+    auto expected = "target." + filenameFromDateFormatString("%Y-%m-%d") + ".FCBak";
+    EXPECT_TRUE(std::filesystem::exists(parent / expected));
+    EXPECT_TRUE(std::filesystem::exists(target));
+    EXPECT_FALSE(std::filesystem::exists(source));
+}
+
 TEST_F(BackupPolicyTest, TimestampWithOneFileAndNoneExistingFCBakCreatesDatedFile)
 {
     // Arrange
