@@ -182,12 +182,14 @@ class CommandAxoLengthDimension:
                 digits = int(charList[numDig])
                 value = round(value,digits)
                 strValue = formatSpec.format(value)
-                strValueList = list(strValue)
-                while strValueList[-1] == '0':
-                    strValueList.pop()
-                if strValueList[-1] == '.':
-                    strValueList.pop()
-                return ''.join(strValueList)
+                if '.' in strValue:
+                    strValueList = list(strValue)
+                    while strValueList[-1] == '0':
+                        strValueList.pop()
+                    if strValueList[-1] == '.':
+                        strValueList.pop()
+                    return ''.join(strValueList)
+                return strValue
         else:
             return formatSpec.format(value)
 
