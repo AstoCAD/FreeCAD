@@ -374,6 +374,7 @@ void ViewProviderMeasureBase::setLabelValue(const std::string& value)
 {
     const auto userString = Base::UnitsApi::toUnicodeSuperscript(value);
     const auto lines = QString::fromStdString(userString).split(QStringLiteral("\n"));
+    pLabel->string.setNum(static_cast<int>(lines.size()));
 
     int i = 0;
     for (auto& it : lines) {

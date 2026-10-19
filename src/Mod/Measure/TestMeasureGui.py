@@ -12,6 +12,59 @@ from PySide import QtCore, QtWidgets
 from pivy import coin
 
 
+class _ResultTextMeasure:
+    @staticmethod
+    def getInputProps():
+        return ("ResultText",)
+
+    def getSubject(self, obj):
+        return []
+
+    def getResultString(self, obj):
+        return obj.ResultText
+
+
+class TestMeasureAnnotationLines(unittest.TestCase):
+    def setUp(self):
+        self.doc = App.newDocument("MeasureAnnotationLinesTest")
+        self.measure = self.doc.addObject("Measure::MeasurePython", "CustomMeasurement")
+        self.measure.addProperty("App::PropertyString", "ResultText")
+        self.measure.Proxy = _ResultTextMeasure()
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+
+    def _set_text_and_check_lines(self, text):
+        self.measure.ResultText = text
+        self.doc.recompute()
+        Gui.updateGui()
+        search = coin.SoSearchAction()
+        search.setType(coin.SoType.fromName("SoFrameLabel"))
+        search.setInterest(coin.SoSearchAction.ALL)
+        search.setSearchingAll(True)
+        search.apply(self.measure.ViewObject.RootNode)
+        paths = search.getPaths()
+        self.assertEqual(paths.getLength(), 1)
+        node = coin.SoFullPath.fromSoPath(paths[0]).getTail()
+        self.assertEqual(list(node.getField("string").getValues()), text.split("\n"))
+
+    def test_single_line_result_updates(self):
+        self._set_text_and_check_lines("Ordinary result")
+        self._set_text_and_check_lines("Updated result")
+
+    def test_growing_result_adds_annotation_lines(self):
+        self._set_text_and_check_lines("First")
+        self._set_text_and_check_lines("First\nSecond\nThird")
+
+    def test_shrinking_result_removes_old_annotation_lines(self):
+        self._set_text_and_check_lines("First\nSecond\nThird")
+        self._set_text_and_check_lines("Updated")
+
+    def test_empty_result_removes_old_annotation_lines(self):
+        self._set_text_and_check_lines("First\nSecond\nThird")
+        self._set_text_and_check_lines("")
+
+
 class TestMeasureDistanceDisplayUnit(unittest.TestCase):
     def setUp(self):
         self.doc = App.newDocument("MeasureDistanceDisplayUnitTest")
