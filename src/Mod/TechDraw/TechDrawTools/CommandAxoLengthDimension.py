@@ -178,8 +178,7 @@ class CommandAxoLengthDimension:
             numDig = formatSpec.find(":.")
             if numDig != -1:
                 numDig = numDig+2
-                charList = list(formatSpec)
-                digits = int(charList[numDig])
+                digits = int(formatSpec[numDig:formatSpec.index('f', numDig)])
                 value = round(value,digits)
                 strValue = formatSpec.format(value)
                 if '.' in strValue:

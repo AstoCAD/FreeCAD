@@ -229,6 +229,88 @@ class TechDrawTaskTest(unittest.TestCase):
         for value in (-10.0, -100.0, 0.0):
             self.assertEqual(command._formatValueToSpec(value, "%.0w"), str(int(value)))
 
+    def testAxoLengthMultiDigitPrecision(self):
+        """Axonometric dimensions keep every requested precision digit."""
+        import time
+        import Part
+        from PySide import QtCore
+        from TechDrawTools.CommandAxoLengthDimension import CommandAxoLengthDimension
+
+        prefs = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/TechDraw/Dimensions")
+        missing = "__missing_before_axo_precision_test__"
+        previous_format = prefs.GetString("formatSpec", missing)
+
+        def restore_format():
+            if previous_format == missing:
+                prefs.RemString("formatSpec")
+            else:
+                prefs.SetString("formatSpec", previous_format)
+
+        self.addCleanup(restore_format)
+        self.addCleanup(FreeCADGui.Selection.clearSelection)
+
+        def process_events():
+            loop = QtCore.QEventLoop()
+            QtCore.QTimer.singleShot(50, loop.quit)
+            loop.exec_()
+
+        length = 12.34567890123
+        source = self.doc.addObject("Part::Feature", "AxoSource")
+        source.Shape = Part.makeCompound([
+            Part.makeLine(FreeCAD.Vector(), FreeCAD.Vector(length, 0, 0)),
+            Part.makeLine(FreeCAD.Vector(), FreeCAD.Vector(0, 20, 0)),
+        ])
+        page = createPageWithSVGTemplate(self.doc)
+        view = self.doc.addObject("TechDraw::DrawViewPart", "AxoView")
+        view.Source = [source]
+        view.Direction = FreeCAD.Vector(1, 1, 1)
+        view.XDirection = FreeCAD.Vector(1, -1, 0)
+        view.ScaleType = "Custom"
+        view.Scale = 1
+        page.addView(view)
+        self.doc.recompute()
+        deadline = time.monotonic() + 15
+        while not view.getVisibleEdges() or "Up-to-date" not in view.State:
+            self.assertLess(time.monotonic(), deadline, view.State)
+            process_events()
+        self.assertEqual(len(view.getVisibleEdges()), 2)
+        page.ViewObject.show()
+        projection_factor = (2.0 / 3.0) ** 0.5
+        names = {}
+        for index in range(2):
+            name = "Edge%d" % index
+            edge = view.getEdgeBySelection(name)
+            for role, expected in (("measure", length), ("extension", 20.0)):
+                if abs(edge.Length - expected * projection_factor) < 1e-7:
+                    names[role] = name
+        self.assertEqual(set(names), {"measure", "extension"})
+
+        command = CommandAxoLengthDimension()
+        for format_spec, expected in (("%.10f", 12.3456789012),
+                                      ("%.6w", 12.345679),
+                                      ("%.10w", 12.3456789012),
+                                      ("%.0w", 12.0)):
+            with self.subTest(format=format_spec):
+                prefs.SetString("formatSpec", format_spec)
+                previous_objects = {obj.Name for obj in self.doc.Objects}
+                FreeCADGui.Selection.clearSelection()
+                for role in ("measure", "extension"):
+                    FreeCADGui.Selection.addSelection(self.doc.Name, view.Name, names[role])
+                command.Activated()
+                dimensions = [obj for obj in self.doc.Objects
+                              if obj.Name not in previous_objects
+                              and obj.isDerivedFrom("TechDraw::DrawViewDimension")]
+                self.assertEqual(len(dimensions), 1)
+                self.assertTrue(dimensions[0].Arbitrary)
+                self.assertAlmostEqual(float(dimensions[0].FormatSpec), expected)
+
+        # Physical lengths are nonnegative; retain the formatter's signed and zero cases.
+        for value, format_spec, expected in ((-length, "%.6w", "-12.345679"),
+                                             (-length, "%.10w", "-12.3456789012"),
+                                             (0.0, "%.10w", "0")):
+            with self.subTest(value=value, format=format_spec):
+                self.assertEqual(command._formatValueToSpec(value, format_spec), expected)
+
     def testDrawViewSection(self):
         obj = self.doc.addObject("TechDraw::DrawViewSection")
         with self.assertRaises(RuntimeError):
