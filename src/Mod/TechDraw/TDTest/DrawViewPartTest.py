@@ -42,6 +42,17 @@ class DrawViewPartTest(unittest.TestCase):
         print("DrawViewPart test finished")
         FreeCAD.closeDocument("TDPart")
 
+    def _waitUntil(self, predicate, timeout_ms=5000):
+        timer = QtCore.QElapsedTimer()
+        timer.start()
+        while not predicate():
+            if timer.elapsed() >= timeout_ms:
+                return False
+            loop = QtCore.QEventLoop()
+            QtCore.QTimer.singleShot(20, loop.quit)
+            loop.exec_()
+        return True
+
     def testMakeDrawViewPart(self):
         """Tests if a view can be added to page"""
         print("testing DrawViewPart")
@@ -96,6 +107,159 @@ class DrawViewPartTest(unittest.TestCase):
         self.assertTrue(view.SmoothHidden)
         self.assertTrue(view.SeamHidden)
 
+    def testFormatGeometricEdgeStyleUpdate(self):
+        """Changing a formatted edge's Qt style changes its exported dash pattern."""
+        import tempfile
+        import time
+        import xml.etree.ElementTree as ET
+        from pathlib import Path
+        import FreeCADGui
+        import Part
+        import TechDrawGui
+
+        document = FreeCAD.ActiveDocument
+        source = document.addObject("Part::Feature", "Line")
+        source.Shape = Part.makeLine(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(30, 0, 0))
+        view = document.addObject("TechDraw::DrawViewPart", "FormattedView")
+        self.page.addView(view)
+        view.Source = [source]
+        view.Direction = FreeCAD.Vector(0, 0, 1)
+        view.ScaleType = "Custom"
+        view.Scale = 1
+        view.X = 50
+        view.Y = 50
+        document.recompute()
+
+        def process_events():
+            loop = QtCore.QEventLoop()
+            QtCore.QTimer.singleShot(50, loop.quit)
+            loop.exec_()
+
+        deadline = time.monotonic() + 10
+        while not view.getVisibleEdges() and time.monotonic() < deadline:
+            process_events()
+        self.assertEqual(len(view.getVisibleEdges()), 1)
+        FreeCADGui.activeDocument().getObject(self.page.Name).show()
+        process_events()
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "style.svg"
+            for style, expect_dashed in ((1, False), (2, True), (1, False)):
+                with self.subTest(style=style, expect_dashed=expect_dashed):
+                    view.formatGeometricEdge(0, style, 0.5, (1.0, 0.0, 0.0, 1.0), True)
+                    view.recompute()
+                    view.requestPaint()
+                    process_events()
+                    TechDrawGui.exportPageAsSvg(self.page, str(path))
+                    patterns = [
+                        element.get("stroke-dasharray", "none")
+                        for element in ET.parse(path).getroot().iter()
+                        if element.get("stroke") == "#ff0000"
+                    ]
+                    self.assertTrue(patterns, "Formatted red edge is missing from SVG")
+                    self.assertEqual(
+                        all(pattern not in ("", "none") for pattern in patterns),
+                        expect_dashed,
+                    )
+
+    def testCosmeticEdgeStyle(self):
+        """Explicit creation and Format styles reach the rendered cosmetic edges."""
+        import tempfile
+        import time
+        import xml.etree.ElementTree as ET
+        from pathlib import Path
+        import FreeCADGui
+        import TechDrawGui
+
+        preferences = FreeCAD.ParamGet(
+            "User parameter:BaseApp/Preferences/Mod/TechDraw/Decorations"
+        )
+        previous_style = preferences.GetInt("CenterLineStyle", 2)
+        self.addCleanup(preferences.SetInt, "CenterLineStyle", previous_style)
+        preferences.SetInt("CenterLineStyle", 2)
+        document = FreeCAD.ActiveDocument
+        view = document.addObject("TechDraw::DrawViewPart", "CosmeticView")
+        self.page.addView(view)
+        view.Source = [document.Box]
+        view.Direction = FreeCAD.Vector(0, 0, 1)
+        view.ScaleType = "Custom"
+        view.Scale = 1
+        view.X = 50
+        view.Y = 50
+        document.recompute()
+
+        def process_events():
+            loop = QtCore.QEventLoop()
+            QtCore.QTimer.singleShot(50, loop.quit)
+            loop.exec_()
+
+        deadline = time.monotonic() + 10
+        while not view.getVisibleEdges() and time.monotonic() < deadline:
+            process_events()
+        self.assertTrue(view.getVisibleEdges())
+        vector = FreeCAD.Vector
+        colors = (
+            ((1.0, 0.0, 0.0, 1.0), "#ff0000"),
+            ((0.0, 1.0, 0.0, 1.0), "#00ff00"),
+            ((0.0, 0.0, 1.0, 1.0), "#0000ff"),
+            ((0.0, 1.0, 1.0, 1.0), "#00ffff"),
+            ((1.0, 0.0, 1.0, 1.0), "#ff00ff"),
+            ((1.0, 1.0, 0.0, 1.0), "#ffff00"),
+        )
+        makers = (
+            ("makeCosmeticLine", (vector(-5, 10, 0), vector(5, 10, 0))),
+            ("makeCosmeticLine3D", (vector(-5, 0, 0), vector(5, 0, 0))),
+            ("makeCosmeticCircle", (vector(0, 15, 0), 2.0)),
+            ("makeCosmeticCircleArc", (vector(0, 20, 0), 2.0, 0.0, 180.0)),
+            ("makeCosmeticCircle3d", (vector(5, 10, 5), 2.0)),
+            ("makeCosmeticCircleArc3d", (vector(10, 10, 5), 2.0, 0.0, 180.0)),
+        )
+        tags = [
+            getattr(view, name)(*arguments, 1, 0.5, color)
+            for (name, arguments), (color, stroke) in zip(makers, colors)
+        ]
+        self.assertTrue(all(tags))
+        FreeCADGui.activeDocument().getObject(self.page.Name).show()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "cosmetic-style.svg"
+            for style, expected_dashed in ((None, False), (2, True), (1, False)):
+                with self.subTest(style=style):
+                    if style is not None:
+                        for tag, (color, stroke) in zip(tags, colors):
+                            edge = view.getCosmeticEdge(tag)
+                            edge.Format = {
+                                "style": style, "weight": 0.5,
+                                "color": color, "visible": True,
+                            }
+                    view.requestPaint()
+                    process_events()
+                    TechDrawGui.exportPageAsSvg(self.page, str(path))
+                    patterns = {stroke: [] for color, stroke in colors}
+
+                    def collect_patterns(element, inherited):
+                        effective = dict(inherited)
+                        effective.update(element.attrib)
+                        for declaration in element.get("style", "").split(";"):
+                            if ":" in declaration:
+                                key, value = declaration.split(":", 1)
+                                effective[key.strip()] = value.strip()
+                        kind = element.tag.rsplit("}", 1)[-1]
+                        stroke = effective.get("stroke", "").lower()
+                        if kind in ("path", "line", "polyline", "polygon", "circle", "ellipse"):
+                            if stroke in patterns:
+                                patterns[stroke].append(effective.get("stroke-dasharray", "none"))
+                        for child in element:
+                            collect_patterns(child, effective)
+
+                    collect_patterns(ET.parse(path).getroot(), {})
+                    for (name, arguments), (color, stroke) in zip(makers, colors):
+                        with self.subTest(api=name):
+                            self.assertTrue(patterns[stroke], "Cosmetic API missing from SVG")
+                            self.assertTrue(all(
+                                (pattern not in ("", "none")) == expected_dashed
+                                for pattern in patterns[stroke]
+                            ))
+
     def testBreakDocumentObject(self):
         """A view owns editable, suppressible break document objects."""
         view = FreeCAD.ActiveDocument.addObject("TechDraw::DrawViewPart", "BreakableView")
@@ -116,7 +280,7 @@ class DrawViewPartTest(unittest.TestCase):
         self.assertEqual(view.Breaks, [view_break])
         self.assertTrue(view_break.hasExtension("App::SuppressibleExtension"))
         self.assertFalse(view_break.Suppressed)
-        self.assertTrue(view.getVisibleEdges())
+        self.assertTrue(self._waitUntil(lambda: bool(view.getVisibleEdges())))
 
         view_break.Suppressed = True
         self.assertIn("Touched", view.State)
@@ -134,6 +298,7 @@ class DrawViewPartTest(unittest.TestCase):
         )
         self.page.addView(view)
         view.Source = [FreeCAD.ActiveDocument.Box]
+        view.Direction = FreeCAD.Vector(0, 0, 1)
 
         section = FreeCAD.ActiveDocument.addObject(
             "TechDraw::DrawViewBrokenOutSection", "BrokenOutSection"
@@ -147,6 +312,7 @@ class DrawViewPartTest(unittest.TestCase):
         section.Depth = 4.0
         view.BrokenOutSections = [section]
         FreeCAD.ActiveDocument.recompute()
+        self.assertTrue(self._waitUntil(lambda: bool(view.getVisibleEdges())))
 
         self.assertEqual(view.BrokenOutSections, [section])
         self.assertTrue(section.hasExtension("App::SuppressibleExtension"))
@@ -154,6 +320,8 @@ class DrawViewPartTest(unittest.TestCase):
         self.assertAlmostEqual(section.Depth.Value, 4.0)
 
         section.Suppressed = True
+        self.assertTrue(self._waitUntil(lambda: len(view.getVisibleEdges()) == 4))
+        FreeCAD.ActiveDocument.recompute()
         self.assertNotIn("Touched", view.State)
         FreeCAD.ActiveDocument.removeObject(section.Name)
         FreeCAD.ActiveDocument.recompute()
