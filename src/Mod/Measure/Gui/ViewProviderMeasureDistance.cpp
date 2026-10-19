@@ -529,11 +529,11 @@ void ViewProviderMeasureDistance::onChanged(const App::Property* prop)
     else if (prop == &TextBackgroundColor) {
         auto bColor = TextBackgroundColor.getValue();
         static_cast<DimensionLinear*>(pDeltaDimensionSwitch->getChild(0))
-            ->backgroundColor.setValue(bColor.r, bColor.g, bColor.g);
+            ->backgroundColor.setValue(bColor.r, bColor.g, bColor.b);
         static_cast<DimensionLinear*>(pDeltaDimensionSwitch->getChild(1))
-            ->backgroundColor.setValue(bColor.r, bColor.g, bColor.g);
+            ->backgroundColor.setValue(bColor.r, bColor.g, bColor.b);
         static_cast<DimensionLinear*>(pDeltaDimensionSwitch->getChild(2))
-            ->backgroundColor.setValue(bColor.r, bColor.g, bColor.g);
+            ->backgroundColor.setValue(bColor.r, bColor.g, bColor.b);
     }
 
     ViewProviderMeasureBase::onChanged(prop);
