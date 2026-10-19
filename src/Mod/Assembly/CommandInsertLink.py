@@ -152,7 +152,6 @@ class TaskAssemblyInsertLink(QtCore.QObject):
         commands = "assembly = UtilsAssembly.activeAssembly()\n"
         for insertionItem in self.insertionStack:
             object = insertionItem["addedObject"]
-            translation = insertionItem["translation"]
 
             # Check if object.Name & object.LinkedObject.Name exists
             if (
@@ -162,7 +161,8 @@ class TaskAssemblyInsertLink(QtCore.QObject):
             ):
                 continue
 
-            objType = "Assembly::AssemblyLink" if object.isDerivedFrom("Assembly::AssemblyLink") else "App::Link"
+            isAssemblyLink = object.isDerivedFrom("Assembly::AssemblyLink")
+            objType = "Assembly::AssemblyLink" if isAssemblyLink else "App::Link"
 
             sourceDocument = "App.ActiveDocument"
             if object.LinkedObject.Document != object.Document:
@@ -177,12 +177,18 @@ class TaskAssemblyInsertLink(QtCore.QObject):
             if hasattr(object, "Scale") and object.Scale != 1.0:
                 commands = commands + f"item.Scale = {object.Scale}\n"
 
-            if translation != App.Vector():
-                commands = commands + (
-                    f"item.Placement.base = App.Vector({translation.x},"
-                    f"{translation.y},"
-                    f"{translation.z})\n"
-                )
+            placement = object.Placement
+            if isAssemblyLink and not object.Rigid:
+                # Making a subassembly flexible transfers its placement to its children.
+                placement = insertionItem["placementBeforeRigid"]
+            commands += (
+                "item.recompute()\n"
+                f"item.Placement = App.Placement(App.Vector({placement.Base.x!r}, "
+                f"{placement.Base.y!r}, {placement.Base.z!r}), "
+                f"App.Rotation(*{placement.Rotation.Q!r}))\n"
+            )
+            if isAssemblyLink:
+                commands += f"item.Rigid = {object.Rigid!r}\n"
 
         # Ground the first item if that happened
         if self.groundedObj:
@@ -479,6 +485,7 @@ class TaskAssemblyInsertLink(QtCore.QObject):
         # We turn it flexible after changing the position so that it uses the logic in
         # AssemblyLink::onChanged to handle positioning correctly.
         if selectedPart.isDerivedFrom("Assembly::AssemblyObject"):
+            insertionDict["placementBeforeRigid"] = App.Placement(addedObject.Placement)
             addedObject.Rigid = self.form.CheckBox_RigidSubAsm.isChecked()
 
         # highlight the link
