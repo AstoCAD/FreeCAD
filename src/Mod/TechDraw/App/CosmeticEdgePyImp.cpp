@@ -32,6 +32,7 @@
 #include "Cosmetic.h"
 #include "DrawUtil.h"
 #include "Geometry.h"
+#include "LineGenerator.h"
 
 
 using namespace TechDraw;
@@ -131,6 +132,7 @@ void CosmeticEdgePy::setFormat(Py::Dict arg)
 
     TechDraw::LineFormat* format = &(this->getCosmeticEdgePtr()->m_format);
     format->setStyle(style);
+    format->setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
     format->setWidth(weight);
     format->setColor(DrawUtil::pyTupleToColor(pColor));
     format->setVisible(Base::asBoolean(visible));
