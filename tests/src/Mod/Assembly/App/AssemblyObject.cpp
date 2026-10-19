@@ -23,6 +23,7 @@
 #include <Mod/Assembly/App/AssemblyUtils.h>
 #include <Mod/Assembly/App/Groups.h>
 #include <Mod/Part/App/FeaturePartBox.h>
+#include <Mod/Part/App/PartFeature.h>
 #include <Base/Exception.h>
 #include <src/App/InitApplication.h>
 
@@ -83,9 +84,6 @@ protected:
     static void SetUpTestSuite()
     {
         tests::initApplication();
-        Part::AttachExtension::init();
-        Part::Primitive::init();
-        Part::Box::init();
     }
 
     void SetUp() override
@@ -125,6 +123,16 @@ TEST_F(AssemblyObjectTest, createAssemblyObject)  // NOLINT
     // Act
 
     // Assert
+}
+
+TEST_F(AssemblyObjectTest, partBoxFixtureUsesRegisteredFeatureHierarchy)
+{
+    const auto classType = Part::Box::getClassTypeId();
+    const auto registeredType = Base::Type::fromName("Part::Box");
+    EXPECT_EQ(classType, registeredType);
+    EXPECT_TRUE(classType.isDerivedFrom(Part::Feature::getClassTypeId()));
+    EXPECT_TRUE(registeredType.isDerivedFrom(Part::Feature::getClassTypeId()));
+    EXPECT_TRUE(registeredType.isDerivedFrom(App::DocumentObject::getClassTypeId()));
 }
 
 TEST_F(AssemblyObjectTest, bomMirrorDetectionUsesActualLinkScaleVector)
@@ -271,8 +279,8 @@ TEST_F(AssemblyObjectTest, dragContactPropagatesThroughComponentsVisitedEarlier)
         box->Length.setValue(10.0);
         box->Width.setValue(10.0);
         box->Height.setValue(10.0);
-        box->Placement.setValue(Base::Placement(Base::Vector3d(x, 0, 0), Base::Rotation()));
         box->execute();
+        box->Placement.setValue(Base::Placement(Base::Vector3d(x, 0, 0), Base::Rotation()));
         assembly->addObject(box);
         return box;
     };
@@ -280,6 +288,9 @@ TEST_F(AssemblyObjectTest, dragContactPropagatesThroughComponentsVisitedEarlier)
     auto* first = addBox("First", 0.0);
     auto* second = addBox("Second", 11.0);
     auto* dragged = addBox("Dragged", 22.0);
+    ASSERT_DOUBLE_EQ(first->Placement.getValue().getPosition().x, 0.0);
+    ASSERT_DOUBLE_EQ(second->Placement.getValue().getPosition().x, 11.0);
+    ASSERT_DOUBLE_EQ(dragged->Placement.getValue().getPosition().x, 22.0);
 
     auto* contact = doc->addObject("App::FeaturePython", "GeneralContact");
     contact->addDynamicProperty("App::PropertyString", "ContactType");
@@ -299,7 +310,11 @@ TEST_F(AssemblyObjectTest, dragContactPropagatesThroughComponentsVisitedEarlier)
     mode->setValue("General collision detection");
     suppressed->setValue(false);
     friction->setValue(false);
-    assembly->addObject(contact);
+    auto* group = doc->addObject<Assembly::SimulationGroup>("Simulations");
+    assembly->addObject(group);
+    group->addObject(contact);
+    ASSERT_EQ(assembly->getContacts(), std::vector<App::DocumentObject*> {contact});
+    ASSERT_TRUE(assembly->requiresContactSolveForMove({dragged}));
 
     const Base::Placement previous = dragged->Placement.getValue();
     dragged->Placement.setValue(Base::Placement(Base::Vector3d(16.0, 0, 0), Base::Rotation()));
@@ -319,14 +334,17 @@ TEST_F(AssemblyObjectTest, contactSetsGateDraggingAndRespectExclusions)  // NOLI
         object->Length.setValue(10);
         object->Width.setValue(10);
         object->Height.setValue(10);
-        object->Placement.setValue(Base::Placement(Base::Vector3d(x,0,0),Base::Rotation()));
         object->execute();
+        object->Placement.setValue(Base::Placement(Base::Vector3d(x,0,0),Base::Rotation()));
         assembly->addObject(object);
         return object;
     };
     auto* first = box("First", 0);
     auto* second = box("Second", 11);
     auto* other = box("Other", 50);
+    ASSERT_DOUBLE_EQ(first->Placement.getValue().getPosition().x, 0.0);
+    ASSERT_DOUBLE_EQ(second->Placement.getValue().getPosition().x, 11.0);
+    ASSERT_DOUBLE_EQ(other->Placement.getValue().getPosition().x, 50.0);
     auto* group = doc->addObject<Assembly::SimulationGroup>("Simulations");
     assembly->addObject(group);
     auto* contact = doc->addObject("App::FeaturePython", "ContactSet");
