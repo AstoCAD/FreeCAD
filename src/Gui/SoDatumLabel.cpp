@@ -1552,7 +1552,9 @@ void SoDatumLabel::ensureCoinGeometry(const SbVec3f* points, int numPoints)
     if (!lineVertices.empty()) {
         m_LineVertexProperty->vertex
             .setValues(0, static_cast<int>(lineVertices.size()), lineVertices.data());
+        m_LineVertexProperty->vertex.setNum(static_cast<int>(lineVertices.size()));
         m_LineSet->numVertices.setValues(0, static_cast<int>(lineCounts.size()), lineCounts.data());
+        m_LineSet->numVertices.setNum(static_cast<int>(lineCounts.size()));
     }
     else {
         m_LineVertexProperty->vertex.setNum(0);
@@ -1562,8 +1564,10 @@ void SoDatumLabel::ensureCoinGeometry(const SbVec3f* points, int numPoints)
     if (!triangleVertices.empty()) {
         m_TriangleVertexProperty->vertex
             .setValues(0, static_cast<int>(triangleVertices.size()), triangleVertices.data());
+        m_TriangleVertexProperty->vertex.setNum(static_cast<int>(triangleVertices.size()));
         m_TriangleFaceSet->numVertices
             .setValues(0, static_cast<int>(triangleCounts.size()), triangleCounts.data());
+        m_TriangleFaceSet->numVertices.setNum(static_cast<int>(triangleCounts.size()));
     }
     else {
         m_TriangleVertexProperty->vertex.setNum(0);
