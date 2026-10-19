@@ -100,8 +100,9 @@ void DrawViewClip::addView(App::DocumentObject* docObj)
     }
 
     //reparent view to clip in tree
-    auto page = findParentPage();
-    page->Views.touch();
+    if (auto page = findParentPage()) {
+        page->Views.touch();
+    }
 }
 
 void DrawViewClip::removeView(App::DocumentObject* docObj)
