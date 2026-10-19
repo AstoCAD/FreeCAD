@@ -2036,8 +2036,9 @@ PyObject* SketchObjectPy::addSymmetric(PyObject* args)
     PyObject* pcObj;
     int refGeoId;
     int refPosId = static_cast<int>(Sketcher::PointPos::none);
+    int addSymmetryConstraints = 0;
 
-    if (!PyArg_ParseTuple(args, "Oi|i", &pcObj, &refGeoId, &refPosId)) {
+    if (!PyArg_ParseTuple(args, "Oi|ip", &pcObj, &refGeoId, &refPosId, &addSymmetryConstraints)) {
         return nullptr;
     }
 
@@ -2051,7 +2052,12 @@ PyObject* SketchObjectPy::addSymmetric(PyObject* args)
         }
 
         int ret = this->getSketchObjectPtr()
-                      ->addSymmetric(geoIdList, refGeoId, static_cast<Sketcher::PointPos>(refPosId))
+                      ->addSymmetric(
+                          geoIdList,
+                          refGeoId,
+                          static_cast<Sketcher::PointPos>(refPosId),
+                          addSymmetryConstraints != 0
+                      )
             + 1;
 
         if (ret == -1) {

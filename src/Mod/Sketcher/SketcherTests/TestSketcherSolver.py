@@ -947,6 +947,48 @@ class TestSketcherSolver(unittest.TestCase):
         after = signedDistanceToLine(sketch.Geometry[2], sketch.Geometry[3].Center)
         self.assertAlmostEqual(after, -before, delta=Precision.confusion())
 
+    def testSymmetricPythonCanCreatePersistentConstraints(self):
+        # Issue #31606: Python must be able to request the same dependent
+        # symmetry as the interactive symmetry tool.
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        source = sketch.addGeometry(Part.LineSegment(vec(2, 1), vec(3, 4)), False)
+        mirrored = sketch.addSymmetric([source], -2, 0, True)
+        self.Doc.recompute()
+
+        self.assertEqual(len(mirrored), 1)
+        self.assertEqual(sum(c.Type == "Symmetric" for c in sketch.Constraints), 2)
+        self.assertSuccessfulSolve(sketch)
+
+        sketch.moveGeometry(source, 1, vec(5, 2), 0)
+        self.Doc.recompute()
+        self.assertSuccessfulSolve(sketch)
+        original = sketch.Geometry[source].StartPoint
+        copy = sketch.Geometry[mirrored[0]].StartPoint
+        self.assertVectorAlmostEqual(original, vec(5, 2))
+        self.assertVectorAlmostEqual(copy, vec(-original.x, original.y))
+
+    def testSymmetricPythonKeepsIndependentCopyByDefault(self):
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        source = sketch.addGeometry(Part.LineSegment(vec(2, 1), vec(3, 4)), False)
+        mirrored = sketch.addSymmetric([source], -2)
+        self.Doc.recompute()
+
+        self.assertEqual(len(mirrored), 1)
+        self.assertEqual(sketch.ConstraintCount, 0)
+        self.assertVectorAlmostEqual(sketch.Geometry[mirrored[0]].StartPoint, vec(-2, 1))
+
+    def testSymmetricPythonCanExplicitlyDisablePersistentConstraints(self):
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        source = sketch.addGeometry(Part.LineSegment(vec(2, 1), vec(3, 4)), False)
+        mirrored = sketch.addSymmetric([source], -2, 0, False)
+        self.Doc.recompute()
+
+        self.assertEqual(len(mirrored), 1)
+        self.assertEqual(sketch.ConstraintCount, 0)
+        self.assertVectorAlmostEqual(sketch.Geometry[mirrored[0]].StartPoint, vec(-2, 1))
+
+
+
     def testReversedExternalGeometryLeavesSketchInPlace(self):
         # A signed constraint records the side of a line relative to the line direction. Reversing
         # the sketch plane reverses the direction the borrowed edge projects in, so the recorded

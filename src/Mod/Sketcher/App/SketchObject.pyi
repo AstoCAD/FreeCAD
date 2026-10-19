@@ -766,10 +766,16 @@ class SketchObject(Part2DObject):
         """
 
     def addSymmetric(
-        self, geo_ids: List[int], ref_geo_id: int, ref_pos_id: int = ..., /
+        self,
+        geo_ids: List[int],
+        ref_geo_id: int,
+        ref_pos_id: int = ...,
+        add_symmetry_constraints: bool = False,
+        /,
     ) -> Tuple[int, ...]:
         """
         Add symmetric geometric objects to the sketch with respect to a reference point or line
+        Set add_symmetry_constraints to True to link the copied geometry to the source.
         """
 
     def addCopy(self, geo_ids: List[int], vector: Vector, clone: bool = ..., /) -> Tuple[int, ...]:
