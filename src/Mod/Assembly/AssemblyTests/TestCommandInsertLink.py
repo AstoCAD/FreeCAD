@@ -31,6 +31,7 @@ AttributeError crashes.
 """
 
 from AssemblyTests.TestCore import AssemblyTestBase
+from contextlib import contextmanager
 import os
 import tempfile
 import unittest
@@ -43,6 +44,7 @@ import FreeCAD as App
 # Only import CommandInsertLink if GUI is available
 if App.GuiUp:
     import CommandInsertLink
+    from PySide import QtCore, QtWidgets
 
 
 def _msg(text, end="\n"):
@@ -53,6 +55,114 @@ def _msg(text, end="\n"):
 @unittest.skipIf(not App.GuiUp, "GUI tests require FreeCAD GUI mode")
 class TestCommandInsertLink(AssemblyTestBase):
     """Unit tests for CommandInsertLink module."""
+
+    @contextmanager
+    def _live_insertion_task(self):
+        pref = CommandInsertLink.Preferences.preferences()
+        saved_preferences = {
+            key: pref.GetBool(key) if key in pref.GetBools() else None
+            for key in ("InsertShowOnlyParts", "InsertRigidSubAssemblies")
+        }
+        task = None
+        try:
+            pref.SetBool("InsertShowOnlyParts", False)
+            source = self.doc.addObject("Part::Box", "InsertionSource")
+            self.doc.recompute()
+            task = CommandInsertLink.TaskAssemblyInsertLink(
+                self.assembly, CommandInsertLink.Gui.activeDocument().activeView()
+            )
+            yield task, source
+        finally:
+            try:
+                if task is not None:
+                    try:
+                        task.reject()
+                    finally:
+                        task.form.deleteLater()
+                        task.deleteLater()
+                        QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.DeferredDelete)
+                        QtWidgets.QApplication.processEvents()
+            finally:
+                for key, value in saved_preferences.items():
+                    if value is None:
+                        pref.RemBool(key)
+                    else:
+                        pref.SetBool(key, value)
+
+    def _find_source_item(self, task, source):
+        iterator = QtWidgets.QTreeWidgetItemIterator(task.form.partList)
+        while iterator.value():
+            item = iterator.value()
+            if item.data(0, QtCore.Qt.UserRole) == source:
+                return item
+            iterator += 1
+        return None
+
+    def _insert_occurrence(self, task, source):
+        item = self._find_source_item(task, source)
+        self.assertIsNotNone(item)
+        # Suppress the first-component grounding question; keep the actual insertion.
+        with patch.object(task, "handleFirstInsertion"):
+            task.onItemClicked(item)
+        return task.insertionStack[-1]
+
+    def test_delete_occurrence_without_rebuilding_list(self):
+        with self._live_insertion_task() as (task, source):
+            inserted = self._insert_occurrence(task, source)
+            self.doc.removeObject(inserted["addedObject"].Name)
+            self.assertEqual(task.insertionStack, [])
+            self.assertAlmostEqual(task.totalTranslation.Length, 0, places=9)
+            self.assertEqual(self._find_source_item(task, source).text(0), source.Label)
+
+    def test_rebuild_rebinds_occurrences_and_restores_counters(self):
+        with self._live_insertion_task() as (task, source):
+            first = self._insert_occurrence(task, source)
+            second = self._insert_occurrence(task, source)
+            task.buildPartList()
+            task.buildPartList()
+            item = self._find_source_item(task, source)
+            self.assertIs(first["item"], item)
+            self.assertIs(second["item"], item)
+            self.assertEqual(item.text(0), f"{source.Label} : 2 inserted")
+
+            self.doc.removeObject(second["addedObject"].Name)
+            self.assertEqual(task.insertionStack, [first])
+            self.assertEqual(item.text(0), f"{source.Label} : 1 inserted")
+            self.doc.removeObject(first["addedObject"].Name)
+            self.assertEqual(task.insertionStack, [])
+            self.assertAlmostEqual(task.totalTranslation.Length, 0, places=9)
+            self.assertEqual(item.text(0), source.Label)
+
+    def test_delete_occurrences_while_source_is_filtered_out(self):
+        with self._live_insertion_task() as (task, source):
+            first = self._insert_occurrence(task, source)
+            second = self._insert_occurrence(task, source)
+            task.form.CheckBox_ShowOnlyParts.setChecked(True)
+            self.assertIsNone(self._find_source_item(task, source))
+            self.assertIsNone(first["item"])
+            self.assertIsNone(second["item"])
+
+            self.doc.removeObject(second["addedObject"].Name)
+            self.doc.removeObject(first["addedObject"].Name)
+            self.assertEqual(task.insertionStack, [])
+            self.assertAlmostEqual(task.totalTranslation.Length, 0, places=9)
+
+    def test_showing_filtered_source_restores_remaining_counter(self):
+        with self._live_insertion_task() as (task, source):
+            first = self._insert_occurrence(task, source)
+            second = self._insert_occurrence(task, source)
+            task.form.CheckBox_ShowOnlyParts.setChecked(True)
+            self.doc.removeObject(second["addedObject"].Name)
+            task.form.CheckBox_ShowOnlyParts.setChecked(False)
+
+            item = self._find_source_item(task, source)
+            self.assertIsNotNone(item)
+            self.assertIs(first["item"], item)
+            self.assertEqual(item.text(0), f"{source.Label} : 1 inserted")
+            self.doc.removeObject(first["addedObject"].Name)
+            self.assertEqual(task.insertionStack, [])
+            self.assertAlmostEqual(task.totalTranslation.Length, 0, places=9)
+            self.assertEqual(item.text(0), source.Label)
 
     def _check_macro_label_round_trip(self, label):
         source = self.doc.addObject("Part::Box", "MacroSource")
