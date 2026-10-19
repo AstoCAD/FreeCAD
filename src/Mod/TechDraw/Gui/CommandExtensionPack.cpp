@@ -53,6 +53,7 @@
 #include <Mod/TechDraw/App/DrawUtil.h>
 #include <Mod/TechDraw/App/DrawViewBalloon.h>
 #include <Mod/TechDraw/App/DrawViewDimension.h>
+#include <Mod/TechDraw/App/DrawView.h>
 #include <Mod/TechDraw/App/DrawViewPart.h>
 #include <Mod/TechDraw/App/DrawViewSection.h>
 #include <Mod/TechDraw/App/Preferences.h>
@@ -1648,9 +1649,9 @@ void CmdTechDrawExtensionLockUnlockView::activated(int iMsg)
 
     openCommand(QT_TRANSLATE_NOOP("Command", "Lock/Unlock View"));
     for (auto& sel : selection) {
-        auto* obj = static_cast<TechDraw::DrawViewPart*>(sel.getObject());
+        auto* obj = freecad_cast<TechDraw::DrawView*>(sel.getObject());
 
-        if (obj->isDerivedFrom<TechDraw::DrawViewPart>()) {
+        if (obj) {
             bool lockPosition = obj->LockPosition.getValue();
             lockPosition = !lockPosition;
             obj->LockPosition.setValue(lockPosition);
@@ -1662,7 +1663,7 @@ void CmdTechDrawExtensionLockUnlockView::activated(int iMsg)
 bool CmdTechDrawExtensionLockUnlockView::isActive()
 {
     bool havePage = DrawGuiUtil::needPage(this);
-    bool haveView = DrawGuiUtil::needView(this);
+    bool haveView = DrawGuiUtil::needView(this, false);
     return (havePage && haveView);
 }
 
