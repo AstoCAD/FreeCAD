@@ -54,6 +54,55 @@ def _msg(text, end="\n"):
 class TestCommandInsertLink(AssemblyTestBase):
     """Unit tests for CommandInsertLink module."""
 
+    def _check_macro_label_round_trip(self, label):
+        source = self.doc.addObject("Part::Box", "MacroSource")
+        link = self.assembly.newObject("App::Link", "MacroOccurrence")
+        link.setLink(source)
+        link.Label = label
+        self.doc.recompute()
+        task = SimpleNamespace(
+            deactivated=MagicMock(),
+            groundedObj=None,
+            insertionStack=[{"addedObject": link, "translation": App.Vector()}],
+        )
+        captured = []
+        self.doc.openTransaction("Insert Component")
+        with patch.object(CommandInsertLink.Gui, "doCommandSkip", side_effect=captured.append):
+            self.assertTrue(CommandInsertLink.TaskAssemblyInsertLink.accept(task))
+        self.assertEqual(len(captured), 1)
+
+        replay_doc = App.newDocument("InsertComponentMacroReplay")
+        try:
+            replay_source = replay_doc.addObject("Part::Box", source.Name)
+            replay_assembly = replay_doc.addObject("Assembly::AssemblyObject", "Assembly")
+            namespace = {"App": App, "UtilsAssembly": CommandInsertLink.UtilsAssembly}
+            with patch.object(
+                CommandInsertLink.UtilsAssembly, "activeAssembly", return_value=replay_assembly
+            ):
+                exec(compile(captured[0], "<Insert Component macro>", "exec"), namespace)
+            replayed = namespace["item"]
+            self.assertEqual(replayed.Document, replay_doc)
+            self.assertEqual(replayed.LinkedObject, replay_source)
+            self.assertEqual(replayed.Label, label)
+        finally:
+            App.closeDocument(replay_doc.Name)
+            App.setActiveDocument(self.doc.Name)
+
+    def test_macro_preserves_ascii_label(self):
+        self._check_macro_label_round_trip("Ordinary component")
+
+    def test_macro_preserves_unicode_label(self):
+        self._check_macro_label_round_trip("Café α 测量")
+
+    def test_macro_preserves_quoted_label(self):
+        self._check_macro_label_round_trip('Part "quoted"')
+
+    def test_macro_preserves_literal_backslash_label(self):
+        self._check_macro_label_round_trip("C:\\new\\tool")
+
+    def test_macro_preserves_multiline_label(self):
+        self._check_macro_label_round_trip("First line\nSecond line")
+
     def test_open_files_with_same_basename_in_different_directories(self):
         """Distinct component files must both be available for insertion."""
         with tempfile.TemporaryDirectory() as directory:

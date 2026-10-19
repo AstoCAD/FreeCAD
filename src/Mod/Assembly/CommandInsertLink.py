@@ -167,7 +167,7 @@ class TaskAssemblyInsertLink(QtCore.QObject):
             commands = commands + (
                 f'item = assembly.newObject("{objType}", "{object.Name}")\n'
                 f'item.LinkedObject = App.ActiveDocument.getObject("{object.LinkedObject.Name}")\n'
-                f'item.Label = "{object.Label}"\n'
+                f"item.Label = {object.Label!r}\n"
             )
 
             if hasattr(object, "Scale") and object.Scale != 1.0:
