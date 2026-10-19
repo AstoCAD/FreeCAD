@@ -46,6 +46,7 @@
 #include "GeometryObject.h"
 #include "Cosmetic.h"
 #include "DrawUtil.h"
+#include "LineGenerator.h"
 
 // inclusion of the generated files (generated out of DrawViewPartPy.xml)
 #include <Mod/TechDraw/App/CosmeticVertexPy.h>
@@ -406,6 +407,7 @@ PyObject* DrawViewPartPy::makeCosmeticLine(PyObject *args)
     TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
     if (ce) {
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         ce->m_format.setColor(pColor ? DrawUtil::pyTupleToColor(pColor) : defCol);
     }
@@ -460,6 +462,7 @@ PyObject* DrawViewPartPy::makeCosmeticLine3D(PyObject *args)
     TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
     if (ce) {
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         ce->m_format.setColor(pColor ? DrawUtil::pyTupleToColor(pColor) : defCol);
     }
@@ -504,6 +507,7 @@ PyObject* DrawViewPartPy::makeCosmeticCircle(PyObject *args)
     if (ce) {
         ce->permaRadius = radius;
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         ce->m_format.setColor(pColor ? DrawUtil::pyTupleToColor(pColor) : defCol);
     }
@@ -551,6 +555,7 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc(PyObject *args)
     if (ce) {
         ce->permaRadius = radius;
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         if (!pColor){
             ce->m_format.setColor(defCol);
@@ -604,6 +609,7 @@ PyObject* DrawViewPartPy::makeCosmeticCircle3d(PyObject *args)
     if (ce) {
         ce->permaRadius = radius;
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         ce->m_format.setColor(pColor ? DrawUtil::pyTupleToColor(pColor) : defCol);
     }
@@ -654,6 +660,7 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc3d(PyObject *args)
     if (ce) {
         ce->permaRadius = radius;
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         if (!pColor) {
             ce->m_format.setColor(defCol);
@@ -841,6 +848,7 @@ PyObject* DrawViewPartPy::formatGeometricEdge(PyObject *args)
     TechDraw::GeomFormat* gf = dvp->getGeomFormatBySelection(idx);
     if (gf) {
         gf->m_format.setStyle(style);
+        gf->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         gf->m_format.setColor(color);
         gf->m_format.setWidth(weight);
         gf->m_format.setVisible(visible);
