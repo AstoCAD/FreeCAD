@@ -5798,6 +5798,14 @@ void PropertyXLinkContainer::breakLink(App::DocumentObject* obj, bool clear)
             key->_removeBackLink(owner);
         }
     }
+    // Remove property backlinks as well as object backlinks. Keep the dependency
+    // metadata so undo can restore the removed object's expression links.
+    for (const auto& [dependency, hidden] : _PropDeps) {
+        auto* linkedObject = dependency.second;
+        if (!hidden && linkedObject && linkedObject->isAttachedToDocument()) {
+            linkedObject->_removeBackLinkProp(getName(), owner, dependency.first.c_str());
+        }
+    }
     _XLinks.clear();
     _Deps.clear();
 }
