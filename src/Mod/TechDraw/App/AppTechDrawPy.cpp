@@ -1006,8 +1006,8 @@ private:
     {
         PyObject* pFace(nullptr);
         double scale = 1.0;
-        const char* pPatName = {nullptr};
-        const char* pPatFile = {nullptr};
+        const char* pPatName = "";
+        const char* pPatFile = "";
         TechDraw::DrawViewPart* source = nullptr;
         TopoDS_Face face;
 
