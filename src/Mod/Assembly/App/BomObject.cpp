@@ -271,21 +271,34 @@ void BomObject::addObjectChildrenToBom(
 
 bool BomObject::isObjMirrored(App::DocumentObject* obj)
 {
-    // Determine mirror state based on Scale properties.
-    // We multiply scales to handle nested mirroring (e.g., Mirrored LinkElement inside Mirrored
-    // LinkGroup = Normal).
-    double accumulatedScale = 1.0;
-    if (auto* element = freecad_cast<App::LinkElement*>(obj)) {
-        accumulatedScale *= element->Scale.getValue();
+    // Use the same scale vector as the link transform. Compose signs rather than
+    // magnitudes so extreme scales cannot overflow or underflow the mirror test.
+    const auto orientation = [](const App::LinkBaseExtension& link) {
+        const auto scale = link.getScaleVector();
+        if (scale.x == 0.0 || scale.y == 0.0 || scale.z == 0.0
+            || std::isnan(scale.x) || std::isnan(scale.y) || std::isnan(scale.z)) {
+            return 0;
+        }
+        return ((scale.x < 0.0) ^ (scale.y < 0.0) ^ (scale.z < 0.0)) ? -1 : 1;
+    };
 
-        if (auto* group = element->getLinkGroup()) {
-            accumulatedScale *= group->Scale.getValue();
+    int accumulatedOrientation = 1;
+    if (auto element = freecad_cast<App::LinkElement*>(obj)) {
+        accumulatedOrientation *= orientation(*element);
+
+        if (auto group = element->getLinkGroup()) {
+            accumulatedOrientation *= orientation(*group);
         }
     }
-    else if (auto* link = freecad_cast<App::Link*>(obj)) {
-        accumulatedScale *= link->Scale.getValue();
+    else if (auto link = freecad_cast<App::Link*>(obj)) {
+        accumulatedOrientation *= orientation(*link);
     }
-    return accumulatedScale < 0.0;
+    else if (auto asmLink = freecad_cast<AssemblyLink*>(obj)) {
+        // An assembly link is not a link extension: it is mirrored by a negative Scale,
+        // which it applies to its components (see AssemblyLink::synchronizeComponents).
+        return asmLink->Scale.getValue() < 0.0;
+    }
+    return accumulatedOrientation < 0;
 }
 
 void BomObject::addObjectToBom(

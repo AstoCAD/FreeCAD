@@ -237,10 +237,74 @@ class TestCore(AssemblyTestBase):
         self.assertEqual(int(float(bom.get("B3"))), 1)
         self.assertNotIn("Invalid", bom.State)
 
+    def test_bom_separates_mirrored_assembly_link_from_regular_one(self):
+        """A sub-assembly inserted mirrored (assembly link with a negative Scale) is not
+        counted as one more occurrence of the regular sub-assembly."""
+        sub = self.doc.addObject("Assembly::AssemblyObject", "SubAssembly")
+        sub.newObject("Part::Box", "SubBox")
+        regular = self.assembly.newObject("Assembly::AssemblyLink", "Regular")
+        regular.LinkedObject = sub
+        mirrored = self.assembly.newObject("Assembly::AssemblyLink", "Mirrored")
+        mirrored.LinkedObject = sub
+        mirrored.Scale = -1
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Name", "Quantity"]
+        bom.detailSubAssemblies = False
 
+        self.doc.recompute()
 
+        suffix = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Assembly").GetString(
+            "BomMirroredSuffix", " (mirrored)"
+        )
+        self.assertEqual(int(float(bom.get("B2"))), 1)
+        self.assertEqual({bom.get("A2"), bom.get("A3")}, {sub.Label, sub.Label + suffix})
+        self.assertEqual(int(float(bom.get("B3"))), 1)
+        self.assertNotIn("Invalid", bom.State)
 
+    def _check_bom_scale_vector_grouping(self, scale, mirrored, previous_scalar=None):
+        source = self.doc.addObject("Part::Box", "VectorScaleComponent")
+        source.Label = "Vector scale component"
+        normal = self.assembly.newObject("App::Link", "NormalOccurrence")
+        normal.setLink(source)
+        transformed = self.assembly.newObject("App::Link", "TransformedOccurrence")
+        transformed.setLink(source)
+        if previous_scalar is not None:
+            transformed.Scale = previous_scalar
+        transformed.ScaleVector = App.Vector(*scale)
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Name", "Quantity"]
+        self.doc.recompute()
+        self.assertNotIn("Invalid", bom.State)
+        self.assertEqual(tuple(transformed.ScaleVector), scale)
+        if previous_scalar is not None and len(set(scale)) > 1:
+            self.assertEqual(transformed.Scale, previous_scalar)
 
+        rows = sorted(
+            (bom.get(cell), int(float(bom.get("B" + cell[1:]))))
+            for cell in bom.getNonEmptyCells()
+            if cell.startswith("A") and int(cell[1:]) > 1
+        )
+        suffix = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Assembly").GetString(
+            "BomMirroredSuffix", " (mirrored)"
+        )
+        expected = sorted([(source.Label, 1), (source.Label + suffix, 1)]) if mirrored else [
+            (source.Label, 2)
+        ]
+        self.assertEqual(rows, expected)
+
+    def test_bom_groups_unscaled_occurrences(self):
+        self._check_bom_scale_vector_grouping((1.0, 1.0, 1.0), mirrored=False)
+
+    def test_bom_separates_uniform_negative_scale(self):
+        self._check_bom_scale_vector_grouping((-1.0, -1.0, -1.0), mirrored=True)
+
+    def test_bom_separates_single_axis_reflection(self):
+        self._check_bom_scale_vector_grouping((-1.0, 1.0, 1.0), mirrored=True)
+
+    def test_bom_groups_paired_reflections_despite_stale_negative_scalar(self):
+        self._check_bom_scale_vector_grouping(
+            (-1.0, -1.0, 1.0), mirrored=False, previous_scalar=-1.0
+        )
 
     def test_component_count_for_link_array(self):
         source = self.doc.addObject("Part::Box", "ArraySource")
