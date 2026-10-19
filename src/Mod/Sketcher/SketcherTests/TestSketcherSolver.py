@@ -1224,6 +1224,68 @@ class TestSketcherSolver(unittest.TestCase):
             self.assertEqual(len(extRefsAll), 3)
             self.assertEqual(root.tag, "all")
 
+    def makeExternalConstructionSketch(self):
+        source = self.Doc.addObject("Sketcher::SketchObject", "ConstructionSource")
+        source.addGeometry(Part.Circle(vec(0, 0), xy_normal, 5), False)
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "ConstructionTarget")
+        sketch.addGeometry(Part.LineSegment(vec(20, 0), vec(30, 0)), False)
+        self.Doc.recompute()
+        sketch.addExternal(source.Name, "Edge1")
+        self.Doc.recompute()
+        self.assertEqual(sketch.GeometryCount, 1)
+        self.assertEqual(len(sketch.ExternalGeo), 3)
+        self.assertFalse(sketch.getConstruction(0))
+        self.assertTrue(sketch.getConstruction(-3))
+        self.assertEqual(len(sketch.Shape.Edges), 1)
+        return sketch
+
+    def testExternalConstructionSetGetAndShape(self):
+        """Construction queries agree with external geometry's shape membership."""
+        sketch = self.makeExternalConstructionSketch()
+        for construction in (False, True, False):
+            with self.subTest(construction=construction):
+                sketch.setConstruction(-3, construction)
+                self.Doc.recompute()
+                self.assertEqual(len(sketch.Shape.Edges), 1 if construction else 2)
+                self.assertEqual(sketch.getConstruction(-3), construction)
+                self.assertFalse(sketch.getConstruction(0))
+                self.assertEqual(sketch.GeometryCount, 1)
+
+    def testExternalConstructionToggleAndShape(self):
+        sketch = self.makeExternalConstructionSketch()
+        for construction in (False, True, False):
+            with self.subTest(construction=construction):
+                sketch.toggleConstruction(-3)
+                self.Doc.recompute()
+                self.assertEqual(len(sketch.Shape.Edges), 1 if construction else 2)
+                self.assertEqual(sketch.getConstruction(-3), construction)
+                self.assertFalse(sketch.getConstruction(0))
+
+    def testConstructionInternalAndReservedAxes(self):
+        sketch = self.makeExternalConstructionSketch()
+        for construction in (True, False, True):
+            sketch.setConstruction(0, construction)
+            self.Doc.recompute()
+            self.assertEqual(sketch.getConstruction(0), construction)
+            self.assertEqual(len(sketch.Shape.Edges), 0 if construction else 1)
+            self.assertTrue(sketch.getConstruction(-3))
+            for axis in (-1, -2):
+                self.assertTrue(sketch.getConstruction(axis))
+                with self.assertRaises(ValueError):
+                    sketch.setConstruction(axis, False)
+                self.assertTrue(sketch.getConstruction(axis))
+
+    def testConstructionOutOfRangeIndices(self):
+        sketch = self.makeExternalConstructionSketch()
+        for index in (1, 100, -4, -100, -2000):
+            with self.subTest(index=index):
+                with self.assertRaises(ValueError):
+                    sketch.getConstruction(index)
+        self.assertEqual(sketch.GeometryCount, 1)
+        self.assertEqual(len(sketch.Shape.Edges), 1)
+        self.assertFalse(sketch.getConstruction(0))
+        self.assertTrue(sketch.getConstruction(-3))
+
     def testConstructionToggleTNP(self):
         """Bug 15484"""
         if "BUILD_PART_DESIGN" in FreeCAD.__cmake__:
