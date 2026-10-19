@@ -220,6 +220,10 @@ public:
     bool updateChildren(bool checkVisibility)
     {
         auto newChildren = viewObject->claimChildren();
+        // A deletion callback can process tree updates before backlinks are broken.
+        std::erase_if(newChildren, [this](App::DocumentObject* child) {
+            return child && docItem->getViewProvider(child) && child->isRemoving();
+        });
         auto obj = viewObject->getObject();
         std::set<App::DocumentObject*> newSet;
         bool updated = false;
@@ -4824,6 +4828,16 @@ void TreeWidget::_slotDeleteObject(const Gui::ViewProviderDocumentObject& view, 
         auto& items = data->items;
 
         if (obj->getDocument() == doc) {
+            if (auto parents = docItem->_ParentMap.find(obj); parents != docItem->_ParentMap.end()) {
+                for (auto* parent : parents->second) {
+                    auto found = docItem->ObjectMap.find(parent);
+                    if (found != docItem->ObjectMap.end()) {
+                        // Undo can restore this same pointer before a queued refresh.
+                        std::erase(found->second->children, obj);
+                        found->second->childSet.erase(obj);
+                    }
+                }
+            }
             docItem->_ParentMap.erase(obj);
         }
 
