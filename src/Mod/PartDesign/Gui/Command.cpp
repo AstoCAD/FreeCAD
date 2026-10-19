@@ -958,6 +958,15 @@ void prepareProfileBased(
         };
 
         if (which.compare("AdditiveLoft") == 0 || which.compare("SubtractiveLoft") == 0) {
+            std::vector<Gui::SelectionObject> selection = cmd->getSelection().getSelectionEx();
+            // Several faces of one object are grouped in a single selection entry.
+            // With no other object selected, these faces must be separate profiles.
+            const bool separateFaces = selection.size() == 1 && cmdSubs.size() > 1
+                && !feature->isDerivedFrom<Part::Part2DObject>()
+                && std::ranges::all_of(cmdSubs, [](const auto& sub) {
+                       return sub.starts_with("Face");
+                   });
+
             // for additive and subtractive lofts set subvalues even for sketches
             // when a vertex is first selected
             auto subName = subs.empty() ? "" : subs.front();
@@ -965,7 +974,10 @@ void prepareProfileBased(
             // `ProfileBased::getProfileShape()` and other methods will return
             // just the sub-shapes if they are set. So when whole sketches are
             // desired, do not set sub-values.
-            if (feature->isDerivedFrom<Part::Part2DObject>() && subName.compare(0, 6, "Vertex") != 0) {
+            if (separateFaces) {
+                FCMD_OBJ_CMD(Feat, "Profile = (" << objCmd << ", ['" << cmdSubs.front() << "'])");
+            }
+            else if (feature->isDerivedFrom<Part::Part2DObject>() && subName.compare(0, 6, "Vertex") != 0) {
                 runProfileCmd();
             }
             else {
@@ -973,8 +985,12 @@ void prepareProfileBased(
             }
 
             // for additive and subtractive lofts allow the user to preselect the sections
-            std::vector<Gui::SelectionObject> selection = cmd->getSelection().getSelectionEx();
-            if (selection.size() > 1) {  // treat additional selected objects as sections
+            if (separateFaces) {
+                for (size_t ii = 1; ii < cmdSubs.size(); ++ii) {
+                    FCMD_OBJ_CMD(Feat, "Sections += [(" << objCmd << ", ['" << cmdSubs[ii] << "'])]");
+                }
+            }
+            else if (selection.size() > 1) {  // treat additional selected objects as sections
                 for (std::vector<Gui::SelectionObject>::size_type ii = 1; ii < selection.size();
                      ii++) {
                     // Add subvalues even for sketches in case we just want points
