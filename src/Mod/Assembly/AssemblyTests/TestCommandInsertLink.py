@@ -164,6 +164,121 @@ class TestCommandInsertLink(AssemblyTestBase):
             self.assertAlmostEqual(task.totalTranslation.Length, 0, places=9)
             self.assertEqual(item.text(0), source.Label)
 
+    def _check_macro_occurrence_state(
+        self, count=1, rigid=None, displaced=False, final_placement=None
+    ):
+        replay_doc = None
+        with self._live_insertion_task() as (task, source):
+            if rigid is not None:
+                source = self.doc.addObject("Assembly::AssemblyObject", "SubassemblySource")
+                source.newObject("Part::Box", "SubassemblyBox")
+                self.doc.recompute()
+                task.buildPartList()
+                task.form.CheckBox_RigidSubAsm.setChecked(rigid)
+
+            view = CommandInsertLink.Gui.activeDocument().activeView()
+            view.fitAll()
+            CommandInsertLink.Gui.updateGui()
+            if displaced:
+                camera = view.getCameraNode()
+                position = camera.position.getValue()
+                camera.position.setValue(position[0] + 10000, position[1], position[2])
+                CommandInsertLink.Gui.updateGui()
+                origin_x, origin_y = view.getPointOnViewport(App.Vector())
+                width, height = view.getSize()
+                self.assertFalse(0 < origin_x < width and 0 < origin_y < height)
+
+            occurrences = [
+                self._insert_occurrence(task, source)["addedObject"] for _ in range(count)
+            ]
+            if final_placement is not None:
+                occurrences[-1].Placement = final_placement
+            expected = [(obj.Name, App.Placement(obj.Placement)) for obj in occurrences]
+            child_placements = {}
+            if rigid is not None:
+                for occurrence in occurrences:
+                    self.assertEqual(occurrence.Rigid, rigid)
+                    child_placements[occurrence.Name] = {
+                        child.LinkedObject.Name: occurrence.Placement * child.Placement
+                        for child in occurrence.Group
+                        if hasattr(child, "LinkedObject") and child.LinkedObject is not None
+                    }
+                    self.assertTrue(child_placements[occurrence.Name])
+                if displaced:
+                    self.assertTrue(
+                        any(
+                            placement.Base.Length > 100
+                            for placements in child_placements.values()
+                            for placement in placements.values()
+                        )
+                    )
+
+            recorded = []
+            with patch.object(CommandInsertLink.Gui, "doCommandSkip", side_effect=recorded.append):
+                self.assertTrue(task.accept())
+            self.assertEqual(len(recorded), 1)
+            try:
+                replay_doc = App.newDocument("InsertMacroOccurrenceReplay")
+                replay_assembly = replay_doc.addObject("Assembly::AssemblyObject", "Assembly")
+                if rigid is None:
+                    replay_doc.addObject("Part::Box", source.Name)
+                else:
+                    replay_source = replay_doc.addObject("Assembly::AssemblyObject", source.Name)
+                    replay_source.newObject("Part::Box", "SubassemblyBox")
+                replay_doc.recompute()
+                namespace = {"App": App, "UtilsAssembly": CommandInsertLink.UtilsAssembly}
+                with patch.object(
+                    CommandInsertLink.UtilsAssembly, "activeAssembly", return_value=replay_assembly
+                ):
+                    exec(compile(recorded[0], "<Insert Component macro>", "exec"), namespace)
+                replay_doc.recompute()
+
+                for name, placement in expected:
+                    replayed = replay_doc.getObject(name)
+                    self.assertIsNotNone(replayed)
+                    if rigid is None:
+                        with self.subTest(occurrence=name):
+                            self.assertTrue(replayed.Placement.isSame(placement, 1e-9))
+                        continue
+                    with self.subTest(occurrence=name, property="Rigid"):
+                        self.assertEqual(replayed.Rigid, rigid)
+                    actual_children = {
+                        child.LinkedObject.Name: replayed.Placement * child.Placement
+                        for child in replayed.Group
+                        if hasattr(child, "LinkedObject") and child.LinkedObject is not None
+                    }
+                    self.assertEqual(set(actual_children), set(child_placements[name]))
+                    for child_name, expected_child in child_placements[name].items():
+                        with self.subTest(occurrence=name, child=child_name):
+                            self.assertTrue(actual_children[child_name].isSame(expected_child, 1e-9))
+            finally:
+                if replay_doc is not None:
+                    App.closeDocument(replay_doc.Name)
+                App.setActiveDocument(self.doc.Name)
+
+    def test_macro_preserves_single_occurrence_placement(self):
+        self._check_macro_occurrence_state()
+
+    def test_macro_preserves_three_occurrence_placements(self):
+        self._check_macro_occurrence_state(count=3)
+
+    def test_macro_preserves_final_occurrence_placement(self):
+        self._check_macro_occurrence_state(
+            final_placement=App.Placement(
+                App.Vector(1.23456789123, -9.87654321987, 3.45678912345),
+                App.Rotation(App.Vector(1, 2, 3), 37.123456789),
+            )
+        )
+
+    def test_macro_preserves_rigid_subassembly_at_origin(self):
+        self._check_macro_occurrence_state(rigid=True)
+
+    def test_macro_preserves_displaced_rigid_subassembly(self):
+        self._check_macro_occurrence_state(rigid=True, displaced=True)
+
+    def test_macro_preserves_displaced_flexible_subassembly(self):
+        self._check_macro_occurrence_state(rigid=False, displaced=True)
+
     def _check_macro_label_round_trip(self, label):
         source = self.doc.addObject("Part::Box", "MacroSource")
         link = self.assembly.newObject("App::Link", "MacroOccurrence")
@@ -425,6 +540,9 @@ class TestCommandInsertLink(AssemblyTestBase):
             # whether their linked target is valid.
             obj_data["addedObject"].isDerivedFrom = lambda type_name: False
             obj_data["addedObject"].Document = self.doc
+            obj_data["addedObject"].Placement = App.Placement(
+                obj_data["translation"], App.Rotation()
+            )
             linked = getattr(obj_data["addedObject"], "LinkedObject", None)
             if linked is not None:
                 linked.Document = self.doc
