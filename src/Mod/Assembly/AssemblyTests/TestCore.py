@@ -282,6 +282,82 @@ class TestCore(AssemblyTestBase):
             (-1.0, -1.0, 1.0), mirrored=False, previous_scalar=-1.0
         )
 
+    def _check_bom_hierarchical_quantities(
+        self, nested, same_source, root_count=1, quantity=True, detail_parts=True
+    ):
+        source = self.doc.addObject("Part::Box", "ComponentSource")
+        source.Label = "Shared component"
+        root_source = source
+        if not same_source:
+            root_source = self.doc.addObject("Part::Box", "OtherSource")
+            root_source.Label = "Other component"
+        if nested:
+            container = self.assembly.newObject("App::Part", "SubPart")
+            container.Label = "Subpart"
+            child = container.newObject("App::Link", "NestedOccurrence")
+            child.setLink(source)
+        for _ in range(root_count):
+            link = self.assembly.newObject("App::Link", "RootOccurrence")
+            link.setLink(root_source)
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Index", "Name", "Quantity"] if quantity else ["Index", "Name"]
+        bom.detailParts = detail_parts
+        bom.onlyParts = False
+        self.doc.recompute()
+        self.assertNotIn("Invalid", bom.State)
+
+        cells = sorted(
+            (
+                cell for cell in bom.getNonEmptyCells()
+                if cell.startswith("A") and int(cell[1:]) > 1
+            ),
+            key=lambda cell: int(cell[1:]),
+        )
+        rows = [
+            (
+                bom.get(cell).lstrip("'"),
+                bom.get("B" + cell[1:]),
+                int(float(bom.get("C" + cell[1:]))) if quantity else None,
+            )
+            for cell in cells
+        ]
+        expected = []
+        if nested:
+            expected.append(("1", container.Label, 1 if quantity else None))
+            if detail_parts:
+                expected.append(("1.1", source.Label, 1 if quantity else None))
+        root_index = 2 if nested else 1
+        if quantity:
+            expected.append((str(root_index), root_source.Label, root_count))
+        else:
+            expected.extend(
+                (str(root_index + index), root_source.Label, None)
+                for index in range(root_count)
+            )
+        self.assertEqual(rows, expected)
+
+    def test_bom_groups_same_level_duplicate_links(self):
+        self._check_bom_hierarchical_quantities(nested=False, same_source=True, root_count=2)
+
+    def test_bom_keeps_distinct_nested_and_root_sources(self):
+        self._check_bom_hierarchical_quantities(nested=True, same_source=False)
+
+    def test_bom_keeps_same_source_at_nested_and_root_levels_separate(self):
+        self._check_bom_hierarchical_quantities(nested=True, same_source=True)
+
+    def test_bom_groups_root_duplicates_without_merging_nested_occurrence(self):
+        self._check_bom_hierarchical_quantities(nested=True, same_source=True, root_count=2)
+
+    def test_bom_without_quantity_keeps_every_occurrence(self):
+        self._check_bom_hierarchical_quantities(
+            nested=True, same_source=True, root_count=2, quantity=False
+        )
+
+    def test_bom_without_part_details_keeps_root_quantity(self):
+        self._check_bom_hierarchical_quantities(
+            nested=True, same_source=True, root_count=2, detail_parts=False
+        )
+
     def test_component_count_for_link_array(self):
         source = self.doc.addObject("Part::Box", "ArraySource")
         array = self.assembly.newObject("App::Link", "Array")
