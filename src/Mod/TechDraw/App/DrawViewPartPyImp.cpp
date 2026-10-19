@@ -56,6 +56,13 @@
 
 using namespace TechDraw;
 using DU = DrawUtil;
+
+namespace
+{
+// marks an omitted optional lineNumber argument: the line number then follows the Qt style
+constexpr int NoLineNumberArgument{-1};
+}  // namespace
+
 // returns a string which represents the object e.g. when printed in python
 std::string DrawViewPartPy::representation() const
 {
@@ -435,7 +442,7 @@ PyObject* DrawViewPartPy::makeCosmeticLine(PyObject *args)
     double weight = LineFormat::getDefEdgeWidth();
     Base::Color defCol = LineFormat::getDefEdgeColor();
     PyObject* pColor = nullptr;
-    int lineNumber{1};   // solid line default
+    int lineNumber{NoLineNumberArgument};   // derived from style unless given
 
     if (!PyArg_ParseTuple(args, "O!O!|idO!i", &(Base::VectorPy::Type), &pPnt1,
                                         &(Base::VectorPy::Type), &pPnt2,
@@ -457,9 +464,12 @@ PyObject* DrawViewPartPy::makeCosmeticLine(PyObject *args)
     TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
     if (ce) {
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         ce->m_format.setColor(pColor ? DrawUtil::pyTupleToColor(pColor) : defCol);
-        ce->m_format.setLineNumber(lineNumber);
+        if (lineNumber != NoLineNumberArgument) {
+            ce->m_format.setLineNumber(lineNumber);
+        }
     }
     else {
         PyErr_SetString(PyExc_RuntimeError, "DVPPI:makeCosmeticLine - line creation failed");
@@ -481,7 +491,7 @@ PyObject* DrawViewPartPy::makeCosmeticLine3D(PyObject *args)
     double weight = LineFormat::getDefEdgeWidth();
     Base::Color defCol = LineFormat::getDefEdgeColor();
     PyObject* pColor = nullptr;
-    int lineNumber{1};   // solid line default
+    int lineNumber{NoLineNumberArgument};   // derived from style unless given
 
     if (!PyArg_ParseTuple(args, "O!O!|idO!i", &(Base::VectorPy::Type), &pPnt1,
                                         &(Base::VectorPy::Type), &pPnt2,
@@ -514,9 +524,12 @@ PyObject* DrawViewPartPy::makeCosmeticLine3D(PyObject *args)
     TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
     if (ce) {
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         ce->m_format.setColor(pColor ? DrawUtil::pyTupleToColor(pColor) : defCol);
-        ce->m_format.setLineNumber(lineNumber);
+        if (lineNumber != NoLineNumberArgument) {
+            ce->m_format.setLineNumber(lineNumber);
+        }
     }
     else {
         PyErr_SetString(PyExc_RuntimeError, "DVPPI:makeCosmeticLine - line creation failed");
@@ -538,7 +551,7 @@ PyObject* DrawViewPartPy::makeCosmeticCircle(PyObject *args)
     double weight = LineFormat::getDefEdgeWidth();
     Base::Color defCol = LineFormat::getDefEdgeColor();
     PyObject* pColor = nullptr;
-    int lineNumber{1};   // solid line default
+    int lineNumber{NoLineNumberArgument};   // derived from style unless given
 
     if (!PyArg_ParseTuple(args, "O!d|idO!i", &(Base::VectorPy::Type), &pPnt1,
                                         &radius,
@@ -561,9 +574,12 @@ PyObject* DrawViewPartPy::makeCosmeticCircle(PyObject *args)
     if (ce) {
         ce->permaRadius = radius;
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         ce->m_format.setColor(pColor ? DrawUtil::pyTupleToColor(pColor) : defCol);
-        ce->m_format.setLineNumber(lineNumber);
+        if (lineNumber != NoLineNumberArgument) {
+            ce->m_format.setLineNumber(lineNumber);
+        }
     }
     else {
         PyErr_SetString(PyExc_RuntimeError, "DVPPI:makeCosmeticCircle - circle creation failed");
@@ -588,7 +604,7 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc(PyObject *args)
     double weight = LineFormat::getDefEdgeWidth();
     Base::Color defCol = LineFormat::getDefEdgeColor();
     PyObject* pColor = nullptr;
-    int lineNumber{1};   // solid line default
+    int lineNumber{NoLineNumberArgument};   // derived from style unless given
 
     if (!PyArg_ParseTuple(args, "O!ddd|idO!i", &(Base::VectorPy::Type), &pPnt1,
                                         &radius, &angle1, &angle2,
@@ -611,6 +627,7 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc(PyObject *args)
     if (ce) {
         ce->permaRadius = radius;
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         if (!pColor){
             ce->m_format.setColor(defCol);
@@ -618,7 +635,9 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc(PyObject *args)
         else {
             ce->m_format.setColor(DrawUtil::pyTupleToColor(pColor));
         }
-        ce->m_format.setLineNumber(lineNumber);
+        if (lineNumber != NoLineNumberArgument) {
+            ce->m_format.setLineNumber(lineNumber);
+        }
     }
     else {
         PyErr_SetString(PyExc_RuntimeError, "DVPPI:makeCosmeticCircleArc - arc creation failed");
@@ -641,7 +660,7 @@ PyObject* DrawViewPartPy::makeCosmeticCircle3d(PyObject *args)
     double weight = LineFormat::getDefEdgeWidth();
     Base::Color defCol = LineFormat::getDefEdgeColor();
     PyObject* pColor = nullptr;
-    int lineNumber{1};   // solid line default
+    int lineNumber{NoLineNumberArgument};   // derived from style unless given
 
     if (!PyArg_ParseTuple(args, "O!d|idO!i", &(Base::VectorPy::Type), &pPnt1,
                                         &radius,
@@ -667,9 +686,12 @@ PyObject* DrawViewPartPy::makeCosmeticCircle3d(PyObject *args)
     if (ce) {
         ce->permaRadius = radius;
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         ce->m_format.setColor(pColor ? DrawUtil::pyTupleToColor(pColor) : defCol);
-        ce->m_format.setLineNumber(lineNumber);
+        if (lineNumber != NoLineNumberArgument) {
+            ce->m_format.setLineNumber(lineNumber);
+        }
     }
     else {
         PyErr_SetString(PyExc_RuntimeError, "DVPPI:makeCosmeticCircle - circle creation failed");
@@ -694,7 +716,7 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc3d(PyObject *args)
     double weight = LineFormat::getDefEdgeWidth();
     Base::Color defCol = LineFormat::getDefEdgeColor();
     PyObject* pColor = nullptr;
-    int lineNumber{1};   // solid line default
+    int lineNumber{NoLineNumberArgument};   // derived from style unless given
 
     if (!PyArg_ParseTuple(args, "O!ddd|idO!i", &(Base::VectorPy::Type), &pPnt1,
                                         &radius, &angle1, &angle2,
@@ -720,6 +742,7 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc3d(PyObject *args)
     if (ce) {
         ce->permaRadius = radius;
         ce->m_format.setStyle(style);
+        ce->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         ce->m_format.setWidth(weight);
         if (!pColor) {
             ce->m_format.setColor(defCol);
@@ -727,7 +750,9 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc3d(PyObject *args)
         else {
             ce->m_format.setColor(DrawUtil::pyTupleToColor(pColor));
         }
-        ce->m_format.setLineNumber(lineNumber);
+        if (lineNumber != NoLineNumberArgument) {
+            ce->m_format.setLineNumber(lineNumber);
+        }
     }
     else {
         PyErr_SetString(PyExc_RuntimeError, "DVPPI:makeCosmeticCircleArc - arc creation failed");
@@ -909,6 +934,7 @@ PyObject* DrawViewPartPy::formatGeometricEdge(PyObject *args)
     TechDraw::GeomFormat* gf = dvp->getGeomFormatBySelection(idx);
     if (gf) {
         gf->m_format.setStyle(style);
+        gf->m_format.setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
         gf->m_format.setColor(color);
         gf->m_format.setWidth(weight);
         gf->m_format.setVisible(visible);
