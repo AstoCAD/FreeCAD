@@ -142,7 +142,6 @@ void QGIFace::draw()
                 m_svgHatchArea->show();
             }
         } else if (m_mode == FillMode::BitmapFill) {
-            m_brush.setStyle(Qt::TexturePattern);
             m_texture = textureFromBitmap(m_fileSpec);
             m_brush.setTexture(m_texture);
         } else if (m_mode == FillMode::PlainFill) {
@@ -158,7 +157,6 @@ void QGIFace::setPrettyNormal()
 {
     if (isHatched()  &&
         (m_mode == FillMode::BitmapFill) ) {                               //hatch with bitmap fill
-        m_brush.setStyle(Qt::TexturePattern);
         m_brush.setTexture(m_texture);
     } else {
         m_brush.setStyle(Qt::SolidPattern);
