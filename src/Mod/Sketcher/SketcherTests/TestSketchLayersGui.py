@@ -31,6 +31,17 @@ class TestSketchLayersGui(SketcherGuiTestCase):
         finally:
             self.layerPrefs.SetBool("ShowLayers", self.previousShowLayers)
 
+    def testCreationInitializesViewProvider(self):
+        # VisualLayerList changes while the view provider is still being
+        # constructed and has no sketch object attached to it yet.
+        Gui.activeDocument().resetEdit()
+        self.flush_gui()
+        created = self.doc.addObject("Sketcher::SketchObject", "NewSketch")
+        self.assertIsNotNone(created.ViewObject)
+        self.assertEqual(created.GeometryCount, 0)
+        self.assertEqual(created.Layers, {"0": "Default"})
+        self.assertEqual(created.ViewObject.HiddenLayers, [])
+
     @staticmethod
     def item_id(item):
         # The generic layer widget keeps string ids; -1 stands for its "Add Layer" row.

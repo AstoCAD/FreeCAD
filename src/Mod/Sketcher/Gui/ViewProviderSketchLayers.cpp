@@ -127,6 +127,12 @@ void ViewProviderSketch::setLayerVisible(int layerId, bool visible)
 
 void ViewProviderSketch::refreshLayers()
 {
+    // Property defaults notify during construction, before attach() supplies the sketch.
+    const auto* sketch = getSketchObject();
+    if (!sketch || !sketch->getDocument()) {
+        return;
+    }
+
     // Cosmetics are selectable in and out of edit mode; hiding their layer must
     // deselect them, or Delete and layer moves act on items the user cannot see.
     std::vector<std::string> hiddenAnnotations;
