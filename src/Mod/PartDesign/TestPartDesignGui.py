@@ -121,10 +121,94 @@ class PartDesignGuiTestCases(unittest.TestCase):
     def setUp(self):
         self.Doc = FreeCAD.newDocument("SketchGuiTest")
 
+    def makeLcsPlaneExtrusion(self, feature_type):
+        Gui.activateWorkbench("PartDesignWorkbench")
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        lcs = body.newObject("App::LocalCoordinateSystem", "LCS")
+        lcs.Placement = App.Placement(App.Vector(0, 0, 10), App.Rotation())
+        if feature_type == "Pocket":
+            box = body.newObject("PartDesign::AdditiveBox", "Box")
+            box.Length = 2
+            box.Width = 3
+            box.Height = 20
+        sketch = body.newObject("Sketcher::SketchObject", "Sketch")
+        if feature_type == "Pocket":
+            sketch.Placement = App.Placement(App.Vector(0, 0, 20), App.Rotation())
+        points = [App.Vector(0, 0, 0), App.Vector(2, 0, 0),
+                  App.Vector(2, 3, 0), App.Vector(0, 3, 0)]
+        sketch.addGeometry([
+            Part.LineSegment(points[i], points[(i + 1) % 4]) for i in range(4)
+        ], False)
+        self.Doc.recompute()
+        feature = body.newObject("PartDesign::" + feature_type, feature_type)
+        feature.Profile = sketch
+        feature.Type = "UpToFace"
+        feature.UpToFace = (lcs, ["XY_Plane"])
+        self.Doc.recompute()
+        self.assertFalse(feature.Shape.isNull())
+        self.assertTrue(feature.Shape.isValid())
+        self.assertAlmostEqual(feature.Shape.Volume, 60)
+        return feature, lcs
 
+    def checkUpToLcsPlaneReferenceSurvivesDialog(self, feature_type):
+        feature, lcs = self.makeLcsPlaneExtrusion(feature_type)
+        expected = feature.UpToFace
+        try:
+            self.assertTrue(Gui.getDocument(self.Doc.Name).setEdit(feature.Name))
+            Gui.updateGui()
+            field = Gui.getMainWindow().findChild(QtGui.QLineEdit, "lineFaceName")
+            self.assertIsNotNone(field)
+            self.assertTrue(field.text(), "Existing LCS plane reference disappeared")
+            self.assertEqual(bytes(field.property("FeatureName")), lcs.Name.encode())
+            self.assertEqual(bytes(field.property("FaceName")), b"XY_Plane")
+            Gui.Control.activeTaskDialog().accept()
+            Gui.updateGui()
+            self.assertIsNone(Gui.getDocument(self.Doc.Name).getInEdit())
+            self.Doc.recompute()
+            self.assertEqual(feature.UpToFace, expected)
+            self.assertTrue(feature.Shape.isValid())
+            self.assertAlmostEqual(feature.Shape.Volume, 60)
+        finally:
+            Gui.getDocument(self.Doc.Name).resetEdit()
+            if Gui.Control.activeDialog():
+                Gui.Control.closeDialog()
 
+    def testPadUpToLcsPlaneReferenceSurvivesDialog(self):
+        self.checkUpToLcsPlaneReferenceSurvivesDialog("Pad")
 
+    def testPocketUpToLcsPlaneReferenceSurvivesDialog(self):
+        self.checkUpToLcsPlaneReferenceSurvivesDialog("Pocket")
 
+    def testPadLcsPlaneSelectionKeepsNormalizedReference(self):
+        feature, lcs = self.makeLcsPlaneExtrusion("Pad")
+        feature.Type = "Length"
+        feature.UpToFace = None
+        self.Doc.recompute()
+        try:
+            self.assertTrue(Gui.getDocument(self.Doc.Name).setEdit(feature.Name))
+            Gui.updateGui()
+            mode = Gui.getMainWindow().findChild(QtGui.QComboBox, "changeMode")
+            self.assertIsNotNone(mode)
+            mode.setCurrentIndex(3)  # TaskExtrudeParameters::Mode::ToFace
+            Gui.updateGui()
+            plane = lcs.OriginFeatures[3]
+            Gui.Selection.addSelection(self.Doc.Name, plane.Name)
+            Gui.updateGui()
+            expected = feature.UpToFace
+            self.assertEqual(expected[0], lcs)
+            self.assertTrue(expected[1][0].startswith("XY_Plane"))
+            Gui.Control.activeTaskDialog().accept()
+            Gui.updateGui()
+            self.assertIsNone(Gui.getDocument(self.Doc.Name).getInEdit())
+            self.Doc.recompute()
+            self.assertEqual(feature.UpToFace, expected)
+            self.assertTrue(feature.Shape.isValid())
+            self.assertAlmostEqual(feature.Shape.Volume, 60)
+        finally:
+            Gui.Selection.clearSelection()
+            Gui.getDocument(self.Doc.Name).resetEdit()
+            if Gui.Control.activeDialog():
+                Gui.Control.closeDialog()
 
     def testAllEdgesDressUpDoesNotWarnEmpty(self):
         Gui.activateWorkbench("PartDesignWorkbench")
