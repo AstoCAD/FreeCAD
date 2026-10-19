@@ -45,6 +45,7 @@
 
 // other python types
 #include "ConstraintPy.h"
+#include "ExternalGeometryFacade.h"
 #include "GeometryFacadePy.h"
 #include "SketchAnalysis.h"
 
@@ -654,6 +655,11 @@ PyObject* SketchObjectPy::getConstruction(PyObject* args)
     auto gf = this->getSketchObjectPtr()->getGeometryFacade(Index);
 
     if (gf) {
+        if (Index <= GeoEnum::RefExt) {
+            auto external = ExternalGeometryFacade::getFacade(gf->getGeometry());
+            return Py::new_reference_to(
+                Py::Boolean(!external->testFlag(ExternalGeometryExtension::Defining)));
+        }
         return Py::new_reference_to(Py::Boolean(gf->getConstruction()));
     }
 
