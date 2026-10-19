@@ -99,6 +99,7 @@ FreeCAD.__unit_test__ += [
     "TestGroupVisibilityRestoreGui",
     "TestAddPropertyGui",
     "TestPropertyEditorGui",
+    "TestGestureNavigationGui",
     "TestGraphicsViewWrapping",
     "TestMDIView",
     "TestRubberbandSelection",
