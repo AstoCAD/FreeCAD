@@ -25,6 +25,9 @@
 
 
 
+#include <algorithm>
+#include <utility>
+
 # include <QAction>
 # include <QColor>
 # include <QMenu>
@@ -37,6 +40,8 @@
 #include <App/Application.h>
 #include <App/DocumentObject.h>
 #include <Gui/ActionFunction.h>
+#include <Gui/Application.h>
+#include <Gui/Document.h>
 #include <Gui/Control.h>
 #include <Gui/MainWindow.h>
 
@@ -45,6 +50,7 @@
 #include <Mod/TechDraw/App/DrawLeaderLine.h>
 #include <Mod/TechDraw/App/DrawRichAnno.h>
 #include <Mod/TechDraw/App/DrawViewBalloon.h>
+#include <Mod/TechDraw/App/DrawViewPart.h>
 #include <Mod/TechDraw/App/ArrowPropEnum.h>
 
 
@@ -120,12 +126,20 @@ void ViewProviderDimension::attach(App::DocumentObject *pcFeat)
 {
     // call parent attach method
     ViewProviderDrawingView::attach(pcFeat);
+    updateTreeOwners();
 
     //    sPixmap = "TechDraw_Dimension";
     setPixmapForType();
     if (getViewObject()->isDerivedFrom<TechDraw::LandmarkDimension>()) {
         sPixmap = "TechDraw_LandmarkDimension";
     }
+}
+
+void ViewProviderDimension::reattach(App::DocumentObject *pcFeat)
+{
+    ViewProviderDrawingView::reattach(pcFeat);
+    // A retained view provider needs its owner tree refreshed on restoration.
+    updateTreeOwners();
 }
 
 bool ViewProviderDimension::doubleClicked()
@@ -201,10 +215,50 @@ void ViewProviderDimension::updateData(const App::Property* prop)
         if (ViewProviderPage* vpp = getViewProviderPage()) {
             vpp->fixSceneDependencies();
         }
+        updateTreeOwners();
     }
 
     //Skip QGIView X, Y processing - do not call ViewProviderDrawingView
     Gui::ViewProviderDocumentObject::updateData(prop);      //NOLINT
+}
+
+void ViewProviderDimension::updateTreeOwners()
+{
+    auto previousOwners = std::move(m_treeOwners);
+    m_treeOwners.clear();
+    for (auto* object : getViewObject()->References2D.getValues()) {
+        if (!freecad_cast<DrawViewPart*>(object)) {
+            continue;
+        }
+        App::DocumentObjectT owner(object);
+        if (std::find(m_treeOwners.begin(), m_treeOwners.end(), owner) == m_treeOwners.end()) {
+            m_treeOwners.push_back(std::move(owner));
+        }
+    }
+
+    // Reverse references determine claimChildren(). Refresh both sides after a
+    // reference moves, including when the page has no open graphics scene.
+    for (const auto& owner : m_treeOwners) {
+        if (std::find(previousOwners.begin(), previousOwners.end(), owner) == previousOwners.end()) {
+            previousOwners.push_back(owner);
+        }
+    }
+    for (const auto& owner : previousOwners) {
+        auto* view = owner.getObjectAs<DrawViewPart>();
+        if (!view) {
+            continue;
+        }
+        auto* guiDocument = Gui::Application::Instance->getDocument(view->getDocument());
+        if (!guiDocument) {
+            continue;
+        }
+        auto* provider = freecad_cast<Gui::ViewProviderDocumentObject*>(
+            guiDocument->getViewProvider(view));
+        if (provider) {
+            // Notify the tree without touching geometry or changing a property.
+            guiDocument->signalChangedObject(*provider, view->Source);
+        }
+    }
 }
 
 void ViewProviderDimension::setPixmapForType()
