@@ -52,6 +52,50 @@ class DrawHatchTest(unittest.TestCase):
 
         self.assertTrue("Up-to-date" in hatch.State)
 
+    def testGeomHatchOptionalPatternArguments(self):
+        """Omitted pattern arguments use the same geometry as explicit preferences."""
+        import Part
+        import TechDraw
+
+        pattern_file = os.path.join(FreeCAD.getResourceDir(), "Mod", "TechDraw", "PAT", "FCPAT.pat")
+        self.assertTrue(os.path.isfile(pattern_file), "Packaged hatch pattern file is missing")
+        prefs = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/TechDraw/PAT")
+        missing = "__missing_before_optional_hatch_test__"
+        saved = {key: prefs.GetString(key, missing) for key in ("NamePattern", "FilePattern")}
+        try:
+            prefs.SetString("NamePattern", "Diamond")
+            prefs.SetString("FilePattern", pattern_file)
+            face = Part.makePlane(10, 10)
+
+            def signature(shape):
+                self.assertIsNotNone(shape)
+                self.assertFalse(shape.isNull())
+                self.assertEqual(shape.ShapeType, "Compound")
+                self.assertTrue(shape.Edges)
+                bounds = shape.BoundBox
+                return (len(shape.Edges), sum(edge.Length for edge in shape.Edges),
+                        bounds.XMin, bounds.YMin, bounds.XMax, bounds.YMax)
+
+            controls = {scale: signature(TechDraw.makeGeomHatch(face, scale, "Diamond", pattern_file))
+                        for scale in (1.0, 1.5)}
+            for args, scale in (
+                ((face,), 1.0),
+                ((face, 1.5), 1.5),
+                ((face, 1.5, "Diamond"), 1.5),
+                ((face, 1.0, "", ""), 1.0),
+            ):
+                with self.subTest(arguments=args[1:]):
+                    actual = signature(TechDraw.makeGeomHatch(*args))
+                    self.assertEqual(actual[0], controls[scale][0])
+                    for value, expected in zip(actual[1:], controls[scale][1:]):
+                        self.assertAlmostEqual(value, expected, places=7)
+        finally:
+            for key, value in saved.items():
+                if value == missing:
+                    prefs.RemString(key)
+                else:
+                    prefs.SetString(key, value)
+
     def testBitmapHatchWithoutTextureWarnings(self):
         """A bitmap hatch exports its texture without invalid brush warnings."""
         if not FreeCAD.GuiUp:
