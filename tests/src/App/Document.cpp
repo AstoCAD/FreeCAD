@@ -8,7 +8,9 @@
 
 #include "App/Application.h"
 #include "App/Document.h"
+#include "App/DocumentObject.h"
 #include "App/MergeDocuments.h"
+#include "App/PropertyStandard.h"
 #include "App/StringHasher.h"
 #include "Base/Writer.h"
 #include <src/App/InitApplication.h>
@@ -132,6 +134,92 @@ TEST_F(DocumentTest, importObjectsRestoresSourceStringHasher)
     EXPECT_GT(restoredStringCount, 0);
     connection.disconnect();
     std::remove(savedPath.c_str());
+}
+
+TEST_F(DocumentTest, undoRedoRemovesAndRestoresAddedLockedDynamicProperty)
+{
+    // Regression: https://github.com/FreeCAD/FreeCAD/issues/32285
+    auto* object = doc()->addObject("App::FeatureTest", "Feature");
+    ASSERT_NE(object, nullptr);
+    object->Label.setValue("Unrelated label");
+    doc()->clearUndos();
+
+    doc()->openTransaction("Add locked property");
+    auto* property = dynamic_cast<App::PropertyInteger*>(
+        object->addDynamicProperty("App::PropertyInteger", "LockedInteger")
+    );
+    ASSERT_NE(property, nullptr);
+    property->setValue(123);
+    property->setStatus(App::Property::LockDynamic, true);
+    doc()->commitTransaction();
+
+    for (int cycle = 0; cycle < 3; ++cycle) {
+        SCOPED_TRACE(cycle);
+        ASSERT_TRUE(doc()->undo());
+        ASSERT_EQ(object->getDynamicPropertyByName("LockedInteger"), nullptr);
+        EXPECT_STREQ(object->Label.getValue(), "Unrelated label");
+
+        ASSERT_TRUE(doc()->redo());
+        auto* restored = dynamic_cast<App::PropertyInteger*>(
+            object->getDynamicPropertyByName("LockedInteger")
+        );
+        ASSERT_NE(restored, nullptr);
+        EXPECT_EQ(restored->getValue(), 123);
+        EXPECT_TRUE(restored->testStatus(App::Property::LockDynamic));
+        EXPECT_STREQ(object->Label.getValue(), "Unrelated label");
+    }
+}
+
+TEST_F(DocumentTest, abortRemovesAddedLockedDynamicProperty)
+{
+    auto* object = doc()->addObject("App::FeatureTest", "Feature");
+    ASSERT_NE(object, nullptr);
+    object->Label.setValue("Unrelated label");
+    doc()->clearUndos();
+
+    doc()->openTransaction("Add locked property");
+    auto* property = dynamic_cast<App::PropertyInteger*>(
+        object->addDynamicProperty("App::PropertyInteger", "LockedInteger")
+    );
+    ASSERT_NE(property, nullptr);
+    property->setValue(123);
+    property->setStatus(App::Property::LockDynamic, true);
+    doc()->abortTransaction();
+
+    EXPECT_EQ(object->getDynamicPropertyByName("LockedInteger"), nullptr);
+    EXPECT_EQ(doc()->getObject("Feature"), object);
+    EXPECT_STREQ(object->Label.getValue(), "Unrelated label");
+}
+
+TEST_F(DocumentTest, ordinaryRemovalOfLockedDynamicPropertyRemainsDenied)
+{
+    auto* object = doc()->addObject("App::FeatureTest", "Feature");
+    ASSERT_NE(object, nullptr);
+    object->Label.setValue("Original label");
+    auto* property = dynamic_cast<App::PropertyInteger*>(
+        object->addDynamicProperty("App::PropertyInteger", "LockedInteger")
+    );
+    ASSERT_NE(property, nullptr);
+    property->setValue(123);
+    property->setStatus(App::Property::LockDynamic, true);
+    doc()->clearUndos();
+
+    EXPECT_FALSE(object->removeDynamicProperty("LockedInteger"));
+    EXPECT_EQ(object->getDynamicPropertyByName("LockedInteger"), property);
+
+    doc()->openTransaction("Change unrelated label");
+    object->Label.setValue("Changed label");
+    EXPECT_FALSE(object->removeDynamicProperty("LockedInteger"));
+    doc()->commitTransaction();
+    EXPECT_EQ(object->getDynamicPropertyByName("LockedInteger"), property);
+    ASSERT_TRUE(doc()->undo());
+    EXPECT_STREQ(object->Label.getValue(), "Original label");
+    EXPECT_EQ(object->getDynamicPropertyByName("LockedInteger"), property);
+    ASSERT_TRUE(doc()->redo());
+    EXPECT_STREQ(object->Label.getValue(), "Changed label");
+    EXPECT_EQ(object->getDynamicPropertyByName("LockedInteger"), property);
+    EXPECT_EQ(property->getValue(), 123);
+    EXPECT_TRUE(property->testStatus(App::Property::LockDynamic));
 }
 
 // NOLINTEND(readability-magic-numbers)
