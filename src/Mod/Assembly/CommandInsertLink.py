@@ -348,10 +348,11 @@ class TaskAssemblyInsertLink(QtCore.QObject):
         )
 
         for filename in selected_files:
-            requested_file = os.path.split(filename)[1]
+            requested_file = os.path.normcase(os.path.realpath(filename))
             import_doc_is_open = any(
-                requested_file == os.path.split(doc.FileName)[1]
+                requested_file == os.path.normcase(os.path.realpath(doc.FileName))
                 for doc in App.listDocuments().values()
+                if doc.FileName
             )
 
             if not import_doc_is_open:

@@ -31,7 +31,11 @@ AttributeError crashes.
 """
 
 from AssemblyTests.TestCore import AssemblyTestBase
+import os
+import tempfile
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 import FreeCAD as App
@@ -49,6 +53,69 @@ def _msg(text, end="\n"):
 @unittest.skipIf(not App.GuiUp, "GUI tests require FreeCAD GUI mode")
 class TestCommandInsertLink(AssemblyTestBase):
     """Unit tests for CommandInsertLink module."""
+
+    def test_open_files_with_same_basename_in_different_directories(self):
+        """Distinct component files must both be available for insertion."""
+        with tempfile.TemporaryDirectory() as directory:
+            paths = [Path(directory) / folder / "Part.FCStd" for folder in ("First", "Second")]
+            for index, path in enumerate(paths):
+                path.parent.mkdir()
+                source = App.newDocument(f"InsertComponentSource{index}")
+                source.addObject("Part::Box", f"Box{index}")
+                source.recompute()
+                source.saveAs(str(path))
+                App.closeDocument(source.Name)
+
+            try:
+                App.openDocument(str(paths[0]), True)
+                App.setActiveDocument(self.doc.Name)
+                task = SimpleNamespace(doc=self.doc, buildPartList=MagicMock())
+                with patch(
+                    "CommandInsertLink.QtGui.QFileDialog.getOpenFileNames",
+                    return_value=([str(paths[1])], ""),
+                ):
+                    CommandInsertLink.TaskAssemblyInsertLink.openFiles(task)
+
+                opened_paths = {
+                    os.path.normcase(os.path.realpath(doc.FileName))
+                    for doc in App.listDocuments().values()
+                    if doc.FileName
+                }
+                for path in paths:
+                    self.assertIn(os.path.normcase(os.path.realpath(path)), opened_paths)
+                self.assertEqual(App.ActiveDocument, self.doc)
+                task.buildPartList.assert_called_once_with()
+            finally:
+                for doc in list(App.listDocuments().values()):
+                    if doc != self.doc and Path(doc.FileName) in paths:
+                        App.closeDocument(doc.Name)
+                App.setActiveDocument(self.doc.Name)
+
+    def test_open_files_does_not_reopen_existing_component(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "Part.FCStd"
+            source = App.newDocument("InsertComponentExistingSource")
+            source.addObject("Part::Box", "Box")
+            source.recompute()
+            source.saveAs(str(path))
+            App.setActiveDocument(self.doc.Name)
+            try:
+                task = SimpleNamespace(doc=self.doc, buildPartList=MagicMock())
+                # A different path spelling that resolves to the same file.
+                selection = str(path.parent / ".." / path.parent.name / path.name)
+                with (
+                    patch(
+                        "CommandInsertLink.QtGui.QFileDialog.getOpenFileNames",
+                        return_value=([selection], ""),
+                    ),
+                    patch("CommandInsertLink.App.openDocument") as open_document,
+                ):
+                    CommandInsertLink.TaskAssemblyInsertLink.openFiles(task)
+                open_document.assert_not_called()
+                task.buildPartList.assert_not_called()
+            finally:
+                App.closeDocument(source.Name)
+                App.setActiveDocument(self.doc.Name)
 
     @patch("FreeCADGui.PySideUic.loadUi")
     @patch("CommandInsertLink.TaskAssemblyInsertLink.adjustTreeWidgetSize")
