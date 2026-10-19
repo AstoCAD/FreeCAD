@@ -261,6 +261,35 @@ class DrawViewPartTest(unittest.TestCase):
         self.assertIn(clip, self.page.Views)
         self.assertIn(view, self.page.Views)
 
+    def testLeaderInputValidation(self):
+        """Invalid leader inputs raise before creating document objects."""
+        import TechDraw
+
+        document = FreeCAD.ActiveDocument
+        view = document.addObject("TechDraw::DrawViewPart", "LeaderView")
+        view.Source = [document.Box]
+        self.page.addView(view)
+        unattached = document.addObject("TechDraw::DrawViewPart", "UnattachedLeaderView")
+        points = [FreeCAD.Vector(10, 10, 0), FreeCAD.Vector(20, 20, 0)]
+        previous_objects = [obj.Name for obj in document.Objects]
+        for parent in (None, document.Box, self.page):
+            with self.subTest(parent=parent):
+                with self.assertRaises(TypeError):
+                    TechDraw.makeLeader(parent, points)
+        with self.assertRaises(ValueError):
+            TechDraw.makeLeader(unattached, points)
+        for invalid_points in ([], points[:1]):
+            with self.subTest(points=invalid_points):
+                with self.assertRaises(ValueError):
+                    TechDraw.makeLeader(view, invalid_points)
+        with self.assertRaises(TypeError):
+            TechDraw.makeLeader(view, [points[0], "not a vector"])
+        self.assertEqual([obj.Name for obj in document.Objects], previous_objects)
+
+        leader = TechDraw.makeLeader(view, points)
+        self.assertEqual(leader.LeaderParent, view)
+        self.assertEqual(leader.LeaderParent.findParentPage(), self.page)
+        self.assertEqual(len(leader.WayPoints), 2)
 
     def testBreakDocumentObject(self):
         """A view owns editable, suppressible break document objects."""
