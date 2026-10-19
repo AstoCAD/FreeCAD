@@ -28,6 +28,7 @@
 #include <atomic>
 #include <Base/Console.h>
 #include <Base/Reader.h>
+#include <Base/Tools.h>
 #include <Base/Writer.h>
 
 #include "Transactions.h"
@@ -310,7 +311,7 @@ void TransactionObject::applyDel(Document& /*Doc*/, TransactionalObject* /*pcObj
 void TransactionObject::applyNew(Document& /*Doc*/, TransactionalObject* /*pcObj*/)
 {}
 
-void TransactionObject::applyChn(Document& /*Doc*/, TransactionalObject* pcObj, bool /* Forward */)
+void TransactionObject::applyChn(Document& Doc, TransactionalObject* pcObj, bool /* Forward */)
 {
     if (status == New || status == Chn) {
         // Property change order is not preserved, as it is recursive in nature
@@ -351,8 +352,25 @@ void TransactionObject::applyChn(Document& /*Doc*/, TransactionalObject* pcObj, 
             }
 
             if (!data.property) {
-                // here means we are undoing/redoing and property add operation
-                pcObj->removeDynamicProperty(v.second.name.c_str());
+                // Here we are undoing/redoing a property add operation.
+                auto* currentProp = pcObj->getDynamicPropertyByName(data.name.c_str());
+                if (currentProp && currentProp->testStatus(Property::LockDynamic)) {
+                    // Record the original status before allowing transaction replay to remove it.
+                    Doc.addOrRemovePropertyOfObject(pcObj, currentProp, false);
+                    const auto propertyId = currentProp->getID();
+                    const auto propertyName = data.name;
+                    Base::ScopeGuard restoreLock([pcObj, propertyName, propertyId]() {
+                        auto* remaining = pcObj->getDynamicPropertyByName(propertyName.c_str());
+                        if (remaining && remaining->getID() == propertyId) {
+                            remaining->setStatus(Property::LockDynamic, true);
+                        }
+                    });
+                    currentProp->setStatus(Property::LockDynamic, false);
+                    pcObj->removeDynamicProperty(propertyName.c_str());
+                }
+                else {
+                    pcObj->removeDynamicProperty(data.name.c_str());
+                }
                 continue;
             }
 
