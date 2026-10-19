@@ -144,6 +144,120 @@ class TestMeasureDistanceDisplayUnit(unittest.TestCase):
                 self.assertAlmostEqual(channel, value, places=6)
 
 
+class TestMassPropertiesDensity(unittest.TestCase):
+    @contextmanager
+    def _mass_properties(self, density, size=10):
+        previous_document = App.ActiveDocument.Name if App.ActiveDocument else None
+        doc = App.newDocument("MassPropertiesDensityTest")
+        try:
+            material = Materials.Material()
+            material.Name = "Density test material"
+            material.addPhysicalModel(Materials.UUIDs().Density)
+            material.setPhysicalValue("Density", f"{density} kg/m^3")
+            obj = doc.addObject("Part::Feature", "DensitySample")
+            obj.Shape = Part.makeBox(size, size, size)
+            obj.ShapeMaterial = material
+            doc.recompute()
+            Gui.Selection.clearSelection()
+            Gui.Selection.addSelection(obj)
+            Gui.runCommand("Std_MassProperties")
+            Gui.updateGui()
+            task = Gui.Control.activeTaskDialog()
+            self.assertIsNotNone(task)
+
+            def widget(kind, name):
+                for content in task.getDialogContent():
+                    result = content.findChild(kind, name)
+                    if result:
+                        return result
+                self.fail("Missing mass-properties widget: " + name)
+
+            def save_result():
+                panel = task.getDialogContent()[0]
+                while panel.parentWidget() is not None and not isinstance(
+                    panel.parentWidget(), QtWidgets.QStackedWidget
+                ):
+                    panel = panel.parentWidget()
+                self.assertIsInstance(panel.parentWidget(), QtWidgets.QStackedWidget)
+                buttons = panel.findChild(QtWidgets.QDialogButtonBox)
+                self.assertIsNotNone(buttons)
+                save_button = buttons.button(QtWidgets.QDialogButtonBox.Apply)
+                self.assertIsNotNone(save_button)
+                save_button.click()
+                Gui.updateGui()
+                saved = doc.getObject("MassProperties")
+                self.assertIsNotNone(saved)
+                return saved
+
+            yield widget, save_result
+        finally:
+            if Gui.Control.activeDialog():
+                Gui.Control.closeDialog()
+            Gui.Selection.clearSelection()
+            App.closeDocument(doc.Name)
+            if previous_document in App.listDocuments():
+                App.setActiveDocument(previous_document)
+
+    def _check_density(self, density, save=False):
+        with self._mass_properties(density) as (widget, save_result):
+            # This dropdown changes only this task's schema, leaving user
+            # preferences intact. MKS makes the expected density directly visible.
+            widget(QtWidgets.QComboBox, "unitsComboBox").setCurrentIndex(1)
+            Gui.updateGui()
+            density_text = widget(QtWidgets.QLineEdit, "densityEdit").text()
+            if save:
+                # saved results are quantity properties
+                displayed = float(save_result().Density.getValueAs("kg/m^3"))
+            else:
+                displayed = float(
+                    App.Units.Quantity(density_text.replace("³", "^3")).getValueAs("kg/m^3")
+                )
+            decimals = App.ParamGet("User parameter:BaseApp/Preferences/Units").GetInt(
+                "Decimals", 2
+            )
+            self.assertAlmostEqual(displayed, density, delta=0.51 * 10 ** (-max(decimals, 0)))
+
+    def test_small_mass_is_preserved_in_panel_and_saved_result(self):
+        decimals = App.ParamGet("User parameter:BaseApp/Preferences/Units").GetInt("Decimals", 2)
+        tolerance = 0.51 * 10 ** (-max(decimals, 0))
+
+        def assert_mass(text):
+            self.assertTrue(text.endswith(" µg"), text)
+            value = float(App.Units.Quantity(text).getValueAs("µg"))
+            self.assertAlmostEqual(value, 62.8, delta=tolerance)
+
+        with self._mass_properties(density=7850.0, size=0.2) as (widget, save_result):
+            units = widget(QtWidgets.QComboBox, "unitsComboBox")
+            mass = widget(QtWidgets.QLineEdit, "massEdit")
+            for index, schema in ((0, "Standard"), (1, "MKS")):
+                with self.subTest(result=schema):
+                    units.setCurrentIndex(index)
+                    Gui.updateGui()
+                    assert_mass(mass.text())
+            with self.subTest(result="saved"):
+                # saved results are quantity properties
+                value = float(save_result().Mass.getValueAs("µg"))
+                self.assertAlmostEqual(value, 62.8, delta=tolerance)
+
+    def test_metal_density_display_control(self):
+        self._check_density(8500.0)
+
+    def test_foam_density_display_is_not_zero(self):
+        self._check_density(50.0)
+
+    def test_gas_density_display_is_not_zero(self):
+        self._check_density(1.2)
+
+    def test_saved_metal_density_control(self):
+        self._check_density(8500.0, save=True)
+
+    def test_saved_foam_density_is_not_zero(self):
+        self._check_density(50.0, save=True)
+
+    def test_saved_gas_density_is_not_zero(self):
+        self._check_density(1.2, save=True)
+
+
 class TestMassPropertiesMaterial(unittest.TestCase):
     def setUp(self):
         self.doc = App.newDocument("MassPropertiesMaterialTest")
