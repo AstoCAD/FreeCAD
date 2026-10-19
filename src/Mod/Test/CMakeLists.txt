@@ -25,6 +25,8 @@ SET(Test_SRCS
     TestPropertyEditorGui.py
     TestTaskViewGui.py
     TestGestureNavigationGui.py
+    TestTreeDeletionGui.py
+    TestTreeLinkDeletionGui.py
     TestPySideUic.py
     UnicodeTests.py
     UnitTests.py
