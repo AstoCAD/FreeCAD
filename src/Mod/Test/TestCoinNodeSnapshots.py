@@ -45,6 +45,7 @@ Environment variables:
 
 import importlib
 import importlib.util
+import math
 import os
 import sys
 import tempfile
@@ -1700,6 +1701,109 @@ def _compare_images(
 
 class CoinNodeSnapshotTestCase(unittest.TestCase):
     """Render Coin nodes through the live viewer and compare against PNG baselines."""
+
+    def test_so_datum_label_replaces_shorter_geometry(self):
+        """Removing helper arcs or an arrow must discard the preceding render's geometry."""
+        _require_gui()
+        from PySide.QtGui import QImage  # type: ignore
+
+        width = _SNAPSHOT_WIDTH
+        height = _SNAPSHOT_HEIGHT
+        out_dir = Path(
+            os.environ.get(
+                "FC_VISUAL_OUT_DIR",
+                os.path.join(tempfile.gettempdir(), "FreeCADTesting", "CoinNodeSnapshots"),
+            )
+        ) / "actual" / "SoDatumLabelShorterGeometry"
+
+        def make_label(datum_type, *, helpers):
+            label = _instantiate("SoDatumLabel")
+            label.string.setValue("20 mm")
+            label.textColor.setValue(0.0, 0.1, 0.4)
+            label.name.setValue(_DEFAULT_FONT_FAMILY)
+            label.size.setValue(18)
+            label.lineWidth.setValue(2.0)
+            label.sampling.setValue(2.0)
+            label.datumtype.setValue(datum_type)
+            label.param1.setValue(0.35)
+            label.param4.setValue(1.5 * math.pi if helpers else 0.0)
+            label.param5.setValue(math.pi)
+            label.param6.setValue(-0.5 * math.pi if helpers else 0.0)
+            label.pnts.setValues(
+                0, 2, [coin.SbVec3f(-0.6, 0.0, 0.0), coin.SbVec3f(0.6, 0.0, 0.0)]
+            )
+            return label
+
+        def different_pixels(expected_path, actual_path, diff_path):
+            expected = QImage(str(expected_path))
+            actual = QImage(str(actual_path))
+            self.assertFalse(expected.isNull())
+            self.assertFalse(actual.isNull())
+            self.assertEqual(expected.size(), actual.size())
+            diff = QImage(actual.size(), QImage.Format_ARGB32)
+            diff.fill(0xFFFFFFFF)
+            count = 0
+            for y in range(actual.height()):
+                for x in range(actual.width()):
+                    ep, ap = expected.pixel(x, y), actual.pixel(x, y)
+                    if max(
+                        abs(((ep >> shift) & 255) - ((ap >> shift) & 255))
+                        for shift in (0, 8, 16)
+                    ) > 2:
+                        count += 1
+                        diff.setPixel(x, y, 0xFFFF0000)
+            if count:
+                diff.save(str(diff_path))
+            return count
+
+        # DIAMETER -> DIAMETER removes two helper arcs but retains normal lines.
+        # DIAMETER -> RADIUS also removes one arrow while retaining its other arrow.
+        for name, final_type in (("diameter", 5), ("radius", 4)):
+            with self.subTest(final_type=name):
+                reused = make_label(5, helpers=True)
+                reused_scene = _make_top_view_scene(
+                    reused, center=(0.1, 0.0, 0.0), camera_height=2.4
+                )
+                fresh = make_label(final_type, helpers=False)
+                fresh_scene = _make_top_view_scene(
+                    fresh, center=(0.1, 0.0, 0.0), camera_height=2.4
+                )
+
+                with _ViewerSnapshotHarness(width, height) as harness:
+                    def render(scene, suffix):
+                        path = out_dir / f"{name}_{suffix}.png"
+                        _render_png(
+                            harness, scene, path, width, height,
+                            framing_policy=_CameraPolicy.FIXED_OVERLAY,
+                        )
+                        return path
+
+                    initial = render(reused_scene, "initial_helpers")
+                    reused.datumtype.setValue(final_type)
+                    reused.param4.setValue(0.0)
+                    reused.param6.setValue(0.0)
+                    render(reused_scene, "reused_warm")
+                    updated = render(reused_scene, "reused_final")
+                    render(fresh_scene, "fresh_warm")
+                    expected = render(fresh_scene, "fresh_final")
+                    fresh_again = render(fresh_scene, "fresh_repeat")
+
+                self.assertGreater(_non_background_pixel_count(expected), 100)
+                self.assertLessEqual(
+                    different_pixels(expected, fresh_again, out_dir / f"{name}_control_diff.png"),
+                    16,
+                    "Fresh identical rerenders must be stable",
+                )
+                self.assertGreater(
+                    different_pixels(expected, initial, out_dir / f"{name}_initial_diff.png"),
+                    100,
+                    "The initial helper geometry must be visible",
+                )
+                self.assertLessEqual(
+                    different_pixels(expected, updated, out_dir / f"{name}_stale_diff.png"),
+                    16,
+                    f"Updated label retains geometry absent from a fresh final label: {out_dir}",
+                )
 
     def test_so_reg_point_unpickable_regression(self):
         _require_gui()
