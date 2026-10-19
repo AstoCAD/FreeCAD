@@ -39,6 +39,30 @@ from PySide6 import QtCore, QtWidgets
 
 
 class TestGuiDocument(unittest.TestCase):
+    def testLockedViewPropertyAdditionUndoAndAbort(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/32285 also applies to ViewObject.
+        obj = self.doc.addObject("App::FeaturePython", "LockedViewProperty")
+        view = obj.ViewObject
+        self.doc.clearUndos()
+        self.doc.openTransaction("Add locked view property")
+        view.addProperty("App::PropertyInteger", "LockedValue", locked=True)
+        view.LockedValue = 123
+        self.doc.commitTransaction()
+        self.assertFalse(view.removeProperty("LockedValue"))
+        self.doc.undo()
+        self.assertNotIn("LockedValue", view.PropertiesList)
+        self.doc.redo()
+        self.assertEqual(view.LockedValue, 123)
+        self.assertFalse(view.removeProperty("LockedValue"))
+        self.doc.undo()
+        self.assertNotIn("LockedValue", view.PropertiesList)
+
+        self.doc.openTransaction("Abort locked view property")
+        view.addProperty("App::PropertyInteger", "AbortedValue", locked=True)
+        view.AbortedValue = 456
+        self.doc.abortTransaction()
+        self.assertNotIn("AbortedValue", view.PropertiesList)
+
     def setUp(self):
         # Create a new document
         self.doc = FreeCAD.newDocument("TestDoc")
