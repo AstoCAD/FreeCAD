@@ -32,6 +32,7 @@
 #include "Cosmetic.h"
 #include "DrawUtil.h"
 #include "Geometry.h"
+#include "LineGenerator.h"
 
 
 using namespace TechDraw;
@@ -122,7 +123,8 @@ void CosmeticEdgePy::setFormat(Py::Dict arg)
     double weight = 0.5;
     PyObject* pColor = color.ptr();
     PyObject* visible = Py_True;
-    int lineNumber{1};
+    constexpr int NoLineNumberArgument{-1};   // the line number then follows the style
+    int lineNumber{NoLineNumberArgument};
     static const std::array<const char *, 6> kw{"style", "weight", "color", "visible", "lineNumber", nullptr};
     if (!Base::Wrapped_ParseTupleAndKeywords(dummy.ptr(), arg.ptr(), "|idO!O!i", kw,
                                              &style, &weight, &PyTuple_Type, &pColor, &PyBool_Type, &visible, &lineNumber)) {
@@ -131,10 +133,13 @@ void CosmeticEdgePy::setFormat(Py::Dict arg)
 
     TechDraw::LineFormat* format = &(this->getCosmeticEdgePtr()->m_format);
     format->setStyle(style);
+    format->setLineNumber(LineGenerator::fromQtStyle(static_cast<Qt::PenStyle>(style)));
     format->setWidth(weight);
     format->setColor(DrawUtil::pyTupleToColor(pColor));
     format->setVisible(Base::asBoolean(visible));
-    format->setLineNumber(lineNumber);
+    if (lineNumber != NoLineNumberArgument) {
+        format->setLineNumber(lineNumber);
+    }
 }
 
 Py::Dict CosmeticEdgePy::getFormat() const
