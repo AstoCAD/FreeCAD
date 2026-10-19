@@ -94,6 +94,64 @@ class TechDrawTaskTest(unittest.TestCase):
                 FreeCADGui.runCommand(command)
                 self.assertFalse(view.LockPosition)
 
+    def testTemplateFieldMouseButtons(self):
+        """Navigation buttons do not open the template field editor."""
+        import TechDrawGui
+        from PySide import QtCore, QtWidgets
+
+        page = createPageWithSVGTemplate(self.doc)
+        previous_texts = dict(page.Template.EditableTexts)
+        self.doc.recompute()
+        FreeCADGui.activeDocument().getObject(page.Name).show()
+
+        def process_events():
+            loop = QtCore.QEventLoop()
+            QtCore.QTimer.singleShot(100, loop.quit)
+            loop.exec_()
+
+        process_events()
+        scene = TechDrawGui.getSceneForPage(page)
+        # TemplateTextField is UserType + 48 in QGIUserTypes.h.
+        fields = [item for item in scene.items() if item.type() == 65536 + 48]
+        self.assertTrue(fields)
+        field = fields[0]
+        rectangle = next(child for child in field.childItems() if child.type() == 3)
+        position = rectangle.mapToParent(rectangle.rect().center())
+        for button, expected_dialogs in (
+            (QtCore.Qt.MiddleButton, 0),
+            (QtCore.Qt.RightButton, 0),
+            (QtCore.Qt.LeftButton, 1),
+        ):
+            with self.subTest(button=button):
+                dialogs = []
+
+                def close_field_dialog():
+                    dialog = QtWidgets.QApplication.activeModalWidget()
+                    if isinstance(dialog, QtWidgets.QDialog):
+                        dialogs.append(dialog.metaObject().className())
+                        dialog.reject()
+
+                timer = QtCore.QTimer()
+                timer.timeout.connect(close_field_dialog)
+                timer.start(20)
+                try:
+                    for kind in (QtCore.QEvent.GraphicsSceneMousePress,
+                                 QtCore.QEvent.GraphicsSceneMouseRelease):
+                        event = QtWidgets.QGraphicsSceneMouseEvent(kind)
+                        event.setButton(button)
+                        event.setButtons(button if kind == QtCore.QEvent.GraphicsSceneMousePress
+                                         else QtCore.Qt.NoButton)
+                        event.setPos(position)
+                        event.setScenePos(field.mapToScene(position))
+                        scene.sendEvent(field, event)
+                    process_events()
+                finally:
+                    timer.stop()
+                self.assertEqual(len(dialogs), expected_dialogs)
+                if expected_dialogs:
+                    self.assertTrue(dialogs[0].endswith("DlgTemplateField"))
+        self.assertEqual(dict(page.Template.EditableTexts), previous_texts)
+
     def testDrawViewSection(self):
         obj = self.doc.addObject("TechDraw::DrawViewSection")
         with self.assertRaises(RuntimeError):
