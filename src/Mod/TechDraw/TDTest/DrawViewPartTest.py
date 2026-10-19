@@ -238,6 +238,30 @@ class DrawViewPartTest(unittest.TestCase):
                                 for pattern in patterns[stroke]
                             ))
 
+    def testUnattachedClipGroup(self):
+        """A clip may collect views before it is attached to a page."""
+        document = FreeCAD.ActiveDocument
+        clip = document.addObject("TechDraw::DrawViewClip", "UnattachedClip")
+        view = document.addObject("TechDraw::DrawViewAnnotation", "ClipAnnotation")
+        view.Text = ["Clip child"]
+        with self.assertRaises(TypeError):
+            clip.addView(document.Box)
+        self.assertEqual(clip.Views, [])
+        clip.addView(view)
+        self.assertEqual(clip.Views, [view])
+
+        self.page.addView(clip)
+        self.page.addView(view)
+        document.recompute()
+        clip.removeView(view)
+        self.assertEqual(clip.Views, [])
+        clip.addView(view)
+        document.recompute()
+        self.assertEqual(clip.Views, [view])
+        self.assertIn(clip, self.page.Views)
+        self.assertIn(view, self.page.Views)
+
+
     def testBreakDocumentObject(self):
         """A view owns editable, suppressible break document objects."""
         view = FreeCAD.ActiveDocument.addObject("TechDraw::DrawViewPart", "BreakableView")
