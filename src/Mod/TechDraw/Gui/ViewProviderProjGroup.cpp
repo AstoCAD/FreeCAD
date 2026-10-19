@@ -32,6 +32,7 @@
 # include <QTextStream>
 
 #include <App/DocumentObject.h>
+#include <Base/Console.h>
 #include <Gui/Control.h>
 #include <Gui/MainWindow.h>
 #include <Gui/Selection/Selection.h>
@@ -66,6 +67,11 @@ ViewProviderProjGroup::ViewProviderProjGroup()
 bool ViewProviderProjGroup::setEdit(int ModNum)
 {
     Q_UNUSED(ModNum);
+    if (!getViewObject()->getAnchor() && getViewObject()->findParentPage()) {
+        Base::Console().error("Projection group anchor must be a projection view\n");
+        return false;
+    }
+
     // When double-clicking on the item for this sketch the
     // object unsets and sets its edit mode without closing
     // the task panel
@@ -91,8 +97,7 @@ bool ViewProviderProjGroup::setEdit(int ModNum)
 
 bool ViewProviderProjGroup::doubleClicked()
 {
-    setEdit(0);
-    return true;
+    return setEdit(0);
 }
 
 bool ViewProviderProjGroup::onDelete(const std::vector<std::string> & parms)
