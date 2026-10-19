@@ -1050,36 +1050,29 @@ App::Enumeration DrawProjGroup::usedProjectionType()
 
 bool DrawProjGroup::hasAnchor()
 {
-    App::DocumentObject* docObj = Anchor.getValue();
-    if (docObj) {
-        return true;
-    }
-    return false;
+    return getAnchor() != nullptr;
 }
 
 TechDraw::DrawProjGroupItem* DrawProjGroup::getAnchor()
 {
-    App::DocumentObject* docObj = Anchor.getValue();
-    if (docObj) {
-        return static_cast<DrawProjGroupItem*>(docObj);
-    }
-    return nullptr;
+    return freecad_cast<DrawProjGroupItem*>(Anchor.getValue());
 }
 
 void DrawProjGroup::setAnchorDirection(const Base::Vector3d dir)
 {
-    App::DocumentObject* docObj = Anchor.getValue();
-    auto* item = static_cast<DrawProjGroupItem*>(docObj);
+    auto* item = getAnchor();
+    if (!item) {
+        throw Base::RuntimeError("Projection group is missing its anchor view");
+    }
     item->Direction.setValue(dir);
 }
 
 Base::Vector3d DrawProjGroup::getAnchorDirection()
 {
-    App::DocumentObject* docObj = Anchor.getValue();
-    if (!docObj) {
+    auto* item = getAnchor();
+    if (!item) {
         return Base::Vector3d();
     }
-    auto* item = static_cast<DrawProjGroupItem*>(docObj);
     return item->Direction.getValue();
 }
 
@@ -1092,6 +1085,9 @@ Base::Vector3d DrawProjGroup::getAnchorDirection()
 void DrawProjGroup::updateSecondaryDirs()
 {
     DrawProjGroupItem* anchor = getAnchor();
+    if (!anchor) {
+        throw Base::RuntimeError("Projection group is missing its anchor view");
+    }
     Base::Vector3d anchDir = anchor->Direction.getValue();
     Base::Vector3d anchRot = anchor->getXDirection();
 
@@ -1124,7 +1120,11 @@ void DrawProjGroup::updateSecondaryDirs()
 
 void DrawProjGroup::rotate(const RotationMotion& motion)
 {
-    getAnchor()->rotate(motion);
+    auto* anchor = getAnchor();
+    if (!anchor) {
+        throw Base::RuntimeError("Projection group is missing its anchor view");
+    }
+    anchor->rotate(motion);
     updateSecondaryDirs();
 }
 
@@ -1144,6 +1144,9 @@ void DrawProjGroup::spin(const SpinDirection& spindirection)
 void DrawProjGroup::spin(double angle)
 {
     DrawProjGroupItem* anchor = getAnchor();
+    if (!anchor) {
+        throw Base::RuntimeError("Projection group is missing its anchor view");
+    }
     Base::Vector3d org(0.0, 0.0, 0.0);
     Base::Vector3d curRot = anchor->getXDirection();
     Base::Vector3d curDir = anchor->Direction.getValue();
