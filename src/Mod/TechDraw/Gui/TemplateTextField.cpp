@@ -70,7 +70,7 @@ TemplateTextField::TemplateTextField(QGraphicsItem *parent,
 
 void TemplateTextField::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
-    if ( tmplte && m_rect->rect().contains(event->pos()) ) {
+    if (event->button() == Qt::LeftButton && tmplte && m_rect->rect().contains(event->pos())) {
         event->accept();
     } else {
         QGraphicsItemGroup::mousePressEvent(event);
@@ -79,7 +79,7 @@ void TemplateTextField::mousePressEvent(QGraphicsSceneMouseEvent *event)
 
 void TemplateTextField::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
-    if ( tmplte && m_rect->rect().contains(event->pos()) ) {
+    if (event->button() == Qt::LeftButton && tmplte && m_rect->rect().contains(event->pos())) {
         event->accept();
 
         DlgTemplateField ui(Gui::getMainWindow());
