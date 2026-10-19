@@ -89,6 +89,40 @@ class AssemblyTestBase(unittest.TestCase):
 
 
 class TestCore(AssemblyTestBase):
+    def test_bom_accepts_plain_part_features(self):
+        """Mirror detection must not treat every component as a LinkElement."""
+        box = self.assembly.newObject("Part::Box", "Component")
+        box.Label = "Plain component"
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Name", "Quantity"]
+
+        self.doc.recompute()
+
+        self.assertEqual(bom.get("A2"), box.Label)
+        self.assertEqual(int(float(bom.get("B2"))), 1)
+        self.assertNotIn("Invalid", bom.State)
+
+    def test_bom_separates_mirrored_link_from_regular_link(self):
+        source = self.doc.addObject("Part::Box", "ComponentSource")
+        source.Label = "Component"
+        regular = self.assembly.newObject("App::Link", "Regular")
+        regular.LinkedObject = source
+        mirrored = self.assembly.newObject("App::Link", "Mirrored")
+        mirrored.LinkedObject = source
+        mirrored.Scale = -1
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Name", "Quantity"]
+
+        self.doc.recompute()
+
+        suffix = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Assembly").GetString(
+            "BomMirroredSuffix", " (mirrored)"
+        )
+        self.assertEqual({bom.get("A2"), bom.get("A3")}, {source.Label, source.Label + suffix})
+        self.assertEqual(int(float(bom.get("B2"))), 1)
+        self.assertEqual(int(float(bom.get("B3"))), 1)
+        self.assertNotIn("Invalid", bom.State)
+
     def test_component_count_for_link_array(self):
         source = self.doc.addObject("Part::Box", "ArraySource")
         array = self.assembly.newObject("App::Link", "Array")
