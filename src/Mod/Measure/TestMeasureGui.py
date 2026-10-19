@@ -9,6 +9,78 @@ import MatGui
 import Materials
 import Part
 from PySide import QtCore, QtWidgets
+from pivy import coin
+
+
+class TestMeasureDistanceDisplayUnit(unittest.TestCase):
+    def setUp(self):
+        self.doc = App.newDocument("MeasureDistanceDisplayUnitTest")
+        self.measure = self.doc.addObject("Measure::MeasureDistanceDetached", "Distance")
+        self.measure.Position1 = App.Vector(0, 0, 0)
+        self.measure.Position2 = App.Vector(30, 40, 120)
+        self.measure.ViewObject.ShowDelta = True
+        self.doc.recompute()
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+
+    def annotation_nodes(self):
+        search = coin.SoSearchAction()
+        search.setType(coin.SoType.fromName("SoFrameLabel"))
+        search.setInterest(coin.SoSearchAction.ALL)
+        search.setSearchingAll(True)
+        # The delta dimensions are nodekits; their internal labels are excluded
+        # from Coin searches unless nodekit child searching is enabled.
+        searching_children = coin.SoBaseKit.isSearchingChildren()
+        try:
+            coin.SoBaseKit.setSearchingChildren(True)
+            search.apply(self.measure.ViewObject.RootNode)
+        finally:
+            coin.SoBaseKit.setSearchingChildren(searching_children)
+        paths = search.getPaths()
+        nodes = [
+            coin.SoFullPath.fromSoPath(paths[index]).getTail()
+            for index in range(paths.getLength())
+        ]
+        self.assertEqual(len(nodes), 4)
+        return nodes
+
+    def annotation_texts(self):
+        texts = []
+        for node in self.annotation_nodes():
+            texts.extend(node.getField("string").getValues())
+        self.assertEqual(len(texts), 4)
+        return texts
+
+    def test_distance_and_delta_annotations_follow_display_unit(self):
+        for unit in ("mm", "cm", "in"):
+            with self.subTest(unit=unit):
+                self.measure.DisplayUnit = unit
+                Gui.updateGui()
+                texts = self.annotation_texts()
+                self.assertTrue(all(text.endswith(" " + unit) for text in texts), texts)
+                values = sorted(App.Units.Quantity(text.split(": ")[-1]).Value for text in texts)
+                decimals = App.ParamGet("User parameter:BaseApp/Preferences/Units").GetInt(
+                    "Decimals", 2
+                )
+                tolerance = 0.51 * 10 ** (-decimals) * App.Units.Quantity("1 " + unit).Value
+                for actual, expected in zip(values, (30, 40, 120, 130)):
+                    self.assertAlmostEqual(actual, expected, delta=tolerance)
+
+    def test_empty_display_unit_uses_global_unit_schema(self):
+        self.measure.DisplayUnit = "cm"
+        self.measure.DisplayUnit = ""
+        Gui.updateGui()
+        self.assertEqual(
+            set(self.annotation_texts()),
+            {
+                self.measure.Distance.UserString,
+                "Δx: " + self.measure.DistanceX.UserString,
+                "Δy: " + self.measure.DistanceY.UserString,
+                "Δz: " + self.measure.DistanceZ.UserString,
+            },
+        )
+
 
 
 class TestMassPropertiesMaterial(unittest.TestCase):
