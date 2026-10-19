@@ -121,6 +121,70 @@ class PartDesignGuiTestCases(unittest.TestCase):
     def setUp(self):
         self.Doc = FreeCAD.newDocument("SketchGuiTest")
 
+
+
+
+
+
+    def testAllEdgesDressUpDoesNotWarnEmpty(self):
+        Gui.activateWorkbench("PartDesignWorkbench")
+
+        def accept_and_capture_report():
+            reports = [
+                widget for widget in Gui.getMainWindow().findChildren(QtGui.QTextEdit)
+                if widget.metaObject().className().endswith("ReportOutput")
+            ]
+            self.assertTrue(reports, "Report output widget was not found")
+            before = [report.toPlainText() for report in reports]
+            Gui.Control.activeTaskDialog().accept()
+            QApplication.processEvents()
+            Gui.updateGui()
+            return "\n".join(
+                report.toPlainText()[len(old):] for report, old in zip(reports, before)
+            )
+
+        for feature_type, size_property in (("Chamfer", "Size"), ("Fillet", "Radius")):
+            with self.subTest(feature=feature_type):
+                body = self.Doc.addObject("PartDesign::Body", "Body")
+                box = body.newObject("PartDesign::AdditiveBox", "Box")
+                box.Length = box.Width = box.Height = 10
+                self.Doc.recompute()
+                feature = body.newObject("PartDesign::" + feature_type, feature_type)
+                feature.Base = (box, [])
+                feature.UseAllEdges = True
+                setattr(feature, size_property, 1)
+                self.Doc.recompute()
+                self.assertFalse(feature.Shape.isNull())
+                self.assertTrue(feature.Shape.isValid())
+                self.assertLess(feature.Shape.Volume, box.Shape.Volume)
+                message = QtCore.QCoreApplication.translate(
+                    "PartDesignGui::Task" + feature_type + "Parameters",
+                    "Empty chamfer created!\n" if feature_type == "Chamfer"
+                    else "Empty fillet created!",
+                ).strip()
+                try:
+                    self.assertTrue(Gui.getDocument(self.Doc.Name).setEdit(feature.Name))
+                    Gui.updateGui()
+                    self.assertNotIn(message, accept_and_capture_report())
+                    self.assertIsNone(Gui.getDocument(self.Doc.Name).getInEdit())
+                    self.assertFalse(feature.Shape.isNull())
+                    self.assertTrue(feature.Shape.isValid())
+                    self.assertTrue(feature.UseAllEdges)
+
+                    # A genuinely empty feature must retain the existing warning.
+                    self.assertTrue(Gui.getDocument(self.Doc.Name).setEdit(feature.Name))
+                    Gui.updateGui()
+                    checkbox = Gui.getMainWindow().findChild(QtGui.QCheckBox, "checkBoxUseAllEdges")
+                    self.assertIsNotNone(checkbox)
+                    checkbox.setChecked(False)
+                    Gui.updateGui()
+                    self.assertFalse(feature.UseAllEdges)
+                    self.assertIn(message, accept_and_capture_report())
+                finally:
+                    Gui.getDocument(self.Doc.Name).resetEdit()
+                    if Gui.Control.activeDialog():
+                        Gui.Control.closeDialog()
+
     def testRefuseToMoveSingleFeature(self):
         FreeCAD.Console.PrintMessage(
             "Testing refuse to move the feature with dependencies from one body to another\n"
