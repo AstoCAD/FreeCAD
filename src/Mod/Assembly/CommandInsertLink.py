@@ -208,6 +208,14 @@ class TaskAssemblyInsertLink(QtCore.QObject):
         Gui.Selection.clearSelection()
 
     def buildPartList(self):
+        pendingInsertions = {}
+        for insertion in self.insertionStack:
+            item = insertion["item"]
+            if item is not None:
+                insertion["source"] = item.data(0, QtCore.Qt.UserRole)
+            pendingInsertions.setdefault(insertion["source"], []).append(insertion)
+            insertion["item"] = None
+
         self.form.partList.clear()
         self.doc_item_map.clear()
 
@@ -281,6 +289,9 @@ class TaskAssemblyInsertLink(QtCore.QObject):
 
                         if not obj.isDerivedFrom("App::DocumentObjectGroup"):
                             objItem.setData(0, QtCore.Qt.UserRole, obj)
+                            for insertion in pendingInsertions.pop(obj, []):
+                                insertion["item"] = objItem
+                                self.increment_counter(objItem)
 
                         if obj.isDerivedFrom("App::Part") or obj.isDerivedFrom(
                             "App::DocumentObjectGroup"
@@ -714,7 +725,8 @@ class TaskAssemblyInsertLink(QtCore.QObject):
 
                 # 2. Update UI counter
                 item = stack_item["item"]
-                self.decrement_counter(item)
+                if item is not None:
+                    self.decrement_counter(item)
 
                 # 3. Handle Grounded Joint cleanup
                 if self.groundedObj == obj:
