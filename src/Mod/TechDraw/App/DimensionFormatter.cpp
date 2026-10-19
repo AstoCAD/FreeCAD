@@ -185,7 +185,15 @@ std::string DimensionFormatter::formatValue(const qreal value,
 
     double factor{1.0};
     std::string unitText{""};
-    asQuantity.getUserString(factor, unitText);
+    if (distanceMeasure && !isDim && !m_dimension->Arbitrary.getValue()) {
+        // Numeric tolerances share the nominal dimension's unit, including
+        // when an adaptive schema would select a smaller unit for the tolerance.
+        Base::Quantity nominalQuantity {m_dimension->getDimValue(), unit};
+        nominalQuantity.getUserString(factor, unitText);
+    }
+    else {
+        asQuantity.getUserString(factor, unitText);
+    }
     std::string squareTag{"^2"};
 
     if (unitText.empty()) {
