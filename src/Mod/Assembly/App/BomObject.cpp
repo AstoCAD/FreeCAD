@@ -266,21 +266,29 @@ void BomObject::addObjectChildrenToBom(
 
 bool BomObject::isObjMirrored(App::DocumentObject* obj)
 {
-    // Determine mirror state based on Scale properties.
-    // We multiply scales to handle nested mirroring (e.g., Mirrored LinkElement inside Mirrored
-    // LinkGroup = Normal).
-    double accumulatedScale = 1.0;
+    // Use the same scale vector as the link transform. Compose signs rather than
+    // magnitudes so extreme scales cannot overflow or underflow the mirror test.
+    const auto orientation = [](const App::LinkBaseExtension& link) {
+        const auto scale = link.getScaleVector();
+        if (scale.x == 0.0 || scale.y == 0.0 || scale.z == 0.0
+            || std::isnan(scale.x) || std::isnan(scale.y) || std::isnan(scale.z)) {
+            return 0;
+        }
+        return ((scale.x < 0.0) ^ (scale.y < 0.0) ^ (scale.z < 0.0)) ? -1 : 1;
+    };
+
+    int accumulatedOrientation = 1;
     if (auto element = freecad_cast<App::LinkElement*>(obj)) {
-        accumulatedScale *= element->Scale.getValue();
+        accumulatedOrientation *= orientation(*element);
 
         if (auto group = element->getLinkGroup()) {
-            accumulatedScale *= group->Scale.getValue();
+            accumulatedOrientation *= orientation(*group);
         }
     }
     else if (auto link = freecad_cast<App::Link*>(obj)) {
-        accumulatedScale *= link->Scale.getValue();
+        accumulatedOrientation *= orientation(*link);
     }
-    return accumulatedScale < 0.0;
+    return accumulatedOrientation < 0;
 }
 
 void BomObject::addObjectToBom(
