@@ -63,6 +63,36 @@ class TechDrawTaskTest(unittest.TestCase):
         finally:
             task.form.deleteLater()
 
+    def testLockDraftAndArchViews(self):
+        """The view lock command works for SVG-based views and records undo."""
+        FreeCADGui.activateWorkbench("TechDrawWorkbench")
+        self.doc.UndoMode = 1
+        page = createPageWithSVGTemplate(self.doc)
+        arch = self.doc.addObject("TechDraw::DrawViewArch", "ArchView")
+        draft = self.doc.addObject("TechDraw::DrawViewDraft", "DraftView")
+        for view in (arch, draft):
+            page.addView(view)
+        command = "TechDraw_ExtensionLockUnlockView"
+        self.assertTrue(FreeCADGui.isCommandActive(command))
+        part_view = self.doc.addObject("TechDraw::DrawViewPart", "PartView")
+        page.addView(part_view)
+        unrelated = self.doc.addObject("App::Part", "Unrelated")
+        self.addCleanup(FreeCADGui.Selection.clearSelection)
+        for view in (arch, draft, part_view):
+            with self.subTest(view=view.TypeId):
+                FreeCADGui.Selection.clearSelection()
+                FreeCADGui.Selection.addSelection(self.doc.Name, view.Name)
+                FreeCADGui.Selection.addSelection(self.doc.Name, unrelated.Name)
+                view.LockPosition = False
+                self.doc.clearUndos()
+                FreeCADGui.runCommand(command)
+                self.assertTrue(view.LockPosition)
+                self.doc.undo()
+                self.assertFalse(view.LockPosition)
+                self.doc.redo()
+                self.assertTrue(view.LockPosition)
+                FreeCADGui.runCommand(command)
+                self.assertFalse(view.LockPosition)
 
     def testDrawViewSection(self):
         obj = self.doc.addObject("TechDraw::DrawViewSection")
