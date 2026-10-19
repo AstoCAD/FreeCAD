@@ -5,6 +5,7 @@
 import FreeCAD
 import FreeCADGui
 import unittest
+from .TechDrawTestUtilities import createPageWithSVGTemplate
 
 
 class TechDrawTaskTest(unittest.TestCase):
@@ -18,6 +19,19 @@ class TechDrawTaskTest(unittest.TestCase):
         obj = self.doc.addObject("TechDraw::DrawProjGroup")
         with self.assertRaises(RuntimeError):
             obj.ViewObject.doubleClicked()
+
+    def testDrawProjGroupInvalidAnchor(self):
+        """Invalid anchor links must be rejected before constructing the task panel."""
+        group = self.doc.addObject("TechDraw::DrawProjGroup", "ProjGroup")
+        page = createPageWithSVGTemplate(self.doc)
+        page.addView(group)
+        template = page.Template
+        part = self.doc.addObject("App::Part", "Part")
+        for anchor in (page, template, part, None):
+            with self.subTest(anchor=anchor):
+                group.Anchor = anchor
+                self.assertFalse(group.ViewObject.doubleClicked())
+
 
     def testDrawViewSection(self):
         obj = self.doc.addObject("TechDraw::DrawViewSection")
