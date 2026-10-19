@@ -2639,7 +2639,10 @@ PyObject* SketchObjectPy::toPythonCommands(PyObject* args)
 
     auto sketch = this->getSketchObjectPtr();
 
-    std::string geometry = PythonConverter::convert("ActiveSketch", sketch->Geometry.getValues());
+    // The exported geometry and constraints already include all internal geometry.
+    std::string geometry = PythonConverter::convert(
+        "ActiveSketch", sketch->Geometry.getValues(), PythonConverter::Mode::OmitInternalGeometry
+    );
     std::string constraints = PythonConverter::convert("ActiveSketch", sketch->Constraints.getValues());
 
     auto geometrymulti = PythonConverter::multiLine(std::move(geometry));

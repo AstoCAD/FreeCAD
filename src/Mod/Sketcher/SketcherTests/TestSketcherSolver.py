@@ -987,7 +987,57 @@ class TestSketcherSolver(unittest.TestCase):
         self.assertEqual(sketch.ConstraintCount, 0)
         self.assertVectorAlmostEqual(sketch.Geometry[mirrored[0]].StartPoint, vec(-2, 1))
 
+    def testPythonCommandsReplayGeometry(self):
+        source = self.Doc.addObject("Sketcher::SketchObject", "Source")
+        source.addGeometry(Part.LineSegment(vec(2, 1), vec(3, 4)), False)
+        source.addConstraint(Sketcher.Constraint("Block", 0))
+        self.Doc.recompute()
 
+        target = self.Doc.addObject("Sketcher::SketchObject", "Target")
+        scope = {"App": App, "Part": Part, "Sketcher": Sketcher, "ActiveSketch": target}
+        for command in source.toPythonCommands():
+            exec(command, scope)
+        self.Doc.recompute()
+
+        self.assertEqual(target.GeometryCount, source.GeometryCount)
+        self.assertEqual(target.ConstraintCount, source.ConstraintCount)
+        self.assertSuccessfulSolve(target)
+
+        self.assertVectorAlmostEqual(target.Geometry[0].StartPoint, source.Geometry[0].StartPoint)
+        self.assertVectorAlmostEqual(target.Geometry[0].EndPoint, source.Geometry[0].EndPoint)
+
+    def testPythonCommandsReplayExistingInternalGeometry(self):
+        source = self.Doc.addObject("Sketcher::SketchObject", "Source")
+        ellipse = source.addGeometry(Part.Ellipse(vec(0, 0), 5, 3), False)
+        source.exposeInternalGeometry(ellipse)
+        self.Doc.recompute()
+        self.assertGreater(source.GeometryCount, 1)
+
+        target = self.Doc.addObject("Sketcher::SketchObject", "Target")
+        scope = {"App": App, "Part": Part, "Sketcher": Sketcher, "ActiveSketch": target}
+        for command in source.toPythonCommands():
+            exec(command, scope)
+        self.Doc.recompute()
+
+        self.assertEqual(target.GeometryCount, source.GeometryCount)
+        self.assertEqual(target.ConstraintCount, source.ConstraintCount)
+        self.assertSuccessfulSolve(target)
+
+        for index, (actual, expected) in enumerate(zip(target.Geometry, source.Geometry)):
+            self.assertEqual(type(actual), type(expected))
+            self.assertEqual(target.getConstruction(index), source.getConstruction(index))
+            if isinstance(expected, Part.Point):
+                self.assertVectorAlmostEqual(
+                    App.Vector(actual.X, actual.Y, actual.Z),
+                    App.Vector(expected.X, expected.Y, expected.Z),
+                )
+            else:
+                for parameter in (0.0, 0.5, 1.0):
+                    self.assertVectorAlmostEqual(actual.value(parameter), expected.value(parameter))
+        for actual, expected in zip(target.Constraints, source.Constraints):
+            self.assertEqual(actual.Type, expected.Type)
+            self.assertEqual(actual.First, expected.First)
+            self.assertEqual(actual.Second, expected.Second)
 
     def testReversedExternalGeometryLeavesSketchInPlace(self):
         # A signed constraint records the side of a line relative to the line direction. Reversing
