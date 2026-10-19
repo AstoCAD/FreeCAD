@@ -116,13 +116,19 @@ TopoDS_Shape getLocatedShape(const App::SubObjectT& subject)
         return {};
     }
     if (obj->isDerivedFrom<Part::Feature>()) {
-        TopoShape ts = static_cast<const Part::Feature*>(obj)->Shape.getShape();
-        ts.setPlacement(
-            App::GeoFeature::getGlobalPlacement(obj, subject.getObject(), subject.getSubName())
-        );
-        ts = ts.getSubTopoShape(subject.getElementName(), true);
-        if (!ts.isNull()) {
-            return ts.getShape();
+        Base::Matrix4D transform;
+        subject.getObject()->getSubObject(subject.getSubName().c_str(), nullptr, &transform);
+        const auto placement =
+            App::GeoFeature::getGlobalPlacement(obj, subject.getObject(), subject.getSubName());
+        // Link scaling can also compose into a rigid rotation or alter an intermediate
+        // translation. Keep the placement path only when it preserves the full transform.
+        if ((placement.inverse().toMatrix() * transform).isUnity(1e-9)) {
+            TopoShape ts = static_cast<const Part::Feature*>(obj)->Shape.getShape();
+            ts.setPlacement(placement);
+            ts = ts.getSubTopoShape(subject.getElementName(), true);
+            if (!ts.isNull()) {
+                return ts.getShape();
+            }
         }
     }
 
