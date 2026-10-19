@@ -10,6 +10,7 @@
 #include "App/Expression.h"
 #include "App/ObjectIdentifier.h"
 #include "App/PropertyExpressionEngine.h"
+#include "App/PropertyStandard.h"
 
 #include "src/App/InitApplication.h"
 
@@ -93,3 +94,120 @@ TEST_F(PropertyExpressionEngineTest, executeCrossPropertyReference)
 }
 
 // clang-format on
+
+class ExpressionDependencyLifetimeTest: public ::testing::Test
+{
+protected:
+    static void SetUpTestSuite()
+    {
+        tests::initApplication();
+    }
+
+    void SetUp() override
+    {
+        documentName = App::GetApplication().getUniqueDocumentName("ExpressionDependencyLifetime");
+        document = App::GetApplication().newDocument(documentName.c_str(), "testUser");
+        source = document->addObject("App::FeaturePython", "Source");
+        source->addDynamicProperty("App::PropertyFloat", "Value");
+    }
+
+    void TearDown() override
+    {
+        App::GetApplication().closeDocument(documentName.c_str());
+    }
+
+    App::DocumentObject* addDependent(const char* name)
+    {
+        auto* dependent = document->addObject("App::FeaturePython", name);
+        dependent->addDynamicProperty("App::PropertyFloat", "Value");
+        const auto path = App::ObjectIdentifier::parse(dependent, "Value");
+        dependent->setExpression(
+            path,
+            std::shared_ptr<App::Expression>(App::Expression::parse(dependent, "Source.Value"))
+        );
+        return dependent;
+    }
+
+    std::string documentName;
+    App::Document* document {};
+    App::DocumentObject* source {};
+};
+
+// Regression for https://github.com/FreeCAD/FreeCAD/issues/33685.
+TEST_F(ExpressionDependencyLifetimeTest, DeletionRemovesPropertyBacklinks)
+{
+    addDependent("Dependent");
+    ASSERT_EQ(source->getInList().size(), 1);
+    ASSERT_EQ(source->getInListProp().size(), 1);
+
+    document->removeObject("Dependent");
+
+    EXPECT_TRUE(source->getInList().empty());
+    EXPECT_TRUE(source->getInListProp().empty());
+}
+
+TEST_F(ExpressionDependencyLifetimeTest, DeletionPreservesOtherDependents)
+{
+    addDependent("Deleted");
+    auto* remaining = addDependent("Remaining");
+    ASSERT_EQ(source->getInListProp().size(), 2);
+
+    document->removeObject("Deleted");
+
+    ASSERT_EQ(source->getInList().size(), 1);
+    EXPECT_EQ(source->getInList().front(), remaining);
+    ASSERT_EQ(source->getInListProp().size(), 1);
+    EXPECT_EQ(source->getInListProp().front().fromObj, remaining);
+}
+
+TEST_F(ExpressionDependencyLifetimeTest, UndoRedoRestoresPropertyBacklinks)
+{
+    addDependent("Dependent");
+    ASSERT_EQ(source->getInListProp().size(), 1);
+
+    document->openTransaction("Delete dependent");
+    document->removeObject("Dependent");
+    document->commitTransaction();
+    EXPECT_TRUE(source->getInListProp().empty());
+
+    ASSERT_TRUE(document->undo());
+    auto* restored = document->getObject("Dependent");
+    ASSERT_NE(restored, nullptr);
+    ASSERT_EQ(source->getInListProp().size(), 1);
+    EXPECT_EQ(source->getInListProp().front().fromObj, restored);
+
+    auto* sourceValue = dynamic_cast<App::PropertyFloat*>(source->getPropertyByName("Value"));
+    auto* restoredValue = dynamic_cast<App::PropertyFloat*>(restored->getPropertyByName("Value"));
+    ASSERT_NE(sourceValue, nullptr);
+    ASSERT_NE(restoredValue, nullptr);
+    sourceValue->setValue(17.0);
+    document->recompute();
+    EXPECT_DOUBLE_EQ(restoredValue->getValue(), 17.0);
+
+    ASSERT_TRUE(document->redo());
+    EXPECT_EQ(document->getObject("Dependent"), nullptr);
+    EXPECT_TRUE(source->getInListProp().empty());
+
+    ASSERT_TRUE(document->undo());
+    ASSERT_EQ(source->getInListProp().size(), 1);
+    EXPECT_EQ(source->getInListProp().front().fromObj, document->getObject("Dependent"));
+}
+
+TEST_F(ExpressionDependencyLifetimeTest, DeletionRemovesEveryReferencedProperty)
+{
+    source->addDynamicProperty("App::PropertyFloat", "OtherValue");
+    auto* dependent = addDependent("Dependent");
+    dependent->setExpression(
+        App::ObjectIdentifier::parse(dependent, "Value"),
+        std::shared_ptr<App::Expression>(
+            App::Expression::parse(dependent, "Source.Value + Source.OtherValue")
+        )
+    );
+    ASSERT_EQ(source->getInList().size(), 1);
+    ASSERT_EQ(source->getInListProp().size(), 2);
+
+    document->removeObject("Dependent");
+
+    EXPECT_TRUE(source->getInList().empty());
+    EXPECT_TRUE(source->getInListProp().empty());
+}
