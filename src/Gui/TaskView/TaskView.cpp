@@ -717,6 +717,9 @@ void TaskView::removeDialog(std::vector<TaskInfo>::iterator infoIt)
     if (infoIt->ActiveDialog) {
         // See 'accept' and 'reject'
         if (infoIt->ActiveDialog->property("taskview_accept_or_reject").isNull()) {
+            if (currentWidget() == infoIt->taskPanel) {
+                setShownTaskInfo(-1);
+            }
             const std::vector<QWidget*>& cont = infoIt->ActiveDialog->getDialogContent();
             for (const auto& it : cont) {
                 infoIt->taskPanel->actionPanel->removeWidget(it);

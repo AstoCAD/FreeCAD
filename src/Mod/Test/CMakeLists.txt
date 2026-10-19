@@ -23,6 +23,7 @@ SET(Test_SRCS
     TestAddPropertyGui.py
     TestPropertyEditorGui.py
     TestGroupVisibilityRestoreGui.py
+    TestTaskViewGui.py
     TestPySideUic.py
     UnicodeTests.py
     UnitTests.py
