@@ -40,6 +40,7 @@ from PartDesignTests.TestMaterial import TestMaterial
 from PartDesignTests.TestActiveObject import TestActiveObject
 from PartDesignTests.TestSuppressed import TestSuppressedStrikethrough
 from PartDesignTests.TestDeleteFeatureGui import TestDeleteFeatureGui
+from PartDesignTests.TestLoftSelectionGui import TestLoftSelectionGui
 
 
 # timer runs this class in order to access modal dialog
