@@ -1446,7 +1446,7 @@ def generatePropertySettings(documentObject):
         # we are forcing a reduction in precision so as to get round numbers like 0 instead of tiny near 0 values
         if propertyType == "App::PropertyFloat":
             commands.append(f"obj.{propertyName} = {propertyValue:.5f}")
-        elif propertyType == "App::PropertyInt" or propertyType == "App::PropertyBool":
+        elif propertyType == "App::PropertyInteger" or propertyType == "App::PropertyBool":
             commands.append(f"obj.{propertyName} = {propertyValue}")
         elif propertyType == "App::PropertyString" or propertyType == "App::PropertyEnumeration":
             commands.append(f"obj.{propertyName} = {propertyValue!r}")
