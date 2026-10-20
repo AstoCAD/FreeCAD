@@ -10,6 +10,7 @@ set(Measure_Scripts
     MassPropertiesGui.py
     UtilsMeasure.py
     TestMeasureGui.py
+    TestMeasureShapeFinder.py
 )
 
 if(BUILD_GUI)
