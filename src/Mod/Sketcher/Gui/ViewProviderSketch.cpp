@@ -69,6 +69,7 @@
 #include <Gui/Document.h>
 #include <Gui/MainWindow.h>
 #include <Gui/MenuManager.h>
+#include <Gui/Navigation/NavigationStyle.h>
 #include <Gui/Selection/Selection.h>
 #include <Gui/Selection/SelectionObject.h>
 #include <Gui/Selection/SoFCUnifiedSelection.h>
@@ -1765,6 +1766,12 @@ void ViewProviderSketch::editDoubleClicked()
                 int tid = getDocument()->openCommand(
                     QT_TRANSLATE_NOOP("Command", "Modify sketch constraints"));
                 EditDatumDialog editDatumDialog(tid, this, id);
+                // The modal dialog can consume the release of the double click.
+                if (auto* view = qobject_cast<Gui::View3DInventor*>(getActiveView())) {
+                    if (auto* navigation = view->getViewer()->navigationStyle()) {
+                        navigation->resetButtonState();
+                    }
+                }
                 editDatumDialog.exec();
             }
             else if (Constr->Type == Sketcher::Text) {
