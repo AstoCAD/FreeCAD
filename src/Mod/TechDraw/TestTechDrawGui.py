@@ -34,6 +34,7 @@ from TDTest.DrawDimensionApiTest import DrawDimensionApiTest  # noqa: F401
 from TDTest.DrawDimensionShapeNameTest import DrawDimensionShapeNameTest  # noqa: F401
 from TDTest.DrawDimensionEdgeVertexTest import DrawDimensionEdgeVertexTest  # noqa: F401
 from TDTest.DrawCreationDocumentTest import DrawCreationDocumentTest  # noqa: F401
+from TDTest.DrawSpreadsheetLabelXmlTest import DrawSpreadsheetLabelXmlTest  # noqa: F401
 from TDTest.DrawBoltCircleTest import DrawBoltCircleTest  # noqa: F401
 from TDTest.DrawDraftViewDocumentTest import DrawDraftViewDocumentTest  # noqa: F401
 from TDTest.DrawArchViewDocumentTest import DrawArchViewDocumentTest  # noqa: F401
