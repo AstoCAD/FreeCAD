@@ -26,6 +26,7 @@ from SketcherTests.TestSketchFillet import TestSketchFillet
 from SketcherTests.TestSketchExpression import TestSketchExpression
 from SketcherTests.TestSketchValidateCoincidents import TestSketchValidateCoincidents
 from SketcherTests.TestSketchCarbonCopyReverseMapping import TestSketchCarbonCopyReverseMapping
+from SketcherTests.TestPerpendicularArcProjection import TestPerpendicularArcProjection
 from SketcherTests.TestSketchInternalFaces import TestSketchInternalFaces
 from SketcherTests.TestSketcherEllipse import TestSketcherEllipse
 from SketcherTests.TestSketchLayers import TestSketchLayers
@@ -46,6 +47,7 @@ __all__ = [
     "TestSketchExpression",
     "TestSketchValidateCoincidents",
     "TestSketchCarbonCopyReverseMapping",
+    "TestPerpendicularArcProjection",
     "TestSketchInternalFaces",
     "TestSketcherEllipse",
     "TestSketchGroups",
