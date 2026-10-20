@@ -479,6 +479,9 @@ void Body::onChanged(const App::Property* prop)
             }
         }
         else if (prop == &Group) {
+            if (Group.getValues().empty() && Tip.getValue()) {
+                Tip.setValue(nullptr);
+            }
             // if the FeatureBase was deleted we set the BaseFeature link to nullptr
             if (BaseFeature.getValue()
                 && (Group.getValues().empty()
