@@ -323,8 +323,21 @@ class ViewProviderExplodedView:
     def doubleClicked(self, vobj):
         # Issue #32494: re-opening while a task is live re-applies explosion moves
         # and openCommand may commit the create/edit transaction into the assembly.
-        if Gui.Control.activeDialog():
-            return True
+        task = Gui.Control.activeTaskDialog()
+        if task:
+            callback = getattr(vobj.Object.Proxy, "stepsChangedCallback", None)
+            active_panel = getattr(callback, "__self__", None)
+            if (
+                isinstance(active_panel, TaskAssemblyCreateView)
+                and active_panel.viewObj == vobj.Object
+                and active_panel.form is not None
+                and any(
+                    widget == active_panel.form or widget.isAncestorOf(active_panel.form)
+                    for widget in task.getDialogContent()
+                )
+            ):
+                return True
+            task.reject()
 
         assembly = vobj.Object.Proxy.getAssembly(vobj.Object)
 
