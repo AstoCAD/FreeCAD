@@ -75,6 +75,7 @@ if(BUILD_GUI)
         PartDesignTests/TestDeleteFeatureGui.py
         PartDesignTests/TestLoftSelectionGui.py
         PartDesignTests/TestLoftVisibilityGui.py
+        PartDesignTests/TestQuantityExpressionGui.py
         PartDesignTests/TestRevolutionReferencesGui.py
         PartDesignTests/TestTypedUpToFaceReferencesGui.py
         PartDesignTests/TestDraftUnicodeReferencesGui.py
