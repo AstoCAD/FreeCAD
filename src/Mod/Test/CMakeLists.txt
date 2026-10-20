@@ -11,6 +11,7 @@ SET(Test_SRCS
     RunAutoSaverStress.py
     Document.py
     GuiDocument.py
+    TestInactiveDocumentUnitsGui.py
     Metadata.py
     StringHasher.py
     Menu.py
