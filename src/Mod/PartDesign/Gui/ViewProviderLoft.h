@@ -58,6 +58,7 @@ public:
 protected:
     QIcon getIcon() const override;
     TaskDlgFeatureParameters* getEditDialog() override;
+    void unsetEdit(int ModNum) override;
 
 private:
     void highlightReferences(Part::Feature*, const std::vector<std::string>&, bool);
