@@ -272,10 +272,23 @@ int ConstraintPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     PyErr_Clear();
 
 
+    auto parseScalarIndex = [](PyObject* object, int& index) -> bool {
+        const long value = PyLong_AsLong(object);
+        if (PyErr_Occurred()) {
+            return false;
+        }
+        if (value < std::numeric_limits<int>::min()
+            || value > std::numeric_limits<int>::max()) {
+            PyErr_SetString(PyExc_OverflowError, "Constraint index must fit in a C++ int.");
+            return false;
+        }
+        index = static_cast<int>(value);
+        return true;
+    };
+
     auto handleSiO = [&]() -> bool {
         // ConstraintType, GeoIndex1, GeoIndex2
         if (PyLong_Check(index_or_value)) {
-            SecondIndex = PyLong_AsLong(index_or_value);
             bool valid = false;
             if (strcmp("Tangent", ConstraintType) == 0) {
                 constraint->Type = Tangent;
@@ -319,6 +332,9 @@ int ConstraintPy::PyInit(PyObject* args, PyObject* /*kwd*/)
             }
 
             if (valid) {
+                if (!parseScalarIndex(index_or_value, SecondIndex)) {
+                    return false;
+                }
                 constraint->First = FirstIndex;
                 constraint->Second = SecondIndex;
                 return true;
@@ -413,7 +429,6 @@ int ConstraintPy::PyInit(PyObject* args, PyObject* /*kwd*/)
         // ConstraintType, GeoIndex1, PosIndex1, GeoIndex2
         if (PyLong_Check(index_or_value)) {
             FirstPos = any_index;
-            SecondIndex = PyLong_AsLong(index_or_value);
             bool valid = false;
             if (strcmp("Perpendicular", ConstraintType) == 0) {
                 constraint->Type = Perpendicular;
@@ -451,6 +466,9 @@ int ConstraintPy::PyInit(PyObject* args, PyObject* /*kwd*/)
             }
 
             if (valid) {
+                if (!parseScalarIndex(index_or_value, SecondIndex)) {
+                    return false;
+                }
                 constraint->First = FirstIndex;
                 constraint->FirstPos = static_cast<Sketcher::PointPos>(FirstPos);
                 constraint->Second = SecondIndex;
@@ -546,8 +564,10 @@ int ConstraintPy::PyInit(PyObject* args, PyObject* /*kwd*/)
 
     auto handleSiiiO = [&]() -> bool {
         // Value, ConstraintType, GeoIndex1, PosIndex1, GeoIndex2, PosIndex2
-        if (PyLong_Check(oNumArg4)) {
-            intArg4 = PyLong_AsLong(oNumArg4);
+        if (PyLong_Check(oNumArg4) && strcmp("Distance", ConstraintType) != 0) {
+            if (!parseScalarIndex(oNumArg4, intArg4)) {
+                return false;
+            }
             bool valid = false;
             if (strcmp("Coincident", ConstraintType) == 0) {
                 constraint->Type = Coincident;
@@ -689,8 +709,12 @@ int ConstraintPy::PyInit(PyObject* args, PyObject* /*kwd*/)
 
     auto handleSiiiiO = [&]() -> bool {
         // ConstraintType, GeoIndex1, PosIndex1, GeoIndex2, PosIndex2, GeoIndex3
-        if (PyLong_Check(oNumArg5)) {
-            intArg5 = PyLong_AsLong(oNumArg5);
+        if (PyLong_Check(oNumArg5)
+            && (strcmp("Symmetric", ConstraintType) == 0
+                || strcmp("Perpendicular", ConstraintType) == 0)) {
+            if (!parseScalarIndex(oNumArg5, intArg5)) {
+                return false;
+            }
             if (strcmp("Symmetric", ConstraintType) == 0) {
                 constraint->Type = Symmetric;
                 constraint->First = intArg1;
@@ -817,8 +841,10 @@ int ConstraintPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     PyErr_Clear();
 
     auto handleSiiiiiO = [&]() -> bool {
-        if (PyLong_Check(index_or_value)) {
-            ThirdPos = PyLong_AsLong(index_or_value);
+        if (PyLong_Check(index_or_value) && strcmp("Symmetric", ConstraintType) == 0) {
+            if (!parseScalarIndex(index_or_value, ThirdPos)) {
+                return false;
+            }
             // ConstraintType, GeoIndex1, PosIndex1, GeoIndex2, PosIndex2, GeoIndex3, PosIndex3
             if (strcmp("Symmetric", ConstraintType) == 0) {
                 constraint->Type = Symmetric;
