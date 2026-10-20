@@ -793,6 +793,9 @@ CmdPartDesignDuplicateSelection::CmdPartDesignDuplicateSelection()
 void CmdPartDesignDuplicateSelection::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
+    if (!Gui::Selection().hasSelection()) {
+        return;
+    }
     PartDesign::Body* pcActiveBody = PartDesignGui::getBody(/*messageIfNot = */ false);
 
     std::vector<App::DocumentObject*> beforeFeatures = getDocument()->getObjects();
