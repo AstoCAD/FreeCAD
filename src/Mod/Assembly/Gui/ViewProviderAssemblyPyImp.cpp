@@ -152,9 +152,15 @@ PyObject* ViewProviderAssemblyPy::isolateComponents(PyObject* args)
 
     std::set<App::DocumentObject*> partsSet;
     Py_ssize_t size = PySequence_Size(pyList);
+    if (size < 0) {
+        return nullptr;
+    }
     for (Py_ssize_t i = 0; i < size; ++i) {
         PyObject* item = PySequence_GetItem(pyList, i);
-        if (item && PyObject_TypeCheck(item, &(App::DocumentObjectPy::Type))) {
+        if (!item) {
+            return nullptr;
+        }
+        if (PyObject_TypeCheck(item, &(App::DocumentObjectPy::Type))) {
             auto* pyObj = static_cast<App::DocumentObjectPy*>(item);
             App::DocumentObject* docObj = pyObj->getDocumentObjectPtr();
             if (docObj) {

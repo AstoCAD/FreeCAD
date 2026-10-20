@@ -40,6 +40,7 @@ from AssemblyTests.TestCommandCreateJoint import TestCommandCreateJoint
 from AssemblyTests.TestSimulationExport import TestSimulationExport
 from AssemblyTests.TestSimulationGravity import TestSimulationGravity
 from AssemblyTests.TestSimulationTabs import TestSimulationTabs
+from AssemblyTests.TestViewProviderAssembly import TestViewProviderAssembly
 
 # Use the modules so that code checkers don't complain (flake8)
 True if TestCore else False
@@ -59,3 +60,4 @@ True if TestCommandCreateJoint else False
 True if TestSimulationExport else False
 True if TestSimulationGravity else False
 True if TestSimulationTabs else False
+True if TestViewProviderAssembly else False

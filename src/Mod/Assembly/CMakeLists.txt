@@ -83,6 +83,7 @@ SET(AssemblyTests_SRCS
     AssemblyTests/TestCommandCreateView.py
     AssemblyTests/TestCommandCreateJoint.py
     AssemblyTests/TestCommandInsertLink.py
+    AssemblyTests/TestViewProviderAssembly.py
     AssemblyTests/TestSimulationExport.py
     AssemblyTests/TestSimulationGravity.py
     AssemblyTests/TestSimulationTabs.py
