@@ -3279,3 +3279,251 @@ class MultiDocumentUndo(unittest.TestCase):
         # closing doc
         FreeCAD.closeDocument("Doc1")
         FreeCAD.closeDocument("Doc2")
+
+
+class DocumentPathCases(unittest.TestCase):
+    """Relative document arguments must not corrupt saved external links."""
+
+    def setUp(self):
+        try:
+            import Spreadsheet
+        except ImportError:
+            self.skipTest("Spreadsheet module is required")
+        from pathlib import Path
+
+        self.original_cwd = Path.cwd()
+        self.previous_document = FreeCAD.ActiveDocument.Name if FreeCAD.ActiveDocument else None
+        self.initial_documents = set(FreeCAD.listDocuments())
+        storage = tempfile.TemporaryDirectory()
+        self.addCleanup(storage.cleanup)
+        self.directory = Path(storage.name)
+
+    def tearDown(self):
+        for name in reversed(list(FreeCAD.listDocuments())):
+            if name not in self.initial_documents:
+                FreeCAD.closeDocument(name)
+        os.chdir(self.original_cwd)
+        if self.previous_document in FreeCAD.listDocuments():
+            FreeCAD.setActiveDocument(self.previous_document)
+
+    def _check_spreadsheet_link_paths(self, owner_relative, source_relative):
+        from pathlib import Path
+
+        model = self.directory / "project" / "model"
+        model.mkdir(parents=True)
+        source_file = model / "GlobalVars.FCStd"
+        owner_file = model / "Owner.FCStd"
+        source = FreeCAD.newDocument("ProjectVarsSource")
+        sheet = source.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.Label = "GlobalVars"
+        sheet.set("A1", "123")
+        source.recompute()
+        source.saveAs(str(source_file))
+        FreeCAD.closeDocument(source.Name)
+        owner = FreeCAD.newDocument("ProjectOwnerSource")
+        owner.saveAs(str(owner_file))
+        FreeCAD.closeDocument(owner.Name)
+
+        os.chdir(self.directory)
+        owner = FreeCAD.openDocument(
+            str(owner_file.relative_to(self.directory)) if owner_relative else str(owner_file)
+        )
+        if owner_relative and source_relative:
+            # The project path follows the owner's runtime FileName. normpath
+            # alone must not leave an argument relative to the process cwd.
+            project_path = os.path.join(os.path.dirname(owner.FileName), "FCProject")
+            source_argument = os.path.normpath(os.path.join(
+                os.path.dirname(project_path), "GlobalVars.FCStd"
+            ))
+        else:
+            source_argument = (
+                str(source_file.relative_to(self.directory)) if source_relative else str(source_file)
+            )
+        source = FreeCAD.openDocument(source_argument)
+        FreeCAD.setActiveDocument(owner.Name)
+        link = owner.addObject("App::Link", "GlobalVarsLink")
+        link.LinkedObject = source.Spreadsheet
+        self.assertEqual(link.LinkedObject, source.Spreadsheet)
+        owner.recompute()
+        owner.save()
+
+        with zipfile.ZipFile(owner_file) as archive:
+            xml = ET.fromstring(archive.read("Document.xml"))
+        node = xml.find(
+            ".//ObjectData/Object[@name='GlobalVarsLink']/Properties/"
+            "Property[@name='LinkedObject']/XLink"
+        )
+        self.assertIsNotNone(node)
+        self.assertEqual(
+            (owner_file.parent / node.attrib["file"]).resolve(), source_file.resolve()
+        )
+
+        FreeCAD.closeDocument(owner.Name)
+        FreeCAD.closeDocument(source.Name)
+        os.chdir(self.original_cwd)
+        reopened = FreeCAD.openDocument(str(owner_file))
+        restored = reopened.GlobalVarsLink.LinkedObject
+        self.assertIsNotNone(restored)
+        self.assertEqual(restored.TypeId, "Spreadsheet::Sheet")
+        self.assertEqual(restored.get("A1"), 123)
+        self.assertEqual(Path(restored.Document.FileName), source_file)
+
+    def test_absolute_owner_and_source_link_paths(self):
+        self._check_spreadsheet_link_paths(False, False)
+
+    def test_relative_owner_and_absolute_source_link_paths(self):
+        self._check_spreadsheet_link_paths(True, False)
+
+    def test_absolute_owner_and_relative_source_link_paths(self):
+        self._check_spreadsheet_link_paths(False, True)
+
+    def test_relative_owner_and_project_derived_source_link_paths(self):
+        self._check_spreadsheet_link_paths(True, True)
+
+    def test_link_created_during_first_save_is_relative_to_owner(self):
+        # Issue #33468: a link made while the owner is saved for the first
+        # time (slotStartSaveDocument) was stored relative to the process cwd.
+        model = self.directory / "model"
+        model.mkdir()
+        source_file = model / "Source.FCStd"
+        owner_file = model / "Owner.FCStd"
+        source = FreeCAD.newDocument("FirstSaveLinkSource")
+        target = source.addObject("App::FeaturePython", "Target")
+        source.saveAs(str(source_file))
+        owner = FreeCAD.newDocument("FirstSaveLinkOwner")
+
+        class Observer:
+            def slotStartSaveDocument(self, doc, filename):
+                if doc == owner and not doc.getObject("FirstSaveLink"):
+                    doc.addObject("App::Link", "FirstSaveLink").LinkedObject = target
+
+        observer = Observer()
+        FreeCAD.addDocumentObserver(observer)
+        try:
+            owner.saveAs(str(owner_file))
+        finally:
+            FreeCAD.removeDocumentObserver(observer)
+
+        with zipfile.ZipFile(owner_file) as archive:
+            xml = ET.fromstring(archive.read("Document.xml"))
+        node = xml.find(
+            ".//ObjectData/Object[@name='FirstSaveLink']/Properties/"
+            "Property[@name='LinkedObject']/XLink"
+        )
+        self.assertIsNotNone(node)
+        self.assertEqual(node.attrib["file"], "Source.FCStd")
+
+    def test_owner_saved_as_relative_path_keeps_its_file(self):
+        # A relative Save As path is resolved once: after the working directory changes,
+        # saving again must update the same file, and links stay relative to it.
+        from pathlib import Path
+
+        source_file = self.directory / "Source.FCStd"
+        owner_file = self.directory / "Owner.FCStd"
+        other = self.directory / "other"
+        other.mkdir()
+        source = FreeCAD.newDocument("RelativeSaveAsSource")
+        source.addObject("App::FeaturePython", "Target")
+        source.saveAs(str(source_file))
+        owner = FreeCAD.newDocument("RelativeSaveAsOwner")
+        os.chdir(self.directory)
+        owner.saveAs("Owner.FCStd")
+        self.assertTrue(os.path.isabs(owner.FileName))
+        self.assertEqual(Path(owner.FileName).resolve(), owner_file.resolve())
+
+        os.chdir(other)
+        owner.addObject("App::Link", "SavedLink").LinkedObject = source.Target
+        owner.save()
+        self.assertFalse((other / "Owner.FCStd").exists())
+
+        with zipfile.ZipFile(owner_file) as archive:
+            xml = ET.fromstring(archive.read("Document.xml"))
+        node = xml.find(
+            ".//ObjectData/Object[@name='SavedLink']/Properties/"
+            "Property[@name='LinkedObject']/XLink"
+        )
+        self.assertIsNotNone(node)
+        self.assertEqual(node.attrib["file"], "Source.FCStd")
+
+
+class DocumentXLinkStampCases(unittest.TestCase):
+    """External links must notice a linked document saved after them."""
+
+    def setUp(self):
+        from pathlib import Path
+
+        self.previous_document = FreeCAD.ActiveDocument.Name if FreeCAD.ActiveDocument else None
+        self.initial_documents = set(FreeCAD.listDocuments())
+        storage = tempfile.TemporaryDirectory()
+        self.addCleanup(storage.cleanup)
+        self.directory = Path(storage.name)
+
+    def tearDown(self):
+        for name in reversed(list(FreeCAD.listDocuments())):
+            if name not in self.initial_documents:
+                FreeCAD.closeDocument(name)
+        if self.previous_document in FreeCAD.listDocuments():
+            FreeCAD.setActiveDocument(self.previous_document)
+
+    def test_link_touched_when_open_linked_document_changed(self):
+        # Issue #25295: when the linked document was opened, changed and saved
+        # before the owner was opened, the link was not marked touched.
+        import time
+
+        source_file = self.directory / "Source.FCStd"
+        owner_file = self.directory / "Owner.FCStd"
+        source = FreeCAD.newDocument("StampLinkSource")
+        target = source.addObject("App::FeaturePython", "Target")
+        source.saveAs(str(source_file))
+        owner = FreeCAD.newDocument("StampLinkOwner")
+        owner.saveAs(str(owner_file))
+        owner.addObject("App::Link", "Link").LinkedObject = target
+        owner.recompute()
+        owner.save()
+        FreeCAD.closeDocument(owner.Name)
+
+        # Unchanged linked document: the link stays up to date
+        owner = FreeCAD.openDocument(str(owner_file))
+        self.assertNotIn("Touched", owner.Link.State)
+        FreeCAD.closeDocument(owner.Name)
+
+        # The saved time stamp has a resolution of one second
+        time.sleep(1.1)
+        source.Target.Label = "ChangedTarget"
+        source.save()
+
+        owner = FreeCAD.openDocument(str(owner_file))
+        self.assertEqual(owner.Link.LinkedObject, source.Target)
+        self.assertIn("Touched", owner.Link.State)
+
+    def test_recompute_after_closing_document_used_by_expression(self):
+        # Closing a document used by an expression of another document left the
+        # property dependencies of that expression pointing to the destroyed
+        # objects; the next recompute of the other document read them (access
+        # violation).
+        source = FreeCAD.newDocument("CloseXLinkSource")
+        source.saveAs(str(self.directory / "CloseXLinkSource.FCStd"))
+        varset = source.addObject("App::VarSet", "VarSet")
+        varset.addProperty("App::PropertyLength", "L")
+        varset.L = 20
+        source.save()
+        owner = FreeCAD.newDocument("CloseXLinkOwner")
+        owner.saveAs(str(self.directory / "CloseXLinkOwner.FCStd"))
+        user = owner.addObject("App::VarSet", "User")
+        user.addProperty("App::PropertyLength", "Length")
+        user.setExpression("Length", "CloseXLinkSource#VarSet.L")
+        owner.recompute()
+        self.assertEqual(user.Length, 20)
+
+        FreeCAD.closeDocument(source.Name)
+        self.assertEqual(user.OutList, [])
+        owner.recompute()
+
+        # Reopening the document restores the dependency
+        source = FreeCAD.openDocument(str(self.directory / "CloseXLinkSource.FCStd"))
+        self.assertIn(source.VarSet, user.OutList)
+        source.VarSet.L = 30
+        source.recompute()
+        user.touch()
+        owner.recompute()
+        self.assertEqual(user.Length, 30)

@@ -982,8 +982,10 @@ std::vector<Document*> Application::openDocuments(const std::vector<std::string>
     ParameterGrp::handle hGrp = GetParameterGroupByPath("User parameter:BaseApp/Preferences/Document");
     _allowPartial = !hGrp->GetBool("NoPartialLoading",false);
 
+    // A document keeps its file name: make it independent of the working directory,
+    // which may change, and in which external links would resolve it.
     for (auto &name : filenames)
-        _pendingDocs.emplace_back(name.c_str());
+        _pendingDocs.emplace_back(Base::FileInfo::absolutePath(name));
 
     std::map<DocumentT, DocTiming> timings;
 

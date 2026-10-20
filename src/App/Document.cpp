@@ -1914,7 +1914,9 @@ static std::string checkFileName(const char* file)
 
 bool Document::saveAs(const char* _file)
 {
-    const std::string file = checkFileName(_file);
+    // The document keeps the file name for later saves and external links: make it
+    // independent of the working directory, which may change.
+    const std::string file = Base::FileInfo::absolutePath(checkFileName(_file));
     const Base::FileInfo fi(file.c_str());
     if (this->FileName.getStrValue() != file) {
         this->FileName.setValue(file);
