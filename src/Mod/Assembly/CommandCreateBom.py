@@ -78,7 +78,7 @@ class CommandCreateBom:
         }
 
     def IsActive(self):
-        return True
+        return App.ActiveDocument is not None
 
     def Activated(self):
         self.panel = TaskAssemblyCreateBom()
