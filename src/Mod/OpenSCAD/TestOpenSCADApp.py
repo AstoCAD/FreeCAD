@@ -24,6 +24,8 @@
 
 # Unit test for the OpenSCAD module
 from OpenSCADTest.app.test_importCSG import TestImportCSG as OpenSCADTestImportCSG
+from OpenSCADTest.app.test_importCSGIntersection import TestCsgIntersectionArity as OpenSCADTestCsgIntersectionArity
 
 # dummy usage to get flake8 and lgtm quiet
 False if OpenSCADTestImportCSG.__name__ else True
+False if OpenSCADTestCsgIntersectionArity.__name__ else True
