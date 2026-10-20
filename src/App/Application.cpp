@@ -914,7 +914,13 @@ public:
 };
 
 Document* Application::openDocument(const char * FileName, DocumentInitFlags initFlags) {
-    std::vector<std::string> filenames(1,FileName);
+    // Keep the runtime document path valid when the working directory changes
+    // or an external link resolves it relative to another document.
+    const QFileInfo file(QString::fromUtf8(FileName));
+    std::vector<std::string> filenames {
+        FileName && FileName[0] && file.isRelative()
+            ? file.absoluteFilePath().toUtf8().toStdString() : FileName
+    };
     auto docs = openDocuments(filenames, nullptr, nullptr, nullptr, initFlags);
     if(!docs.empty())
         return docs.front();
