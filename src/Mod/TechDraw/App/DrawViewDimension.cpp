@@ -1065,8 +1065,11 @@ pointPair DrawViewDimension::getPointsEdgeVert(ReferenceVector references)
     // this is a 3d object
     TopoDS_Shape geometry0 = references.at(0).getGeometry();
     TopoDS_Shape geometry1 = references.at(1).getGeometry();
-    if (geometry0.IsNull() || geometry1.IsNull() || geometry0.ShapeType() != TopAbs_VERTEX
-        || geometry1.ShapeType() != TopAbs_VERTEX) {
+    if (geometry0.IsNull() || geometry1.IsNull()
+        || !((geometry0.ShapeType() == TopAbs_EDGE
+              && geometry1.ShapeType() == TopAbs_VERTEX)
+             || (geometry0.ShapeType() == TopAbs_VERTEX
+                 && geometry1.ShapeType() == TopAbs_EDGE))) {
         throw Base::RuntimeError("Geometry for dimension reference is null.");
     }
 
