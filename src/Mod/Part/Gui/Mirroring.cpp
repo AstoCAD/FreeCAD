@@ -69,6 +69,18 @@
 
 using namespace PartGui;
 
+namespace
+{
+std::string mirrorReferenceCommand(const Gui::SelectionObject& reference)
+{
+    std::string command = "(" + Gui::Command::getObjectCmd(reference.getObject()) + ", [";
+    for (const auto& subname : reference.getSubNames()) {
+        command += Base::Tools::quoted(Base::Tools::escapeEncodeString(subname)) + ", ";
+    }
+    return command + "])";
+}
+}  // namespace
+
 namespace PartGui
 {
 class MirrorPlaneSelection: public Gui::SelectionFilterGate
@@ -344,7 +356,20 @@ bool Mirroring::accept()
     else if (index == 3) {  // use selected reference
         std::vector<Gui::SelectionObject> selobjs = Gui::Selection().getSelectionEx();
         if (selobjs.size() == 1) {
-            selection = selobjs[0].getAsPropertyLinkSubString();
+            const auto rawSelection = Gui::Selection().getSelectionEx(
+                nullptr,
+                App::DocumentObject::getClassTypeId(),
+                Gui::ResolveMode::NoResolve
+            );
+            if (rawSelection.size() == 1
+                && !selobjs[0].isObjectTypeOf(App::DatumElement::getClassTypeId())
+                && (rawSelection[0].isObjectTypeOf(Part::Feature::getClassTypeId())
+                    || rawSelection[0].isObjectTypeOf(App::Link::getClassTypeId()))) {
+                selection = mirrorReferenceCommand(rawSelection[0]);
+            }
+            else {
+                selection = selobjs[0].getAsPropertyLinkSubString();
+            }
         }
     }
     double basex = ui->baseX->value().getValue();
