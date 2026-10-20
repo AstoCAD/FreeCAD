@@ -1601,6 +1601,7 @@ bool ViewProviderSketch::mouseButtonPressed(int Button, bool pressed, const SbVe
                     }
                     break;
                 }
+                case STATUS_SKETCH_StartRubberBand:
                 case STATUS_SKETCH_UseRubberBand:
                     // Cancel rubberband
                     rubberband->setWorking(false);
@@ -5026,6 +5027,10 @@ void ViewProviderSketch::unsetEditViewer(Gui::View3DInventorViewer* viewer)
     cameraSensor.setDeleteCallback(nullptr, nullptr);
     cameraSensor.detach();
 
+    if (Mode == STATUS_SKETCH_UseRubberBand) {
+        setSketchMode(STATUS_NONE);
+    }
+    rubberband->setWorking(false);
     viewer->removeGraphicsItem(rubberband.get());
     if (annotations) {
         annotations->cancelDrag();
