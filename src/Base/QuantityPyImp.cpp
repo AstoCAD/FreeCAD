@@ -516,9 +516,23 @@ PyObject* QuantityPy::number_divmod_handler(PyObject* /*self*/, PyObject* /*othe
     return nullptr;
 }
 
-PyObject* QuantityPy::number_power_handler(PyObject* self, PyObject* other, PyObject* /*modulo*/)
+PyObject* QuantityPy::number_power_handler(PyObject* self, PyObject* other, PyObject* modulo)
 {
     if (!PyObject_TypeCheck(self, &(QuantityPy::Type))) {
+        if ((PyFloat_Check(self) || PyLong_Check(self))
+            && PyObject_TypeCheck(other, &(QuantityPy::Type)) && modulo == Py_None) {
+            const auto* exponent = static_cast<QuantityPy*>(other)->getQuantityPtr();
+            if (!exponent->isDimensionless()) {
+                PyErr_SetString(PyExc_TypeError, "Exponent must not have a unit");
+                return nullptr;
+            }
+            PY_TRY
+            {
+                const Py::Float value(exponent->getValue());
+                return PyNumber_Power(self, value.ptr(), Py_None);
+            }
+            PY_CATCH
+        }
         PyErr_SetString(PyExc_TypeError, "First arg must be Quantity");
         return nullptr;
     }
