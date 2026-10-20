@@ -38,6 +38,7 @@
 #include <App/GeoFeature.h>
 #include <App/IndexedName.h>
 #include <Base/Console.h>
+#include <Base/Tools.h>
 
 #include "SelectionView.h"
 #include "Application.h"
@@ -51,6 +52,8 @@ FC_LOG_LEVEL_INIT("Selection", true, true, true)
 
 using namespace Gui;
 using namespace Gui::DockWnd;
+
+constexpr int SelectionSubNameRole = Qt::UserRole + 1;
 
 
 /* TRANSLATOR Gui::DockWnd::SelectionView */
@@ -202,6 +205,7 @@ void SelectionView::onSelectionChanged(const SelectionChanges& Reason)
         // insert the selection as item
         QListWidgetItem* item = new QListWidgetItem(selObject, selectionView);
         item->setData(Qt::UserRole, list);
+        item->setData(SelectionSubNameRole, QString::fromUtf8(Reason.pSubName));
     }
     else if (Reason.Type == SelectionChanges::ClrSelection) {
         if (!Reason.pDocName[0]) {
@@ -245,6 +249,7 @@ void SelectionView::onSelectionChanged(const SelectionChanges& Reason)
             getSelectionName(str, it.DocName, it.FeatName, it.SubName, obj);
             QListWidgetItem* item = new QListWidgetItem(selObject, selectionView);
             item->setData(Qt::UserRole, list);
+            item->setData(SelectionSubNameRole, QString::fromUtf8(it.SubName));
             selObject.clear();
         }
     }
@@ -273,7 +278,12 @@ void SelectionView::onSelectionChanged(const SelectionChanges& Reason)
                 this->y = sel.y;
                 this->z = sel.z;
 
-                new QListWidgetItem(selObject, pickList);
+                QStringList list;
+                list << QString::fromUtf8(sel.DocName);
+                list << QString::fromUtf8(sel.FeatName);
+                auto* item = new QListWidgetItem(selObject, pickList);
+                item->setData(Qt::UserRole, list);
+                item->setData(SelectionSubNameRole, QString::fromUtf8(sel.SubName));
             }
         }
     }
@@ -386,27 +396,15 @@ void SelectionView::toggleSelect(QListWidgetItem* item)
     if (!item) {
         return;
     }
-    std::string name = item->text().toUtf8().constData();
-    char* docname = &name.at(0);
-    char* objname = std::strchr(docname, '#');
-    if (!objname) {
+    const QStringList elements = item->data(Qt::UserRole).toStringList();
+    if (elements.size() < 2) {
         return;
     }
-    *objname++ = 0;
-    char* subname = std::strchr(objname, '.');
-    if (subname) {
-        *subname++ = 0;
-        char* end = std::strchr(subname, ' ');
-        if (end) {
-            *end = 0;
-        }
-    }
-    else {
-        char* end = std::strchr(objname, ' ');
-        if (end) {
-            *end = 0;
-        }
-    }
+    const QByteArray docname = elements[0].toUtf8();
+    const QByteArray objname = elements[1].toUtf8();
+    const QByteArray subname = item->data(SelectionSubNameRole).toString().toUtf8();
+    const QString pythonSubname = QString::fromUtf8(
+        Base::Tools::escapeEncodeString(subname.constData()).c_str());
     QString cmd;
     if (Gui::Selection().isSelected(docname, objname, subname)) {
         cmd = QString::fromUtf8(
@@ -416,7 +414,7 @@ void SelectionView::toggleSelect(QListWidgetItem* item)
                   .arg(
                       QString::fromUtf8(docname),
                       QString::fromUtf8(objname),
-                      QString::fromUtf8(subname)
+                      pythonSubname
                   );
     }
     else {
@@ -424,10 +422,14 @@ void SelectionView::toggleSelect(QListWidgetItem* item)
                   "Gui.Selection.addSelection("
                   "App.getDocument('%1').getObject('%2'),'%3',%4,%5,%6)"
         )
-                  .arg(QString::fromUtf8(docname), QString::fromUtf8(objname), QString::fromUtf8(subname))
-                  .arg(x)
-                  .arg(y)
-                  .arg(z);
+                  .arg(
+                      QString::fromUtf8(docname),
+                      QString::fromUtf8(objname),
+                      pythonSubname,
+                      QStringLiteral("%1").arg(x),
+                      QStringLiteral("%1").arg(y),
+                      QStringLiteral("%1").arg(z)
+                  );
     }
     try {
         Gui::Command::runCommand(Gui::Command::Gui, cmd.toUtf8());
@@ -442,33 +444,21 @@ void SelectionView::preselect(QListWidgetItem* item)
     if (!item) {
         return;
     }
-    std::string name = item->text().toUtf8().constData();
-    char* docname = &name.at(0);
-    char* objname = std::strchr(docname, '#');
-    if (!objname) {
+    const QStringList elements = item->data(Qt::UserRole).toStringList();
+    if (elements.size() < 2) {
         return;
     }
-    *objname++ = 0;
-    char* subname = std::strchr(objname, '.');
-    if (subname) {
-        *subname++ = 0;
-        char* end = std::strchr(subname, ' ');
-        if (end) {
-            *end = 0;
-        }
-    }
-    else {
-        char* end = std::strchr(objname, ' ');
-        if (end) {
-            *end = 0;
-        }
-    }
+    const QByteArray docname = elements[0].toUtf8();
+    const QByteArray objname = elements[1].toUtf8();
+    const QByteArray subname = item->data(SelectionSubNameRole).toString().toUtf8();
+    const QString pythonSubname = QString::fromUtf8(
+        Base::Tools::escapeEncodeString(subname.constData()).c_str());
     QString cmd
         = QString::fromUtf8(
               "Gui.Selection.setPreselection("
               "App.getDocument('%1').getObject('%2'),'%3',tp=2)"
         )
-              .arg(QString::fromUtf8(docname), QString::fromUtf8(objname), QString::fromUtf8(subname));
+              .arg(QString::fromUtf8(docname), QString::fromUtf8(objname), pythonSubname);
     try {
         Gui::Command::runCommand(Gui::Command::Gui, cmd.toUtf8());
     }
