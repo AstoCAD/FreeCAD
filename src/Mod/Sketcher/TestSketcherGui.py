@@ -7,6 +7,7 @@ from SketcherTests.TestOnViewParameterGui import TestOnViewParameterGui
 from SketcherTests.TestPlacementUpdate import TestSketchPlacementUpdate
 from SketcherTests.TestExternalFacePreselection import TestExternalFacePreselection
 from SketcherTests.TestSketchGroupsGui import TestSketchGroupsGui
+from SketcherTests.TestSketchTransformExpressionsGui import TestSketchTransformExpressionsGui
 from SketcherTests.TestSketchAnnotationsGui import TestSketchAnnotationsGui
 from SketcherTests.TestSketchLayersGui import TestSketchLayersGui
 from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
@@ -25,6 +26,7 @@ from SketcherTests.TestSketchDatumNavigationGui import TestSketchDatumNavigation
     and TestOnViewParameterGui
     and TestExternalFacePreselection
     and TestSketchGroupsGui
+    and TestSketchTransformExpressionsGui
     and TestSketchAnnotationsGui
     and TestSketchLayersGui
     and TestSketchBlocksGui

@@ -43,6 +43,7 @@ if(BUILD_GUI)
           SketcherTests/TestCoincidentCommandGui.py
           SketcherTests/GuiTestCase.py
           SketcherTests/TestSketchGroupsGui.py
+          SketcherTests/TestSketchTransformExpressionsGui.py
           SketcherTests/TestSketchAnnotationsGui.py
           SketcherTests/TestSketchLayersGui.py
           SketcherTests/TestSketchBlocksGui.py
