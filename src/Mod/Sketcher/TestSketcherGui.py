@@ -4,6 +4,7 @@
 from SketcherTests.TestConstraintPreselectionGui import SketcherGuiTestCases
 from SketcherTests.TestDistanceLabelExtensionGui import TestDistanceLabelExtensionGui
 from SketcherTests.TestConstraintCommandsGui import TestConstraintCommandsGui
+from SketcherTests.TestBSplineEndpointTransactionGui import TestBSplineEndpointTransactionGui
 from SketcherTests.TestCoincidentCommandGui import TestCoincidentCommandGui
 from SketcherTests.TestOnViewParameterGui import TestOnViewParameterGui
 from SketcherTests.TestPlacementUpdate import TestSketchPlacementUpdate
@@ -28,6 +29,7 @@ from SketcherTests.TestSketchReorientGui import TestSketchReorientGui
     if SketcherGuiTestCases
     and TestDistanceLabelExtensionGui
     and TestConstraintCommandsGui
+    and TestBSplineEndpointTransactionGui
     and TestCoincidentCommandGui
     and TestSketchPlacementUpdate
     and TestOnViewParameterGui
