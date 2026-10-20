@@ -34,6 +34,7 @@
 
 #include <App/ComplexGeoData.h>
 #include <App/Document.h>
+#include <App/DocumentObserver.h>
 #include <App/ElementNamingUtils.h>
 #include <App/GeoFeature.h>
 #include <App/IndexedName.h>
@@ -296,6 +297,7 @@ void SelectionView::search(const QString& text)
     if (!text.isEmpty()) {
         searchList.clear();
         App::Document* doc = App::GetApplication().getActiveDocument();
+        searchDocument = std::make_shared<App::DocumentWeakPtrT>(doc);
         std::vector<App::DocumentObject*> objects;
         if (doc) {
             objects = doc->getObjects();
@@ -303,7 +305,7 @@ void SelectionView::search(const QString& text)
             for (auto it : objects) {
                 QString label = QString::fromUtf8(it->Label.getValue());
                 if (label.contains(text, Qt::CaseInsensitive)) {
-                    searchList.push_back(it);
+                    searchList.push_back(it->getID());
                     // save as user data
                     QString selObject;
                     QTextStream str(&selObject);
@@ -329,11 +331,21 @@ void SelectionView::search(const QString& text)
 void SelectionView::validateSearch()
 {
     if (!searchList.empty()) {
-        App::Document* doc = App::GetApplication().getActiveDocument();
-        if (doc) {
+        // Selection notifications may change the search or close its document.
+        const auto document = searchDocument;
+        const auto objects = searchList;
+        if (App::GetApplication().getActiveDocument() && document && !document->expired()) {
             Gui::Selection().clearSelection();
-            for (auto it : searchList) {
-                Gui::Selection().addSelection(doc->getName(), it->getNameInDocument(), nullptr);
+            for (const auto id : objects) {
+                App::Document* doc = **document;
+                if (!doc) {
+                    break;
+                }
+                if (auto* object = doc->getObjectByID(id)) {
+                    const std::string docName = doc->getName();
+                    const std::string objectName = object->getNameInDocument();
+                    Gui::Selection().addSelection(docName.c_str(), objectName.c_str(), nullptr);
+                }
             }
         }
     }

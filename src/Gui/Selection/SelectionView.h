@@ -28,6 +28,7 @@
 #include <QMenu>
 #include <QPointer>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -41,6 +42,7 @@ class QLabel;
 namespace App
 {
 class DocumentObject;
+class DocumentWeakPtrT;
 }
 
 struct ElementInfo;
@@ -121,7 +123,8 @@ private:
 
 private:
     float x, y, z;
-    std::vector<App::DocumentObject*> searchList;
+    std::shared_ptr<App::DocumentWeakPtrT> searchDocument;
+    std::vector<long> searchList;
     bool openedAutomatically;
 };
 
