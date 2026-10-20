@@ -27,6 +27,7 @@
 # include <sstream>
 
 
+#include <App/DocumentObserver.h>
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
 #include <Base/Tools.h>
@@ -90,8 +91,8 @@ App::DocumentObjectExecReturn *DrawViewDraft::execute()
         std::string svgFrag;
         std::string svgHead = getSVGHead();
         std::string svgTail = getSVGTail();
-        std::string FeatName = getNameInDocument();
-        std::string SourceName = sourceObj->getNameInDocument();
+        const auto featureRef = App::DocumentObjectT(this).getObjectPython();
+        const auto sourceRef = App::DocumentObjectT(sourceObj).getObjectPython();
         // Draft.get_svg(obj, scale=1, linewidth=0.35, fontsize=12, fillstyle="shape color", direction=None, linestyle=None, color=None, linespacing=None, techdraw=False)
 
         std::stringstream paramStr;
@@ -112,11 +113,11 @@ App::DocumentObjectExecReturn *DrawViewDraft::execute()
 // (Arch section, etc)
 // like Draft.makeDrawingView, but we don't need to create the actual document objects in Draft, just the svg.
         Base::Interpreter().runString("import Draft");
-        Base::Interpreter().runStringArg("svgBody = Draft.get_svg(App.activeDocument().%s %s)",
-                                         SourceName.c_str(), paramStr.str().c_str());
+        Base::Interpreter().runStringArg("svgBody = Draft.get_svg(%s %s)",
+                                         sourceRef.c_str(), paramStr.str().c_str());
 //        Base::Interpreter().runString("print svgBody");
-        Base::Interpreter().runStringArg("App.activeDocument().%s.Symbol = '%s' + svgBody + '%s'",
-                                          FeatName.c_str(), svgHead.c_str(), svgTail.c_str());
+        Base::Interpreter().runStringArg("%s.Symbol = '%s' + svgBody + '%s'",
+                                          featureRef.c_str(), svgHead.c_str(), svgTail.c_str());
         }
 
     overrideKeepUpdated(false);
