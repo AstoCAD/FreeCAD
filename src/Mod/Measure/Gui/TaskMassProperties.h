@@ -24,6 +24,7 @@
 #include <QDialogButtonBox>
 #include <QEvent>
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -34,6 +35,7 @@
 #include <Gui/Selection/Selection.h>
 
 #include <Base/Placement.h>
+#include <App/DocumentObserver.h>
 
 #include "Mod/Measure/App/MassPropertiesResult.h"
 
@@ -96,6 +98,9 @@ private:
     bool deleteActivated = false;
 
     std::vector<MassPropertiesInput> objectsToMeasure;
+
+    App::DocumentObjectWeakPtrT previewObject {nullptr};
+    std::uint64_t previewUpdateSerial = 0;
 
     // Forgets the custom coordinate system when it is deleted (undo, Python, temporary objects)
     fastsignals::scoped_connection connectDeletedObject;
