@@ -77,6 +77,7 @@ if(BUILD_GUI)
         PartDesignTests/TestRevolutionReferencesGui.py
         PartDesignTests/TestTypedUpToFaceReferencesGui.py
         PartDesignTests/TestDraftUnicodeReferencesGui.py
+        PartDesignTests/TestDraftOtherUnicodeReferencesGui.py
         PartDesignTests/TestMoveFeatureSourceTipGui.py
         PartDesignTests/TestShapeBinderHighlightGui.py
         PartDesignTests/TestBooleanUnicodeNamesGui.py
