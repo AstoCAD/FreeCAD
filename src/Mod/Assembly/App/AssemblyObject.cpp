@@ -1533,7 +1533,7 @@ std::unordered_set<App::DocumentObject*> AssemblyObject::getGroundedParts()
     for (auto* obj : objs) {
         if (obj->isDerivedFrom<App::LocalCoordinateSystem>()
             || obj->isDerivedFrom<App::DatumElement>()) {
-            auto* pcAttach = obj->getExtensionByType<PartApp::AttachExtension>();
+            auto* pcAttach = obj->getExtensionByType<PartApp::AttachExtension>(true);
             if (pcAttach) {
                 // If it's a Part datums, we check if it's attached. If yes then we ignore it.
                 std::string mode = pcAttach->MapMode.getValueAsString();
