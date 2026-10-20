@@ -103,8 +103,12 @@ PyObject* PropertyInteger::getPyObject()
 void PropertyInteger::setPyObject(PyObject* value)
 {
     if (PyLong_Check(value)) {
+        const long convertedValue = PyLong_AsLong(value);
+        if (PyErr_Occurred()) {
+            throw Py::Exception();
+        }
         aboutToSetValue();
-        _lValue = PyLong_AsLong(value);
+        _lValue = convertedValue;
         hasSetValue();
     }
     else {
