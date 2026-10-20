@@ -88,7 +88,7 @@ void ShortcutManager::OnChange(Base::Subject<const char*>& src, const char* reas
 {
     if (hSetting == &src) {
         if (boost::equals(reason, "ShortcutTimeout")) {
-            timeout = hSetting->GetInt("ShortcutTimeout");
+            timeout = hSetting->GetInt("ShortcutTimeout", 300);
         }
         return;
     }
