@@ -1389,7 +1389,11 @@ class RigidGroupJoint:
             "RigidGroup",
             QT_TRANSLATE_NOOP("App::Property", "List of references to compnents to group together"),
         )
-        joint.ObjectsToRigidGroup = objects_to_rigid_group
+        self._busy = True
+        try:
+            joint.ObjectsToRigidGroup = objects_to_rigid_group
+        finally:
+            self._busy = False
 
         joint.addProperty(
             "App::PropertyPlacementList",
