@@ -51,6 +51,7 @@ SET(Test_SRCS
     TestView3DFramebufferCapture.py
     TestSelectionVisual.py
     TestSelectionViewIdentityGui.py
+    TestSelectionSearchIdentityGui.py
     TestCornerAxisCrossVisual.py
     TestViewProviderLink.py
 )
