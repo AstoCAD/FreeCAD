@@ -386,8 +386,7 @@ void PagePrinter::printPdf(ViewProviderPage* vpPage, const std::string& file)
         return;
     }
 
-    auto filespec = Base::Tools::escapeEncodeFilename(file);
-    filespec = DU::cleanFilespecBackslash(filespec);
+    auto filespec = DU::cleanFilespecBackslash(file);
     QString outputFile = QString::fromStdString(filespec);
 
     // set up the pdfwriter
