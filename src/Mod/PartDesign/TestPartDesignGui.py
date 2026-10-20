@@ -41,6 +41,10 @@ from PartDesignTests.TestActiveObject import TestActiveObject
 from PartDesignTests.TestSuppressed import TestSuppressedStrikethrough
 from PartDesignTests.TestLoftSelectionGui import TestLoftSelectionGui
 from PartDesignTests.TestLoftVisibilityGui import TestLoftVisibilityGui
+from PartDesignTests.TestQuantityExpressionGui import (
+    TestQuantityExpressionCommitGui,
+    TestQuantityExpressionCompatibilityGui,
+)
 from PartDesignTests.TestRevolutionReferencesGui import TestRevolutionReferencesGui
 from PartDesignTests.TestTypedUpToFaceReferencesGui import TestTypedUpToFaceReferencesGui
 from PartDesignTests.TestDraftUnicodeReferencesGui import TestDraftUnicodeReferencesGui
