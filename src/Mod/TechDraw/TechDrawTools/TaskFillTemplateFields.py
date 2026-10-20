@@ -132,6 +132,7 @@ class TaskFillTemplateFields:
                 self.s1 = None
 
                 self.dialog = QtGui.QDialog()
+                self.dialog.rejected.connect(self.close)
                 self.dialog.resize(1050, 400)
                 self.dialog.setWindowTitle(
                     QtCore.QT_TRANSLATE_NOOP(
