@@ -433,6 +433,8 @@ QGIViewPart::QGIViewPart()
 
 QGIViewPart::~QGIViewPart()
 {
+    // Child deletion can emit scene selection changes before QObject disconnects.
+    QObject::disconnect(m_selectionChangedConnection);
     tidy();
     delete m_pathBuilder;
     delete m_dashedLineGenerator;
@@ -2323,7 +2325,7 @@ bool QGIViewPart::showCenterMarksExporting() const
     auto dvp{static_cast<TechDraw::DrawViewPart*>(getViewObject())};
     auto vp{static_cast<ViewProviderViewPart*>(getViewProvider(dvp))};
 
-    return vp->ArcCenterMarks.getValue() || Preferences::printCenterMarks();
+    return (vp && vp->ArcCenterMarks.getValue()) || Preferences::printCenterMarks();
 }
 
 bool QGIViewPart::showCenterMarksScreen() const
@@ -2331,7 +2333,7 @@ bool QGIViewPart::showCenterMarksScreen() const
     auto dvp{static_cast<TechDraw::DrawViewPart*>(getViewObject())};
     auto vp{static_cast<ViewProviderViewPart*>(getViewProvider(dvp))};
 
-    return borderIsVisible() && vp->ArcCenterMarks.getValue();
+    return borderIsVisible() && vp && vp->ArcCenterMarks.getValue();
 }
 
 void QGIViewPart::setMovableFlag()
