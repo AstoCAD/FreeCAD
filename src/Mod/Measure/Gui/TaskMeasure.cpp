@@ -214,6 +214,7 @@ QString preferredUnitForMeasureType(const App::MeasureType* measureType)
 }  // namespace
 
 TaskMeasure::TaskMeasure()
+    : mTargetDoc(nullptr)
 {
     auto taskbox = new Gui::TaskView::TaskBox(
         Gui::BitmapFactory().pixmap("umf-measurement"),
@@ -404,6 +405,12 @@ void TaskMeasure::createObject(const App::MeasureType* measureType)
 
 void TaskMeasure::update()
 {
+    if (!mTargetDoc
+        || Gui::Application::Instance->getDocument(App::GetApplication().getActiveDocument())
+            != mTargetDoc) {
+        return;
+    }
+
     try {
         tryUpdate();
     }
@@ -603,6 +610,12 @@ void TaskMeasure::ensureGroup(Measure::MeasureBase* measurement)
 // Runs after the dialog is created
 void TaskMeasure::invoke()
 {
+    if (!mTargetDoc
+        || Gui::Application::Instance->getDocument(App::GetApplication().getActiveDocument())
+            != mTargetDoc) {
+        return;
+    }
+
     update();
 
     bool greedy = Gui::Selection().getSelectionStyle() == SelectionStyle::GreedySelection;
@@ -713,6 +726,12 @@ void TaskMeasure::onSelectionChanged(const Gui::SelectionChanges& msg)
         && msg.Type != Gui::SelectionChanges::SetSelection
         && msg.Type != Gui::SelectionChanges::ClrSelection) {
 
+        return;
+    }
+
+    if (!mTargetDoc
+        || Gui::Application::Instance->getDocument(App::GetApplication().getActiveDocument())
+            != mTargetDoc) {
         return;
     }
 
