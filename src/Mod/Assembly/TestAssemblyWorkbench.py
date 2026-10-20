@@ -41,6 +41,7 @@ from AssemblyTests.TestMassProperties import TestMassProperties
 from AssemblyTests.TestCommandInsertLink import TestCommandInsertLink
 from AssemblyTests.TestGroupedInsertGui import TestGroupedAssemblyInsert
 from AssemblyTests.TestBomAvailabilityGui import TestBomDocumentAvailability
+from AssemblyTests.TestBomRestoredColumnsGui import TestBomRestoredColumns
 from AssemblyTests.TestCommandCreateView import TestCommandCreateView
 from AssemblyTests.TestCommandCreateJoint import TestCommandCreateJoint
 from AssemblyTests.TestSimulationExport import TestSimulationExport
@@ -65,6 +66,7 @@ True if TestMassProperties else False
 True if TestCommandInsertLink else False
 True if TestGroupedAssemblyInsert else False
 True if TestBomDocumentAvailability else False
+True if TestBomRestoredColumns else False
 True if TestCommandCreateView else False
 True if TestCommandCreateJoint else False
 True if TestSimulationExport else False
