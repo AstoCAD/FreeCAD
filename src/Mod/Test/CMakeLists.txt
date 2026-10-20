@@ -27,6 +27,7 @@ SET(Test_SRCS
     TestGroupVisibilityRestoreGui.py
     TestTaskViewGui.py
     TestGestureNavigationGui.py
+    TestShortcutManagerGui.py
     TestShortcutTimeoutGui.py
     TestTreeDeletionGui.py
     TestTreeLinkDeletionGui.py
