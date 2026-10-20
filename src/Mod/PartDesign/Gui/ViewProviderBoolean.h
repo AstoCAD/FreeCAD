@@ -67,6 +67,14 @@ public:
 protected:
     void updateData(const App::Property* prop) override;
 
+    Base::BoundBox3d _getBoundingBox(
+        const char* subname,
+        const Base::Matrix4D* mat,
+        bool transform,
+        const Gui::View3DInventorViewer* viewer,
+        int depth
+    ) const override;
+
     void attachPreview() override;
     void updatePreview() override;
 
