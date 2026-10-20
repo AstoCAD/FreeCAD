@@ -37,6 +37,7 @@ SET(Test_SRCS
     TestPySideUic.py
     UnicodeTests.py
     UnitTests.py
+    TestQuantityPower.py
     Workbench.py
     unittestgui.py
     testmakeWireString.py
