@@ -177,7 +177,7 @@ def location_url(url_localized: str, url_english: str) -> tuple:
                 return (url_localized, pagename_match.group(1))
             else:
                 return (url_localized, "")
-    except urllib.error.HTTPError as e:
+    except urllib.error.URLError:
         return (url_english, "")
 
 

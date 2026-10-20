@@ -31,6 +31,7 @@ FreeCAD.__unit_test__ += [
     "Document",
     "TestLinkSuppression",
     "TestIntPairList",
+    "TestHelpFallback",
     "Metadata",
     "Recompute",
     "StringHasher",
