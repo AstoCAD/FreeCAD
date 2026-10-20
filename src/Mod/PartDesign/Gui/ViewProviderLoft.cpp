@@ -77,6 +77,14 @@ TaskDlgFeatureParameters* ViewProviderLoft::getEditDialog()
     return new TaskDlgLoftParameters(this);
 }
 
+void ViewProviderLoft::unsetEdit(int ModNum)
+{
+    if (ModNum == ViewProvider::Default && !Visibility.getValue()) {
+        makeTemporaryVisible(false);
+    }
+    ViewProvider::unsetEdit(ModNum);
+}
+
 void ViewProviderLoft::highlightProfile(bool on)
 {
     PartDesign::Loft* pcLoft = getObject<PartDesign::Loft>();
