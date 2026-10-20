@@ -24,7 +24,14 @@
 
 
 #include <QApplication>
+#include <QAbstractSpinBox>
+#include <QGraphicsProxyWidget>
+#include <QGraphicsScene>
+#include <QGraphicsView>
 #include <QKeyEvent>
+#include <QPlainTextEdit>
+#include <QPointer>
+#include <QTextEdit>
 
 
 #include "TaskMeasure.h"
@@ -64,6 +71,81 @@ constexpr auto taskMeasureSettingsGroup = "TaskMeasure";
 constexpr auto taskMeasureShowDeltaSettingsName = "ShowDelta";
 constexpr auto taskMeasureAutoSaveSettingsName = "AutoSave";
 constexpr auto taskMeasureGreedySelection = "GreedySelection";
+
+bool isEditableWidget(QWidget* widget)
+{
+    for (; widget; widget = widget->parentWidget()) {
+        if (auto lineEdit = qobject_cast<QLineEdit*>(widget)) {
+            return !lineEdit->isReadOnly();
+        }
+        if (auto spinBox = qobject_cast<QAbstractSpinBox*>(widget)) {
+            return !spinBox->isReadOnly();
+        }
+        if (auto textEdit = qobject_cast<QTextEdit*>(widget)) {
+            return !textEdit->isReadOnly();
+        }
+        if (auto plainTextEdit = qobject_cast<QPlainTextEdit*>(widget)) {
+            return !plainTextEdit->isReadOnly();
+        }
+        if (auto comboBox = qobject_cast<QComboBox*>(widget)) {
+            return comboBox->isEditable();
+        }
+    }
+    return false;
+}
+
+bool hasEditableFocus()
+{
+    QWidget* focusWidget = QApplication::focusWidget();
+    if (isEditableWidget(focusWidget)) {
+        return true;
+    }
+
+    // A proxy editor keeps keyboard focus on its containing graphics view.
+    for (QWidget* widget = focusWidget; widget; widget = widget->parentWidget()) {
+        auto view = qobject_cast<QGraphicsView*>(widget);
+        if (!view || !view->scene()) {
+            continue;
+        }
+        for (auto item = view->scene()->focusItem(); item; item = item->parentItem()) {
+            if (auto proxy = qgraphicsitem_cast<QGraphicsProxyWidget*>(item)) {
+                QWidget* embeddedWidget = proxy->widget();
+                return embeddedWidget
+                    && (isEditableWidget(embeddedWidget)
+                        || isEditableWidget(embeddedWidget->focusWidget()));
+            }
+        }
+    }
+    return false;
+}
+
+class MeasureSaveShortcutFilter: public QObject
+{
+public:
+    MeasureSaveShortcutFilter(QShortcut* save, QWidget* parent)
+        : QObject(parent)
+        , save(save)
+    {
+        qApp->installEventFilter(this);
+    }
+
+protected:
+    bool eventFilter(QObject*, QEvent* event) override
+    {
+        if (event->type() == QEvent::ShortcutOverride) {
+            // Qt sends this before matching shortcuts, including disabled ones.
+            // Recompute for each key so task and 3D focus immediately enable Save again.
+            const bool enabled = !hasEditableFocus();
+            if (save) {
+                save->setEnabled(enabled);
+            }
+        }
+        return false;
+    }
+
+private:
+    QPointer<QShortcut> save;
+};
 
 using SelectionStyle = Gui::SelectionSingleton::SelectionStyle;
 
@@ -663,6 +745,8 @@ void TaskMeasure::setupShortcuts(QWidget* parent)
     shortcutQuit->setKey(QKeySequence(QStringLiteral("ESC")));
     shortcutQuit->setContext(Qt::ApplicationShortcut);
     connect(shortcutQuit, &QShortcut::activated, this, &TaskMeasure::quitMeasurement);
+
+    new MeasureSaveShortcutFilter(shortcutSave, parent);
 }
 
 void TaskMeasure::saveMeasurement()

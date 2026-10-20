@@ -32,4 +32,4 @@ import MeasureGui
 
 import FreeCAD
 
-FreeCAD.__unit_test__ += ["TestMeasureGui"]
+FreeCAD.__unit_test__ += ["TestMeasureGui", "TestMeasureShortcutGui"]
