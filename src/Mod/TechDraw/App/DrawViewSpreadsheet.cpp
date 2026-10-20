@@ -242,6 +242,7 @@ std::string DrawViewSpreadsheet::getSheetImage()
     result << getSVGHead();
 
     std::string ViewName = Label.getValue();
+    DrawUtil::encodeXmlSpecialChars(ViewName);
     Base::Color c = TextColor.getValue();
     result << "<g id=\"" << ViewName << "\">" << std::endl;
 
