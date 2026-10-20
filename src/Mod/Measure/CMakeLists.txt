@@ -11,6 +11,7 @@ set(Measure_Scripts
     UtilsMeasure.py
     TestMeasureGui.py
     TestMeasureShortcutGui.py
+    TestMassPropertiesKeysGui.py
     TestMeasureShapeFinder.py
 )
 
