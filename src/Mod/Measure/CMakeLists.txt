@@ -11,6 +11,7 @@ set(Measure_Scripts
     UtilsMeasure.py
     TestMeasureGui.py
     TestMeasureShortcutGui.py
+    TestMeasureDocumentOwnershipGui.py
     TestMassPropertiesKeysGui.py
     TestMassPropertiesPreviewGui.py
     TestMassPropertiesPreviewLifecycleGui.py

@@ -35,6 +35,7 @@ import FreeCAD
 FreeCAD.__unit_test__ += [
     "TestMeasureGui",
     "TestMeasureShortcutGui",
+    "TestMeasureDocumentOwnershipGui",
     "TestMassPropertiesKeysGui",
     "TestMassPropertiesPreviewGui",
     "TestMassPropertiesPreviewLifecycleGui",
