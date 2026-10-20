@@ -470,14 +470,49 @@ void ShortcutManager::onTimer()
 {
     timer.stop();
 
-    QAction* found = nullptr;
+    // Finish this sequence before callbacks can queue another one.
+    std::vector<ActionInfo> actions;
+    actions.swap(pendingActions);
+    QPointer<QWidget> focus = lastFocus;
+    QKeySequence sequence = pendingSequence;
+    lastFocus = nullptr;
+    pendingSequence = QKeySequence();
+
+    if (focus && focus == QApplication::focusWidget()) {
+        // We are here because we have withheld some previous triggered action.
+        // We then disabled the action, and faked the same key strokes in order
+        // to wait for more potential match of longer key sequence. We use
+        // a timer to end the wait and trigger the pending action.
+        //
+        // Reset Qt's armed shortcut state before invoking a command, which
+        // may enter a modal event loop and block events to the old focus.
+        const auto& index = actionMap.get<1>();
+        static const std::string symbols = "~!@#$%^&*()_+";
+        QString shortcut = sequence.toString() + QStringLiteral(", Ctrl+");
+        for (int s : symbols) {
+            QKeySequence k(shortcut + QLatin1Char(s));
+            auto it = index.lower_bound(ActionKey(k));
+            if (it == index.end() || it->key.shortcut != k) {
+                QKeyEvent press(QEvent::KeyPress, s, Qt::ControlModifier, 0, 0, 0);
+                QApplication::sendEvent(focus.data(), &press);
+                if (focus) {
+                    QKeyEvent release(QEvent::KeyRelease, s, Qt::ControlModifier, 0, 0, 0);
+                    QApplication::sendEvent(focus.data(), &release);
+                }
+                break;
+            }
+        }
+    }
+
+    QPointer<QAction> found;
     int priority = -std::numeric_limits<int>::max();
     int seq_length = 0;
-    for (const auto& info : pendingActions) {
+    for (const auto& info : actions) {
         if (info.action) {
             info.action->setEnabled(true);
-            if (info.seq_length > seq_length
-                || (info.seq_length == seq_length && info.priority > priority)) {
+            if (info.action
+                && (info.seq_length > seq_length
+                    || (info.seq_length == seq_length && info.priority > priority))) {
                 priority = info.priority;
                 seq_length = info.seq_length;
                 found = info.action;
@@ -486,33 +521,6 @@ void ShortcutManager::onTimer()
     }
     if (found) {
         found->activate(QAction::Trigger);
-    }
-    pendingActions.clear();
-
-    if (lastFocus && lastFocus == QApplication::focusWidget()) {
-        // We are here because we have withheld some previous triggered action.
-        // We then disabled the action, and faked the same key strokes in order
-        // to wait for more potential match of longer key sequence. We use
-        // a timer to end the wait and trigger the pending action.
-        //
-        // However, Qt's internal shorcutmap state machine is still armed with
-        // our fake key strokes. So we try to fake some more obscure symbol key
-        // stroke below, hoping to reset Qt's state machine.
-
-        const auto& index = actionMap.get<1>();
-        static const std::string symbols = "~!@#$%^&*()_+";
-        QString shortcut = pendingSequence.toString() + QStringLiteral(", Ctrl+");
-        for (int s : symbols) {
-            QKeySequence k(shortcut + QLatin1Char(s));
-            auto it = index.lower_bound(ActionKey(k));
-            if (it->key.shortcut != k) {
-                QKeyEvent* kev = new QKeyEvent(QEvent::KeyPress, s, Qt::ControlModifier, 0, 0, 0);
-                QApplication::postEvent(lastFocus, kev);
-                kev = new QKeyEvent(QEvent::KeyRelease, s, Qt::ControlModifier, 0, 0, 0);
-                QApplication::postEvent(lastFocus, kev);
-                break;
-            }
-        }
     }
 }
 
