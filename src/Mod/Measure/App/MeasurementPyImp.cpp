@@ -62,8 +62,14 @@ PyObject* MeasurementPy::addReference3D(PyObject* args)
         return nullptr;
     }
 
+    auto* doc = App::GetApplication().getActiveDocument();
+    if (!doc) {
+        PyErr_SetString(PyExc_RuntimeError, "No active document");
+        return nullptr;
+    }
+
     // get the target object for the external link
-    App::DocumentObject* Obj = App::GetApplication().getActiveDocument()->getObject(ObjectName);
+    App::DocumentObject* Obj = doc->getObject(ObjectName);
     if (!Obj) {
         std::stringstream str;
         str << ObjectName << "does not exist in the document";
