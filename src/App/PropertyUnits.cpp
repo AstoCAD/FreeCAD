@@ -74,7 +74,11 @@ Base::Quantity PropertyQuantity::createQuantityFromPy(PyObject* value)
         quant = Quantity(PyFloat_AsDouble(value), _Unit);
     }
     else if (PyLong_Check(value)) {
-        quant = Quantity(double(PyLong_AsLong(value)), _Unit);
+        const double convertedValue = PyLong_AsDouble(value);
+        if (PyErr_Occurred()) {
+            throw Py::Exception();
+        }
+        quant = Quantity(convertedValue, _Unit);
     }
     else if (PyObject_TypeCheck(value, &(QuantityPy::Type))) {
         Base::QuantityPy* pcObject = static_cast<Base::QuantityPy*>(value);

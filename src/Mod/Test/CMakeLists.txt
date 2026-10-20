@@ -20,6 +20,7 @@ SET(Test_SRCS
     TestLinkSuppression.py
     TestIntPairList.py
     TestPropertyFloatIntegerConversion.py
+    TestFloatConstraintQuantityIntegerConversion.py
     TestHelpFallback.py
     TestGui.py
     TestGroupVisibilityRestoreGui.py
