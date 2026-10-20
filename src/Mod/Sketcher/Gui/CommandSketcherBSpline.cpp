@@ -253,13 +253,17 @@ void CmdSketcherIncreaseDegree::activated(int iMsg)
     const std::vector<std::string>& SubNames = selection[0].getSubNames();
     auto* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
 
-    openCommand(QT_TRANSLATE_NOOP("Command", "Increase B-spline degree"));
+    bool commandOpened = false;
 
     bool ignored = false;
 
     for (size_t i = 0; i < SubNames.size(); i++) {
         // only handle edges
         if (SubNames[i].size() > 4 && SubNames[i].substr(0, 4) == "Edge") {
+            if (!commandOpened) {
+                openCommand(QT_TRANSLATE_NOOP("Command", "Increase B-spline degree"));
+                commandOpened = true;
+            }
             int GeoId = std::atoi(SubNames[i].substr(4, 4000).c_str()) - 1;
             const Part::Geometry* geo = Obj->getGeometry(GeoId);
 
@@ -285,7 +289,9 @@ void CmdSketcherIncreaseDegree::activated(int iMsg)
         );
     }
 
-    commitCommand();
+    if (commandOpened) {
+        commitCommand();
+    }
     tryAutoRecomputeIfNotSolve(Obj);
     getSelection().clearSelection();
 }
@@ -332,13 +338,17 @@ void CmdSketcherDecreaseDegree::activated(int iMsg)
     const std::vector<std::string>& SubNames = selection[0].getSubNames();
     Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
 
-    openCommand(QT_TRANSLATE_NOOP("Command", "Decrease B-spline degree"));
+    bool commandOpened = false;
 
     bool ignored = false;
 
     for (size_t i = 0; i < SubNames.size(); i++) {
         // only handle edges
         if (SubNames[i].size() > 4 && SubNames[i].substr(0, 4) == "Edge") {
+            if (!commandOpened) {
+                openCommand(QT_TRANSLATE_NOOP("Command", "Decrease B-spline degree"));
+                commandOpened = true;
+            }
             int GeoId = std::atoi(SubNames[i].substr(4, 4000).c_str()) - 1;
             const Part::Geometry* geo = Obj->getGeometry(GeoId);
 
@@ -370,7 +380,9 @@ void CmdSketcherDecreaseDegree::activated(int iMsg)
         );
     }
 
-    commitCommand();
+    if (commandOpened) {
+        commitCommand();
+    }
     tryAutoRecomputeIfNotSolve(Obj);
     getSelection().clearSelection();
 }
