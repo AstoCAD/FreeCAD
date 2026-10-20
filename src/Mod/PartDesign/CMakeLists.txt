@@ -74,6 +74,7 @@ if(BUILD_GUI)
     list(APPEND PartDesign_TestScripts
         PartDesignTests/TestLoftSelectionGui.py
         PartDesignTests/TestRevolutionReferencesGui.py
+        PartDesignTests/TestTypedUpToFaceReferencesGui.py
         PartDesignTests/TestMoveFeatureSourceTipGui.py
         PartDesignTests/TestBooleanBoundingBoxGui.py
         PartDesignTests/TestBooleanDisplayGui.py
