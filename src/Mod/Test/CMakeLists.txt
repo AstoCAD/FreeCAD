@@ -47,6 +47,7 @@ SET(Test_SRCS
     TestLayerWidget.py
     TestGraphicsViewWrapping.py
     TestMDIView.py
+    TestActivateViewGui.py
     TestRubberbandSelection.py
     TestCoinNodeSnapshots.py
     TestView3DFramebufferCapture.py
