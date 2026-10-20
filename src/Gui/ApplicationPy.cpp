@@ -1474,6 +1474,28 @@ PyObject* ApplicationPy::sAddCommand(PyObject* /*self*/, PyObject* args)
                 group = module;
             }
         }
+
+        // Preserve the filename-derived command group and legacy script fallback.
+        // A loaded package module can supply its importable qualified name without
+        // importing it again while command registration is still in progress.
+        Py::Object globals(callerFrame.getAttr("f_globals"));
+        PyObject* name = PyDict_GetItemString(globals.ptr(), "__name__");
+        PyObject* package = PyDict_GetItemString(globals.ptr(), "__package__");
+        if (name && package && PyUnicode_Check(name) && PyUnicode_Check(package)) {
+            const std::string qualifiedName = Py::String(name).as_std_string();
+            const std::string packageName = Py::String(package).as_std_string();
+            if (!packageName.empty() && qualifiedName != "__main__"
+                && (qualifiedName == packageName
+                    || qualifiedName.starts_with(packageName + "."))) {
+                Py::Object modules(sysMod.getAttr("modules"));
+                PyObject* loaded = PyDict_Check(modules.ptr())
+                    ? PyDict_GetItem(modules.ptr(), name) : nullptr;
+                if (loaded && PyModule_Check(loaded)
+                    && PyModule_GetDict(loaded) == globals.ptr()) {
+                    module = qualifiedName;
+                }
+            }
+        }
     }
     catch (Py::Exception& e) {
         e.clear();
