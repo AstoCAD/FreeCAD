@@ -172,8 +172,11 @@ bool SketcherTransformationExpressionHelper::tryApplyExpressionToConstraint(
 
             bool match = (cstr->Type == origCstr->Type)
                 && (cstr->First == getExpectedGeoId(origCstr->First))
+                && (cstr->FirstPos == origCstr->FirstPos)
                 && (cstr->Second == getExpectedGeoId(origCstr->Second))
-                && (cstr->Third == getExpectedGeoId(origCstr->Third));
+                && (cstr->SecondPos == origCstr->SecondPos)
+                && (cstr->Third == getExpectedGeoId(origCstr->Third))
+                && (cstr->ThirdPos == origCstr->ThirdPos);
 
             if (match) {
                 Gui::Command::doCommand(
