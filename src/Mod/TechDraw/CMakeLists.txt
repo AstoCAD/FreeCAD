@@ -201,6 +201,7 @@ SET(TDTest_SRCS
     TDTest/DrawViewSymbolTest.py
     TDTest/DrawViewDimensionTest.py
     TDTest/DrawViewDimensionTreeTest.py
+    TDTest/DrawViewCaptionGuiTest.py
     TDTest/DrawViewPartTest.py
     TDTest/DrawViewPositionTest.py
     TDTest/DrawViewSectionTest.py
@@ -213,6 +214,8 @@ SET(TDTest_SRCS
 )
 
 SET(TDTestFile_SRCS
+    TDTest/TestCaptionRestore33134.FCStd
+    TDTest/TestCaptionRestore33134Empty.FCStd
     TDTest/TestHatch.svg
     TDTest/TestImage.png
     TDTest/TestSymbol.svg
