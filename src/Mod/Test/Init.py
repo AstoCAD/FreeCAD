@@ -28,6 +28,7 @@ FreeCAD.__unit_test__ += [
     "BaseTests",
     "FreeCADInitTests",
     "UnitTests",
+    "TestQuantityPower",
     "Document",
     "TestLinkSuppression",
     "TestIntPairList",
