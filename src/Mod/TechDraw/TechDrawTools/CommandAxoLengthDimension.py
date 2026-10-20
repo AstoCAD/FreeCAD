@@ -77,13 +77,13 @@ class CommandAxoLengthDimension:
     def Activated(self):
         """Run the following code when the command is activated (button press)."""
 
-        App.ActiveDocument.openTransaction("Create axonometric length dimension")
         vertexes = []
         edges = []
 
         if not Utils.getSelEdges(2):
             return
             
+        App.ActiveDocument.openTransaction("Create axonometric length dimension")
         edges = Utils.getSelEdges(2)
         vertexes = Utils.getSelVertexes(0)
 
