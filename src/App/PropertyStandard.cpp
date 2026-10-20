@@ -701,6 +701,9 @@ void PropertyIntegerConstraint::setPyObject(PyObject* value)
 {
     if (PyLong_Check(value)) {
         long temp = PyLong_AsLong(value);
+        if (PyErr_Occurred()) {
+            throw Py::Exception();
+        }
         if (_ConstStruct) {
             if (temp > _ConstStruct->UpperBound) {
                 temp = _ConstStruct->UpperBound;

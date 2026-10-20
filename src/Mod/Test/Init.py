@@ -33,6 +33,7 @@ FreeCAD.__unit_test__ += [
     "TestLinkSuppression",
     "TestIntPairList",
     "TestPropertyIntegerOverflow",
+    "TestIntegerConstraintOverflow",
     "TestPropertyMatrixIntegerOverflow",
     "TestPropertyFloatIntegerConversion",
     "TestFloatConstraintQuantityIntegerConversion",
