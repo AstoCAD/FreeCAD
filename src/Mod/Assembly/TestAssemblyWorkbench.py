@@ -24,6 +24,10 @@
 import TestApp
 
 from AssemblyTests.TestCore import TestCore
+from AssemblyTests.TestHeadlessJointRestore import (
+    TestHeadlessJointSerialization,
+    TestHeadlessJointRestoreGui,
+)
 from AssemblyTests.TestDynamics import TestDynamics
 from AssemblyTests.TestPointMeasurement import TestPointMeasurement
 from AssemblyTests.TestMotionProfile import TestMotionProfile
@@ -44,6 +48,8 @@ from AssemblyTests.TestViewProviderAssembly import TestViewProviderAssembly
 
 # Use the modules so that code checkers don't complain (flake8)
 True if TestCore else False
+True if TestHeadlessJointSerialization else False
+True if TestHeadlessJointRestoreGui else False
 True if TestDynamics else False
 True if TestPointMeasurement else False
 True if TestMotionProfile else False

@@ -195,6 +195,10 @@ class Joint:
 
     def onDocumentRestored(self, joint):
         self.createProperties(joint)
+        if App.GuiUp:
+            vobj = joint.ViewObject
+            if vobj is not None and vobj.Proxy is None:
+                ViewProviderJoint(vobj)
 
     def createProperties(self, joint):
         self.migrationScript(joint)
