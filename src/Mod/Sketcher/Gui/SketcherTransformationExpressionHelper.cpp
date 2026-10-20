@@ -24,6 +24,7 @@
 
 #include "SketcherTransformationExpressionHelper.h"
 
+#include <Base/Interpreter.h>
 #include <Gui/Command.h>
 #include <Mod/Sketcher/App/SketchObject.h>
 
@@ -180,7 +181,7 @@ bool SketcherTransformationExpressionHelper::tryApplyExpressionToConstraint(
                     "%s.setExpression('Constraints[%d]', '%s')",
                     sketchObj.c_str(),
                     static_cast<int>(constraintIndex),
-                    expression->toString().c_str()
+                    Base::InterpreterSingleton::strToPython(expression->toString()).c_str()
                 );
                 return true;
             }
