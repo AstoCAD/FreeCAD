@@ -12,6 +12,8 @@ set(Measure_Scripts
     TestMeasureGui.py
     TestMeasureShortcutGui.py
     TestMassPropertiesKeysGui.py
+    TestMassPropertiesPreviewGui.py
+    TestMassPropertiesPreviewLifecycleGui.py
     TestMeasureShapeFinder.py
 )
 
