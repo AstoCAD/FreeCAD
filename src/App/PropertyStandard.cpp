@@ -471,6 +471,9 @@ void PropertyEnumeration::setPyObject(PyObject* value)
 {
     if (PyLong_Check(value)) {
         long val = PyLong_AsLong(value);
+        if (PyErr_Occurred()) {
+            throw Py::Exception();
+        }
         if (_enum.isValid()) {
             aboutToSetValue();
             _enum.setValue(val, true);
