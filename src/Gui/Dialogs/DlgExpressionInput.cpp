@@ -671,7 +671,9 @@ void DlgExpressionInput::acceptWithVarSet()
     }
     else {
         // the value is an expression: make an expression binding in the VarSet
+        const auto value = expression->getValueAsAny();
         createBindingVarSet(prop, obj);
+        prop->setPathValue(ObjectIdentifier(*prop), value);
     }
 
     // Create a new expression that refers to the property in the VarSet
