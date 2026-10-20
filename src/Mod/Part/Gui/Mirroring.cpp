@@ -376,7 +376,7 @@ bool Mirroring::accept()
     double basey = ui->baseY->value().getValue();
     double basez = ui->baseZ->value().getValue();
     for (auto item : items) {
-        shape = item->data(0, Qt::UserRole).toString();
+        shape = QString::fromUtf8(item->data(0, Qt::UserRole).toString().toLatin1());
         label = item->text(0);
         selectionString = QString::fromStdString(selection);
 
@@ -399,7 +399,7 @@ bool Mirroring::accept()
                            "__doc__.ActiveObject.MirrorPlane=(%10)\n"
                            "del __doc__"
         )
-                           .arg(this->document, shape, label)
+                           .arg(QString::fromUtf8(this->document.toLatin1()), shape, label)
                            .arg(normx)
                            .arg(normy)
                            .arg(normz)
