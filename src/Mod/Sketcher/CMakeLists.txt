@@ -50,6 +50,7 @@ if(BUILD_GUI)
           SketcherTests/TestOnViewParameterGui.py
           SketcherTests/TestExternalFacePreselection.py
           SketcherTests/TestViewSectionGui.py
+          SketcherTests/TestSketchRubberbandGui.py
     )
 endif(BUILD_GUI)
 
