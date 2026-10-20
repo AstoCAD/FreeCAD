@@ -1192,8 +1192,10 @@ QGIView* QGIView::getQGIVByName(std::string name) const
 Gui::ViewProvider* QGIView::getViewProvider(App::DocumentObject* obj)
 {
     if (obj) {
+        // While a document closes, its Gui::Document is removed before the
+        // page scene, so hover events can still reach this item.
         Gui::Document* guiDoc = Gui::Application::Instance->getDocument(obj->getDocument());
-        return guiDoc->getViewProvider(obj);
+        return guiDoc ? guiDoc->getViewProvider(obj) : nullptr;
     }
     return nullptr;
 }
