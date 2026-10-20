@@ -481,12 +481,25 @@ void PropertyEditor::closeEditor(QWidget* editor, QAbstractItemDelegate::EndEdit
         return;
     }
 
+    const bool reverting = hint == QAbstractItemDelegate::RevertModelCache;
+    const int revertTransactionID = reverting ? transactionID : 0;
+    if (reverting) {
+        // The editor may be destroyed while closing. Prevent its destruction
+        // handler from committing a transaction that is being cancelled.
+        transactionID = 0;
+    }
+
     // If we are not removing rows, then QTreeView::closeEditor() does nothing
     // because we are using persistent editor, so we have to call our own
     // version of closeEditor()
     this->closeEditor();
 
-    closeTransaction();
+    if (reverting) {
+        Command::abortCommand(revertTransactionID);
+    }
+    else {
+        closeTransaction();
+    }
 
     QModelIndex indexSaved = currentIndex();
 
