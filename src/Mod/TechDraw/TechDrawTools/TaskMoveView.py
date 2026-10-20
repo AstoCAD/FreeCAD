@@ -111,7 +111,7 @@ class TaskMoveView:
 
         pages = [x for x in App.ActiveDocument.Objects if x.isDerivedFrom("TechDraw::DrawPage")]
         for p in pages:
-            s = p.Label + " / " + p.Label
+            s = p.Label + " / " + p.Name
             item = QtGui.QListWidgetItem(s, dlg.lwPages)
             item.setData(QtCore.Qt.UserRole, p.Name)
         if (dlg.exec() == QtGui.QDialog.Accepted) :
