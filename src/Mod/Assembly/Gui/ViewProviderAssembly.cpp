@@ -1893,7 +1893,7 @@ inline QString objListHelper(const AssemblyObject* assembly, const std::vector<s
                 results.append(QStringLiteral(", "));
             }
             results.append(
-                QStringLiteral("%1").arg(QString::fromLatin1(joint->Label.getStrValue().c_str()))
+                QStringLiteral("%1").arg(QString::fromUtf8(joint->Label.getStrValue().c_str()))
             );
         }
     }
@@ -1902,7 +1902,7 @@ inline QString objListHelper(const AssemblyObject* assembly, const std::vector<s
         int more = joints.size() - numToShow;
         for (int i = 0; i < numToShow; ++i) {
             results.append(QStringLiteral("%1, ").arg(
-                QString::fromLatin1(joints[i]->Label.getStrValue().c_str())
+                QString::fromUtf8(joints[i]->Label.getStrValue().c_str())
             ));
         }
         results.append(ViewProviderAssembly::tr("and %1 more").arg(more));
