@@ -29,6 +29,7 @@
 
 
 #include <App/Document.h>
+#include <App/DocumentObserver.h>
 #include <Base/Console.h>
 #include <Base/Parameter.h>
 #include <Base/Tools.h>
@@ -309,17 +310,17 @@ DrawLeaderLine* DrawLeaderLine::makeLeader(DrawViewPart* parent, std::vector<Bas
     const std::string objectName{"LeaderLine"};
     const std::string leaderType = "TechDraw::DrawLeaderLine";
     std::string leaderName = parent->getDocument()->getUniqueObjectName(objectName.c_str());
-    std::string pageName = parent->findParentPage()->getNameInDocument();
-    std::string parentName = parent->getNameInDocument();
+    const auto documentRef = App::DocumentT(parent->getDocument()).getDocumentPython();
+    const auto leaderRef = App::DocumentObjectT(parent->getDocument(), leaderName).getObjectPython();
+    const auto pageRef = App::DocumentObjectT(parent->findParentPage()).getObjectPython();
+    const auto parentRef = App::DocumentObjectT(parent).getObjectPython();
 
-    Base::Interpreter().runStringArg("App.activeDocument().addObject('%s', '%s')",
-                                     leaderType.c_str(), leaderName.c_str());
-    Base::Interpreter().runStringArg("App.activeDocument().%s.translateLabel('DrawLeaderLine', 'LeaderLine', '%s')",
-                                     leaderName.c_str(), leaderName.c_str());
-    Base::Interpreter().runStringArg("App.activeDocument().%s.addView(App.activeDocument().%s)",
-                                     pageName.c_str(), leaderName.c_str());
-    Base::Interpreter().runStringArg("App.activeDocument().%s.LeaderParent = App.activeDocument().%s",
-                                     leaderName.c_str(), parentName.c_str());
+    Base::Interpreter().runStringArg("%s.addObject('%s', '%s')",
+                                     documentRef.c_str(), leaderType.c_str(), leaderName.c_str());
+    Base::Interpreter().runStringArg("%s.translateLabel('DrawLeaderLine', 'LeaderLine', '%s')",
+                                     leaderRef.c_str(), leaderName.c_str());
+    Base::Interpreter().runStringArg("%s.addView(%s)", pageRef.c_str(), leaderRef.c_str());
+    Base::Interpreter().runStringArg("%s.LeaderParent = %s", leaderRef.c_str(), parentRef.c_str());
     // we assume here that the caller will handle AutoHorizontal, Scalable and Rotatable as required
 
 
