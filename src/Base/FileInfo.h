@@ -171,6 +171,9 @@ public:
     static std::string pathToString(const std::filesystem::path& path);
     /// Convert from string to filesystem path
     static std::filesystem::path stringToPath(const std::string& str);
+    /// Make a relative path absolute against the current working directory, with '/' as
+    /// separator. An empty or absolute path is returned unchanged.
+    static std::string absolutePath(const std::string& path);
     /** Reduce an archive entry name to a path that cannot escape the extraction directory.
      *
      * @param[in] entryName The raw entry name as stored in the archive.

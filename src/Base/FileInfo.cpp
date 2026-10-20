@@ -30,6 +30,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 #include <system_error>
 #ifdef FC_OS_WIN32
 # include <Windows.h>
@@ -178,6 +179,29 @@ std::string FileInfo::pathToString(const fs::path& path)
 #else
     return path.string();
 #endif
+}
+
+std::string FileInfo::absolutePath(const std::string& path)
+{
+    if (path.empty()) {
+        return path;
+    }
+    try {
+        fs::path filePath = stringToPath(path);
+        if (filePath.is_absolute()) {
+            return path;
+        }
+        std::error_code ec;
+        fs::path absolute = fs::absolute(filePath, ec);
+        if (ec) {
+            return path;
+        }
+        return FileInfo(pathToString(absolute.lexically_normal())).filePath();
+    }
+    catch (const std::range_error&) {
+        // not valid UTF-8
+        return path;
+    }
 }
 
 void FileInfo::setFile(std::string name)

@@ -25,6 +25,24 @@ TEST(FileInfoExtensionTest, IgnoresDotsInParentDirectories)
     }
 }
 
+TEST(FileInfoAbsolutePathTest, ResolvesRelativePathsAgainstWorkingDirectory)
+{
+    const auto expected = Base::FileInfo(
+        Base::FileInfo::pathToString((std::filesystem::current_path() / "sub" / "file.FCStd")
+                                         .lexically_normal())
+    );
+    EXPECT_EQ(Base::FileInfo::absolutePath("sub/file.FCStd"), expected.filePath());
+    EXPECT_EQ(Base::FileInfo::absolutePath("./sub/../sub/file.FCStd"), expected.filePath());
+}
+
+TEST(FileInfoAbsolutePathTest, KeepsAbsoluteAndEmptyPaths)
+{
+    const std::string absolute
+        = Base::FileInfo::pathToString(std::filesystem::current_path() / "file.FCStd");
+    EXPECT_EQ(Base::FileInfo::absolutePath(absolute), absolute);
+    EXPECT_EQ(Base::FileInfo::absolutePath(""), "");
+}
+
 TEST(FileInfoExtensionTest, PreservesFilenameExtensionRules)
 {
     for (const auto* parent : {"", "parent.with.dots/", "C:\\parent.with.dots\\"}) {
