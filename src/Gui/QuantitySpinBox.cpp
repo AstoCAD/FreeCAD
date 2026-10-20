@@ -268,7 +268,15 @@ void Gui::QuantitySpinBox::setNumberExpression(App::NumberExpression* expr)
     // An expression result is a semantic change: listeners (task panel previews, bound
     // feature updates) must be notified, as they were before c152324 via validateInput().
     // see: https://github.com/FreeCAD/FreeCAD/issues/33098
-    const bool changed = quantity.getValue() != d->quantity.getValue()
+    // Compare the effective stored value using commitQuantity's range order.
+    double effectiveValue = quantity.getValue();
+    if (effectiveValue > d->maximum) {
+        effectiveValue = d->maximum;
+    }
+    if (effectiveValue < d->minimum) {
+        effectiveValue = d->minimum;
+    }
+    const bool changed = effectiveValue != d->quantity.getValue()
         || quantity.getUnit() != d->quantity.getUnit();
     commitQuantity(quantity, TextPolicy::ReformatEditor, changed);
 }
