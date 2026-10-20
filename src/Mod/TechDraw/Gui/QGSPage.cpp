@@ -117,6 +117,15 @@ QGSPage::QGSPage(ViewProviderPage* vpPage, QWidget* parent)
     setItemIndexMethod(QGraphicsScene::BspTreeIndex);//the default
 }
 
+QGSPage::~QGSPage()
+{
+    // The model can be gone before the queued scene deletion. Disconnect all
+    // view selection callbacks before destroying any of their peer items.
+    for (auto* view : getViews()) {
+        QObject::disconnect(this, &QGraphicsScene::selectionChanged, view, nullptr);
+    }
+}
+
 
 void QGSPage::mousePressEvent(QGraphicsSceneMouseEvent * event)
 {
