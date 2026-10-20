@@ -390,6 +390,9 @@ bool TaskMassProperties::eventFilter(QObject* watched, QEvent* event)
     if (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) {
         auto* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() != Qt::Key_Delete && keyEvent->key() != Qt::Key_Backspace) {
+            if (auto* edit = qobject_cast<QLineEdit*>(watched); edit && !edit->isReadOnly()) {
+                return Gui::TaskView::TaskDialog::eventFilter(watched, event);
+            }
             event->accept();
             return true;
         }
