@@ -110,6 +110,7 @@ FreeCAD.__unit_test__ += [
     "TestExpressionCompleterGui",
     "TestGraphicsViewWrapping",
     "TestMDIView",
+    "TestActivateViewGui",
     "TestRubberbandSelection",
     "TestSelectionVisual",
     "TestSelectionViewIdentityGui",
