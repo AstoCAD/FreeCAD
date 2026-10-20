@@ -26,6 +26,7 @@
 # Broken-out test modules
 from SketcherTests.TestSketcherSolver import TestSketcherSolver
 from SketcherTests.TestSketchFillet import TestSketchFillet
+from SketcherTests.TestSketchChamfer import TestChamferPreservedCornerEndpoints
 from SketcherTests.TestSketchExpression import TestSketchExpression
 from SketcherTests.TestSketchValidateCoincidents import TestSketchValidateCoincidents
 from SketcherTests.TestSketchCarbonCopyReverseMapping import TestSketchCarbonCopyReverseMapping
@@ -47,6 +48,7 @@ from SketcherTests.TestSketcherSolver import CreateSlotPlateSet
 __all__ = [
     "TestSketcherSolver",
     "TestSketchFillet",
+    "TestChamferPreservedCornerEndpoints",
     "TestSketchExpression",
     "TestSketchValidateCoincidents",
     "TestSketchCarbonCopyReverseMapping",
