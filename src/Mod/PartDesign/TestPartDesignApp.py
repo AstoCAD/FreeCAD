@@ -52,6 +52,7 @@ from PartDesignTests.TestPolarPattern import TestPolarPattern
 from PartDesignTests.TestMultiTransform import TestMultiTransform
 from PartDesignTests.TestBoolean import TestBoolean
 from PartDesignTests.TestBaseFeature import TestBaseFeature
+from PartDesignTests.TestBodyRemoval import TestBodyBulkRemoval, TestBodyPartialLocalClosure
 
 # dressup features
 from PartDesignTests.TestFillet import TestFillet

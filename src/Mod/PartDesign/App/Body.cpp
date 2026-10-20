@@ -497,6 +497,12 @@ void Body::onChanged(const App::Property* prop)
             }
         }
         else if (prop == &Group) {
+            // The Tip is a feature of this Body. Bulk removal (which also takes the Local
+            // dependencies) and setting Group bypass removeObject(), which moves the Tip: do not
+            // keep a Tip that left the Group, e.g. moved into another Body.
+            if (Tip.getValue() && !std::ranges::count(Group.getValues(), Tip.getValue())) {
+                Tip.setValue(nullptr);
+            }
             // if the FeatureBase was deleted we set the BaseFeature link to nullptr
             if (BaseFeature.getValue()
                 && (Group.getValues().empty()
