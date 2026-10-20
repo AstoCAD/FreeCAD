@@ -44,6 +44,7 @@ from AssemblyTests.TestBomAvailabilityGui import TestBomDocumentAvailability
 from AssemblyTests.TestBomRestoredColumnsGui import TestBomRestoredColumns
 from AssemblyTests.TestCommandCreateView import TestCommandCreateView
 from AssemblyTests.TestCommandCreateJoint import TestCommandCreateJoint
+from AssemblyTests.TestRigidGroupInitializationGui import TestRigidGroupInitializationGui
 from AssemblyTests.TestSimulationExport import TestSimulationExport
 from AssemblyTests.TestSimulationGravity import TestSimulationGravity
 from AssemblyTests.TestSimulationTabs import TestSimulationTabs
@@ -69,6 +70,7 @@ True if TestBomDocumentAvailability else False
 True if TestBomRestoredColumns else False
 True if TestCommandCreateView else False
 True if TestCommandCreateJoint else False
+True if TestRigidGroupInitializationGui else False
 True if TestSimulationExport else False
 True if TestSimulationGravity else False
 True if TestSimulationTabs else False
