@@ -558,6 +558,10 @@ class CommandCreateJointRigidGroup:
         if not selection:
             return
 
+        if sum(len(sel.SubElementNames) for sel in selection) < 2:
+            createJointRigidGroupJoint([])
+            return
+
         App.ActiveDocument.openTransaction("Create Rigid Group")
         parts = []
         for sel in selection:
