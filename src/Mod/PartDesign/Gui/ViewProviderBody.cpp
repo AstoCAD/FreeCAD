@@ -484,7 +484,14 @@ void ViewProviderBody::unifyVisualProperty(const App::Property* prop)
         // copy over the properties data
         if (Gui::ViewProvider* vp = gdoc->getViewProvider(feature)) {
             if (auto fprop = vp->getPropertyByName(prop->getName())) {
-                fprop->Paste(*prop);
+                if (auto targetMode = freecad_cast<App::PropertyEnumeration*>(fprop);
+                    prop == &DisplayMode && DisplayMode.isValid() && targetMode
+                    && targetMode->isPartOf(DisplayMode.getValueAsString())) {
+                    targetMode->setValue(DisplayMode.getValueAsString());
+                }
+                else {
+                    fprop->Paste(*prop);
+                }
             }
         }
     }
