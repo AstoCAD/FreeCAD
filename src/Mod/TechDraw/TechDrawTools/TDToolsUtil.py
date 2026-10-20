@@ -85,6 +85,9 @@ def getSelVertexes(nVertex=1, nSel=0):
     vertexes = []
     for objectString in objectList:
         if objectString[0:6] == 'Vertex':
+            if not hasattr(view, 'getVertexBySelection'):
+                displayMessage('TechDraw_Utils','No view selected')
+                return False
             vertexes.append(view.getVertexBySelection(objectString))
 
     if (len(vertexes) < nVertex):
@@ -116,6 +119,9 @@ def getSelEdges(nEdge=1, nSel=0):
     edges = []
     for objectString in objectList:
         if objectString[0:4] == 'Edge':
+            if not hasattr(view, 'getEdgeBySelection'):
+                displayMessage('TechDraw_Utils','No view selected')
+                return False
             edges.append(view.getEdgeBySelection(objectString))
 
     if (len(edges) < nEdge):
