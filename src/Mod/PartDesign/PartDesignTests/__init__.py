@@ -2,6 +2,7 @@
 
 from . import TestBoolean
 from . import TestBaseFeature
+from . import TestBodyRemoval
 from . import TestChamfer
 from . import TestDatum
 from . import TestDraft
