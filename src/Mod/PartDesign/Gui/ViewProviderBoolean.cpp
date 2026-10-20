@@ -403,6 +403,23 @@ std::vector<App::DocumentObject*> ViewProviderBoolean::claimChildren3D() const
     return feature ? feature->Group.getValues() : std::vector<App::DocumentObject*> {};
 }
 
+Base::BoundBox3d ViewProviderBoolean::_getBoundingBox(
+    const char* subname,
+    const Base::Matrix4D* mat,
+    bool transform,
+    const Gui::View3DInventorViewer* viewer,
+    int depth
+) const
+{
+    if (!subname || !subname[0]) {
+        // The Boolean owns displayed result/tool geometry in addition to its
+        // group references. Its whole-object bounds must follow that scene,
+        // rather than treating it as a container of its referenced tools.
+        return Gui::ViewProvider::_getBoundingBox(subname, mat, transform, viewer, depth);
+    }
+    return ViewProvider::_getBoundingBox(subname, mat, transform, viewer, depth);
+}
+
 void ViewProviderBoolean::onChanged(const App::Property* prop)
 {
 
