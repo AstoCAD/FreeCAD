@@ -36,6 +36,7 @@ SET(OpenSCADTests_SRCS
 SET(OpenSCADTestsApp_SRCS
     OpenSCADTest/app/__init__.py
     OpenSCADTest/app/test_importCSG.py
+    OpenSCADTest/app/test_importCSGIntersection.py
 )
 
 SET(OpenSCADTestsGui_SRCS
