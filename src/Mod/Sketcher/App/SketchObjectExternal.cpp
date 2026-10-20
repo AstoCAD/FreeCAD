@@ -2110,7 +2110,8 @@ void processEdge(const TopoDS_Edge& edge,
             // Align the z axis of the edge plane to the y axis of the projection
             // plane,  so that the extreme bound will be a line in the x axis direction
             // of the projection plane.
-            double angle = plane.Axis().Direction().Angle(sketchPlane.YAxis().Direction());
+            double angle = plane.Axis().Direction().AngleWithRef(
+                sketchPlane.YAxis().Direction(), sketchPlane.Axis().Direction());
 
             gp_Trsf trsf;
             if (fabs(angle) > Precision::Angular()) {
@@ -2128,19 +2129,19 @@ void processEdge(const TopoDS_Edge& edge,
                 throw Base::CADKernelError("Invalid bounding box");
             }
 
-            gp_Pnt p1(bbox.MinX, bbox.MinY, 0);
-            gp_Pnt p2(bbox.MaxX, bbox.MaxY, 0);
+            // The aligned bounding box has no expansion in Y direction.
+            // Remove rounding errors before rotating back (issue 25720).
+            double y = (bbox.MinY + bbox.MaxY) / 2.0;
+            gp_Pnt p1(bbox.MinX, y, 0);
+            gp_Pnt p2(bbox.MaxX, y, 0);
             if (fabs(angle) > Precision::Angular()) {
                 trsf.SetRotation(gp_Ax1(gp_Pnt(), gp_Dir(0, 0, 1)), -angle);
                 p1.Transform(trsf);
                 p2.Transform(trsf);
             }
 
-            // The bounding box has no expansion in Y direction.
-            // Due to possible rounding errors force the same y
-            // value for both points. This fixes issue 25720
-            Base::Vector3d P1(p1.X(), (p1.Y() + p2.Y()) / 2.0, 0);
-            Base::Vector3d P2(p2.X(), (p1.Y() + p2.Y()) / 2.0, 0);
+            Base::Vector3d P1(p1.X(), p1.Y(), 0);
+            Base::Vector3d P2(p2.X(), p2.Y(), 0);
 
             // check for degenerated case when the line is collapsed to a point
             if (p1.SquareDistance(p2) < Precision::SquareConfusion()) {
