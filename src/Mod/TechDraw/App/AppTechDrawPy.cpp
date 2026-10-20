@@ -947,6 +947,9 @@ private:
         if (!dvp->findParentPage()) {
             throw Py::ValueError("The parent view must belong to a page");
         }
+        if (!dvp->getGeometryObject()) {
+            throw Py::ValueError("The parent view must have projected geometry");
+        }
         if (PyUnicode_Check(pDimType) ) {
             dimType = PyUnicode_AsUTF8(pDimType);
         }
@@ -991,6 +994,9 @@ private:
         }
         if (!dvp->findParentPage()) {
             throw Py::ValueError("The parent view must belong to a page");
+        }
+        if (!dvp->getGeometryObject()) {
+            throw Py::ValueError("The parent view must have projected geometry");
         }
         if (PyUnicode_Check(pDimType)) {
             dimType = PyUnicode_AsUTF8(pDimType);
