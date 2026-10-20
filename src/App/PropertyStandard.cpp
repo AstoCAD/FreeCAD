@@ -1181,8 +1181,12 @@ void PropertyFloat::setPyObject(PyObject* value)
         hasSetValue();
     }
     else if (PyLong_Check(value)) {
+        const double convertedValue = PyLong_AsDouble(value);
+        if (PyErr_Occurred()) {
+            throw Py::Exception();
+        }
         aboutToSetValue();
-        _dValue = PyLong_AsLong(value);
+        _dValue = convertedValue;
         hasSetValue();
     }
     else {
