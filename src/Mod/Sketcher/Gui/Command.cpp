@@ -524,7 +524,8 @@ void CmdSketcherReorientSketch::activated(int iMsg)
     Q_UNUSED(iMsg);
     Sketcher::SketchObject* sketch =
         Gui::Selection().getObjectsOfType<Sketcher::SketchObject>().front();
-    if (sketch->AttachmentSupport.getValue()) {
+    const bool detachSupport = sketch->AttachmentSupport.getValue() != nullptr;
+    if (detachSupport) {
         int ret = QMessageBox::question(
             Gui::getMainWindow(),
             qApp->translate("Sketcher_ReorientSketch", "Sketch Has Support"),
@@ -534,7 +535,6 @@ void CmdSketcherReorientSketch::activated(int iMsg)
             QMessageBox::Yes | QMessageBox::No);
         if (ret == QMessageBox::No)
             return;
-        sketch->AttachmentSupport.setValue(nullptr);
     }
 
     // ask user for orientation
@@ -623,6 +623,9 @@ void CmdSketcherReorientSketch::activated(int iMsg)
     }
 
     openCommand(QT_TRANSLATE_NOOP("Command", "Reorient sketch"));
+    if (detachSupport) {
+        sketch->AttachmentSupport.setValue(nullptr);
+    }
     Gui::cmdAppObjectArgs(
         sketch,
         "Placement = App.Placement(App.Vector(%f, %f, %f), App.Rotation(%f, %f, %f, %f))",

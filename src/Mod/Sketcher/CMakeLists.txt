@@ -60,6 +60,7 @@ if(BUILD_GUI)
           SketcherTests/TestViewSectionGui.py
           SketcherTests/TestSketchRubberbandGui.py
           SketcherTests/TestSketchDatumNavigationGui.py
+          SketcherTests/TestSketchReorientGui.py
     )
 endif(BUILD_GUI)
 
