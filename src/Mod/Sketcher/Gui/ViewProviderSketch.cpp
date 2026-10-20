@@ -1595,6 +1595,7 @@ bool ViewProviderSketch::mouseButtonPressed(int Button, bool pressed, const SbVe
                     }
                     break;
                 }
+                case STATUS_SKETCH_StartRubberBand:
                 case STATUS_SKETCH_UseRubberBand:
                     // Cancel rubberband
                     rubberband->setWorking(false);

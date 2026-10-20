@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""GUI framebuffer regressions for interrupted Sketcher rubberbands.
+"""GUI framebuffer regressions for Sketcher rubberbands (FreeCAD/FreeCAD#29122).
 
-This isolates the persistent-overlay subproblem of FreeCAD/FreeCAD#29122 from
-its navigation-specific release-order trigger. A live drag is interrupted by
-leaving edit, its button is then released outside sketch edit, and edit resumes.
+Cover interrupted-edit cleanup and actual Blender pan button release orders,
+including fresh selection interactions and camera/geometry preservation.
 """
 
 from pathlib import Path
@@ -243,3 +242,84 @@ class TestSketchRubberbandGui(unittest.TestCase):
 
     def testInterruptedFreshBoxSelection(self):
         self.freshBoxSelection(False)
+
+    def cameraPosition(self):
+        position = self.viewer.getSoRenderManager().getCamera().position.getValue()
+        return tuple(float(position[i]) for i in range(3))
+
+    def checkPan(self, right_first=False, release_right_first=False, selection_move=False):
+        self.view.setNavigationType("Gui::BlenderNavigationStyle")
+        self.pump()
+        # Avoid a previous case's shared native double-click candidate being
+        # mistaken for the first press in this independent pan gesture.
+        loop = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(QtGui.QApplication.doubleClickInterval() + 50, loop.quit)
+        loop.exec_()
+        baseline = self.capture("before-pan")
+        camera_before = self.cameraPosition()
+        both = QtCore.Qt.LeftButton | QtCore.Qt.RightButton
+        first, second = ((QtCore.Qt.RightButton, QtCore.Qt.LeftButton) if right_first
+                         else (QtCore.Qt.LeftButton, QtCore.Qt.RightButton))
+        self.send(QtCore.QEvent.MouseButtonPress, self.start, first, first)
+        if selection_move:
+            self.assertFalse(right_first)
+            self.move(self.start + QtCore.QPoint(15, 10), QtCore.Qt.LeftButton)
+            self.move(self.start + QtCore.QPoint(25, 15), QtCore.Qt.LeftButton)
+        self.send(QtCore.QEvent.MouseButtonPress, self.start, second, both)
+        midpoint = self.start + QtCore.QPoint(45, 30)
+        end = self.start + QtCore.QPoint(90, 55)
+        self.move(midpoint, both)
+        self.move(end, both)
+        self.pump()
+        camera_after = self.cameraPosition()
+        release1, release2 = ((QtCore.Qt.RightButton, QtCore.Qt.LeftButton) if release_right_first
+                             else (QtCore.Qt.LeftButton, QtCore.Qt.RightButton))
+        self.send(QtCore.QEvent.MouseButtonRelease, end, release1, release2)
+        self.send(QtCore.QEvent.MouseButtonRelease, end, release2, QtCore.Qt.NoButton)
+        released = self.capture("buttons-released")
+        # Two unpressed movements exercise both the start-box and active-box
+        # states without fabricating an extra press or resetting sketch edit.
+        self.move(QtCore.QPoint(100, 90), QtCore.Qt.NoButton)
+        self.move(QtCore.QPoint(40, 150), QtCore.Qt.NoButton)
+        moved = self.capture("unpressed-after-pan")
+        released_diff = self.different(baseline, released)
+        moved_diff = self.different(baseline, moved)
+        selected = {name for selection in Gui.Selection.getSelectionEx()
+                    for name in selection.SubElementNames}
+        self.assertGreater(max(abs(a-b) for a,b in zip(camera_before,camera_after)), 0.001,
+                           "Control must execute a real Blender pan, not merely a box selection")
+        self.assertEqual(selected, set())
+        self.assertEqual(self.sketch.Geometry[0].StartPoint, App.Vector(-10, 3, 0))
+        self.assertEqual(self.sketch.Geometry[0].EndPoint, App.Vector(10, 3, 0))
+        self.assertLessEqual(released_diff, 16,
+                             "Releasing both pan buttons must not leave a sketch box")
+        self.assertLessEqual(moved_diff, 16,
+                             "Unpressed movement after panning must not start a sketch box")
+
+    def testLeftThenRightReleaseLeftFirst(self):
+        self.checkPan()
+
+    def testLeftThenRightReleaseRightFirst(self):
+        self.checkPan(release_right_first=True)
+
+    def testRightThenLeftReleaseLeftFirst(self):
+        self.checkPan(right_first=True)
+
+    def testRightThenLeftReleaseRightFirst(self):
+        self.checkPan(right_first=True, release_right_first=True)
+
+    def testMovedLeftSelectionThenPanReleaseLeftFirst(self):
+        self.checkPan(selection_move=True)
+
+    def testMovedLeftSelectionThenPanReleaseRightFirst(self):
+        self.checkPan(selection_move=True, release_right_first=True)
+
+    def testOrdinaryLeftBoxSelectionControl(self):
+        self.view.setNavigationType("Gui::BlenderNavigationStyle")
+        self.pump()
+        self.startSelection()
+        self.send(QtCore.QEvent.MouseButtonRelease, self.end,
+                  QtCore.Qt.LeftButton, QtCore.Qt.NoButton)
+        cleared = self.capture("ordinary-selection-ended")
+        self.move(QtCore.QPoint(110, 125), QtCore.Qt.NoButton)
+        self.assertEqual(self.different(cleared, self.capture("ordinary-unpressed-move")), 0)
