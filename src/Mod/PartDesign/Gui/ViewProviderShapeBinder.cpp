@@ -37,6 +37,7 @@
 #include <Gui/Command.h>
 #include <Gui/Control.h>
 #include <Gui/Document.h>
+#include <Gui/DocumentObserver.h>
 #include <Gui/MainWindow.h>
 #include <Gui/ViewParams.h>
 #include <Mod/PartDesign/App/ShapeBinder.h>
@@ -129,7 +130,7 @@ bool ViewProviderShapeBinder::setEdit(int ModNum)
 
 void ViewProviderShapeBinder::unsetEdit(int ModNum)
 {
-
+    highlightReferences(false);
     PartGui::ViewProviderPart::unsetEdit(ModNum);
 }
 
@@ -143,6 +144,23 @@ void ViewProviderShapeBinder::attach(App::DocumentObject* obj)
 
 void ViewProviderShapeBinder::highlightReferences(bool on)
 {
+    if (!on) {
+        // Detach the cache before notifying properties. Its original source may
+        // differ from current Support, or may have been deleted or restored.
+        auto source = std::move(highlightedSource);
+        auto lineColors = std::move(originalLineColors);
+        auto faceAppearance = std::move(originalFaceAppearance);
+        if (source) {
+            if (auto* svp = source->get<PartGui::ViewProviderPart>()) {
+                svp->LineColorArray.setValues(lineColors);
+            }
+            if (auto* svp = source->get<PartGui::ViewProviderPart>()) {
+                svp->ShapeAppearance.setValues(faceAppearance);
+            }
+        }
+        return;
+    }
+
     App::GeoFeature* obj = nullptr;
     std::vector<std::string> subs;
 
@@ -169,47 +187,47 @@ void ViewProviderShapeBinder::highlightReferences(bool on)
         return;
     }
 
-    if (on) {
-        if (!subs.empty() && originalLineColors.empty()) {
-            TopTools_IndexedMapOfShape eMap;
-            TopExp::MapShapes(static_cast<Part::Feature*>(obj)->Shape.getValue(), TopAbs_EDGE, eMap);
-            originalLineColors = svp->LineColorArray.getValues();
-            std::vector<Base::Color> lcolors = originalLineColors;
-            lcolors.resize(eMap.Extent(), svp->LineColor.getValue());
+    if (!subs.empty() && !highlightedSource) {
+        TopTools_IndexedMapOfShape eMap;
+        TopExp::MapShapes(static_cast<Part::Feature*>(obj)->Shape.getValue(), TopAbs_EDGE, eMap);
+        originalLineColors = svp->LineColorArray.getValues();
+        std::vector<Base::Color> lcolors = originalLineColors;
+        lcolors.resize(eMap.Extent(), svp->LineColor.getValue());
 
-            TopExp::MapShapes(static_cast<Part::Feature*>(obj)->Shape.getValue(), TopAbs_FACE, eMap);
-            originalFaceAppearance = svp->ShapeAppearance.getValues();
-            std::vector<App::Material> fcolors = originalFaceAppearance;
-            fcolors.resize(eMap.Extent(), svp->ShapeAppearance[0]);
+        TopExp::MapShapes(static_cast<Part::Feature*>(obj)->Shape.getValue(), TopAbs_FACE, eMap);
+        originalFaceAppearance = svp->ShapeAppearance.getValues();
+        std::vector<App::Material> fcolors = originalFaceAppearance;
+        fcolors.resize(eMap.Extent(), svp->ShapeAppearance[0]);
 
-            for (const std::string& e : subs) {
-                // Note: stoi may throw, but it strictly shouldn't happen
-                if (e.compare(0, 4, "Edge") == 0) {
-                    int idx = std::stoi(e.substr(4)) - 1;
-                    assert(idx >= 0);
-                    if (idx < static_cast<int>(lcolors.size())) {
-                        lcolors[idx] = Base::Color(1.0, 0.0, 1.0);  // magenta
-                    }
+        for (const std::string& e : subs) {
+            // Note: stoi may throw, but it strictly shouldn't happen
+            if (e.compare(0, 4, "Edge") == 0) {
+                int idx = std::stoi(e.substr(4)) - 1;
+                assert(idx >= 0);
+                if (idx < static_cast<int>(lcolors.size())) {
+                    lcolors[idx] = Base::Color(1.0, 0.0, 1.0);  // magenta
                 }
-                else if (e.compare(0, 4, "Face") == 0) {
-                    int idx = std::stoi(e.substr(4)) - 1;
-                    assert(idx >= 0);
-                    if (idx < static_cast<int>(fcolors.size())) {
-                        fcolors[idx].diffuseColor = Base::Color(1.0, 0.0, 1.0);  // magenta
+            }
+            else if (e.compare(0, 4, "Face") == 0) {
+                int idx = std::stoi(e.substr(4)) - 1;
+                assert(idx >= 0);
+                if (idx < static_cast<int>(fcolors.size())) {
+                    fcolors[idx].diffuseColor = Base::Color(1.0, 0.0, 1.0);  // magenta
+                }
+            }
+        }
+        highlightedSource = std::make_unique<Gui::ViewProviderWeakPtrT>(svp);
+        Gui::ViewProviderWeakPtrT owner(this);
+        svp->LineColorArray.setValues(lcolors);
+        if (auto* currentOwner = owner.get<ViewProviderShapeBinder>()) {
+            if (currentOwner->highlightedSource) {
+                if (auto* currentSource =
+                        currentOwner->highlightedSource->get<PartGui::ViewProviderPart>()) {
+                    if (currentSource == svp) {
+                        currentSource->ShapeAppearance.setValues(fcolors);
                     }
                 }
             }
-            svp->LineColorArray.setValues(lcolors);
-            svp->ShapeAppearance.setValues(fcolors);
-        }
-    }
-    else {
-        if (!subs.empty() && !originalLineColors.empty()) {
-            svp->LineColorArray.setValues(originalLineColors);
-            originalLineColors.clear();
-
-            svp->ShapeAppearance.setValues(originalFaceAppearance);
-            originalFaceAppearance.clear();
         }
     }
 }
