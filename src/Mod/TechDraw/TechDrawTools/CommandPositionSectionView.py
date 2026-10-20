@@ -57,7 +57,7 @@ class CommandPositionSectionView:
     def Activated(self):
         """Run the following code when the command is activated (button pressed)."""
         selection = Gui.Selection.getSelectionEx()
-        if not selection:
+        if len(selection) not in (1, 2):
             return
         if len(selection) == 1:
             if Utils.getSelView():
