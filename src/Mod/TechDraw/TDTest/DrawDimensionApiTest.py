@@ -34,13 +34,14 @@ class DrawDimensionApiTest(unittest.TestCase):
             loop.exec_()
         self.assertEqual(len(self.view.getVisibleEdges()), 4)
 
-    def snapshot(self):
+    def snapshot(self, view=None):
+        view = view or self.view
         return {
             "objects": tuple(obj.Name for obj in self.doc.Objects),
             "page_views": tuple(obj.Name for obj in self.page.Views),
-            "cosmetic_vertices": tuple(vertex.Tag for vertex in self.view.CosmeticVertexes),
-            "edge_lengths": tuple(edge.Length for edge in self.view.getVisibleEdges()),
-            "coordinates": (self.view.X.Value, self.view.Y.Value),
+            "cosmetic_vertices": tuple(vertex.Tag for vertex in view.CosmeticVertexes),
+            "edge_lengths": tuple(edge.Length for edge in view.getVisibleEdges()),
+            "coordinates": (view.X.Value, view.Y.Value),
             "source_volume": self.source.Shape.Volume,
         }
 
@@ -100,3 +101,55 @@ class DrawDimensionApiTest(unittest.TestCase):
                 before = self.snapshot()
                 self.assertIsNone(TechDraw.makeExtentDim(argument, [], 0))
                 self.assertEqual(self.snapshot(), before)
+
+    def checkMissingGeometry(self, api):
+        view = self.doc.addObject("TechDraw::DrawViewPart", "UncomputedView")
+        self.page.addView(view)
+        self.doc.recompute()
+        self.assertEqual(view.findParentPage(), self.page)
+        self.assertEqual(view.Source, [])
+        self.assertEqual(view.getVisibleEdges(), [])
+        self.checkGeometryFailure(api, view)
+
+    def checkGeometryFailure(self, api, view):
+        before = self.snapshot(view)
+        with self.assertRaises(Exception) as raised:
+            getattr(TechDraw, api)(view, "Distance", App.Vector(), App.Vector(10, 0, 0))
+        self.assertEqual(self.snapshot(view), before)
+        self.assertIsInstance(raised.exception, ValueError)
+        self.assertRegex(str(raised.exception), "geometry")
+
+    def testDistanceRejectsMissingGeometryWithoutMutation(self):
+        self.checkMissingGeometry("makeDistanceDim")
+
+    def testDistance3dRejectsMissingGeometryWithoutMutation(self):
+        self.checkMissingGeometry("makeDistanceDim3d")
+
+    def checkUnprojectedVertexSource(self, api):
+        source = self.doc.addObject("Part::Feature", "VertexSource")
+        source.Shape = Part.Vertex(App.Vector(5, 5, 0))
+        view = self.doc.addObject("TechDraw::DrawViewPart", "VertexView")
+        self.page.addView(view)
+        view.Source = [source]
+        view.Direction = App.Vector(0, 0, 1)
+        view.ScaleType = "Custom"
+        view.Scale = 1
+        self.doc.recompute()
+        deadline = time.monotonic() + 20
+        while "Up-to-date" not in view.State:
+            self.assertLess(time.monotonic(), deadline, view.State)
+            loop = QtCore.QEventLoop()
+            QtCore.QTimer.singleShot(50, loop.quit)
+            loop.exec_()
+        self.assertEqual(view.getVisibleEdges(), [])
+        self.assertEqual(source.Shape.ShapeType, "Vertex")
+        self.assertEqual(len(source.Shape.Vertexes), 1)
+        # A vertex-only source is up to date but supplies no projected geometry.
+        self.assertEqual(view.getVisibleVertexes(), [])
+        self.checkGeometryFailure(api, view)
+
+    def testDistanceRejectsUnprojectedVertexSourceWithoutMutation(self):
+        self.checkUnprojectedVertexSource("makeDistanceDim")
+
+    def testDistance3dRejectsUnprojectedVertexSourceWithoutMutation(self):
+        self.checkUnprojectedVertexSource("makeDistanceDim3d")
