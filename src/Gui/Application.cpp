@@ -1508,12 +1508,13 @@ void Application::activateView(const Base::Type& type, bool create)
     Document* doc = activeDocument();
     if (doc) {
         MDIView* mdiView = doc->getActiveView();
-        if (mdiView && mdiView->isDerivedFrom(type)) {
+        if (mdiView && mdiView->isDerivedFrom(type)
+            && mdiView == getMainWindow()->activeWindow()) {
             return;
         }
         std::list<MDIView*> mdiViews = doc->getMDIViewsOfType(type);
         if (!mdiViews.empty()) {
-            doc->setActiveWindow(mdiViews.back());
+            getMainWindow()->setActiveWindow(mdiViews.back());
         }
         else if (create) {
             doc->createView(type);
