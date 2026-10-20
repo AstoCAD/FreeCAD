@@ -24,9 +24,16 @@
 
 #pragma once
 
+#include <memory>
+
 #include <Gui/ViewProviderFeaturePython.h>
 #include <Mod/Part/Gui/ViewProvider.h>
 #include <Mod/PartDesign/PartDesignGlobal.h>
+
+namespace Gui
+{
+class ViewProviderWeakPtrT;
+}
 
 namespace PartDesignGui
 {
@@ -49,6 +56,7 @@ protected:
     void attach(App::DocumentObject* obj) override;
 
 private:
+    std::unique_ptr<Gui::ViewProviderWeakPtrT> highlightedSource;
     std::vector<Base::Color> originalLineColors;
     std::vector<App::Material> originalFaceAppearance;
 };
