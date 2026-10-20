@@ -36,6 +36,7 @@ SET(Test_SRCS
     TestFileDialogActionLifetimeGui.py
     TestTreeDeletionGui.py
     TestTreeLinkDeletionGui.py
+    TestTreeLinkElementVisibilityGui.py
     TestExpressionCompleterGui.py
     TestPySideUic.py
     UnicodeTests.py
