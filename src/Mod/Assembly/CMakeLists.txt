@@ -70,6 +70,8 @@ SET(AssemblyScripts_SRCS
 SET(AssemblyTests_SRCS
     AssemblyTests/__init__.py
     AssemblyTests/TestCore.py
+    AssemblyTests/TestHeadlessJointRestore.py
+    AssemblyTests/HeadlessRevolute.FCStd
     AssemblyTests/TestDynamics.py
     AssemblyTests/TestPointMeasurement.py
     AssemblyTests/TestSimulationEvents.py
