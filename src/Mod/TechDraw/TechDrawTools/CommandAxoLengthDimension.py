@@ -77,7 +77,6 @@ class CommandAxoLengthDimension:
     def Activated(self):
         """Run the following code when the command is activated (button press)."""
 
-        App.ActiveDocument.openTransaction("Create axonometric length dimension")
         vertexes = []
         edges = []
 
@@ -114,6 +113,7 @@ class CommandAxoLengthDimension:
         if dimLineVec.y < 0.0:
             lineAngle = 180-lineAngle
 
+        App.ActiveDocument.openTransaction("Create axonometric length dimension")
         if abs(extAngle-lineAngle)>0.1:
             # re issue: https://github.com/FreeCAD/FreeCAD/issues/13677
             # Instead of using makeDistanceDim (which is meant for extent dimensions), we use the 
