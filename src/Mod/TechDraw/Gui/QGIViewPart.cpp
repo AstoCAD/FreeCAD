@@ -462,6 +462,8 @@ QGIViewPart::QGIViewPart()
 
 QGIViewPart::~QGIViewPart()
 {
+    // Child deletion can emit scene selection changes before QObject disconnects.
+    QObject::disconnect(m_selectionChangedConnection);
     tidy();
     delete m_pathBuilder;
     delete m_dashedLineGenerator;
