@@ -189,6 +189,7 @@ SET(TDTest_SRCS
     TDTest/DrawCreationDocumentTest.py
     TDTest/DrawSpreadsheetLabelXmlTest.py
     TDTest/DrawBoltCircleTest.py
+    TDTest/DrawCosmeticCircleGuiTest.py
     TDTest/DrawDraftViewDocumentTest.py
     TDTest/DrawArchViewDocumentTest.py
     TDTest/DrawImportFilenameTest.py
