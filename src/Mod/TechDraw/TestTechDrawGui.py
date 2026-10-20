@@ -40,6 +40,7 @@ from TDTest.DrawAxoLengthTransactionGuiTest import TestAxoLengthTransactionGui  
 from TDTest.DrawMoveViewPageChooserGuiTest import DrawMoveViewPageChooserGuiTest  # noqa: F401
 from TDTest.DrawTemplateFieldsDismissalGuiTest import DrawTemplateFieldsDismissalGuiTest  # noqa: F401
 from TDTest.DrawPositionSectionSelectionGuiTest import TestPositionSectionSelectionGui  # noqa: F401
+from TDTest.DrawModelSelectionGuiTest import TestTechDrawModelSelectionGui  # noqa: F401
 from TDTest.DrawCosmeticCircleGuiTest import (  # noqa: F401
     TestCosmeticCircleSelection, TestCosmeticCircleCompatibility,
 )

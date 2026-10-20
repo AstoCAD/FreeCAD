@@ -193,6 +193,7 @@ SET(TDTest_SRCS
     TDTest/DrawMoveViewPageChooserGuiTest.py
     TDTest/DrawTemplateFieldsDismissalGuiTest.py
     TDTest/DrawPositionSectionSelectionGuiTest.py
+    TDTest/DrawModelSelectionGuiTest.py
     TDTest/DrawCosmeticCircleGuiTest.py
     TDTest/DrawDraftViewDocumentTest.py
     TDTest/DrawArchViewDocumentTest.py
