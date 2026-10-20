@@ -22,6 +22,7 @@ SET(Test_SRCS
     TestIntPairList.py
     TestPropertyIntegerOverflow.py
     TestIntegerConstraintOverflow.py
+    TestPropertyEnumerationIntegerOverflow.py
     TestPropertyMatrixIntegerOverflow.py
     TestPropertyFloatIntegerConversion.py
     TestFloatConstraintQuantityIntegerConversion.py
