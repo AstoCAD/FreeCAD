@@ -115,6 +115,9 @@ void execHoleCircle(Gui::Command* cmd)
         std::string GeoType = TechDraw::DrawUtil::getGeomTypeFromName(Name);
         TechDraw::BaseGeomPtr geom = objFeat->getGeomByIndex(GeoId);
         if (GeoType == "Edge") {
+            if (!geom) {
+                continue;
+            }
             if (geom->getGeomType() == GeomType::CIRCLE || geom->getGeomType() == GeomType::ARCOFCIRCLE) {
                 TechDraw::CirclePtr cgen = std::static_pointer_cast<TechDraw::Circle>(geom);
                 Circles.push_back(cgen);
