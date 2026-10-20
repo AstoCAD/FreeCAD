@@ -23,6 +23,7 @@
 # **************************************************************************
 
 
+import math
 import os, re, tempfile, unittest, zipfile
 import FreeCAD, Part, Sketcher
 from Part import Precision
@@ -1345,6 +1346,108 @@ class TestSketcherSolver(unittest.TestCase):
 
     # TODO other tests:
     #  getHigherElement
+
+    def checkPerpendicularSplineProjection(self, direction, placement=None, parallel=False,
+                                          reverse=False, verify_alignment=False):
+        placement = placement or App.Placement()
+        source = self.Doc.addObject("Part::Feature", "Source")
+        origin = App.Vector(3, 7, 0)
+        values = ((-10, 0), (-5, 10), (5, 10), (10, 0))
+        if parallel:
+            local = [origin + App.Vector(t, height, 0) for t, height in values]
+        else:
+            local = [origin + direction * t + App.Vector(0, 0, height)
+                     for t, height in values]
+        if reverse:
+            local.reverse()
+        poles = [placement.multVec(p) for p in local]
+        spline = Part.BSplineCurve()
+        spline.buildFromPolesMultsKnots(poles, [4, 4], [0, 1], False, 3)
+        source.Shape = spline.toShape()
+        self.assertTrue(source.Shape.isValid())
+        self.assertEqual(len(source.Shape.Edges), 1)
+        if reverse:
+            forward = Part.BSplineCurve()
+            forward.buildFromPolesMultsKnots(list(reversed(poles)), [4, 4], [0, 1], False, 3)
+            normal = source.Shape.findPlane().Axis
+            forward_normal = forward.toShape().findPlane().Axis
+            self.assertAlmostEqual(abs(normal.dot(forward_normal)), 1, places=6)
+        if verify_alignment:
+            normal = source.Shape.findPlane().Axis
+            local_normal = placement.Rotation.inverted().multVec(normal)
+            self.assertAlmostEqual(local_normal.dot(direction), 0, places=6)
+            self.assertAlmostEqual(local_normal.z, 0, places=6)
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Projection")
+        sketch.Placement = placement
+        sketch.addExternal(source.Name, "Edge1")
+        self.Doc.recompute()
+        self.assertEqual(len(sketch.ExternalGeo), 3)
+        projected = sketch.ExternalGeo[2]
+        if parallel:
+            self.assertIsInstance(projected, Part.BSplineCurve)
+            actual = projected.getPoles()
+            self.assertEqual(len(actual), len(local))
+            for point, expected in zip(actual, local):
+                self.assertLess((point - expected).Length, 1e-6)
+            return
+        self.assertIsInstance(projected, Part.LineSegment,
+                              "A perpendicular planar spline must project to a nonzero line")
+        self.assertAlmostEqual((projected.EndPoint - projected.StartPoint).Length, 20, places=6)
+        expected = [origin - direction * 10, origin + direction * 10]
+        actual = [projected.StartPoint, projected.EndPoint]
+        # Edge orientation is independent of the segment's geometric locus.
+        error = min(max((actual[0] - expected[0]).Length, (actual[1] - expected[1]).Length),
+                    max((actual[1] - expected[0]).Length, (actual[0] - expected[1]).Length))
+        self.assertLess(error, 1e-6)
+
+
+    def testPerpendicularSplineHorizontalProjectionControl(self):
+        self.checkPerpendicularSplineProjection(App.Vector(1, 0, 0))
+
+
+    def testPerpendicularSplineVerticalProjection(self):
+        self.checkPerpendicularSplineProjection(App.Vector(0, 1, 0))
+
+
+    def testPerpendicularSplinePositiveObliqueProjection(self):
+        a = math.sqrt(0.5)
+        self.checkPerpendicularSplineProjection(App.Vector(a, a, 0))
+
+
+    def testPerpendicularSplineNegativeObliqueProjection(self):
+        a = math.sqrt(0.5)
+        self.checkPerpendicularSplineProjection(App.Vector(a, -a, 0))
+
+
+    def testPerpendicularSplinePlacedVerticalProjection(self):
+        placement = App.Placement(App.Vector(13, -8, 21),
+                                  App.Rotation(App.Vector(1, 2, 3), 41))
+        self.checkPerpendicularSplineProjection(App.Vector(0, 1, 0), placement)
+
+
+    def testPerpendicularSplineParallelSplineControl(self):
+        self.checkPerpendicularSplineProjection(App.Vector(1, 0, 0), parallel=True)
+
+    def testPerpendicularSplineReversedPositiveObliqueProjection(self):
+        a = math.sqrt(0.5)
+        self.checkPerpendicularSplineProjection(App.Vector(a, a, 0), reverse=True)
+
+    def testPerpendicularSplineReversedNegativeObliqueProjection(self):
+        a = math.sqrt(0.5)
+        self.checkPerpendicularSplineProjection(App.Vector(a, -a, 0), reverse=True)
+
+
+    def testPerpendicularSplinePlacedPositiveObliqueProjection(self):
+        a = math.sqrt(0.5)
+        placement = App.Placement(App.Vector(), App.Rotation(App.Vector(0, 0, 1), 180))
+        self.checkPerpendicularSplineProjection(App.Vector(a, a, 0), placement,
+                                               verify_alignment=True)
+
+    def testPerpendicularSplinePlacedNegativeObliqueProjection(self):
+        a = math.sqrt(0.5)
+        placement = App.Placement(App.Vector(), App.Rotation(App.Vector(0, 0, 1), 180))
+        self.checkPerpendicularSplineProjection(App.Vector(a, -a, 0), placement,
+                                               verify_alignment=True)
 
     def assertSuccessfulSolve(self, sketch, msg=None):
         status = sketch.solve()
