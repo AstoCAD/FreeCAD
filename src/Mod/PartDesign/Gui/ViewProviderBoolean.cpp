@@ -426,8 +426,15 @@ void ViewProviderBoolean::onChanged(const App::Property* prop)
     ViewProvider::onChanged(prop);
 
     if (prop == &Display) {
+        const bool wasVisible = Gui::ViewProvider::isShow();
         updateToolsDisplay();
         setDisplayMode(getConfiguredDisplayMode());
+        if (Display.getValue() != 0) {
+            setDisplayMaskMode("BooleanTools");
+        }
+        if (!wasVisible) {
+            Gui::ViewProvider::hide();
+        }
         if (_activeBodyExposure) {
             _activeBodyExposure->booleanMode = getActualMode();
         }

@@ -43,6 +43,7 @@ from PartDesignTests.TestDeleteFeatureGui import TestDeleteFeatureGui
 from PartDesignTests.TestLoftSelectionGui import TestLoftSelectionGui
 from PartDesignTests.TestRevolutionReferencesGui import TestRevolutionReferencesGui
 from PartDesignTests.TestBooleanBoundingBoxGui import TestBooleanBoundingBoxGui
+from PartDesignTests.TestBooleanDisplayGui import TestBooleanDisplayGui
 
 
 # timer runs this class in order to access modal dialog
