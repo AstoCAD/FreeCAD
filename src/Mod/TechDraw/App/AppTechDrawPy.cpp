@@ -890,6 +890,9 @@ private:
             App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(pDvp)->getDocumentObjectPtr();
             dvp = static_cast<TechDraw::DrawViewPart*>(obj);
         }
+        if (dvp && !dvp->findParentPage()) {
+            throw Py::ValueError("The parent view must belong to a page");
+        }
 
         std::vector<std::string> edgeList;
         try {
@@ -941,6 +944,9 @@ private:
         else {
             throw Py::TypeError("expected (DrawViewPart, dimType, from, to");
         }
+        if (!dvp->findParentPage()) {
+            throw Py::ValueError("The parent view must belong to a page");
+        }
         if (PyUnicode_Check(pDimType) ) {
             dimType = PyUnicode_AsUTF8(pDimType);
         }
@@ -982,6 +988,9 @@ private:
         }
         else {
             throw Py::TypeError("expected (DrawViewPart, dimType, from, to");
+        }
+        if (!dvp->findParentPage()) {
+            throw Py::ValueError("The parent view must belong to a page");
         }
         if (PyUnicode_Check(pDimType)) {
             dimType = PyUnicode_AsUTF8(pDimType);
