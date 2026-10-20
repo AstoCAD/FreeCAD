@@ -491,8 +491,8 @@ void PagePrinter::saveDXF(ViewProviderPage* vpPage, const std::string& inFileNam
     TechDraw::DrawPage* page = vpPage->getDrawPage();
     std::string PageName = page->getNameInDocument();
 
-    auto filespec = Base::Tools::escapeEncodeFilename(inFileName);
-    filespec = DU::cleanFilespecBackslash(filespec);
+    auto filespec = DU::cleanFilespecBackslash(inFileName);
+    filespec = Base::Tools::escapeEncodeFilename(filespec);
     vpPage->getDocument()->openCommand(QT_TRANSLATE_NOOP("Command", "Save page to DXF"));
     Gui::Command::doCommand(Gui::Command::Doc, "import TechDraw");
     Gui::Command::doCommand(Gui::Command::Doc,
