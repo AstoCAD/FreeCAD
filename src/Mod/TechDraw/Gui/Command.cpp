@@ -569,7 +569,13 @@ void CmdTechDrawView::activated(int iMsg)
                     auto filespec = Base::Tools::escapeEncodeFilename(
                         DU::cleanFilespecBackslash(filename.toStdString()));
                     openCommand(QT_TRANSLATE_NOOP("Command", "Create Symbol"));
-                    doCommand(Doc, "f = open(\"%s\", 'r', encoding=\"utf-8\")", filespec.c_str());
+                    doCommand(Doc, "import gzip");
+                    doCommand(Doc, "with open(\"%s\", 'rb') as f: is_svgz = f.read(2) == b'\\x1f\\x8b'",
+                              filespec.c_str());
+                    doCommand(Doc,
+                              "f = gzip.open(\"%s\", 'rt', encoding=\"utf-8\") if is_svgz "
+                              "else open(\"%s\", 'r', encoding=\"utf-8\")",
+                              filespec.c_str(), filespec.c_str());
                     doCommand(Doc, "svg = f.read()");
                     doCommand(Doc, "f.close()");
                     doCommand(Doc,
@@ -1447,7 +1453,13 @@ void CmdTechDrawSymbol::activated(int iMsg)
         auto filespec = Base::Tools::escapeEncodeFilename(
             DU::cleanFilespecBackslash(filename.toStdString()));
         openCommand(QT_TRANSLATE_NOOP("Command", "Create Symbol"));
-        doCommand(Doc, "f = open(\"%s\", 'r', encoding=\"utf-8\")", filespec.c_str());
+        doCommand(Doc, "import gzip");
+        doCommand(Doc, "with open(\"%s\", 'rb') as f: is_svgz = f.read(2) == b'\\x1f\\x8b'",
+                  filespec.c_str());
+        doCommand(Doc,
+                  "f = gzip.open(\"%s\", 'rt', encoding=\"utf-8\") if is_svgz "
+                  "else open(\"%s\", 'r', encoding=\"utf-8\")",
+                  filespec.c_str(), filespec.c_str());
         doCommand(Doc, "svg = f.read()");
         doCommand(Doc, "f.close()");
         doCommand(Doc, "App.activeDocument().addObject('TechDraw::DrawViewSymbol', '%s')",
