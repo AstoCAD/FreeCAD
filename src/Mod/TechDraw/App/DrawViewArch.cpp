@@ -27,6 +27,7 @@
 # include <sstream>
 
 
+#include <App/DocumentObserver.h>
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
 
@@ -109,8 +110,8 @@ App::DocumentObjectExecReturn *DrawViewArch::execute()
       //std::string svgFrag;
         std::string svgHead = getSVGHead();
         std::string svgTail = getSVGTail();
-        std::string FeatName = getNameInDocument();
-        std::string SourceName = sourceObj->getNameInDocument();
+        const auto featureRef = App::DocumentObjectT(this).getObjectPython();
+        const auto sourceRef = App::DocumentObjectT(sourceObj).getObjectPython();
         // ArchSectionPlane.getSVG(section, allOn=False, renderMode="Wireframe", showHidden=False, showFill=False, scale=1, linewidth=1, fontsize=1):
 
         std::stringstream paramStr;
@@ -129,10 +130,10 @@ App::DocumentObjectExecReturn *DrawViewArch::execute()
                  << ", joinArch=" << (JoinArch.getValue() ? "True" : "False");
 
         Base::Interpreter().runString("import ArchSectionPlane");
-        Base::Interpreter().runStringArg("svgBody = ArchSectionPlane.getSVG(App.activeDocument().%s %s)",
-                                         SourceName.c_str(), paramStr.str().c_str());
-        Base::Interpreter().runStringArg("App.activeDocument().%s.Symbol = '%s' + svgBody + '%s'",
-                                          FeatName.c_str(), svgHead.c_str(), svgTail.c_str());
+        Base::Interpreter().runStringArg("svgBody = ArchSectionPlane.getSVG(%s %s)",
+                                         sourceRef.c_str(), paramStr.str().c_str());
+        Base::Interpreter().runStringArg("%s.Symbol = '%s' + svgBody + '%s'",
+                                          featureRef.c_str(), svgHead.c_str(), svgTail.c_str());
     }
     overrideKeepUpdated(false);
     return DrawView::execute();
