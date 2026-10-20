@@ -111,6 +111,7 @@ FreeCAD.__unit_test__ += [
     "TestGraphicsViewWrapping",
     "TestMDIView",
     "TestActivateViewGui",
+    "TestRecordedCommandImportsGui",
     "TestRubberbandSelection",
     "TestSelectionVisual",
     "TestSelectionViewIdentityGui",
