@@ -43,6 +43,7 @@ from AssemblyTests.TestGroupedInsertGui import TestGroupedAssemblyInsert
 from AssemblyTests.TestBomAvailabilityGui import TestBomDocumentAvailability
 from AssemblyTests.TestBomRestoredColumnsGui import TestBomRestoredColumns
 from AssemblyTests.TestCommandCreateView import TestCommandCreateView
+from AssemblyTests.TestExplodedViewReentryGui import TestExplodedViewReentryGui
 from AssemblyTests.TestCommandCreateJoint import TestCommandCreateJoint
 from AssemblyTests.TestRigidGroupInitializationGui import TestRigidGroupInitializationGui
 from AssemblyTests.TestRigidGroupTransactionGui import TestRigidGroupTransactionGui
@@ -70,6 +71,7 @@ True if TestGroupedAssemblyInsert else False
 True if TestBomDocumentAvailability else False
 True if TestBomRestoredColumns else False
 True if TestCommandCreateView else False
+True if TestExplodedViewReentryGui else False
 True if TestCommandCreateJoint else False
 True if TestRigidGroupInitializationGui else False
 True if TestRigidGroupTransactionGui else False
