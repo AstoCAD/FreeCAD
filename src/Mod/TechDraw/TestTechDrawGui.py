@@ -26,6 +26,7 @@
 #threads to complete
 from TDTest.DrawViewSectionTest import DrawViewSectionTest  # noqa: F401
 from TDTest.DrawViewPartTest import DrawViewPartTest  # noqa: F401
+from TDTest.DrawViewPositionTest import DrawViewPositionTest  # noqa: F401
 from TDTest.DrawViewDetailTest import DrawViewDetailTest  # noqa: F401
 from TDTest.DrawViewDimensionTest import DrawViewDimensionTest  # noqa: F401
 from TDTest.DrawViewDimensionTreeTest import DrawViewDimensionTreeTest  # noqa: F401
