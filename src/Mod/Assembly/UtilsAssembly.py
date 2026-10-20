@@ -1513,7 +1513,7 @@ def getParentPlacementIfNeeded(part):
         if linkGroup:
             return linkGroup.Placement
 
-    return Base.Placement()
+    return App.Placement()
 
 
 def generatePropertySettings(documentObject):
