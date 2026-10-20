@@ -26,6 +26,7 @@ SET(Test_SRCS
     TestGestureNavigationGui.py
     TestTreeDeletionGui.py
     TestTreeLinkDeletionGui.py
+    TestExpressionCompleterGui.py
     TestPySideUic.py
     UnicodeTests.py
     UnitTests.py
