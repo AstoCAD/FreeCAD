@@ -18,6 +18,7 @@ set(Sketcher_Scripts
 set(Sketcher_TestScripts
     SketcherTests/__init__.py
     SketcherTests/TestSketchFillet.py
+    SketcherTests/TestSketchChamfer.py
     SketcherTests/TestSketcherSolver.py
     SketcherTests/TestSketchExpression.py
     SketcherTests/TestSketchValidateCoincidents.py

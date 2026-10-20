@@ -325,6 +325,7 @@ int SketchObject::fillet(int GeoId1, int GeoId2, const Base::Vector3d& refPnt1,
     PointPos PosId2 = static_cast<PointPos>(pos2);
     PointPos filletPosId1 = PointPos::none;
     PointPos filletPosId2 = PointPos::none;
+    bool cornerWasSplit = false;
 
     Base::Vector3d p1 = arc->getStartPoint(true);
     Base::Vector3d p2 = arc->getEndPoint(true);
@@ -397,6 +398,7 @@ int SketchObject::fillet(int GeoId1, int GeoId2, const Base::Vector3d& refPnt1,
 
                 std::tie(newId1, swapped1) = splitCornerPiece(GeoId1, PosId1, p1);
                 std::tie(newId2, swapped2) = splitCornerPiece(GeoId2, PosId2, p2);
+                cornerWasSplit = true;
             }
         }
         else {
@@ -481,7 +483,7 @@ int SketchObject::fillet(int GeoId1, int GeoId2, const Base::Vector3d& refPnt1,
         coinc2->addElement(GeoElementId(lineGeoId, filletPosId2));
 #endif
 
-        if (trim) {
+        if (trim && !cornerWasSplit) {
 #ifdef SKETCHER_CONSTRAINT_USE_LEGACY_ELEMENTS
             coinc1->Second = GeoId1;
             coinc1->SecondPos = PosId1;
