@@ -25,6 +25,7 @@
 #these tests require QApplication in order to process events while waiting for 
 #threads to complete
 from TDTest.DrawViewSectionTest import DrawViewSectionTest  # noqa: F401
+from TDTest.DrawViewSectionSelectionTest import DrawViewSectionSelectionTest  # noqa: F401
 from TDTest.DrawViewPartTest import DrawViewPartTest  # noqa: F401
 from TDTest.DrawViewPositionTest import DrawViewPositionTest  # noqa: F401
 from TDTest.DrawViewDetailTest import DrawViewDetailTest  # noqa: F401

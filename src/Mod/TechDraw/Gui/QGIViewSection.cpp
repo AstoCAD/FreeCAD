@@ -617,10 +617,11 @@ void QGIViewSection::drawSectionFace()
 
 void QGIViewSection::updateView(bool update)
 {
-    Q_UNUSED(update);
     auto viewPart( dynamic_cast<TechDraw::DrawViewSection *>(getViewObject()) );
     if (!viewPart)
         return;
-    draw();
+    if (update) {
+        draw();
+    }
     QGIView::updateView(update);
 }
