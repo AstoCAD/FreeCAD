@@ -458,9 +458,23 @@ void PropertyEditor::closeEditor(QWidget* editor, QAbstractItemDelegate::EndEdit
         editingIndex = QPersistentModelIndex();
     }
 
+    // Numeric editors update their property while typing, so Escape has to cancel the
+    // editor's own transaction. Detach it first: the editor may be destroyed while
+    // closing, and its destruction handler would otherwise commit it.
+    const bool reverting = currentEditor && hint == QAbstractItemDelegate::RevertModelCache;
+    const int revertID = reverting ? std::exchange(transactionID, 0) : 0;
+    const auto revertDocument =
+        reverting ? std::exchange(transactionDocument, App::DocumentT()) : App::DocumentT();
+
     // Finish the transaction before Qt opens the next editor for Tab/Backtab.
     QTreeView::closeEditor(editor, QAbstractItemDelegate::NoHint);
-    if (currentEditor) {
+    if (reverting) {
+        auto* doc = revertDocument.getDocument();
+        if (revertID && doc && doc->getBookedTransactionID() == revertID) {
+            doc->abortTransaction();
+        }
+    }
+    else if (currentEditor) {
         closeTransaction();
     }
     QTreeView::closeEditor(nullptr, hint);
