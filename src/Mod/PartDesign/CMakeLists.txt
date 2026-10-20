@@ -74,6 +74,7 @@ if(BUILD_GUI)
         PartDesignTests/TestDeleteFeatureGui.py
         PartDesignTests/TestLoftSelectionGui.py
         PartDesignTests/TestRevolutionReferencesGui.py
+        PartDesignTests/TestBooleanBoundingBoxGui.py
         PartDesignTests/TestMaterial.py
         PartDesignTests/TestSuppressed.py
     )
