@@ -114,6 +114,7 @@ FreeCAD.__unit_test__ += [
     "TestRubberbandSelection",
     "TestSelectionVisual",
     "TestSelectionViewIdentityGui",
+    "TestSelectionSearchIdentityGui",
     "TestCornerAxisCrossVisual",
     "TestCoinNodeSnapshots",
     "TestViewProviderLink",
