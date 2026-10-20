@@ -11,6 +11,7 @@ from SketcherTests.TestCarbonCopyModelTreeDragging import TestCarbonCopyModelTre
 from SketcherTests.TestViewSectionGui import TestViewSectionGui
 from SketcherTests.TestSketchGroupsGui import TestSketchGroupsGui
 from SketcherTests.TestSketchTransformExpressionsGui import TestSketchTransformExpressionsGui
+from SketcherTests.TestSketchEndpointExpressionsGui import TestSketchEndpointExpressionsGui
 from SketcherTests.TestSketchAnnotationsGui import TestSketchAnnotationsGui
 from SketcherTests.TestSketchLayersGui import TestSketchLayersGui
 from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
@@ -32,6 +33,7 @@ from SketcherTests.TestSketchDatumNavigationGui import TestSketchDatumNavigation
     and TestViewSectionGui
     and TestSketchGroupsGui
     and TestSketchTransformExpressionsGui
+    and TestSketchEndpointExpressionsGui
     and TestSketchAnnotationsGui
     and TestSketchLayersGui
     and TestSketchBlocksGui
