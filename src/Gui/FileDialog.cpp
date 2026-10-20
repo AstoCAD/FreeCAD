@@ -42,6 +42,7 @@
 #include <QGroupBox>
 #include <QLineEdit>
 #include <QMenuBar>
+#include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRegularExpression>
@@ -137,7 +138,7 @@ struct ActionDisabler
 
     FC_DISABLE_COPY(ActionDisabler)
 
-    std::vector<QAction*> actionsToReenable {};
+    std::vector<QPointer<QAction>> actionsToReenable {};
 };
 
 

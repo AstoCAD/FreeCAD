@@ -29,6 +29,7 @@ SET(Test_SRCS
     TestGestureNavigationGui.py
     TestShortcutManagerGui.py
     TestShortcutTimeoutGui.py
+    TestFileDialogActionLifetimeGui.py
     TestTreeDeletionGui.py
     TestTreeLinkDeletionGui.py
     TestExpressionCompleterGui.py
