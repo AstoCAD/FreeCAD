@@ -2,6 +2,7 @@
 """GUI regressions for the core Measure tools."""
 
 import unittest
+from contextlib import contextmanager
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -10,6 +11,66 @@ import Materials
 import Part
 from PySide import QtCore, QtWidgets
 from pivy import coin
+
+
+class TestMeasurementReferenceApi(unittest.TestCase):
+    def setUp(self):
+        import Measure
+
+        previous = App.activeDocument()
+        self.previous_document = previous.Name if previous else None
+        self.doc = App.newDocument("MeasurementReferenceApiTest")
+        self.box = self.doc.addObject("Part::Box", "Box")
+        self.box.Length = 2
+        self.box.Width = 3
+        self.box.Height = 4
+        self.doc.recompute()
+        self.measurement = Measure.Measurement()
+
+    def tearDown(self):
+        self.measurement.clear()
+        if self.doc.Name in App.listDocuments():
+            App.closeDocument(self.doc.Name)
+        if self.previous_document in App.listDocuments():
+            App.setActiveDocument(self.previous_document)
+
+    @contextmanager
+    def _without_active_document(self):
+        previous = App.activeDocument()
+        previous_name = previous.Name if previous else None
+        try:
+            App.setActiveDocument("")
+            # ActiveDocument is a module attribute updated by signals; the
+            # activeDocument() function reads the actual core document pointer.
+            self.assertIsNone(App.activeDocument())
+            yield
+        finally:
+            if previous_name in App.listDocuments():
+                App.setActiveDocument(previous_name)
+
+    def test_add_reference_without_active_document_raises_clear_error(self):
+        with self._without_active_document():
+            with self.assertRaisesRegex(RuntimeError, "^No active document$"):
+                self.measurement.addReference3D(self.box.Name, "Edge1")
+            self.assertFalse(self.measurement.has3DReferences())
+
+    def test_add_reference_checks_argument_types_before_document_lookup(self):
+        with self._without_active_document():
+            for args in ((None, "Edge1"), (42, "Edge1"), ("Box", None), ("Box", 42)):
+                with self.subTest(args=args):
+                    with self.assertRaises(TypeError):
+                        self.measurement.addReference3D(*args)
+                    self.assertFalse(self.measurement.has3DReferences())
+
+    def test_add_reference_to_real_edge(self):
+        self.assertIsNone(self.measurement.addReference3D(self.box.Name, "Edge1"))
+        self.assertTrue(self.measurement.has3DReferences())
+        self.assertAlmostEqual(self.measurement.length(), self.box.Shape.Edges[0].Length)
+
+    def test_missing_object_error_keeps_measurement_empty(self):
+        with self.assertRaisesRegex(ValueError, "does not exist in the document"):
+            self.measurement.addReference3D("Missing", "Edge1")
+        self.assertFalse(self.measurement.has3DReferences())
 
 
 class _ResultTextMeasure:
