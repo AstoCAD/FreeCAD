@@ -227,6 +227,7 @@ class TaskAssemblyCreateBom(QtCore.QObject):
             if name not in current_columns:
                 action = QtGui.QAction(f"Add '{name}' column", self)
                 action.triggered.connect(partial(self.addColItem, name))
+                action.triggered.connect(self.updateColumnList)
                 menu.addAction(action)
                 noneAdded = False
 
