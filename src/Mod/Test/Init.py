@@ -32,6 +32,7 @@ FreeCAD.__unit_test__ += [
     "Document",
     "TestLinkSuppression",
     "TestIntPairList",
+    "TestPropertyFloatIntegerConversion",
     "TestHelpFallback",
     "Metadata",
     "Recompute",
