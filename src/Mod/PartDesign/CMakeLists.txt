@@ -59,6 +59,7 @@ set(PartDesign_TestScripts
     PartDesignTests/TestMultiTransform.py
     PartDesignTests/TestBoolean.py
     PartDesignTests/TestBaseFeature.py
+    PartDesignTests/TestBodyRemoval.py
     PartDesignTests/TestFillet.py
     PartDesignTests/TestFormSurface.py
     PartDesignTests/TestChamfer.py
@@ -73,6 +74,7 @@ if(BUILD_GUI)
     list(APPEND PartDesign_TestScripts
         PartDesignTests/TestLoftSelectionGui.py
         PartDesignTests/TestRevolutionReferencesGui.py
+        PartDesignTests/TestMoveFeatureSourceTipGui.py
         PartDesignTests/TestBooleanBoundingBoxGui.py
         PartDesignTests/TestBooleanDisplayGui.py
         PartDesignTests/TestBooleanDisplayModesGui.py
