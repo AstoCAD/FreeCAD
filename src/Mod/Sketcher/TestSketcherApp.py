@@ -36,6 +36,7 @@ from SketcherTests.TestSketcherEllipse import TestSketcherEllipse
 from SketcherTests.TestSketchLayers import TestSketchLayers
 from SketcherTests.TestSketchAnnotations import TestSketchAnnotations
 from SketcherTests.TestSketchGroups import TestSketchGroups
+from SketcherTests.TestConstraintIntegerRange import TestConstraintElementIntegerRange
 from SketcherTests.TestSketchBlocks import TestSketchBlocks
 
 # Path and PartDesign tests use these functions that used to live here
@@ -56,6 +57,7 @@ __all__ = [
     "TestSketchInternalFaces",
     "TestSketcherEllipse",
     "TestSketchGroups",
+    "TestConstraintElementIntegerRange",
     "TestSketchAnnotations",
     "TestSketchLayers",
     "TestSketchBlocks",
