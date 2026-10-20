@@ -27,9 +27,12 @@
 
 #include <QtCore/QScopedValueRollback>
 #include <QKeyEvent>
+#include <QPointer>
+#include <QScopeGuard>
 #include <QTimer>
 
 #include <QtWidgets>
+#include <memory>
 #include <optional>
 #include <unordered_set>
 #include <sstream>
@@ -376,6 +379,8 @@ TaskMassProperties::TaskMassProperties()
 
 TaskMassProperties::~TaskMassProperties()
 {
+    detachSelection();
+    removeTemporaryObjects();
     qApp->removeEventFilter(this);
     if (deleteAction) {
         deleteAction->setEnabled(deleteActivated);
@@ -510,12 +515,16 @@ void TaskMassProperties::escape()
 
 void TaskMassProperties::removeTemporaryObjects()
 {
-    App::Document* doc = App::GetApplication().getActiveDocument();
-    if (!doc || !doc->getObject("MassPropertiesPreview")) {
+    ++previewUpdateSerial;
+    App::DocumentObject* obj = *previewObject;
+    previewObject.reset();
+    if (!obj) {
         return;
     }
 
-    doc->removeObject("MassPropertiesPreview");
+    if (App::Document* doc = obj->getDocument()) {
+        doc->removeObject(obj);
+    }
 }
 
 
@@ -640,7 +649,14 @@ void TaskMassProperties::tryUpdate()
         return;
     }
 
-    QScopedValueRollback<bool> updatingGuard(isUpdating, true);
+    QPointer<TaskMassProperties> updatingTask(this);
+    const bool wasUpdating = isUpdating;
+    isUpdating = true;
+    auto updatingGuard = qScopeGuard([updatingTask, wasUpdating]() {
+        if (updatingTask) {
+            updatingTask->isUpdating = wasUpdating;
+        }
+    });
 
     auto guiSelection = Gui::Selection().getSelection(nullptr, Gui::ResolveMode::NoResolve);
 
@@ -1324,21 +1340,61 @@ void TaskMassProperties::tryUpdate()
 
     const auto infoSnapshot = currentInfo;
     if (info.mass.getValue() != 0.0) {
-        QTimer::singleShot(0, this, [infoSnapshot, hasAxisSelection]() {
-            App::Document* doc = App::GetApplication().getActiveDocument();
+        App::Document* document = App::GetApplication().getActiveDocument();
+        if (!document) {
+            removeTemporaryObjects();
+            return;
+        }
+        auto previewDocument = std::make_shared<App::DocumentWeakPtrT>(document);
+        QPointer<TaskMassProperties> task(this);
+        if (auto* previous = *previewObject; previous && previous->getDocument() != document) {
+            const auto cleanupSerial = previewUpdateSerial + 1;
+            removeTemporaryObjects();
+            if (!task || task->previewUpdateSerial != cleanupSerial || !**previewDocument) {
+                return;
+            }
+        }
+        const auto previewSerial = ++previewUpdateSerial;
+        QTimer::singleShot(0, this, [task, infoSnapshot, hasAxisSelection, previewDocument, previewSerial]() {
+            if (!task || previewSerial != task->previewUpdateSerial) {
+                return;
+            }
+            App::Document* doc = **previewDocument;
             if (!doc) {
                 return;
             }
 
-
-            App::DocumentObject* obj = doc->getObject("MassPropertiesPreview");
+            App::DocumentObject* obj = *task->previewObject;
             if (!obj) {
-                obj = doc->addObject("Measure::Result", "MassPropertiesPreview");
+                const auto name = doc->getUniqueObjectName("MassPropertiesPreview");
+                App::DocumentObject* created = doc->addObject("Measure::Result", name.c_str());
+                // New-object observers can close/reset the task. Revalidate
+                // the document and returned object before accessing either.
+                doc = **previewDocument;
+                if (!doc || !created || doc->getObject(name.c_str()) != created) {
+                    return;
+                }
+                App::DocumentObjectWeakPtrT createdObject(created);
+                if (!task || previewSerial != task->previewUpdateSerial) {
+                    if (auto* orphan = *createdObject) {
+                        doc->removeObject(orphan);
+                    }
+                    return;
+                }
+                task->previewObject = created;
+                obj = created;
             }
 
+            auto isCurrent = [&]() {
+                return task && previewSerial == task->previewUpdateSerial
+                    && **previewDocument == doc && *task->previewObject == obj;
+            };
             obj->Visibility.setValue(true);
+            if (!isCurrent()) {
+                return;
+            }
 
-            auto* guiDoc = Gui::Application::Instance->activeDocument();
+            auto* guiDoc = Gui::Application::Instance->getDocument(doc);
             if (!guiDoc) {
                 return;
             }
@@ -1350,6 +1406,9 @@ void TaskMassProperties::tryUpdate()
 
             if (auto* resultView = dynamic_cast<ViewProviderMassPropertiesResult*>(view)) {
                 resultView->setCenters(infoSnapshot.cog, infoSnapshot.cov);
+                if (!isCurrent()) {
+                    return;
+                }
                 resultView->setPrincipalAxes(
                     infoSnapshot.cog,
                     infoSnapshot.principalAxis1,
@@ -1357,9 +1416,18 @@ void TaskMassProperties::tryUpdate()
                     infoSnapshot.principalAxis3,
                     !hasAxisSelection
                 );
+                if (!isCurrent()) {
+                    return;
+                }
             }
             view->setShowable(true);
+            if (!isCurrent()) {
+                return;
+            }
             view->ShowInTree.setValue(false);
+            if (!isCurrent()) {
+                return;
+            }
             view->show();
         });
     }
