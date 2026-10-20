@@ -76,6 +76,7 @@ if(BUILD_GUI)
         PartDesignTests/TestRevolutionReferencesGui.py
         PartDesignTests/TestBooleanBoundingBoxGui.py
         PartDesignTests/TestBooleanDisplayGui.py
+        PartDesignTests/TestBooleanDisplayModesGui.py
         PartDesignTests/TestMaterial.py
         PartDesignTests/TestSuppressed.py
     )
