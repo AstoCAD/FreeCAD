@@ -323,6 +323,18 @@ class ViewProviderExplodedView:
     def doubleClicked(self, vobj):
         task = Gui.Control.activeTaskDialog()
         if task:
+            callback = getattr(vobj.Object.Proxy, "stepsChangedCallback", None)
+            active_panel = getattr(callback, "__self__", None)
+            if (
+                isinstance(active_panel, TaskAssemblyCreateView)
+                and active_panel.viewObj == vobj.Object
+                and active_panel.form is not None
+                and any(
+                    widget == active_panel.form or widget.isAncestorOf(active_panel.form)
+                    for widget in task.getDialogContent()
+                )
+            ):
+                return True
             task.reject()
 
         assembly = vobj.Object.Proxy.getAssembly(vobj.Object)
