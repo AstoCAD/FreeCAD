@@ -49,6 +49,7 @@ SET(Test_SRCS
     TestMDIView.py
     TestActivateViewGui.py
     TestRecordedCommandImportsGui.py
+    TestWorkbenchSelectorGui.py
     TestRubberbandSelection.py
     TestCoinNodeSnapshots.py
     TestView3DFramebufferCapture.py
