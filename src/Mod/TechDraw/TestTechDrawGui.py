@@ -36,6 +36,7 @@ from TDTest.DrawDimensionEdgeVertexTest import DrawDimensionEdgeVertexTest  # no
 from TDTest.DrawCreationDocumentTest import DrawCreationDocumentTest  # noqa: F401
 from TDTest.DrawSpreadsheetLabelXmlTest import DrawSpreadsheetLabelXmlTest  # noqa: F401
 from TDTest.DrawBoltCircleTest import DrawBoltCircleTest  # noqa: F401
+from TDTest.DrawAxoLengthTransactionGuiTest import TestAxoLengthTransactionGui  # noqa: F401
 from TDTest.DrawCosmeticCircleGuiTest import (  # noqa: F401
     TestCosmeticCircleSelection, TestCosmeticCircleCompatibility,
 )
