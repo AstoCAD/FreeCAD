@@ -22,6 +22,7 @@ SET(Test_SRCS
     TestGui.py
     TestGroupVisibilityRestoreGui.py
     TestAddPropertyGui.py
+    TestExpressionVarSetGui.py
     TestPropertyEditorGui.py
     TestTaskViewGui.py
     TestGestureNavigationGui.py
