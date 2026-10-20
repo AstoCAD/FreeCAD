@@ -442,6 +442,9 @@ void PropertyMatrix::setPyObject(PyObject* value)
                 }
                 else if (PyLong_Check(item)) {
                     cMatrix[x][y] = (double)PyLong_AsLong(item);
+                    if (PyErr_Occurred()) {
+                        throw Py::Exception();
+                    }
                 }
                 else {
                     throw Base::TypeError(
