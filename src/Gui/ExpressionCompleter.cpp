@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <string_view>
+#include <tuple>
 #include <fastsignals/connection.h>
 #include <QAbstractItemView>
 #include <QContextMenuEvent>
@@ -1221,6 +1222,29 @@ QStringList ExpressionCompleter::splitPath(const QString& input) const
             App::ObjectIdentifier ident = ObjectIdentifier::parse(currentObj.getObject(), path);
 
             std::vector<std::string> stringList = ident.getStringList();
+            if (!ident.isLocalProperty() && currentObj.getObject()
+                && ident.getDocumentObject() == currentObj.getObject()) {
+                try {
+                    // Owner-relative resolution can consume an explicitly typed qualifier.
+                    // Restore only leading syntax removed from an otherwise identical path.
+                    const auto literalIdent = ObjectIdentifier::parse(nullptr, path);
+                    auto literalPath = literalIdent.getStringList();
+                    if (literalPath.size() > stringList.size()
+                        && std::equal(stringList.rbegin(), stringList.rend(), literalPath.rbegin())) {
+                        if (!literalIdent.hasDocumentObjectName()) {
+                            // Simple components omit label quoting; the lexer retains its syntax.
+                            const auto tokens = App::ExpressionParser::tokenize(path);
+                            if (!tokens.empty()) {
+                                literalPath.front() = std::get<2>(tokens.front());
+                            }
+                        }
+                        stringList = literalPath;
+                    }
+                }
+                catch (const Base::Exception&) {
+                    // Keep the resolved path if this syntax requires an owner to parse.
+                }
+            }
             if ((trailingDot || retry > 1) && !stringList.empty()) {
                 stringList.pop_back();
             }
