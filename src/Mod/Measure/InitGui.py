@@ -36,4 +36,6 @@ FreeCAD.__unit_test__ += [
     "TestMeasureGui",
     "TestMeasureShortcutGui",
     "TestMassPropertiesKeysGui",
+    "TestMassPropertiesPreviewGui",
+    "TestMassPropertiesPreviewLifecycleGui",
 ]
