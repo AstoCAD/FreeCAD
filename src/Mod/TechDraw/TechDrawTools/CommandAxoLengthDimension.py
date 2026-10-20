@@ -54,7 +54,7 @@ def makePlumb(dimensionLineAngle):
     if math.isclose(dimensionLineAngle, HalfPi, abs_tol=AngularTolerance):
         return HalfPi
     elif math.isclose(dimensionLineAngle, -HalfPi, abs_tol=AngularTolerance):
-        return -HalfPie
+        return -HalfPi
  
     return dimensionLineAngle
     
