@@ -39,6 +39,7 @@ from AssemblyTests.TestLoadUI import TestLoadUI
 from AssemblyTests.TestInitialVelocityUI import TestInitialVelocityUI
 from AssemblyTests.TestMassProperties import TestMassProperties
 from AssemblyTests.TestCommandInsertLink import TestCommandInsertLink
+from AssemblyTests.TestGroupedInsertGui import TestGroupedAssemblyInsert
 from AssemblyTests.TestCommandCreateView import TestCommandCreateView
 from AssemblyTests.TestCommandCreateJoint import TestCommandCreateJoint
 from AssemblyTests.TestSimulationExport import TestSimulationExport
@@ -61,6 +62,7 @@ True if TestLoadUI else False
 True if TestInitialVelocityUI else False
 True if TestMassProperties else False
 True if TestCommandInsertLink else False
+True if TestGroupedAssemblyInsert else False
 True if TestCommandCreateView else False
 True if TestCommandCreateJoint else False
 True if TestSimulationExport else False
