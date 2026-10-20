@@ -1333,7 +1333,10 @@ void PropertyFloatConstraint::setPyObject(PyObject* value)
         hasSetValue();
     }
     else if (PyLong_Check(value)) {
-        double temp = static_cast<double>(PyLong_AsLong(value));
+        double temp = PyLong_AsDouble(value);
+        if (PyErr_Occurred()) {
+            throw Py::Exception();
+        }
         if (_ConstStruct) {
             if (temp > _ConstStruct->UpperBound) {
                 temp = _ConstStruct->UpperBound;
