@@ -740,7 +740,7 @@ double Measurement::angle(const Base::Vector3d& /*param*/) const
         if (numRefs == 3) {
             TopoDS_Shape shape0 = getShape(objects.at(0), subElements.at(0).c_str(), TopAbs_VERTEX);
             TopoDS_Shape shape1 = getShape(objects.at(1), subElements.at(1).c_str(), TopAbs_VERTEX);
-            TopoDS_Shape shape2 = getShape(objects.at(1), subElements.at(2).c_str(), TopAbs_VERTEX);
+            TopoDS_Shape shape2 = getShape(objects.at(2), subElements.at(2).c_str(), TopAbs_VERTEX);
             if (shape0.ShapeType() != TopAbs_VERTEX || shape1.ShapeType() != TopAbs_VERTEX
                 || shape2.ShapeType() != TopAbs_VERTEX) {
                 throw Base::RuntimeError("Measurement references for 3 point angle are not Vertex");
