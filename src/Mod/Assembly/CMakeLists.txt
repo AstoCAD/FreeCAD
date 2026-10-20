@@ -87,6 +87,7 @@ SET(AssemblyTests_SRCS
     AssemblyTests/TestCommandInsertLink.py
     AssemblyTests/TestGroupedInsertGui.py
     AssemblyTests/TestBomAvailabilityGui.py
+    AssemblyTests/TestBomRestoredColumnsGui.py
     AssemblyTests/TestViewProviderAssembly.py
     AssemblyTests/TestSimulationExport.py
     AssemblyTests/TestSimulationGravity.py
