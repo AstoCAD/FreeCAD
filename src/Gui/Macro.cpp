@@ -332,7 +332,7 @@ void MacroManager::addToOutput(LineType type, const char* line)
 void MacroManager::setModule(const char* sModule)
 {
     if (macroFile.isOpen() && sModule && *sModule != '\0') {
-        macroFile.append(QStringLiteral("import %1").arg(QString::fromLatin1(sModule)));
+        macroFile.append(QStringLiteral("import %1").arg(QString::fromUtf8(sModule)));
     }
 }
 
