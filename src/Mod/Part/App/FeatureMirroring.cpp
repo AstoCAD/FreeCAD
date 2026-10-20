@@ -42,6 +42,7 @@
 #include <Mod/Part/App/PrimitiveFeature.h>
 #include <App/Link.h>
 #include <App/Datums.h>
+#include <App/ElementNamingUtils.h>
 
 #include "FeatureMirroring.h"
 #include "DatumFeature.h"
@@ -201,11 +202,16 @@ App::DocumentObjectExecReturn* Mirroring::execute()
                 )
                             .getShape();
 
-                if (strstr(subStrings[0].c_str(), "Face")) {
+                // The subname may be a path through containers or links (e.g. a Link to a
+                // Part: "Face.Edge1"), so only its element part tells a face from an edge.
+                const std::string element = Data::oldElementName(
+                    Data::findElementName(subStrings[0].c_str())
+                );
+                if (strstr(element.c_str(), "Face")) {
                     isFace = true;  // was face subobject, e.g. Face3
                 }
                 else {
-                    if (strstr(subStrings[0].c_str(), "Edge")) {
+                    if (strstr(element.c_str(), "Edge")) {
                         isEdge = true;  // was edge subobject, e.g. Edge7
                     }
                 }

@@ -232,6 +232,31 @@ class TestPartMirroringRegression(unittest.TestCase):
         self.assertAlmostEqual(mirror_bbox.ZMin, link_bbox.ZMin, delta=1.0)
         self.assertAlmostEqual(mirror_bbox.ZMax, link_bbox.ZMax, delta=1.0)
 
+    def testMirrorPlaneEdgePathThroughObjectNamedFace(self):
+        """A MirrorPlane path is classified by its element, not by object names in the path."""
+        circle = self.doc.addObject("Part::Circle", "Circle")
+        circle.Radius = 3
+        face = self.doc.addObject("Part::Face", "Face")
+        face.Sources = [circle]
+        part = self.doc.addObject("App::Part", "Part")
+        part.addObject(circle)
+        part.addObject(face)
+        link = self.doc.addObject("App::Link", "Link")
+        link.LinkedObject = part
+        link.Placement.Base = App.Vector(0, 0, 20)
+        box = self.doc.addObject("Part::Box", "Box")
+        self.doc.recompute()
+
+        # the circle edge of the linked "Face" object: plane z=20
+        mirror = self.doc.addObject("Part::Mirroring", "Mirror")
+        mirror.Source = box
+        mirror.MirrorPlane = (link, ["Face.Edge1"])
+        self.doc.recompute()
+
+        self.assertNotIn("Invalid", mirror.State)
+        self.assertAlmostEqual(mirror.Shape.BoundBox.ZMin, 30.0, places=6)
+        self.assertAlmostEqual(mirror.Shape.BoundBox.ZMax, 40.0, places=6)
+
 
 # for standalone execution
 if __name__ == "__main__":
