@@ -3028,3 +3028,103 @@ class MultiDocumentUndo(unittest.TestCase):
         # closing doc
         FreeCAD.closeDocument("Doc1")
         FreeCAD.closeDocument("Doc2")
+
+
+class DocumentPathCases(unittest.TestCase):
+    """Relative document arguments must not corrupt saved external links."""
+
+    def setUp(self):
+        try:
+            import Spreadsheet
+        except ImportError:
+            self.skipTest("Spreadsheet module is required")
+        from pathlib import Path
+
+        self.original_cwd = Path.cwd()
+        self.previous_document = FreeCAD.ActiveDocument.Name if FreeCAD.ActiveDocument else None
+        self.initial_documents = set(FreeCAD.listDocuments())
+        storage = tempfile.TemporaryDirectory()
+        self.addCleanup(storage.cleanup)
+        self.directory = Path(storage.name)
+
+    def tearDown(self):
+        for name in reversed(list(FreeCAD.listDocuments())):
+            if name not in self.initial_documents:
+                FreeCAD.closeDocument(name)
+        os.chdir(self.original_cwd)
+        if self.previous_document in FreeCAD.listDocuments():
+            FreeCAD.setActiveDocument(self.previous_document)
+
+    def _check_spreadsheet_link_paths(self, owner_relative, source_relative):
+        from pathlib import Path
+
+        model = self.directory / "project" / "model"
+        model.mkdir(parents=True)
+        source_file = model / "GlobalVars.FCStd"
+        owner_file = model / "Owner.FCStd"
+        source = FreeCAD.newDocument("ProjectVarsSource")
+        sheet = source.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.Label = "GlobalVars"
+        sheet.set("A1", "123")
+        source.recompute()
+        source.saveAs(str(source_file))
+        FreeCAD.closeDocument(source.Name)
+        owner = FreeCAD.newDocument("ProjectOwnerSource")
+        owner.saveAs(str(owner_file))
+        FreeCAD.closeDocument(owner.Name)
+
+        os.chdir(self.directory)
+        owner = FreeCAD.openDocument(
+            str(owner_file.relative_to(self.directory)) if owner_relative else str(owner_file)
+        )
+        if owner_relative and source_relative:
+            # The project path follows the owner's runtime FileName. normpath
+            # alone must not leave an argument relative to the process cwd.
+            project_path = os.path.join(os.path.dirname(owner.FileName), "FCProject")
+            source_argument = os.path.normpath(os.path.join(
+                os.path.dirname(project_path), "GlobalVars.FCStd"
+            ))
+        else:
+            source_argument = (
+                str(source_file.relative_to(self.directory)) if source_relative else str(source_file)
+            )
+        source = FreeCAD.openDocument(source_argument)
+        FreeCAD.setActiveDocument(owner.Name)
+        link = owner.addObject("App::Link", "GlobalVarsLink")
+        link.LinkedObject = source.Spreadsheet
+        self.assertEqual(link.LinkedObject, source.Spreadsheet)
+        owner.recompute()
+        owner.save()
+
+        with zipfile.ZipFile(owner_file) as archive:
+            xml = ET.fromstring(archive.read("Document.xml"))
+        node = xml.find(
+            ".//ObjectData/Object[@name='GlobalVarsLink']/Properties/"
+            "Property[@name='LinkedObject']/XLink"
+        )
+        self.assertIsNotNone(node)
+        self.assertEqual(
+            (owner_file.parent / node.attrib["file"]).resolve(), source_file.resolve()
+        )
+
+        FreeCAD.closeDocument(owner.Name)
+        FreeCAD.closeDocument(source.Name)
+        os.chdir(self.original_cwd)
+        reopened = FreeCAD.openDocument(str(owner_file))
+        restored = reopened.GlobalVarsLink.LinkedObject
+        self.assertIsNotNone(restored)
+        self.assertEqual(restored.TypeId, "Spreadsheet::Sheet")
+        self.assertEqual(restored.get("A1"), 123)
+        self.assertEqual(Path(restored.Document.FileName), source_file)
+
+    def test_absolute_owner_and_source_link_paths(self):
+        self._check_spreadsheet_link_paths(False, False)
+
+    def test_relative_owner_and_absolute_source_link_paths(self):
+        self._check_spreadsheet_link_paths(True, False)
+
+    def test_absolute_owner_and_relative_source_link_paths(self):
+        self._check_spreadsheet_link_paths(False, True)
+
+    def test_relative_owner_and_project_derived_source_link_paths(self):
+        self._check_spreadsheet_link_paths(True, True)
