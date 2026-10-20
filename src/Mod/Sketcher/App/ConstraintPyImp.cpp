@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <limits>
 #include <sstream>
 
 
@@ -138,13 +139,28 @@ int ConstraintPy::PyInit(PyObject* args, PyObject* /*kwd*/)
                 return false;  // Failure
             }
 
-            int geoId = PyLong_AsLong(py_geoId_obj);
-            int posId = PyLong_AsLong(py_posId_obj);
+            const long geoId = PyLong_AsLong(py_geoId_obj);
+            if (PyErr_Occurred()) {
+                return false;
+            }
+            const long posId = PyLong_AsLong(py_posId_obj);
+            if (PyErr_Occurred()) {
+                return false;
+            }
+            if (geoId < std::numeric_limits<int>::min()
+                || geoId > std::numeric_limits<int>::max()
+                || posId < std::numeric_limits<int>::min()
+                || posId > std::numeric_limits<int>::max()) {
+                PyErr_SetString(PyExc_OverflowError, "Element list indices must fit in a C++ int.");
+                return false;
+            }
 
             // Use the C++ API to populate the constraint
             constr_ptr->setElement(
                 i / 2,
-                Sketcher::GeoElementId(geoId, static_cast<Sketcher::PointPos>(posId))
+                Sketcher::GeoElementId(
+                    static_cast<int>(geoId), static_cast<Sketcher::PointPos>(posId)
+                )
             );
         }
 
