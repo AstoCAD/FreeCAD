@@ -185,6 +185,7 @@ SET(TDTest_SRCS
     TDTest/DrawHatchTest.py
     TDTest/DrawDimensionApiTest.py
     TDTest/DrawBoltCircleTest.py
+    TDTest/DrawDraftViewDocumentTest.py
     TDTest/DrawImportFilenameTest.py
     TDTest/DrawPagePdfFilenameTest.py
     TDTest/DrawSvgzSymbolTest.py
