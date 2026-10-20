@@ -14,6 +14,7 @@ from SketcherTests.TestViewSectionGui import TestViewSectionGui
 from SketcherTests.TestConvertToNURBSGui import TestConvertToNURBSGui
 from SketcherTests.TestSketchGroupsGui import TestSketchGroupsGui
 from SketcherTests.TestSketchTransformExpressionsGui import TestSketchTransformExpressionsGui
+from SketcherTests.TestSketchEndpointExpressionsGui import TestSketchEndpointExpressionsGui
 from SketcherTests.TestSketchAnnotationsGui import TestSketchAnnotationsGui
 from SketcherTests.TestSketchLayersGui import TestSketchLayersGui
 from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
@@ -36,6 +37,7 @@ from SketcherTests.TestSketchDatumNavigationGui import TestSketchDatumNavigation
     and TestConvertToNURBSGui
     and TestSketchGroupsGui
     and TestSketchTransformExpressionsGui
+    and TestSketchEndpointExpressionsGui
     and TestSketchAnnotationsGui
     and TestSketchLayersGui
     and TestSketchBlocksGui
