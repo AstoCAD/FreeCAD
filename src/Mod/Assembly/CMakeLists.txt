@@ -81,6 +81,7 @@ SET(AssemblyTests_SRCS
     AssemblyTests/TestInitialVelocityUI.py
     AssemblyTests/TestMassProperties.py
     AssemblyTests/TestCommandCreateView.py
+    AssemblyTests/TestCommandCreateJoint.py
     AssemblyTests/TestCommandInsertLink.py
     AssemblyTests/TestSimulationExport.py
     AssemblyTests/TestSimulationGravity.py
