@@ -30,6 +30,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketchGroups.py
     SketcherTests/TestConstraintIntegerRange.py
     SketcherTests/TestConstraintScalarDispatch.py
+    SketcherTests/TestConstraintPythonSerialization.py
     SketcherTests/TestSketchAnnotations.py
     SketcherTests/TestSketchLayers.py
     SketcherTests/TestSketchBlocks.py

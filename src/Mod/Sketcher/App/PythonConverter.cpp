@@ -421,7 +421,7 @@ std::string PythonConverter::process(const Sketcher::Constraint* constraint, Geo
     std::string id1pos1 = id1 + ", " + pos1;
     std::string id2pos2 = id2 + ", " + pos2;
 
-    std::string val = std::to_string(constraint->getValue());
+    std::string val = std::format("{:#.17g}", constraint->getValue());
 
     // Booleans to simplify the logic branches
     bool secondUndef = (constraint->Second == GeoEnum::GeoUndef);

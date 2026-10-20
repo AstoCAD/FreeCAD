@@ -40,6 +40,10 @@ from SketcherTests.TestConstraintScalarDispatch import (
     TestConstraintScalarIntegerValues,
     TestConstraintScalarDispatchCompatibility,
 )
+from SketcherTests.TestConstraintPythonSerialization import (
+    TestConstraintValuePythonRoundTrip,
+    TestConstraintPythonRoundTripCompatibility,
+)
 from SketcherTests.TestSketchBlocks import TestSketchBlocks
 
 # Path and PartDesign tests use these functions that used to live here
@@ -62,6 +66,8 @@ __all__ = [
     "TestConstraintElementIntegerRange",
     "TestConstraintScalarIntegerValues",
     "TestConstraintScalarDispatchCompatibility",
+    "TestConstraintValuePythonRoundTrip",
+    "TestConstraintPythonRoundTripCompatibility",
     "TestSketchAnnotations",
     "TestSketchLayers",
     "TestSketchBlocks",
