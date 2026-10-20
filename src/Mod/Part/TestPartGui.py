@@ -56,6 +56,7 @@ from parttests.TestMirrorPlaneReferencesGui import (
     TestMirrorAdmittedPlanePaths,
     TestMirrorLabelPathSerialization,
 )
+from parttests.TestMirrorUnicodeNamesGui import TestMirrorUnicodeNames
 
 
 # class PartGuiTestCases(unittest.TestCase):
