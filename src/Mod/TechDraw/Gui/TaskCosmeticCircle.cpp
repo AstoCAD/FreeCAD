@@ -158,8 +158,10 @@ void TaskCosmeticCircle::setUiPrimary()
     ui->qsbCenterY->setUnit(Base::Unit::Length);
     ui->qsbCenterZ->setValue(displayCenter.z);
 
-    double radius = (mathPoints[1] - mathPoints[0]).Length() / m_partFeat->getScale();
-    ui->qsbRadius->setValue(radius);
+    if (mathPoints.size() > 1) {
+        double radius = (mathPoints[1] - mathPoints[0]).Length() / m_partFeat->getScale();
+        ui->qsbRadius->setValue(radius);
+    }
 
     ui->qsbStartAngle->setValue(0);
     ui->qsbEndAngle->setValue(360);
