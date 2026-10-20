@@ -2010,7 +2010,7 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
 
     def reject(self):
         self.deactivate()
-        Gui.ActiveDocument.abortCommand()
+        self.doc.abortTransaction()
         self.assembly.recompute(True)
         return True
 
@@ -2023,7 +2023,7 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
         Gui.Selection.removeSelectionGate()
         Gui.Selection.removeObserver(self)
         Gui.Selection.setSelectionStyle(Gui.Selection.SelectionStyle.NormalSelection)
-        App.ActiveDocument.abortTransaction()
+        self.doc.abortTransaction()
 
     def deactivate(self):
         global activeTask
