@@ -44,6 +44,7 @@ if(BUILD_GUI)
           SketcherTests/GuiTestCase.py
           SketcherTests/TestSketchGroupsGui.py
           SketcherTests/TestSketchTransformExpressionsGui.py
+          SketcherTests/TestSketchEndpointExpressionsGui.py
           SketcherTests/TestSketchAnnotationsGui.py
           SketcherTests/TestSketchLayersGui.py
           SketcherTests/TestSketchBlocksGui.py
