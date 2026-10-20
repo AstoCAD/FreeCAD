@@ -5026,6 +5026,10 @@ void ViewProviderSketch::unsetEditViewer(Gui::View3DInventorViewer* viewer)
     cameraSensor.setDeleteCallback(nullptr, nullptr);
     cameraSensor.detach();
 
+    if (Mode == STATUS_SKETCH_UseRubberBand) {
+        setSketchMode(STATUS_NONE);
+    }
+    rubberband->setWorking(false);
     viewer->removeGraphicsItem(rubberband.get());
     if (annotations) {
         annotations->cancelDrag();

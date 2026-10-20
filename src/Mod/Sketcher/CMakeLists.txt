@@ -52,6 +52,7 @@ if(BUILD_GUI)
           SketcherTests/TestVisualLayerListGui.py
           SketcherTests/TestCarbonCopyModelTreeDragging.py
           SketcherTests/TestViewSectionGui.py
+          SketcherTests/TestSketchRubberbandGui.py
     )
 endif(BUILD_GUI)
 
