@@ -38,6 +38,7 @@
 #include <App/GeoFeature.h>
 #include <App/IndexedName.h>
 #include <Base/Console.h>
+#include <Base/Tools.h>
 
 #include "SelectionView.h"
 #include "Application.h"
@@ -394,13 +395,15 @@ void SelectionView::toggleSelect(QListWidgetItem* item)
     if (!item) {
         return;
     }
-    QStringList elements = item->data(Qt::UserRole).toStringList();
+    const QStringList elements = item->data(Qt::UserRole).toStringList();
     if (elements.size() < 2) {
         return;
     }
-    QByteArray docname = elements[0].toUtf8();
-    QByteArray objname = elements[1].toUtf8();
-    QByteArray subname = elements.size() > 2 ? elements[2].toUtf8() : QByteArray();
+    const QByteArray docname = elements[0].toUtf8();
+    const QByteArray objname = elements[1].toUtf8();
+    const QByteArray subname = elements.size() > 2 ? elements[2].toUtf8() : QByteArray();
+    const QString pythonSubname = QString::fromUtf8(
+        Base::Tools::escapeEncodeString(subname.constData()).c_str());
     QString cmd;
     if (Gui::Selection().isSelected(docname, objname, subname)) {
         cmd = QString::fromUtf8(
@@ -410,7 +413,7 @@ void SelectionView::toggleSelect(QListWidgetItem* item)
                   .arg(
                       QString::fromUtf8(docname),
                       QString::fromUtf8(objname),
-                      QString::fromUtf8(subname)
+                      pythonSubname
                   );
     }
     else {
@@ -418,10 +421,14 @@ void SelectionView::toggleSelect(QListWidgetItem* item)
                   "Gui.Selection.addSelection("
                   "App.getDocument('%1').getObject('%2'),'%3',%4,%5,%6)"
         )
-                  .arg(QString::fromUtf8(docname), QString::fromUtf8(objname), QString::fromUtf8(subname))
-                  .arg(x)
-                  .arg(y)
-                  .arg(z);
+                  .arg(
+                      QString::fromUtf8(docname),
+                      QString::fromUtf8(objname),
+                      pythonSubname,
+                      QStringLiteral("%1").arg(x),
+                      QStringLiteral("%1").arg(y),
+                      QStringLiteral("%1").arg(z)
+                  );
     }
     try {
         Gui::Command::runCommand(Gui::Command::Gui, cmd.toUtf8());
@@ -436,19 +443,21 @@ void SelectionView::preselect(QListWidgetItem* item)
     if (!item) {
         return;
     }
-    QStringList elements = item->data(Qt::UserRole).toStringList();
+    const QStringList elements = item->data(Qt::UserRole).toStringList();
     if (elements.size() < 2) {
         return;
     }
-    QByteArray docname = elements[0].toUtf8();
-    QByteArray objname = elements[1].toUtf8();
-    QByteArray subname = elements.size() > 2 ? elements[2].toUtf8() : QByteArray();
+    const QByteArray docname = elements[0].toUtf8();
+    const QByteArray objname = elements[1].toUtf8();
+    const QByteArray subname = elements.size() > 2 ? elements[2].toUtf8() : QByteArray();
+    const QString pythonSubname = QString::fromUtf8(
+        Base::Tools::escapeEncodeString(subname.constData()).c_str());
     QString cmd
         = QString::fromUtf8(
               "Gui.Selection.setPreselection("
               "App.getDocument('%1').getObject('%2'),'%3',tp=2)"
         )
-              .arg(QString::fromUtf8(docname), QString::fromUtf8(objname), QString::fromUtf8(subname));
+              .arg(QString::fromUtf8(docname), QString::fromUtf8(objname), pythonSubname);
     try {
         Gui::Command::runCommand(Gui::Command::Gui, cmd.toUtf8());
     }

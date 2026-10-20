@@ -50,6 +50,7 @@ SET(Test_SRCS
     TestCoinNodeSnapshots.py
     TestView3DFramebufferCapture.py
     TestSelectionVisual.py
+    TestSelectionViewIdentityGui.py
     TestCornerAxisCrossVisual.py
     TestViewProviderLink.py
 )
