@@ -23,6 +23,7 @@
 
 import FreeCAD as App
 import Part
+import PartDesign
 import os
 import tempfile
 import unittest
@@ -175,6 +176,86 @@ class TestCore(AssemblyTestBase):
 
     def test_simulation_accepts_python_document_object_group(self):
         self._check_origin_only_simulation("App::DocumentObjectGroupPython")
+
+    def _check_bare_root_datum_grounded(self, type_id):
+        datum = self.assembly.newObject(type_id, "RootDatum")
+        self.assertIn(datum, self.assembly.Group)
+        self.assertFalse(datum.hasExtension("Part::AttachExtension"))
+        self.assertTrue(self.assembly.isPartGrounded(datum))
+        self.assertTrue(self.assembly.isPartConnected(datum))
+
+    def test_bare_root_coordinate_system_is_grounded(self):
+        self._check_bare_root_datum_grounded("App::LocalCoordinateSystem")
+
+    def test_bare_root_point_is_grounded(self):
+        self._check_bare_root_datum_grounded("App::Point")
+
+    def test_bare_root_line_is_grounded(self):
+        self._check_bare_root_datum_grounded("App::Line")
+
+    def test_bare_root_plane_is_grounded(self):
+        self._check_bare_root_datum_grounded("App::Plane")
+
+    def test_part_coordinate_system_grounding_respects_attachment(self):
+        support = self.assembly.newObject("Part::Box", "AttachmentSupport")
+        self.doc.recompute()
+        datum = self.assembly.newObject("Part::LocalCoordinateSystem", "RootLCS")
+        self.assertTrue(datum.hasExtension("Part::AttachExtension"))
+        self.assertEqual(datum.MapMode, "Deactivated")
+        placement_status = datum.getPropertyStatus("Placement")
+        self.assertTrue(self.assembly.isPartGrounded(datum))
+        self.assertTrue(self.assembly.isPartConnected(datum))
+        self.assertEqual(datum.getPropertyStatus("Placement"), placement_status)
+
+        datum.AttachmentSupport = [(support, ["Face1"])]
+        datum.MapMode = "FlatFace"
+        datum.recompute()
+        self.assertEqual(datum.MapMode, "FlatFace")
+        placement_status = datum.getPropertyStatus("Placement")
+        self.assertFalse(self.assembly.isPartGrounded(datum))
+        self.assertFalse(self.assembly.isPartConnected(datum))
+        self.assertEqual(datum.getPropertyStatus("Placement"), placement_status)
+
+    def _make_grounding_body(self, name, linked=False):
+        body = self.doc.addObject("PartDesign::Body", name + "Body")
+        tip = body.newObject("PartDesign::Feature", name + "Tip")
+        tip.Shape = Part.makeBox(3, 4, 5)
+        body.Tip = tip
+        self.doc.recompute()
+        self.assertFalse(body.Shape.isNull())
+        if linked:
+            component = self.assembly.newObject("App::Link", name + "Link")
+            component.setLink(body)
+        else:
+            self.assembly.addObject(body)
+            component = body
+        return component
+
+    def _check_ordinary_component_grounding(self, linked=False):
+        component = self._make_grounding_body("Grounded", linked)
+        other = self._make_grounding_body("Free", linked)
+        self.assertFalse(self.assembly.isPartGrounded(component))
+        self.assertFalse(self.assembly.isPartGrounded(other))
+        ground = self.jointgroup.newObject("App::FeaturePython", "Ground")
+        JointObject.GroundedJoint(ground, component)
+        self.assertTrue(self.assembly.isPartGrounded(component))
+        self.assertTrue(self.assembly.isPartConnected(component))
+        self.assertFalse(self.assembly.isPartGrounded(other))
+
+    def test_body_grounding_control(self):
+        self._check_ordinary_component_grounding()
+
+    def test_linked_body_grounding_control(self):
+        self._check_ordinary_component_grounding(linked=True)
+
+    def test_body_contained_bare_coordinate_system_is_not_root_grounded(self):
+        body = self._make_grounding_body("Component")
+        datum = body.newObject("App::LocalCoordinateSystem", "BodyLCS")
+        self.assertEqual(datum.getParentGeoFeatureGroup(), body)
+        self.assertNotIn(datum, self.assembly.Group)
+        self.assertFalse(datum.hasExtension("Part::AttachExtension"))
+        self.assertFalse(self.assembly.isPartGrounded(body))
+        self.assertFalse(self.assembly.isPartGrounded(datum))
 
     def _check_generated_property_strings(self, value, enumeration=False):
         source = self.doc.addObject("App::FeaturePython", "RecordedObject")
