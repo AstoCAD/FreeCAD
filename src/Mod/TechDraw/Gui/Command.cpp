@@ -563,8 +563,8 @@ void CmdTechDrawView::activated(int iMsg)
                 if (filename.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive)
                     || filename.endsWith(QStringLiteral(".svgz"), Qt::CaseInsensitive)) {
                     std::string FeatName = getUniqueObjectName("Symbol");
-                    auto filespec = DU::cleanFilespecBackslash(
-                        Base::Tools::escapeEncodeFilename(filename.toStdString()));
+                    auto filespec = Base::Tools::escapeEncodeFilename(
+                        DU::cleanFilespecBackslash(filename.toStdString()));
                     openCommand(QT_TRANSLATE_NOOP("Command", "Create Symbol"));
                     doCommand(Doc, "f = open(\"%s\", 'r', encoding=\"utf-8\")", filespec.c_str());
                     doCommand(Doc, "svg = f.read()");
@@ -585,8 +585,8 @@ void CmdTechDrawView::activated(int iMsg)
                 }
                 else {
                     std::string FeatName = getUniqueObjectName("Image");
-                    auto filespec = DU::cleanFilespecBackslash(
-                        Base::Tools::escapeEncodeFilename(filename.toStdString()));
+                    auto filespec = Base::Tools::escapeEncodeFilename(
+                        DU::cleanFilespecBackslash(filename.toStdString()));
                     openCommand(QT_TRANSLATE_NOOP("Command", "Create image"));
                     doCommand(Doc, "App.activeDocument().addObject('TechDraw::DrawViewImage', '%s')", FeatName.c_str());
                     doCommand(Doc, "App.activeDocument().%s.translateLabel('DrawViewImage', 'Image', '%s')",
@@ -1409,8 +1409,8 @@ void CmdTechDrawSymbol::activated(int iMsg)
 
     if (!filename.isEmpty()) {
         std::string FeatName = getUniqueObjectName("Symbol");
-        auto filespec = DU::cleanFilespecBackslash(
-            Base::Tools::escapeEncodeFilename(filename.toStdString()));
+        auto filespec = Base::Tools::escapeEncodeFilename(
+            DU::cleanFilespecBackslash(filename.toStdString()));
         openCommand(QT_TRANSLATE_NOOP("Command", "Create Symbol"));
         doCommand(Doc, "f = open(\"%s\", 'r', encoding=\"utf-8\")", filespec.c_str());
         doCommand(Doc, "svg = f.read()");
@@ -1769,8 +1769,8 @@ void CmdTechDrawExportPageDXF::activated(int iMsg)
     std::string PageName = page->getNameInDocument();
     openCommand(QT_TRANSLATE_NOOP("Command", "Save page to DXF"));
     doCommand(Doc, "import TechDraw");
-    auto filespec = DU::cleanFilespecBackslash(
-        Base::Tools::escapeEncodeFilename(fileName.toStdString()));
+    auto filespec = Base::Tools::escapeEncodeFilename(
+        DU::cleanFilespecBackslash(fileName.toStdString()));
     doCommand(Doc, "TechDraw.writeDXFPage(App.activeDocument().%s, u\"%s\")", PageName.c_str(),
               filespec.c_str());
     commitCommand();
