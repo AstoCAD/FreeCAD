@@ -101,6 +101,30 @@ const int TreeWidget::ObjectType = 1001;
 static bool _DraggingActive;
 static bool _DragEventFilter;
 
+// Keep the visibility owner identical to the existing tree status lookup.
+static App::DocumentObject* getElementVisibilityParent(const DocumentObjectItem* item)
+{
+    auto parentItem = item->getParentItem();
+    if (!parentItem) {
+        return nullptr;
+    }
+    auto parent = parentItem->object()->getObject();
+    if (!parent->getExtensionByType<App::GroupExtension>(true, false)) {
+        return parent;
+    }
+    // We are dealing with a plain group. It has special handling when
+    // linked, which allows it to have independent visibility control.
+    // We need to go up the hierarchy and see if there is any link to
+    // it.
+    for (auto pp = parentItem->getParentItem(); pp; pp = pp->getParentItem()) {
+        auto obj = pp->object()->getObject();
+        if (!obj->hasExtension(App::GroupExtension::getExtensionClassTypeId(), false)) {
+            return obj;
+        }
+    }
+    return nullptr;
+}
+
 static bool isVisibilityIconEnabled()
 {
     return TreeParams::getVisibilityIcon();
@@ -2173,9 +2197,7 @@ void TreeWidget::mousePressEvent(QMouseEvent* event)
                 auto obj = objitem->object()->getObject();
                 char const* objname = obj->getNameInDocument();
 
-                App::DocumentObject* parent = nullptr;
-                std::ostringstream subName;
-                objitem->getSubName(subName, parent);
+                App::DocumentObject* parent = getElementVisibilityParent(objitem);
 
                 // Try the ElementVisible API, if that is not supported toggle the Visibility property
                 int visible = -1;
@@ -6639,29 +6661,9 @@ QIcon DocumentObjectItem::getVisibilityIcon(int currentStatus, QIcon& original_i
 
 bool DocumentObjectItem::isVisibleInTree() const
 {
-    App::DocumentObject* pObject = object()->getObject();
-
     int visible = -1;
-    auto parentItem = getParentItem();
-    if (parentItem) {
-        auto parent = parentItem->object()->getObject();
-        auto ext = parent->getExtensionByType<App::GroupExtension>(true, false);
-        if (!ext) {
-            visible = parent->isElementVisible(pObject->getNameInDocument());
-        }
-        else {
-            // We are dealing with a plain group. It has special handling when
-            // linked, which allows it to have indpenedent visibility control.
-            // We need to go up the hierarchy and see if there is any link to
-            // it.
-            for (auto pp = parentItem->getParentItem(); pp; pp = pp->getParentItem()) {
-                auto obj = pp->object()->getObject();
-                if (!obj->hasExtension(App::GroupExtension::getExtensionClassTypeId(), false)) {
-                    visible = pp->object()->getObject()->isElementVisible(pObject->getNameInDocument());
-                    break;
-                }
-            }
-        }
+    if (auto parent = getElementVisibilityParent(this)) {
+        visible = parent->isElementVisible(object()->getObject()->getNameInDocument());
     }
 
     if (visible < 0) {
