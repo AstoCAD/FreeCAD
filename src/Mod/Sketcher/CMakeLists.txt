@@ -29,6 +29,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketcherEllipse.py
     SketcherTests/TestSketchGroups.py
     SketcherTests/TestConstraintIntegerRange.py
+    SketcherTests/TestConstraintScalarDispatch.py
     SketcherTests/TestSketchAnnotations.py
     SketcherTests/TestSketchLayers.py
     SketcherTests/TestSketchBlocks.py
