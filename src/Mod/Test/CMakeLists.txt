@@ -21,6 +21,7 @@ SET(Test_SRCS
     TestLinkSuppression.py
     TestIntPairList.py
     TestPropertyIntegerOverflow.py
+    TestPropertyMatrixIntegerOverflow.py
     TestPropertyFloatIntegerConversion.py
     TestFloatConstraintQuantityIntegerConversion.py
     TestHelpFallback.py
