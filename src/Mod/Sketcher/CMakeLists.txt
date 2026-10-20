@@ -62,6 +62,7 @@ if(BUILD_GUI)
           SketcherTests/TestConvertToNURBSGui.py
           SketcherTests/TestSketchRubberbandGui.py
           SketcherTests/TestSketchDatumNavigationGui.py
+          SketcherTests/TestSketchReorientGui.py
     )
 endif(BUILD_GUI)
 

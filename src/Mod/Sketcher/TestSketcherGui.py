@@ -18,6 +18,7 @@ from SketcherTests.TestSketchLayersGui import TestSketchLayersGui
 from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
 from SketcherTests.TestSketchRubberbandGui import TestSketchRubberbandGui
 from SketcherTests.TestSketchDatumNavigationGui import TestSketchDatumNavigationGui
+from SketcherTests.TestSketchReorientGui import TestSketchReorientGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -41,5 +42,6 @@ from SketcherTests.TestSketchDatumNavigationGui import TestSketchDatumNavigation
     and TestSketchBlocksGui
     and TestSketchRubberbandGui
     and TestSketchDatumNavigationGui
+    and TestSketchReorientGui
     else False
 )
