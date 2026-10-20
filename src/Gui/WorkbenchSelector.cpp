@@ -25,6 +25,7 @@
 #include <QApplication>
 #include <QMenuBar>
 #include <QScreen>
+#include <QSignalBlocker>
 #include <QStatusBar>
 #include <QToolBar>
 #include <QLayout>
@@ -173,7 +174,17 @@ inline Qt::LayoutDirection WorkbenchTabWidget::direction() const
 
 void WorkbenchTabWidget::setDirection(Qt::LayoutDirection direction)
 {
+    QAction* temporaryAction = nullptr;
+    if (_direction != direction && temporaryWorkbenchAction) {
+        temporaryAction = temporaryWorkbenchAction;
+        setTemporaryWorkbenchTab(nullptr);
+    }
+
     _direction = direction;
+
+    if (temporaryAction) {
+        setTemporaryWorkbenchTab(temporaryAction);
+    }
 
     Q_EMIT directionChanged(direction);
 }
@@ -195,6 +206,11 @@ QAction* WorkbenchTabWidget::workbenchActivateActionByTabIndex(int tabIndex) con
         return temporaryWorkbenchAction;
     }
 
+    // The maps store enabled-tab indices; an RTL temporary tab precedes them.
+    if (temporaryWorkbenchAction && direction() == Qt::RightToLeft) {
+        --tabIndex;
+    }
+
     auto it = tabIndexToAction.find(tabIndex);
 
     if (it != tabIndexToAction.end()) {
@@ -210,7 +226,8 @@ int WorkbenchTabWidget::tabIndexForWorkbenchActivateAction(QAction* workbenchAct
         return temporaryWorkbenchTabIndex();
     }
 
-    return actionToTabIndex.at(workbenchActivateAction);
+    const int index = actionToTabIndex.at(workbenchActivateAction);
+    return temporaryWorkbenchAction && direction() == Qt::RightToLeft ? index + 1 : index;
 }
 
 WorkbenchItemStyle Gui::WorkbenchTabWidget::itemStyle() const
@@ -267,6 +284,8 @@ void WorkbenchTabWidget::handleWorkbenchSelection(QAction* selectedWorkbenchActi
 
 void WorkbenchTabWidget::setTemporaryWorkbenchTab(QAction* workbenchActivateAction)
 {
+    // Removing or inserting a tab must not activate the neighboring workbench.
+    const QSignalBlocker blocker(tabBar);
     auto temporaryTabIndex = temporaryWorkbenchTabIndex();
 
     if (temporaryWorkbenchAction) {
@@ -293,11 +312,13 @@ void WorkbenchTabWidget::handleTabChange(int selectedTabIndex)
         return;
     }
 
-    if (auto workbenchActivateAction = workbenchActivateActionByTabIndex(selectedTabIndex)) {
+    auto workbenchActivateAction = workbenchActivateActionByTabIndex(selectedTabIndex);
+    if (workbenchActivateAction) {
         workbenchActivateAction->trigger();
     }
 
-    if (selectedTabIndex != temporaryWorkbenchTabIndex()) {
+    // Activation may refresh the tabs, so retain the selected identity, not its index.
+    if (workbenchActivateAction != temporaryWorkbenchAction) {
         setTemporaryWorkbenchTab(nullptr);
     }
 
@@ -317,6 +338,8 @@ void WorkbenchTabWidget::updateWorkbenchList()
     // processing of such events until the QTabBar is fully prepared.
     Base::StateLocker lock(isInitializing);
 
+    QAction* temporaryAction = temporaryWorkbenchAction;
+    temporaryWorkbenchAction = nullptr;
     actionToTabIndex.clear();
     tabIndexToAction.clear();
 
@@ -329,8 +352,8 @@ void WorkbenchTabWidget::updateWorkbenchList()
         addWorkbenchTab(action);
     }
 
-    if (temporaryWorkbenchAction) {
-        setTemporaryWorkbenchTab(temporaryWorkbenchAction);
+    if (wbActionGroup->getDisabledWbActions().contains(temporaryAction)) {
+        setTemporaryWorkbenchTab(temporaryAction);
     }
 
     buildPrefMenu();
