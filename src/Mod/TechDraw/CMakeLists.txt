@@ -234,6 +234,7 @@ SET(TDTest_SRCS
     TDTest/DrawViewSelectionTeardownGuiTest.py
     TDTest/DrawViewPartTest.py
     TDTest/DrawViewSectionTest.py
+    TDTest/DrawComplexSectionPlacementGuiTest.py
     TDTest/DrawViewSectionSelectionTest.py
     TDTest/DrawViewBalloonTest.py
     TDTest/DrawViewDetailTest.py
