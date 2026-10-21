@@ -2279,7 +2279,13 @@ void QGIViewDimension::drawArea(TechDraw::DrawViewDimension* dimension,
         Base::Vector3d testPt(origin.x, -origin.y, 0.0);
         if (DrawComplexSection::pointOnFace(testPt, occFace)) {
             // if point is on face : save location for later use
-            dimension->AreaLeaderPoint.setValue(Base::Vector3d(origin.x, -origin.y, 0.0));
+            const Base::Vector3d leaderPoint(origin.x, -origin.y, 0.0);
+            const Base::Vector3d& storedPoint = dimension->AreaLeaderPoint.getValue();
+            if (leaderPoint.x != storedPoint.x
+                || leaderPoint.y != storedPoint.y
+                || leaderPoint.z != storedPoint.z) {
+                dimension->AreaLeaderPoint.setValue(leaderPoint);
+            }
         }
         else {
             // if point is outside face : reset label to last valid location
