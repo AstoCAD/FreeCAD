@@ -25,6 +25,7 @@
 
 #include <App/Application.h>
 #include <App/Document.h>
+#include <App/Link.h>
 #include <Gui/Application.h>
 #include <Gui/Command.h>
 #include <Gui/Control.h>
@@ -67,7 +68,21 @@ void StdCmdMeasure::activated(int iMsg)
 bool StdCmdMeasure::isActive()
 {
     App::Document* doc = App::GetApplication().getActiveDocument();
-    if (!doc || doc->countObjectsOfType<App::GeoFeature>() == 0) {
+    if (!doc) {
+        return false;
+    }
+
+    bool hasGeometry = doc->countObjectsOfType<App::GeoFeature>() != 0;
+    if (!hasGeometry) {
+        for (auto* obj : doc->getObjects()) {
+            const auto* link = freecad_cast<App::Link*>(obj);
+            if (link && link->LinkedObject.getValue(App::GeoFeature::getClassTypeId())) {
+                hasGeometry = true;
+                break;
+            }
+        }
+    }
+    if (!hasGeometry) {
         return false;
     }
 
