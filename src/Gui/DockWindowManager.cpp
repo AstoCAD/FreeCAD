@@ -235,12 +235,11 @@ void DockWindowManager::setupOverlayManagement()
     d->_timer.setSingleShot(true);
 
     connect(&d->_timer, &QTimer::timeout, [this]() {
-        for (auto w : this->getDockWindows()) {
-            if (auto dw = qobject_cast<QDockWidget*>(w)) {
-                QSignalBlocker blocker(dw);
-                QByteArray dockName = dw->toggleViewAction()->data().toByteArray();
-                dw->setVisible(d->_hPref->GetBool(dockName, dw->isVisible()));
-            }
+        const auto dockWindows = d->_dockedWindows;
+        for (auto dw : dockWindows) {
+            QSignalBlocker blocker(dw);
+            QByteArray dockName = dw->toggleViewAction()->data().toByteArray();
+            dw->setVisible(d->_hPref->GetBool(dockName, dw->isVisible()));
         }
     });
 }

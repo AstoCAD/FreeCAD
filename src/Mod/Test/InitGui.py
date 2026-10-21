@@ -103,6 +103,7 @@ FreeCAD.__unit_test__ += [
     "TestPropertyEditorCancelGui",
     "TestGroupVisibilityRestoreGui",
     "TestTaskViewGui",
+    "TestDockParameterVisibilityGui",
     "TestGestureNavigationGui",
     "TestShortcutManagerGui",
     "TestShortcutTimeoutGui",

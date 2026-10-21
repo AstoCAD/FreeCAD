@@ -34,6 +34,7 @@ SET(Test_SRCS
     TestPropertyEditorCancelGui.py
     TestGroupVisibilityRestoreGui.py
     TestTaskViewGui.py
+    TestDockParameterVisibilityGui.py
     TestGestureNavigationGui.py
     TestShortcutManagerGui.py
     TestShortcutTimeoutGui.py
