@@ -114,6 +114,7 @@
 
 #include <App/Application.h>
 #include <App/Document.h>
+#include <App/Link.h>
 #include <App/Material.h>
 #include <App/PropertyStandard.h>
 #include <Base/BoundBox.h>
@@ -132,6 +133,7 @@
 #include "DrawViewPartPy.h"
 #include "DrawUtil.h"
 #include "GeometryObject.h"
+#include "ShapeExtractor.h"
 #include "ShapeUtils.h"
 
 using namespace TechDraw;
@@ -1028,6 +1030,10 @@ TopoDS_Wire DrawComplexSection::makeProfileWire(App::DocumentObject* toolObj)
     if (toolShape.IsNull()) {
         return {};
     }
+    if (toolObj && toolObj->getTypeId() == Base::Type::fromName("Sketcher::SketchObject")
+        && !toolObj->hasExtension(App::LinkBaseExtension::getExtensionClassTypeId())) {
+        toolShape = ShapeExtractor::getLocatedShape(toolObj);
+    }
 
     TopoDS_Wire profileWire;
     if (toolShape.ShapeType() == TopAbs_WIRE) {
@@ -1161,6 +1167,10 @@ TopoDS_Wire DrawComplexSection::makeSectionLineWire()
         if (toolShape.IsNull()) {
             // CuttingToolWireObject is likely still restoring and has no shape yet
             return {};
+        }
+        if (toolObj && toolObj->getTypeId() == Base::Type::fromName("Sketcher::SketchObject")
+            && !toolObj->hasExtension(App::LinkBaseExtension::getExtensionClassTypeId())) {
+            toolShape = ShapeExtractor::getLocatedShape(toolObj);
         }
         Base::Vector3d centroid = baseDvp->getCurrentCentroid();
         TopoDS_Shape sTrans =
