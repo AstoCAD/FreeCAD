@@ -10851,14 +10851,17 @@ void CmdSketcherToggleActiveConstraint::activated(int iMsg)
             return;
         }
 
-        // undo command open
-        openCommand(QT_TRANSLATE_NOOP("Command", "Activate/Deactivate constraints"));
+        bool commandOpened = false;
 
         int successful = SubNames.size();
 
         for (auto& subname : SubNames) {
 
             if (subname.size() > 10 && subname.substr(0, 10) == "Constraint") {
+                if (!commandOpened) {
+                    openCommand(QT_TRANSLATE_NOOP("Command", "Activate/Deactivate constraints"));
+                    commandOpened = true;
+                }
                 int ConstrId = Sketcher::PropertyConstraintList::getIndexFromConstraintName(subname);
                 try {
                     // issue the actual commands to toggle
@@ -10870,11 +10873,13 @@ void CmdSketcherToggleActiveConstraint::activated(int iMsg)
             }
         }
 
-        if (successful > 0) {
-            commitCommand();
-        }
-        else {
-            abortCommand();
+        if (commandOpened) {
+            if (successful > 0) {
+                commitCommand();
+            }
+            else {
+                abortCommand();
+            }
         }
 
         tryAutoRecompute(Obj);
