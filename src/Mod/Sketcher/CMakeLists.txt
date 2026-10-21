@@ -47,6 +47,7 @@ if(BUILD_GUI)
           SketcherTests/TestDistanceLabelExtensionGui.py
           SketcherTests/TestConstraintCommandsGui.py
           SketcherTests/TestBSplineEndpointTransactionGui.py
+          SketcherTests/TestToggleActiveSelectionTransactionGui.py
           SketcherTests/TestCoincidentCommandGui.py
           SketcherTests/GuiTestCase.py
           SketcherTests/TestSketchGroupsGui.py
