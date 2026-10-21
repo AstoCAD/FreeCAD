@@ -32,6 +32,7 @@ from TDTest.DrawViewPositionTest import DrawViewPositionTest  # noqa: F401
 from TDTest.DrawViewDetailTest import DrawViewDetailTest  # noqa: F401
 from TDTest.DrawViewDimensionTest import DrawViewDimensionTest  # noqa: F401
 from TDTest.TestAreaLeaderRedrawGui import TestAreaLeaderRedrawGui  # noqa: F401
+from TDTest.TestBSplineAngleDimensionGui import TestBSplineAngleDimensionGui  # noqa: F401
 from TDTest.DrawDimensionApiTest import DrawDimensionApiTest  # noqa: F401
 from TDTest.DrawDimensionShapeNameTest import DrawDimensionShapeNameTest  # noqa: F401
 from TDTest.DrawDimensionEdgeVertexTest import DrawDimensionEdgeVertexTest  # noqa: F401

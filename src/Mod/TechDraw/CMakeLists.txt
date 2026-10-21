@@ -207,6 +207,7 @@ SET(TDTest_SRCS
     TDTest/DrawViewSymbolTest.py
     TDTest/DrawViewDimensionTest.py
     TDTest/TestAreaLeaderRedrawGui.py
+    TDTest/TestBSplineAngleDimensionGui.py
     TDTest/DrawViewDimensionTreeTest.py
     TDTest/DrawViewCaptionGuiTest.py
     TDTest/DrawViewSelectionTeardownGuiTest.py

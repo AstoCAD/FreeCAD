@@ -1706,7 +1706,7 @@ bool GeometryUtils::isLine(const TopoDS_Edge& occEdge)
     TColgp_Array1OfPnt poles(low, high);
     spline->Poles(poles);
     double lenTotal = 0.0;
-    for (int i = 0; i < high; i++) {
+    for (int i = poles.Lower(); i < poles.Upper(); i++) {
         gp_Pnt p1 = poles(i);
         Base::Vector3d v1 = Base::convertTo<Base::Vector3d>(p1);
         gp_Pnt p2 = poles(i+1);
