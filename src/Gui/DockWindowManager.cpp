@@ -24,6 +24,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QDockWidget>
+#include <QHash>
 #include <QMap>
 #include <QMouseEvent>
 #include <QPointer>
@@ -160,6 +161,10 @@ struct DockWindowManagerP
     ParameterGrp::handle _hPref;
     fastsignals::advanced_scoped_connection _connParam;
     QTimer _timer;
+    // Visibility preference of each dock as last applied or saved: a later change of another
+    // dock's preference must not re-open a dock the user closed with its title bar button
+    // (which does not save the preference).
+    QHash<QByteArray, bool> _appliedVisibility;
     DockWidgetEventFilter _dockWidgetEventFilter;
     QPointer<OverlayManager> overlayManager;
 };
@@ -235,12 +240,17 @@ void DockWindowManager::setupOverlayManagement()
     d->_timer.setSingleShot(true);
 
     connect(&d->_timer, &QTimer::timeout, [this]() {
-        for (auto w : this->getDockWindows()) {
-            if (auto dw = qobject_cast<QDockWidget*>(w)) {
-                QSignalBlocker blocker(dw);
-                QByteArray dockName = dw->toggleViewAction()->data().toByteArray();
-                dw->setVisible(d->_hPref->GetBool(dockName, dw->isVisible()));
+        const auto dockWindows = d->_dockedWindows;
+        for (auto dw : dockWindows) {
+            QByteArray dockName = dw->toggleViewAction()->data().toByteArray();
+            const bool visible = d->_hPref->GetBool(dockName, dw->isVisible());
+            auto applied = d->_appliedVisibility.find(dockName);
+            if (applied != d->_appliedVisibility.end() && applied.value() == visible) {
+                continue;  // this dock's preference did not change
             }
+            d->_appliedVisibility.insert(dockName, visible);
+            QSignalBlocker blocker(dw);
+            dw->setVisible(visible);
         }
     });
 }
@@ -304,6 +314,7 @@ QDockWidget* DockWindowManager::addDockWindow(const char* name, QWidget* widget,
         fastsignals::shared_connection_block blocker(d->_connParam);
         QByteArray dockName = dw->toggleViewAction()->data().toByteArray();
         d->_hPref->SetBool(dockName.constData(), dw->isVisible());
+        d->_appliedVisibility.insert(dockName, dw->isVisible());
     });
 
     auto cb = []() {
@@ -525,6 +536,7 @@ void DockWindowManager::setup(DockWindowItems* items)
         QDockWidget* dw = findDockWidget(docked, it.name);
         QByteArray dockName = it.name.toLatin1();
         bool visible = d->_hPref->GetBool(dockName.constData(), it.visibility);
+        d->_appliedVisibility.insert(dockName, visible);
 
         if (!dw) {
             QMap<QString, QPointer<QWidget>>::Iterator jt = d->_dockWindows.find(it.name);
@@ -610,6 +622,7 @@ void DockWindowManager::saveState()
         if (dw) {
             QByteArray dockName = dw->toggleViewAction()->data().toByteArray();
             d->_hPref->SetBool(dockName.constData(), dw->isVisible());
+            d->_appliedVisibility.insert(dockName, dw->isVisible());
         }
     }
 }
