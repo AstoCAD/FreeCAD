@@ -22,6 +22,9 @@ from SketcherTests.TestSketchBlocksGui import TestSketchBlocksGui
 from SketcherTests.TestSketchRubberbandGui import TestSketchRubberbandGui
 from SketcherTests.TestSketchDatumNavigationGui import TestSketchDatumNavigationGui
 from SketcherTests.TestSketchReorientGui import TestSketchReorientGui
+from SketcherTests.TestAssociatedConstraintPointFilterGui import (
+    TestAssociatedConstraintPointFilter28516Gui,
+)
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -47,5 +50,6 @@ from SketcherTests.TestSketchReorientGui import TestSketchReorientGui
     and TestSketchRubberbandGui
     and TestSketchDatumNavigationGui
     and TestSketchReorientGui
+    and TestAssociatedConstraintPointFilter28516Gui
     else False
 )
