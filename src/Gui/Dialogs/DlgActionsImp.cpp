@@ -357,7 +357,14 @@ void DlgCustomActionsImp::onButtonReplaceActionClicked()
 
     if (!ui->actionAccel->isEmpty()) {
         QString text = ui->actionAccel->text();
+        auto* shortcuts = ShortcutManager::instance();
+        const QKeySequence oldShortcut(
+            shortcuts->getShortcut(actionName.constData(), macro->getAccel())
+        );
         macro->setAccel(text.toLatin1());
+        if (oldShortcut != QKeySequence(text)) {
+            shortcuts->setShortcut(actionName.constData(), text.toLatin1().constData());
+        }
     }
     ui->actionAccel->clear();
 
