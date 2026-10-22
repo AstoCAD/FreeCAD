@@ -100,6 +100,8 @@ class TaskFillTemplateFields:
                 os.path.exists(file_path)
                 and listofkeys == reader.fieldnames
             ):
+                if obj.Template is None:
+                    continue
                 self.page = obj
                 if obj.Views == []:
                     msgBox = QtGui.QMessageBox()

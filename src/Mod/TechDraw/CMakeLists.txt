@@ -192,6 +192,7 @@ SET(TDTest_SRCS
     TDTest/DrawAxoLengthTransactionGuiTest.py
     TDTest/DrawMoveViewPageChooserGuiTest.py
     TDTest/DrawTemplateFieldsDismissalGuiTest.py
+    TDTest/TestTemplateFieldsMissingTemplateGui.py
     TDTest/DrawPositionSectionSelectionGuiTest.py
     TDTest/DrawModelSelectionGuiTest.py
     TDTest/DrawCosmeticCircleGuiTest.py
