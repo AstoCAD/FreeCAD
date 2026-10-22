@@ -3604,7 +3604,7 @@ void TreeWidget::onOpenFileLocation()
     if (!fileInfo.isDir()) {
         param += QStringLiteral("/select,");
     }
-    param += QDir::toNativeSeparators(filePath);
+    param += QDir::toNativeSeparators(fileInfo.isDir() ? filePath : fileInfo.canonicalFilePath());
     success = QProcess::startDetached(QStringLiteral("explorer.exe"), param);
 #else
     success = QProcess::startDetached(QStringLiteral("xdg-open"), {filePath});
