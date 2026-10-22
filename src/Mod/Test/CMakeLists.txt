@@ -41,6 +41,7 @@ SET(Test_SRCS
     TestShortcutTimeoutGui.py
     TestFileDialogActionLifetimeGui.py
     TestTreeDeletionGui.py
+    TestTreeIconSizePreferenceGui.py
     TestTreeLinkDeletionGui.py
     TestTreeLinkElementVisibilityGui.py
     TestExpressionCompleterGui.py

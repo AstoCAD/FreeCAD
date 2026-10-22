@@ -110,6 +110,7 @@ FreeCAD.__unit_test__ += [
     "TestShortcutTimeoutGui",
     "TestFileDialogActionLifetimeGui",
     "TestTreeDeletionGui",
+    "TestTreeIconSizePreferenceGui",
     "TestTreeLinkDeletionGui",
     "TestTreeLinkElementVisibilityGui",
     "TestExpressionCompleterGui",
