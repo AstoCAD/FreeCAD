@@ -33,6 +33,7 @@ SET(Test_SRCS
     TestExpressionVarSetGui.py
     TestPropertyEditorGui.py
     TestPropertyEditorCancelGui.py
+    TestPropertyViewDocumentActivationGui.py
     TestTaskViewGui.py
     TestDockParameterVisibilityGui.py
     TestGestureNavigationGui.py
