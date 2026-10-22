@@ -26,6 +26,7 @@
 
 
 #include <QMessageBox>
+#include <QTimer>
 
 
 #include <App/Application.h>
@@ -81,6 +82,14 @@ DlgActiveBody::DlgActiveBody(QWidget* parent, App::Document*& doc, const QString
             first->setSelected(true);
         }
     }
+
+    // Reveal the existing suggestion when the dialog's event loop starts.
+    QTimer::singleShot(0, ui->bodySelect, [bodySelect = ui->bodySelect]() {
+        const auto selectedItems = bodySelect->selectedItems();
+        if (!selectedItems.isEmpty()) {
+            bodySelect->scrollToItem(selectedItems.front());
+        }
+    });
 }
 
 DlgActiveBody::~DlgActiveBody() = default;
