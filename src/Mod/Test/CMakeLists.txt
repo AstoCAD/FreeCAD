@@ -37,6 +37,7 @@ SET(Test_SRCS
     TestDockParameterVisibilityGui.py
     TestGestureNavigationGui.py
     TestShortcutManagerGui.py
+    TestMacroShortcutReplacementGui.py
     TestShortcutTimeoutGui.py
     TestFileDialogActionLifetimeGui.py
     TestTreeDeletionGui.py
