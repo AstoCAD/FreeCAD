@@ -1347,6 +1347,8 @@ class TaskAssemblyCreateView(QtCore.QObject):
             return
 
         view = Gui.activeDocument().activeView()
+        # Keep our alignment handle out of the fresh geometry pick.
+        self.assembly.ViewObject.DraggerVisibility = False
         cursor_info = view.getObjectInfo(view.getCursorPos())
 
         if not cursor_info or not self.presel_ref:
@@ -1360,7 +1362,7 @@ class TaskAssemblyCreateView(QtCore.QObject):
             vertex_name = ""
         else:
             newPos = App.Vector(cursor_info["x"], cursor_info["y"], cursor_info["z"])
-            vertex_name = UtilsAssembly.findElementClosestVertex(self.assembly, ref, newPos)
+            vertex_name = UtilsAssembly.findElementClosestVertex(ref, newPos)
 
         ref = UtilsAssembly.addVertexToReference(ref, vertex_name)
 
