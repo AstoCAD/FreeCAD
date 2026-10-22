@@ -1789,9 +1789,24 @@ void TreeWidget::setIconHeight(int height)
     }
 
     QSize newSize(treeIconSize(), treeIconSize());
+    bool sizeChanged = false;
     for (auto tree : Instances) {
         if (tree->iconSize().width() != newSize.width()) {
             tree->setIconSize(newSize);
+            sizeChanged = true;
+        }
+    }
+
+    if (sizeChanged) {
+        for (auto tree : Instances) {
+            QSignalBlocker blocker(tree);
+            for (QTreeWidgetItemIterator it(tree); *it; ++it) {
+                auto item = *it;
+                if (item->type() == ObjectType) {
+                    auto objitem = static_cast<DocumentObjectItem*>(item);
+                    objitem->testStatus(true);
+                }
+            }
         }
     }
 }
