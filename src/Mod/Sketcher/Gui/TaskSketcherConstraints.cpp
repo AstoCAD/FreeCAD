@@ -1492,6 +1492,25 @@ void TaskSketcherConstraints::updateAssociatedConstraintsFilter()
                 }
             }
         }
+        else if (selection[0].getObject() == Obj && it->starts_with("Vertex")) {
+            const Data::IndexedName name = Obj->checkSubName(it->c_str());
+            if (!name || std::strcmp(name.getType(), "Vertex") != 0 || name.getIndex() <= 0) {
+                continue;
+            }
+            int geoId = Sketcher::GeoEnum::GeoUndef;
+            Sketcher::PointPos pointPos = Sketcher::PointPos::none;
+            if (!Obj->geoIdFromShapeType(name, geoId, pointPos)
+                || pointPos == Sketcher::PointPos::none) {
+                continue;
+            }
+            int index = 0;
+            for (const auto* constraint : vals) {
+                if (constraint->involvesGeoIdAndPosId(geoId, pointPos)) {
+                    associatedConstraintsFilter.push_back(index);
+                }
+                ++index;
+            }
+        }
     }
 }
 
@@ -1568,8 +1587,7 @@ void TaskSketcherConstraints::onSelectionChanged(const Gui::SelectionChanges& ms
         QString expr = QString::fromUtf8(msg.pSubName);
         getSelectionGeoId(expr, geoid, pointpos);
 
-        if (geoid != Sketcher::GeoEnum::GeoUndef
-            && pointpos == Sketcher::PointPos::none) {
+        if (geoid != Sketcher::GeoEnum::GeoUndef) {
             // It is not possible to update on single addition/removal of a geometric
             // element, as one removal may imply removing a constraint that should be
             // added by a different element that is still selected. The necessary checks
