@@ -21,6 +21,8 @@
  ***************************************************************************/
 
 
+#include <algorithm>
+
 #include <QEvent>
 #include <QGridLayout>
 #include <QTimer>
@@ -339,6 +341,16 @@ void PropertyView::slotActiveDocument(const Gui::Document& doc)
     propertyEditorView->buildUp();
     clearPropertyItemSelection();
     checkEnable(doc.getDocument()->getName());
+    const std::string docName = doc.getDocument()->getName();
+    const auto selection = Selection().getSelectionEx(
+        "*", App::DocumentObject::getClassTypeId(), ResolveMode::NoResolve
+    );
+    if (!selection.empty()
+        && std::all_of(selection.begin(), selection.end(), [&docName](const SelectionObject& sel) {
+               return docName == sel.getDocName();
+           })) {
+        timer->start(ViewParams::instance()->getPropertyViewTimer());
+    }
 }
 
 void PropertyView::checkEnable(const char* doc)
