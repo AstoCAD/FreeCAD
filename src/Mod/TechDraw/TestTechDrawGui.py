@@ -42,6 +42,7 @@ from TDTest.DrawBoltCircleTest import DrawBoltCircleTest  # noqa: F401
 from TDTest.DrawAxoLengthTransactionGuiTest import TestAxoLengthTransactionGui  # noqa: F401
 from TDTest.DrawMoveViewPageChooserGuiTest import DrawMoveViewPageChooserGuiTest  # noqa: F401
 from TDTest.DrawTemplateFieldsDismissalGuiTest import DrawTemplateFieldsDismissalGuiTest  # noqa: F401
+from TDTest.TestTemplateFieldsMissingTemplateGui import TestTemplateFieldsMissingTemplateGui  # noqa: F401
 from TDTest.DrawPositionSectionSelectionGuiTest import TestPositionSectionSelectionGui  # noqa: F401
 from TDTest.DrawModelSelectionGuiTest import TestTechDrawModelSelectionGui  # noqa: F401
 from TDTest.DrawCosmeticCircleGuiTest import (  # noqa: F401
