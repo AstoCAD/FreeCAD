@@ -73,6 +73,8 @@ class CommandFillTemplateFields:
                     + "Mod/TechDraw/CSVdata/FillTemplateFields.csv"
                 )
                 if os.path.exists(file_path):
+                    if obj.Template is None:
+                        continue
                     listofkeys = [
                         "CreatedByChkLst",
                         "ScaleChkLst",
