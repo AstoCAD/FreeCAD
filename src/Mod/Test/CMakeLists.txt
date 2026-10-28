@@ -66,6 +66,7 @@ SET(Test_SRCS
     TestWorkbenchSelectorGui.py
     TestRubberbandSelection.py
     TestCoinNodeSnapshots.py
+    TestEditableDatumLabelColorGui.py
     TestView3DFramebufferCapture.py
     TestSelectionVisual.py
     TestSelectionViewIdentityGui.py

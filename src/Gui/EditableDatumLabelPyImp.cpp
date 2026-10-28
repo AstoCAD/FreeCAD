@@ -272,12 +272,16 @@ PyObject* EditableDatumLabelPy::PyMake(PyTypeObject* type, PyObject* args, PyObj
         return nullptr;
     }
 
+    const auto color = asColor(pyColor);
     auto label = std::make_unique<EditableDatumLabel>(
         asViewer(pyViewer),
         asPlacement(pyPlacement),
         asBool(pyAutoDistance),
         asBool(pyAvoidMouseCursor)
     );
+    if (pyColor != Py_None) {
+        label->setColor(color);
+    }
     auto* wrapper = new EditableDatumLabelPy(label.get(), type);
     label.release();
     return wrapper;
