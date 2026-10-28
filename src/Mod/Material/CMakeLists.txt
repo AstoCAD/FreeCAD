@@ -314,6 +314,7 @@ set(MaterialTest_Files
     materialtests/TestMaterials.py
     materialtests/TestMaterialCreation.py
     materialtests/TestMaterialDocument.py
+    materialtests/TestArray2DCancelGui.py
     materialtests/TestMaterialFilter.py
 )
 

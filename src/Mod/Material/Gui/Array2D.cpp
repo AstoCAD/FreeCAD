@@ -63,8 +63,8 @@ Array2D::Array2D(const QString& propertyName,
         _property = nullptr;
     }
     if (_property) {
-        _value =
-            std::static_pointer_cast<Materials::Array2D>(_property->getMaterialValue());
+        _value = std::make_shared<Materials::Array2D>(
+            *std::static_pointer_cast<Materials::Array2D>(_property->getMaterialValue()));
         setWindowTitle(_property->getDisplayName());
     }
     else {
@@ -120,6 +120,8 @@ void Array2D::setupArray()
     setColumnWidths(table);
     setColumnDelegates(table);
     connect(model, &QAbstractItemModel::dataChanged, this, &Array2D::onDataChanged);
+    connect(model, &QAbstractItemModel::rowsInserted, this, [this] { _changed = true; });
+    connect(model, &QAbstractItemModel::rowsRemoved, this, [this] { _changed = true; });
 }
 
 void Array2D::onDataChanged(const QModelIndex& topLeft,
@@ -130,7 +132,7 @@ void Array2D::onDataChanged(const QModelIndex& topLeft,
     Q_UNUSED(bottomRight)
     Q_UNUSED(roles)
 
-    _material->setEditStateAlter();
+    _changed = true;
 }
 
 void Array2D::onContextMenu(const QPoint& pos)
@@ -198,6 +200,11 @@ void Array2D::deleteSelected()
 
 void Array2D::accept()
 {
+    if (_changed) {
+        _changed = false;
+        _property->setValue(_value);
+        _material->setEditStateAlter();
+    }
     QDialog::accept();
 }
 
