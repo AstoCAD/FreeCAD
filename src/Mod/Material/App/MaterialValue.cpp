@@ -361,6 +361,7 @@ Array2D& Array2D::operator=(const Array2D& other)
     MaterialValue::operator=(other);
     _columns = other._columns;
 
+    _rows.clear();
     deepCopy(other);
 
     return *this;
