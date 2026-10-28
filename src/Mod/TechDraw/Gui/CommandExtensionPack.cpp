@@ -1420,6 +1420,9 @@ void execLineParallelPerpendicular(Gui::Command* cmd, bool isParallel)
     if (!_checkSel(cmd, selection, objFeat, QT_TRANSLATE_NOOP("Command","TechDraw Cosmetic Line Parallel/Perpendicular"))) {
         return;
     }
+    if (selection[0].getSubNames().empty()) {
+        return;
+    }
     cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cosmetic Line Parallel/Perpendicular"));
     const std::vector<std::string> SubNames = selection[0].getSubNames();
     if (SubNames.size() >= 2) {
@@ -1475,7 +1478,7 @@ CmdTechDrawExtensionLineParallel::CmdTechDrawExtensionLineParallel()
     sAppModule = "TechDraw";
     sGroup = QT_TR_NOOP("TechDraw");
     sMenuText = QT_TR_NOOP("Cosmetic Parallel Line");
-    sToolTipText = QT_TR_NOOP("Adds a cosmetic circle to 3 selected vertices");
+    sToolTipText = QT_TR_NOOP("Adds a cosmetic line parallel to the selected line through the selected vertex");
     sWhatsThis = "TechDraw_ExtensionLineParallel";
     sStatusTip = sMenuText;
     sPixmap = "TechDraw_ExtensionLineParallel";
