@@ -76,3 +76,4 @@ class PartDesignWorkbench(Workbench):
 Gui.addWorkbench(PartDesignWorkbench())
 
 FreeCAD.__unit_test__ += ["TestPartDesignGui", "TestPartDesignPatternLabelsGui"]
+FreeCAD.__unit_test__ += ["TestPartDesignAllEdgesPreviewGui"]
