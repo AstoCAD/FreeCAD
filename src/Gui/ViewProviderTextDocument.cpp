@@ -26,6 +26,7 @@
 
 
 #include <App/Application.h>
+#include <Base/Tools.h>
 #include <Base/Type.h>
 
 #include "ViewProviderTextDocument.h"
@@ -115,8 +116,20 @@ bool ViewProviderTextDocument::doubleClicked()
     if (!activateView()) {
         editorWidget = new QPlainTextEdit {};
         editorWidget->setReadOnly(ReadOnly.getValue());
-        FontName.touch();
-        SyntaxHighlighter.touch();
+        {
+            Base::ObjectStatusLocker<App::Property::Status, App::Property> guard(
+                App::Property::NoModify,
+                &FontName
+            );
+            FontName.touch();
+        }
+        {
+            Base::ObjectStatusLocker<App::Property::Status, App::Property> guard(
+                App::Property::NoModify,
+                &SyntaxHighlighter
+            );
+            SyntaxHighlighter.touch();
+        }
 
         getMainWindow()->addWindow(
             new TextDocumentEditorView {getObject<App::TextDocument>(), editorWidget, getMainWindow()}
