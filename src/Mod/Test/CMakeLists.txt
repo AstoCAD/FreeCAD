@@ -38,6 +38,7 @@ SET(Test_SRCS
     TestGestureNavigationGui.py
     TestShortcutManagerGui.py
     TestMacroShortcutReplacementGui.py
+    TestMacroFilenameExactPreferenceGui.py
     TestShortcutTimeoutGui.py
     TestFileDialogActionLifetimeGui.py
     TestTreeDeletionGui.py
