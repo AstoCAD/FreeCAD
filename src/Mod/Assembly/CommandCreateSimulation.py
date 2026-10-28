@@ -1171,6 +1171,9 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
     def editPointMeasurement(self, item):
         obj = self.doc.getObject(item.data(QtCore.Qt.UserRole))
         if obj:
+            if obj.ViewObject.Proxy is None:
+                import CommandPointMeasurement
+                CommandPointMeasurement.ViewProviderMeasurement(obj.ViewObject)
             obj.ViewObject.Proxy.doubleClicked(obj.ViewObject)
 
     def refreshResults(self):
