@@ -23,3 +23,4 @@
 #**************************************************************************
 
 from materialtests.TestMaterialDocument import DocumentTestCases
+from materialtests.TestArray2DCancelGui import TestArray2DCancelGui
