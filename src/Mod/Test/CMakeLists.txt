@@ -69,6 +69,7 @@ SET(Test_SRCS
     TestSelectionVisual.py
     TestSelectionViewIdentityGui.py
     TestSelectionSearchIdentityGui.py
+    TestSelectionSearchClearGui.py
     TestCornerAxisCrossVisual.py
     TestViewProviderLink.py
 )
