@@ -1682,6 +1682,9 @@ void execExtendShortenLine(Gui::Command* cmd, bool extend)
     if (!_checkSel(cmd, selection, objFeat, QT_TRANSLATE_NOOP("Command","TechDraw Extend/Shorten Line"))) {
         return;
     }
+    if (selection[0].getSubNames().empty()) {
+        return;
+    }
     cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Extend/shorten line"));
     const std::vector<std::string> subNames = selection[0].getSubNames();
     if (!subNames.empty()) {
