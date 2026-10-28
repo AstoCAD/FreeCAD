@@ -272,15 +272,25 @@ PyObject* EditableDatumLabelPy::PyMake(PyTypeObject* type, PyObject* args, PyObj
         return nullptr;
     }
 
-    auto label = std::make_unique<EditableDatumLabel>(
-        asViewer(pyViewer),
-        asPlacement(pyPlacement),
-        asBool(pyAutoDistance),
-        asBool(pyAvoidMouseCursor)
-    );
-    auto* wrapper = new EditableDatumLabelPy(label.get(), type);
-    label.release();
-    return wrapper;
+    // tp_new is called directly by Python: the argument converters throw C++
+    // exceptions, which must not escape into the interpreter.
+    PY_TRY
+    {
+        const auto color = asColor(pyColor);
+        auto label = std::make_unique<EditableDatumLabel>(
+            asViewer(pyViewer),
+            asPlacement(pyPlacement),
+            asBool(pyAutoDistance),
+            asBool(pyAvoidMouseCursor)
+        );
+        if (pyColor != Py_None) {
+            label->setColor(color);
+        }
+        auto* wrapper = new EditableDatumLabelPy(label.get(), type);
+        label.release();
+        return wrapper;
+    }
+    PY_CATCH
 }
 
 int EditableDatumLabelPy::PyInit(PyObject* /*args*/, PyObject* /*kwd*/)
