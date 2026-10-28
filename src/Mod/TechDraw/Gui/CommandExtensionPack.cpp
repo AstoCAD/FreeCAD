@@ -22,6 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <algorithm>
+
 #include <QApplication>
 #include <QMessageBox>
 #include <BRepGProp.hxx>
@@ -1647,6 +1649,12 @@ void CmdTechDrawExtensionLockUnlockView::activated(int iMsg)
     std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
 
     if (selection.empty()) {
+        return;
+    }
+
+    if (std::none_of(selection.begin(), selection.end(), [](const auto& sel) {
+            return freecad_cast<TechDraw::DrawView*>(sel.getObject()) != nullptr;
+        })) {
         return;
     }
 
