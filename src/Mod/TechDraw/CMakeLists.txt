@@ -191,6 +191,7 @@ SET(TDTest_SRCS
     TDTest/DrawBoltCircleTest.py
     TDTest/DrawAxoLengthTransactionGuiTest.py
     TDTest/TestExtendShortenEmptySelectionGui.py
+    TDTest/TestViewLockNoViewSelectionGui.py
     TDTest/TestDxfExportPendingTransactionGui.py
     TDTest/DrawMoveViewPageChooserGuiTest.py
     TDTest/DrawTemplateFieldsDismissalGuiTest.py

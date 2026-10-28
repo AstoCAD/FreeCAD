@@ -41,6 +41,7 @@ from TDTest.DrawSpreadsheetLabelXmlTest import DrawSpreadsheetLabelXmlTest  # no
 from TDTest.DrawBoltCircleTest import DrawBoltCircleTest  # noqa: F401
 from TDTest.DrawAxoLengthTransactionGuiTest import TestAxoLengthTransactionGui  # noqa: F401
 from TDTest.TestExtendShortenEmptySelectionGui import TestExtendShortenTransactionGui  # noqa: F401
+from TDTest.TestViewLockNoViewSelectionGui import TestViewLockNoViewSelectionGui  # noqa: F401
 from TDTest.TestDxfExportPendingTransactionGui import TestDxfExportPendingTransactionGui  # noqa: F401
 from TDTest.DrawMoveViewPageChooserGuiTest import DrawMoveViewPageChooserGuiTest  # noqa: F401
 from TDTest.DrawTemplateFieldsDismissalGuiTest import DrawTemplateFieldsDismissalGuiTest  # noqa: F401
