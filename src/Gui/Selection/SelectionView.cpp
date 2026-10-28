@@ -325,6 +325,11 @@ void SelectionView::search(const QString& text)
             countLabel->setText(QString::number(selectionView->count()));
         }
     }
+    else {
+        searchList.clear();
+        searchDocument.reset();
+        onSelectionChanged(SelectionChanges(SelectionChanges::SetSelection, "*"));
+    }
 }
 
 void SelectionView::validateSearch()
