@@ -40,6 +40,7 @@ from TDTest.DrawCreationDocumentTest import DrawCreationDocumentTest  # noqa: F4
 from TDTest.DrawSpreadsheetLabelXmlTest import DrawSpreadsheetLabelXmlTest  # noqa: F401
 from TDTest.DrawBoltCircleTest import DrawBoltCircleTest  # noqa: F401
 from TDTest.DrawAxoLengthTransactionGuiTest import TestAxoLengthTransactionGui  # noqa: F401
+from TDTest.TestExtendShortenEmptySelectionGui import TestExtendShortenTransactionGui  # noqa: F401
 from TDTest.DrawMoveViewPageChooserGuiTest import DrawMoveViewPageChooserGuiTest  # noqa: F401
 from TDTest.DrawTemplateFieldsDismissalGuiTest import DrawTemplateFieldsDismissalGuiTest  # noqa: F401
 from TDTest.TestTemplateFieldsMissingTemplateGui import TestTemplateFieldsMissingTemplateGui  # noqa: F401
