@@ -192,6 +192,7 @@ void TaskChamferParameters::onCheckBoxUseAllEdgesToggled(bool checked)
         ui->listWidgetReferences->setEnabled(!checked);
         chamfer->UseAllEdges.setValue(checked);
         chamfer->recomputeFeature();
+        hideOnError();
     }
 }
 
