@@ -190,6 +190,7 @@ SET(TDTest_SRCS
     TDTest/DrawSpreadsheetLabelXmlTest.py
     TDTest/DrawBoltCircleTest.py
     TDTest/DrawAxoLengthTransactionGuiTest.py
+    TDTest/TestExtendShortenEmptySelectionGui.py
     TDTest/DrawMoveViewPageChooserGuiTest.py
     TDTest/DrawTemplateFieldsDismissalGuiTest.py
     TDTest/TestTemplateFieldsMissingTemplateGui.py
