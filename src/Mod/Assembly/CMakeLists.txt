@@ -74,6 +74,7 @@ SET(AssemblyTests_SRCS
     AssemblyTests/HeadlessRevolute.FCStd
     AssemblyTests/TestDynamics.py
     AssemblyTests/TestPointMeasurement.py
+    AssemblyTests/TestPointMeasurementListGui.py
     AssemblyTests/TestSimulationEvents.py
     AssemblyTests/TestSimulationRegression.py
     AssemblyTests/TestMotionProfile.py

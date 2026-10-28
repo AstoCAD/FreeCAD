@@ -30,6 +30,7 @@ from AssemblyTests.TestHeadlessJointRestore import (
 )
 from AssemblyTests.TestDynamics import TestDynamics
 from AssemblyTests.TestPointMeasurement import TestPointMeasurement
+from AssemblyTests.TestPointMeasurementListGui import TestPointMeasurementListGui
 from AssemblyTests.TestMotionProfile import TestMotionProfile
 from AssemblyTests.TestSimulationEvents import TestSimulationEvents
 from AssemblyTests.TestSimulationRegression import TestSimulationRegression
@@ -59,6 +60,7 @@ True if TestHeadlessJointSerialization else False
 True if TestHeadlessJointRestoreGui else False
 True if TestDynamics else False
 True if TestPointMeasurement else False
+True if TestPointMeasurementListGui else False
 True if TestMotionProfile else False
 True if TestSimulationEvents else False
 True if TestSimulationRegression else False
