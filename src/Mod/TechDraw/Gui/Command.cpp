@@ -1814,13 +1814,11 @@ void CmdTechDrawExportPageDXF::activated(int iMsg)
     }
 
     std::string PageName = page->getNameInDocument();
-    openCommand(QT_TRANSLATE_NOOP("Command", "Save page to DXF"));
     doCommand(Doc, "import TechDraw");
     auto filespec = Base::Tools::escapeEncodeFilename(
         DU::cleanFilespecBackslash(fileName.toStdString()));
     doCommand(Doc, "TechDraw.writeDXFPage(App.activeDocument().%s, u\"%s\")", PageName.c_str(),
               filespec.c_str());
-    commitCommand();
 }
 
 bool CmdTechDrawExportPageDXF::isActive() { return DrawGuiUtil::needPage(this); }
