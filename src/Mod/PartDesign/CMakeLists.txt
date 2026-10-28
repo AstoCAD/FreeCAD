@@ -19,6 +19,7 @@ if(BUILD_GUI)
           FormSurfaceFeature.py
           TestPartDesignGui.py
           TestPartDesignPatternLabelsGui.py
+          TestPartDesignAllEdgesPreviewGui.py
           InvoluteGearFeature.py
           InvoluteGearFeature.ui
           SprocketFeature.py
