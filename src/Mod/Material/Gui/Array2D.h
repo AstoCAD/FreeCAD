@@ -64,6 +64,7 @@ private:
     std::shared_ptr<Materials::Material> _material;
     std::shared_ptr<Materials::MaterialProperty> _property;
     std::shared_ptr<Materials::Array2D> _value;
+    bool _changed = false;
 
     QAction _deleteAction;
 
