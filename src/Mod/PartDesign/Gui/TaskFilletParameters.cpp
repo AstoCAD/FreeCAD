@@ -138,6 +138,7 @@ void TaskFilletParameters::onCheckBoxUseAllEdgesToggled(bool checked)
         ui->listWidgetReferences->setEnabled(!checked);
         fillet->UseAllEdges.setValue(checked);
         fillet->recomputeFeature();
+        hideOnError();
     }
 }
 
