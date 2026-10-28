@@ -174,6 +174,107 @@ TEST_F(TestMaterialValue, TestArray2DType)
     EXPECT_EQ(mat2.rows(), 0);
 }
 
+TEST_F(TestMaterialValue, TestArray2DAssignmentReplacesRowsAndColumns)
+{
+    Materials::Array2D source;
+    source.setColumns(2);
+    source.setRows(2);
+    source.setValue(0, 0, 1.25);
+    source.setValue(0, 1, QStringLiteral("first"));
+    source.setValue(1, 0, 2.5);
+    source.setValue(1, 1, QStringLiteral("second"));
+
+    Materials::Array2D destination;
+    destination.setColumns(3);
+    destination.setRows(3);
+    destination.setValue(0, 0, 90.0);
+    destination.setValue(0, 1, QStringLiteral("old first"));
+    destination.setValue(1, 0, 91.0);
+    destination.setValue(1, 1, QStringLiteral("old second"));
+
+    EXPECT_EQ(&(destination = source), &destination);
+
+    EXPECT_EQ(destination.getType(), Materials::MaterialValue::Array2D);
+    EXPECT_EQ(destination.columns(), 2);
+    EXPECT_EQ(destination.rows(), 2);
+    EXPECT_EQ(destination.getValue(0, 0).toDouble(), 1.25);
+    EXPECT_EQ(destination.getValue(0, 1).toString(), QStringLiteral("first"));
+    EXPECT_EQ(destination.getValue(1, 0).toDouble(), 2.5);
+    EXPECT_EQ(destination.getValue(1, 1).toString(), QStringLiteral("second"));
+    EXPECT_EQ(source.rows(), 2);
+    EXPECT_EQ(source.columns(), 2);
+    EXPECT_EQ(source.getValue(0, 0).toDouble(), 1.25);
+    EXPECT_EQ(source.getValue(1, 1).toString(), QStringLiteral("second"));
+}
+
+TEST_F(TestMaterialValue, TestArray2DAssignmentFromEmptyClearsRows)
+{
+    Materials::Array2D destination;
+    destination.setColumns(2);
+    destination.setRows(2);
+    destination.setValue(0, 0, 12.5);
+    destination.setValue(1, 1, QStringLiteral("previous"));
+
+    Materials::Array2D source;
+    source.setColumns(1);
+
+    destination = source;
+
+    EXPECT_EQ(destination.getType(), Materials::MaterialValue::Array2D);
+    EXPECT_EQ(destination.columns(), 1);
+    EXPECT_EQ(destination.rows(), 0);
+    EXPECT_TRUE(destination.isEmpty());
+    EXPECT_TRUE(destination.isNull());
+    EXPECT_EQ(source.columns(), 1);
+    EXPECT_EQ(source.rows(), 0);
+}
+
+TEST_F(TestMaterialValue, TestArray2DAssignmentCopiesRowsIndependently)
+{
+    Materials::Array2D source;
+    source.setColumns(2);
+    source.setRows(1);
+    source.setValue(0, 0, 2.5);
+    source.setValue(0, 1, QStringLiteral("original"));
+
+    Materials::Array2D destination;
+    destination = source;
+
+    ASSERT_EQ(destination.rows(), 1);
+    ASSERT_EQ(destination.columns(), 2);
+    EXPECT_NE(destination.getRow(0), source.getRow(0));
+    source.setValue(0, 0, 8.0);
+    EXPECT_EQ(destination.getValue(0, 0).toDouble(), 2.5);
+    destination.setValue(0, 1, QStringLiteral("assigned"));
+    EXPECT_EQ(source.getValue(0, 1).toString(), QStringLiteral("original"));
+    EXPECT_EQ(source.getValue(0, 0).toDouble(), 8.0);
+    EXPECT_EQ(destination.getValue(0, 1).toString(), QStringLiteral("assigned"));
+}
+
+TEST_F(TestMaterialValue, TestArray2DSelfAssignmentPreservesRows)
+{
+    Materials::Array2D array;
+    array.setColumns(2);
+    array.setRows(2);
+    array.setValue(0, 0, 1.25);
+    array.setValue(0, 1, QStringLiteral("first"));
+    array.setValue(1, 0, 2.5);
+    array.setValue(1, 1, QStringLiteral("second"));
+    const auto firstRow = array.getRow(0);
+    auto& sameArray = array;
+
+    EXPECT_EQ(&(array = sameArray), &array);
+
+    EXPECT_EQ(array.getType(), Materials::MaterialValue::Array2D);
+    EXPECT_EQ(array.columns(), 2);
+    EXPECT_EQ(array.rows(), 2);
+    EXPECT_EQ(array.getRow(0), firstRow);
+    EXPECT_EQ(array.getValue(0, 0).toDouble(), 1.25);
+    EXPECT_EQ(array.getValue(0, 1).toString(), QStringLiteral("first"));
+    EXPECT_EQ(array.getValue(1, 0).toDouble(), 2.5);
+    EXPECT_EQ(array.getValue(1, 1).toString(), QStringLiteral("second"));
+}
+
 TEST_F(TestMaterialValue, TestArray3DType)
 {
     EXPECT_THROW(auto mat1 = Materials::MaterialValue(Materials::MaterialValue::Array3D), Materials::InvalidMaterialType);
