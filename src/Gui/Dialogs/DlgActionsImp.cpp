@@ -198,7 +198,14 @@ void DlgCustomActionsImp::onActionListWidgetItemActivated(QTreeWidgetItem* item)
     if (pScript) {
         bool bFound = false;
         QString scriptName = QString::fromUtf8(pScript->getScriptName());
-        for (int i = 0; i < ui->actionMacros->count(); i++) {
+        const int exactIndex = ui->actionMacros->findText(
+            scriptName, Qt::MatchExactly | Qt::MatchCaseSensitive
+        );
+        if (exactIndex >= 0) {
+            bFound = true;
+            ui->actionMacros->setCurrentIndex(exactIndex);
+        }
+        for (int i = 0; !bFound && i < ui->actionMacros->count(); i++) {
             if (ui->actionMacros->itemText(i).startsWith(scriptName, Qt::CaseSensitive)) {
                 bFound = true;
                 ui->actionMacros->setCurrentIndex(i);

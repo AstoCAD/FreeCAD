@@ -108,6 +108,7 @@ FreeCAD.__unit_test__ += [
     "TestGestureNavigationGui",
     "TestShortcutManagerGui",
     "TestMacroShortcutReplacementGui",
+    "TestMacroFilenameExactPreferenceGui",
     "TestShortcutTimeoutGui",
     "TestFileDialogActionLifetimeGui",
     "TestTreeDeletionGui",
