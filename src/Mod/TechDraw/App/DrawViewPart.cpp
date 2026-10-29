@@ -2105,7 +2105,7 @@ void DrawViewPart::unsetupObject()
     std::vector<TechDraw::DrawHatch*>::iterator it = hatches.begin();
     for (; it != hatches.end(); it++) {
         std::string viewName = (*it)->getNameInDocument();
-        Base::Interpreter().runStringArg("App.getDocument(\"{}\").removeObject(\"{}\")",
+        Base::Interpreter().runStringArg("App.getDocument(\"%s\").removeObject(\"%s\")",
                                          docName.c_str(), viewName.c_str());
     }
 
@@ -2114,7 +2114,7 @@ void DrawViewPart::unsetupObject()
     std::vector<TechDraw::DrawGeomHatch*>::iterator it2 = gHatches.begin();
     for (; it2 != gHatches.end(); it2++) {
         std::string viewName = (*it2)->getNameInDocument();
-        Base::Interpreter().runStringArg("App.getDocument(\"{}\").removeObject(\"{}\")",
+        Base::Interpreter().runStringArg("App.getDocument(\"%s\").removeObject(\"%s\")",
                                          docName.c_str(), viewName.c_str());
     }
 
@@ -2128,7 +2128,7 @@ void DrawViewPart::unsetupObject()
             page->removeView(*it3);
             const char* name = (*it3)->getNameInDocument();
             if (name) {
-                Base::Interpreter().runStringArg("App.getDocument(\"{}\").removeObject(\"{}\")",
+                Base::Interpreter().runStringArg("App.getDocument(\"%s\").removeObject(\"%s\")",
                                                  docName.c_str(), name);
             }
         }
@@ -2144,7 +2144,7 @@ void DrawViewPart::unsetupObject()
             page->removeView(*it3);
             const char* name = (*it3)->getNameInDocument();
             if (name) {
-                Base::Interpreter().runStringArg("App.getDocument(\"{}\").removeObject(\"{}\")",
+                Base::Interpreter().runStringArg("App.getDocument(\"%s\").removeObject(\"%s\")",
                                                  docName.c_str(), name);
             }
         }
