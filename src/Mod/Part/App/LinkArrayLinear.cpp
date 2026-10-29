@@ -271,8 +271,9 @@ std::vector<Base::Placement> LinkArrayLinear::getElementPlacements()
     }
 
     auto placements = placementsFromTransforms(transformations);
-    if (GeneratedOccurrences2.getValue() != occurrences2) {
-        GeneratedOccurrences2.setValue(occurrences2);
+    const long generatedStride = getPatternCount(LinearPatternDirection::Second);
+    if (GeneratedOccurrences2.getValue() != generatedStride) {
+        GeneratedOccurrences2.setValue(generatedStride);
     }
     return placements;
 }

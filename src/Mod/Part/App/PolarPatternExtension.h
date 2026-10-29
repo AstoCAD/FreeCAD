@@ -59,6 +59,7 @@ public:
     App::PropertyIntegerConstraint Occurrences;
     App::PropertyFloatList Spacings;
     App::PropertyFloatList SpacingPattern;
+    App::PropertyBool Symmetric;
 
     // Standard helper to calculate the transformations list
     const std::list<gp_Trsf> calculateTransformations() const;
