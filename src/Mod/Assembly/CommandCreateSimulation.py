@@ -33,11 +33,12 @@ import FreeCAD as App
 from pivy import coin
 from Part import LineSegment, Compound
 
+from PySide import QtCore
 from PySide.QtCore import QT_TRANSLATE_NOOP
 
 if App.GuiUp:
     import FreeCADGui as Gui
-    from PySide import QtCore, QtWidgets
+    from PySide import QtWidgets
     from PySide.QtWidgets import (
         QFileDialog,
         QProgressDialog,
