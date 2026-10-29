@@ -119,6 +119,8 @@ class AssemblyWorkbench(Workbench):
             "Assembly_LinkSelectLinked",
             "Assembly_ExportASMT",
             "Assembly_SelectJointsOfComponent",
+            "Std_IsolateSelection",
+            "Std_EndIsolation",
         ]
 
         cmdListJoints = [

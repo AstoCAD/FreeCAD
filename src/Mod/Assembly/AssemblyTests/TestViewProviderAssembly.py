@@ -122,3 +122,50 @@ class TestViewProviderAssembly(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.provider.isolateComponents([self.first], 3)
         self.assertEqual(self._state(), before)
+
+    def _change_selection(self):
+        import FreeCADGui as Gui
+
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(self.doc.Name, self.assembly.Name, "First.Face1")
+        Gui.Selection.clearSelection()
+
+    def test_selection_clears_temporary_isolation_control(self):
+        self.provider.isolateComponents([self.first], 2)
+        self.assertFalse(self.provider.hasPersistentIsolation())
+        self._change_selection()
+        self.assertEqual(self._state(), ((True, True), (True, True)))
+
+    def test_persistent_isolation_survives_selection_and_transactions(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/12142
+        self.provider.isolateComponents([self.first], 2, True)
+        self.assertTrue(self.provider.hasPersistentIsolation())
+        self._change_selection()
+        self.doc.openTransaction("Edit")
+        self.first.Placement.Base = App.Vector(1, 0, 0)
+        self.doc.commitTransaction()
+        self.assertEqual(self._state(), ((True, True), (False, True)))
+
+        self.provider.clearIsolate()
+        self.assertFalse(self.provider.hasPersistentIsolation())
+        self.assertEqual(self._state(), ((True, True), (True, True)))
+
+    def test_isolate_selection_in_assembly_edit(self):
+        # Std_IsolateSelection isolates a component picked by one of its faces, and the
+        # joint isolation of the assembly does not undo it when the selection changes.
+        import FreeCADGui as Gui
+
+        Gui.ActiveDocument.setEdit(self.assembly)
+        self.addCleanup(Gui.ActiveDocument.resetEdit)
+        self.addCleanup(Gui.runCommand, "Std_EndIsolation")
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(self.doc.Name, self.assembly.Name, "First.Face1")
+        Gui.runCommand("Std_IsolateSelection")
+        self.assertTrue(self.first.ViewObject.Selectable)
+        self.assertFalse(self.second.ViewObject.Selectable)
+
+        self._change_selection()
+        self.assertEqual(self._state(), ((True, True), (True, False)))
+
+        Gui.runCommand("Std_EndIsolation")
+        self.assertEqual(self._state(), ((True, True), (True, True)))

@@ -1310,6 +1310,7 @@ SET(FreeCADGui_CPP_SRCS
     GuiConsole.cpp
     InputHintWidget.cpp
     InputHintPy.cpp
+    Isolation.cpp
     Macro.cpp
     MergeDocuments.cpp
     ModuleIO.cpp
@@ -1359,6 +1360,7 @@ SET(FreeCADGui_SRCS
     InputHint.h
     InputHintPy.h
     InputHintWidget.h
+    Isolation.h
     Macro.h
     MergeDocuments.h
     MetaTypes.h

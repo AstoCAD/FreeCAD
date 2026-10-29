@@ -73,6 +73,7 @@
 #include "Document.h"
 #include "FileDialog.h"
 #include "ImageView.h"
+#include "Isolation.h"
 #include "Inventor/SoAxisCrossKit.h"
 #include "Macro.h"
 #include "MainWindow.h"
@@ -1165,6 +1166,67 @@ void StdCmdToggleSelectability::activated(int iMsg)
 bool StdCmdToggleSelectability::isActive()
 {
     return (Gui::Selection().size() != 0);
+}
+
+//===========================================================================
+// Std_IsolateSelection
+//===========================================================================
+DEF_STD_CMD_A(StdCmdIsolateSelection)
+
+StdCmdIsolateSelection::StdCmdIsolateSelection()
+    : Command("Std_IsolateSelection")
+{
+    sGroup = "Standard-View";
+    sMenuText = QT_TR_NOOP("&Isolate Selection");
+    sToolTipText = QT_TR_NOOP(
+        "Makes the objects that are not selected transparent and unselectable,\n"
+        "until the isolation is ended"
+    );
+    sStatusTip = sToolTipText;
+    sWhatsThis = "Std_IsolateSelection";
+    sPixmap = "Std_ToggleTransparency";
+    eType = Alter3DView;
+}
+
+void StdCmdIsolateSelection::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    Isolation::instance().isolateSelection();
+}
+
+bool StdCmdIsolateSelection::isActive()
+{
+    return App::GetApplication().getActiveDocument() && Selection().size() != 0;
+}
+
+//===========================================================================
+// Std_EndIsolation
+//===========================================================================
+DEF_STD_CMD_A(StdCmdEndIsolation)
+
+StdCmdEndIsolation::StdCmdEndIsolation()
+    : Command("Std_EndIsolation")
+{
+    sGroup = "Standard-View";
+    sMenuText = QT_TR_NOOP("&End Isolation");
+    sToolTipText = QT_TR_NOOP(
+        "Ends the isolation started by Isolate Selection: all the objects\n"
+        "become opaque and selectable again"
+    );
+    sStatusTip = sToolTipText;
+    sWhatsThis = "Std_EndIsolation";
+    eType = Alter3DView;
+}
+
+void StdCmdEndIsolation::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    Isolation::instance().end(App::GetApplication().getActiveDocument());
+}
+
+bool StdCmdEndIsolation::isActive()
+{
+    return Isolation::instance().isActive();
 }
 
 //===========================================================================
@@ -4262,6 +4324,8 @@ void CreateViewStdCommands()
     rcCmdMgr.addCommand(new StdCmdToggleVisibility());
     rcCmdMgr.addCommand(new StdCmdToggleTransparency());
     rcCmdMgr.addCommand(new StdCmdToggleSelectability());
+    rcCmdMgr.addCommand(new StdCmdIsolateSelection());
+    rcCmdMgr.addCommand(new StdCmdEndIsolation());
     rcCmdMgr.addCommand(new StdCmdShowSelection());
     rcCmdMgr.addCommand(new StdCmdHideSelection());
     rcCmdMgr.addCommand(new StdCmdSelectVisibleObjects());

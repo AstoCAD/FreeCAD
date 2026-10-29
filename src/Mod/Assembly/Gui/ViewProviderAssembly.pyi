@@ -26,7 +26,11 @@ class ViewProviderAssembly(ViewProvider):
         """Return the assembly dragger coin object."""
 
     def isolateComponents(
-        self, components: List[DocumentObject] | Tuple[DocumentObject, ...], mode: int, /
+        self,
+        components: List[DocumentObject] | Tuple[DocumentObject, ...],
+        mode: int,
+        persistent: bool = False,
+        /,
     ) -> None:
         """
         Temporarily isolates a given set of components in the 3D view.
@@ -39,11 +43,18 @@ class ViewProviderAssembly(ViewProvider):
                 - 0: Transparent
                 - 1: Wireframe
                 - 2: Hidden
+            persistent (bool): If True, the isolation is kept when the selection
+                changes, until clearIsolate() is called.
         """
 
     def clearIsolate(self) -> None:
         """
         Restores the visual state of all components, clearing any active isolation.
+        """
+
+    def hasPersistentIsolation(self) -> bool:
+        """
+        Returns True if components are isolated persistently, see isolateComponents().
         """
     EnableMovement: bool
     """Enable moving the parts by clicking and dragging."""
