@@ -29,6 +29,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+#include <algorithm>
+
 #include <GC_MakeArcOfCircle.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Circ.hxx>
@@ -160,6 +162,25 @@ void BSplineCurveBiArcs::createArcs(
             arc_object2 = arc2.makeArc();
         }
     }
+    else if (can_do_spline_whole == Type::SingleLine) {
+        // Like the arcs above, a line replaces the span only if the curve stays within the
+        // tolerance of it. The floor keeps a straight span from being split forever when the
+        // tolerance is zero.
+        double lineTolerance = std::max(tolerance, Precision::Confusion());
+        gp_Pnt p_middle1, p_middle2;
+        this->myCurve->D0(t_start + ((t_end - t_start) * 0.25), p_middle1);
+        this->myCurve->D0(t_start + ((t_end - t_start) * 0.75), p_middle2);
+        double dist1 = p_start.Distance(p_middle1);
+        double dist2 = p_start.Distance(p_middle2);
+        if (p_start.Distance(p_end) > Precision::Confusion()) {
+            gp_Lin chord(p_start, gp_Dir(gp_Vec(p_start, p_end)));
+            dist1 = chord.Distance(p_middle1);
+            dist2 = chord.Distance(p_middle2);
+        }
+        if (dist1 > lineTolerance || dist2 > lineTolerance) {
+            can_do_spline_whole = Type::SplitCurve;
+        }
+    }
 
     if (can_do_spline_whole == Type::SingleArc) {
         new_spans.push_back(arc_object1);
@@ -213,12 +234,15 @@ BSplineCurveBiArcs::Type BSplineCurveBiArcs::calculateBiArcPoints(
     double c = v * v;
     double b = (v * 2) * (v_start + v_end);
     if (fabs(a) < Precision::Intersection()) {
-        // Check the tangent of a value between t_start and t_end
+        // Check the tangent of a value between t_start and t_end.
+        // Do it whatever the parameter values are: the span of a curve with
+        // knots [0, 1] starts at 0, so t_mid can be smaller than any fixed
+        // threshold, and an S-shaped span was then replaced by a straight line.
         double t_mid = 0.9 * t_start + 0.1 * t_end;
-        if (fabs(t_mid) > 0.1) {
-            gp_Pnt p_mid;
-            gp_Vec v_mid;
-            this->myCurve->D1(t_mid, p_mid, v_mid);
+        gp_Pnt p_mid;
+        gp_Vec v_mid;
+        this->myCurve->D1(t_mid, p_mid, v_mid);
+        if (v_mid.Magnitude() >= Precision::Intersection()) {
             v_mid.Normalize();
             double a = 2 * (v_start * v_mid - 1);
             if (fabs(a) >= Precision::Intersection()) {
