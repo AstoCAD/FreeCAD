@@ -1840,8 +1840,12 @@ PyObject* AssemblyObject::generateDynamics(Object* sim)
                 auto axis = direction(child, "Direction");
                 const bool follower = property<App::PropertyBool>(child, "Follower").getValue();
                 if (follower) {
-                    const auto frame = bodyI->getPlacementProperty()->getValue()
-                        * property<App::PropertyPlacement>(child, "AttachmentI").getValue();
+                    // Direction is stored with the load's Placement, which is the
+                    // attachment-I frame when the load was defined. Express it in
+                    // that frame, as the view provider does, rather than through
+                    // the body's current pose, which may have moved since.
+                    const auto frame
+                        = property<App::PropertyPlacement>(child, "Placement").getValue();
                     axis = frame.getRotation().inverse().multVec(axis);
                 }
                 load->setFollower(follower);
