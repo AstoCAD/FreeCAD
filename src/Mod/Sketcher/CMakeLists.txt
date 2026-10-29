@@ -66,6 +66,7 @@ if(BUILD_GUI)
           SketcherTests/TestSketchDatumNavigationGui.py
           SketcherTests/TestSketchReorientGui.py
           SketcherTests/TestAssociatedConstraintPointFilterGui.py
+          SketcherTests/TestConstraintListStaleIndexGui.py
     )
 endif(BUILD_GUI)
 
