@@ -184,6 +184,9 @@ SET(TDTest_SRCS
     TDTest/DrawCosmeticLifetimeTest.py
     TDTest/DrawCosmeticCircleRadiusTest.py
     TDTest/DrawCosmeticEdgeLineNumberTest.py
+    TDTest/DrawDecorateLineInvalidEdgeTest.py
+    TDTest/DrawCosmeticRefreshNoGeometryTest.py
+    TDTest/DrawCosmeticRemoveUndoTest.py
     TDTest/DrawEdgeWalkerNullEdgeTest.py
     TDTest/DrawNearestFractionTest.py
     TDTest/DrawViewSectionCycleTest.py
@@ -234,6 +237,14 @@ SET(TDTest_SRCS
     TDTest/TestBSplineAngleDimensionGui.py
     TDTest/DrawViewDimensionTreeTest.py
     TDTest/DrawViewSelectionTeardownGuiTest.py
+    TDTest/DrawViewDeleteWhileRunningGuiTest.py
+    TDTest/TestInsertSymbolStackTopGui.py
+    TDTest/TestDimensionLabelSnapGui.py
+    TDTest/DrawTaskUndoGuiTest.py
+    TDTest/DrawSectionTabOrderGuiTest.py
+    TDTest/DrawCtrlClickJitterGuiTest.py
+    TDTest/DrawCompositeHitShapeGuiTest.py
+    TDTest/DrawLineDecorRejectGuiTest.py
     TDTest/DrawViewPartTest.py
     TDTest/DrawViewSectionTest.py
     TDTest/DrawComplexSectionPlacementGuiTest.py

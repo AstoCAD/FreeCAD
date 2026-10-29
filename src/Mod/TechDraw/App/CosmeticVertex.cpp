@@ -26,7 +26,9 @@
 //! CosmeticVertex point is stored in unscaled, unrotated form
 
 #include <App/Application.h>
+#include <Base/Interpreter.h>
 #include <Base/Persistence.h>
+#include <Base/PyObjectBase.h>
 #include <Base/Vector3D.h>
 
 #include "CosmeticVertex.h"
@@ -83,8 +85,11 @@ CosmeticVertex::~CosmeticVertex()
 {
     if (!PythonObject.is(Py::_None())) {
         Base::PyGILStateLocker lock;
-        auto* obj = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
-        obj->setInvalid();
+        auto* object = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
+        // Copies can share the original vertex's cached Python wrapper.
+        if (object->getTwinPointer() == this) {
+            object->setInvalid();
+        }
     }
 }
 

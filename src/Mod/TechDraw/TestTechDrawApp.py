@@ -38,6 +38,9 @@ from TDTest.TestCosmeticEdgeLifetime import TestCosmeticEdgeLifetime  # noqa: F4
 from TDTest.DrawCosmeticLifetimeTest import DrawCosmeticLifetimeTest  # noqa: F401
 from TDTest.DrawCosmeticCircleRadiusTest import DrawCosmeticCircleRadiusTest  # noqa: F401
 from TDTest.DrawCosmeticEdgeLineNumberTest import DrawCosmeticEdgeLineNumberTest  # noqa: F401
+from TDTest.DrawDecorateLineInvalidEdgeTest import DrawDecorateLineInvalidEdgeTest  # noqa: F401
+from TDTest.DrawCosmeticRefreshNoGeometryTest import DrawCosmeticRefreshNoGeometryTest  # noqa: F401
+from TDTest.DrawCosmeticRemoveUndoTest import DrawCosmeticRemoveUndoTest  # noqa: F401
 from TDTest.DrawEdgeWalkerNullEdgeTest import DrawEdgeWalkerNullEdgeTest  # noqa: F401
 from TDTest.DrawNearestFractionTest import DrawNearestFractionTest  # noqa: F401
 from TDTest.DrawViewSectionCycleTest import DrawViewSectionCycleTest  # noqa: F401

@@ -27,6 +27,8 @@
 
 #include <App/Application.h>
 #include <Base/Converter.h>
+#include <Base/Interpreter.h>
+#include <Base/PyObjectBase.h>
 #include <Base/Vector3D.h>
 #include <Mod/TechDraw/App/CosmeticEdgePy.h>
 #include <Mod/TechDraw/App/GeomFormatPy.h>
@@ -108,8 +110,11 @@ CosmeticEdge::~CosmeticEdge()
     // clean up code here.
     if (!PythonObject.is(Py::_None())) {
         Base::PyGILStateLocker lock;
-        auto* obj = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
-        obj->setInvalid();
+        auto* object = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
+        // Copies can share the original edge's cached Python wrapper.
+        if (object->getTwinPointer() == this) {
+            object->setInvalid();
+        }
     }
 }
 
@@ -358,8 +363,11 @@ GeomFormat::~GeomFormat()
 {
     if (!PythonObject.is(Py::_None())) {
         Base::PyGILStateLocker lock;
-        auto* obj = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
-        obj->setInvalid();
+        auto* object = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
+        // Copies can share the original format's cached Python wrapper.
+        if (object->getTwinPointer() == this) {
+            object->setInvalid();
+        }
     }
 }
 
