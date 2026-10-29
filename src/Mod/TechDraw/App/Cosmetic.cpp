@@ -368,8 +368,11 @@ GeomFormat::~GeomFormat()
 {
     if (!PythonObject.is(Py::_None())) {
         Base::PyGILStateLocker lock;
-        auto* obj = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
-        obj->setInvalid();
+        auto* object = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
+        // Copies can share the original format's cached Python wrapper.
+        if (object->getTwinPointer() == this) {
+            object->setInvalid();
+        }
     }
 }
 
