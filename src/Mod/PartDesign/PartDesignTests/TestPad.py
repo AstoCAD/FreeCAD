@@ -406,6 +406,56 @@ class TestPad(unittest.TestCase):
             expected = self._frustumVolume(10, 10 + d, 10) - self._frustumVolume(5, 5 + d, 10)
             self.assertAlmostEqual(pad.Shape.Volume, expected, places=4)
 
+    def testPadUpToPoint(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/5724
+        # A vertex or a datum point as "up to face" ends the pad on the plane through it
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        sketch = body.newObject("Sketcher::SketchObject", "Sketch")
+        sketch.addGeometry(Part.Circle(FreeCAD.Vector(), FreeCAD.Vector(0, 0, 1), 3), False)
+        vertex = self.Doc.addObject("Part::Vertex", "Vertex")
+        vertex.X = 20
+        vertex.Z = 7
+        datumPoint = body.newObject("PartDesign::Point", "DatumPoint")
+        datumPoint.MapMode = "Deactivated"
+        datumPoint.Placement.Base = FreeCAD.Vector(-5, 4, 9)
+        self.Doc.recompute()
+        pad = body.newObject("PartDesign::Pad", "Pad")
+        pad.Profile = sketch
+        pad.Type = "UpToFace"
+        for ref, height in (((vertex, ["Vertex1"]), 7), ((datumPoint, [""]), 9)):
+            pad.UpToFace = ref
+            self.Doc.recompute()
+            self.assertTrue(pad.isValid(), pad.getStatusString())
+            self.assertAlmostEqual(pad.Shape.BoundBox.ZMin, 0)
+            self.assertAlmostEqual(pad.Shape.BoundBox.ZMax, height)
+            self.assertAlmostEqual(pad.Shape.Volume, math.pi * 9 * height)
+
+        # the plane through the point keeps working with an offset
+        pad.Offset = 1
+        self.Doc.recompute()
+        self.assertAlmostEqual(pad.Shape.BoundBox.ZMax, 10)
+
+    def testPocketUpToPoint(self):
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        box = body.newObject("PartDesign::AdditiveBox", "Box")
+        box.Length = box.Width = 20
+        box.Height = 10
+        sketch = body.newObject("Sketcher::SketchObject", "Sketch")
+        sketch.AttachmentSupport = [(box, "Face6")]
+        sketch.MapMode = "FlatFace"
+        sketch.addGeometry(Part.Circle(FreeCAD.Vector(10, 10, 0), FreeCAD.Vector(0, 0, 1), 3), False)
+        self.Doc.recompute()
+        pocket = body.newObject("PartDesign::Pocket", "Pocket")
+        pocket.Profile = sketch
+        pocket.Type = "UpToFace"
+        bottom = next(
+            i for i, v in enumerate(box.Shape.Vertexes, 1) if abs(v.Point.z) < 1e-7
+        )
+        pocket.UpToFace = (box, [f"Vertex{bottom}"])  # a bottom corner of the box
+        self.Doc.recompute()
+        self.assertTrue(pocket.isValid(), pocket.getStatusString())
+        self.assertAlmostEqual(pocket.Shape.Volume, 20 * 20 * 10 - math.pi * 9 * 10)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestPad")

@@ -28,19 +28,24 @@
 #include <limits>
 #include <Mod/Part/App/FCBRepAlgoAPI_Fuse.h>
 #include <BRep_Builder.hxx>
+#include <BRep_Tool.hxx>
 #include <BRepAdaptor_Surface.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepGProp.hxx>
 #include <BRepFeat_MakePrism.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <gp_Dir.hxx>
 #include <TopoDS.hxx>
 #include <gp_Ax2.hxx>
+#include <gp_Pln.hxx>
+#include <TopoDS_Vertex.hxx>
 #include <Precision.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
 
+#include <App/Datums.h>
 #include <App/Document.h>
 #include <App/ObjectIdentifier.h>
 #include <Base/Converter.h>
@@ -56,6 +61,45 @@
 FC_LOG_LEVEL_INIT("PartDesign", true, true)
 
 using namespace PartDesign;
+
+namespace
+{
+// A vertex or a datum point referenced as "up to face" stands for the plane through it,
+// normal to the extrusion direction, see https://github.com/FreeCAD/FreeCAD/issues/5724
+bool getUpToPointFace(
+    TopoShape& upToFace,
+    const App::PropertyLinkSub& refFace,
+    const TopLoc_Location& invObjLoc,
+    const gp_Dir& dir
+)
+{
+    App::DocumentObject* ref = refFace.getValue();
+    if (!ref || ref->isDerivedFrom<App::Plane>()) {
+        return false;
+    }
+
+    const auto& subs = refFace.getSubValues();
+    TopoShape point = Part::Feature::getTopoShape(
+        ref,
+        Part::ShapeOption::NeedSubElement | Part::ShapeOption::ResolveLink
+            | Part::ShapeOption::Transform,
+        subs.empty() ? nullptr : subs[0].c_str()
+    );
+    if (point.isNull() || point.hasSubShape(TopAbs_EDGE)
+        || point.countSubShapes(TopAbs_VERTEX) != 1) {
+        return false;
+    }
+    point.move(invObjLoc);
+
+    gp_Pnt location = BRep_Tool::Pnt(TopoDS::Vertex(point.getSubShape(TopAbs_VERTEX, 1)));
+    BRepBuilderAPI_MakeFace mkFace(gp_Pln(location, dir));
+    if (!mkFace.IsDone()) {
+        return false;
+    }
+    upToFace = TopoShape(mkFace.Face());
+    return true;
+}
+}  // namespace
 
 const char* FeatureExtrude::SideTypesEnums[] = {"One side", "Two sides", "Symmetric", nullptr};
 
@@ -922,8 +966,10 @@ TopoShape FeatureExtrude::generateSingleExtrusionSide(
         int faceCount = 1;
         // Find a valid shape, face or datum plane to extrude up to
         if (method == "UpToFace") {
-            getUpToFaceFromLinkSub(upToShape, upToFacePropHandle);
-            upToShape.move(invObjLoc);
+            if (!getUpToPointFace(upToShape, upToFacePropHandle, invObjLoc, dir)) {
+                getUpToFaceFromLinkSub(upToShape, upToFacePropHandle);
+                upToShape.move(invObjLoc);
+            }
         }
         else if (method == "UpToShape") {
             faceCount = getUpToShapeFromLinkSubList(upToShape, upToShapePropHandle);
