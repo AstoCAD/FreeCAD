@@ -68,6 +68,7 @@ if(BUILD_GUI)
           SketcherTests/TestAssociatedConstraintPointFilterGui.py
           SketcherTests/TestConstraintListStaleIndexGui.py
           SketcherTests/TestCarbonCopyTreeDragGui.py
+          SketcherTests/TestAutoConstraintsPreferenceGui.py
     )
 endif(BUILD_GUI)
 
