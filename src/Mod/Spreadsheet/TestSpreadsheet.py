@@ -1609,6 +1609,54 @@ class SpreadsheetCases(unittest.TestCase):
         self.doc.recompute()
         self.assertEqual(sheet.A3, 3)
 
+    def testUndoRemoveRowsKeepsAliases(self):
+        """Issue #29862: undoing a row removal must not break the aliases
+        that move back down"""
+        self.doc.UndoMode = 1
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        for row, name in ((1, "alias1"), (2, "alias2"), (3, "alias3"), (5, "alias5")):
+            sheet.set("B%d" % row, str(row))
+            sheet.setAlias("B%d" % row, name)
+        self.doc.recompute()
+        self.doc.openTransaction("Remove row")
+        sheet.removeRows("3", 1)
+        self.doc.commitTransaction()
+        self.doc.recompute()
+        self.assertEqual(sheet.getCellFromAlias("alias5"), "B4")
+        self.doc.undo()
+        self.doc.recompute()
+        for row, name in ((1, "alias1"), (2, "alias2"), (3, "alias3"), (5, "alias5")):
+            self.assertEqual(sheet.getAlias("B%d" % row), name)
+            self.assertEqual(sheet.getCellFromAlias(name), "B%d" % row)
+            self.assertEqual(getattr(sheet, name), row)
+        self.assertEqual(sheet.getAlias("B4"), None)
+
+    def testUndoInsertRowsKeepsAliases(self):
+        """Issue #29862: undoing a row insertion must not break the aliases
+        that move back up"""
+        self.doc.UndoMode = 1
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        for row, name in ((1, "alias1"), (2, "alias2"), (4, "alias4"), (5, "alias5")):
+            sheet.set("B%d" % row, str(row))
+            sheet.setAlias("B%d" % row, name)
+        sheet.set("C1", "=alias5 * 2")
+        self.doc.recompute()
+        self.doc.openTransaction("Insert row")
+        sheet.insertRows("3", 1)
+        self.doc.commitTransaction()
+        self.doc.recompute()
+        self.assertEqual(sheet.getCellFromAlias("alias5"), "B6")
+        self.doc.undo()
+        self.doc.recompute()
+        for row, name in ((1, "alias1"), (2, "alias2"), (4, "alias4"), (5, "alias5")):
+            self.assertEqual(sheet.getAlias("B%d" % row), name)
+            self.assertEqual(sheet.getCellFromAlias(name), "B%d" % row)
+            self.assertEqual(getattr(sheet, name), row)
+        self.assertEqual(sheet.getAlias("B6"), None)
+        sheet.set("B5", "7")
+        self.doc.recompute()
+        self.assertEqual(sheet.C1, 14)
+
     def testRemoveRowsAliasReuseName(self):
         """Regression test for issue 4492; deleted aliases remains in database"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")

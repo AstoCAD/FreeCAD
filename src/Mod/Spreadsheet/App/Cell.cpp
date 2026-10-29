@@ -652,7 +652,13 @@ void Cell::setAlias(const std::string& n)
     if (alias != n) {
         PropertySheet::AtomicPropertyChange signaller(*owner);
 
-        owner->revAliasProp.erase(alias);
+        // When cells are reassigned in bulk (e.g. undo of row removal), the old
+        // alias may already have been given to another cell. Leave it alone then.
+        auto rev = owner->revAliasProp.find(alias);
+        const bool aliasTaken = rev != owner->revAliasProp.end() && rev->second != address;
+        if (rev != owner->revAliasProp.end() && !aliasTaken) {
+            owner->revAliasProp.erase(rev);
+        }
 
         // Update owner
         if (!n.empty()) {
@@ -663,7 +669,7 @@ void Cell::setAlias(const std::string& n)
             owner->aliasProp.erase(address);
         }
 
-        if (!alias.empty()) {
+        if (!alias.empty() && !aliasTaken) {
             // The property may have been added in Sheet::updateAlias
             auto* docObj = static_cast<App::DocumentObject*>(owner->getContainer());
             docObj->removeDynamicProperty(alias.c_str());
