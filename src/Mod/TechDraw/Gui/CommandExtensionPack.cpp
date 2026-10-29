@@ -1099,6 +1099,9 @@ void execDrawCosmCircle(Gui::Command* cmd)
     if (!_checkSel(cmd, selection, objFeat, QT_TRANSLATE_NOOP("Command","TechDraw cosmetic circle"))) {
         return;
     }
+    if (selection[0].getSubNames().empty()) {
+        return;
+    }
     cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cosmetic Circle"));
     const std::vector<std::string> SubNames = selection[0].getSubNames();
     std::vector<Base::Vector3d> vertexPoints;
