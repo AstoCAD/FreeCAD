@@ -23,6 +23,11 @@
  ******************************************************************************/
 
 
+#include <cmath>
+#include <numbers>
+#include <set>
+#include <vector>
+
 #include "PolarPatternExtension.h"
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
@@ -44,6 +49,43 @@
 using namespace Part;
 
 EXTENSION_PROPERTY_SOURCE(Part::PolarPatternExtension, App::DocumentObjectExtension)
+
+namespace
+{
+// Removes the transformations that land on the position of an earlier one. rotations holds the
+// angle of each transformation about the pattern axis, in radians.
+void removeCoincidentRotations(
+    std::list<gp_Trsf>& transformations,
+    const std::vector<double>& rotations
+)
+{
+    constexpr double fullTurn = 2.0 * std::numbers::pi;
+    // The angles of the kept transformations, in [-pi, pi]
+    std::set<double> kept;
+    const auto isKept = [&kept](double angle) {
+        // Look one turn below and above too: -pi and pi are the same position.
+        for (const double candidate : {angle - fullTurn, angle, angle + fullTurn}) {
+            const auto it = kept.lower_bound(candidate - Precision::Angular());
+            if (it != kept.end() && *it <= candidate + Precision::Angular()) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto rotation = rotations.begin();
+    for (auto it = transformations.begin(); it != transformations.end(); ++rotation) {
+        const double angle = std::remainder(*rotation, fullTurn);
+        if (isKept(angle)) {
+            it = transformations.erase(it);
+        }
+        else {
+            kept.insert(angle);
+            ++it;
+        }
+    }
+}
+}  // namespace
 
 const char* PolarPatternExtension::ModeEnums[] = {"Extent", "Spacing", nullptr};
 
@@ -120,6 +162,15 @@ PolarPatternExtension::PolarPatternExtension()
         "The total number of instances in the pattern, including the original feature."
     );
     Occurrences.setConstraints(PatternConstants::occurrenceConstraints());
+    EXTENSION_ADD_PROPERTY_TYPE(
+        Symmetric,
+        (false),
+        "PolarPattern",
+        App::Prop_None,
+        "Replicate the pattern on both sides of the original feature. The occurrences, "
+        "angle and offset apply to each side, giving 2 * Occurrences - 1 instances. When the "
+        "two sides meet, an instance is only made once at each position."
+    );
 
     setReadWriteStatusForMode(initialMode);
 }
@@ -142,7 +193,8 @@ const std::list<gp_Trsf> PolarPatternExtension::calculateTransformations() const
     if (Mode.getValue() == (int)PolarPatternMode::Extent) {
         angle = Angle.getValue();
 
-        if (std::fabs(angle - 360.0) < Precision::Confusion()) {
+        // A symmetric pattern never closes on itself: each side ends at the angle.
+        if (!Symmetric.getValue() && std::fabs(angle - 360.0) < Precision::Confusion()) {
             angle /= occurrences;  // Because e.g. two occurrences in 360 degrees need to be 180
                                    // degrees apart
         }
@@ -168,10 +220,13 @@ const std::list<gp_Trsf> PolarPatternExtension::calculateTransformations() const
     std::list<gp_Trsf> transformations;
     gp_Trsf trans;
     transformations.push_back(trans);
+    // The angle of each transformation about the axis, to find the coincident ones
+    std::vector<double> rotations {0.0};
 
     // Note: The original feature is already included in the list of transformations!
     // Therefore we start with occurrence number 1
     for (int i = 1; i < occurrences; i++) {
+        double rotation;
         if (Mode.getValue() == (int)PolarPatternMode::Spacing) {
             double spacing;
             if (spacings[i - 1] != -1.0) {
@@ -184,12 +239,25 @@ const std::list<gp_Trsf> PolarPatternExtension::calculateTransformations() const
                 spacing = Offset.getValue();
             }
             cumulativeSpacings += Base::toRadians(spacing);
-            trans.SetRotation(axis.Axis(), cumulativeSpacings);
+            rotation = cumulativeSpacings;
         }
         else {
-            trans.SetRotation(axis.Axis(), angle * i);
+            rotation = angle * i;
         }
+        trans.SetRotation(axis.Axis(), rotation);
         transformations.push_back(trans);
+        rotations.push_back(rotation);
+    }
+
+    // The mirrored side follows, so the original keeps index 0 and the existing indices stay.
+    if (Symmetric.getValue()) {
+        auto side = std::next(transformations.begin());
+        for (int i = 1; i < occurrences; ++i, ++side) {
+            transformations.push_back(side->Inverted());
+            rotations.push_back(-rotations[i]);
+        }
+        // From half a turn on, instances land on each other: keep one per position.
+        removeCoincidentRotations(transformations, rotations);
     }
 
     return transformations;
@@ -359,7 +427,7 @@ short PolarPatternExtension::extensionMustExecute()
 {
     if (Axis.isTouched() || Reversed.isTouched() || Mode.isTouched() || Angle.isTouched()
         || Offset.isTouched() || Spacings.isTouched() || SpacingPattern.isTouched()
-        || Occurrences.isTouched()) {
+        || Occurrences.isTouched() || Symmetric.isTouched()) {
         return 1;
     }
     return 0;

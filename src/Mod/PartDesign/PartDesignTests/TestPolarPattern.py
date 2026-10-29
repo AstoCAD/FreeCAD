@@ -164,6 +164,38 @@ class TestPolarPattern(unittest.TestCase):
         # self.assertEqual(self.PolarPattern.Shape.ElementMapSize, 66)  # TODO
         self.assertEqual(self.PolarPattern.Shape.ElementMapSize, 26)
 
+    # https://github.com/FreeCAD/FreeCAD/issues/10442
+    def testSymmetricPolarPattern(self):
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.Box = self.Body.newObject("PartDesign::AdditiveBox", "Box")
+        self.Box.Length = self.Box.Width = self.Box.Height = 10
+        self.Doc.recompute()
+        self.PolarPattern = self.Body.newObject("PartDesign::PolarPattern", "PolarPattern")
+        self.PolarPattern.Originals = [self.Box]
+        self.PolarPattern.Axis = (self.Doc.Z_Axis, [""])
+        self.PolarPattern.Angle = 90
+        self.PolarPattern.Occurrences = 2
+        self.PolarPattern.Symmetric = True
+        self.Doc.recompute()
+        shape = self.PolarPattern.Shape
+        self.assertAlmostEqual(shape.Volume, 3000)
+        self.assertTrue(shape.isInside(FreeCAD.Vector(-5, 5, 5), 1e-7, True))
+        self.assertTrue(shape.isInside(FreeCAD.Vector(5, -5, 5), 1e-7, True))
+        self.assertFalse(shape.isInside(FreeCAD.Vector(-5, -5, 5), 1e-7, True))
+
+        # The angle applies to each side, a full turn included.
+        self.PolarPattern.Angle = 360
+        self.PolarPattern.Occurrences = 5
+        self.Doc.recompute()
+        self.assertAlmostEqual(self.PolarPattern.Shape.Volume, 4000)
+
+        self.PolarPattern.Mode = "Spacing"
+        self.PolarPattern.Offset = 90
+        self.PolarPattern.Occurrences = 2
+        self.Doc.recompute()
+        self.assertAlmostEqual(self.PolarPattern.Shape.Volume, 3000)
+        self.assertFalse(self.PolarPattern.Shape.isInside(FreeCAD.Vector(-5, -5, 5), 1e-7, True))
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestPolarPattern")
