@@ -76,6 +76,7 @@ public:
     App::PropertyIntegerConstraint Occurrences;
     App::PropertyFloatList Spacings;
     App::PropertyFloatList SpacingPattern;
+    App::PropertyBool Symmetric;
 
     App::PropertyLinkSub Direction2;
     App::PropertyBool Reversed2;
@@ -85,10 +86,13 @@ public:
     App::PropertyIntegerConstraint Occurrences2;
     App::PropertyFloatList Spacings2;
     App::PropertyFloatList SpacingPattern2;
+    App::PropertyBool Symmetric2;
 
     /// Zero-based (direction 1, direction 2) indices, independent of the grid dimensions.
     App::PropertyIntPairList SuppressedPositions;
 
+    /// Number of instances along a direction: 2 * Occurrences - 1 when it is symmetric.
+    long getPatternCount(LinearPatternDirection dir) const;
     PatternPosition getInstancePosition(long index) const;
     bool isInstanceSuppressed(long index) const;
     void setInstanceSuppressed(long index, bool suppressed);

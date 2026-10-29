@@ -119,6 +119,14 @@ LinearPatternExtension::LinearPatternExtension()
         "The total number of instances in the first direction, including the original feature."
     );
     Occurrences.setConstraints(PatternConstants::occurrenceConstraints());
+    EXTENSION_ADD_PROPERTY_TYPE(
+        Symmetric,
+        (false),
+        "Direction 1",
+        App::Prop_None,
+        "Replicate the pattern on both sides of the original feature. The occurrences, "
+        "length and offset apply to each side, giving 2 * Occurrences - 1 instances."
+    );
     Mode.setEnums(ModeEnums);
     setReadWriteStatusForMode(LinearPatternDirection::First);
 
@@ -187,6 +195,14 @@ LinearPatternExtension::LinearPatternExtension()
         "The total number of instances in the second direction, including the original feature."
     );
     Occurrences2.setConstraints(PatternConstants::occurrenceConstraints());
+    EXTENSION_ADD_PROPERTY_TYPE(
+        Symmetric2,
+        (false),
+        "Direction 2",
+        App::Prop_None,
+        "Replicate the pattern on both sides of the original feature in the second direction. "
+        "The occurrences, length and offset apply to each side."
+    );
     Mode2.setEnums(ModeEnums);
     setReadWriteStatusForMode(LinearPatternDirection::Second);
 
@@ -200,9 +216,16 @@ LinearPatternExtension::LinearPatternExtension()
     );
 }
 
+long LinearPatternExtension::getPatternCount(LinearPatternDirection dir) const
+{
+    const bool firstDir = dir == LinearPatternDirection::First;
+    const long occurrences = std::max(1L, (firstDir ? Occurrences : Occurrences2).getValue());
+    return (firstDir ? Symmetric : Symmetric2).getValue() ? 2 * occurrences - 1 : occurrences;
+}
+
 LinearPatternExtension::PatternPosition LinearPatternExtension::getInstancePosition(long index) const
 {
-    const long stride = std::max(1L, Occurrences2.getValue());
+    const long stride = getPatternCount(LinearPatternDirection::Second);
     return {index / stride, index % stride};
 }
 
@@ -245,8 +268,8 @@ short LinearPatternExtension::extensionMustExecute()
         || Offset.isTouched() || Spacings.isTouched() || SpacingPattern.isTouched()
         || Occurrences.isTouched() || Direction2.isTouched() || Reversed2.isTouched()
         || Mode2.isTouched() || Length2.isTouched() || Offset2.isTouched() || Spacings2.isTouched()
-        || SpacingPattern2.isTouched() || Occurrences2.isTouched()
-        || SuppressedPositions.isTouched()) {
+        || SpacingPattern2.isTouched() || Occurrences2.isTouched() || Symmetric.isTouched()
+        || Symmetric2.isTouched() || SuppressedPositions.isTouched()) {
         return 1;
     }
     return 0;
@@ -390,6 +413,14 @@ std::vector<gp_Vec> LinearPatternExtension::calculateSteps(
     else {  // Extent Mode
         for (int i = 1; i < occurrences; ++i) {
             steps.push_back(offsetVector * i);
+        }
+    }
+
+    // The mirrored side follows, so the original keeps index 0 and the existing indices stay.
+    const auto& symmetricProp = (dir == LinearPatternDirection::First) ? Symmetric : Symmetric2;
+    if (symmetricProp.getValue()) {
+        for (int i = 1; i < occurrences; ++i) {
+            steps.push_back(steps[i].Reversed());
         }
     }
 

@@ -92,6 +92,7 @@ void PatternParametersWidget::setupUiElements()
     ui->addSpacingButton->setVisible(hPart->GetBool("ExperimentalFeatures", true));
 
     ui->enableCheckbox->setVisible(false);
+    ui->checkSymmetric->setVisible(false);
 }
 
 void PatternParametersWidget::connectSignals()
@@ -121,6 +122,12 @@ void PatternParametersWidget::connectSignals()
         &Gui::UIntSpinBox::unsignedChanged,
         this,
         &PatternParametersWidget::onOccurrencesChanged
+    );
+    connect(
+        ui->checkSymmetric,
+        &QCheckBox::toggled,
+        this,
+        &PatternParametersWidget::onSymmetricToggled
     );
 
     // Dynamic spacing buttons
@@ -204,6 +211,9 @@ void PatternParametersWidget::updateUI()
     ui->spinExtent->setValue(m_extentProp->getValue());
     ui->spinSpacing->setValue(m_spacingProp->getValue());
     ui->spinOccurrences->setValue(m_occurrencesProp->getValue());
+    if (m_symmetricProp) {
+        ui->checkSymmetric->setChecked(m_symmetricProp->getValue());
+    }
 
     rebuildDynamicSpacingUI();
 
@@ -340,6 +350,26 @@ void PatternParametersWidget::onOccurrencesChanged(unsigned int value)
 
     m_occurrencesProp->setValue(value);
     parametersChanged();  // Still emit signal even if bound
+}
+
+void PatternParametersWidget::bindSymmetricProperty(App::PropertyBool* symmetricProp)
+{
+    m_symmetricProp = symmetricProp;
+    ui->checkSymmetric->setVisible(m_symmetricProp != nullptr);
+    if (m_symmetricProp) {
+        QSignalBlocker blocker(ui->checkSymmetric);
+        ui->checkSymmetric->setChecked(m_symmetricProp->getValue());
+    }
+}
+
+void PatternParametersWidget::onSymmetricToggled(bool checked)
+{
+    if (blockUpdate || !m_symmetricProp) {
+        return;
+    }
+
+    m_symmetricProp->setValue(checked);
+    parametersChanged();
 }
 
 
