@@ -64,6 +64,7 @@ SET(Test_SRCS
     TestMDIView.py
     TestActivateViewGui.py
     TestRecomputeAllGui.py
+    TestPropertyGroupIndicatorGui.py
     TestRecordedCommandImportsGui.py
     TestWorkbenchSelectorGui.py
     TestRubberbandSelection.py
