@@ -350,6 +350,13 @@ void ViewProviderAssembly::unsetEdit(int mode)
         unsetDragger();
         detachSelection();
 
+        // Assembly_IsolateSelection is only available while editing, so a persistent
+        // isolation must not outlive the edit: it would leave the other components
+        // unselectable with no command to restore them.
+        if (persistentIsolation) {
+            clearIsolate();
+        }
+
         // Check if the view is still active before trying to deactivate the assembly.
         auto activeView = getDocument()->getActiveView();
         if (!activeView) {
@@ -1299,29 +1306,33 @@ void ViewProviderAssembly::onSelectionChanged(const Gui::SelectionChanges& msg)
         return;
     }
 
-    // Joint components isolation
-    if (msg.Type == Gui::SelectionChanges::AddSelection) {
-        auto selection = Gui::Selection().getSelection();
-        if (selection.size() == 1) {
-            App::DocumentObject* obj = selection[0].pObject;
-            if (obj
-                && (obj->getPropertyByName("JointType") || obj->getPropertyByName("ObjectToGround"))) {
-                isolateJointReferences(obj);
-                return;
+    // Joint components isolation. The selection does not change an isolation the user
+    // asked for explicitly.
+    if (!persistentIsolation) {
+        if (msg.Type == Gui::SelectionChanges::AddSelection) {
+            auto selection = Gui::Selection().getSelection();
+            if (selection.size() == 1) {
+                App::DocumentObject* obj = selection[0].pObject;
+                if (obj
+                    && (obj->getPropertyByName("JointType")
+                        || obj->getPropertyByName("ObjectToGround"))) {
+                    isolateJointReferences(obj);
+                    return;
+                }
+                else if (explodeTemporarily(obj)) {
+                    return;
+                }
             }
-            else if (explodeTemporarily(obj)) {
-                return;
+            else {
+                clearIsolate();
+                clearTemporaryExplosion();
             }
         }
-        else {
+        if (msg.Type == Gui::SelectionChanges::ClrSelection
+            || msg.Type == Gui::SelectionChanges::RmvSelection) {
             clearIsolate();
             clearTemporaryExplosion();
         }
-    }
-    if (msg.Type == Gui::SelectionChanges::ClrSelection
-        || msg.Type == Gui::SelectionChanges::RmvSelection) {
-        clearIsolate();
-        clearTemporaryExplosion();
     }
 
     if (!isInEditMode()) {
@@ -1575,9 +1586,13 @@ void ViewProviderAssembly::applyIsolationRecursively(
     }
 }
 
-void ViewProviderAssembly::isolateComponents(std::set<App::DocumentObject*>& isolateSet, IsolateMode mode)
+void ViewProviderAssembly::isolateComponents(
+    std::set<App::DocumentObject*>& isolateSet,
+    IsolateMode mode,
+    bool persistent
+)
 {
-    if (!stateBackup.empty()) {
+    if (!stateBackup.empty() || persistentIsolation) {
         clearIsolate();
     }
 
@@ -1585,6 +1600,7 @@ void ViewProviderAssembly::isolateComponents(std::set<App::DocumentObject*>& iso
     if (!assembly) {
         return;
     }
+    persistentIsolation = persistent;
 
     std::vector<App::DocumentObject*> topLevelChildren = assembly->Group.getValues();
 
@@ -1634,6 +1650,7 @@ void ViewProviderAssembly::isolateJointReferences(App::DocumentObject* joint, Is
 
 void ViewProviderAssembly::clearIsolate()
 {
+    persistentIsolation = false;
     if (isolatedJoint) {
         if (!isolatedJointVisibilityBackup) {
             isolatedJoint->Visibility.setValue(false);
@@ -1723,7 +1740,10 @@ void ViewProviderAssembly::clearJointElementHighlight()
 void ViewProviderAssembly::slotAboutToOpenTransaction(const std::string& cmdName)
 {
     Q_UNUSED(cmdName);
-    this->clearIsolate();
+    // An isolation the user asked for stays while working on the isolated components
+    if (!persistentIsolation) {
+        this->clearIsolate();
+    }
     this->clearTemporaryExplosion();
 }
 

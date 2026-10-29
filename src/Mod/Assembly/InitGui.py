@@ -119,6 +119,7 @@ class AssemblyWorkbench(Workbench):
             "Assembly_LinkSelectLinked",
             "Assembly_ExportASMT",
             "Assembly_SelectJointsOfComponent",
+            "Assembly_IsolateSelection",
         ]
 
         cmdListJoints = [
@@ -170,6 +171,10 @@ class AssemblyWorkbench(Workbench):
         if assembly is None:
             return
 
+        if assembly.ViewObject and assembly.ViewObject.hasPersistentIsolation():
+            self.appendContextMenu("", ["Assembly_IsolateSelection"])
+            return
+
         selection = Gui.Selection.getSelectionEx("*", 0)
         if not selection:
             return
@@ -178,7 +183,9 @@ class AssemblyWorkbench(Workbench):
             for sub_name in sel.SubElementNames:
                 comp, new_sub = UtilsAssembly.getComponentReference(assembly, sel.Object, sub_name)
                 if comp:
-                    self.appendContextMenu("", ["Assembly_SelectJointsOfComponent"])
+                    self.appendContextMenu(
+                        "", ["Assembly_SelectJointsOfComponent", "Assembly_IsolateSelection"]
+                    )
                     return
 
     def setWatchers(self):

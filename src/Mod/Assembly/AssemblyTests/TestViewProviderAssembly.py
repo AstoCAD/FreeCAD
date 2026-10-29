@@ -122,3 +122,65 @@ class TestViewProviderAssembly(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.provider.isolateComponents([self.first], 3)
         self.assertEqual(self._state(), before)
+
+    def _change_selection(self):
+        import FreeCADGui as Gui
+
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(self.doc.Name, self.assembly.Name, "First.Face1")
+        Gui.Selection.clearSelection()
+
+    def test_selection_clears_temporary_isolation_control(self):
+        self.provider.isolateComponents([self.first], 2)
+        self.assertFalse(self.provider.hasPersistentIsolation())
+        self._change_selection()
+        self.assertEqual(self._state(), ((True, True), (True, True)))
+
+    def test_persistent_isolation_survives_selection_and_transactions(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/12142
+        self.provider.isolateComponents([self.first], 2, True)
+        self.assertTrue(self.provider.hasPersistentIsolation())
+        self._change_selection()
+        self.doc.openTransaction("Edit")
+        self.first.Placement.Base = App.Vector(1, 0, 0)
+        self.doc.commitTransaction()
+        self.assertEqual(self._state(), ((True, True), (False, True)))
+
+        self.provider.clearIsolate()
+        self.assertFalse(self.provider.hasPersistentIsolation())
+        self.assertEqual(self._state(), ((True, True), (True, True)))
+
+    def test_isolate_selection_command_toggles(self):
+        import FreeCADGui as Gui
+
+        Gui.ActiveDocument.setEdit(self.assembly)
+        self.addCleanup(Gui.ActiveDocument.resetEdit)
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(self.doc.Name, self.assembly.Name, "First.Face1")
+        Gui.runCommand("Assembly_IsolateSelection")
+        self.assertTrue(self.provider.hasPersistentIsolation())
+        # the other component is transparent and cannot be selected
+        self.assertFalse(self.second.ViewObject.Selectable)
+        self.assertTrue(self.first.ViewObject.Selectable)
+
+        Gui.runCommand("Assembly_IsolateSelection")
+        self.assertFalse(self.provider.hasPersistentIsolation())
+        self.assertEqual(self._state(), ((True, True), (True, True)))
+
+    def test_leaving_edit_ends_persistent_isolation(self):
+        # Outside the assembly edit the command is inactive, so an isolation kept
+        # there would leave the other components unselectable with no way back.
+        import FreeCADGui as Gui
+
+        guiDoc = Gui.getDocument(self.doc.Name)
+        guiDoc.setEdit(self.assembly)
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(self.doc.Name, self.assembly.Name, "First.Face1")
+        Gui.runCommand("Assembly_IsolateSelection")
+        self.assertTrue(self.provider.hasPersistentIsolation())
+        self.assertFalse(self.second.ViewObject.Selectable)
+
+        guiDoc.resetEdit()
+        self.assertFalse(self.provider.isInEditMode())
+        self.assertFalse(self.provider.hasPersistentIsolation())
+        self.assertEqual(self._state(), ((True, True), (True, True)))
