@@ -55,6 +55,8 @@ EditTextDialog::EditTextDialog(ViewProviderSketch* viewProvider, int constraintI
 
     // Initialize Text
     ui->lineEdit_text->setText(QString::fromStdString(constraint->getText()));
+    // Typing replaces the existing text, as in the other edit dialogs.
+    ui->lineEdit_text->selectAll();
 
     ui->radioButton_height->setChecked(constraint->getIsTextHeight());
     ui->radioButton_width->setChecked(!constraint->getIsTextHeight());
