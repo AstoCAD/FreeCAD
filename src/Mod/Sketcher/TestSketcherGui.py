@@ -25,6 +25,7 @@ from SketcherTests.TestAssociatedConstraintPointFilterGui import (
 )
 from SketcherTests.TestConstraintListStaleIndexGui import TestConstraintListStaleIndexGui
 from SketcherTests.TestCarbonCopyTreeDragGui import TestCarbonCopyTreeDragGui
+from SketcherTests.TestAutoConstraintsPreferenceGui import TestAutoConstraintsPreferenceGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -51,5 +52,6 @@ from SketcherTests.TestCarbonCopyTreeDragGui import TestCarbonCopyTreeDragGui
     and TestAssociatedConstraintPointFilter28516Gui
     and TestConstraintListStaleIndexGui
     and TestCarbonCopyTreeDragGui
+    and TestAutoConstraintsPreferenceGui
     else False
 )
