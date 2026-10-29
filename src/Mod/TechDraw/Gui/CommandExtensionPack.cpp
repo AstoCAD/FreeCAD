@@ -1030,7 +1030,6 @@ void execDrawCosmArc(Gui::Command* cmd)
     if (!_checkSel(cmd, selection, objFeat, QT_TRANSLATE_NOOP("Command","TechDraw cosmetic arc")))  {
         return;
     }
-    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cosmetic arc"));
     const std::vector<std::string> SubNames = selection[0].getSubNames();
     std::vector<Base::Vector3d> vertexPoints;
     vertexPoints = _getVertexPoints(SubNames, objFeat);
@@ -1047,6 +1046,7 @@ void execDrawCosmArc(Gui::Command* cmd)
         TechDraw::BaseGeomPtr baseGeo = std::make_shared<TechDraw::AOC>(
             center, arcRadius, angle1, angle2);
         TechDraw::AOCPtr aoc = std::static_pointer_cast<TechDraw::AOC>(baseGeo);
+        cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cosmetic arc"));
         // having done our calculations in sensible coordinates, we convert to inverted coords
         std::string arcTag = objFeat->addCosmeticEdge(baseGeo->inverted());
         TechDraw::CosmeticEdge* arcEdge = objFeat->getCosmeticEdge(arcTag);
@@ -1099,7 +1099,9 @@ void execDrawCosmCircle(Gui::Command* cmd)
     if (!_checkSel(cmd, selection, objFeat, QT_TRANSLATE_NOOP("Command","TechDraw cosmetic circle"))) {
         return;
     }
-    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cosmetic Circle"));
+    if (selection[0].getSubNames().empty()) {
+        return;
+    }
     const std::vector<std::string> SubNames = selection[0].getSubNames();
     std::vector<Base::Vector3d> vertexPoints;
     vertexPoints = _getVertexPoints(SubNames, objFeat);
@@ -1108,6 +1110,7 @@ void execDrawCosmCircle(Gui::Command* cmd)
         auto center = CosmeticVertex::makeCanonicalPointInverted(objFeat, vertexPoints[0]);
         TechDraw::BaseGeomPtr baseGeo =
             std::make_shared<TechDraw::Circle>(center, circleRadius);
+        cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cosmetic Circle"));
         std::string circleTag = objFeat->addCosmeticEdge(baseGeo);
         TechDraw::CosmeticEdge* circleEdge = objFeat->getCosmeticEdge(circleTag);
         _setLineAttributes(circleEdge);
@@ -1158,7 +1161,6 @@ void execDrawCosmCircle3Points(Gui::Command* cmd)
     if (!_checkSel(cmd, selection, objFeat, QT_TRANSLATE_NOOP("Command","TechDraw Cosmetic Circle 3 Points")))  {
         return;
     }
-    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cosmetic Circle 3 Points"));
     const std::vector<std::string> SubNames = selection[0].getSubNames();
     std::vector<Base::Vector3d> vertexPoints;
     vertexPoints = _getVertexPoints(SubNames, objFeat);
@@ -1170,6 +1172,7 @@ void execDrawCosmCircle3Points(Gui::Command* cmd)
         circleCenter = CosmeticVertex::makeCanonicalPointInverted(objFeat, circleCenter);
         TechDraw::BaseGeomPtr theCircle =
             std::make_shared<TechDraw::Circle>(circleCenter, circleRadius);
+        cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cosmetic Circle 3 Points"));
         std::string circleTag = objFeat->addCosmeticEdge(theCircle);
         TechDraw::CosmeticEdge* circleEdge = objFeat->getCosmeticEdge(circleTag);
         _setLineAttributes(circleEdge);
