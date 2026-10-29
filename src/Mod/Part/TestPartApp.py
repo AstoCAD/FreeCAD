@@ -1129,6 +1129,46 @@ class PartBOPTestContainer(unittest.TestCase):
         FreeCAD.closeDocument(self.Doc.Name)
 
 
+class PartAttachNestedLCS(unittest.TestCase):
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument()
+
+    def testAttachToAxisOfNestedLCS(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/22618
+        # Attaching to "Part.LCS.Y_Axis." must use the placement of the LCS,
+        # like attaching to a line at the same place does.
+        part = self.Doc.addObject("App::Part", "Part")
+        part.Placement.Base = FreeCAD.Vector(100, 0, 0)
+        lcs = self.Doc.addObject("Part::LocalCoordinateSystem", "LCS")
+        part.addObject(lcs)
+        lcs.Placement.Base = FreeCAD.Vector(0, 50, 7)
+        line = self.Doc.addObject("Part::Line", "Line")
+        line.X2 = line.Z2 = 0
+        line.Y2 = 10
+        part.addObject(line)
+        line.Placement.Base = FreeCAD.Vector(0, 50, 7)
+        self.Doc.recompute()
+        axis = [o for o in lcs.OriginFeatures if o.Role == "Y_Axis"][0]
+
+        shape = Part.getShape(part, "{}.{}.".format(lcs.Name, axis.Name), needSubElement=True)
+        self.assertAlmostEqual(shape.Placement.Base.distanceToPoint(FreeCAD.Vector(100, 50, 7)), 0)
+
+        def attached(support):
+            feat = self.Doc.addObject("Part::Feature", "Attached")
+            feat.addExtension("Part::AttachExtensionPython")
+            feat.AttachmentSupport = support
+            feat.MapMode = "NormalToEdge"
+            self.Doc.recompute()
+            return feat.Placement
+
+        onLine = attached([(part, "Line.Edge1")])
+        onAxis = attached([(part, "{}.{}.".format(lcs.Name, axis.Name))])
+        self.assertTrue(onAxis.isSame(onLine, 1e-7), "{} != {}".format(onAxis, onLine))
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.Doc.Name)
+
+
 class BSplineCurve2d(unittest.TestCase):
     def setUp(self):
         vec2 = FreeCAD.Base.Vector2d
