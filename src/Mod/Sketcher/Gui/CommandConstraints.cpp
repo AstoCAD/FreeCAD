@@ -1420,7 +1420,7 @@ public:
     static constexpr const char* PICK_SECOND_POINT = "%1 pick second point";
     static constexpr const char* PICK_EDGE = "%1 pick edge";
     static constexpr const char* PICK_CIRCLE_OR_ARC = "%1 pick circle or arc";
-    static constexpr const char* PICK_EDGE_TO_BLOCK = "%1 pick edge to block";
+    static constexpr const char* PICK_EDGE_TO_BLOCK = "%1 pick edge or point to block";
     static constexpr const char* PICK_POINT_TO_LOCK = "%1 pick point to lock";
     static constexpr const char* PICK_POINT_OR_CURVE = "%1 pick point or curve";
     static constexpr const char* PICK_SECOND_POINT_OR_CURVE = "%1 pick second point or curve";
@@ -4836,15 +4836,32 @@ CmdSketcherConstrainBlock::CmdSketcherConstrainBlock()
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
     sMenuText = QT_TR_NOOP("Block Constraint");
-    sToolTipText = QT_TR_NOOP("Constrains the selected edges as fixed");
+    sToolTipText = QT_TR_NOOP("Constrains the selected edges and points as fixed");
     sWhatsThis = "Sketcher_ConstrainBlock";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Block";
     sAccel = "K, B";
     eType = ForEdit;
 
-    allowedSelSequences = {{SelEdge}};
+    allowedSelSequences = {{SelEdge}, {SelVertex}};
 }
+
+namespace
+{
+// A Block constraint applies to a whole geometry: an edge or a point geometry,
+// but not the vertex of an edge.
+bool isBlockableGeometry(const Sketcher::SketchObject* Obj, int GeoId, Sketcher::PointPos PosId)
+{
+    if (GeoId < 0) {
+        return false;
+    }
+    if (!isVertex(GeoId, PosId)) {
+        return true;
+    }
+    const Part::Geometry* geo = Obj->getGeometry(GeoId);
+    return geo && isPoint(*geo);
+}
+}  // namespace
 
 void CmdSketcherConstrainBlock::activated(int iMsg)
 {
@@ -4879,10 +4896,10 @@ void CmdSketcherConstrainBlock::activated(int iMsg)
         Sketcher::PointPos PosIdt;
         getIdsFromName(subname, Obj, GeoIdt, PosIdt);
 
-        if (isVertex(GeoIdt, PosIdt) || GeoIdt < 0) {
+        if (!isBlockableGeometry(Obj, GeoIdt, PosIdt)) {
             Gui::TranslatedUserWarning(Obj,
                                        QObject::tr("Wrong selection"),
-                                       QObject::tr("Select one edge from the sketch."));
+                                       QObject::tr("Select edges or points from the sketch."));
             // clear the selection
             getSelection().clearSelection();
             return;
@@ -4924,6 +4941,7 @@ void CmdSketcherConstrainBlock::applyConstraint(std::vector<SelIdPair>& selSeq, 
 {
     switch (seqIndex) {
         case 0:// {Edge}
+        case 1:// {Vertex}
         {
             // Create the constraints
             SketcherGui::ViewProviderSketch* sketchgui =
@@ -4935,6 +4953,13 @@ void CmdSketcherConstrainBlock::applyConstraint(std::vector<SelIdPair>& selSeq, 
             const std::vector<Sketcher::Constraint*>& vals = Obj->Constraints.getValues();
 
             if (selSeq.empty()) {
+                return;
+            }
+
+            if (!isBlockableGeometry(Obj, selSeq.front().GeoId, selSeq.front().PosId)) {
+                Gui::TranslatedUserWarning(Obj,
+                                           QObject::tr("Wrong selection"),
+                                           QObject::tr("Select edges or points from the sketch."));
                 return;
             }
 
