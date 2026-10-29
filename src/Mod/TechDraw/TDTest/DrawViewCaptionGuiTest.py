@@ -35,6 +35,18 @@ class _MessageObserver(QtCore.QObject):
         return False
 
 
+class _ChangeObserver:
+    """Records property changes of the objects of one document."""
+
+    def __init__(self, name):
+        self.name = name
+        self.changes = []
+
+    def slotChangedObject(self, obj, prop):
+        if obj.Document.Name == self.name:
+            self.changes.append((obj.Name, prop))
+
+
 class _CaptionGuiTestCase(unittest.TestCase):
     def setUp(self):
         self.names = []
@@ -180,3 +192,29 @@ class DrawViewCaptionGuiTest(_CaptionGuiTestCase):
 
     def test_stock_caption_save_reopen(self):
         self._stock_roundtrip("Front")
+
+    def _reopen_unmodified(self, caption):
+        doc = self._stock_page()
+        doc.View.Caption = caption
+        self._assert_rendered(doc, caption)
+        path = Path(self.directory.name) / "unmodified.FCStd"
+        doc.saveAs(str(path))
+        self._events(200)
+        self._close_document(doc.Name)
+        self._events(100)
+        doc = self._open(path)
+        self.assertFalse(Gui.getDocument(doc.Name).Modified, "modified right after opening")
+        observer = _ChangeObserver(doc.Name)
+        App.addDocumentObserver(observer)
+        try:
+            self._assert_rendered(doc, caption)
+        finally:
+            App.removeDocumentObserver(observer)
+        # laying out the caption on the page is not an edit (#33149)
+        self.assertEqual(observer.changes, [], "showing the page changed the document")
+
+    def test_reopen_empty_caption_unmodified_control(self):
+        self._reopen_unmodified("")
+
+    def test_reopen_caption_unmodified(self):
+        self._reopen_unmodified("Front")
