@@ -1744,8 +1744,6 @@ void DrawViewDimension::updateSavedGeometry()
         return;
     }
     std::vector<TopoShape> newGeometry;
-    const std::vector<TopoShape> oldGeometry = SavedGeometry.getValues();
-    // need to clean up old saved geometry objects here?
 
     for (auto& entry : references) {
         if (entry.getSubName().empty()) {
@@ -1756,8 +1754,11 @@ void DrawViewDimension::updateSavedGeometry()
             newGeometry.emplace_back(entry.asCanonicalTopoShape());
         }
         else {
-            // have to put something in the vector so SavedGeometry and references stay in sync.
-                newGeometry.emplace_back(Part::TopoShape());
+            // A null shape in SavedGeometry cannot be copied for undo, so keep the existing
+            // SavedGeometry. It is also what autocorrect needs to repair this reference.
+            Base::Console().warning("{}: reference {} has no geometry, SavedGeometry not updated\n",
+                                    Label.getValue(), entry.getSubName());
+            return;
         }
     }
     if (!newGeometry.empty()) {

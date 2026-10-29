@@ -254,6 +254,11 @@ App::Property* PropertyTopoShapeList::Copy() const
     PropertyTopoShapeList* p = new PropertyTopoShapeList();
     std::vector<TopoShape> copiedShapes;
     for (auto& shape : _lValueList) {
+        if (shape.isNull()) {
+            // BRepBuilderAPI_Copy throws on a null shape; keep the entry so the list stays in sync
+            copiedShapes.emplace_back();
+            continue;
+        }
         BRepBuilderAPI_Copy copy(shape.getShape());
         copiedShapes.emplace_back(copy.Shape());
     }

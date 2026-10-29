@@ -32,6 +32,7 @@ from TDTest.DrawViewSymbolTest import DrawViewSymbolTest  # noqa: F401
 from TDTest.DrawProjectionGroupTest import DrawProjectionGroupTest  # noqa: F401
 from TDTest.DrawViewScaleTypeTest import DrawViewScaleTypeTest  # noqa: F401
 from TDTest.DrawViewRemovalTest import DrawViewRemovalTest  # noqa: F401
+from TDTest.DrawViewDimensionSavedGeometryTest import DrawViewDimensionSavedGeometryTest  # noqa: F401
 from TDTest.TestCosmeticEdgeLifetime import TestCosmeticEdgeLifetime  # noqa: F401
 
 
