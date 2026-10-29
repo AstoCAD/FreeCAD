@@ -1486,6 +1486,10 @@ class FormEditSession(FormEditToolsMixin):
 
         marker = f"{self.obj.Name}."
         marker_index = raw.rfind(marker)
+        # Match whole path components only, so FormBox. does not match
+        # inside AdditiveFormBox.
+        while marker_index > 0 and raw[marker_index - 1] != ".":
+            marker_index = raw.rfind(marker, 0, marker_index + len(marker) - 1)
         if marker_index >= 0:
             return raw[marker_index + len(marker) :]
 
