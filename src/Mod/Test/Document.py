@@ -1223,6 +1223,35 @@ class DocumentSaveRestoreCases(unittest.TestCase):
         self.assertTrue(len(Doc.Objects) == 1)
         FreeCAD.closeDocument("RestoreTests")
 
+    def testFailedSaveAsKeepsDocumentName(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/32482
+        with tempfile.TemporaryDirectory() as temp_dir:
+            blocker = os.path.join(temp_dir, "blocker")
+            with open(blocker, "w") as f:
+                f.write("not a directory")
+            label = self.Doc.Label
+            transient = self.Doc.TransientDir
+            self.assertEqual(self.Doc.FileName, "")
+            with self.assertRaises(Exception):
+                self.Doc.saveAs(os.path.join(blocker, "sub", "Failed.FCStd"))
+            self.assertEqual(self.Doc.FileName, "")
+            self.assertEqual(self.Doc.Label, label)
+            self.assertEqual(self.Doc.TransientDir, transient)
+            self.assertTrue(os.path.isdir(self.Doc.TransientDir))
+
+            # a later saveAs to a valid path still works
+            good = os.path.join(temp_dir, "Saved.FCStd")
+            self.Doc.saveAs(good)
+            self.assertEqual(os.path.normcase(self.Doc.FileName), os.path.normcase(good))
+            self.assertEqual(self.Doc.Label, "Saved")
+            self.assertTrue(os.path.isfile(good))
+
+            # a failing saveAs of a saved document keeps its previous file
+            with self.assertRaises(Exception):
+                self.Doc.saveAs(os.path.join(blocker, "sub", "Other.FCStd"))
+            self.assertEqual(os.path.normcase(self.Doc.FileName), os.path.normcase(good))
+            self.assertEqual(self.Doc.Label, "Saved")
+
     def testActiveDocument(self):
         # open 2nd doc
         Second = FreeCAD.newDocument("Active")
