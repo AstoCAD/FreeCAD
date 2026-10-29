@@ -604,8 +604,11 @@ void AssemblyObject::preDrag(std::vector<App::DocumentObject*> dragParts)
     if (hasUnconnectedDragPart) {
         prepareMbdForIslandDrag(dragParts);
     }
-    else {
-        solve();
+    else if (solve() != 0) {
+        // A failed solve leaves a partially initialized MbD system behind. Drag steps
+        // and postDrag must not run on it (same as prepareMbdForIslandDrag).
+        objectPartMap.clear();
+        mbdAssembly.reset();
     }
     bundleFixed = false;
 
@@ -827,7 +830,21 @@ void AssemblyObject::postDrag()
         return;
     }
 
-    mbdAssembly->runPostDrag();  // Do this after last drag
+    // Do this after last drag. It is called from GUI event handlers, so a solver
+    // failure must not propagate.
+    try {
+        mbdAssembly->runPostDrag();
+    }
+    catch (const std::exception& e) {
+        FC_ERR("Post drag solve failed: " << e.what());
+        objectPartMap.clear();
+        mbdAssembly.reset();
+    }
+    catch (...) {
+        FC_ERR("Post drag solve failed: unhandled exception");
+        objectPartMap.clear();
+        mbdAssembly.reset();
+    }
     purgeTouched();
 }
 
