@@ -649,12 +649,15 @@ class FormEditSession(FormEditToolsMixin):
         factor = requested / current
         center = App.Vector(self.obj.Shape.BoundBox.Center)
         form_type = str(self.obj.FormType)
+        # Measure radii from *points* (the drag baseline), not from the live
+        # ControlPoints that earlier drag events have already overwritten.
+        base_radial = [(point.x * point.x + point.y * point.y) ** 0.5 for point in points]
         if form_type == "Forms::Torus" and property_name in (
             "MajorRadius",
             "MinorRadius",
         ):
-            major = self._dimension_value("MajorRadius")
-            minor = self._dimension_value("MinorRadius")
+            major = (max(base_radial) + min(base_radial)) / 2.0
+            minor = (max(base_radial) - min(base_radial)) / 2.0
             result = [App.Vector(point) for point in points]
             for point in result:
                 radial = (point.x * point.x + point.y * point.y) ** 0.5
@@ -676,8 +679,8 @@ class FormEditSession(FormEditToolsMixin):
             "OuterRadius",
             "InnerRadius",
         ):
-            outer = self._dimension_value("OuterRadius")
-            inner = self._dimension_value("InnerRadius")
+            outer = max(base_radial)
+            inner = min(base_radial)
             threshold = (outer + inner) * 0.5
             target_group = property_name == "OuterRadius"
             result = [App.Vector(point) for point in points]
