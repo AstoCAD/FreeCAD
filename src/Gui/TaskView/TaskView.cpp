@@ -24,8 +24,11 @@
 #include <QAbstractSpinBox>
 #include <QActionEvent>
 #include <QApplication>
+#include <QComboBox>
 #include <QCursor>
 #include <QDockWidget>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPointer>
 #include <QPushButton>
@@ -43,6 +46,7 @@
 #include <Gui/OverlayManager.h>
 
 #include "BitmapFactory.h"
+#include "Isolation.h"
 #include "TaskView.h"
 #include "TaskDialog.h"
 #include "TaskEditControl.h"
@@ -55,6 +59,56 @@
 
 using namespace Gui::TaskView;
 namespace sp = std::placeholders;
+
+namespace
+{
+/// Ends Isolate Selection, which works in every workbench, and chooses how the other
+/// objects are shown with the modes of the joint task of Assembly
+class TaskWatcherIsolation: public TaskWatcherCommands
+{
+public:
+    TaskWatcherIsolation()
+        : TaskWatcherCommands(nullptr, commands(), QT_TR_NOOP("Isolation"), "Std_ToggleTransparency")
+    {
+        auto* box = Content.empty() ? nullptr : qobject_cast<TaskBox*>(Content.front());
+        if (!box) {
+            return;
+        }
+        auto* row = new QWidget();
+        auto* layout = new QHBoxLayout(row);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->addWidget(new QLabel(tr("Isolate")));
+        modeBox = new QComboBox();
+        modeBox->setObjectName(QStringLiteral("isolationMode"));
+        modeBox->addItems({tr("Transparent"), tr("Wireframe"), tr("Hidden")});
+        layout->addWidget(modeBox, 1);
+        box->groupLayout()->insertWidget(0, row);
+
+        QObject::connect(modeBox, qOverload<int>(&QComboBox::currentIndexChanged), [](int index) {
+            Gui::Isolation::instance().setMode(static_cast<Gui::Isolation::Mode>(index));
+        });
+    }
+
+    bool shouldShow() override
+    {
+        bool active = Gui::Isolation::instance().isActive();
+        if (active && modeBox) {
+            QSignalBlocker blocker(modeBox);
+            modeBox->setCurrentIndex(static_cast<int>(Gui::Isolation::instance().mode()));
+        }
+        return active;
+    }
+
+private:
+    QPointer<QComboBox> modeBox;
+
+    static const char** commands()
+    {
+        static const char* names[] = {"Std_EndIsolation", nullptr};
+        return names;
+    }
+};
+}  // namespace
 
 
 //**************************************************************************
@@ -309,6 +363,7 @@ TaskView::~TaskView()
     connectApplicationResetEdit.disconnect();
     connectShowTaskWatcherSetting.disconnect();
     Gui::Selection().Detach(this);
+    delete isolationWatcher;
 
     // if well behaved, we should not have nay taskInfo at this point
     for (auto& taskInfo : taskInfos) {
@@ -329,6 +384,9 @@ bool TaskView::isEmpty(bool includeWatcher) const
 
     // There is no active task in the document
     if (includeWatcher) {
+        if (isolationWatcher && isolationWatcher->shouldShow()) {
+            return false;
+        }
         for (auto* watcher : ActiveWatcher) {
             if (watcher->shouldShow()) {
                 return false;
@@ -829,7 +887,11 @@ void TaskView::updateWatcher()
     }
 
     // add all widgets for all watcher to the task view
-    for (const auto& it : ActiveWatcher) {
+    std::vector<TaskWatcher*> watchers = ActiveWatcher;
+    if (isolationWatcher) {
+        watchers.insert(watchers.begin(), isolationWatcher);
+    }
+    for (const auto& it : watchers) {
         bool match = it->shouldShow();
         std::vector<QWidget*>& cont = it->getWatcherContent();
         for (auto& it2 : cont) {
@@ -896,18 +958,28 @@ void TaskView::addTaskWatcher(TaskIndex index)
     if (taskInfo.ActiveDialog) {
         return;
     }
+    // The commands of the isolation box are created by then
+    if (!isolationWatcher) {
+        isolationWatcher = new TaskWatcherIsolation();
+    }
 
     // add all widgets for all watcher to the task view
-    for (TaskWatcher* tw : ActiveWatcher) {
+    std::vector<TaskWatcher*> watchers = ActiveWatcher;
+    watchers.insert(watchers.begin(), isolationWatcher);
+    for (TaskWatcher* tw : watchers) {
         std::vector<QWidget*>& cont = tw->getWatcherContent();
         for (QWidget* w : cont) {
             taskInfo.taskPanel->actionPanel->addWidget(w);
         }
     }
-
-    if (!ActiveWatcher.empty()) {
-        taskInfo.taskPanel->actionPanel->addStretch();
+    // The workbench watchers wait for the next selection change, but the isolation box
+    // must not disappear when the workbench changes
+    bool isolated = isolationWatcher->shouldShow();
+    for (QWidget* w : isolationWatcher->getWatcherContent()) {
+        w->setVisible(isolated);
     }
+
+    taskInfo.taskPanel->actionPanel->addStretch();
 
     // Workaround to avoid a crash in Qt. See also
     // https://forum.freecad.org/viewtopic.php?f=8&t=39187
@@ -1014,7 +1086,11 @@ void TaskView::removeTaskWatcher(TaskInfo& taskInfo)
     }
 
     // remove all widgets
-    for (TaskWatcher* tw : ActiveWatcher) {
+    std::vector<TaskWatcher*> watchers = ActiveWatcher;
+    if (isolationWatcher) {
+        watchers.insert(watchers.begin(), isolationWatcher);
+    }
+    for (TaskWatcher* tw : watchers) {
         std::vector<QWidget*>& cont = tw->getWatcherContent();
         for (QWidget* w : cont) {
             w->hide();

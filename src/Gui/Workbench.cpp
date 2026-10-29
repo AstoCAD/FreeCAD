@@ -35,6 +35,7 @@
 #include "Command.h"
 #include "Control.h"
 #include "DockWindowManager.h"
+#include "Isolation.h"
 #include "MainWindow.h"
 #include "MenuManager.h"
 #include "PythonWorkbenchPy.h"
@@ -654,8 +655,11 @@ void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
 
         if (!sels.empty()) {
             *item << "Separator" << "Std_ToggleFreeze"
-                  << "Std_ToggleSelectability" << "Std_TreeSelection"
+                  << "Std_ToggleSelectability" << "Std_IsolateSelection" << "Std_TreeSelection"
                   << "Std_RandomColor" << "Std_ToggleTransparency" << "Separator";
+        }
+        if (Isolation::instance().isActive()) {
+            *item << "Std_EndIsolation";
         }
     }
     else if (strcmp(recipient, "Tree") == 0) {
@@ -678,12 +682,15 @@ void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
                 *item << "Std_ShowSelection"
                       << "Std_HideSelection";  // useful only for large selection.
             }
-            *item << "Std_ToggleSelectability";
+            *item << "Std_ToggleSelectability" << "Std_IsolateSelection";
             if (Gui::Selection().countObjectsOfType<App::DocumentObject>() == 1) {
                 *item << "Std_TreeSelectAllInstances";  // works only when single object selected
             }
             *item << "Separator"
                   << "Std_RandomColor" << "Std_ToggleTransparency" << "Separator";
+        }
+        if (Isolation::instance().isActive()) {
+            *item << "Std_EndIsolation";
         }
     }
 
@@ -764,7 +771,8 @@ MenuItem* StdWorkbench::setupMenuBar() const
     *visu << "Std_ToggleVisibility" << "Std_ShowSelection" << "Std_HideSelection"
           << "Std_SelectVisibleObjects"
           << "Separator" << "Std_ToggleObjects" << "Std_ShowObjects" << "Std_HideObjects"
-          << "Separator" << "Std_ToggleSelectability";
+          << "Separator" << "Std_ToggleSelectability"
+          << "Separator" << "Std_IsolateSelection" << "Std_EndIsolation";
 
     // View
     auto view = new MenuItem(menuBar);
