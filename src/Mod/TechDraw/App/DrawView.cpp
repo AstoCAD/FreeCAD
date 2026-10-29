@@ -757,9 +757,11 @@ void DrawView::requestPaint()
     signalGuiPaint(this);
 }
 
-void DrawView::showProgressMessage(std::string featureName, std::string text)
+void DrawView::showProgressMessage(const char* featureName, std::string text)
 {
-    if (Preferences::reportProgress()) {
+    // the background tasks call this with getNameInDocument(), which is null once the view
+    // has been removed from its document
+    if (featureName && Preferences::reportProgress()) {
         signalProgressMessage(this, featureName, text);
     }
 }

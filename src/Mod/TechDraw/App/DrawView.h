@@ -110,7 +110,7 @@ public:
     fastsignals::signal<void (const DrawView*)> signalGuiPaint;
     fastsignals::signal<void (const DrawView*, std::string, std::string)> signalProgressMessage;
     void requestPaint(void);
-    void showProgressMessage(std::string featureName, std::string text);
+    void showProgressMessage(const char* featureName, std::string text);
 
     virtual double getScale(void) const;
     virtual int getScaleType() const { return ScaleType.getValue(); };
