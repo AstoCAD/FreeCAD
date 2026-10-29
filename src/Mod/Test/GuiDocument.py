@@ -157,6 +157,42 @@ class TestGuiDocument(unittest.TestCase):
         expected_root_objects = [group1, group2, obj1, part1]
         self.assertEqual(set(root_objects), set(expected_root_objects))
 
+    def testRestoreKeepsHiddenDocumentHidden(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33181
+        self.doc.addObject("App::FeaturePython", "Object")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "hidden.FCStd")
+            self.doc.saveCopy(path)
+            hidden = FreeCAD.openDocument(path, hidden=True, temporary=True)
+            try:
+                FreeCAD.setActiveDocument(self.doc.Name)
+                gui = FreeCADGui.getDocument(hidden.Name)
+                self.assertEqual(gui.mdiViewsOfType("Gui::View3DInventor"), [])
+                hidden.restore()
+                FreeCADGui.updateGui()
+                gui = FreeCADGui.getDocument(hidden.Name)
+                self.assertEqual(gui.mdiViewsOfType("Gui::View3DInventor"), [])
+                self.assertEqual(FreeCAD.ActiveDocument, self.doc)
+                self.assertIsNotNone(hidden.getObject("Object"))
+            finally:
+                FreeCAD.closeDocument(hidden.Name)
+
+    def testRestoreKeepsViewOfShownDocument(self):
+        self.doc.addObject("App::FeaturePython", "Object")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "shown.FCStd")
+            self.doc.saveCopy(path)
+            shown = FreeCAD.openDocument(path)
+            try:
+                gui = FreeCADGui.getDocument(shown.Name)
+                self.assertEqual(len(gui.mdiViewsOfType("Gui::View3DInventor")), 1)
+                shown.restore()
+                FreeCADGui.updateGui()
+                gui = FreeCADGui.getDocument(shown.Name)
+                self.assertEqual(len(gui.mdiViewsOfType("Gui::View3DInventor")), 1)
+            finally:
+                FreeCAD.closeDocument(shown.Name)
+
     def testIssue30418(self):
         class ViewProvider:
             def __init__(self, vobj):
