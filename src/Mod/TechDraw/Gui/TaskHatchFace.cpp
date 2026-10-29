@@ -336,18 +336,46 @@ void TaskHatchFace::loadDefaults()
         "User parameter:BaseApp/Preferences/Mod/TechDraw");
     int index = hGrp->GetInt("HatchDefaultPattern", ui->patternComboBox->count());
 
-    if (index > ui->patternComboBox->count() - 1) { // last used
+    // By default the last used settings are reused, see
+    // https://github.com/FreeCAD/FreeCAD/issues/21115
+    const bool useLastUsed = index > ui->patternComboBox->count() - 1;
+    if (useLastUsed) {
         index = hGrp->GetInt("HatchLastUsedPattern", 0);
+
+        // The pattern list can change, so prefer the pattern itself over its index
+        PatternEntry lastPattern;
+        lastPattern.filePath = QString::fromStdString(hGrp->GetASCII("HatchLastUsedPatternFile", ""));
+        lastPattern.patNameInternal =
+            QString::fromStdString(hGrp->GetASCII("HatchLastUsedPatternName", ""));
+        lastPattern.type =
+            lastPattern.patNameInternal.isEmpty() ? PatternUIType::SVG : PatternUIType::PAT;
+        for (int i = 0; !lastPattern.filePath.isEmpty() && i < ui->patternComboBox->count(); ++i) {
+            if (ui->patternComboBox->itemData(i).value<PatternEntry>() == lastPattern) {
+                index = i;
+                break;
+            }
+        }
     }
 
     ui->patternComboBox->setCurrentIndex(index);
 
+    Base::Color color = TechDraw::DrawHatch::prefSvgHatchColor();
     ui->scaleSpinBox->setValue(1.0);
-    ui->colorButton->setColor(TechDraw::DrawHatch::prefSvgHatchColor().asValue<QColor>());
     ui->lineWidthSpinBox->setValue(TechDraw::LineGroup::getDefaultWidth("Graphic"));
     ui->rotationSpinBox->setValue(0.0);
     ui->offsetXSpinBox->setValue(0.0);
     ui->offsetYSpinBox->setValue(0.0);
+    if (useLastUsed) {
+        color.setPackedValue(hGrp->GetUnsigned("HatchLastUsedColor", color.getPackedValue()));
+        ui->scaleSpinBox->setValue(
+            hGrp->GetFloat("HatchLastUsedScale", ui->scaleSpinBox->value().getValue()));
+        ui->lineWidthSpinBox->setValue(
+            hGrp->GetFloat("HatchLastUsedLineWidth", ui->lineWidthSpinBox->value().getValue()));
+        ui->rotationSpinBox->setValue(hGrp->GetFloat("HatchLastUsedRotation", 0.0));
+        ui->offsetXSpinBox->setValue(hGrp->GetFloat("HatchLastUsedOffsetX", 0.0));
+        ui->offsetYSpinBox->setValue(hGrp->GetFloat("HatchLastUsedOffsetY", 0.0));
+    }
+    ui->colorButton->setColor(color.asValue<QColor>());
 
     // Update UI controls based on the selected pattern type, without triggering full preview
     if (ui->patternComboBox->currentIndex() >= 0) {
@@ -869,6 +897,20 @@ bool TaskHatchFace::accept()
     auto hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/TechDraw");
     hGrp->SetInt("HatchLastUsedPattern", ui->patternComboBox->currentIndex());
+    PatternEntry pattern = ui->patternComboBox->currentData().value<PatternEntry>();
+    hGrp->SetASCII("HatchLastUsedPatternFile", pattern.filePath.toStdString());
+    hGrp->SetASCII(
+        "HatchLastUsedPatternName",
+        pattern.type == PatternUIType::PAT ? pattern.patNameInternal.toStdString() : ""
+    );
+    Base::Color color;
+    color.setValue(ui->colorButton->color());
+    hGrp->SetUnsigned("HatchLastUsedColor", color.getPackedValue());
+    hGrp->SetFloat("HatchLastUsedScale", ui->scaleSpinBox->value().getValue());
+    hGrp->SetFloat("HatchLastUsedLineWidth", ui->lineWidthSpinBox->value().getValue());
+    hGrp->SetFloat("HatchLastUsedRotation", ui->rotationSpinBox->value());
+    hGrp->SetFloat("HatchLastUsedOffsetX", ui->offsetXSpinBox->value());
+    hGrp->SetFloat("HatchLastUsedOffsetY", ui->offsetYSpinBox->value());
 
     m_targetHatchObject->recomputeFeature();
     m_dvp->requestPaint();
