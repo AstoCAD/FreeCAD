@@ -235,9 +235,11 @@ void DrawViewDetail::detailExec(TopoDS_Shape& shape, DrawViewPart* dvp, DrawView
     }
 
     if (!DU::isGuiUp()) {
+        // without the gui we will never be informed of completion of the separate thread
         makeDetailShape(shape, dvp, dvs);
         onMakeDetailFinished();
         waitingForDetail(false);
+        return;
     }
 
     //note that &m_detailWatcher in the third parameter is not strictly required, but using the
