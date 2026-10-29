@@ -1229,6 +1229,71 @@ class SpreadsheetCases(unittest.TestCase):
         sheet.setAlias("A1", "")
         self.assertEqual(sheet.getAlias("A1"), None)
 
+    def testMovedAliasUpdatesDependants(self):
+        """Issue #18207: a cell referring to an alias must follow the alias
+        when it is moved to another cell (cut and paste)"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Calc")
+        sheet.set("A1", "5")
+        sheet.setAlias("A1", "Var1")
+        sheet.set("B4", "=Var1 + 1")
+        self.doc.recompute()
+        self.assertEqual(sheet.B4, 6)
+        # What cut A1 and paste into C10 does
+        sheet.clear("A1")
+        sheet.set("C10", "7")
+        sheet.setAlias("C10", "Var1")
+        self.doc.recompute()
+        self.assertEqual(sheet.B4, 8)
+        sheet.set("C10", "9")
+        self.doc.recompute()
+        self.assertEqual(sheet.B4, 10)
+
+    def testMovedAliasUpdatesDependantsOfComputedSheet(self):
+        """Issue #18207: same as testMovedAliasUpdatesDependants, with the
+        reference entered after the aliased cell was computed (it then
+        resolves to the cell, not to the alias name)"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Calc")
+        sheet.set("A1", "5")
+        sheet.setAlias("A1", "Var1")
+        self.doc.recompute()
+        sheet.set("B4", "=Var1 + 1")
+        self.doc.recompute()
+        self.assertEqual(sheet.B4, 6)
+        # What cut A1 and paste into C10 does. (Removing the alias with
+        # setAlias("A1", "") instead rewrites B4 to "=A1 + 1".)
+        sheet.clear("A1")
+        sheet.set("C10", "7")
+        sheet.setAlias("C10", "Var1")
+        self.doc.recompute()
+        self.assertEqual(sheet.B4, 8)
+        sheet.set("C10", "9")
+        self.doc.recompute()
+        self.assertEqual(sheet.B4, 10)
+        # What cut C10 and paste into E5 does
+        sheet.set("D1", "=Var1 + 1")
+        self.doc.recompute()
+        sheet.clear("C10")
+        sheet.set("E5", "20")
+        sheet.setAlias("E5", "Var1")
+        self.doc.recompute()
+        self.assertEqual((sheet.B4, sheet.D1), (21, 21))
+        sheet.set("E5", "30")
+        self.doc.recompute()
+        self.assertEqual((sheet.B4, sheet.D1), (31, 31))
+
+    def testAliasDefinedAfterReferenceUpdatesDependants(self):
+        """Issue #18207: a cell referring to an alias that is defined later
+        must be updated when the aliased cell changes"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Calc")
+        sheet.set("A1", "=Var1 + 1")
+        sheet.set("A5", "5")
+        sheet.setAlias("A5", "Var1")
+        self.doc.recompute()
+        self.assertEqual(sheet.A1, 6)
+        sheet.set("A5", "6")
+        self.doc.recompute()
+        self.assertEqual(sheet.A1, 7)
+
     def testSetInvalidAlias(self):
         """Try to use a cell address as alias name"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Calc")
