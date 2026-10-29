@@ -65,6 +65,7 @@ from TDTest.HatchFaceLastUsedGuiTest import HatchFaceLastUsedGuiTest  # noqa: F4
 from TDTest.DrawSvgzSymbolTest import DrawSvgzSymbolTest  # noqa: F401
 from TDTest.DrawViewDimensionTreeTest import DrawViewDimensionTreeTest  # noqa: F401
 from TDTest.DrawViewCaptionGuiTest import DrawViewCaptionGuiTest  # noqa: F401
+from TDTest.DrawViewAnnotationSpacesGuiTest import DrawViewAnnotationSpacesGuiTest  # noqa: F401
 from TDTest.DrawViewSelectionTeardownGuiTest import DrawViewSelectionTeardownGuiTest  # noqa: F401
 from TDTest.TechDrawTaskTest import TechDrawTaskTest  # noqa: F401
 
