@@ -103,6 +103,25 @@ class InsertLinkObserver:
         self.callback(obj)
 
 
+def openFilesDirectory(doc):
+    """Return the directory the 'Open files' dialog starts in.
+
+    Next to the assembly document if it is saved, else the last directory used by
+    the FreeCAD file dialogs. An empty directory makes Qt start in the process
+    directory, which is the installation folder on Windows.
+    """
+    if doc.FileName:
+        directory = os.path.dirname(doc.FileName)
+        if os.path.isdir(directory):
+            return directory
+    directory = App.ParamGet("User parameter:BaseApp/Preferences/General").GetString(
+        "FileOpenSavePath", ""
+    )
+    if directory and os.path.isdir(directory):
+        return directory
+    return ""
+
+
 class TaskAssemblyInsertLink(QtCore.QObject):
     def __init__(self, assembly, view):
         super().__init__()
@@ -368,7 +387,7 @@ class TaskAssemblyInsertLink(QtCore.QObject):
         selected_files, _ = QtGui.QFileDialog.getOpenFileNames(
             None,
             "Select FreeCAD documents to import parts from",
-            "",
+            openFilesDirectory(self.doc),
             "Supported Formats (*.FCStd *.fcstd);;All files (*)",
         )
 
