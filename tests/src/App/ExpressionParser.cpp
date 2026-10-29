@@ -395,6 +395,22 @@ TEST_F(ExpressionParserTest, dimensionlessExpressionsParseAsLongOrDouble)
         << "dimensionless ratio of like units parses as long";
 }
 
+// https://github.com/FreeCAD/FreeCAD/issues/12173
+TEST_F(ExpressionParserTest, powerOfQuantityKeepsParenthesesWhenSerialized)
+{
+    for (const auto& [text, expected] : {
+             std::pair {"(5 mm)^2", mm2(25)},
+             std::pair {"(5mm)^2 / 2", mm2(12.5)},
+             std::pair {"(-5 mm)^2", mm2(25)},
+             std::pair {"5 mm^2", mm2(5)},
+             std::pair {"(5 mm)^2^1", mm2(25)},
+         }) {
+        const auto serialized = parse(this_obj(), text)->toString();
+        EXPECT_THAT(parseExpr(serialized.c_str()), IsQuantity(expected))
+            << text << " was serialized as " << serialized;
+    }
+}
+
 TEST_F(ExpressionParserTest, expressionsWithFunctionsParse)
 {
     EXPECT_THAT(parseExpr("sqrt(9 mm^2)"), IsQuantity(mm(3)))
