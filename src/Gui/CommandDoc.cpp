@@ -1987,23 +1987,15 @@ void refreshDocumentSynchronously(App::Document& document)
     }
 }
 
-}  // namespace
-
-void StdCmdRefresh::activated([[maybe_unused]] int iMsg)
+// Recomputes the document on the recompute worker when possible, otherwise in place.
+void refreshDocument(App::Document& document)
 {
-    if (!getActiveGuiDocument()) {
-        return;
-    }
-
-    App::AutoTransaction trans((eType & NoTransaction) ? 0 : openActiveDocumentCommand("Recompute"));
-    auto doc = getActiveGuiDocument()->getDocument();
-
     App::RecomputeRequest request
-        = App::RecomputeRequest::fromDocument(*doc, true, App::Document::DepNoCycle);
+        = App::RecomputeRequest::fromDocument(document, true, App::Document::DepNoCycle);
 
     if (!App::GetApplication().isAsyncRecomputeEnabled()
         || !App::GetApplication().canRecomputeRequestOnWorker(request)) {
-        refreshDocumentSynchronously(*doc);
+        refreshDocumentSynchronously(document);
         return;
     }
 
@@ -2021,9 +2013,69 @@ void StdCmdRefresh::activated([[maybe_unused]] int iMsg)
     App::GetApplication().queueRecomputeRequest(request);
 }
 
+}  // namespace
+
+void StdCmdRefresh::activated([[maybe_unused]] int iMsg)
+{
+    if (!getActiveGuiDocument()) {
+        return;
+    }
+
+    App::AutoTransaction trans((eType & NoTransaction) ? 0 : openActiveDocumentCommand("Recompute"));
+    refreshDocument(*getActiveGuiDocument()->getDocument());
+}
+
 bool StdCmdRefresh::isActive()
 {
     return this->getDocument() && this->getDocument()->mustExecute();
+}
+
+//===========================================================================
+// Std_RecomputeAll
+//===========================================================================
+DEF_STD_CMD_A(StdCmdRecomputeAll)
+
+StdCmdRecomputeAll::StdCmdRecomputeAll()
+    : Command("Std_RecomputeAll")
+{
+    sGroup = "Edit";
+    sMenuText = QT_TR_NOOP("Recompute All");
+    sToolTipText = QT_TR_NOOP("Marks all objects of the active document to recompute and recomputes it");
+    sWhatsThis = "Std_RecomputeAll";
+    sStatusTip = sToolTipText;
+    sPixmap = "Std_MarkToRecompute";
+    sAccel = "Shift+F5";
+    eType = AlterDoc | Alter3DView | AlterSelection | ForEdit;
+    bCanLog = false;
+
+    // Same as Std_Refresh
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Document"
+    );
+    if (!hGrp->GetBool("TransactionOnRecompute", false)) {
+        eType = eType | NoTransaction;
+    }
+}
+
+void StdCmdRecomputeAll::activated([[maybe_unused]] int iMsg)
+{
+    App::Document* doc = getDocument();
+    if (!doc) {
+        return;
+    }
+
+    App::AutoTransaction trans(
+        (eType & NoTransaction) ? 0 : openActiveDocumentCommand("Recompute all")
+    );
+    for (auto obj : doc->getObjects()) {
+        obj->enforceRecompute();
+    }
+    refreshDocument(*doc);
+}
+
+bool StdCmdRecomputeAll::isActive()
+{
+    return getDocument() != nullptr;
 }
 
 //===========================================================================
@@ -2694,6 +2746,7 @@ void CreateDocCommands()
     rcCmdMgr.addCommand(new StdCmdSelectAll());
     rcCmdMgr.addCommand(new StdCmdDelete());
     rcCmdMgr.addCommand(new StdCmdRefresh());
+    rcCmdMgr.addCommand(new StdCmdRecomputeAll());
     rcCmdMgr.addCommand(new StdCmdTransform());
     rcCmdMgr.addCommand(new StdCmdPlacement());
     rcCmdMgr.addCommand(new StdCmdTransformManip());
