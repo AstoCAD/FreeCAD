@@ -177,6 +177,29 @@ class PartTestBSplineCurve(unittest.TestCase):
         self.spline.getWeight(1)
         self.spline.getWeights()
 
+    def testToBiArcsParallelEndTangents(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33257
+        # An S-shaped curve whose end tangents are parallel must not be
+        # replaced by a straight line, whatever its parameter range.
+        for last in (1.0, 2.0):
+            spline = Part.BSplineCurve()
+            spline.buildFromPoles(
+                [
+                    App.Vector(0, 0, 0),
+                    App.Vector(10, 0, 0),
+                    App.Vector(0, 10, 0),
+                    App.Vector(10, 10, 0),
+                ]
+            )
+            spline.scaleKnotsToBounds(0.0, last)
+            arcs = spline.toBiArcs(0.01)
+            self.assertGreater(len(arcs), 1)
+            compound = Part.Compound([arc.toShape() for arc in arcs])
+            for i in range(21):
+                param = spline.FirstParameter + (spline.LastParameter - spline.FirstParameter) * i / 20
+                dist = compound.distToShape(Part.Vertex(spline.value(param)))[0]
+                self.assertLess(dist, 0.02)
+
     def testSetters(self):
         spline = copy.copy(self.spline)
         spline.setKnot(1, 0.1)
