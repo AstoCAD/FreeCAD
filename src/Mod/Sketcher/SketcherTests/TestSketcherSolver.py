@@ -988,6 +988,39 @@ class TestSketcherSolver(unittest.TestCase):
         self.assertEqual(sketch.ConstraintCount, 0)
         self.assertVectorAlmostEqual(sketch.Geometry[mirrored[0]].StartPoint, vec(-2, 1))
 
+    def testCopyKeepsThreeGeometryConstraints(self):
+        # addCopy inverted the lookup of the third geometry: a constraint whose three
+        # geometries were all copied was dropped, while one whose third geometry was not
+        # copied got the map's end() iterator dereferenced as its Third index.
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        line = sketch.addGeometry(Part.LineSegment(vec(-5, 1), vec(5, 1)), False)
+        point = sketch.addGeometry(Part.Point(FreeCAD.Vector(0, 1, 0)), False)
+        sketch.addConstraint(Sketcher.Constraint("Symmetric", line, 1, line, 2, point, 1))
+        self.Doc.recompute()
+
+        sketch.addCopy([line, point], FreeCAD.Vector(0, 10, 0), False)
+        self.Doc.recompute()
+        symmetric = [
+            (c.First, c.Second, c.Third) for c in sketch.Constraints if c.Type == "Symmetric"
+        ]
+        self.assertEqual(symmetric, [(line, line, point), (2, 2, 3)])
+        self.assertSuccessfulSolve(sketch)
+
+        partial = self.Doc.addObject("Sketcher::SketchObject", "Partial")
+        line = partial.addGeometry(Part.LineSegment(vec(-5, 1), vec(5, 1)), False)
+        point = partial.addGeometry(Part.Point(FreeCAD.Vector(0, 1, 0)), False)
+        partial.addConstraint(Sketcher.Constraint("Symmetric", line, 1, line, 2, point, 1))
+        self.Doc.recompute()
+
+        # The point is not copied, so the symmetry cannot be carried over to the copy.
+        partial.addCopy([line], FreeCAD.Vector(0, 10, 0), False)
+        self.Doc.recompute()
+        symmetric = [
+            (c.First, c.Second, c.Third) for c in partial.Constraints if c.Type == "Symmetric"
+        ]
+        self.assertEqual(symmetric, [(line, line, point)])
+        self.assertSuccessfulSolve(partial)
+
     def testPythonCommandsReplayGeometry(self):
         source = self.Doc.addObject("Sketcher::SketchObject", "Source")
         source.addGeometry(Part.LineSegment(vec(2, 1), vec(3, 4)), False)
