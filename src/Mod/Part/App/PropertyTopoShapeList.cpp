@@ -255,11 +255,8 @@ App::Property* PropertyTopoShapeList::Copy() const
     std::vector<TopoShape> copiedShapes;
     for (auto& shape : _lValueList) {
         if (shape.isNull()) {
-            // this is probabably(?) undo/redo saving the before state of this property, which
-            // includes invalid references.
-            Base::Console().error(
-                "PropertyTopoShapeList::Copy encountered a null shape. Undo may not be possible.\n"
-            );
+            // BRepBuilderAPI_Copy throws on a null shape; keep the entry so the list stays in sync
+            copiedShapes.emplace_back();
             continue;
         }
         BRepBuilderAPI_Copy copy(shape.getShape());
