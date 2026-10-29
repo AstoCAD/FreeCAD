@@ -29,6 +29,7 @@ from SketcherTests.TestConstraintListStaleIndexGui import TestConstraintListStal
 from SketcherTests.TestAutoConstraintsPreferenceGui import TestAutoConstraintsPreferenceGui
 from SketcherTests.TestEditTextDialogGui import TestEditTextDialogGui
 from SketcherTests.TestPasteSelectionGui import TestPasteSelectionGui
+from SketcherTests.TestWireSelectionGui import TestWireSelectionGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -59,5 +60,6 @@ from SketcherTests.TestPasteSelectionGui import TestPasteSelectionGui
     and TestAutoConstraintsPreferenceGui
     and TestEditTextDialogGui
     and TestPasteSelectionGui
+    and TestWireSelectionGui
     else False
 )
