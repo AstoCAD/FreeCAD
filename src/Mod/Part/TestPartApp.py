@@ -82,6 +82,65 @@ class PartTestCases(unittest.TestCase):
         # self.Doc.addObject("Part::Feature","Face").Shape = result
         # self.assertTrue(isinstance(result.Surface, Part.BSplineSurface))
 
+    def testCutHolesWireOrientation(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/29543
+        outer = [
+            App.Vector(0, 0, 0),
+            App.Vector(30, 0, 0),
+            App.Vector(30, 20, 0),
+            App.Vector(0, 20, 0),
+        ]
+        inner = [
+            App.Vector(5, 5, 0),
+            App.Vector(25, 5, 0),
+            App.Vector(25, 15, 0),
+            App.Vector(5, 15, 0),
+        ]
+        for outerPoints in (outer, outer[::-1]):
+            for innerPoints in (inner, inner[::-1]):
+                face = Part.Face(Part.makePolygon(outerPoints + [outerPoints[0]]))
+                face.cutHoles([Part.makePolygon(innerPoints + [innerPoints[0]])])
+                self.assertTrue(face.isValid())
+                self.assertEqual(len(face.Wires), 2)
+                self.assertAlmostEqual(face.Area, 400.0, places=6)
+
+    def testFaceFromWiresHoleOrientation(self):
+        # Part.Face([outer, hole]), Part.Face(surface, [outer, hole]) and Part.Face(face, hole)
+        # took the hole wire as it was: a hole oriented like the outer wire gave an invalid face
+        # of area outer + hole.
+        outer = [
+            App.Vector(0, 0, 0),
+            App.Vector(30, 0, 0),
+            App.Vector(30, 20, 0),
+            App.Vector(0, 20, 0),
+        ]
+        inner = [
+            App.Vector(5, 5, 0),
+            App.Vector(25, 5, 0),
+            App.Vector(25, 15, 0),
+            App.Vector(5, 15, 0),
+        ]
+        circle = Part.Wire(Part.makeCircle(2, App.Vector(15, 10, 0)))
+        for outerPoints in (outer, outer[::-1]):
+            outerWire = Part.makePolygon(outerPoints + [outerPoints[0]])
+            for innerPoints in (inner, inner[::-1]):
+                innerWire = Part.makePolygon(innerPoints + [innerPoints[0]])
+                for name, face in (
+                    ("wires", Part.Face([outerWire, innerWire])),
+                    ("surface", Part.Face(Part.Plane(), [outerWire, innerWire])),
+                    ("face", Part.Face(Part.Face(outerWire), innerWire)),
+                ):
+                    with self.subTest(case=name, outer=outerPoints[1], inner=innerPoints[1]):
+                        self.assertTrue(face.isValid())
+                        self.assertEqual(len(face.Wires), 2)
+                        self.assertAlmostEqual(face.Area, 400.0, places=6)
+            for hole in (circle, circle.reversed()):
+                face = Part.Face([outerWire, hole])
+                self.assertTrue(face.isValid())
+                self.assertAlmostEqual(face.Area, 600.0 - 4 * math.pi, places=6)
+        # a single wire is unchanged
+        self.assertAlmostEqual(Part.Face([Part.makePolygon(outer + [outer[0]])]).Area, 600.0)
+
     def testDeprecatedInsertWarningDoesNotCreateDocument(self):
         document_name = "DeprecatedPartInsertTest"
         try:
