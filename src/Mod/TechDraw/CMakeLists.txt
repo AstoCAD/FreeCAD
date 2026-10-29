@@ -242,6 +242,7 @@ SET(TDTest_SRCS
     TDTest/DrawViewDetailTest.py
     TDTest/DrawViewScaleTypeTest.py
     TDTest/DrawViewBreakRemovalTest.py
+    TDTest/DrawViewRemovalTest.py
     TDTest/TechDrawTaskTest.py
     TDTest/TechDrawTestUtilities.py
 )
