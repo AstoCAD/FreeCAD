@@ -511,8 +511,25 @@ std::vector<App::DocumentObject*> AssemblyObject::getMotionsFromSimulation(App::
         return {};
     }
 
+    // Direct non-study children of the SimulationGroup are global inputs that
+    // apply to every study, as in the dynamics path.
+    std::vector<App::DocumentObject*> inputs;
+    for (auto* child : Group.getValues()) {
+        if (!child || !child->isDerivedFrom<SimulationGroup>()) {
+            continue;
+        }
+        for (auto* input : static_cast<SimulationGroup*>(child)->Group.getValues()) {
+            if (input && !input->getPropertyByName("Assembly")) {
+                inputs.push_back(input);
+            }
+        }
+        break;
+    }
+    const auto local = prop->getValues();
+    inputs.insert(inputs.end(), local.begin(), local.end());
+
     std::vector<App::DocumentObject*> result;
-    for (auto* object : prop->getValues()) {
+    for (auto* object : inputs) {
         if (!object || !object->getPropertyByName("MotionType")) {
             continue;
         }
