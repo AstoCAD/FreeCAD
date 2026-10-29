@@ -27,7 +27,10 @@
 #include <QModelIndex>
 #include <QPainter>
 #include <QSignalBlocker>
+#include <QPolygonF>
+#include <QStyle>
 #include <QTimer>
+#include <QTreeView>
 #include <QKeyEvent>
 
 #include <Base/Tools.h>
@@ -106,6 +109,49 @@ void PropertyItemDelegate::paint(
             }
         }
         painter->fillRect(option.rect, brush);
+
+        // Show whether the group is collapsed with a branch indicator in front of its name,
+        // see https://github.com/FreeCAD/FreeCAD/issues/23967
+        // The arrow is drawn here because style sheets usually draw no branch for root items.
+        if (index.column() == 0 && property->childCount() > 0) {
+            const auto* view = qobject_cast<const QTreeView*>(option.widget);
+            const bool expanded = view && view->isExpanded(index);
+            const int size = option.rect.height();
+            const QRectF box = QStyle::alignedRect(
+                option.direction,
+                Qt::AlignLeft | Qt::AlignVCenter,
+                QSize(size, size),
+                option.rect
+            );
+            const double half = size * 0.18;
+            const QPointF center = box.center();
+            QPolygonF arrow;
+            if (expanded) {
+                arrow << center + QPointF(-half, -half / 2) << center + QPointF(half, -half / 2)
+                      << center + QPointF(0, half / 2 + half / 2);
+            }
+            else if (option.direction == Qt::LeftToRight) {
+                arrow << center + QPointF(-half / 2, -half) << center + QPointF(-half / 2, half)
+                      << center + QPointF(half, 0);
+            }
+            else {
+                arrow << center + QPointF(half / 2, -half) << center + QPointF(half / 2, half)
+                      << center + QPointF(-half, 0);
+            }
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(option.palette.color(QPalette::Text));
+            painter->drawPolygon(arrow);
+            painter->restore();
+
+            if (option.direction == Qt::LeftToRight) {
+                option.rect.setLeft(option.rect.left() + size);
+            }
+            else {
+                option.rect.setRight(option.rect.right() - size);
+            }
+        }
     }
 
     QPen savedPen = painter->pen();
