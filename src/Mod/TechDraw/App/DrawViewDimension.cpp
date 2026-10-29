@@ -1756,12 +1756,10 @@ void DrawViewDimension::updateSavedGeometry()
             newGeometry.emplace_back(entry.asCanonicalTopoShape());
         }
         else {
-            // If we can't get a shape for a reference, we will just keep the existing
-            // SavedGeometry as the lesser evil.
-            Base::Console().error("Dimension reference to %s:%s has no geometry\n",
-                            entry.getObjectName(), entry.getSubName());
-            Base::Console().warning("SavedGeometry for %s was not updated\n",
-                                        Label.getValue());
+            // A null shape in SavedGeometry cannot be copied for undo, so keep the existing
+            // SavedGeometry. It is also what autocorrect needs to repair this reference.
+            Base::Console().warning("{}: reference {} has no geometry, SavedGeometry not updated\n",
+                                    Label.getValue(), entry.getSubName());
             return;
         }
     }
