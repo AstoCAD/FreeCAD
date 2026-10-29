@@ -198,6 +198,16 @@ class TestBoolean(unittest.TestCase):
         self.Doc.recompute()
         self.assertAlmostEqual(self.BooleanCut.Shape.Volume, 1000)
 
+    def testBooleanSettlesWithBodyPlacementExpression(self):
+        # The expression rewrites the Body placement on each recompute.
+        self._makeCutOfMovableBody()
+        self.Body001.setExpression(".Placement.Base.x", "10 mm + 10 mm")
+        self.Doc.recompute()
+        self.assertAlmostEqual(self.BooleanCut.Shape.Volume, 500)
+        self.assertNotIn("Touched", self.BooleanCut.State)
+        self.Doc.recompute()
+        self.assertNotIn("Touched", self.BooleanCut.State)
+
     def testBooleanCutUsesActiveBodyGlobalPlacement(self):
         container = self.Doc.addObject("App::Part", "Part")
         container.Placement.Base = App.Vector(100, 0, 0)
