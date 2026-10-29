@@ -2707,7 +2707,7 @@ int SketchObject::addCopy(
 
             auto tit = geoIdMap.find(constr->Third);
 
-            if (tit != geoIdMap.end()) {
+            if (tit == geoIdMap.end()) {
                 continue;
             }
 
