@@ -58,3 +58,21 @@ class DrawViewRemovalTest(unittest.TestCase):
                      if obj.TypeId.startswith("TechDraw::")]
         self.assertEqual(leftovers, [])
         self.assertIsNotNone(self.doc.getObject(self.box.Name))
+
+    def testRemoveCollectionRemovesItsViews(self):
+        """Removing a view collection removes all of its views without crashing."""
+        collection = self.doc.addObject("TechDraw::DrawViewCollection", "Collection")
+        self.page.addView(collection)
+        names = []
+        for index in range(4):
+            view = self.doc.addObject("TechDraw::DrawViewPart", "CollectionView")
+            view.Source = [self.box]
+            collection.Views = collection.Views + [view]
+            names.append(view.Name)
+        self.doc.recompute()
+
+        self.doc.removeObject(collection.Name)
+        self.assertIsNone(self.doc.getObject("Collection"))
+        for name in names:
+            self.assertIsNone(self.doc.getObject(name), name)
+        self.assertIsNotNone(self.doc.getObject(self.views[0].Name))
