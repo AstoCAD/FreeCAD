@@ -715,8 +715,10 @@ Part::Feature* ProfileBased::getBaseObject(bool silent) const
     App::DocumentObject* spt = sketch->AttachmentSupport.getValue();
     if (spt) {
         // Attaching to a Body positions the profile but must not import its complete tip shape.
+        // Inside a Body, the Body sets BaseFeature, so a support without it is a foreign
+        // object (e.g. a face of another Body) that must not be imported either.
         // Feature supports remain implicit bases for compatibility with legacy files.
-        if (spt->isDerivedFrom<PartDesign::Body>()) {
+        if (spt->isDerivedFrom<PartDesign::Body>() || Body::findBodyOf(this)) {
             return Feature::getBaseObject(silent);
         }
         if (spt->isDerivedFrom<Part::Feature>()) {
