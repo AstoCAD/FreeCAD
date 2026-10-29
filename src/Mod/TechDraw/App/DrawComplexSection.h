@@ -71,7 +71,7 @@ class TechDrawExport DrawComplexSection: public DrawViewSection
 
 public:
     DrawComplexSection();
-    ~DrawComplexSection() override = default;
+    ~DrawComplexSection() override;
 
 //NOLINTBEGIN
     App::PropertyLink CuttingToolWireObject;

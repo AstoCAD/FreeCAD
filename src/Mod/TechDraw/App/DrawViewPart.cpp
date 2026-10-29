@@ -432,13 +432,22 @@ DrawViewPart::DrawViewPart()
 DrawViewPart::~DrawViewPart()
 {
     //don't delete this object while it still has dependent threads running
+    //waitForFinished() rethrows an exception of the task, which must not leave a destructor
     if (m_hlrFuture.isRunning()) {
         Base::Console().message("{} is waiting for HLR to finish\n", Label.getValue());
-        m_hlrFuture.waitForFinished();
+        try {
+            m_hlrFuture.waitForFinished();
+        }
+        catch (...) {
+        }
     }
     if (m_faceFuture.isRunning()) {
         Base::Console().message("{} is waiting for face finding to finish\n", Label.getValue());
-        m_faceFuture.waitForFinished();
+        try {
+            m_faceFuture.waitForFinished();
+        }
+        catch (...) {
+        }
     }
     removeAllReferencesFromGeom();
 }
@@ -1064,8 +1073,11 @@ TopoDS_Shape DrawViewPart::getShapeForGeometryBuild() const
 TechDraw::GeometryObjectPtr DrawViewPart::buildGeometryObject(const TopoDS_Shape& shape,
                                                               const gp_Ax2& viewAxis)
 {
+    // a section or detail view removed while its cut task ran is kept by the undo
+    // transaction and gets here when the task finishes, without a name in a document
+    const char* name = getNameInDocument();
     TechDraw::GeometryObjectPtr go(
-        std::make_shared<TechDraw::GeometryObject>(getNameInDocument(), this));
+        std::make_shared<TechDraw::GeometryObject>(name ? name : "", this));
     go->setIsoCount(IsoCount.getValue());
     go->isPerspective(Perspective.getValue());
     go->setFocus(Focus.getValue());

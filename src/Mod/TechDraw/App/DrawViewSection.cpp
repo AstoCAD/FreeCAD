@@ -322,8 +322,13 @@ DrawViewSection::DrawViewSection()
 DrawViewSection::~DrawViewSection()
 {
     // don't destroy this object while it has dependent threads running
+    // waitForFinished() rethrows an exception of the task, which must not leave a destructor
     if (m_cutFuture.isRunning()) {
-        m_cutFuture.waitForFinished();
+        try {
+            m_cutFuture.waitForFinished();
+        }
+        catch (...) {
+        }
     }
 }
 

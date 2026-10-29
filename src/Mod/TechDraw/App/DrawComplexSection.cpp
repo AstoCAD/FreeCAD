@@ -171,6 +171,29 @@ DrawComplexSection::DrawComplexSection() :
 //NOLINTEND
 }
 
+DrawComplexSection::~DrawComplexSection()
+{
+    // don't destroy this object while the aligned pieces task still works on it
+    // (DrawViewSection only waits for its own cut task)
+    // waitForFinished() rethrows an exception of the task, which must not leave a destructor
+    // The cut task starts the aligned pieces task, so wait for the cut first: otherwise the
+    // aligned pieces task could start after the check below, on members already destroyed.
+    if (m_cutFuture.isRunning()) {
+        try {
+            m_cutFuture.waitForFinished();
+        }
+        catch (...) {
+        }
+    }
+    if (m_alignFuture.isRunning()) {
+        try {
+            m_alignFuture.waitForFinished();
+        }
+        catch (...) {
+        }
+    }
+}
+
 App::DocumentObject* DrawComplexSection::getGeneratedProfile() const
 {
     App::DocumentObject* profile = CuttingToolWireObject.getValue();
