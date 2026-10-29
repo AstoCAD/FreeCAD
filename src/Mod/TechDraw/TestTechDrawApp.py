@@ -36,6 +36,7 @@ from TDTest.DrawViewDimensionSavedGeometryTest import DrawViewDimensionSavedGeom
 from TDTest.TestCosmeticEdgeLifetime import TestCosmeticEdgeLifetime  # noqa: F401
 from TDTest.DrawCosmeticLifetimeTest import DrawCosmeticLifetimeTest  # noqa: F401
 from TDTest.DrawViewDetailConsoleTest import DrawViewDetailConsoleTest  # noqa: F401
+from TDTest.DrawViewDetailMattingTest import DrawViewDetailMattingTest  # noqa: F401
 
 
 from TDTest.SketchAnnotationsTest import SketchAnnotationsTest  # noqa: F401

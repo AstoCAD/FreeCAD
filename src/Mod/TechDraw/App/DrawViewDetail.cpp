@@ -43,6 +43,7 @@
 #include <TopoDS_Shell.hxx>
 #include <TopoDS_Solid.hxx>
 #include <gp_Ax2.hxx>
+#include <gp_Ax3.hxx>
 #include <gp_Dir.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
@@ -311,8 +312,8 @@ void DrawViewDetail::makeDetailShape(const TopoDS_Shape& shape3d, DrawViewPart* 
     gp_Vec extrudeDir(extrudeVec.x, extrudeVec.y, extrudeVec.z);
     TopoDS_Shape tool;
     if (Preferences::mattingStyle()) {
-        //square mat
-        gp_Pln gpln(gpnt, gdir);
+        //square mat, aligned with the X direction of the base view
+        gp_Pln gpln(gp_Ax3(gpnt, gdir, m_viewAxis.XDirection()));
         BRepBuilderAPI_MakeFace mkFace(gpln, -radius, radius, -radius, radius);
         extrusionFace = mkFace.Face();
         if (extrusionFace.IsNull()) {

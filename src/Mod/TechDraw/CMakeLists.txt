@@ -233,6 +233,7 @@ SET(TDTest_SRCS
     TDTest/DrawViewBalloonTest.py
     TDTest/DrawViewDetailTest.py
     TDTest/DrawViewDetailConsoleTest.py
+    TDTest/DrawViewDetailMattingTest.py
     TDTest/DrawViewScaleTypeTest.py
     TDTest/DrawViewRemovalTest.py
     TDTest/DrawViewDimensionSavedGeometryTest.py
