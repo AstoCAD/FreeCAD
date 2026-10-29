@@ -150,6 +150,8 @@ void QGIViewAnnotation::drawAnnotation()
     Base::Color c = viewAnno->TextColor.getValue();
     c = TechDraw::Preferences::getAccessibleColor(c);
     ss << "color:" << c.asHexString() << "; ";
+    // the text is plain text: keep consecutive spaces, e.g. to align columns
+    ss << "white-space:pre-wrap; ";
     ss << "}\n</style>\n</head>\n<body>\n<p>";
     for (std::vector<std::string>::const_iterator it = annoText.begin(); it != annoText.end();
          it++) {
