@@ -94,8 +94,18 @@ class BOPFeatures:
 
     def move_input_objects(self, objects):
         targetGroup = None
+        # Never take a feature out of its Body: that breaks the Body, which does
+        # not accept the result either. Adding the result to a container would
+        # also pull the feature into it, so leave everything where it is.
+        inBody = False
+        for obj in objects:
+            parent = obj.getParent()
+            if parent and parent.isDerivedFrom("PartDesign::Body"):
+                inBody = True
         for obj in objects:
             obj.Visibility = False
+            if inBody:
+                continue
             parent = obj.getParent()
             if parent:
                 parent.removeObject(obj)
