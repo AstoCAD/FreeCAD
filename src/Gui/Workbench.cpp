@@ -733,7 +733,7 @@ MenuItem* StdWorkbench::setupMenuBar() const
 
     *edit << "Std_Undo" << "Std_Redo" << "Separator" << "Std_Cut" << "Std_Copy"
           << "Std_Paste" << "Std_DuplicateSelection" << "Std_Delete" << "Separator"
-          << "Std_Refresh" << "Std_BoxSelection" << "Std_BoxElementSelection"
+          << "Std_Refresh" << "Std_RecomputeAll" << "Std_BoxSelection" << "Std_BoxElementSelection"
           << "Std_SelectAll" << "Separator" << "Std_TransformManip" << "Std_Placement"
           << "Std_Alignment" << "Std_SendToPythonConsole" << "Std_Properties" << "Separator"
           << "Std_Edit" << "Std_UserEditMode" << "Separator" << "Std_DlgPreferences" << create;

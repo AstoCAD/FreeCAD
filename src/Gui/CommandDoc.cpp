@@ -2024,6 +2024,54 @@ bool StdCmdRefresh::isActive()
 }
 
 //===========================================================================
+// Std_RecomputeAll
+//===========================================================================
+DEF_STD_CMD_A(StdCmdRecomputeAll)
+
+StdCmdRecomputeAll::StdCmdRecomputeAll()
+    : Command("Std_RecomputeAll")
+{
+    sGroup = "Edit";
+    sMenuText = QT_TR_NOOP("Recompute All");
+    sToolTipText = QT_TR_NOOP("Marks all objects of the active document to recompute and recomputes it");
+    sWhatsThis = "Std_RecomputeAll";
+    sStatusTip = sToolTipText;
+    sPixmap = "Std_MarkToRecompute";
+    sAccel = "Shift+F5";
+    eType = AlterDoc | Alter3DView | AlterSelection | ForEdit;
+    bCanLog = false;
+
+    // Same as Std_Refresh
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Document"
+    );
+    if (!hGrp->GetBool("TransactionOnRecompute", false)) {
+        eType = eType | NoTransaction;
+    }
+}
+
+void StdCmdRecomputeAll::activated([[maybe_unused]] int iMsg)
+{
+    App::Document* doc = getDocument();
+    if (!doc) {
+        return;
+    }
+
+    App::AutoTransaction trans(
+        (eType & NoTransaction) ? 0 : openActiveDocumentCommand("Recompute all")
+    );
+    for (auto obj : doc->getObjects()) {
+        obj->enforceRecompute();
+    }
+    refreshDocumentSynchronously(*doc);
+}
+
+bool StdCmdRecomputeAll::isActive()
+{
+    return getDocument() != nullptr;
+}
+
+//===========================================================================
 // Std_Transform
 //===========================================================================
 DEF_STD_CMD_A(StdCmdTransform)
@@ -2679,6 +2727,7 @@ void CreateDocCommands()
     rcCmdMgr.addCommand(new StdCmdSelectAll());
     rcCmdMgr.addCommand(new StdCmdDelete());
     rcCmdMgr.addCommand(new StdCmdRefresh());
+    rcCmdMgr.addCommand(new StdCmdRecomputeAll());
     rcCmdMgr.addCommand(new StdCmdTransform());
     rcCmdMgr.addCommand(new StdCmdPlacement());
     rcCmdMgr.addCommand(new StdCmdTransformManip());
