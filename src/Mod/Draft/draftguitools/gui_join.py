@@ -83,6 +83,7 @@ class Join(gui_base_original.Modifier):
         """
         if self.call is not None:
             self.end_callbacks(self.call)
+            self.call = None
         if Gui.Selection.getSelection():
             self.print_selection()
             if all(utils.get_type(o) == "Wire" for o in Gui.Selection.getSelection()):
@@ -96,6 +97,13 @@ class Join(gui_base_original.Modifier):
             else:
                 _err(translate("draft", "Only Draft lines and wires can be joined"))
         self.finish()
+
+    def finish(self, cont=False):
+        """Terminate the operation, also when the task panel is closed."""
+        if self.call is not None:
+            self.end_callbacks(self.call)
+            self.call = None
+        super().finish(cont)
 
     def print_selection(self):
         """Print the selected items."""

@@ -81,6 +81,7 @@ class Draft2Sketch(gui_base_original.Modifier):
         """Proceed with the command if one object was selected."""
         if self.call is not None:
             self.end_callbacks(self.call)
+            self.call = None
         sel = Gui.Selection.getSelection()
         allSketches = True
         allDraft = True
@@ -150,6 +151,13 @@ class Draft2Sketch(gui_base_original.Modifier):
             _cmd_list.append("FreeCAD.ActiveDocument.recompute()")
             self.commit(translate("draft", "Convert Draft/Sketch"), _cmd_list)
         self.finish()
+
+    def finish(self, cont=False):
+        """Terminate the operation, also when the task panel is closed."""
+        if self.call is not None:
+            self.end_callbacks(self.call)
+            self.call = None
+        super().finish(cont)
 
 
 Gui.addCommand("Draft_Draft2Sketch", Draft2Sketch())
