@@ -214,9 +214,18 @@ public:
 
     void UpdateSolverInformation();
 
-    void isolateComponents(std::set<App::DocumentObject*>& parts, IsolateMode mode);
+    /// A persistent isolation is kept when the selection changes, until clearIsolate()
+    void isolateComponents(
+        std::set<App::DocumentObject*>& parts,
+        IsolateMode mode,
+        bool persistent = false
+    );
     void isolateJointReferences(App::DocumentObject* joint, IsolateMode mode = IsolateMode::Transparent);
     void clearIsolate();
+    bool hasPersistentIsolation() const
+    {
+        return persistentIsolation;
+    }
     bool explodeTemporarily(App::DocumentObject* explodedView);
     void clearTemporaryExplosion();
 
@@ -289,6 +298,7 @@ private:
     App::DocumentObject* temporaryExplosion {nullptr};
     App::DocumentObject* isolatedJoint {nullptr};
     bool isolatedJointVisibilityBackup {false};
+    bool persistentIsolation {false};
 
     void highlightJointElements(App::DocumentObject* joint);
     void clearJointElementHighlight();
