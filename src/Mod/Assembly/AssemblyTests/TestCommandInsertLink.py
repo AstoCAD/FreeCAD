@@ -463,6 +463,39 @@ class TestCommandInsertLink(AssemblyTestBase):
                 App.closeDocument(source.Name)
                 App.setActiveDocument(self.doc.Name)
 
+    def _open_files_start_directory(self, file_name):
+        task = SimpleNamespace(doc=SimpleNamespace(FileName=file_name), buildPartList=MagicMock())
+        with patch(
+            "CommandInsertLink.QtGui.QFileDialog.getOpenFileNames",
+            return_value=([], ""),
+        ) as dialog:
+            CommandInsertLink.TaskAssemblyInsertLink.openFiles(task)
+        dialog.assert_called_once()
+        return dialog.call_args.args[2]
+
+    def test_open_files_starts_next_to_saved_assembly(self):
+        """https://github.com/FreeCAD/FreeCAD/issues/33091"""
+        with tempfile.TemporaryDirectory() as directory:
+            file_name = os.path.join(directory, "Assembly.FCStd")
+            start = self._open_files_start_directory(file_name)
+            self.assertEqual(os.path.normcase(start), os.path.normcase(directory))
+
+    def test_open_files_starts_in_last_used_directory(self):
+        """https://github.com/FreeCAD/FreeCAD/issues/33091"""
+        general = App.ParamGet("User parameter:BaseApp/Preferences/General")
+        saved = general.GetString("FileOpenSavePath", "")
+        had_value = "FileOpenSavePath" in general.GetStrings()
+        with tempfile.TemporaryDirectory() as directory:
+            try:
+                general.SetString("FileOpenSavePath", directory)
+                start = self._open_files_start_directory("")
+                self.assertEqual(os.path.normcase(start), os.path.normcase(directory))
+            finally:
+                if had_value:
+                    general.SetString("FileOpenSavePath", saved)
+                else:
+                    general.RemString("FileOpenSavePath")
+
     @patch("FreeCADGui.PySideUic.loadUi")
     @patch("CommandInsertLink.TaskAssemblyInsertLink.adjustTreeWidgetSize")
     def test_mixed_valid_and_invalid_objects(self, _mock_adjustTreeSize, _mock_loadUi):
