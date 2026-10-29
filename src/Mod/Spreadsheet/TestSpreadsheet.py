@@ -1732,6 +1732,31 @@ class SpreadsheetCases(unittest.TestCase):
         self.doc.recompute()
         self.assertEqual(sheet.C1, 14)
 
+    def testUndoKeepsDefaultColors(self):
+        """Issue #30477: undo must not give explicit colors to cells that
+        use the default ones"""
+        self.doc.UndoMode = 1
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        self.doc.openTransaction("Set A1")
+        sheet.set("A1", "1")
+        sheet.set("B1", "2")
+        sheet.setForeground("B1", (1.0, 0.0, 0.0, 1.0))
+        sheet.setBackground("B1", (0.0, 0.0, 1.0, 1.0))
+        self.doc.commitTransaction()
+        self.doc.openTransaction("Set A2")
+        sheet.set("A2", "2")
+        self.doc.commitTransaction()
+        self.doc.recompute()
+        self.assertIsNone(sheet.getForeground("A1"))
+        self.assertIsNone(sheet.getBackground("A1"))
+        self.doc.undo()
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("A2"), "")
+        self.assertIsNone(sheet.getForeground("A1"))
+        self.assertIsNone(sheet.getBackground("A1"))
+        self.assertEqual(sheet.getForeground("B1"), (1.0, 0.0, 0.0, 1.0))
+        self.assertEqual(sheet.getBackground("B1"), (0.0, 0.0, 1.0, 1.0))
+
     def testRemoveRowsAliasReuseName(self):
         """Regression test for issue 4492; deleted aliases remains in database"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
