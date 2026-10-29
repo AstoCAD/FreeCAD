@@ -1120,6 +1120,52 @@ class BRepConversionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "internal"):
             dissolve_edges(obj, [boundary])
 
+    def test_dissolve_layout_rejects_fans_that_do_not_share_cage_edges(self):
+        from Forms.brep import ConversionError, validate_dissolved_edges
+
+        radial = [(0, 2), (0, 3), (0, 4)]
+        valence_five_fan = [(0, 1 + index, 6 + index, 1 + (index + 1) % 5) for index in range(5)]
+        open_boundary_fan = [(0, 1 + index, 6 + index, 2 + index) for index in range(4)]
+        for faces in (valence_five_fan, open_boundary_fan):
+            with self.assertRaisesRegex(ConversionError, "one parameter grid"):
+                validate_dissolved_edges(faces, radial)
+
+        grid = [
+            (column + 4 * row, column + 1 + 4 * row, column + 5 + 4 * row, column + 4 + 4 * row)
+            for row in range(3)
+            for column in range(3)
+        ]
+        validate_dissolved_edges(grid, [(1, 5), (4, 5), (5, 6), (5, 9)])
+
+    def test_tmesh_dissolve_rejects_a_ring_around_a_kept_leaf(self):
+        mesh = HierarchicalTMesh.from_quad_cage(
+            [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)], [(0, 1, 2, 3)]
+        )
+        mesh, _leaves = mesh.subdivide_grid([min(mesh.faces)], 2, 2)
+        cells = {}
+        for face_id, face in mesh.faces.items():
+            cells[
+                (
+                    round(min(point[0] for point in face.parameters) * 4),
+                    round(min(point[1] for point in face.parameters) * 4),
+                )
+            ] = face_id
+
+        def internal_edges(region):
+            counts = {}
+            for cell in region:
+                boundary = mesh.faces[cells[cell]].boundary
+                for position, first in enumerate(boundary):
+                    edge = tuple(sorted((first, boundary[(position + 1) % len(boundary)])))
+                    counts[edge] = counts.get(edge, 0) + 1
+            return [edge for edge, count in counts.items() if count == 2]
+
+        block = [(column, row) for column in range(3) for row in range(3)]
+        ring = [cell for cell in block if cell != (1, 1)]
+        with self.assertRaisesRegex(ValueError, "simply connected"):
+            mesh.dissolve_edges(internal_edges(ring))
+        self.assertEqual(len(mesh.dissolve_edges(internal_edges(block)).faces), 8)
+
     def test_delete_edge_keeps_a_closed_form_solid(self):
         document = App.newDocument("FormsTestDissolveSolidEdge")
         obj = create_box(document)

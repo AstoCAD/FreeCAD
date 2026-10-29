@@ -945,6 +945,17 @@ def _dissolved_patch_layouts(faces, dissolved_edges):
         }
         if occupied != expected:
             raise ConversionError("Dissolved edges would create a non-rectangular face")
+        # Faces adjacent in the layout must also share their cage edge; a
+        # fan around a valence-5 or open-boundary vertex fills the rectangle
+        # but lands two different cage vertices on one grid point.
+        vertex_points = {}
+        point_vertices = {}
+        for face_index in group:
+            for vertex, point in zip(faces[face_index], coordinates[face_index]):
+                if vertex_points.setdefault(vertex, point) != point:
+                    raise ConversionError("Dissolved faces do not map to one parameter grid")
+                if point_vertices.setdefault(point, vertex) != vertex:
+                    raise ConversionError("Dissolved faces do not map to one parameter grid")
         layouts.append((tuple(sorted(group)), coordinates))
     return layouts
 

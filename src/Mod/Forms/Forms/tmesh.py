@@ -508,6 +508,8 @@ class HierarchicalTMesh:
                 if current in boundary:
                     raise ValueError("Dissolved T-mesh faces have a branched boundary")
                 boundary.append(current)
+            if len(boundary) != len(boundary_edges):
+                raise ValueError("Dissolved T-mesh faces must form one simply connected region")
 
             parameters = result.parameter_locations()
             root = next(iter(roots))
