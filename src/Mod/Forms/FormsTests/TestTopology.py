@@ -347,6 +347,26 @@ class PrimitiveTopologyTest(unittest.TestCase):
         self.assertTrue(vertices)
         self.assertTrue(all(count == 2 for count in edge_counts.values()))
 
+    def test_cylinder_cap_faces_stay_convex_inside_the_radius(self):
+        for side_segments in (4, 8, 25):
+            vertices, faces = cylinder_control_cage(1, 1, side_segments, 1)
+            self.assertLessEqual(
+                max(math.hypot(x_value, y_value) for x_value, y_value, _z in vertices),
+                1.0 + 1.0e-12,
+            )
+            for face in faces:
+                points = [vertices[index] for index in face]
+                if not all(abs(point[2] - 0.5) <= 1.0e-12 for point in points):
+                    continue
+                for position in range(4):
+                    first = points[position]
+                    second = points[(position + 1) % 4]
+                    third = points[(position + 2) % 4]
+                    turn = (second[0] - first[0]) * (third[1] - second[1]) - (
+                        second[1] - first[1]
+                    ) * (third[0] - second[0])
+                    self.assertGreater(turn, 0.0, (side_segments, face))
+
     def test_sphere_points_are_on_requested_radius(self):
         vertices, faces = sphere_control_cage(12, 2, 3)
         self.assertTrue(faces)
