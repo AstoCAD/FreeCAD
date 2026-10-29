@@ -1777,21 +1777,30 @@ void PropertySheet::recomputeDependencies(CellAddress key)
  * Rebuild the dependencies of the cells that refer to \a alias, and mark them
  * dirty. Needed when the alias is moved to another cell, because the
  * dependencies hold the address of the cell that had the alias before.
+ * Cells whose dependencies were rebuilt while \a previousAddress held the
+ * alias (e.g. by moving cells) are only recorded against that address.
  */
 
-void PropertySheet::recomputeAliasDependants(const std::string& alias)
+void PropertySheet::recomputeAliasDependants(const std::string& alias, CellAddress previousAddress)
 {
     if (alias.empty() || !owner) {
         return;
     }
 
-    auto it = propertyNameToCellMap.find(owner->getFullName() + "." + alias);
-    if (it == propertyNameToCellMap.end()) {
-        return;
+    // Copy, as recomputeDependencies() modifies propertyNameToCellMap
+    std::set<CellAddress> dependants;
+    const std::string prefix = owner->getFullName() + ".";
+    auto it = propertyNameToCellMap.find(prefix + alias);
+    if (it != propertyNameToCellMap.end()) {
+        dependants = it->second;
+    }
+    if (previousAddress.isValid()) {
+        it = propertyNameToCellMap.find(prefix + previousAddress.toString());
+        if (it != propertyNameToCellMap.end()) {
+            dependants.insert(it->second.begin(), it->second.end());
+        }
     }
 
-    // Copy, as recomputeDependencies() modifies propertyNameToCellMap
-    const std::set<CellAddress> dependants = it->second;
     for (const auto& address : dependants) {
         if (data.count(address)) {
             recomputeDependencies(address);

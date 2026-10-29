@@ -672,6 +672,13 @@ void Cell::setAlias(const std::string& n)
             owner->revAliasProp.erase(rev);
         }
 
+        // Cell that had the new alias so far, if another one
+        App::CellAddress previousAddress;
+        auto previous = owner->revAliasProp.find(n);
+        if (previous != owner->revAliasProp.end() && previous->second != address) {
+            previousAddress = previous->second;
+        }
+
         // Update owner
         if (!n.empty()) {
             owner->aliasProp[address] = n;
@@ -700,7 +707,7 @@ void Cell::setAlias(const std::string& n)
         auto it = owner->data.find(address);
         if (it != owner->data.end() && it->second == this) {
             owner->recomputeAliasDependants(oldAlias);
-            owner->recomputeAliasDependants(alias);
+            owner->recomputeAliasDependants(alias, previousAddress);
         }
 
         signaller.tryInvoke();
