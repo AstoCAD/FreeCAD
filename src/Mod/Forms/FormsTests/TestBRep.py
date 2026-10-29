@@ -774,6 +774,31 @@ class BRepConversionTest(unittest.TestCase):
         self.assertEqual(pipe.Shape.ShapeType, "Solid")
         self.assertTrue(pipe.Shape.isValid())
 
+    def test_closed_pipe_frames_spread_the_seam_twist_of_a_knot(self):
+        from Forms.pipe import _frames
+
+        count = 48
+        points = []
+        for index in range(count):
+            u = 2.0 * math.pi * index / count
+            points.append(
+                App.Vector(
+                    math.sin(u) + 2.0 * math.sin(2.0 * u),
+                    math.cos(u) - 2.0 * math.cos(2.0 * u),
+                    -math.sin(3.0 * u),
+                )
+            )
+        frames = _frames(points, closed=True)
+        # Adjacent sections, including across the seam, must stay nearly
+        # aligned; uncorrected transport left a ~128 degree seam twist.
+        for index in range(count):
+            normal = frames[index][0]
+            next_normal, next_binormal = frames[(index + 1) % count]
+            twist = math.degrees(
+                math.atan2(normal.dot(next_binormal), normal.dot(next_normal))
+            )
+            self.assertLess(abs(twist), 20.0, index)
+
     def test_pipe_splits_an_edge_at_an_interior_t_junction(self):
         document = App.newDocument("FormsTestInteriorTJunction")
         path = document.addObject("Part::Feature", "TJunctionPath")
