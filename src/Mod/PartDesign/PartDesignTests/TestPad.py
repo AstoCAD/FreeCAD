@@ -21,6 +21,7 @@
 # *                                                                         *
 # ***************************************************************************
 
+import math
 import unittest
 
 import FreeCAD
@@ -356,6 +357,54 @@ class TestPad(unittest.TestCase):
         self.Pad.UpToFace = (self.Doc.XZ_Plane, [""])
         self.Doc.recompute()
         self.assertAlmostEqual(self.Pad.Shape.Volume, 1.5)
+
+    @staticmethod
+    def _frustumVolume(r1, r2, h):
+        return math.pi * h / 3 * (r1 * r1 + r1 * r2 + r2 * r2)
+
+    def testPadTaperedSmallCircle(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33427
+        # An inward taper on a small circle used to crash in OCC's 2D offset algorithm
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        sketch = body.newObject("Sketcher::SketchObject", "Sketch")
+        sketch.addGeometry(Part.Circle(FreeCAD.Vector(), FreeCAD.Vector(0, 0, 1), 1), False)
+        self.Doc.recompute()
+        pad = body.newObject("PartDesign::Pad", "Pad")
+        pad.Profile = sketch
+        pad.Length = 10
+        for angle in (-1, -5, 3):
+            pad.TaperAngle = angle
+            self.Doc.recompute()
+            self.assertTrue(pad.isValid(), f"Pad failed for taper angle {angle}")
+            self.assertTrue(pad.Shape.isValid())
+            r2 = 1 + 10 * math.tan(math.radians(angle))
+            self.assertAlmostEqual(
+                pad.Shape.Volume, self._frustumVolume(1, r2, 10), places=4
+            )
+
+        # a taper making the circle collapse must fail cleanly
+        pad.TaperAngle = -10
+        self.Doc.recompute()
+        self.assertFalse(pad.isValid())
+
+    def testPadTaperedRing(self):
+        # Inner circles must keep being offset in the same direction as the outer one
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        sketch = body.newObject("Sketcher::SketchObject", "Sketch")
+        sketch.addGeometry(Part.Circle(FreeCAD.Vector(), FreeCAD.Vector(0, 0, 1), 10), False)
+        sketch.addGeometry(Part.Circle(FreeCAD.Vector(), FreeCAD.Vector(0, 0, 1), 5), False)
+        self.Doc.recompute()
+        pad = body.newObject("PartDesign::Pad", "Pad")
+        pad.Profile = sketch
+        pad.Length = 10
+        for angle in (5, -5):
+            pad.TaperAngle = angle
+            self.Doc.recompute()
+            self.assertTrue(pad.isValid())
+            self.assertTrue(pad.Shape.isValid())
+            d = 10 * math.tan(math.radians(angle))
+            expected = self._frustumVolume(10, 10 + d, 10) - self._frustumVolume(5, 5 + d, 10)
+            self.assertAlmostEqual(pad.Shape.Volume, expected, places=4)
 
     def tearDown(self):
         # closing doc
