@@ -356,15 +356,15 @@ bool shapesOverlap(
 TopoDS_Shape movedShape(
     const TopoDS_Shape& targetShape,
     const Base::Placement& fromTarget,
-    const Base::Placement& assemblyGlobal,
     ContactTiming& timing
 )
 {
+    // Contact shapes and component placements are both in the assembly's
+    // local frame, so the delta applies without the assembly placement.
     auto phaseStart = ContactClock::now();
-    const Base::Placement worldDelta = assemblyGlobal * fromTarget * assemblyGlobal.inverse();
     BRepBuilderAPI_Transform transform(
         targetShape,
-        Part::TopoShape::convert(worldDelta.toMatrix()),
+        Part::TopoShape::convert(fromTarget.toMatrix()),
         false
     );
     const TopoDS_Shape result = transform.Shape();
@@ -1216,7 +1216,6 @@ void AssemblyObject::resolveContactMove(
 {
     ContactTiming timing;
     const auto components = getAssemblyComponents(this);
-    const Base::Placement assemblyGlobal = App::GeoFeature::getGlobalPlacement(this);
     std::set<Object*> moved(movedParts.begin(), movedParts.end());
     std::map<Object*, Base::Placement> previous = previousPlacements;
 
@@ -1290,22 +1289,16 @@ void AssemblyObject::resolveContactMove(
                 bool startedOverlapping = false;
                 try {
                     const auto shapeAt = [&](const Base::Placement& placement) {
-                        return movedShape(
-                            driverTargetShape,
-                            placement * target.inverse(),
-                            assemblyGlobal,
-                            timing
-                        );
+                        return movedShape(driverTargetShape, placement * target.inverse(), timing);
                     };
                     startedOverlapping
                         = shapesOverlap(shapeAt(driverPrevious->second), pushedShape, timing);
                     if (!overlapping) {
                         if (startedOverlapping) continue; // Dragging out of an initial overlap.
-                        const auto worldTarget = assemblyGlobal * target;
                         const auto localShape = BRepBuilderAPI_Transform(driverTargetShape,
-                            ::Part::TopoShape::convert(worldTarget.inverse().toMatrix()), false).Shape();
+                            ::Part::TopoShape::convert(target.inverse().toMatrix()), false).Shape();
                         ContactGeometry sweepGeometry(localShape, pushedShape, false);
-                        freeFraction = sweepGeometry.sweep(assemblyGlobal * driverPrevious->second, worldTarget,
+                        freeFraction = sweepGeometry.sweep(driverPrevious->second, target,
                                                            Base::Placement(), Base::Placement(), true);
                         if (freeFraction == 1) continue;
                         collidingFraction = freeFraction;
@@ -1338,9 +1331,8 @@ void AssemblyObject::resolveContactMove(
                 Vec pushedTranslation = remainingTranslation;
                 if (!startedOverlapping && remainingTranslation.Length() >= 1e-9) {
                     const auto entryShape = movedShape(driverTargetShape,
-                        contactPlacement * target.inverse(), assemblyGlobal, timing);
-                    const Vec normal = assemblyGlobal.getRotation().inverse().multVec(
-                        contactBoxResponse(entryShape, pushedShape).normal);
+                        contactPlacement * target.inverse(), timing);
+                    const Vec normal = contactBoxResponse(entryShape, pushedShape).normal;
                     const double normalDistance = std::min(0.0, remainingTranslation.Dot(normal));
                     const Vec normalTranslation = normal * normalDistance;
                     const Vec tangentTranslation = remainingTranslation - normalTranslation;
