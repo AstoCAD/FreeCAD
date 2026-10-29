@@ -132,7 +132,11 @@ TaskView::TaskDialog* ViewProviderDragger::getTransformDialog()
 
 bool ViewProviderDragger::doubleClicked()
 {
-    Gui::Application::Instance->activeDocument()->setEdit(this, (int)ViewProvider::Default);
+    // Honour the edit mode chosen with Std_UserEditMode, like Part features do
+    Gui::Application::Instance->activeDocument()->setEdit(
+        this,
+        Gui::Application::Instance->getUserEditMode()
+    );
     return true;
 }
 
