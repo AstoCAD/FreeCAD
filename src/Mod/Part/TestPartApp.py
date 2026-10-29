@@ -82,6 +82,28 @@ class PartTestCases(unittest.TestCase):
         # self.Doc.addObject("Part::Feature","Face").Shape = result
         # self.assertTrue(isinstance(result.Surface, Part.BSplineSurface))
 
+    def testCutHolesWireOrientation(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/29543
+        outer = [
+            App.Vector(0, 0, 0),
+            App.Vector(30, 0, 0),
+            App.Vector(30, 20, 0),
+            App.Vector(0, 20, 0),
+        ]
+        inner = [
+            App.Vector(5, 5, 0),
+            App.Vector(25, 5, 0),
+            App.Vector(25, 15, 0),
+            App.Vector(5, 15, 0),
+        ]
+        for outerPoints in (outer, outer[::-1]):
+            for innerPoints in (inner, inner[::-1]):
+                face = Part.Face(Part.makePolygon(outerPoints + [outerPoints[0]]))
+                face.cutHoles([Part.makePolygon(innerPoints + [innerPoints[0]])])
+                self.assertTrue(face.isValid())
+                self.assertEqual(len(face.Wires), 2)
+                self.assertAlmostEqual(face.Area, 400.0, places=6)
+
     def testDeprecatedInsertWarningDoesNotCreateDocument(self):
         document_name = "DeprecatedPartInsertTest"
         try:
