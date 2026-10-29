@@ -2,5 +2,6 @@
 
 add_executable(TechDraw_tests_run
         LineFormat.cpp
+        CosmeticEdgeLifetime.cpp
         ViewPlacement.cpp
 )
