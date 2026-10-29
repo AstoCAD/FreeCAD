@@ -69,6 +69,7 @@ SoSeparator* createOverlayRoot(int width, int height)
     root->ref();
 
     auto* camera = new SoOrthographicCamera;
+    camera->viewportMapping.setValue(SoCamera::LEAVE_ALONE);
     camera->aspectRatio.setValue(static_cast<float>(width) / static_cast<float>(height));
     camera->height.setValue(static_cast<float>(height));
     root->addChild(camera);
