@@ -83,6 +83,7 @@ class Facebinder(gui_base_original.Creator):
         """Proceed when a valid selection has been made."""
         if self.call is not None:
             self.end_callbacks(self.call)
+            self.call = None
         if Gui.Selection.getSelection():
             App.ActiveDocument.openTransaction("Create Facebinder")
             Gui.addModule("Draft")
@@ -93,6 +94,13 @@ class Facebinder(gui_base_original.Creator):
             App.ActiveDocument.commitTransaction()
             App.ActiveDocument.recompute()
         self.finish()
+
+    def finish(self, cont=False):
+        """Terminate the operation, also when the task panel is closed."""
+        if self.call is not None:
+            self.end_callbacks(self.call)
+            self.call = None
+        super().finish(cont)
 
 
 Draft_Facebinder = Facebinder
