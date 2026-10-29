@@ -1724,6 +1724,36 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.getForeground("B1"), (1.0, 0.0, 0.0, 1.0))
         self.assertEqual(sheet.getBackground("B1"), (0.0, 0.0, 1.0, 1.0))
 
+    def testSetBlackForegroundAndWhiteBackground(self):
+        """Issue #24481: black text and white background must be settable
+        (the default colors depend on the theme), also on a range and after
+        a color was cleared"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "1")
+        sheet.setForeground("A1", (0.0, 0.0, 0.0))
+        sheet.setBackground("A1", (1.0, 1.0, 1.0))
+        self.assertEqual(sheet.getForeground("A1"), (0.0, 0.0, 0.0, 1.0))
+        self.assertEqual(sheet.getBackground("A1"), (1.0, 1.0, 1.0, 1.0))
+        sheet.setForeground("B1:C2", (0.0, 0.0, 0.0, 1.0))
+        self.assertEqual(sheet.getForeground("C2"), (0.0, 0.0, 0.0, 1.0))
+        sheet.setForeground("D1", (1.0, 0.0, 0.0))
+        sheet.clearForeground("D1")
+        self.assertIsNone(sheet.getForeground("D1"))
+        sheet.setForeground("D1", (1.0, 0.0, 0.0))
+        self.assertEqual(sheet.getForeground("D1"), (1.0, 0.0, 0.0, 1.0))
+        sheet.setBackground("D1", (0.0, 1.0, 0.0))
+        sheet.clearBackground("D1")
+        sheet.setBackground("D1", (0.0, 1.0, 0.0))
+        self.assertEqual(sheet.getBackground("D1"), (0.0, 1.0, 0.0, 1.0))
+        # The explicit colors survive save and restore
+        filename = os.path.join(self.TempPath, "SpreadsheetBlackForeground.FCStd")
+        self.doc.saveAs(filename)
+        FreeCAD.closeDocument(self.doc.Name)
+        self.doc = FreeCAD.openDocument(filename)
+        sheet = self.doc.getObject("Spreadsheet")
+        self.assertEqual(sheet.getForeground("A1"), (0.0, 0.0, 0.0, 1.0))
+        self.assertEqual(sheet.getBackground("A1"), (1.0, 1.0, 1.0, 1.0))
+
     def testRemoveRowsAliasReuseName(self):
         """Regression test for issue 4492; deleted aliases remains in database"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")

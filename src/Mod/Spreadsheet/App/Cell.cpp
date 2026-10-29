@@ -513,9 +513,12 @@ void Cell::setForeground(const Base::Color& color)
 
 void Cell::_setForeground(const Base::Color& color)
 {
-    if (color != foregroundColor) {
+    // An explicitly set color is always kept, even if it equals the stored
+    // value: the stored value may be stale (cleared color) and the default
+    // color depends on the theme, so black is a real choice.
+    if (!isUsed(FOREGROUND_COLOR_SET) || color != foregroundColor) {
         foregroundColor = color;
-        setUsed(FOREGROUND_COLOR_SET, foregroundColor != Base::Color(0, 0, 0, 1));
+        setUsed(FOREGROUND_COLOR_SET);
         setDirty();
     }
 }
@@ -563,9 +566,10 @@ void Cell::setBackground(const Base::Color& color)
 
 void Cell::_setBackground(const Base::Color& color)
 {
-    if (color != backgroundColor) {
+    // See _setForeground(): white is a real choice too.
+    if (!isUsed(BACKGROUND_COLOR_SET) || color != backgroundColor) {
         backgroundColor = color;
-        setUsed(BACKGROUND_COLOR_SET, backgroundColor != Base::Color(1, 1, 1, 0));
+        setUsed(BACKGROUND_COLOR_SET);
         setDirty();
     }
 }
