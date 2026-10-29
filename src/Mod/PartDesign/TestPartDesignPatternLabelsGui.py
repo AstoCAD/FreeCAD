@@ -297,6 +297,49 @@ class TestPartDesignPatternLabelsGui(unittest.TestCase):
     def testPolarPatternPlacedMultiTransformControl(self):
         self.checkPolarFrame(body_placed=True, feature_placed=True, multi=True)
 
+    def symmetricCheckBoxes(self):
+        return [box for box in Gui.getMainWindow().findChildren(QtGui.QCheckBox, "checkSymmetric")
+                if box.isVisibleTo(box.window())]
+
+    # https://github.com/FreeCAD/FreeCAD/issues/10442
+    def testSymmetricCheckBoxSetsTheLinearPattern(self):
+        body = self.doc.addObject("PartDesign::Body", "Body")
+        box = self.makeBox(body)
+        pattern = self.makeLinearPattern(body, box)
+        Gui.activeDocument().activeView().setActiveObject("pdbody", body)
+        self.assertTrue(Gui.getDocument(self.doc.Name).setEdit(pattern.Name))
+        Gui.updateGui()
+        checks = self.symmetricCheckBoxes()
+        self.assertGreaterEqual(len(checks), 1)
+        self.assertFalse(checks[0].isChecked())
+        checks[0].setChecked(True)
+        Gui.updateGui()
+        self.assertTrue(pattern.Symmetric)
+        self.assertFalse(pattern.Symmetric2)
+        self.doc.recompute()
+        self.assertAlmostEqual(pattern.Shape.Volume, 300)
+        self.assertAlmostEqual(pattern.Shape.BoundBox.XMin, -4)
+
+    def testSymmetricCheckBoxSetsThePolarPattern(self):
+        body = self.doc.addObject("PartDesign::Body", "Body")
+        box = self.makeBox(body)
+        pattern = body.newObject("PartDesign::PolarPattern", "PolarPattern")
+        pattern.Originals = [box]
+        pattern.Axis = (self.doc.Z_Axis, [""])
+        pattern.Angle = 90
+        pattern.Occurrences = 2
+        pattern.Symmetric = True
+        self.doc.recompute()
+        Gui.activeDocument().activeView().setActiveObject("pdbody", body)
+        self.assertTrue(Gui.getDocument(self.doc.Name).setEdit(pattern.Name))
+        Gui.updateGui()
+        checks = self.symmetricCheckBoxes()
+        self.assertEqual(len(checks), 1)
+        self.assertTrue(checks[0].isChecked())
+        checks[0].setChecked(False)
+        Gui.updateGui()
+        self.assertFalse(pattern.Symmetric)
+
     def testLinearPatternInsideMultiTransformControl(self):
         body = self.doc.addObject("PartDesign::Body", "Body")
         box = self.makeBox(body)

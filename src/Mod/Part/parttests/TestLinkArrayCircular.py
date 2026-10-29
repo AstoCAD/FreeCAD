@@ -21,6 +21,7 @@
 #   Suite 330, Boston, MA 02111-1307, USA
 # ***************************************************************************
 
+import math
 import os
 import tempfile
 import unittest
@@ -169,3 +170,34 @@ class TestLinkArrayCircular(unittest.TestCase):
                     for prop, reference in properties.items():
                         self.assertEqual(getattr(array, prop), reference)
                     self.assertEqual(list(array.PlacementList), placements[name])
+
+    def testSymmetricPolarKeepsOneInstancePerPosition(self):
+        # From half a turn on, the two sides of a symmetric polar pattern put instances on top
+        # of each other.
+        polar = self.doc.addObject("Part::LinkArrayPolar", "SymmetricPolar")
+        polar.LinkedObject = self.doc.getObject("Source")
+        polar.ShowElement = False
+        polar.Axis = (None, ["Z_Axis"])
+        polar.Symmetric = True
+
+        def angles():
+            return [
+                round(math.degrees(placement.Rotation.Angle) * placement.Rotation.Axis.z) % 360
+                for placement in polar.PlacementList
+            ]
+
+        for mode, value, occurrences, expected in (
+            ("Extent", 90, 3, [0, 45, 90, 315, 270]),
+            ("Extent", 180, 3, [0, 90, 180, 270]),
+            ("Extent", 360, 4, [0, 120, 240]),
+            ("Extent", 360, 5, [0, 90, 180, 270]),
+            ("Spacing", 120, 3, [0, 120, 240]),
+            ("Spacing", 100, 3, [0, 100, 200, 260, 160]),
+        ):
+            with self.subTest(mode=mode, value=value, occurrences=occurrences):
+                polar.Mode = mode
+                setattr(polar, "Angle" if mode == "Extent" else "Offset", value)
+                polar.Occurrences = occurrences
+                self.doc.recompute()
+                self.assertEqual(polar.getStatusString(), "Valid")
+                self.assertEqual(angles(), expected)

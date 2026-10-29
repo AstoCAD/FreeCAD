@@ -370,6 +370,7 @@ void TaskPatternParameters::bindPatternProperties()
             &linear->Occurrences,
             pattern
         );
+        parametersWidget->bindSymmetricProperty(&linear->Symmetric);
         parametersWidget2->bindProperties(
             &linear->Direction2,
             &linear->Reversed2,
@@ -381,6 +382,7 @@ void TaskPatternParameters::bindPatternProperties()
             &linear->Occurrences2,
             pattern
         );
+        parametersWidget2->bindSymmetricProperty(&linear->Symmetric2);
         return;
     }
 
@@ -396,6 +398,7 @@ void TaskPatternParameters::bindPatternProperties()
             &polar->Occurrences,
             pattern
         );
+        parametersWidget->bindSymmetricProperty(&polar->Symmetric);
         return;
     }
 
