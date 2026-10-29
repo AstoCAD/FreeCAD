@@ -362,6 +362,92 @@ bool CmdAssemblySelectJointsOfComponent::isActive()
     return getActiveAssembly() != nullptr && !Gui::Selection().getSelection().empty();
 }
 
+// ================================================================================
+// Isolate Selection
+// ================================================================================
+
+namespace
+{
+ViewProviderAssembly* getAssemblyViewProvider(AssemblyObject* assembly)
+{
+    return dynamic_cast<ViewProviderAssembly*>(
+        Gui::Application::Instance->getViewProvider(assembly)
+    );
+}
+}  // namespace
+
+DEF_STD_CMD_A(CmdAssemblyIsolateSelection)
+
+CmdAssemblyIsolateSelection::CmdAssemblyIsolateSelection()
+    : Command("Assembly_IsolateSelection")
+{
+    sGroup = QT_TR_NOOP("Assembly");
+    sMenuText = QT_TR_NOOP("Isolate Selection");
+    sToolTipText = QT_TR_NOOP(
+        "Makes the components that are not selected transparent and unselectable.\n"
+        "Run it again to end the isolation."
+    );
+    sWhatsThis = "Assembly_IsolateSelection";
+    sStatusTip = sToolTipText;
+    eType = ForEdit;
+}
+
+void CmdAssemblyIsolateSelection::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    AssemblyObject* assembly = getActiveAssembly();
+    ViewProviderAssembly* viewProvider = assembly ? getAssemblyViewProvider(assembly) : nullptr;
+    if (!viewProvider) {
+        return;
+    }
+
+    if (viewProvider->hasPersistentIsolation()) {
+        viewProvider->clearIsolate();
+        return;
+    }
+
+    auto selection = Gui::Selection().getSelectionEx(
+        "",
+        App::DocumentObject::getClassTypeId(),
+        Gui::ResolveMode::NoResolve
+    );
+
+    std::set<App::DocumentObject*> components;
+    for (auto& sel : selection) {
+        std::vector<std::string> subs = sel.getSubNames();
+        if (subs.empty()) {
+            subs.emplace_back();
+        }
+        for (const auto& sub : subs) {
+            if (App::DocumentObject* comp = getMovingPartFromSel(assembly, sel.getObject(), sub)) {
+                components.insert(comp);
+            }
+        }
+    }
+
+    if (components.empty()) {
+        return;
+    }
+
+    viewProvider->isolateComponents(
+        components,
+        ViewProviderAssembly::IsolateMode::Transparent,
+        /*persistent=*/true
+    );
+    Gui::Selection().clearSelection();
+}
+
+bool CmdAssemblyIsolateSelection::isActive()
+{
+    AssemblyObject* assembly = getActiveAssembly();
+    if (!assembly) {
+        return false;
+    }
+    ViewProviderAssembly* viewProvider = getAssemblyViewProvider(assembly);
+    return viewProvider
+        && (viewProvider->hasPersistentIsolation() || !Gui::Selection().getSelection().empty());
+}
+
 
 // ================================================================================
 // Command Creation
@@ -377,4 +463,5 @@ void AssemblyGui::CreateAssemblyCommands()
     rcCmdMgr.addCommand(new CmdAssemblySelectMalformedConstraints());
     rcCmdMgr.addCommand(new CmdAssemblySelectComponentsWithDoFs());
     rcCmdMgr.addCommand(new CmdAssemblySelectJointsOfComponent());
+    rcCmdMgr.addCommand(new CmdAssemblyIsolateSelection());
 }

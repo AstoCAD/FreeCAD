@@ -136,7 +136,8 @@ PyObject* ViewProviderAssemblyPy::isolateComponents(PyObject* args)
 {
     PyObject* pyList = nullptr;
     int modeInt = 0;
-    if (!PyArg_ParseTuple(args, "Oi", &pyList, &modeInt)) {
+    PyObject* persistent = Py_False;
+    if (!PyArg_ParseTuple(args, "Oi|O!", &pyList, &modeInt, &PyBool_Type, &persistent)) {
         return nullptr;
     }
 
@@ -171,7 +172,7 @@ PyObject* ViewProviderAssemblyPy::isolateComponents(PyObject* args)
     }
 
     auto mode = static_cast<ViewProviderAssembly::IsolateMode>(modeInt);
-    getViewProviderAssemblyPtr()->isolateComponents(partsSet, mode);
+    getViewProviderAssemblyPtr()->isolateComponents(partsSet, mode, Base::asBoolean(persistent));
 
     Py_DECREF(Py_None);
     return Py_None;
@@ -185,4 +186,13 @@ PyObject* ViewProviderAssemblyPy::clearIsolate(PyObject* args)
 
     getViewProviderAssemblyPtr()->clearIsolate();
     return Py::new_reference_to(Py::None());
+}
+
+PyObject* ViewProviderAssemblyPy::hasPersistentIsolation(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+
+    return Py::new_reference_to(Py::Boolean(getViewProviderAssemblyPtr()->hasPersistentIsolation()));
 }
