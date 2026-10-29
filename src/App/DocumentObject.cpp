@@ -1455,13 +1455,27 @@ DocumentObject::getParents(int depth) const
 
 App::DocumentObject* DocumentObject::getFirstParent() const
 {
+    // An object inside a plain group that is nested in a GeoFeatureGroup (e.g. App::Part) is
+    // also listed in the Group property of the GeoFeatureGroup, so both are in the InList and
+    // their order depends on the editing history. Prefer the plain group that directly holds the
+    // object, which is the innermost parent.
+    App::DocumentObject* firstParent = nullptr;
     for (auto obj : getInList()) {
-        if (obj->hasExtension(App::GroupExtension::getExtensionClassTypeId(), true)) {
-            return obj;
+        if (!obj->hasExtension(App::GroupExtension::getExtensionClassTypeId(), true)) {
+            continue;
+        }
+        if (!obj->hasExtension(App::GeoFeatureGroupExtension::getExtensionClassTypeId())) {
+            auto group = obj->getExtensionByType<App::GroupExtension>(true);
+            if (group && group->hasObject(this, false)) {
+                return obj;
+            }
+        }
+        if (!firstParent) {
+            firstParent = obj;
         }
     }
 
-    return nullptr;
+    return firstParent;
 }
 
 DocumentObject* DocumentObject::getLinkedObject(bool recursive,
