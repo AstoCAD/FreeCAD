@@ -1214,7 +1214,13 @@ std::vector<int> closedLoop(const ViewProviderSketch& view, int geoId)
         std::vector<Base::Vector3d> points;  // Samples from start to end.
     };
     std::vector<Edge> edges;
+    // Construction edges (a diagonal through the corners) bound no hatch, unless the
+    // picked edge is construction itself.
+    const bool construction = Sketcher::GeometryFacade::getConstruction(geo);
     for (int id : view.getConnectedEdges(geoId, false)) {
+        if (!construction && Sketcher::GeometryFacade::getConstruction(sketch->getGeometry(id))) {
+            continue;
+        }
         const auto startPoint = sketch->getPoint(id, Sketcher::PointPos::start);
         const auto endPoint = sketch->getPoint(id, Sketcher::PointPos::end);
         const auto start = node(startPoint);
