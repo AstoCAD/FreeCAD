@@ -261,9 +261,9 @@ void CosmeticExtension::removeCosmeticVertex(const std::string& delTag)
     for (auto& cv: cVerts) {
         if (cv->getTagAsString() != delTag)  {
             newVerts.push_back(cv);
-            continue;
         }
-        delete cv;
+        // Do not delete the removed vertex: the list does not own its entries and the
+        // undo copy of the property still points to it.
     }
     CosmeticVertexes.setValues(newVerts);
 }
@@ -407,9 +407,9 @@ void CosmeticExtension::removeCosmeticEdge(const std::string& delTag)
     for (auto& ce: cEdges) {
         if (ce->getTagAsString() != delTag)  {
             newEdges.push_back(ce);
-            continue;
         }
-        delete ce;
+        // Do not delete the removed edge: the list does not own its entries and the
+        // undo copy of the property still points to it.
     }
     CosmeticEdges.setValues(newEdges);
 }
@@ -553,9 +553,9 @@ void CosmeticExtension::removeCenterLine(const std::string& delTag)
     for (auto& cl: cLines) {
         if (cl->getTagAsString() != delTag)  {
             newLines.push_back(cl);
-            continue;
         }
-        delete cl;
+        // Do not delete the removed center line: the list does not own its entries and
+        // the undo copy of the property still points to it.
     }
     CenterLines.setValues(newLines);
 }
@@ -639,10 +639,10 @@ void CosmeticExtension::removeGeomFormat(const std::string& delTag)
     for (auto& gf: cFormats) {
         if (gf->getTagAsString() != delTag)  {
             newFormats.push_back(gf);
-            continue;
         }
-        delete gf;
     }
+    // GeomFormats owns its entries: setValues stores clones and deletes all the old
+    // entries, including the removed one, so deleting it here would delete it twice.
     GeomFormats.setValues(newFormats);
 }
 
