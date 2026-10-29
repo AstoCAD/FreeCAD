@@ -617,7 +617,6 @@ void execPosHorizChainDimension(Gui::Command* cmd) {
         return;
     }
 
-    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Position Horizontal Chain Dimension"));
     std::vector<TechDraw::DrawViewDimension*> validDimension;
     validDimension = _getDimensions(selection, "DistanceX");
     if (validDimension.empty()) {
@@ -626,6 +625,7 @@ void execPosHorizChainDimension(Gui::Command* cmd) {
             QObject::tr("No horizontal dimensions selected"));
         return;
     }
+    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Position Horizontal Chain Dimension"));
     float yMaster = validDimension[0]->Y.getValue();
     for (auto dim : validDimension) {
         dim->Y.setValue(yMaster);
