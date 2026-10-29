@@ -319,6 +319,10 @@ Restart:
                                 angleplus = (startangle + endangle) / 2;
                                 midpos = aop->getFocus();
                             }
+                            else if (geo->is<Part::GeomPoint>()) {
+                                angle = pi / 4;
+                                midpos = static_cast<const Part::GeomPoint*>(geo)->getPoint();
+                            }
                             else {
                                 break;
                             }

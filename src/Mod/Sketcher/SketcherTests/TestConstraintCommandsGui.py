@@ -105,6 +105,39 @@ class TestConstraintCommandsGui(SketcherGuiTestCase):
         self.assertFalse(self.sketch.getDriving(1))
         self.assertEqual(self.sketch.solve(), 0)
 
+    def add_block_point(self):
+        # Vertex1 and Vertex2 belong to the line, the point geometry is Vertex3
+        point = App.Vector(45, 20, 0)
+        self.sketch.addGeometry(Part.Point(point), False)
+        self.doc.recompute()
+        self.flush_gui(50)
+        return point
+
+    def assert_point_blocked(self):
+        self.assertEqual(self.sketch.ConstraintCount, 1)
+        self.assertEqual(self.sketch.Constraints[0].Type, "Block")
+        self.assertEqual(self.sketch.Constraints[0].First, 1)
+        self.assertEqual(self.sketch.solve(), 0)
+
+    def test_block_point_from_selection(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/11434
+        self.add_block_point()
+        self.select("Vertex3")
+        Gui.runCommand("Sketcher_ConstrainBlock")
+        self.assert_point_blocked()
+
+    def test_block_rejects_edge_vertex(self):
+        self.select("Vertex1")
+        Gui.runCommand("Sketcher_ConstrainBlock")
+        self.assertEqual(self.sketch.ConstraintCount, 0)
+
+    def test_block_point_from_continuous_picking(self):
+        point = self.add_block_point()
+        Gui.Selection.clearSelection()
+        Gui.runCommand("Sketcher_ConstrainBlock")
+        self.click_world(point)
+        self.assert_point_blocked()
+
     def test_single_vertex_coordinates(self):
         for axis, value in (("X", 50), ("Y", 45)):
             with self.subTest(axis=axis):
