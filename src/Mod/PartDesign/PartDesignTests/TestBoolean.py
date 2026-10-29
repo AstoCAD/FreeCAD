@@ -146,6 +146,68 @@ class TestBoolean(unittest.TestCase):
         self.assertAlmostEqual(self.BooleanCut.Shape.BoundBox.XMin, 0)
         self.assertAlmostEqual(self.BooleanCut.Shape.BoundBox.XMax, 5)
 
+    def _makeCutOfMovableBody(self, container=None):
+        self.Body = self.Doc.addObject("PartDesign::Body", "ToolBody")
+        self.Body.Placement.Base = App.Vector(25, 0, 0)
+        self.Box = self.Doc.addObject("PartDesign::AdditiveBox", "ToolBox")
+        self.Box.Length = 10
+        self.Box.Width = 10
+        self.Box.Height = 10
+        self.Body.addObject(self.Box)
+
+        self.Body001 = self.Doc.addObject("PartDesign::Body", "ActiveBody")
+        if container:
+            container.addObject(self.Body001)
+        self.Body001.Placement.Base = App.Vector(20, 0, 0)
+        self.Box001 = self.Doc.addObject("PartDesign::AdditiveBox", "BaseBox")
+        self.Box001.Length = 10
+        self.Box001.Width = 10
+        self.Box001.Height = 10
+        self.Body001.addObject(self.Box001)
+        self.Doc.recompute()
+
+        self.BooleanCut = self.Doc.addObject("PartDesign::Boolean", "BooleanCut")
+        self.Body001.addObject(self.BooleanCut)
+        self.BooleanCut.setObjects([self.Body])
+        self.BooleanCut.Type = 1
+        self.Doc.recompute()
+        self.assertAlmostEqual(self.BooleanCut.Shape.Volume, 500)
+
+    def testBooleanRecomputesWhenBodyMoves(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33343
+        self._makeCutOfMovableBody()
+
+        # Move the Body away from the tool: nothing is cut any more.
+        self.Body001.Placement.Base = App.Vector(-20, 0, 0)
+        self.Doc.recompute()
+        self.assertAlmostEqual(self.BooleanCut.Shape.Volume, 1000)
+
+        # Move it back so that the tool cuts the other half.
+        self.Body001.Placement.Base = App.Vector(30, 0, 0)
+        self.Doc.recompute()
+        self.assertAlmostEqual(self.BooleanCut.Shape.Volume, 500)
+        self.assertAlmostEqual(self.BooleanCut.Shape.BoundBox.XMin, 5)
+        self.assertAlmostEqual(self.BooleanCut.Shape.BoundBox.XMax, 10)
+
+    def testBooleanRecomputesWhenBodyContainerMoves(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33343
+        container = self.Doc.addObject("App::Part", "Part")
+        self._makeCutOfMovableBody(container)
+
+        container.Placement.Base = App.Vector(-40, 0, 0)
+        self.Doc.recompute()
+        self.assertAlmostEqual(self.BooleanCut.Shape.Volume, 1000)
+
+    def testBooleanSettlesWithBodyPlacementExpression(self):
+        # The expression rewrites the Body placement on each recompute.
+        self._makeCutOfMovableBody()
+        self.Body001.setExpression(".Placement.Base.x", "10 mm + 10 mm")
+        self.Doc.recompute()
+        self.assertAlmostEqual(self.BooleanCut.Shape.Volume, 500)
+        self.assertNotIn("Touched", self.BooleanCut.State)
+        self.Doc.recompute()
+        self.assertNotIn("Touched", self.BooleanCut.State)
+
     def testBooleanCutUsesActiveBodyGlobalPlacement(self):
         container = self.Doc.addObject("App::Part", "Part")
         container.Placement.Base = App.Vector(100, 0, 0)
