@@ -1768,6 +1768,33 @@ void PropertySheet::recomputeDependencies(CellAddress key)
     signaller.tryInvoke();
 }
 
+/**
+ * Rebuild the dependencies of the cells that refer to \a alias, and mark them
+ * dirty. Needed when the alias is moved to another cell, because the
+ * dependencies hold the address of the cell that had the alias before.
+ */
+
+void PropertySheet::recomputeAliasDependants(const std::string& alias)
+{
+    if (alias.empty() || !owner) {
+        return;
+    }
+
+    auto it = propertyNameToCellMap.find(owner->getFullName() + "." + alias);
+    if (it == propertyNameToCellMap.end()) {
+        return;
+    }
+
+    // Copy, as recomputeDependencies() modifies propertyNameToCellMap
+    const std::set<CellAddress> dependants = it->second;
+    for (const auto& address : dependants) {
+        if (data.count(address)) {
+            recomputeDependencies(address);
+            setDirty(address);
+        }
+    }
+}
+
 void PropertySheet::hasSetValue()
 {
     if (updateCount == 0 || !owner || !owner->isAttachedToDocument() || owner->isRestoring()

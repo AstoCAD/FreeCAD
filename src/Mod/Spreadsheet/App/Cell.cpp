@@ -669,10 +669,21 @@ void Cell::setAlias(const std::string& n)
             docObj->removeDynamicProperty(alias.c_str());
         }
 
+        std::string oldAlias = std::move(alias);
         alias = n;
 
         setUsed(ALIAS_SET, !alias.empty());
         setDirty();
+
+        // Cells referring to these aliases recorded the address of the cell
+        // that had the alias when their dependencies were built. Refresh them
+        // so that they follow the alias to this cell. Skipped while the cell
+        // is being copied into a sheet (e.g. PropertySheet::Copy()).
+        auto it = owner->data.find(address);
+        if (it != owner->data.end() && it->second == this) {
+            owner->recomputeAliasDependants(oldAlias);
+            owner->recomputeAliasDependants(alias);
+        }
 
         signaller.tryInvoke();
     }

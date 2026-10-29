@@ -335,6 +335,8 @@ private:
 
     void removeDependencies(App::CellAddress key);
 
+    void recomputeAliasDependants(const std::string& alias);
+
     void slotChangedObject(const App::DocumentObject& obj, const App::Property& prop);
     void recomputeDependants(const App::DocumentObject* obj, const char* propName);
 

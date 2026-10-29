@@ -1187,6 +1187,38 @@ class SpreadsheetCases(unittest.TestCase):
         sheet.setAlias("A1", "")
         self.assertEqual(sheet.getAlias("A1"), None)
 
+    def testMovedAliasUpdatesDependants(self):
+        """Issue #18207: a cell referring to an alias must follow the alias
+        when it is moved to another cell (cut and paste)"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Calc")
+        sheet.set("A1", "5")
+        sheet.setAlias("A1", "Var1")
+        sheet.set("B4", "=Var1 + 1")
+        self.doc.recompute()
+        self.assertEqual(sheet.B4, 6)
+        # What cut A1 and paste into C10 does
+        sheet.clear("A1")
+        sheet.set("C10", "7")
+        sheet.setAlias("C10", "Var1")
+        self.doc.recompute()
+        self.assertEqual(sheet.B4, 8)
+        sheet.set("C10", "9")
+        self.doc.recompute()
+        self.assertEqual(sheet.B4, 10)
+
+    def testAliasDefinedAfterReferenceUpdatesDependants(self):
+        """Issue #18207: a cell referring to an alias that is defined later
+        must be updated when the aliased cell changes"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Calc")
+        sheet.set("A1", "=Var1 + 1")
+        sheet.set("A5", "5")
+        sheet.setAlias("A5", "Var1")
+        self.doc.recompute()
+        self.assertEqual(sheet.A1, 6)
+        sheet.set("A5", "6")
+        self.doc.recompute()
+        self.assertEqual(sheet.A1, 7)
+
     def testSetInvalidAlias(self):
         """Try to use a cell address as alias name"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Calc")
