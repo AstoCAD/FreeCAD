@@ -460,7 +460,7 @@ std::tuple<fs::path, fs::path, fs::path> ApplicationDirectories::getCustomPaths(
         const QDir dir(userHome);
         dir.mkdir(QStringLiteral("temp"));
         const QFileInfo fi(dir, QStringLiteral("temp"));
-        userTemp = fi.absoluteFilePath();
+        userTemp = QDir::toNativeSeparators(fi.absoluteFilePath());
     }
 
     return {qstringToPath(userHome),
@@ -490,10 +490,12 @@ std::tuple<fs::path, fs::path, fs::path, fs::path> ApplicationDirectories::getSt
 #endif
 #endif
 
-    return {qstringToPath(configHome),
-            qstringToPath(dataHome),
-            qstringToPath(cacheHome),
-            qstringToPath(tempPath)};
+    // QStandardPaths always uses '/' while the rest of the path is built with the
+    // native separator, which mixes both on Windows
+    return {qstringToPath(QDir::toNativeSeparators(configHome)),
+            qstringToPath(QDir::toNativeSeparators(dataHome)),
+            qstringToPath(QDir::toNativeSeparators(cacheHome)),
+            qstringToPath(QDir::toNativeSeparators(tempPath))};
 }
 
 
