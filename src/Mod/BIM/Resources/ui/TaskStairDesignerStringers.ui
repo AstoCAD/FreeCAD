@@ -178,6 +178,13 @@
        </layout>
       </widget>
      </item>
+     <item row="6" column="0" colspan="2">
+      <widget class="QCheckBox" name="stringer_joinery">
+       <property name="text">
+        <string>Cut housings and joints</string>
+       </property>
+      </widget>
+     </item>
     </layout>
    </item>
    <item>

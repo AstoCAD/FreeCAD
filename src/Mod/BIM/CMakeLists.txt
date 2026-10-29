@@ -209,6 +209,7 @@ SET(stairdesigner_SRCS
     stairdesigner/geometry_core.py
     stairdesigner/geometry_handrails.py
     stairdesigner/geometry_helical.py
+    stairdesigner/geometry_joinery.py
     stairdesigner/geometry_plan.py
     stairdesigner/geometry_steps.py
     stairdesigner/geometry_straight.py
