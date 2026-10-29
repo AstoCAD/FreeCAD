@@ -568,8 +568,14 @@ std::vector<Object*> massChildren(Object* container)
     for (auto* child : result) {
         // Expression references do not make one solid a modeling operand of
         // another and must not remove otherwise independent components.
-        for (auto* dependency : child->getOutList(Object::OutListNoExpression)) {
-            consumed.insert(dependency);
+        // Attachment supports and link sources are not operands either: an
+        // attached solid or an App::Link leaves its referenced solid intact.
+        for (const auto& edge : child->getOutListProp(Object::OutListNoExpression)) {
+            if (edge.fromProp == "AttachmentSupport" || edge.fromProp == "Support"
+                || edge.fromProp == "LinkedObject") {
+                continue;
+            }
+            consumed.insert(edge.toObj);
         }
     }
     result.erase(
