@@ -365,7 +365,7 @@ bool LocalCoordinateSystem::extensionGetSubObject(DocumentObject*& ret,
                                                                 const char* subname,
                                                                 PyObject** pyobj,
                                                                 Base::Matrix4D* mat,
-                                                                bool,
+                                                                bool transform,
                                                                 int depth) const
 {
     if (Base::Tools::isNullOrEmpty(subname)) {
@@ -400,6 +400,11 @@ bool LocalCoordinateSystem::extensionGetSubObject(DocumentObject*& ret,
         }
         else {
             subname = "";
+        }
+        // Like GeoFeatureGroupExtension, apply our own placement, otherwise an
+        // axis or plane of a nested LCS (e.g. "Part.LCS.Y_Axis.") ignores it.
+        if (mat && transform) {
+            *mat *= Placement.getValue().toMatrix();
         }
         ret = ret->getSubObject(subname, pyobj, mat, true, depth + 1);
         return true;
