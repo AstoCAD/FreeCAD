@@ -1521,6 +1521,18 @@ void OperatorExpression::_toString(std::ostream &s, bool persistent,int) const
     if (op == UNIT && !freecad_cast<NumberExpression*>(left)) {
         needsParens = true;
     }
+    // The parser binds '^' to a preceding unit, so "5 mm ^ 2" reads back as
+    // "5 (mm ^ 2)". Keep the parentheses of "(5 mm) ^ 2" and "(-5 mm) ^ 2", also with
+    // several signs ("(--5 mm) ^ 2"): a sign is written without parentheses.
+    if (op == POW) {
+        auto leftOp = freecad_cast<OperatorExpression*>(left);
+        while (leftOp && (leftOp->op == NEG || leftOp->op == POS)) {
+            leftOp = freecad_cast<OperatorExpression*>(leftOp->left);
+        }
+        if (leftOp && leftOp->op == UNIT) {
+            needsParens = true;
+        }
+    }
 
     switch (op) {
     case NEG:
