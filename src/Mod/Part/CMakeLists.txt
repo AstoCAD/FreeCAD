@@ -79,6 +79,7 @@ set(Part_tests
     parttests/regression_tests.py
     parttests/TopoShapeListTest.py
     parttests/ColorPerFaceTest.py
+    parttests/TestBrepFaceOverlayHistory.py
     parttests/ColorTransparencyTest.py
     parttests/TaskFaceAppearancesTest.py
     parttests/TopoShapeTest.py
