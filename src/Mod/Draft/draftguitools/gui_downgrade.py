@@ -80,6 +80,9 @@ class Downgrade(gui_base_original.Modifier):
 
     def proceed(self):
         """Proceed with execution of the command after selection."""
+        if self.call is not None:
+            self.end_callbacks(self.call)
+            self.call = None
         if Gui.Selection.getSelection():
             Gui.addModule("Draft")
             _cmd = "Draft.downgrade"
@@ -91,10 +94,12 @@ class Downgrade(gui_base_original.Modifier):
             self.commit(translate("draft", "Downgrade"), _cmd_list)
         self.finish()
 
-    def finish(self):
-        """Terminate the operation."""
-        self.end_callbacks(self.call)
-        super().finish()
+    def finish(self, cont=False):
+        """Terminate the operation, also when the task panel is closed."""
+        if self.call is not None:
+            self.end_callbacks(self.call)
+            self.call = None
+        super().finish(cont)
 
 
 Gui.addCommand("Draft_Downgrade", Downgrade())
