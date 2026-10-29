@@ -61,6 +61,7 @@ from TDTest.DrawArchViewDocumentTest import DrawArchViewDocumentTest  # noqa: F4
 from TDTest.DrawImportFilenameTest import DrawImportFilenameTest  # noqa: F401
 from TDTest.DrawPagePdfFilenameTest import DrawPagePdfFilenameTest  # noqa: F401
 from TDTest.DrawPageUnshownExportTest import DrawPageUnshownExportTest  # noqa: F401
+from TDTest.HatchFaceLastUsedGuiTest import HatchFaceLastUsedGuiTest  # noqa: F401
 from TDTest.DrawSvgzSymbolTest import DrawSvgzSymbolTest  # noqa: F401
 from TDTest.DrawViewDimensionTreeTest import DrawViewDimensionTreeTest  # noqa: F401
 from TDTest.DrawViewCaptionGuiTest import DrawViewCaptionGuiTest  # noqa: F401
