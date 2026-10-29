@@ -350,9 +350,8 @@ class FormSurfaceProxy(FormFeatureProxy):
         except (Part.OCCError, ValueError, RuntimeError, IndexError) as error:
             # Never make the preceding Part Design result disappear when an
             # intermediate deformation cannot be sewn into a valid solid.
-            # Without a source solid, keep the last published shape.
-            if source_shape is not None:
-                obj.Shape = source_shape
+            # Without any source solid (link removed) there is nothing valid to show.
+            obj.Shape = source_shape if source_shape is not None else Part.Shape()
             obj.FormSurfaceFaces = []
             obj.FormSurfaceFaceMap = []
             obj.MaximumDeviation = 0.0
