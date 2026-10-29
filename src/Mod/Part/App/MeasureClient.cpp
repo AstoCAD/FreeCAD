@@ -38,6 +38,8 @@
 #include <BRepAdaptor_Surface.hxx>
 #include <Geom_BezierCurve.hxx>
 #include <Geom_BSplineCurve.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
+#include <Standard_Failure.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <GProp_GProps.hxx>
@@ -292,10 +294,21 @@ MeasureLengthInfoPtr MeasureLengthHandler(const App::SubObjectT& subject)
         return std::make_shared<MeasureLengthInfo>(false, 0.0, Base::Matrix4D());
     }
 
-    // Get Center of mass as the attachment point of the label
+    // Attach the label to the midpoint of the edge, which unlike its center of mass lies on
+    // curved edges too, see https://github.com/FreeCAD/FreeCAD/issues/28930
     GProp_GProps gprops;
     BRepGProp::LinearProperties(shape, gprops);
     auto origin = gprops.CentreOfMass();
+    try {
+        BRepAdaptor_Curve curve(TopoDS::Edge(shape));
+        GCPnts_AbscissaPoint midpoint(curve, gprops.Mass() / 2.0, curve.FirstParameter());
+        if (midpoint.IsDone()) {
+            origin = curve.Value(midpoint.Parameter());
+        }
+    }
+    catch (const Standard_Failure&) {
+        // keep the center of mass
+    }
 
     Base::Placement placement(Base::Vector3d(origin.X(), origin.Y(), origin.Z()), Base::Rotation());
     return std::make_shared<MeasureLengthInfo>(true, getLength(shape), placement);

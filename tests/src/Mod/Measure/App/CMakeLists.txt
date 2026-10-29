@@ -3,6 +3,7 @@
 add_executable(Measure_tests_run
         MeasureAngle.cpp
         MeasureDistance.cpp
+        MeasureLength.cpp
         Measurement.cpp
         MeasurePosition.cpp
         QuickMeasure.cpp
