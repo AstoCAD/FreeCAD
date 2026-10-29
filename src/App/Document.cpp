@@ -1904,13 +1904,35 @@ bool Document::saveAs(const char* _file)
 {
     const std::string file = checkFileName(_file);
     const Base::FileInfo fi(file.c_str());
-    if (this->FileName.getStrValue() != file) {
-        this->FileName.setValue(file);
-        this->Label.setValue(fi.fileNamePure());
-        this->Uid.touch();  // this forces a rename of the transient directory
+    if (this->FileName.getStrValue() == file) {
+        return save();
     }
 
-    return save();
+    // A failed save must not leave the document renamed to the file it could not write
+    const std::string oldFileName = this->FileName.getStrValue();
+    const std::string oldLabel = this->Label.getStrValue();
+    auto restoreName = [&]() {
+        this->FileName.setValue(oldFileName);
+        this->Label.setValue(oldLabel);
+        this->Uid.touch();  // moves the transient directory back
+    };
+
+    this->FileName.setValue(file);
+    this->Label.setValue(fi.fileNamePure());
+    this->Uid.touch();  // this forces a rename of the transient directory
+
+    bool saved = false;
+    try {
+        saved = save();
+    }
+    catch (...) {
+        restoreName();
+        throw;
+    }
+    if (!saved) {
+        restoreName();
+    }
+    return saved;
 }
 
 bool Document::saveCopy(const char* file) const
