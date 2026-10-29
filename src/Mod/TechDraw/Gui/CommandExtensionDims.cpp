@@ -678,7 +678,6 @@ void execPosVertChainDimension(Gui::Command* cmd) {
         return;
     }
 
-    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Position Vert Chain Dimension"));
     std::vector<TechDraw::DrawViewDimension*> validDimension;
     validDimension = _getDimensions(selection, "DistanceY");
     if (validDimension.empty()) {
@@ -687,6 +686,7 @@ void execPosVertChainDimension(Gui::Command* cmd) {
             QObject::tr("No vertical dimensions selected"));
         return;
     }
+    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Position Vert Chain Dimension"));
     float xMaster = validDimension[0]->X.getValue();
     double fontSize = Preferences::dimFontSizeMM();
     for (auto dim : validDimension) {
@@ -740,7 +740,6 @@ void execPosObliqueChainDimension(Gui::Command* cmd) {
         return;
     }
 
-    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Position Oblique Chain Dimension"));
     std::vector<TechDraw::DrawViewDimension*> validDimension;
     validDimension = _getDimensions(selection, "Distance");
     if (validDimension.empty()) {
@@ -749,6 +748,7 @@ void execPosObliqueChainDimension(Gui::Command* cmd) {
             QObject::tr("No oblique dimensions selected"));
         return;
     }
+    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Position Oblique Chain Dimension"));
     float xMaster = validDimension[0]->X.getValue();
     float yMaster = validDimension[0]->Y.getValue();
     Base::Vector3d pMaster(xMaster, yMaster, 0.0);
@@ -926,7 +926,6 @@ void execCascadeHorizDimension(Gui::Command* cmd) {
         return;
     }
 
-    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cascade Horizontal Dimension"));
     std::vector<TechDraw::DrawViewDimension*> validDimension;
     validDimension = _getDimensions(selection, "DistanceX");
     if (validDimension.empty()) {
@@ -935,6 +934,7 @@ void execCascadeHorizDimension(Gui::Command* cmd) {
             QObject::tr("No horizontal dimensions selected"));
         return;
     }
+    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cascade Horizontal Dimension"));
     float yMaster = validDimension[0]->Y.getValue();
     float dimDistance = activeDimAttributes.getCascadeSpacing();
     if (std::signbit(yMaster))
@@ -992,7 +992,6 @@ void execCascadeVertDimension(Gui::Command* cmd) {
         return;
     }
 
-    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cascade Vertical Dimension"));
     std::vector<TechDraw::DrawViewDimension*> validDimension;
     validDimension = _getDimensions(selection, "DistanceY");
     if (validDimension.empty()) {
@@ -1001,6 +1000,7 @@ void execCascadeVertDimension(Gui::Command* cmd) {
             QObject::tr("No vertical dimensions selected"));
         return;
     }
+    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cascade Vertical Dimension"));
     float xMaster = validDimension[0]->X.getValue();
     float dimDistance = activeDimAttributes.getCascadeSpacing();
     if (std::signbit(xMaster))
@@ -1059,7 +1059,6 @@ void execCascadeObliqueDimension(Gui::Command* cmd) {
         return;
     }
 
-    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cascade Oblique Dimension"));
     std::vector<TechDraw::DrawViewDimension*> validDimension;
     validDimension = _getDimensions(selection, "Distance");
     if (validDimension.empty()) {
@@ -1068,6 +1067,7 @@ void execCascadeObliqueDimension(Gui::Command* cmd) {
             QObject::tr("No oblique dimensions selected"));
         return;
     }
+    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Cascade Oblique Dimension"));
     float xMaster = validDimension[0]->X.getValue();
     float yMaster = validDimension[0]->Y.getValue();
     Base::Vector3d pMaster(xMaster, yMaster, 0.0);

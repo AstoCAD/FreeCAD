@@ -195,6 +195,7 @@ SET(TDTest_SRCS
     TDTest/TestLineParallelEmptySelectionGui.py
     TDTest/TestTwoPointCircleEmptySelectionGui.py
     TDTest/TestHorizontalChainPendingGui.py
+    TDTest/TestChainWarningsPendingGui.py
     TDTest/TestDxfExportPendingTransactionGui.py
     TDTest/DrawMoveViewPageChooserGuiTest.py
     TDTest/DrawTemplateFieldsDismissalGuiTest.py
