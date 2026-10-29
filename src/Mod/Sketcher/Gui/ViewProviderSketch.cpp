@@ -1780,7 +1780,9 @@ void ViewProviderSketch::editDoubleClicked()
     }
 }
 
-std::vector<int> ViewProviderSketch::getConnectedEdges(int clickedGeoId, bool includeExternal) const
+std::vector<int> ViewProviderSketch::getConnectedEdges(int clickedGeoId,
+                                                      bool includeExternal,
+                                                      bool sameKind) const
 {
     const Sketcher::SketchObject* obj = getSketchObject();
 
@@ -1791,6 +1793,15 @@ std::vector<int> ViewProviderSketch::getConnectedEdges(int clickedGeoId, bool in
     if (!isOpenCurve(obj->getGeometry(clickedGeoId))) {
         return {};
     }
+
+    // 0: normal, 1: construction, 2: external
+    auto kindOf = [obj](int geoId) {
+        if (geoId < 0) {
+            return 2;
+        }
+        return Sketcher::GeometryFacade::getConstruction(obj->getGeometry(geoId)) ? 1 : 0;
+    };
+    const int clickedKind = kindOf(clickedGeoId);
 
     struct CandidateEdge {
         int geoId;
@@ -1804,7 +1815,8 @@ std::vector<int> ViewProviderSketch::getConnectedEdges(int clickedGeoId, bool in
     auto addCandidate = [&](int geoId) {
         // Edges on hidden layers are not part of what the user sees as a wire.
         if (!isOpenCurve(obj->getGeometry(geoId))
-            || (geoId != clickedGeoId && !isGeometryVisible(geoId))) {
+            || (geoId != clickedGeoId && !isGeometryVisible(geoId))
+            || (sameKind && kindOf(geoId) != clickedKind)) {
             return;
         }
         Base::Vector3d p1 = obj->getPoint(geoId, PointPos::start);
@@ -1873,7 +1885,9 @@ void ViewProviderSketch::toggleWireSelection(int clickedGeoId)
         return std::format("ExternalEdge{}", Sketcher::GeoEnum::RefExt - id + 1);
     };
 
-    const auto connectedEdges = getConnectedEdges(clickedGeoId);
+    // A wire is made of one kind of geometry: a normal profile does not run on into the
+    // construction or external edges that happen to touch it.
+    const auto connectedEdges = getConnectedEdges(clickedGeoId, true, true);
     if (connectedEdges.empty()) {
         return;
     }
