@@ -53,6 +53,7 @@ known issues:
 """
 
 
+import re
 import zipfile
 import xml.dom.minidom
 import FreeCAD as App
@@ -316,11 +317,58 @@ def getText(nodelist):
 
 def handleWorkSheet(theDom, actSheet, strList):
     rows = theDom.getElementsByTagName("row")
+    sharedFormulas = {}
     for row in rows:
-        handleCells(row.getElementsByTagName("c"), actSheet, strList)
+        handleCells(row.getElementsByTagName("c"), actSheet, strList, sharedFormulas)
 
 
-def handleCells(cellList, actCellSheet, sList):
+# A cell reference like A1, $A1, A$1 or $A$1, not part of a longer name and
+# not a sheet name (followed by "!") or a function name (followed by "(").
+cellRefPattern = re.compile(r"(?<![A-Za-z0-9_.$])(\$?)([A-Z]{1,3})(\$?)([0-9]+)(?![A-Za-z0-9_.!(])")
+
+
+def splitCellRef(ref):
+    """Returns the (column, row) numbers of a cell reference like "B3", both 1-based."""
+    match = cellRefPattern.match(ref)
+    col = 0
+    for letter in match.group(2):
+        col = col * 26 + ord(letter) - ord("A") + 1
+    return col, int(match.group(4))
+
+
+def columnName(col):
+    name = ""
+    while col > 0:
+        col, rest = divmod(col - 1, 26)
+        name = chr(ord("A") + rest) + name
+    return name
+
+
+def shiftFormula(theFormula, rowOffset, colOffset):
+    """Moves the relative cell references of an Excel formula by the given offsets,
+    as Excel does for the cells sharing the formula of another cell."""
+
+    def shiftRef(match):
+        colAbs, colName, rowAbs, rowNumber = match.groups()
+        col, row = splitCellRef(colName + rowNumber)
+        if not colAbs:
+            col += colOffset
+        if not rowAbs:
+            row += rowOffset
+        if col < 1 or row < 1:
+            return match.group(0)
+        return colAbs + columnName(col) + rowAbs + str(row)
+
+    # Do not touch string literals or quoted sheet names
+    parts = re.split(r"(\"[^\"]*\"|'[^']*')", theFormula)
+    for i in range(0, len(parts), 2):
+        parts[i] = cellRefPattern.sub(shiftRef, parts[i])
+    return "".join(parts)
+
+
+def handleCells(cellList, actCellSheet, sList, sharedFormulas=None):
+    if sharedFormulas is None:
+        sharedFormulas = {}
     for cell in cellList:
         cellAtts = cell.attributes
         refRef = cellAtts.getNamedItem("r")
@@ -347,16 +395,26 @@ def handleCells(cellList, actCellSheet, sList):
         formulaRef = cell.getElementsByTagName("f")
         if len(formulaRef) == 1:
             theFormula = getText(formulaRef[0].childNodes)
+            attrs = formulaRef[0].attributes
+            attrRef = attrs.getNamedItem("t")
+            attrName = getText(attrRef.childNodes) if attrRef else None
+            indexRef = attrs.getNamedItem("si")
+            indexName = getText(indexRef.childNodes) if indexRef else None
+            if attrName == "shared" and indexName is not None:
+                if theFormula:
+                    # The first cell of a shared formula holds its text
+                    sharedFormulas[indexName] = (ref, theFormula)
+                elif indexName in sharedFormulas:
+                    # The other cells use it with moved relative references
+                    masterRef, masterFormula = sharedFormulas[indexName]
+                    masterCol, masterRow = splitCellRef(masterRef)
+                    col, row = splitCellRef(ref)
+                    theFormula = shiftFormula(masterFormula, row - masterRow, col - masterCol)
             if theFormula:
                 # print("theFormula: ", theFormula)
                 fTrans = FormulaTranslator()
                 actCellSheet.set(ref, fTrans.translateForm(theFormula))
             else:
-                attrs = formulaRef[0].attributes
-                attrRef = attrs.getNamedItem("t")
-                attrName = getText(attrRef.childNodes)
-                indexRef = attrs.getNamedItem("si")
-                indexName = getText(indexRef.childNodes)
                 content = "<f t='{}' si='{}'/>".format(attrName, indexName)
                 print(f"Unsupported formula in cell {ref}: {content}")
 
