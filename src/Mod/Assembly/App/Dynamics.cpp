@@ -689,7 +689,12 @@ ContactSphere contactSphereOf(Object* object)
     return contactSphereOfTree(object, Base::Matrix4D(), {});
 }
 
-Mass massOfTree(Object* object, const Base::Matrix4D& offset, std::set<Object*> ancestors)
+Mass massOfTree(
+    Object* object,
+    const Base::Matrix4D& offset,
+    std::set<Object*> ancestors,
+    bool nested = false
+)
 {
     if (!object) {
         invalid(object, "Missing body");
@@ -735,15 +740,17 @@ Mass massOfTree(Object* object, const Base::Matrix4D& offset, std::set<Object*> 
                 = dynamic_cast<App::PropertyPlacement*>(child->getPropertyByName("Placement"))) {
                 transform *= placement->getValue().toMatrix();
             }
-            auto mass = massOfTree(child, transform, ancestors);
+            auto mass = massOfTree(child, transform, ancestors, true);
             if (mass.volume == 0) {
-                continue;  // Empty organizational folders add no material.
+                continue;  // Empty folders and nested Parts add no material.
             }
             result.properties.Add(mass.properties);
             result.volume += mass.volume;
         }
         if (result.volume <= 0) {
-            if (source->isDerivedFrom<App::DocumentObjectGroup>()) {
+            // Only the component itself must contain material; a nested Part
+            // holding only datums, sketches or suppressed solids is skipped.
+            if (nested || source->isDerivedFrom<App::DocumentObjectGroup>()) {
                 return result;
             }
             invalid(object, "Container has no volumetric components");
