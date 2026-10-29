@@ -131,4 +131,5 @@ FreeCAD.__unit_test__ += [
     "TestIsolationGui",
     "TestViewProviderLink",
     "TestLayerWidget",
+    "TestUserEditModeGui",
 ]
