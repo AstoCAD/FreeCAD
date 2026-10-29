@@ -26,6 +26,7 @@
 # include <QLabel>
 # include <QLineEdit>
 # include <QMessageBox>
+# include <algorithm>
 # include <cmath>
 # include <sstream>
 # include <BRepGProp.hxx>
@@ -82,6 +83,7 @@ namespace TechDrawGui {
 
     //internal helper functions
     void _selectDimensionAttributes(Gui::Command* cmd);
+    bool _hasDimensions(const std::vector<Gui::SelectionObject>& selection);
     std::vector<TechDraw::DrawViewDimension*>_getDimensions(std::vector<Gui::SelectionObject> selection, std::string needDimType);
     std::vector<dimVertex> _getVertexInfo(TechDraw::DrawViewPart* objFeat,
         std::vector<std::string> subNames);
@@ -142,6 +144,10 @@ void execInsertPrefixChar(Gui::Command* cmd, const std::string& prefixFormat) {
         prefixText.replace(0, strlen("%s"), edit.text().toStdString());
     }
     size_t prefixSize = prefixText.capacity();
+
+    if (!_hasDimensions(selection)) {
+        return;
+    }
 
     cmd->openCommand(QObject::tr("Insert Prefix").toStdString().c_str());
     for (auto selected : selection) {
@@ -255,6 +261,10 @@ void execRemovePrefixChar(Gui::Command* cmd) {
     // remove a prefix character from the format specifier
     std::vector<Gui::SelectionObject> selection;
     if (!_checkSelection(cmd, selection, QT_TRANSLATE_NOOP("Command","TechDraw Remove Prefix"))) {
+        return;
+    }
+
+    if (!_hasDimensions(selection)) {
         return;
     }
 
@@ -429,6 +439,10 @@ void execIncreaseDecreaseDecimal(Gui::Command* cmd, int delta) {
     // increase or decrease number of decimal places of a measure
     std::vector<Gui::SelectionObject> selection;
     if (!_checkSelection(cmd, selection, QT_TRANSLATE_NOOP("QObject","TechDraw Increase/Decrease Decimal"))) {
+        return;
+    }
+
+    if (!_hasDimensions(selection)) {
         return;
     }
 
@@ -2439,6 +2453,12 @@ namespace TechDrawGui {
             }
         }
         return vertexes;
+    }
+
+    bool _hasDimensions(const std::vector<Gui::SelectionObject>& selection) {
+        return std::any_of(selection.begin(), selection.end(), [](const Gui::SelectionObject& selected) {
+            return selected.getObject()->isDerivedFrom<TechDraw::DrawViewDimension>();
+        });
     }
 
     std::vector<TechDraw::DrawViewDimension*>_getDimensions(std::vector<Gui::SelectionObject> selection, std::string needDimType) {
