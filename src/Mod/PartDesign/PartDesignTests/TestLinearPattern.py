@@ -186,6 +186,49 @@ class TestLinearPattern(unittest.TestCase):
             self.assertEqual(pattern.SuppressedIndices, [6])
             self.assertAlmostEqual(pattern.Shape.Volume, 11000)
 
+    # https://github.com/FreeCAD/FreeCAD/issues/10442
+    def testSymmetricLinearPatternReplicatesOnBothSides(self):
+        pattern = self.makeSuppressionPattern()
+        pattern.Occurrences2 = 1
+        pattern.Symmetric = True
+        self.Doc.recompute()
+        self.assertAlmostEqual(pattern.Shape.Volume, 5000)
+        self.assertAlmostEqual(pattern.Shape.BoundBox.XMin, -20)
+        self.assertAlmostEqual(pattern.Shape.BoundBox.XMax, 30)
+
+        # The length is measured on each side.
+        pattern.Mode = "Extent"
+        pattern.Length = 40
+        self.Doc.recompute()
+        self.assertAlmostEqual(pattern.Shape.Volume, 5000)
+        self.assertAlmostEqual(pattern.Shape.BoundBox.XMin, -40)
+        self.assertAlmostEqual(pattern.Shape.BoundBox.XMax, 50)
+
+        pattern.Symmetric = False
+        self.Doc.recompute()
+        self.assertAlmostEqual(pattern.Shape.Volume, 3000)
+        self.assertAlmostEqual(pattern.Shape.BoundBox.XMin, 0)
+
+    def testSymmetricLinearPatternSuppressionUsesTheWholeGrid(self):
+        pattern = self.makeSuppressionPattern()
+        pattern.Symmetric2 = True
+        self.Doc.recompute()
+        self.assertAlmostEqual(pattern.Shape.Volume, 15000)
+        self.assertAlmostEqual(pattern.Shape.BoundBox.YMin, -20)
+
+        # Positions 3 and 4 in the second direction are the mirrored side.
+        pattern.SuppressedPositions = [(1, 3)]
+        self.Doc.recompute()
+        self.assertEqual(pattern.SuppressedIndices, [8])
+        self.assertAlmostEqual(pattern.Shape.Volume, 14000)
+        self.assertFalse(pattern.Shape.isInside(FreeCAD.Vector(15, -5, 5), 1e-7, True))
+        self.assertTrue(pattern.Shape.isInside(FreeCAD.Vector(15, -15, 5), 1e-7, True))
+
+        pattern.Symmetric2 = False
+        self.Doc.recompute()
+        self.assertEqual(pattern.SuppressedIndices, [])
+        self.assertAlmostEqual(pattern.Shape.Volume, 9000)
+
     def testXAxisLinearPattern(self):
         self.Body = self.Doc.addObject("PartDesign::Body", "Body")
         self.Box = self.Doc.addObject("PartDesign::AdditiveBox", "Box")
