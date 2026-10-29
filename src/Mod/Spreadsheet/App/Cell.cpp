@@ -153,8 +153,20 @@ Cell& Cell::operator=(const Cell& rhs)
     setExpression(App::ExpressionPtr(rhs.expression ? rhs.expression->copy() : nullptr));
     setAlignment(rhs.alignment);
     setStyle(rhs.style);
-    setBackground(rhs.backgroundColor);
-    setForeground(rhs.foregroundColor);
+    // Copy the colors only if they are set; setting a color always marks it
+    // as set, which would turn the default (theme) colors into explicit ones.
+    if (rhs.isUsed(BACKGROUND_COLOR_SET)) {
+        setBackground(rhs.backgroundColor);
+    }
+    else {
+        clearBackground();
+    }
+    if (rhs.isUsed(FOREGROUND_COLOR_SET)) {
+        setForeground(rhs.foregroundColor);
+    }
+    else {
+        clearForeground();
+    }
     setDisplayUnit(rhs.displayUnit.stringRep);
     setComputedUnit(rhs.computedUnit);
     setAlias(rhs.alias);
