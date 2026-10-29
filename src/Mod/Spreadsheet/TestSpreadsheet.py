@@ -1712,6 +1712,50 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.getForeground("A1"), (0.0, 0.0, 0.0, 1.0))
         self.assertEqual(sheet.getBackground("A1"), (1.0, 1.0, 1.0, 1.0))
 
+    def testImportXLSXSharedFormulas(self):
+        """Issue #20299: cells using a shared formula (formula dragged down
+        or across in Excel) must be imported"""
+        import zipfile
+        import importXLSX
+
+        main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        workbook = (
+            f'<workbook xmlns="{main}" xmlns:r="{rels}"><sheets>'
+            '<sheet name="Data" sheetId="1" r:id="rId1"/></sheets></workbook>'
+        )
+        workbookRels = (
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'<Relationship Id="rId1" Type="{rels}/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>"
+        )
+        worksheet = (
+            f'<worksheet xmlns="{main}"><sheetData>'
+            '<row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>10</v></c>'
+            '<c r="C1"><f t="shared" ref="C1:C3" si="0">A1*B1+$B$1</f><v>20</v></c>'
+            '<c r="D1"><f t="shared" ref="D1:E1" si="1">A1+1</f><v>2</v></c>'
+            '<c r="E1"><f t="shared" si="1"/><v>11</v></c></row>'
+            '<row r="2"><c r="A2"><v>2</v></c><c r="B2"><v>20</v></c>'
+            '<c r="C2"><f t="shared" si="0"/><v>50</v></c></row>'
+            '<row r="3"><c r="A3"><v>3</v></c><c r="B3"><v>30</v></c>'
+            '<c r="C3"><f t="shared" si="0"/><v>100</v></c></row>'
+            "</sheetData></worksheet>"
+        )
+        filename = os.path.join(self.TempPath, "SpreadsheetSharedFormulas.xlsx")
+        with zipfile.ZipFile(filename, "w") as z:
+            z.writestr("xl/workbook.xml", workbook)
+            z.writestr("xl/_rels/workbook.xml.rels", workbookRels)
+            z.writestr("xl/worksheets/sheet1.xml", worksheet)
+        importXLSX.insert(filename, self.doc.Name)
+        sheet = self.doc.getObject("Data")
+        self.assertEqual(sheet.getContents("C1"), "=A1 * B1 + $B$1")
+        self.assertEqual(sheet.getContents("C2"), "=A2 * B2 + $B$1")
+        self.assertEqual(sheet.getContents("C3"), "=A3 * B3 + $B$1")
+        self.assertEqual(sheet.getContents("E1"), "=B1 + 1")
+        self.assertEqual(sheet.C2, 50)
+        self.assertEqual(sheet.C3, 100)
+        self.assertEqual(sheet.E1, 11)
+
     def testRemoveRowsAliasReuseName(self):
         """Regression test for issue 4492; deleted aliases remains in database"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
