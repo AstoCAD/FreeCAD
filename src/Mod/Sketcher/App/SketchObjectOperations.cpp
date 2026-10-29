@@ -62,6 +62,40 @@ Constraint* copyGroupConstraint(const Constraint& constr, const std::map<int, in
     }
     return constNew.release();
 }
+
+bool isGroupConstraint(const Constraint* constr)
+{
+    return constr->Type == Sketcher::Group || constr->Type == Sketcher::Text;
+}
+
+// Splitting or trimming a geometry must not delete the Group/Text constraints it belongs to:
+// deleting a group also deletes its handle, which shifts the indices of the geometry being
+// replaced. The group is kept instead and the extra pieces join it when the split geometry was
+// one of its members (a split handle keeps its first piece as handle).
+void addPiecesToGroups(SketchObject& sketch, int geoId, const std::vector<int>& newIds)
+{
+    const std::vector<Constraint*>& constraints = sketch.Constraints.getValues();
+    for (size_t i = 0; i < constraints.size(); ++i) {
+        const Constraint* constr = constraints[i];
+        if (!isGroupConstraint(constr)) {
+            continue;
+        }
+        bool isMember = false;
+        for (int j = 1; constr->hasElement(j); ++j) {
+            isMember |= constr->getGeoId(j) == geoId;
+        }
+        if (!isMember) {
+            continue;
+        }
+        std::unique_ptr<Constraint> grown(constr->clone());
+        for (int newId : newIds) {
+            if (newId != geoId) {
+                grown->addElement(GeoElementId(newId));
+            }
+        }
+        sketch.Constraints.set1Value(static_cast<int>(i), grown.get());
+    }
+}
 }  // namespace
 
 SketchSolveStatus SketchObject::moveGeometries(
@@ -1047,6 +1081,10 @@ SketchSolveStatus SketchObject::trim(int GeoId, const Base::Vector3d& point, boo
     std::vector<int> idsOfOldConstraints;
     std::set<int, std::greater<>> geoIdsToBeDeleted;
     getConstraintIndices(GeoId, idsOfOldConstraints);
+    // groups are kept, see addPiecesToGroups
+    std::erase_if(idsOfOldConstraints, [&allConstraints](const auto& i) {
+        return isGroupConstraint(allConstraints[i]);
+    });
     // remove the constraints that we want to manually transfer
     // We could transfer beforehand but in case of exception that transfer is permanent
     if (!isOriginalCurveClosed) {
@@ -1143,6 +1181,7 @@ SketchSolveStatus SketchObject::trim(int GeoId, const Base::Vector3d& point, boo
     for (auto newId : newIds) {
         setConstruction(newId, isOriginalCurveConstruction);
     }
+    addPiecesToGroups(*this, GeoId, newIds);
 
     for (auto& deletedGeoId : geoIdsToBeDeleted) {
         for (auto& cons : newConstraints) {
@@ -1244,7 +1283,8 @@ int SketchObject::split(int GeoId, const Base::Vector3d& point)
     geoAsCurve = getGeometry<Part::GeomCurve>(GeoId);
 
     std::erase_if(idsOfOldConstraints, [&GeoId, &allConstraints](const auto& i) {
-        return !allConstraints[i]->involvesGeoIdAndPosId(GeoId, PointPos::none);
+        return !allConstraints[i]->involvesGeoIdAndPosId(GeoId, PointPos::none)
+            || isGroupConstraint(allConstraints[i]);  // groups are kept, see addPiecesToGroups
     });
 
     std::vector<const Part::Geometry*> newGeosConst(newGeos.begin(), newGeos.end());
@@ -1318,6 +1358,7 @@ int SketchObject::split(int GeoId, const Base::Vector3d& point)
 
     delConstraints(std::move(idsOfOldConstraints), DeleteOption::NoSolve);
     replaceGeometries({GeoId}, newGeos);
+    addPiecesToGroups(*this, GeoId, newIds);
     addConstraints(newConstraints);
 
     if (noRecomputes) {
