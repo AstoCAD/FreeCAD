@@ -437,6 +437,32 @@ class TestBoolean(unittest.TestCase):
         # rgb = App.Gui.ActiveDocument.Body002.RootNode.getChild(2).getChild(1).getChild(1).getChild(0).diffuseColor.getValues()[0].getValue()
         # # Assert the rgb color value.
 
+    def testPartBooleanKeepsFeatureInBody(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/20735
+        # A Part boolean made from a feature of a Body must not take the
+        # feature out of the Body.
+        from BOPTools import BOPFeatures
+
+        part = self.Doc.addObject("App::Part", "Part")
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        part.addObject(body)
+        box = self.Doc.addObject("PartDesign::AdditiveBox", "Box")
+        body.addObject(box)
+        cube = self.Doc.addObject("Part::Box", "Cube")
+        cube.Placement.Base = App.Vector(5, 5, 5)
+        part.addObject(cube)
+        self.Doc.recompute()
+
+        common = BOPFeatures.BOPFeatures(self.Doc).make_multi_common([box.Name, cube.Name])
+        self.Doc.recompute()
+
+        self.assertIn(box, body.Group)
+        self.assertEqual(body.Tip, box)
+        self.assertEqual(body.getParent(), part)
+        self.assertEqual(cube.getParent(), part)
+        self.assertIsNone(common.getParent())
+        self.assertAlmostEqual(common.Shape.Volume, 125)
+
     def tearDown(self):
         if hasattr(App, "KeepTestDoc") and App.KeepTestDoc:
             return
