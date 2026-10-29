@@ -460,15 +460,28 @@ public:
             return QListWidgetItem::data(role);
     }
 
+    // The item caches an index into the Constraints property. The property can be replaced
+    // (e.g. from Python) without the list being rebuilt, so the index must be validated at
+    // runtime, not only by assert() (which is compiled out in release builds).
+    bool isValidConstraint() const
+    {
+        return ConstraintNbr >= 0 && ConstraintNbr < sketch->Constraints.getSize()
+            && sketch->Constraints[ConstraintNbr];
+    }
+
     Sketcher::ConstraintType constraintType() const
     {
-        assert(ConstraintNbr >= 0 && ConstraintNbr < sketch->Constraints.getSize());
+        if (!isValidConstraint()) {
+            return Sketcher::None;
+        }
         return sketch->Constraints[ConstraintNbr]->Type;
     }
 
     bool isEnforceable() const
     {
-        assert(ConstraintNbr >= 0 && ConstraintNbr < sketch->Constraints.getSize());
+        if (!isValidConstraint()) {
+            return false;
+        }
 
         const Sketcher::Constraint* constraint = sketch->Constraints[ConstraintNbr];
 
@@ -508,34 +521,45 @@ public:
 
     bool isDimensional() const
     {
-        assert(ConstraintNbr >= 0 && ConstraintNbr < sketch->Constraints.getSize());
+        if (!isValidConstraint()) {
+            return false;
+        }
 
         return (sketch->Constraints[ConstraintNbr])->isDimensional();
     }
 
     bool isDriving() const
     {
-        assert(ConstraintNbr >= 0 && ConstraintNbr < sketch->Constraints.getSize());
+        if (!isValidConstraint()) {
+            return false;
+        }
 
         return sketch->Constraints[ConstraintNbr]->isDriving;
     }
 
     bool isInVirtualSpace() const
     {
-        assert(ConstraintNbr >= 0 && ConstraintNbr < sketch->Constraints.getSize());
+        if (!isValidConstraint()) {
+            return false;
+        }
 
         return sketch->Constraints[ConstraintNbr]->isInVirtualSpace;
     }
 
     bool isActive() const
     {
-        assert(ConstraintNbr >= 0 && ConstraintNbr < sketch->Constraints.getSize());
+        if (!isValidConstraint()) {
+            return false;
+        }
 
         return sketch->Constraints[ConstraintNbr]->isActive && usesLayerConstraints();
     }
 
     bool usesLayerConstraints() const
     {
+        if (!isValidConstraint()) {
+            return false;
+        }
         const auto* constraint = sketch->Constraints[ConstraintNbr];
         return constraint->Type == Sketcher::Group || constraint->Type == Sketcher::Text
             || sketch->constraintUsesLayers(constraint);
@@ -1338,7 +1362,7 @@ void TaskSketcherConstraints::changeFilteredVisibility(bool show, ActionTarget t
         if (processItem) {// The item is shown in the filtered list
             const ConstraintItem* it = dynamic_cast<const ConstraintItem*>(item);
 
-            if (!it)
+            if (!it || !it->isValidConstraint())
                 continue;
 
             // must change state is shown and is to be hidden or hidden and must change state is
