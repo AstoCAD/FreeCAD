@@ -101,6 +101,7 @@ public:
 
     void addChildrenToPage();
     void fixOrphans(bool force = false);
+    void fillScene();
 
     void redrawAllViews();
     void redraw1View(TechDraw::DrawView* dView);
