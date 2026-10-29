@@ -376,6 +376,29 @@ class DocumentBasicCases(unittest.TestCase):
             self.assertTrue(False)
         del L2
 
+    def testSubObjectOfNestedLCS(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/22618
+        # The placement of an LCS must apply to its axes and planes.
+        part = self.Doc.addObject("App::Part", "Part")
+        part.Placement.Base = FreeCAD.Vector(100, 0, 0)
+        lcs = self.Doc.addObject("App::LocalCoordinateSystem", "LCS")
+        part.addObject(lcs)
+        lcs.Placement = FreeCAD.Placement(
+            FreeCAD.Vector(0, 50, 7), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 90)
+        )
+        self.Doc.recompute()
+        axis = [o for o in lcs.OriginFeatures if o.Role == "X_Axis"][0]
+
+        expected = part.Placement * lcs.Placement * axis.Placement
+        res = part.getSubObject("{}.{}.".format(lcs.Name, axis.Name), retType=3)
+        self.assertTrue(res.isSame(expected, 1e-9), str(res))
+
+        expected = lcs.Placement * axis.Placement
+        res = lcs.getSubObject(axis.Name + ".", retType=3)
+        self.assertTrue(res.isSame(expected, 1e-9), str(res))
+        res = lcs.getSubObject(axis.Name + ".", retType=3, transform=False)
+        self.assertTrue(res.isSame(axis.Placement, 1e-9), str(res))
+
     def testSubObject(self):
         obj = self.Doc.addObject("App::Origin", "Origin")
         self.Doc.recompute()
