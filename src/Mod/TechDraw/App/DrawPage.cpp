@@ -484,15 +484,23 @@ void DrawPage::unsetupObject()
     std::string pageName = getNameInDocument();
 
     try {
-        for (auto& v : Views.getValues()) {
-            //NOTE: the order of objects in Page.Views does not reflect the object hierarchy
-            //      this means that a ProjGroup could be deleted before its child ProjGroupItems.
-            //      this causes problems when removing objects from document
-            if (v->isAttachedToDocument()) {
-                std::string viewName = v->getNameInDocument();
-                Base::Interpreter().runStringArg("App.getDocument(\"%s\").removeObject(\"%s\")",
-                                                 docName.c_str(), viewName.c_str());
+        //NOTE: the order of objects in Page.Views does not reflect the object hierarchy
+        //      this means that a ProjGroup could be deleted before its child ProjGroupItems.
+        //      this causes problems when removing objects from document
+        // Removing a view also removes its dependents (dimensions, balloons, ...) and takes
+        // them out of Views, so collect the names first and never iterate Views while deleting.
+        std::vector<std::string> viewNames;
+        for (auto* v : Views.getValues()) {
+            if (v && v->isAttachedToDocument()) {
+                viewNames.emplace_back(v->getNameInDocument());
             }
+        }
+        for (auto& viewName : viewNames) {
+            if (!doc->getObject(viewName.c_str())) {
+                continue;  // already removed together with the view it depends on
+            }
+            Base::Interpreter().runStringArg("App.getDocument(\"%s\").removeObject(\"%s\")",
+                                             docName.c_str(), viewName.c_str());
         }
         std::vector<App::DocumentObject*> emptyViews;//probably superfluous
         Views.setValues(emptyViews);
