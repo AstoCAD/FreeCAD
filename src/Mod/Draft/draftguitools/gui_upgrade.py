@@ -82,6 +82,7 @@ class Upgrade(gui_base_original.Modifier):
         """Proceed with execution of the command after selection."""
         if self.call is not None:
             self.end_callbacks(self.call)
+            self.call = None
         if Gui.Selection.getSelection():
             Gui.addModule("Draft")
             _cmd = "Draft.upgrade"
@@ -92,6 +93,13 @@ class Upgrade(gui_base_original.Modifier):
             _cmd_list = ["_objs_ = " + _cmd, "FreeCAD.ActiveDocument.recompute()"]
             self.commit(translate("draft", "Upgrade"), _cmd_list)
         self.finish()
+
+    def finish(self, cont=False):
+        """Terminate the operation, also when the task panel is closed."""
+        if self.call is not None:
+            self.end_callbacks(self.call)
+            self.call = None
+        super().finish(cont)
 
 
 Gui.addCommand("Draft_Upgrade", Upgrade())
