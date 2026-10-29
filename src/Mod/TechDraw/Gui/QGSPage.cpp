@@ -248,6 +248,16 @@ void QGSPage::addChildrenToPage()
 
 }
 
+//! add the page's views and template to the scene and draw them. Needed once before the
+//! scene is shown or exported; every step is idempotent.
+void QGSPage::fillScene()
+{
+    addChildrenToPage();
+    updateTemplate(true);
+    redrawAllViews();
+    fixOrphans(true);
+}
+
 //********** template related routines *********
 
 void QGSPage::attachTemplate(TechDraw::DrawTemplate* obj)

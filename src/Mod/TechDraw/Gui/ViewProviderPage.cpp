@@ -323,10 +323,7 @@ bool ViewProviderPage::showMDIViewPage()
     if (m_mdiView.isNull()) {
         // if our tab has been closed, or if this is first time
         createMDIViewPage();
-        m_graphicsScene->addChildrenToPage();
-        m_graphicsScene->updateTemplate(true);
-        m_graphicsScene->redrawAllViews();
-        m_graphicsScene->fixOrphans(true);
+        m_graphicsScene->fillScene();
 
         m_mdiView->viewAll();
         m_mdiView->showMaximized();
