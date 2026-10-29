@@ -478,6 +478,9 @@ class CommandToggleGrounded:
         if not selection:
             return
 
+        if not any(sel.SubElementNames for sel in selection):
+            return
+
         App.ActiveDocument.openTransaction("Toggle grounded")
         for sel in selection:
             # If you select 2 solids (bodies for example) within an assembly.
