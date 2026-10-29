@@ -97,6 +97,39 @@ class TestPad(unittest.TestCase):
         self.assertEqual(len(pad.Shape.Solids), 1)
         self.assertAlmostEqual(pad.Shape.Volume, 1)
 
+    def testSketchOnFaceOfOtherBodyDoesNotImportIt(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/15971
+        # The first Pad of a Body whose sketch is attached to a face of another
+        # Body must not contain that other Body's feature.
+        source_body = self.Doc.addObject("PartDesign::Body", "SourceBody")
+        source_box = source_body.newObject("PartDesign::AdditiveBox", "SourceBox")
+        source_box.Length = 10
+        source_box.Width = 10
+        source_box.Height = 2
+        self.Doc.recompute()
+        top = [
+            "Face{}".format(i + 1)
+            for i, face in enumerate(source_box.Shape.Faces)
+            if abs(face.CenterOfMass.z - 2) < 1e-7
+        ][0]
+
+        target_body = self.Doc.addObject("PartDesign::Body", "TargetBody")
+        target_body.Placement.Base = FreeCAD.Vector(0, 0, 20)
+        sketch = target_body.newObject("Sketcher::SketchObject", "SketchPad")
+        sketch.AttachmentSupport = (source_box, [top])
+        sketch.MapMode = "FlatFace"
+        TestSketcherApp.CreateRectangleSketch(sketch, (1, 1), (2, 3))
+
+        pad = target_body.newObject("PartDesign::Pad", "Pad")
+        pad.Profile = sketch
+        pad.Length = 4
+        self.Doc.recompute()
+
+        self.assertIsNone(pad.BaseFeature)
+        self.assertEqual(len(pad.Shape.Solids), 1)
+        self.assertAlmostEqual(pad.Shape.Volume, 2 * 3 * 4)
+        self.assertAlmostEqual(target_body.Shape.Volume, 2 * 3 * 4)
+
     def testStartOffsetAndReference(self):
         self.PadSketch = self.Doc.addObject("Sketcher::SketchObject", "SketchPad")
         TestSketcherApp.CreateRectangleSketch(self.PadSketch, (0, 0), (1, 1))
