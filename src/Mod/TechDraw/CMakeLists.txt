@@ -181,6 +181,7 @@ endif(BUILD_GUI)
 SET(TDTest_SRCS
     TDTest/__init__.py
     TDTest/TestCosmeticEdgeLifetime.py
+    TDTest/DrawCosmeticLifetimeTest.py
     TDTest/SketchAnnotationsTest.py
     TDTest/SketchAnnotationsGuiTest.py
     TDTest/DrawHatchTest.py

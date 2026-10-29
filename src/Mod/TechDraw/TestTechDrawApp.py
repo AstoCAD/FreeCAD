@@ -34,6 +34,7 @@ from TDTest.DrawViewScaleTypeTest import DrawViewScaleTypeTest  # noqa: F401
 from TDTest.DrawViewRemovalTest import DrawViewRemovalTest  # noqa: F401
 from TDTest.DrawViewDimensionSavedGeometryTest import DrawViewDimensionSavedGeometryTest  # noqa: F401
 from TDTest.TestCosmeticEdgeLifetime import TestCosmeticEdgeLifetime  # noqa: F401
+from TDTest.DrawCosmeticLifetimeTest import DrawCosmeticLifetimeTest  # noqa: F401
 
 
 from TDTest.SketchAnnotationsTest import SketchAnnotationsTest  # noqa: F401

@@ -357,6 +357,14 @@ GeomFormat::GeomFormat(const int idx,
 
 GeomFormat::~GeomFormat()
 {
+    if (!PythonObject.is(Py::_None())) {
+        Base::PyGILStateLocker lock;
+        auto* object = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
+        // Copies can share the original format's cached Python wrapper.
+        if (object->getTwinPointer() == this) {
+            object->setInvalid();
+        }
+    }
 }
 
 void GeomFormat::dump(const char* title) const

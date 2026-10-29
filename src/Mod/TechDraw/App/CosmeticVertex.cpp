@@ -26,7 +26,9 @@
 //! CosmeticVertex point is stored in unscaled, unrotated form
 
 #include <App/Application.h>
+#include <Base/Interpreter.h>
 #include <Base/Persistence.h>
+#include <Base/PyObjectBase.h>
 #include <Base/Vector3D.h>
 
 #include "CosmeticVertex.h"
@@ -77,6 +79,18 @@ CosmeticVertex::CosmeticVertex(const Base::Vector3d& loc) : TechDraw::Vertex(loc
     hlrVisible = true;
     cosmetic = true;
     cosmeticTag = getTagAsString();
+}
+
+CosmeticVertex::~CosmeticVertex()
+{
+    if (!PythonObject.is(Py::_None())) {
+        Base::PyGILStateLocker lock;
+        auto* object = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
+        // Copies can share the original vertex's cached Python wrapper.
+        if (object->getTwinPointer() == this) {
+            object->setInvalid();
+        }
+    }
 }
 
 void CosmeticVertex::move(const Base::Vector3d& newPos)

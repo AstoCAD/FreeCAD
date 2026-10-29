@@ -32,6 +32,8 @@
 
 #include <Base/Console.h>
 #include <Base/Converter.h>
+#include <Base/Interpreter.h>
+#include <Base/PyObjectBase.h>
 #include <Base/Tools.h>
 
 #include "CenterLine.h"
@@ -128,6 +130,14 @@ CenterLine::CenterLine(const Base::Vector3d& pt1,
 
 CenterLine::~CenterLine()
 {
+    if (!PythonObject.is(Py::_None())) {
+        Base::PyGILStateLocker lock;
+        auto* object = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
+        // Copies can share the original line's cached Python wrapper.
+        if (object->getTwinPointer() == this) {
+            object->setInvalid();
+        }
+    }
 }
 
 void CenterLine::initialize()
