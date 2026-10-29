@@ -109,9 +109,14 @@ DrawViewDetail::DrawViewDetail() : m_waitingForDetail(false), m_saveDvp(nullptr)
 DrawViewDetail::~DrawViewDetail()
 {
     //don't delete this object while it still has dependent tasks running
+    //waitForFinished() rethrows an exception of the task, which must not leave a destructor
     if (m_detailFuture.isRunning()) {
         Base::Console().message("{} is waiting for detail cut to finish\n", Label.getValue());
-        m_detailFuture.waitForFinished();
+        try {
+            m_detailFuture.waitForFinished();
+        }
+        catch (...) {
+        }
     }
 }
 
@@ -237,9 +242,11 @@ void DrawViewDetail::detailExec(TopoDS_Shape& shape, DrawViewPart* dvp, DrawView
     }
 
     if (!DU::isGuiUp()) {
+        // without the gui we will never be informed of completion of the separate thread
         makeDetailShape(shape, dvp, dvs);
         onMakeDetailFinished();
         waitingForDetail(false);
+        return;
     }
 
     //note that &m_detailWatcher in the third parameter is not strictly required, but using the
