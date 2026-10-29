@@ -70,6 +70,7 @@ if(BUILD_GUI)
           SketcherTests/TestConstraintListStaleIndexGui.py
           SketcherTests/TestAutoConstraintsPreferenceGui.py
           SketcherTests/TestEditTextDialogGui.py
+          SketcherTests/TestPasteSelectionGui.py
     )
 endif(BUILD_GUI)
 
