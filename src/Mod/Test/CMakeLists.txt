@@ -61,6 +61,7 @@ SET(Test_SRCS
     TestGraphicsViewWrapping.py
     TestMDIView.py
     TestActivateViewGui.py
+    TestRecomputeAllGui.py
     TestRecordedCommandImportsGui.py
     TestWorkbenchSelectorGui.py
     TestRubberbandSelection.py
