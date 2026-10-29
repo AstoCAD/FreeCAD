@@ -2058,6 +2058,19 @@ class DocumentPlatformCases(unittest.TestCase):
         except Exception:
             pass
 
+    def testNativePathSeparators(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/18027
+        if os.sep != "\\":
+            self.skipTest("Only relevant where the native separator is not '/'")
+        for path in (
+            self.Doc.TransientDir,
+            FreeCAD.getUserCachePath(),
+            FreeCAD.getTempPath(),
+            FreeCAD.getUserAppDataDir(),
+            FreeCAD.getUserConfigDir(),
+        ):
+            self.assertNotIn("/", path)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PlatformTests")
