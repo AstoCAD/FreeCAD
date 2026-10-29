@@ -207,5 +207,9 @@ void WaitCursor::resume()
 {
     // Calling setBusy(true) will set the wait cursor and reinstall the event filter.
     // The WaitCursorP's internal state `isOn` correctly handles this call.
-    WaitCursorP::getInstance()->setBusy(true);
+    // Only resume while a WaitCursor instance is alive: otherwise nothing would ever
+    // restore the cursor (e.g. a macro calling suspend/resume around a dialog).
+    if (instances > 0) {
+        WaitCursorP::getInstance()->setBusy(true);
+    }
 }
