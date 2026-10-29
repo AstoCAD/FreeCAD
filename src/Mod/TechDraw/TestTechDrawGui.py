@@ -67,6 +67,7 @@ from TDTest.DrawViewDimensionTreeTest import DrawViewDimensionTreeTest  # noqa: 
 from TDTest.DrawViewCaptionGuiTest import DrawViewCaptionGuiTest  # noqa: F401
 from TDTest.DrawViewAnnotationSpacesGuiTest import DrawViewAnnotationSpacesGuiTest  # noqa: F401
 from TDTest.DrawViewSelectionTeardownGuiTest import DrawViewSelectionTeardownGuiTest  # noqa: F401
+from TDTest.DrawViewDeleteWhileRunningGuiTest import DrawViewDeleteWhileRunningGuiTest  # noqa: F401
 from TDTest.TechDrawTaskTest import TechDrawTaskTest  # noqa: F401
 
 

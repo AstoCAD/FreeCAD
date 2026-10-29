@@ -377,13 +377,22 @@ DrawViewPart::DrawViewPart()
 DrawViewPart::~DrawViewPart()
 {
     //don't delete this object while it still has dependent threads running
+    //waitForFinished() rethrows an exception of the task, which must not leave a destructor
     if (m_hlrFuture.isRunning()) {
         Base::Console().message("{} is waiting for HLR to finish\n", Label.getValue());
-        m_hlrFuture.waitForFinished();
+        try {
+            m_hlrFuture.waitForFinished();
+        }
+        catch (...) {
+        }
     }
     if (m_faceFuture.isRunning()) {
         Base::Console().message("{} is waiting for face finding to finish\n", Label.getValue());
-        m_faceFuture.waitForFinished();
+        try {
+            m_faceFuture.waitForFinished();
+        }
+        catch (...) {
+        }
     }
     removeAllReferencesFromGeom();
 }
