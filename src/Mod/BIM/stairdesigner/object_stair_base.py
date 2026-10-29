@@ -397,6 +397,18 @@ class StairBaseMixin:
             ),
             0.0,
         )
+        _add_property(
+            obj,
+            "App::PropertyBool",
+            "StringerJoinery",
+            "Stringers",
+            QT_TRANSLATE_NOOP(
+                "App::Property",
+                "Cuts tread, riser and picket housings into the stringers and "
+                "tenons the stringers into posts and into each other",
+            ),
+            True,
+        )
         added = _add_property(
             obj,
             "App::PropertyEnumeration",
@@ -666,6 +678,7 @@ class StairBaseMixin:
             "StringerEndExtension",
             "StringerNosingOffsetDirection",
             "StringerNosingOffset",
+            "StringerJoinery",
         } or prop.startswith("Handrail"):
             if prop == "StringerCustomWidth":
                 obj.setEditorMode(
@@ -1046,6 +1059,8 @@ class StairBaseMixin:
                 riser_height,
                 allow_structure_changes,
             )
+            if obj.StairType != "Concrete" and getattr(obj, "StringerJoinery", True):
+                self._update_stringer_joinery(obj)
         finally:
             self._updating = False
 

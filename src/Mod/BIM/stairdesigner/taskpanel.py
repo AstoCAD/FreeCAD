@@ -250,6 +250,7 @@ class StairDesignerTaskPanel(
                 self.stair.StringerNosingOffset = (
                     self.stringer_nosing_offset.value()
                 )
+                self.stair.StringerJoinery = self.stringer_joinery.isChecked()
             if "handrails" in self.sections:
                 for record in self.handrail_flight_editors:
                     flight = record["flight"]

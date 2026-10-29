@@ -38,6 +38,7 @@ class StringerPanelMixin:
                 "stringer_position_editor",
                 "stringer_nosing_direction",
                 "stringer_nosing_offset",
+                "stringer_joinery",
             ),
         )
         widget.setWindowIcon(QtGui.QIcon(":/icons/Arch_Stringer.svg"))
@@ -84,6 +85,14 @@ class StringerPanelMixin:
         )
         self.stringer_nosing_offset.setValue(
             _value(self.stair.StringerNosingOffset)
+        )
+        self.stringer_joinery.setChecked(self.stair.StringerJoinery)
+        self.stringer_joinery.setToolTip(
+            translate(
+                "BIM",
+                "Cuts tread, riser and picket housings into the stringers and "
+                "tenons the stringers into posts and into each other",
+            )
         )
         stringer_help = {
             self.stringer_thickness: translate(
@@ -142,6 +151,7 @@ class StringerPanelMixin:
         self.stringer_custom_width.toggled.connect(
             self._stringer_custom_width_changed
         )
+        self.stringer_joinery.toggled.connect(self._apply)
         self.stringer_nosing_direction.currentIndexChanged.connect(
             self._apply
         )

@@ -2,6 +2,7 @@
 
 """Stringer object generation and planar connection helpers."""
 
+from dataclasses import replace
 import math
 
 import FreeCAD
@@ -13,6 +14,7 @@ from .geometry_stringer_path import (
     straight_stringer_sections,
     stringer_flight_runs,
 )
+from .geometry_joinery import make_stair_joinery
 from .geometry_stringer_shapes import (
     make_housed_stringer_shape,
     make_notched_stringer_shape,
@@ -195,6 +197,7 @@ def _planar_stringer_runs(
                     profiles[flight_index],
                 )
     result = []
+    seamed = {}
     for run_index, (flight_index, sections) in enumerate(flight_runs):
         flight = flights[flight_index]
         if not str(flight.FlightType).startswith("Straight"):
@@ -256,6 +259,17 @@ def _planar_stringer_runs(
                         planes[run_index + 1][1],
                     )
 
+        # The riser shared by two boards is projected onto their seam. When
+        # it really crosses this board, keep it there as a nosing as well.
+        sections = list(sections)
+        if end_seam is not None and _section_on_rail(
+            sections[-1], side, planes[run_index][1]
+        ):
+            sections.append(sections[-1])
+        if start_seam is not None and _section_on_rail(
+            sections[0], side, planes[run_index][1]
+        ):
+            sections.insert(0, sections[0])
         board_line = planes[run_index][0]
         right_origin, direction = board_line
         result.append(
@@ -280,7 +294,55 @@ def _planar_stringer_runs(
                 ),
             )
         )
+        seamed[len(result) - 1] = (start_seam is not None, end_seam is not None)
+    _blend_stringer_seams(result, seamed, side)
     return result
+
+
+def _section_on_rail(section, side, rail_line):
+    origin, direction = rail_line
+    point = section.left if side == "Left" else section.right
+    return abs(
+        direction[0] * (point[1] - origin[1])
+        - direction[1] * (point[0] - origin[0])
+    ) < 1.0
+
+
+def _blend_stringer_seams(runs, seamed, side):
+    """Give two boards meeting at a seam one common, interpolated height.
+
+    The seam lies between the last nosing of one board and the first nosing
+    of the next. Using the elevation of the shared riser there instead would
+    raise a sharp peak over a winder spanning the corner.
+    """
+
+    def distance(first, second):
+        first = first.left if side == "Left" else first.right
+        second = second.left if side == "Left" else second.right
+        return math.dist(first, second)
+
+    for index in range(len(runs) - 1):
+        if not seamed.get(index, (False, False))[1] or not seamed.get(
+            index + 1, (False, False)
+        )[0]:
+            continue
+        before = runs[index][1]
+        after = runs[index + 1][1]
+        if len(before) < 2 or len(after) < 2:
+            continue
+        incoming = distance(before[-2], before[-1])
+        outgoing = distance(after[0], after[1])
+        if incoming + outgoing < 1e-6:
+            continue
+        low = before[-2].top_elevation
+        high = after[1].top_elevation
+        elevation = low + (high - low) * incoming / (incoming + outgoing)
+        before[-1] = replace(
+            before[-1], top_elevation=elevation, profile_nosing_aligned=True
+        )
+        after[0] = replace(
+            after[0], top_elevation=elevation, profile_nosing_aligned=True
+        )
 
 
 def _stringer_parts_for_flights(
@@ -452,8 +514,60 @@ def _set_stringer_part_properties(
     )
 
 
+def _set_global_shape(part, shape):
+    """Assign a shape built in document coordinates, keeping the placement."""
+
+    placement = part.Placement
+    local = shape.copy()
+    local.transformShape(placement.inverse().toMatrix())
+    part.Shape = local
+    part.Placement = placement
+
+
 class StairStringerMixin:
     """Implementation methods grouped by responsibility."""
+
+    def _update_stringer_joinery(self, stair):
+        """Cut housings, tenons and mortises once all members exist."""
+
+        group = stair.StringersGroup
+        if not group:
+            return
+        stringers = [
+            part
+            for part in group.Group
+            if not part.Shape.isNull() and part.Shape.Volume > 1e-6
+        ]
+        if not stringers:
+            return
+        stringers.sort(key=lambda part: (int(getattr(part, "FlightIndex", 0)), part.Name))
+        posts = []
+        housed = []
+        if stair.StepsGroup:
+            housed.extend(
+                part.Shape
+                for part in stair.StepsGroup.Group
+                if getattr(part, "StairDesignerRole", "") in ("Tread", "Riser")
+                and not part.Shape.isNull()
+            )
+        if stair.HandrailsGroup:
+            for part in stair.HandrailsGroup.Group:
+                role = getattr(part, "StairDesignerRole", "")
+                if part.Shape.isNull():
+                    continue
+                if role == "HandrailPost":
+                    posts.append(part)
+                elif role == "HandrailPicket":
+                    housed.append(part.Shape)
+        stringer_shapes, post_shapes = make_stair_joinery(
+            [part.Shape for part in stringers],
+            [part.Shape for part in posts],
+            housed,
+        )
+        for part, shape in zip(stringers, stringer_shapes):
+            _set_global_shape(part, shape)
+        for part, shape in zip(posts, post_shapes):
+            _set_global_shape(part, shape)
 
     def _update_stringers(
         self,

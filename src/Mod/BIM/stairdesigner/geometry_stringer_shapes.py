@@ -27,6 +27,8 @@ from .geometry_stringer_path import (
     _stringer_inward,
     _stringer_section_runs,
     _stringer_slope,
+    profile_value,
+    stringer_bottom_lines,
 )
 
 
@@ -167,6 +169,7 @@ def _make_housed_stringer_run(
         len(elevations) >= 2
         and abs(elevations[-1] - elevations[-2]) < 1e-9
         and not any(section.landing_to_next for section in sections)
+        and math.dist(sections[-1].center, sections[-2].center) > 1e-6
     ):
         # The last section is the rear edge of the final tread, rather than
         # another nosing. Continue the board at the stair pitch through it;
@@ -276,7 +279,7 @@ def _make_housed_stringer_run(
         side,
         thickness,
         penetration,
-        vertical_width,
+        width,
         straight_profile,
     )
     if planar_shape is not None:
@@ -548,12 +551,26 @@ def _planar_notched_stringer_shape(
     riser_clearance = max(float(riser_clearance), 0.0)
     elevations = _stringer_elevations(sections, riser_height)
     slope = _stringer_slope(sections, elevations)
-    slope_cosine = 1.0 / math.sqrt(1.0 + slope * slope)
-    vertical_width = width / max(slope_cosine, 0.01)
-    bottoms = [
-        max(elevation - vertical_width, 0.0)
-        for elevation in elevations
-    ]
+
+    def rail_distance(section):
+        rail = section.left if side == "Left" else section.right
+        return (rail[0] - first_rail[0]) * tangent[0] + (rail[1] - first_rail[1]) * tangent[1]
+
+    distances = [rail_distance(section) for section in sections]
+    # The lower edge runs square below straight pitches; the floor is
+    # trimmed afterwards with a level cut rather than bending the board.
+    if max(distances) - min(distances) < 1.0:
+        # A board with no run, e.g. across a side-entry landing, has no pitch.
+        bottom_lines = None
+        bottoms = [max(elevation - width, 0.0) for elevation in elevations]
+    else:
+        bottom_lines = stringer_bottom_lines(distances, elevations, width)
+        bottoms = [profile_value(bottom_lines, distance) for distance in distances]
+
+    def bottom_at(distance):
+        if bottom_lines is None:
+            return bottoms[-1]
+        return profile_value(bottom_lines, distance)
 
     inward = _stringer_inward(sections[0], side)
 
@@ -635,18 +652,16 @@ def _planar_notched_stringer_shape(
         for section, bottom in zip(sections, bottoms)
     ]
     if shifted_start:
-        first_run = max(run_length(sections[0], sections[1]), 0.01)
-        start_bottom = bottoms[0] + (
-            bottoms[1] - bottoms[0]
-        ) * start_clearance / first_run
         bottom_points[0] = point(
-            sections[0], start_bottom, start_clearance
+            sections[0],
+            bottom_at(distances[0] + start_clearance),
+            start_clearance,
         )
     if end_extension > 1e-9:
         bottom_points.append(
             point(
                 sections[-1],
-                bottoms[-1] + slope * end_extension,
+                bottom_at(distances[-1] + end_extension),
                 end_extension,
             )
         )
@@ -670,6 +685,20 @@ def _planar_notched_stringer_shape(
         return None
     if not result.isValid() or len(result.Solids) != 1:
         return None
+    if result.BoundBox.ZMin < -1e-6:
+        bounds = result.BoundBox
+        floor = Part.makeBox(
+            bounds.XLength + 2.0,
+            bounds.YLength + 2.0,
+            bounds.ZMax + 1.0,
+            FreeCAD.Vector(bounds.XMin - 1.0, bounds.YMin - 1.0, 0.0),
+        )
+        try:
+            trimmed = result.common(floor)
+        except Part.OCCError:
+            trimmed = Part.Shape()
+        if not trimmed.isNull() and trimmed.isValid() and len(trimmed.Solids) == 1:
+            result = trimmed
     try:
         return result.removeSplitter()
     except Part.OCCError:
