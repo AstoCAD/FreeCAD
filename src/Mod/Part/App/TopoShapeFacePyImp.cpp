@@ -52,6 +52,7 @@
 #include <GProp_PrincipalProps.hxx>
 #include <Poly_Triangulation.hxx>
 #include <ShapeAnalysis.hxx>
+#include <ShapeFix_Face.hxx>
 #include <ShapeFix_Shape.hxx>
 #include <ShapeFix_Wire.hxx>
 #include <Standard_Version.hxx>
@@ -850,7 +851,18 @@ PyObject* TopoShapeFacePy::cutHoles(PyObject* args)
                     }
                 }
 
-                getTopoShapePtr()->setShape(mkFace.Face());
+                TopoDS_Face face = mkFace.Face();
+                // A hole wire oriented like the outer wire gives an invalid face
+                // that bounds the wrong side of the hole: re-orient the wires.
+                BRepCheck_Analyzer aChecker(face);
+                if (!aChecker.IsValid()) {
+                    ShapeFix_Face fix(face);
+                    if (fix.FixOrientation()) {
+                        face = fix.Face();
+                    }
+                }
+
+                getTopoShapePtr()->setShape(face);
                 Py_Return;
             }
             else {
