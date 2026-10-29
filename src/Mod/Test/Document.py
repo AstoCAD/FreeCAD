@@ -1723,6 +1723,25 @@ class DocumentGroupCases(unittest.TestCase):
         self.assertIn(part, objects_in_chain)
         self.assertIn(group, objects_in_chain)
 
+    def testGetParentPrefersGroupInsidePart(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/19600
+        # getParent must return the innermost group regardless of the InList order
+        part = self.Doc.addObject("App::Part", "Part")
+        group = self.Doc.addObject("App::DocumentObjectGroup", "Group")
+        obj = self.Doc.addObject("App::FeatureTest", "Obj")
+        part.addObject(group)
+        group.addObject(obj)
+        self.assertEqual(obj.getParent(), group)
+        part.removeObject(group)
+        self.assertEqual(obj.getParent(), group)
+        part.addObject(group)
+        self.assertEqual(obj.getParent(), group)
+        # an object directly in the Part still reports the Part
+        other = self.Doc.addObject("App::FeatureTest", "Other")
+        part.addObject(other)
+        self.assertEqual(other.getParent(), part)
+        self.assertEqual(group.getParent(), part)
+
     def testIssue0003150Part2(self):
         self.box = self.Doc.addObject("App::FeatureTest")
         self.cyl = self.Doc.addObject("App::FeatureTest")
