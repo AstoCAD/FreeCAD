@@ -27,6 +27,8 @@
 
 #include <App/Application.h>
 #include <Base/Converter.h>
+#include <Base/Interpreter.h>
+#include <Base/PyObjectBase.h>
 #include <Base/Vector3D.h>
 #include <Mod/TechDraw/App/CosmeticEdgePy.h>
 #include <Mod/TechDraw/App/GeomFormatPy.h>
@@ -101,6 +103,14 @@ CosmeticEdge::CosmeticEdge(const TechDraw::BaseGeomPtr g)
 
 CosmeticEdge::~CosmeticEdge()
 {
+    if (!PythonObject.is(Py::_None())) {
+        Base::PyGILStateLocker lock;
+        auto* object = static_cast<Base::PyObjectBase*>(PythonObject.ptr());
+        // Copies can share the original edge's cached Python wrapper.
+        if (object->getTwinPointer() == this) {
+            object->setInvalid();
+        }
+    }
     //shared pointer will delete m_geometry when ref count goes to zero.
 }
 
