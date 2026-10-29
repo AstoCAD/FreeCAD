@@ -63,6 +63,24 @@ using namespace TechDrawGui;
 using namespace TechDraw;
 using DU = DrawUtil;
 
+namespace
+{
+//! A page that was never shown in a window has an incomplete scene: no template
+//! item. Fill it the way ViewProviderPage::showMDIViewPage() does, so exporting
+//! or printing such a page (e.g. from a script) works.
+void buildSceneIfEmpty(ViewProviderPage* vpp)
+{
+    QGSPage* scene = vpp->getQGSPage();
+    if (!scene || scene->getTemplate()) {
+        return;
+    }
+    scene->addChildrenToPage();
+    scene->updateTemplate(true);
+    scene->redrawAllViews();
+    scene->fixOrphans(true);
+}
+}  // namespace
+
 constexpr double A4Heightmm = 297.0;
 constexpr double A4Widthmm = 210.0;
 constexpr double mmPerInch = 25.4;
@@ -421,12 +439,15 @@ void PagePrinter::preRenderSetUp(TechDrawGui::ViewProviderPage* vpp,
     if (!vpp) {
         return;
     }
+    buildSceneIfEmpty(vpp);
     ourScene = vpp->getQGSPage();
     // setExportingPdf does not hurt anything here and protects against Windows
     // Pdf writer not asking for file name until after rendering.
     ourScene->setExportingPdf(true);
     ourTemplate = static_cast<QGISVGTemplate*>(vpp->getQTemplate());
-    ourTemplate->updateView(true);
+    if (ourTemplate) {
+        ourTemplate->updateView(true);
+    }
 }
 
 void PagePrinter::postRenderCleanUp(QGSPage* ourScene,
@@ -438,7 +459,9 @@ void PagePrinter::postRenderCleanUp(QGSPage* ourScene,
     }
     ourScene->setExportingPdf(false);
     dPage->redrawCommand();
-    ourTemplate->updateView(true);
+    if (ourTemplate) {
+        ourTemplate->updateView(true);
+    }
 }
 
 
@@ -453,6 +476,7 @@ void PagePrinter::saveSVG(ViewProviderPage* vpPage, const std::string& file)
     filespec = DU::cleanFilespecBackslash(file);
     QString filename = QString::fromStdString(filespec);
 
+    buildSceneIfEmpty(vpPage);
     auto ourScene = vpPage->getQGSPage();
     ourScene->setExportingSvg(true);
     auto ourDoc = vpPage->getDocument();

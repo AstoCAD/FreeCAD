@@ -204,6 +204,7 @@ SET(TDTest_SRCS
     TDTest/DrawArchViewDocumentTest.py
     TDTest/DrawImportFilenameTest.py
     TDTest/DrawPagePdfFilenameTest.py
+    TDTest/DrawPageUnshownExportTest.py
     TDTest/DrawSvgzSymbolTest.py
     TDTest/DrawPageSketchTest.py
     TDTest/DrawProjectionGroupTest.py
