@@ -91,10 +91,14 @@ const QString TaskSketchBasedParameters::onAddSelection(
             refStr = QString::fromUtf8(selObj->getNameInDocument());
         }
     }
-    else if (subname.size() > 4) {
+    else if (subname.size() > 4 && subname.starts_with("Face")) {
         int faceId = std::atoi(&subname[4]);
         refStr = QString::fromUtf8(selObj->getNameInDocument()) + QStringLiteral(":")
             + QObject::tr("Face") + QString::number(faceId);
+    }
+    else if (!subname.empty()) {
+        refStr = QString::fromUtf8(selObj->getNameInDocument()) + QStringLiteral(":")
+            + QString::fromStdString(subname);
     }
 
     std::vector<std::string> upToFaces(1, subname);

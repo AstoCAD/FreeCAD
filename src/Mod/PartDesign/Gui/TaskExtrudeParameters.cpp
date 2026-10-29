@@ -431,6 +431,9 @@ void TaskExtrudeParameters::setSelectionMode(SelectionMode mode, Side side)
             Gui::Selection().addSelectionGate(new SelectionFilterGate("SELECT Part::Feature COUNT 1"));
             break;
         case SelectFace:
+            // a vertex or datum point extrudes up to the plane through it
+            onSelectReference(AllowSelection::FACE | AllowSelection::POINT);
+            break;
         case SelectStartReference:
             onSelectReference(AllowSelection::FACE);
             break;
