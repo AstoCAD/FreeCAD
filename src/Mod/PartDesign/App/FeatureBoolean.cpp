@@ -29,9 +29,12 @@
 #include <Standard_Failure.hxx>
 
 #include <algorithm>
+#include <set>
 
 #include <App/Application.h>
+#include <App/Document.h>
 #include <App/DocumentObject.h>
+#include <App/PropertyGeo.h>
 #include <Base/Tools.h>
 #include <Mod/Part/App/modelRefine.h>
 #include <Mod/Part/App/TopoShapeOpCode.h>
@@ -74,6 +77,52 @@ short Boolean::mustExecute() const
         return 1;
     }
     return PartDesign::Feature::mustExecute();
+}
+
+void Boolean::onSettingDocument()
+{
+    connection.disconnect();
+    FeatureRefine::onSettingDocument();
+
+    if (auto* document = getDocument()) {
+        connection = document->signalChangedObject.connect(
+            [this](const App::DocumentObject& object, const App::Property& prop) {
+                slotChangedObject(object, prop);
+            }
+        );
+    }
+}
+
+void Boolean::slotChangedObject(const App::DocumentObject& object, const App::Property& prop)
+{
+    if (!prop.isDerivedFrom<App::PropertyPlacement>()) {
+        return;
+    }
+
+    auto* document = getDocument();
+    if (!document || document->testStatus(App::Document::Restoring)
+        || UseLegacyBodyPlacement.getValue() || &object == this
+        || &prop != object.getPropertyByName("Placement")) {
+        return;
+    }
+
+    // The base and tool shapes are taken relative to the Body, so moving the
+    // Body (or a container of the Body or of a tool) changes the result. The
+    // Body is not a dependency of this feature, so nothing would touch it.
+    const auto usesPlacement = [&object](const App::DocumentObject* source) {
+        std::set<const App::DocumentObject*> visited;
+        for (; source && visited.insert(source).second;
+             source = App::GeoFeatureGroupExtension::getGroupOfObject(source)) {
+            if (source == &object) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (usesPlacement(getFeatureBody()) || std::ranges::any_of(Group.getValues(), usesPlacement)) {
+        enforceRecompute();
+    }
 }
 
 TopoShape Boolean::getBooleanTopoShape(const App::DocumentObject* object) const

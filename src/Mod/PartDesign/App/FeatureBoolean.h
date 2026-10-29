@@ -80,9 +80,13 @@ protected:
     ) override;
 
 
+    void onSettingDocument() override;
+
 private:
     Part::TopoShape getBooleanTopoShape(const App::DocumentObject* object) const;
+    void slotChangedObject(const App::DocumentObject& object, const App::Property& prop);
 
+    fastsignals::scoped_connection connection;
     static const char* TypeEnums[];
 };
 
