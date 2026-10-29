@@ -31,6 +31,7 @@ from SketcherTests.TestAssociatedConstraintPointFilterGui import (
 from SketcherTests.TestConstraintListStaleIndexGui import TestConstraintListStaleIndexGui
 from SketcherTests.TestAutoConstraintsPreferenceGui import TestAutoConstraintsPreferenceGui
 from SketcherTests.TestEditTextDialogGui import TestEditTextDialogGui
+from SketcherTests.TestPasteSelectionGui import TestPasteSelectionGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -61,5 +62,6 @@ from SketcherTests.TestEditTextDialogGui import TestEditTextDialogGui
     and TestConstraintListStaleIndexGui
     and TestAutoConstraintsPreferenceGui
     and TestEditTextDialogGui
+    and TestPasteSelectionGui
     else False
 )
