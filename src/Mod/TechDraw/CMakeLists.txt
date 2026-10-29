@@ -193,6 +193,7 @@ SET(TDTest_SRCS
     TDTest/TestExtendShortenEmptySelectionGui.py
     TDTest/TestViewLockNoViewSelectionGui.py
     TDTest/TestLineParallelEmptySelectionGui.py
+    TDTest/TestTwoPointCircleEmptySelectionGui.py
     TDTest/TestDxfExportPendingTransactionGui.py
     TDTest/DrawMoveViewPageChooserGuiTest.py
     TDTest/DrawTemplateFieldsDismissalGuiTest.py
