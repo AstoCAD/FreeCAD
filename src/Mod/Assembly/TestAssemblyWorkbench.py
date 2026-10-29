@@ -49,6 +49,7 @@ from AssemblyTests.TestExplodedViewAlignHoverGui import TestExplodedViewAlignHov
 from AssemblyTests.TestCommandCreateJoint import TestCommandCreateJoint
 from AssemblyTests.TestRigidGroupInitializationGui import TestRigidGroupInitializationGui
 from AssemblyTests.TestRigidGroupTransactionGui import TestRigidGroupTransactionGui
+from AssemblyTests.TestGroundedEmptySelectionGui import TestGroundedEmptySelectionGui
 from AssemblyTests.TestSimulationExport import TestSimulationExport
 from AssemblyTests.TestSimulationGravity import TestSimulationGravity
 from AssemblyTests.TestSimulationTabs import TestSimulationTabs
@@ -79,6 +80,7 @@ True if TestExplodedViewAlignHoverGui else False
 True if TestCommandCreateJoint else False
 True if TestRigidGroupInitializationGui else False
 True if TestRigidGroupTransactionGui else False
+True if TestGroundedEmptySelectionGui else False
 True if TestSimulationExport else False
 True if TestSimulationGravity else False
 True if TestSimulationTabs else False
