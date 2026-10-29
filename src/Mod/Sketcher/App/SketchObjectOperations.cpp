@@ -41,6 +41,29 @@
 using namespace Sketcher;
 using namespace Base;
 
+namespace
+{
+// Group and Text constraints reference any number of geometries (the handle first, then the
+// members). Their copy is only valid when every one of them was copied, otherwise a member would
+// belong to two groups. Returns nullptr when the constraint cannot be copied.
+Constraint* copyGroupConstraint(const Constraint& constr, const std::map<int, int>& geoIdMap)
+{
+    std::unique_ptr<Constraint> constNew(constr.copy());
+    for (int i = 0; constr.hasElement(i); ++i) {
+        const int geoId = constr.getGeoId(i);
+        if (geoId == GeoEnum::GeoUndef) {
+            continue;
+        }
+        auto it = geoIdMap.find(geoId);
+        if (it == geoIdMap.end()) {
+            return nullptr;
+        }
+        constNew->setGeoId(i, it->second);
+    }
+    return constNew.release();
+}
+}  // namespace
+
 SketchSolveStatus SketchObject::moveGeometries(
     const std::vector<GeoElementId>& geoEltIds,
     const Base::Vector3d& toPoint,
@@ -1572,6 +1595,14 @@ int SketchObject::addSymmetric(
                 }
             }
 
+            if (constr->Type == Sketcher::Group || constr->Type == Sketcher::Text) {
+                if (Constraint* constNew = copyGroupConstraint(*constr, geoIdMap)) {
+                    constNew->Name = "";
+                    newconstrVals.push_back(constNew);
+                }
+                continue;
+            }
+
             if (constr->getElement(1).GeoId == GeoEnum::GeoUndef  //
                 /*&& constr->getElement(2).GeoId == GeoEnum::GeoUndef*/) {
                 if (refIsAxisAligned
@@ -2548,6 +2579,13 @@ int SketchObject::addCopy(
 
         // handle geometry constraints
         for (const auto& constr : constrvals) {
+            if (constr->Type == Sketcher::Group || constr->Type == Sketcher::Text) {
+                if (Constraint* constNew = copyGroupConstraint(*constr, geoIdMap)) {
+                    newconstrVals.push_back(constNew);
+                }
+                continue;
+            }
+
             auto fit = geoIdMap.find(constr->First);
 
             if (fit == geoIdMap.end()) {
