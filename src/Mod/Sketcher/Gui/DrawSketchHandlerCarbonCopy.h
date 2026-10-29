@@ -25,7 +25,12 @@
 #pragma once
 
 #include <QApplication>
+#include <QMouseEvent>
+#include <QPointer>
+#include <QTreeWidget>
+#include <memory>
 
+#include <Gui/DockWindowManager.h>
 #include <Gui/Notifications.h>
 #include <Gui/Selection/SelectionFilter.h>
 #include <Gui/Command.h>
@@ -126,6 +131,27 @@ public:
     }
 };
 
+class CarbonCopyTreeWidgetFilter: public QObject
+{
+public:
+    explicit CarbonCopyTreeWidgetFilter(QObject* parent = nullptr)
+        : QObject(parent)
+    {}
+
+protected:
+    bool eventFilter(QObject*, QEvent* event) override
+    {
+        // Prevent button-held drag-selection from executing Carbon Copy repeatedly.
+        if (event->type() == QEvent::MouseMove) {
+            auto* mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->buttons() != Qt::NoButton) {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
 class DrawSketchHandlerCarbonCopy: public DrawSketchHandler
 {
     Q_DECLARE_TR_FUNCTIONS(SketcherGui::DrawSketchHandlerCarbonCopy)
@@ -210,6 +236,26 @@ public:
     }
 
 private:
+    static QTreeWidget* findModelTreeWidget()
+    {
+        // Match the existing dock-manager lookup for independent and combined trees.
+        auto* mgr = Gui::DockWindowManager::instance();
+        auto* dock = mgr->getDockWindow("Tree view");
+        if (!dock || !dock->inherits("Gui::TreeDockWidget")) {
+            dock = mgr->getDockWindow("Model");
+            if (!dock || !dock->inherits("Gui::DockWnd::ComboView")) {
+                return nullptr;
+            }
+        }
+
+        for (auto* widget : dock->findChildren<QWidget*>()) {
+            if (widget->inherits("Gui::TreeWidget")) {
+                return qobject_cast<QTreeWidget*>(widget);
+            }
+        }
+        return nullptr;
+    }
+
     void activated() override
     {
         setAxisPickStyle(false);
@@ -221,6 +267,13 @@ private:
         Gui::Selection().clearSelection();
         Gui::Selection().rmvSelectionGate();
         Gui::Selection().addSelectionGate(new CarbonCopySelection(sketchgui->getObject()));
+
+        treeWidgetFilter = std::make_unique<CarbonCopyTreeWidgetFilter>();
+        tree = findModelTreeWidget();
+        if (tree && treeWidgetFilter) {
+            tree->installEventFilter(treeWidgetFilter.get());
+            tree->viewport()->installEventFilter(treeWidgetFilter.get());
+        }
     }
 
     QString getCrosshairCursorSVGName() const override
@@ -232,7 +285,16 @@ private:
     {
         Q_UNUSED(sketchgui);
         setAxisPickStyle(true);
+        if (tree && treeWidgetFilter) {
+            tree->removeEventFilter(treeWidgetFilter.get());
+            tree->viewport()->removeEventFilter(treeWidgetFilter.get());
+        }
+        treeWidgetFilter.reset();
+        tree = nullptr;
     }
+
+    QPointer<QTreeWidget> tree;
+    std::unique_ptr<CarbonCopyTreeWidgetFilter> treeWidgetFilter;
 
 public:
     std::list<Gui::InputHint> getToolHints() const override
