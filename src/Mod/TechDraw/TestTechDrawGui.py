@@ -46,6 +46,7 @@ from TDTest.TestLineParallelEmptySelectionGui import TestLineParallelEmptySelect
 from TDTest.TestTwoPointCircleEmptySelectionGui import TestTwoPointCircleEmptySelectionGui  # noqa: F401
 from TDTest.TestHorizontalChainPendingGui import TestHorizontalChainPendingGui  # noqa: F401
 from TDTest.TestChainWarningsPendingGui import TestChainWarningsPendingGui  # noqa: F401
+from TDTest.TestDimensionFormatPendingGui import TestDimensionFormatPendingGui  # noqa: F401
 from TDTest.TestDxfExportPendingTransactionGui import TestDxfExportPendingTransactionGui  # noqa: F401
 from TDTest.DrawMoveViewPageChooserGuiTest import DrawMoveViewPageChooserGuiTest  # noqa: F401
 from TDTest.DrawTemplateFieldsDismissalGuiTest import DrawTemplateFieldsDismissalGuiTest  # noqa: F401
