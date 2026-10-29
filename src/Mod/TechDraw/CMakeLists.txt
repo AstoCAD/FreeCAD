@@ -210,6 +210,7 @@ SET(TDTest_SRCS
     TDTest/DrawImportFilenameTest.py
     TDTest/DrawPagePdfFilenameTest.py
     TDTest/DrawPageUnshownExportTest.py
+    TDTest/HatchFaceLastUsedGuiTest.py
     TDTest/DrawSvgzSymbolTest.py
     TDTest/DrawPageSketchTest.py
     TDTest/DrawProjectionGroupTest.py
