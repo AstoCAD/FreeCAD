@@ -110,9 +110,14 @@ DrawViewDetail::DrawViewDetail() : m_waitingForDetail(false), m_saveDvp(nullptr)
 DrawViewDetail::~DrawViewDetail()
 {
     //don't delete this object while it still has dependent tasks running
+    //waitForFinished() rethrows an exception of the task, which must not leave a destructor
     if (m_detailFuture.isRunning()) {
         Base::Console().message("{} is waiting for detail cut to finish\n", Label.getValue());
-        m_detailFuture.waitForFinished();
+        try {
+            m_detailFuture.waitForFinished();
+        }
+        catch (...) {
+        }
     }
 }
 
