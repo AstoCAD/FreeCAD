@@ -89,8 +89,13 @@ class BOPFeatures:
         accepts Part features, so it must not be used as the target. Since
         getParent() returns only the first group in the InList, which may be
         such a Body, the InList is searched for the group that holds the input.
+
+        A feature held by a Body is never taken out of it: that breaks the
+        Body, which does not accept the result either. Adding the result to a
+        container would also pull the feature into it, so when an input is a
+        Body feature every object is left where it is.
         """
-        targetGroup = None
+        holders = []
         for obj in objects:
             obj.Visibility = False
             parent = None
@@ -98,6 +103,11 @@ class BOPFeatures:
                 if p.hasExtension("App::GroupExtension") and p.hasObject(obj):
                     parent = p
                     break
+            holders.append(parent)
+        if any(p and p.isDerivedFrom("PartDesign::Body") for p in holders):
+            return None
+        targetGroup = None
+        for obj, parent in zip(objects, holders):
             if parent and (result is None or self._allows(parent, result)):
                 parent.removeObject(obj)
                 targetGroup = parent
