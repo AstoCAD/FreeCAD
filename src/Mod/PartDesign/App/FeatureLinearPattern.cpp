@@ -83,9 +83,10 @@ void LinearPattern::updateSuppressedIndices()
 {
     // Keep the flat Python index property as a projection onto the current grid.
     std::vector<long> indices;
-    const long stride = Occurrences2.getValue();
+    const long stride = getPatternCount(Part::LinearPatternDirection::Second);
+    const long count = getPatternCount(Part::LinearPatternDirection::First);
     for (const auto& [direction1, direction2] : SuppressedPositions.getValues()) {
-        if (direction1 >= 0 && direction1 < Occurrences.getValue() && direction2 >= 0
+        if (direction1 >= 0 && direction1 < count && direction2 >= 0
             && direction2 < stride
             && direction1 <= (std::numeric_limits<long>::max() - direction2) / stride) {
             indices.push_back(direction1 * stride + direction2);
@@ -107,7 +108,8 @@ void LinearPattern::onChanged(const App::Property* prop)
         if (prop == &SuppressedIndices) {
             importSuppressedIndices();
         }
-        else if (prop == &SuppressedPositions || prop == &Occurrences || prop == &Occurrences2) {
+        else if (prop == &SuppressedPositions || prop == &Occurrences || prop == &Occurrences2
+                 || prop == &Symmetric || prop == &Symmetric2) {
             updateSuppressedIndices();
         }
     }

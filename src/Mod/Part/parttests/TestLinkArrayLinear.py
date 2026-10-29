@@ -138,3 +138,23 @@ class TestLinkArrayLinear(unittest.TestCase):
         self.doc.redo()
         self.doc.recompute()
         self.assertSuppressed([5])
+
+    # https://github.com/FreeCAD/FreeCAD/issues/10442
+    def testSymmetricDirections(self):
+        self.array.Occurrences2 = 1
+        self.array.Symmetric = True
+        self.doc.recompute()
+        self.assertEqual(self.array.getStatusString(), "Valid")
+        positions = [element.Placement.Base.x for element in self.array.ElementList]
+        self.assertEqual(len(positions), 5)
+        self.assertEqual(positions[0], 0)
+        self.assertAlmostEqual(min(positions), -self.array.Length.Value)
+        self.assertAlmostEqual(max(positions), self.array.Length.Value)
+
+        self.array.Occurrences2 = 3
+        self.array.Symmetric2 = True
+        self.doc.recompute()
+        self.assertEqual(len(self.array.ElementList), 25)
+        self.array.ElementList[3].Suppressed = True  # (0, 3), first mirrored step
+        self.assertEqual(self.array.SuppressedPositions, [(0, 3)])
+        self.assertLess(self.array.ElementList[3].Placement.Base.y, 0)

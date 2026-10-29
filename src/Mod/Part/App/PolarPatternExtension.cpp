@@ -120,6 +120,14 @@ PolarPatternExtension::PolarPatternExtension()
         "The total number of instances in the pattern, including the original feature."
     );
     Occurrences.setConstraints(PatternConstants::occurrenceConstraints());
+    EXTENSION_ADD_PROPERTY_TYPE(
+        Symmetric,
+        (false),
+        "PolarPattern",
+        App::Prop_None,
+        "Replicate the pattern on both sides of the original feature. The occurrences, "
+        "angle and offset apply to each side, giving 2 * Occurrences - 1 instances."
+    );
 
     setReadWriteStatusForMode(initialMode);
 }
@@ -142,7 +150,8 @@ const std::list<gp_Trsf> PolarPatternExtension::calculateTransformations() const
     if (Mode.getValue() == (int)PolarPatternMode::Extent) {
         angle = Angle.getValue();
 
-        if (std::fabs(angle - 360.0) < Precision::Confusion()) {
+        // A symmetric pattern never closes on itself: each side ends at the angle.
+        if (!Symmetric.getValue() && std::fabs(angle - 360.0) < Precision::Confusion()) {
             angle /= occurrences;  // Because e.g. two occurrences in 360 degrees need to be 180
                                    // degrees apart
         }
@@ -190,6 +199,14 @@ const std::list<gp_Trsf> PolarPatternExtension::calculateTransformations() const
             trans.SetRotation(axis.Axis(), angle * i);
         }
         transformations.push_back(trans);
+    }
+
+    // The mirrored side follows, so the original keeps index 0 and the existing indices stay.
+    if (Symmetric.getValue()) {
+        auto side = std::next(transformations.begin());
+        for (int i = 1; i < occurrences; ++i, ++side) {
+            transformations.push_back(side->Inverted());
+        }
     }
 
     return transformations;
@@ -359,7 +376,7 @@ short PolarPatternExtension::extensionMustExecute()
 {
     if (Axis.isTouched() || Reversed.isTouched() || Mode.isTouched() || Angle.isTouched()
         || Offset.isTouched() || Spacings.isTouched() || SpacingPattern.isTouched()
-        || Occurrences.isTouched()) {
+        || Occurrences.isTouched() || Symmetric.isTouched()) {
         return 1;
     }
     return 0;

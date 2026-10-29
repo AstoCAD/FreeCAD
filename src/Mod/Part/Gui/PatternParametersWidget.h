@@ -114,6 +114,11 @@ public:
         App::DocumentObject* feature
     );  // Pass feature for context
 
+    /**
+     * @brief Binds the "Symmetric to the original" check box. The check box stays hidden
+     * when no property is bound.
+     */
+    void bindSymmetricProperty(App::PropertyBool* symmetricProp);
 
     /**
      * @brief Adds a custom direction option to the Direction combo box.
@@ -170,6 +175,7 @@ private Q_SLOTS:
     void onLengthChanged(double value);
     void onOffsetChanged(double value);
     void onOccurrencesChanged(unsigned int value);
+    void onSymmetricToggled(bool checked);
 
     void onGroupBoxToggled(bool checked);
     void onEnableCheckBoxToggled(bool checked);
@@ -207,6 +213,7 @@ private:
     App::PropertyFloatList* m_spacingsOverrideProp = nullptr;
     App::PropertyFloatList* m_spacingPatternProp = nullptr;
     App::PropertyIntegerConstraint* m_occurrencesProp = nullptr;
+    App::PropertyBool* m_symmetricProp = nullptr;
     App::DocumentObject* m_feature = nullptr;  // Store feature for context
 
     bool blockUpdate = false;  // Prevents signal loops
