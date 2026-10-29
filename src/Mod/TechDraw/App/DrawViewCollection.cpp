@@ -210,14 +210,23 @@ void DrawViewCollection::unsetupObject()
     nowUnsetting = true;
 
     // Remove the collection's views from document
-    std::string docName = getDocument()->getName();
+    App::Document* doc = getDocument();
+    std::string docName = doc->getName();
 
+    // Removing a view breaks its link from Views, which reallocates the list we would be
+    // iterating. Collect the names first and never iterate Views while deleting.
+    std::vector<std::string> viewNames;
     for (auto* view : Views.getValues()) {
-        if (view->isAttachedToDocument()) {
-            std::string viewName = view->getNameInDocument();
-            Base::Interpreter().runStringArg("App.getDocument(\"%s\").removeObject(\"%s\")",
-                                              docName.c_str(), viewName.c_str());
+        if (view && view->isAttachedToDocument()) {
+            viewNames.emplace_back(view->getNameInDocument());
         }
+    }
+    for (auto& viewName : viewNames) {
+        if (!doc->getObject(viewName.c_str())) {
+            continue;  // already removed together with an earlier view
+        }
+        Base::Interpreter().runStringArg("App.getDocument(\"%s\").removeObject(\"%s\")",
+                                          docName.c_str(), viewName.c_str());
     }
 
     std::vector<App::DocumentObject*> emptyViews;
