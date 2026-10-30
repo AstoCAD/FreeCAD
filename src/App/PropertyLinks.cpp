@@ -4416,6 +4416,11 @@ void PropertyXLink::Restore(Base::XMLReader& reader)
     if (!file.empty() || (!object && !name.empty())) {
         this->stamp = stampAttr;
         setValue(std::move(file), std::move(name), std::move(subs), std::move(shadows));
+        // setValue() takes the stamp of an already opened linked document.
+        // Keep the saved one, so that checkRestore() can detect the change.
+        if (!stampAttr.empty()) {
+            this->stamp = stampAttr;
+        }
     }
     else {
         setValue(object, std::move(subs), std::move(shadows));
