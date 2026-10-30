@@ -634,6 +634,7 @@ SET(Tests_SRCS
     CAMTests/TestPathLog.py
     CAMTests/TestPathLogNew.py
     CAMTests/TestPathMillFacing.py
+    CAMTests/TestPathOpBaseGeometryGui.py
     CAMTests/TestPathOpDeburr.py
     CAMTests/TestPathOpDeprecation.py
     CAMTests/TestPathOpUtil.py
