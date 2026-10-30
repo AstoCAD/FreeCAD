@@ -48,6 +48,7 @@
 #include <limits>
 #include <numbers>
 #include <sstream>
+#include <vector>
 
 #include "Widgets/CompassWidget.h"
 #include <Gui/VectorEditWidget.h>
@@ -992,6 +993,37 @@ void TaskSectionView::setUiCommon(const QPointF& center)
     editLayout->addWidget(m_viewDirectionWidget);
     connect(m_viewDirectionWidget, &Gui::VectorEditWidget::valueChanged, this,
             &TaskSectionView::slotViewDirectionChanged);
+
+    // The compass and vector editor are created after the .ui widgets, so they
+    // would come last in the Tab order. Follow the visual top-to-bottom order.
+    QWidget* const tabOrder[] = {
+        ui->tbSectionHorizontal, ui->tbSectionVertical, ui->tbSectionCenterDirection,
+        ui->tbSectionTwoPoints, ui->tbSectionCenterPoint, ui->tbSectionTwoPointsPartial,
+        ui->tbSectionCenterTwoPoints, ui->tbSectionSketchBased, ui->pbResetSectionLine,
+        ui->leSymbol, ui->cmbScaleType, ui->sbScale,
+        ui->leSectionObjects, ui->pbSectionObjects, ui->leProfileObject, ui->pbProfileObject,
+        ui->cmbStrategy, ui->cbConnectionLine, ui->cmbParallelTo, ui->cbSectionCutOnly,
+        ui->cbShowOutsidePartialBoundaries, ui->cbShowManualControls,
+        ui->sbCenterX, ui->sbCenterY, m_compass, m_viewDirectionWidget, ui->cbLiveUpdate};
+    // QWidget::setTabOrder() ignores widgets that take no focus, such as the
+    // compass and the vector editor containers, so chain their focusable
+    // children (in their own focus order) instead.
+    std::vector<QWidget*> focusChain;
+    for (QWidget* widget : tabOrder) {
+        if (widget->focusPolicy() != Qt::NoFocus) {
+            focusChain.push_back(widget);
+            continue;
+        }
+        for (QWidget* child = widget->nextInFocusChain(); child && child != widget;
+             child = child->nextInFocusChain()) {
+            if (widget->isAncestorOf(child) && child->focusPolicy() != Qt::NoFocus) {
+                focusChain.push_back(child);
+            }
+        }
+    }
+    for (std::size_t i = 1; i < focusChain.size(); ++i) {
+        QWidget::setTabOrder(focusChain[i - 1], focusChain[i]);
+    }
 }
 
 void TaskSectionView::setInteractiveBase(TechDraw::DrawViewPart* base)
