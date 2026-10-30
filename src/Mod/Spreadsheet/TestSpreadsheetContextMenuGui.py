@@ -39,17 +39,22 @@ class TestSpreadsheetContextMenuGui(unittest.TestCase):
     def testContextMenuHasDocumentWindowSubmenu(self):
         table = self._tableView()
         cmd = FreeCADGui.Command.get("Std_ViewDockUndockFullscreen")
+        # the submenu title is the translated menu text of the command
+        title = QtCore.QCoreApplication.translate(
+            "StdViewDockUndockFullscreen", cmd.getInfo()["menuText"]
+        )
         found = []
+        errors = []
 
         def inspect():
             menu = QtWidgets.QApplication.activePopupWidget()
             try:
-                if menu:
-                    expected = [a.text() for a in cmd.getAction()]
-                    submenus = [a.menu() for a in menu.actions() if a.menu()]
-                    found.append(
-                        any([a.text() for a in sub.actions()] == expected for sub in submenus)
-                    )
+                found.append(
+                    bool(menu)
+                    and any(a.text() == title and a.menu() is not None for a in menu.actions())
+                )
+            except Exception as exc:
+                errors.append(repr(exc))
             finally:
                 if menu:
                     menu.close()
@@ -61,6 +66,11 @@ class TestSpreadsheetContextMenuGui(unittest.TestCase):
             QtGui.QContextMenuEvent.Mouse, pos, viewport.mapToGlobal(pos)
         )
         QtWidgets.QApplication.sendEvent(viewport, event)
+        for _ in range(100):
+            if found or errors:
+                break
+            QtWidgets.QApplication.processEvents(QtCore.QEventLoop.AllEvents, 20)
+        self.assertFalse(errors, errors)
         self.assertEqual(found, [True])
 
 
