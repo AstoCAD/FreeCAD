@@ -40,7 +40,13 @@ def _new_model(name, view_provider_type=None):
     first = assembly.newObject("Part::Box", "First")
     second = assembly.newObject("Part::Box", "Second")
     second.Placement.Base = App.Vector(0, 0, 15)
-    first.setPropertyStatus("Placement", "ReadOnly")
+    # Ground First with a real grounded joint: its proxy restores the read-only
+    # Placement after a reload, which a hand-set status does not survive (the
+    # attachment extension of Part::Box resets it on restore).
+    grounded = joints.newObject("App::FeaturePython", "GroundedJoint")
+    JointObject.GroundedJoint(grounded, first)
+    if App.GuiUp:
+        JointObject.ViewProviderGroundedJoint(grounded.ViewObject)
     doc.recompute()
     joint = joints.newObject("App::FeaturePython", "Revolute")
     JointObject.Joint(joint, JointObject.JointTypes.index("Revolute"))
