@@ -53,6 +53,19 @@
 
 using namespace Gui;
 
+namespace
+{
+// An object of a closed document has no C++ object any more
+App::DocumentObject* getValidObject(PyObject* obj)
+{
+    auto pcObject = static_cast<App::DocumentObjectPy*>(obj)->getDocumentObjectPtr();
+    if (!pcObject) {
+        throw Py::ValueError("Invalid document object");
+    }
+    return pcObject;
+}
+}  // namespace
+
 // returns a string which represent the object e.g. when printed in python
 std::string ViewProviderPy::representation() const
 {
@@ -211,9 +224,7 @@ PyObject* ViewProviderPy::canDragObject(PyObject* args)
             ret = getViewProviderPtr()->canDragObjects();
         }
         else {
-            ret = getViewProviderPtr()->canDragObject(
-                static_cast<App::DocumentObjectPy*>(obj)->getDocumentObjectPtr()
-            );
+            ret = getViewProviderPtr()->canDragObject(getValidObject(obj));
         }
 
         return Py::new_reference_to(Py::Boolean(ret));
@@ -263,9 +274,9 @@ PyObject* ViewProviderPy::canDropObject(PyObject* args, PyObject* kw)
             ret = getViewProviderPtr()->canDropObjects();
             return Py::new_reference_to(Py::Boolean(ret));
         }
-        pcObject = static_cast<App::DocumentObjectPy*>(obj)->getDocumentObjectPtr();
+        pcObject = getValidObject(obj);
         if (owner) {
-            pcOwner = static_cast<App::DocumentObjectPy*>(owner)->getDocumentObjectPtr();
+            pcOwner = getValidObject(owner);
         }
         if (pyElements) {
             try {
@@ -291,9 +302,7 @@ PyObject* ViewProviderPy::canDragAndDropObject(PyObject* args)
 
     PY_TRY
     {
-        bool ret = getViewProviderPtr()->canDragAndDropObject(
-            static_cast<App::DocumentObjectPy*>(obj)->getDocumentObjectPtr()
-        );
+        bool ret = getViewProviderPtr()->canDragAndDropObject(getValidObject(obj));
         return Py::new_reference_to(Py::Boolean(ret));
     }
     PY_CATCH;
@@ -329,11 +338,11 @@ PyObject* ViewProviderPy::dropObject(PyObject* args, PyObject* kw)
         );
         Base::PyTypeCheck(&pyElements, PySequence_Check, "expecting 'elem' to be sequence or None");
 
-        auto pcObject = static_cast<App::DocumentObjectPy*>(obj)->getDocumentObjectPtr();
+        auto pcObject = getValidObject(obj);
         App::DocumentObject* pcOwner = nullptr;
         App::PropertyStringList elements;
         if (owner) {
-            pcOwner = static_cast<App::DocumentObjectPy*>(owner)->getDocumentObjectPtr();
+            pcOwner = getValidObject(owner);
         }
         if (pyElements) {
             try {
@@ -359,9 +368,7 @@ PyObject* ViewProviderPy::dragObject(PyObject* args)
 
     PY_TRY
     {
-        getViewProviderPtr()->dragObject(
-            static_cast<App::DocumentObjectPy*>(obj)->getDocumentObjectPtr()
-        );
+        getViewProviderPtr()->dragObject(getValidObject(obj));
         Py_Return;
     }
     PY_CATCH;
