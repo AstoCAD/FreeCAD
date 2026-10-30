@@ -36,21 +36,20 @@ class DocumentHandler(xml.sax.handler.ContentHandler):
 
 def extractDocument(filename, outpath):
     """ Extract files from project archive """
-    zfile = zipfile.ZipFile(filename)
-    files = zfile.namelist()
+    with zipfile.ZipFile(filename) as zfile:
+        files = zfile.namelist()
 
-    for i in files:
-        data = zfile.read(i)
-        dirs = i.split("/")
-        if len(dirs) > 1:
-            dirs.pop()
-            curpath = outpath
-            for j in dirs:
-                curpath = curpath + "/" + j
-                os.mkdir(curpath)
-        output = open(outpath + "/"+i, 'wb')
-        output.write(data)
-        output.close()
+        for i in files:
+            data = zfile.read(i)
+            dirs = i.split("/")
+            if len(dirs) > 1:
+                dirs.pop()
+                curpath = outpath
+                for j in dirs:
+                    curpath = curpath + "/" + j
+                    os.makedirs(curpath, exist_ok=True)
+            with open(outpath + "/"+i, 'wb') as output:
+                output.write(data)
 
 def createDocument(filename, outpath):
     """ Create project archive """
@@ -59,12 +58,11 @@ def createDocument(filename, outpath):
     guixml = os.path.join(dirname, "GuiDocument.xml")
     if os.path.exists(guixml):
         files.extend(getFilesList(guixml))
-    compress = zipfile.ZipFile(outpath, 'w', zipfile.ZIP_DEFLATED)
-    for file in files:
-        if os.path.isfile(file):
-            path_in_archive = os.path.relpath(path=file, start=dirname)
-            compress.write(file, path_in_archive, zipfile.ZIP_DEFLATED)
-    compress.close()
+    with zipfile.ZipFile(outpath, 'w', zipfile.ZIP_DEFLATED) as compress:
+        for file in files:
+            if os.path.isfile(file):
+                path_in_archive = os.path.relpath(path=file, start=dirname)
+                compress.write(file, path_in_archive, zipfile.ZIP_DEFLATED)
 
 def getFilesList(filename):
     """ Determine list of files referenced in a Document.xml or GuiDocument.xml """
