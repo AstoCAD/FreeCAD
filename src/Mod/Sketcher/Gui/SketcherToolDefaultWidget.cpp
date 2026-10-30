@@ -191,7 +191,8 @@ bool SketcherToolDefaultWidget::eventFilter(QObject* object, QEvent* event)
 
             for (int i = 0; i < nLineEdit; i++) {
                 if (object == getLineEdit(i)) {
-                    signalParameterTabOrEnterPressed(i);
+                    // line edits come after the parameter spinboxes in the focus order
+                    signalParameterTabOrEnterPressed(nParameters + i);
                     return true;
                 }
             }

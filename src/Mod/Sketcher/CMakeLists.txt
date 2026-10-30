@@ -73,6 +73,7 @@ if(BUILD_GUI)
           SketcherTests/TestWireSelectionGui.py
           SketcherTests/TestAlignCameraOnEditGui.py
           SketcherTests/TestSnellsLawCommandGui.py
+          SketcherTests/TestToolWidgetTabGui.py
     )
 endif(BUILD_GUI)
 
