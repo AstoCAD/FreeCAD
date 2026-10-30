@@ -24,6 +24,7 @@
 #include <QApplication>
 #include <QDoubleSpinBox>
 #include <QGridLayout>
+#include <QSignalBlocker>
 #include <memory>
 
 
@@ -76,6 +77,16 @@ DlgSettingsNavigation::DlgSettingsNavigation(QWidget* parent)
 #endif
     ui->legacySpaceMouseDevices->setChecked(
         SpaceMouseParameter::instance()->getLegacySpaceMouseDevices()
+    );
+
+    // Connect once here: loadSettings() runs again whenever the preferences
+    // dialog reloads its pages (e.g. after a theme change)
+    connect(ui->mouseButton, &QPushButton::clicked, this, &DlgSettingsNavigation::onMouseButtonClicked);
+    connect(
+        ui->comboNewDocView,
+        qOverload<int>(&QComboBox::currentIndexChanged),
+        this,
+        &DlgSettingsNavigation::onNewDocViewChanged
     );
 }
 
@@ -203,12 +214,11 @@ void DlgSettingsNavigation::loadSettings()
 
     addOrientations();
 
-    connect(ui->mouseButton, &QPushButton::clicked, this, &DlgSettingsNavigation::onMouseButtonClicked);
-
     // fill up font styles
 
     // we purposely allow all available fonts on the system
     QStringList familyNames = QFontDatabase::families(QFontDatabase::Any);
+    ui->naviCubeFontName->clear();
     ui->naviCubeFontName->addItems(familyNames);
 
     // mark this combobox to be excluded from preference search
@@ -222,6 +232,10 @@ void DlgSettingsNavigation::loadSettings()
 
 void DlgSettingsNavigation::addOrientations()
 {
+    // Called on every loadSettings(): refill the list instead of appending to
+    // it, without reacting (e.g. opening the custom camera dialog) meanwhile
+    const QSignalBlocker blocker(ui->comboNewDocView);
+    ui->comboNewDocView->clear();
     ui->comboNewDocView->addItem(tr("Isometric"), QByteArray("Isometric"));
     ui->comboNewDocView->addItem(tr("Dimetric"), QByteArray("Dimetric"));
     ui->comboNewDocView->addItem(tr("Trimetric"), QByteArray("Trimetric"));
@@ -248,13 +262,6 @@ void DlgSettingsNavigation::addOrientations()
         q2 = hCustom->GetFloat("Q2", q2);
         q3 = hCustom->GetFloat("Q3", q3);
     }
-
-    connect(
-        ui->comboNewDocView,
-        qOverload<int>(&QComboBox::currentIndexChanged),
-        this,
-        &DlgSettingsNavigation::onNewDocViewChanged
-    );
 }
 
 void DlgSettingsNavigation::translateOrientations()

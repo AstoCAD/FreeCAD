@@ -83,6 +83,7 @@ SET(Test_SRCS
     TestLinkToggleVisibilityGui.py
     TestComboBoxShortcutGui.py
     TestLinkImportVisibilityGui.py
+    TestNavigationPreferenceReloadGui.py
 )
 
 SET(TestData_SRCS
