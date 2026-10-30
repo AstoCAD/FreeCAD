@@ -1591,6 +1591,16 @@ class TestSketcherSolver(unittest.TestCase):
         for index in range(len(sketch.Constraints)):
             self.assertAlmostEqual(sketch.calculateConstraintError(index), 0.0, delta=1e-6)
 
+    def testToggleConstructionUndefinedGeoId(self):
+        """toggleConstruction(GeoUndef) raises instead of reading past the external list"""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchToggleUndef")
+        sketch.addGeometry(Part.LineSegment(vec(0, 0), vec(10, 0)))
+        with self.assertRaises(ValueError):
+            sketch.toggleConstruction(-2000)  # GeoEnum::GeoUndef
+        self.assertFalse(sketch.getConstruction(0))
+        sketch.toggleConstruction(0)
+        self.assertTrue(sketch.getConstruction(0))
+
     def testSetDatumErrorMessages(self):
         # https://github.com/FreeCAD/FreeCAD/issues/26506
         # A sketch with redundant constraints rejected any new datum with the
