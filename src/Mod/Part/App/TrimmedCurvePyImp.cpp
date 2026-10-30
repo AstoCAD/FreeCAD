@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
 #include <sstream>
 
 
@@ -64,6 +65,10 @@ PyObject* TrimmedCurvePy::setParameterRange(PyObject* args)
             u = c->FirstParameter();
             v = c->LastParameter();
             if (!PyArg_ParseTuple(args, "|dd", &u, &v)) {
+                return nullptr;
+            }
+            if (std::isnan(u) || std::isnan(v)) {
+                PyErr_SetString(PyExc_ValueError, "Curve parameter must not be NaN");
                 return nullptr;
             }
             getGeomTrimmedCurvePtr()->setRange(u, v);

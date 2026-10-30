@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
 #include <GC_MakeSegment.hxx>
 #include <Geom_Line.hxx>
 #include <Geom_TrimmedCurve.hxx>
@@ -178,6 +179,10 @@ PyObject* LineSegmentPy::setParameterRange(PyObject* args)
 {
     double first, last;
     if (!PyArg_ParseTuple(args, "dd", &first, &last)) {
+        return nullptr;
+    }
+    if (std::isnan(first) || std::isnan(last)) {
+        PyErr_SetString(PyExc_ValueError, "Curve parameter must not be NaN");
         return nullptr;
     }
 

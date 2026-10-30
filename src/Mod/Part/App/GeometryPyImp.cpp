@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 
+#include <cmath>
 #include <boost/uuid/uuid_io.hpp>
 
 
@@ -107,6 +108,10 @@ PyObject* GeometryPy::scale(PyObject* args)
     double scale;
     Base::Vector3d vec;
     if (PyArg_ParseTuple(args, "O!d", &(Base::VectorPy::Type), &o, &scale)) {
+        if (std::isnan(scale)) {
+            PyErr_SetString(PyExc_ValueError, "Scale factor must not be NaN");
+            return nullptr;
+        }
         vec = static_cast<Base::VectorPy*>(o)->value();
         getGeometryPtr()->scale(vec, scale);
         Py_Return;
@@ -114,6 +119,10 @@ PyObject* GeometryPy::scale(PyObject* args)
 
     PyErr_Clear();
     if (PyArg_ParseTuple(args, "O!d", &PyTuple_Type, &o, &scale)) {
+        if (std::isnan(scale)) {
+            PyErr_SetString(PyExc_ValueError, "Scale factor must not be NaN");
+            return nullptr;
+        }
         vec = Base::getVectorFromTuple<double>(o);
         getGeometryPtr()->scale(vec, scale);
         Py_Return;
