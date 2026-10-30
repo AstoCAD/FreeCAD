@@ -34,6 +34,7 @@ from SketcherTests.TestEditTextDialogGui import TestEditTextDialogGui
 from SketcherTests.TestPasteSelectionGui import TestPasteSelectionGui
 from SketcherTests.TestWireSelectionGui import TestWireSelectionGui
 from SketcherTests.TestAlignCameraOnEditGui import TestAlignCameraOnEditGui
+from SketcherTests.TestSnellsLawCommandGui import TestSnellsLawCommandGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -67,5 +68,6 @@ from SketcherTests.TestAlignCameraOnEditGui import TestAlignCameraOnEditGui
     and TestPasteSelectionGui
     and TestWireSelectionGui
     and TestAlignCameraOnEditGui
+    and TestSnellsLawCommandGui
     else False
 )
