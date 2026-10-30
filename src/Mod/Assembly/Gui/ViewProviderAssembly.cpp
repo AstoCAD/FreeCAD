@@ -350,6 +350,13 @@ void ViewProviderAssembly::unsetEdit(int mode)
         unsetDragger();
         detachSelection();
 
+        // Assembly_IsolateSelection is only available while editing, so a persistent
+        // isolation must not outlive the edit: it would leave the other components
+        // unselectable with no command to restore them.
+        if (persistentIsolation) {
+            clearIsolate();
+        }
+
         // Check if the view is still active before trying to deactivate the assembly.
         auto activeView = getDocument()->getActiveView();
         if (!activeView) {
