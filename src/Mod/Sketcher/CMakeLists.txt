@@ -78,6 +78,7 @@ if(BUILD_GUI)
           SketcherTests/TestMoveGeometryRedrawGui.py
           SketcherTests/TestOffsetConstraintGui.py
           SketcherTests/TestFilletCurveVertexGui.py
+          SketcherTests/TestTextToolLastFontGui.py
     )
 endif(BUILD_GUI)
 
