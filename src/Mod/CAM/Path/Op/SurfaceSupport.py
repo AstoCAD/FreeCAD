@@ -2657,10 +2657,12 @@ class OCL_Tool:
 
     def _oclConeCutter(self):
         # Engraver or V-bit cutter
-        # OCL -> ConeCutter::ConeCutter(diameter, angle, length)
+        # OCL -> ConeCutter::ConeCutter(diameter, angle, length), half angle in radians
         if self.diameter == -1.0 or self.cutEdgeAngle == -1.0 or self.cutEdgeHeight == -1.0:
             return
-        self.oclTool = self.ocl.ConeCutter(self.diameter, self.cutEdgeAngle / 2, self.lengthOffset)
+        self.oclTool = self.ocl.ConeCutter(
+            self.diameter, math.radians(self.cutEdgeAngle / 2), self.lengthOffset
+        )
 
     def _setToolMethod(self):
         toolMap = dict()
