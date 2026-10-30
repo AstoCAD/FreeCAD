@@ -229,6 +229,7 @@ SET(TDTest_SRCS
     TDTest/DrawViewDeleteWhileRunningGuiTest.py
     TDTest/TestInsertSymbolStackTopGui.py
     TDTest/TestDimensionLabelSnapGui.py
+    TDTest/DrawTaskUndoGuiTest.py
     TDTest/DrawViewPartTest.py
     TDTest/DrawViewPositionTest.py
     TDTest/DrawViewSectionTest.py
