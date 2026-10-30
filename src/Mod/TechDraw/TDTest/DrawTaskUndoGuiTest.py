@@ -96,6 +96,52 @@ class DrawTaskUndoGuiTest(unittest.TestCase):
     def test_undo_closes_projection_group_task(self):
         self._create_then_undo("TechDraw_ProjectionGroup")
 
+    def _base_view(self):
+        view = self.doc.addObject("TechDraw::DrawViewPart", "BaseView")
+        self.page.addView(view)
+        view.Source = [self.box]
+        view.Direction = App.Vector(0, 0, 1)
+        view.X, view.Y = 80, 100
+        self.doc.recompute()
+        self.assertTrue(self._wait(lambda: len(view.getVisibleEdges()) >= 4),
+                        "The base view was not projected")
+        self.doc.clearUndos()
+        return view
+
+    def _edit_then_undo(self, make):
+        self.doc.openTransaction("Create edited object")
+        obj = make()
+        self.doc.commitTransaction()
+        self.doc.recompute()
+        self._pump(1000)
+        name = obj.Name
+        Gui.ActiveDocument.setEdit(name, 0)
+        self.assertTrue(self._wait(Gui.Control.activeDialog), "The edit task did not open")
+        self._pump(300)
+
+        Gui.runCommand("Std_Undo")
+        self._pump(300)
+
+        self.assertIsNone(self.doc.getObject(name), "Undo must remove the edited object")
+        self.assertFalse(Gui.Control.activeDialog(),
+                         "The task must close when undo removes the object it edits")
+
+    def test_undo_closes_section_edit_task(self):
+        base = self._base_view()
+
+        def make():
+            section = self.doc.addObject("TechDraw::DrawViewSection", "Section")
+            self.page.addView(section)
+            section.BaseView = base
+            section.Source = [self.box]
+            section.SectionNormal = App.Vector(0, -1, 0)
+            section.SectionOrigin = App.Vector(5, 5, 5)
+            section.Direction = App.Vector(0, -1, 0)
+            section.X, section.Y = 200, 100
+            return section
+
+        self._edit_then_undo(make)
+
 
 if __name__ == "__main__":
     unittest.main()
