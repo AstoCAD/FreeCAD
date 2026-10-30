@@ -106,6 +106,7 @@ public:
     void clearHighlights();
     void hideSearchResultsList();
     void showSearchResultsList();
+    void updateSearchResultsListPosition();
 
     // Navigation
     void navigateToCurrentSearchResult(PopupAction action);
@@ -291,6 +292,8 @@ public:
 protected:
     void changeEvent(QEvent* e) override;
     void showEvent(QShowEvent*) override;
+    void moveEvent(QMoveEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
     bool eventFilter(QObject* obj, QEvent* event) override;
 
 protected Q_SLOTS:
