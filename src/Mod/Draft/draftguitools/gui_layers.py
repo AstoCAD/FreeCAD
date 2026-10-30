@@ -372,6 +372,14 @@ class LayerManager:
                     changed = True
                 vobj.LinePrintColor = color
 
+            # use print color
+            use_print_color = self.model.item(row, 8).checkState() == QtCore.Qt.Checked
+            if hasattr(vobj, "UsePrintColor") and vobj.UsePrintColor != use_print_color:
+                if not changed:
+                    doc.openTransaction(trans_name)
+                    changed = True
+                vobj.UsePrintColor = use_print_color
+
         # recompute
         if changed:
             doc.commitTransaction()
@@ -405,6 +413,7 @@ class LayerManager:
                 translate("Draft", "Face Color"),
                 translate("Draft", "Transparency"),
                 translate("Draft", "Line Print Color"),
+                translate("Draft", "Use Print Color"),
             ]
         )
         self.dialog.tree.header().setDefaultSectionSize(72)
@@ -447,6 +456,10 @@ class LayerManager:
         linePrintColorItem.setData(
             utils.get_rgba_tuple(params.get_param("DefaultPrintColor"))[:3], QtCore.Qt.UserRole
         )
+        usePrintColorItem = QtGui.QStandardItem()
+        usePrintColorItem.setCheckable(True)
+        usePrintColorItem.setEditable(False)
+        usePrintColorItem.setCheckState(QtCore.Qt.Unchecked)
 
         # populate with object data
         if obj:
@@ -461,6 +474,12 @@ class LayerManager:
             transparencyItem.setData(vobj.Transparency, QtCore.Qt.DisplayRole)
             if hasattr(vobj, "LinePrintColor"):
                 linePrintColorItem.setData(vobj.LinePrintColor[:3], QtCore.Qt.UserRole)
+            if hasattr(vobj, "UsePrintColor"):
+                usePrintColorItem.setCheckState(
+                    QtCore.Qt.Checked if vobj.UsePrintColor else QtCore.Qt.Unchecked
+                )
+            else:
+                usePrintColorItem.setEnabled(False)
         lineColorItem.setIcon(getColorIcon(lineColorItem.data(QtCore.Qt.UserRole)))
         shapeColorItem.setIcon(getColorIcon(shapeColorItem.data(QtCore.Qt.UserRole)))
         linePrintColorItem.setIcon(getColorIcon(linePrintColorItem.data(QtCore.Qt.UserRole)))
@@ -476,6 +495,7 @@ class LayerManager:
                 shapeColorItem,
                 transparencyItem,
                 linePrintColorItem,
+                usePrintColorItem,
             ]
         )
 
