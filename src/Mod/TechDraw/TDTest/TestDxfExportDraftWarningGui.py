@@ -148,22 +148,31 @@ class TestDxfExportDraftWarningGui(unittest.TestCase):
         cancelled so no file is written.
         """
         shown = []
+        handled = set()
         testcase = self
 
-        class Dialogs(QtCore.QObject):
-            def eventFilter(self, watched, event):
-                if event.type() != QtCore.QEvent.Show:
-                    return False
-                if isinstance(watched, QtWidgets.QMessageBox):
-                    shown.append(("message", watched.text()))
-                    button = watched.button(answer)
-                    QtCore.QTimer.singleShot(
-                        0, button.click if button is not None else watched.reject
-                    )
-                elif isinstance(watched, QtWidgets.QFileDialog):
-                    shown.append(("file", watched.windowTitle()))
-                    QtCore.QTimer.singleShot(0, watched.reject)
-                return False
+        # Poll for the modal dialogs instead of filtering every application
+        # event from Python: an application-wide Python event filter recursed
+        # into itself until the interpreter gave up and FreeCAD crashed or hung.
+        def answer_dialogs():
+            modal = testcase.app.activeModalWidget()
+            if modal is None or not modal.isVisible():
+                return
+            pointer = (shiboken.getCppPointer(modal)[0], modal.metaObject().className())
+            if pointer in handled:
+                return
+            if isinstance(modal, QtWidgets.QMessageBox):
+                handled.add(pointer)
+                shown.append(("message", modal.text()))
+                button = modal.button(answer)
+                if button is not None:
+                    button.click()
+                else:
+                    modal.reject()
+            elif isinstance(modal, QtWidgets.QFileDialog):
+                handled.add(pointer)
+                shown.append(("file", modal.windowTitle()))
+                modal.reject()
 
         def timeout():
             modal = testcase.app.activeModalWidget()
@@ -171,23 +180,28 @@ class TestDxfExportDraftWarningGui(unittest.TestCase):
                 shown.append(("timeout", modal.metaObject().className()))
                 modal.reject()
 
-        observer = Dialogs()
+        poller = QtCore.QTimer()
+        poller.setInterval(20)
+        poller.timeout.connect(answer_dialogs)
         watchdog = QtCore.QTimer()
         watchdog.setSingleShot(True)
         watchdog.timeout.connect(timeout)
-        self.app.installEventFilter(observer)
+        poller.start()
         watchdog.start(10000)
         try:
             trigger()
             self._pump(100)
         finally:
             watchdog.stop()
-            self.app.removeEventFilter(observer)
+            poller.stop()
         self.assertIsNone(self.app.activeModalWidget())
         return [kind if kind != "message" else (kind, text) for kind, text in shown]
 
     def _toolbar(self):
-        self.command.getAction()[0].trigger()
+        action = self.command.getAction()[0]
+        # the action is updated on a timer after the page changes
+        self.assertTrue(self._wait(action.isEnabled), "Export Page as DXF is disabled")
+        action.trigger()
 
     def _context_menu(self):
         self._context_menu_action().trigger()
