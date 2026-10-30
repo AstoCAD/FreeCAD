@@ -740,6 +740,39 @@ class MeshHugeCoordinates(unittest.TestCase):
             os.remove(name)
 
 
+class MeshCorruptedFacet(unittest.TestCase):
+    """Removing a facet that references a point twice must erase that point only once"""
+
+    def testFixIndicesRemovesIsolatedCorruptedFacet(self):
+        # The point referenced twice was erased twice, the second time from an empty
+        # point array (heap corruption, the process died).
+        mesh = Mesh.Mesh()
+        mesh.addFacets(([Base.Vector(0, 0, 0), Base.Vector(0, 0, 10)], [(0, 0, 1)]))
+        self.assertEqual(mesh.CountFacets, 1)
+        mesh.fixIndices()
+        self.assertEqual(mesh.CountFacets, 0)
+        self.assertEqual(mesh.CountPoints, 0)
+
+    def testFixIndicesKeepsOtherFacets(self):
+        points = [
+            Base.Vector(0, 0, 0),
+            Base.Vector(0, 0, 10),
+            Base.Vector(1, 0, 0),
+            Base.Vector(0, 1, 0),
+            Base.Vector(5, 5, 5),
+        ]
+        mesh = Mesh.Mesh()
+        mesh.addFacets((points, [(4, 0, 4), (1, 2, 3)]))
+        mesh.fixIndices()
+        self.assertEqual(mesh.CountFacets, 1)
+        self.assertEqual(mesh.CountPoints, 3)
+        self.assertEqual(
+            [(p.x, p.y, p.z) for p in mesh.Points],
+            [(0.0, 0.0, 10.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        )
+        self.assertEqual(mesh.Topology[1], [(0, 1, 2)])
+
+
 class MeshModuleExport(unittest.TestCase):
     def setUp(self):
         self.doc = FreeCAD.newDocument("MeshExportTest")
