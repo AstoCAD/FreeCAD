@@ -1076,6 +1076,33 @@ class TestDynamics(unittest.TestCase):
         self.assertAlmostEqual(final_rotation.Angle, math.radians(30), delta=math.radians(0.01))
         self.assertAlmostEqual(result["AngularVelocity"][-1][2], 0, delta=0.001)
 
+    def test_revolute_limit_beyond_half_turn(self):
+        """A 270 deg stop is reached through 180 deg, not wrapped (issue #30123)."""
+        ground = self.box("Ground", density=None)
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        body = self.box()
+        joint = self.joint("Revolute", ground, body)
+        joint.EnableAngleMin = True
+        joint.AngleMin = "0 deg"
+        joint.EnableAngleMax = True
+        joint.AngleMax = "270 deg"
+        study = self.study(gravity=False)
+        study.EndTime = "0.6 s"
+        study.OutputStep = "0.005 s"
+        initial = Dynamics.create_initial_velocity(study, "Angular", body)
+        initial.Direction = App.Vector(0, 0, 1)
+        initial.AngularVelocity = "10 rad/s"
+        result = Dynamics.run(study)["Bodies"][body.Name]
+        angle = 0.0
+        previous = 0.0
+        for pose in result["Placements"]:
+            x_axis = App.Rotation(*pose[3:]).multVec(App.Vector(1, 0, 0))
+            current = math.degrees(math.atan2(x_axis.y, x_axis.x))
+            angle += (current - previous + 180.0) % 360.0 - 180.0
+            previous = current
+        self.assertAlmostEqual(angle, 270.0, delta=0.01)
+        self.assertAlmostEqual(result["AngularVelocity"][-1][2], 0, delta=0.001)
+
     def test_revolute_limit_sides_have_independent_compliance(self):
         ground = self.box("Ground", density=None)
         ground.setPropertyStatus("Placement", "ReadOnly")
