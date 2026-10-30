@@ -218,6 +218,10 @@ class BIM_Box:
     def setLengthUI(self):
         if (len(self.points) == 1) and self.currentpoint and self.LengthValue:
             baseline = self.currentpoint.sub(self.points[0])
+            if baseline.Length == 0:
+                # The cursor has not moved since the first point was picked:
+                # there is no direction, use the X axis of the working plane
+                baseline = FreeCAD.Vector(self.wp.u)
             baseline.normalize()
             baseline.multiply(self.LengthValue)
             p2 = self.points[0].add(baseline)
