@@ -2835,6 +2835,14 @@ void Link::updateLabelUtility(App::DocumentObject* link, App::DocumentObject* li
     if (!link || !linked || linked == link || !link->getDocument()) {
         return;
     }
+    // Undo/redo and transaction rollback restore the link's Label together with its
+    // LinkedObject (and the linked object's Label). Rebuilding the label from the
+    // linked object here would rename the link, e.g. a custom label lost when undoing
+    // the deletion of the linked object. Restoring a document is handled by
+    // migrateLabelUtility() instead.
+    if (link->isRestoring() || link->getDocument()->isPerformingTransaction()) {
+        return;
+    }
 
     std::string targetLabel = linked->Label.getValue();
     std::string currentLabel = link->Label.getValue();
