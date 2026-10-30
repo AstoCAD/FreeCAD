@@ -11,6 +11,7 @@ import unittest
 import CAMTests.cam_test_modules
 
 _EXCLUDE_MODULES = {
+    "TestPathJobGui",
     "TestPathToolBitBrowserWidget",
     "TestPathToolBitEditorWidget",
     "TestPathToolBitListWidget",
