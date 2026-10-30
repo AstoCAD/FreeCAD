@@ -80,10 +80,10 @@ public:
     /// Options for the link mode.
     enum
     {
-        LinkModeNone, ///< No mode for the link.
-        LinkModeAutoDelete, ///< Delete the linked object when the link is deleted.
-        LinkModeAutoLink,   ///< Create link elements of sub-element automatically (unused).
-        LinkModeAutoUnlink, ///< Unused option.
+        LinkModeNone, ///< Keep the objects removed from the group in the document.
+        LinkModeAutoDelete, ///< Delete the objects removed from the group.
+        LinkModeAutoLink,   ///< Add a link to each object added to the group.
+        LinkModeAutoUnlink, ///< As AutoLink, and delete the links the group created when removed.
     };
 
     /**
@@ -120,7 +120,9 @@ public:
      bool,                                                                                         \
      App::PropertyBool,                                                                            \
      false,                                                                                        \
-     "Set to false to override linked object's placement",                                         \
+     "True: the link placement is applied on top of the linked object's placement,\n"              \
+     "      so the link follows the linked object when it moves\n"                                 \
+     "False: the link uses its own placement and ignores the linked object's placement",          \
      ##__VA_ARGS__)
 
 #define LINK_PARAM_CLAIM_CHILD(...)                                                                \
@@ -218,7 +220,18 @@ public:
     (ShowElement, bool, App::PropertyBool, true, "Enable link element list", ##__VA_ARGS__)
 
 #define LINK_PARAM_MODE(...)                                                                       \
-    (LinkMode, long, App::PropertyEnumeration, ((long)0), "Link group mode", ##__VA_ARGS__)
+    (LinkMode,                                                                                     \
+     long,                                                                                         \
+     App::PropertyEnumeration,                                                                     \
+     ((long)0),                                                                                    \
+     "What happens to the objects of the group:\n"                                                 \
+     "None: objects are added as they are, and kept in the document when removed from the group\n"\
+     "Auto Delete: objects removed from the group are deleted from the document\n"                 \
+     "Auto Link: a link is created for each object added to the group, and kept in the\n"          \
+     "       document when removed from the group\n"                                               \
+     "Auto Unlink: like Auto Link, but the links created by the group are deleted when\n"          \
+     "       removed from the group",                                                              \
+     ##__VA_ARGS__)
 
 #define LINK_PARAM_LINK_EXECUTE(...)                                                               \
     (LinkExecute,                                                                                  \

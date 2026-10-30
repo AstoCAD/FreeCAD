@@ -92,6 +92,7 @@ SET(Test_SRCS
     TestPythonGroupCommandToolTipGui.py
     TestButtonSpaceShortcutGui.py
     TestTreeLinkActiveObjectGui.py
+    TestLinkGroupToolTipsGui.py
 )
 
 SET(TestData_SRCS
