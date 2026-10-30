@@ -182,6 +182,47 @@ class PartMirrorGuiTestCases(unittest.TestCase):
         self.assertEqual(f"{label} (Mirror #1)", self.mirrorBoxWithLabel(label))
 
 
+class PartExtrudeGuiTestCases(unittest.TestCase):
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("PartExtrudeGuiTest")
+
+    def tearDown(self):
+        if FreeCADGui.Control.activeDialog():
+            FreeCADGui.Control.closeDialog()
+        FreeCADGui.Selection.clearSelection()
+        FreeCAD.closeDocument(self.Doc.Name)
+
+    def solidCheckBoxFor(self, shape):
+        obj = self.Doc.addObject("Part::Feature", "Profile")
+        obj.Shape = shape
+        self.Doc.recompute()
+
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(self.Doc.Name, obj.Name)
+        FreeCADGui.runCommand("Part_Extrude")
+        QtWidgets.QApplication.processEvents()
+        dialog = FreeCADGui.Control.activeTaskDialog()
+        self.assertIsNotNone(dialog, "Part Extrude task dialog did not open.")
+        checkBox = None
+        for widget in dialog.getDialogContent():
+            checkBox = widget.findChild(QtWidgets.QCheckBox, "chkSolid")
+            if checkBox:
+                break
+        self.assertIsNotNone(checkBox)
+        return checkBox.isChecked()
+
+    def testCreateSolidIsCheckedForFaceProfile(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/31754
+        V = FreeCAD.Vector
+        wire = Part.makePolygon([V(0, 0, 0), V(10, 0, 0), V(10, 10, 0), V(0, 10, 0), V(0, 0, 0)])
+        self.assertTrue(self.solidCheckBoxFor(Part.Face(wire)))
+
+    def testCreateSolidIsUncheckedForOpenWire(self):
+        V = FreeCAD.Vector
+        wire = Part.makePolygon([V(0, 0, 0), V(10, 0, 0), V(10, 10, 0)])
+        self.assertFalse(self.solidCheckBoxFor(wire))
+
+
 class SectionCutTestCases(unittest.TestCase):
     def setUp(self):
         self.Doc = FreeCAD.newDocument("SectionCut")
