@@ -683,6 +683,8 @@ static void finishFeature(
         cmd->copyVisual(feature, "PointColor", obj);
         cmd->copyVisual(feature, "Transparency", obj);
         cmd->copyVisual(feature, "DisplayMode", obj);
+        cmd->copyVisual(feature, "LineWidth", obj);
+        cmd->copyVisual(feature, "PointSize", obj);
     }
 
     PartDesignGui::setEdit(feature, activeBody);
