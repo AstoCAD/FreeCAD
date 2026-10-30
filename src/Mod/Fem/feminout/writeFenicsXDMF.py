@@ -45,7 +45,8 @@ from .importToolsFem import get_MaxDimElementFromList
 ENCODING_ASCII = "ASCII"
 ENCODING_HDF5 = "HDF5"
 
-FreeCAD_Group_Dimensions = {"Vertex": 0, "Edge": 1, "Face": 2, "Volume": 3}
+# FemMesh.getGroupElementType returns "Node" for groups of nodes
+FreeCAD_Group_Dimensions = {"Vertex": 0, "Node": 0, "Edge": 1, "Face": 2, "Volume": 3}
 
 FreeCAD_to_Fenics_XDMF_dict = {
     ("Node", 1): ("Polyvertex", 1),
@@ -132,6 +133,9 @@ def write_fenics_mesh_codim_xdmf(
         if writeout_element_dimension == dim:
             num_topo, name_topo, dim_topo = (num, name, dim)
 
+    if dim_topo == 0:
+        # nodes have no element order, each one is written as a single node cell
+        element_order = 1
     topology_type, nodes_per_element = FreeCAD_to_Fenics_XDMF_dict[(name_topo, element_order)]
 
     topologynode.set("TopologyType", topology_type)
@@ -145,17 +149,21 @@ def write_fenics_mesh_codim_xdmf(
     elif dim_topo == 1:
         fc_topo = fem_mesh_obj.FemMesh.Edges
     elif dim_topo == 0:
-        fc_topo = fem_mesh_obj.FemMesh.Nodes
+        # node ids, they are not elements
+        fc_topo = list(fem_mesh_obj.FemMesh.Nodes)
     else:
         fc_topo = []
         Console.PrintError(
             "Dimension of mesh incompatible with export" + f" XDMF function: {dim_topo}\n"
         )
 
-    nodeindices = [
-        (nodes_dict[ind] for ind in fem_mesh_obj.FemMesh.getElementNodes(fc_topo_ind))
-        for (fen_ind, fc_topo_ind) in enumerate(fc_topo)
-    ]
+    if dim_topo == 0:
+        nodeindices = [(nodes_dict[ind],) for ind in fc_topo]
+    else:
+        nodeindices = [
+            (nodes_dict[ind] for ind in fem_mesh_obj.FemMesh.getElementNodes(fc_topo_ind))
+            for (fen_ind, fc_topo_ind) in enumerate(fc_topo)
+        ]
 
     if encoding == ENCODING_ASCII:
         dataitem = ET.SubElement(
