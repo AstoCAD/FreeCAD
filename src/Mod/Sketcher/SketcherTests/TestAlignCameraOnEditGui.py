@@ -25,8 +25,16 @@ class TestAlignCameraOnEditGui(SketcherGuiTestCase):
         self.flush_gui(50)
         self.view = FreeCADGui.ActiveDocument.ActiveView
         self.view.viewIsometric()
-        self.flush_gui(50)
-        self.isometric = self.view.getCameraOrientation()
+        # viewIsometric() may be animated: wait until the camera stops moving
+        self.isometric = None
+
+        def settled():
+            current = self.view.getCameraOrientation()
+            done = self.isometric is not None and current.isSame(self.isometric, 1e-9)
+            self.isometric = current
+            return done
+
+        self.assertTrue(self.wait_until(settled, 3000, 100))
 
     def tearDown(self):
         if self.hadValue:
@@ -38,6 +46,11 @@ class TestAlignCameraOnEditGui(SketcherGuiTestCase):
     def _isOrientation(self, rotation):
         return self.view.getCameraOrientation().isSame(rotation, 1e-5)
 
+    def _camera(self):
+        # near/far clipping planes are recomputed from the scene content, which changes in edit
+        lines = self.view.getCamera().splitlines()
+        return [l for l in lines if not l.strip().startswith(("nearDistance", "farDistance"))]
+
     def _openSketch(self):
         FreeCADGui.ActiveDocument.setEdit(self.sketch.Name)
         self.assertTrue(
@@ -46,11 +59,11 @@ class TestAlignCameraOnEditGui(SketcherGuiTestCase):
 
     def testCameraUnchangedWhenPreferenceOff(self):
         self.params.SetBool(PARAM_NAME, False)
-        camera = self.view.getCamera()
+        camera = self._camera()
         self._openSketch()
         self.flush_gui(300)
         self.assertTrue(self._isOrientation(self.isometric))
-        self.assertEqual(self.view.getCamera(), camera)
+        self.assertEqual(self._camera(), camera)
 
     def testCameraAlignedWhenPreferenceOn(self):
         self.params.SetBool(PARAM_NAME, True)
