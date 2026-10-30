@@ -24,6 +24,8 @@
 #include <functional>
 
 #include <Inventor/actions/SoGetBoundingBoxAction.h>
+#include <Inventor/actions/SoSearchAction.h>
+#include <Inventor/SoFullPath.h>
 #include <Inventor/nodes/SoClipPlane.h>
 #include <Inventor/nodes/SoGroup.h>
 #include <Inventor/sensors/SoTimerSensor.h>
@@ -136,11 +138,22 @@ Clipping::Clipping(Gui::View3DInventor* view, App::Document* showOn, QWidget* pa
     d->view = view;
     View3DInventorViewer* viewer = view->getViewer();
     d->node = static_cast<SoGroup*>(viewer->getSceneGraph());
-    d->node->ref();
     int index = -1;
     if (auto editingRoot = viewer->getEditingRoot()) {
-        index = d->node->findChild(editingRoot);
+        // The editing root is not a direct child of the scene graph. Insert the clipping planes
+        // right after it in its parent group, so that neither the editing root nor the
+        // annotations placed before it (e.g. measurements) get clipped.
+        SoSearchAction sa;
+        sa.setNode(editingRoot);
+        sa.setSearchingAll(true);
+        sa.apply(d->node);
+        auto path = static_cast<SoFullPath*>(sa.getPath());
+        if (path && path->getLength() > 1) {
+            d->node = static_cast<SoGroup*>(path->getNodeFromTail(1));
+            index = path->getIndexFromTail(0);
+        }
     }
+    d->node->ref();
     d->node->insertChild(d->clipX, index + 1);
     d->node->insertChild(d->clipY, index + 1);
     d->node->insertChild(d->clipZ, index + 1);

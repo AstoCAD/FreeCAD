@@ -999,6 +999,7 @@ View3DInventorViewer::View3DInventorViewer(QWidget* parent, const QOpenGLWidget*
     , SelectionObserver(false, ResolveMode::NoResolve)
     , editViewProvider(nullptr)
     , objectGroup(nullptr)
+    , annotationGroup(nullptr)
     , navigation(nullptr)
     , renderType(Native)
     , framebuffer(nullptr)
@@ -1023,6 +1024,7 @@ View3DInventorViewer::View3DInventorViewer(
     , SelectionObserver(false, ResolveMode::NoResolve)
     , editViewProvider(nullptr)
     , objectGroup(nullptr)
+    , annotationGroup(nullptr)
     , navigation(nullptr)
     , renderType(Native)
     , framebuffer(nullptr)
@@ -1236,6 +1238,14 @@ void View3DInventorViewer::init()
     pcEditingTransform->setName("EditingTransform");
     restoreEditingRoot = false;
     pcEditingRoot->addChild(pcEditingTransform);
+
+    // Create group for annotations that are not part of the physical object (e.g. measurements).
+    // It is placed before the editing root so that clipping planes, which are inserted after it,
+    // don't cut them.
+    annotationGroup = new SoGroup();
+    annotationGroup->ref();
+    annotationGroup->setName("AnnotationGroup");
+    pcViewProviderRoot->addChild(annotationGroup);
     pcViewProviderRoot->addChild(pcEditingRoot);
 
     // Create group for the physical object
@@ -1381,6 +1391,8 @@ View3DInventorViewer::~View3DInventorViewer()
     this->pcViewProviderRoot = nullptr;
     this->objectGroup->unref();
     this->objectGroup = nullptr;
+    this->annotationGroup->unref();
+    this->annotationGroup = nullptr;
     this->backlight->unref();
     this->backlight = nullptr;
     this->fillLight->unref();
@@ -1574,7 +1586,7 @@ void View3DInventorViewer::addViewProvider(ViewProvider* pcProvider)
                 objectGroup->addChild(root);
             }
             else {
-                pcViewProviderRoot->addChild(root);
+                annotationGroup->addChild(root);
             }
         }
         _ViewProviderMap[root] = pcProvider;
@@ -1606,9 +1618,9 @@ void View3DInventorViewer::removeViewProvider(ViewProvider* pcProvider)
             objectGroup->removeChild(index);
         }
 
-        index = pcViewProviderRoot->findChild(root);
+        index = annotationGroup->findChild(root);
         if (index >= 0) {
-            pcViewProviderRoot->removeChild(index);
+            annotationGroup->removeChild(index);
         }
         _ViewProviderMap.erase(root);
     }
@@ -4160,7 +4172,8 @@ void View3DInventorViewer::toggleClippingPlane(
     pcClipPlane->plane.setValue(SbPlane(Base::convertTo<SbVec3f>(dir), Base::convertTo<SbVec3f>(base)));
     pcClipPlane->ref();
     if (beforeEditing) {
-        pcViewProviderRoot->insertChild(pcClipPlane, 0);
+        // clip the editing root too, but not the annotations
+        pcViewProviderRoot->insertChild(pcClipPlane, pcViewProviderRoot->findChild(annotationGroup) + 1);
     }
     else {
         pcViewProviderRoot->insertChild(pcClipPlane, pcViewProviderRoot->findChild(pcEditingRoot) + 1);
