@@ -259,6 +259,54 @@ class RegressionTests(unittest.TestCase):
             # cluster should contain all edges
             self.assertEqual(len(clusters[0]), i)
 
+    def test_geometry_nan_parameters_raise(self):
+        "NaN curve/surface parameters crashed inside OCC instead of raising"
+        nan = float("nan")
+        curves = [
+            Part.Line(Vector(0, 0, 0), Vector(1, 0, 0)),
+            Part.LineSegment(Vector(0, 0, 0), Vector(1, 0, 0)),
+            Part.Hyperbola(),
+            Part.ArcOfHyperbola(Part.Hyperbola(), 0, 1),
+            Part.Parabola(),
+            Part.ArcOfParabola(Part.Parabola(), 0, 1),
+            Part.BezierCurve([Vector(0, 0, 0), Vector(1, 1, 0), Vector(2, 0, 0)]),
+        ]
+        for curve in curves:
+            for name in ("trim", "toBSpline", "toNurbs"):
+                for args in ((nan,), (0, nan), (nan, 1)):
+                    with self.subTest(curve=curve.TypeId, method=name, args=args):
+                        with self.assertRaises(ValueError):
+                            getattr(curve, name)(*args)
+            if hasattr(curve, "setParameterRange"):
+                for args in ((0, nan), (nan, 1)):
+                    with self.subTest(curve=curve.TypeId, method="setParameterRange", args=args):
+                        with self.assertRaises(ValueError):
+                            curve.setParameterRange(*args)
+        for geom in (
+            Part.LineSegment(Vector(0, 0, 0), Vector(1, 0, 0)),
+            Part.ArcOfParabola(Part.Parabola(), 0, 1),
+            Part.SurfaceOfRevolution(
+                Part.LineSegment(Vector(1, 0, 0), Vector(1, 0, 1)), Vector(0, 0, 0), Vector(0, 0, 1)
+            ),
+        ):
+            with self.subTest(geom=geom.TypeId, method="scale"):
+                with self.assertRaises(ValueError):
+                    geom.scale(Vector(0, 0, 0), nan)
+        with self.assertRaises(ValueError):
+            Part.OffsetSurface(Part.Plane(), 1.0).toShape(0, 1, nan, 1)
+        with self.assertRaises(ValueError):
+            Part.Geom2d.Line2d().toBSpline(0, nan)
+        with self.assertRaises(ValueError):
+            Part.Geom2d.Line2dSegment().setParameterRange(nan, 1)
+        # valid parameters still work
+        self.assertAlmostEqual(curves[0].trim(0, 2).length(), 2)
+        self.assertAlmostEqual(curves[0].toBSpline(0, 2).length(), 2)
+        seg = Part.LineSegment(Vector(0, 0, 0), Vector(1, 0, 0))
+        seg.setParameterRange(0, 3)
+        self.assertAlmostEqual(seg.length(), 3)
+        seg.scale(Vector(0, 0, 0), 2)
+        self.assertAlmostEqual(seg.length(), 6)
+
     def tearDown(self):
         """Clean up our test, optionally preserving the test document"""
         # This flag allows doing something like this:
