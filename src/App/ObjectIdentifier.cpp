@@ -534,7 +534,8 @@ void ObjectIdentifier::getSubPathStr(std::ostream& s,
 {
     std::vector<Component>::const_iterator i = components.begin() + result.propertyIndex + 1;
     while (i != components.end()) {
-        if (i->isSimple()) {
+        // a quoted simple component is written with the map syntax, see Component::toString()
+        if (i->isSimple() && !i->name.isRealString()) {
             s << '.';
         }
         i->toString(s, toPython);
@@ -754,7 +755,15 @@ void ObjectIdentifier::Component::toString(std::ostream& ss, bool toPython) cons
 {
     switch (type) {
         case Component::SIMPLE:
-            ss << name.getString();
+            if (name.isRealString()) {
+                // The name is not a valid identifier (e.g. a constraint named
+                // "Bottom width" or "mm"). The grammar only accepts identifiers
+                // after a '.', so write it with the map syntax, which it parses.
+                ss << "[" << name.toString(toPython) << "]";
+            }
+            else {
+                ss << name.getString();
+            }
             break;
         case Component::MAP:
             ss << "[" << name.toString(toPython) << "]";
