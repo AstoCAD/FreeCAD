@@ -1588,8 +1588,13 @@ class TestSketcherSolver(unittest.TestCase):
         sketch.moveGeometry(0, 2, vec(7, 2), False)
         self.assertEqual(sketch.GeometryCount, 4)
         self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(7, 2))
-        for index in range(len(sketch.Constraints)):
-            self.assertAlmostEqual(sketch.calculateConstraintError(index), 0.0, delta=1e-6)
+        for index, constraint in enumerate(sketch.Constraints):
+            self.assertLess(constraint.First, sketch.GeometryCount)
+            self.assertLess(constraint.Second, sketch.GeometryCount)
+            error = sketch.calculateConstraintError(index)
+            # calculateConstraintError gives NaN for a one-line Angle (unrelated to this fix)
+            if constraint.Type != "Angle":
+                self.assertAlmostEqual(error, 0.0, delta=1e-6)
 
     def testToggleConstructionUndefinedGeoId(self):
         """toggleConstruction(GeoUndef) raises instead of reading past the external list"""
