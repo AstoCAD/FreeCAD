@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <map>
 #include <QDialog>
 #include <Base/Placement.h>
 #include <Gui/Selection/SelectionObject.h>
@@ -97,6 +98,10 @@ private:
     using Connection = fastsignals::scoped_connection;
     std::string propertyName;  // the name of the placement property
     std::set<std::string> documents;
+    /** The transactions opened by this handler, by document name. Only these are
+     *  aborted on reject, never one that another command has opened meanwhile.
+     */
+    std::map<std::string, int> transactions;
     /** If false apply the placement directly to the transform nodes,
      * otherwise change the placement property.
      */
