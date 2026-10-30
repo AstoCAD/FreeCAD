@@ -668,6 +668,11 @@ public:
     /// get the pointer to the sketch document object
     Sketcher::SketchObject* getSketchObject() const;
 
+    /// Number of constraints the sketch really added while transaction *tid* was booked during
+    /// this edit. SketchObject.addConstraint() rejects constraints on layers with "Use
+    /// constraints" off, so the last constraint is not necessarily the one a command requested.
+    int countConstraintsAdded(int tid) const;
+
     /** returns a const reference to the last solved sketch object. It guarantees that
      *  the solver object does not lose synchronisation with the SketchObject properties.
      *
@@ -1101,6 +1106,8 @@ private:
     fastsignals::connection connectRedoDocument;
     fastsignals::connection connectSolverUpdate;
     fastsignals::connection connectConstraintAdded;
+    int constraintsAddedTransaction = 0;
+    int constraintsAddedCount = 0;
 
     QMetaObject::Connection screenChangeConnection;
 
