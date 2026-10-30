@@ -225,7 +225,8 @@ TopoShape ProfileBased::getTopoShapeVerifiedFace(
     bool silent,
     bool allowOpen,
     const App::DocumentObject* profile,
-    const std::vector<std::string>& _subs
+    const std::vector<std::string>& _subs,
+    bool copyWires
 ) const
 {
     auto obj = profile ? profile : Profile.getValue();
@@ -297,6 +298,11 @@ TopoShape ProfileBased::getTopoShapeVerifiedFace(
                     shape = shape.makeElementWires();
                 }
                 if (shape.hasSubShape(TopAbs_WIRE)) {
+                    if (copyWires) {
+                        // Copy the wires, not the finished face: a copied face keeps
+                        // pcurves that can flip the taper direction of an extrusion.
+                        shape = shape.makeElementCopy();
+                    }
                     shape.Hasher = getDocument()->getStringHasher();
                     if (allowOpen) {
                         std::vector<TopoShape> openwires;
