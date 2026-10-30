@@ -41,6 +41,27 @@ using namespace Base;
 using namespace std;
 using namespace Sketcher;
 
+namespace
+{
+// Path component for a named constraint. A name that is not an identifier
+// (spaces, punctuation, unit names...) is marked as a real string so that it
+// is written with the quoted map syntax, which the expression parser can read
+// back.
+ObjectIdentifier::Component makeNameComponent(const std::string& name)
+{
+    return ObjectIdentifier::SimpleComponent(
+        ObjectIdentifier::String(name, !ExpressionParser::isTokenAnIndentifier(name))
+    );
+}
+
+// A named constraint is referenced as '.Constraints.Name' or, when restored
+// from a quoted name, as '.Constraints[<<Name>>]'.
+bool isNameComponent(const ObjectIdentifier::Component& component)
+{
+    return component.isSimple() || component.isMap();
+}
+}  // namespace
+
 //**************************************************************************
 // PropertyConstraintList
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -74,9 +95,7 @@ App::ObjectIdentifier PropertyConstraintList::makeArrayPath(int idx)
 
 App::ObjectIdentifier PropertyConstraintList::makeSimplePath(const Constraint* c)
 {
-    return App::ObjectIdentifier(*this) << App::ObjectIdentifier::SimpleComponent(
-               App::ObjectIdentifier::String(c->Name, !ExpressionParser::isTokenAnIndentifier(c->Name))
-           );
+    return App::ObjectIdentifier(*this) << makeNameComponent(c->Name);
 }
 
 App::ObjectIdentifier PropertyConstraintList::makePath(int idx, const Constraint* c)
@@ -275,7 +294,7 @@ bool PropertyConstraintList::getPyPathValue(const App::ObjectIdentifier& path, P
     if (c1.isArray()) {
         cstr = _lValueList[c1.getIndex(_lValueList.size())];
     }
-    else if (c1.isSimple()) {
+    else if (isNameComponent(c1)) {
         ObjectIdentifier::Component c1 = path.getPropertyComponent(1);
         for (auto c : _lValueList) {
             if (c->Name == c1.getName()) {
@@ -556,7 +575,7 @@ void PropertyConstraintList::setPathValue(const ObjectIdentifier& path, const bo
         hasSetValue();
         return;
     }
-    else if (c1.isSimple()) {
+    else if (isNameComponent(c1)) {
         for (std::vector<Constraint*>::const_iterator it = _lValueList.begin();
              it != _lValueList.end();
              ++it) {
@@ -591,7 +610,7 @@ const Constraint* PropertyConstraintList::getConstraint(const ObjectIdentifier& 
     if (c1.isArray()) {
         return _lValueList[c1.getIndex(_lValueList.size())];
     }
-    else if (c1.isSimple()) {
+    else if (isNameComponent(c1)) {
         ObjectIdentifier::Component c1 = path.getPropertyComponent(1);
 
         for (std::vector<Constraint*>::const_iterator it = _lValueList.begin();
@@ -621,13 +640,15 @@ ObjectIdentifier PropertyConstraintList::canonicalPath(const ObjectIdentifier& p
     if (c1.isArray()) {
         size_t idx = c1.getIndex();
         if (idx < _lValueList.size() && !_lValueList[idx]->Name.empty()) {
-            return ObjectIdentifier(*this)
-                << ObjectIdentifier::SimpleComponent(_lValueList[idx]->Name);
+            return ObjectIdentifier(*this) << makeNameComponent(_lValueList[idx]->Name);
         }
         return p;
     }
     else if (c1.isSimple()) {
         return p;
+    }
+    else if (c1.isMap()) {
+        return ObjectIdentifier(*this) << makeNameComponent(c1.getName());
     }
     FC_THROWM(Base::ValueError, "Invalid constraint path " << p.toString());
 }
@@ -637,7 +658,7 @@ void PropertyConstraintList::getPaths(std::vector<ObjectIdentifier>& paths) cons
     for (std::vector<Constraint*>::const_iterator it = _lValueList.begin(); it != _lValueList.end();
          ++it) {
         if (!(*it)->Name.empty()) {
-            paths.push_back(ObjectIdentifier(*this) << ObjectIdentifier::SimpleComponent((*it)->Name));
+            paths.push_back(ObjectIdentifier(*this) << makeNameComponent((*it)->Name));
         }
     }
 }
