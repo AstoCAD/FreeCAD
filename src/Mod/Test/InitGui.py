@@ -140,4 +140,5 @@ FreeCAD.__unit_test__ += [
     "TestLinkImportVisibilityGui",
     "TestNavigationPreferenceReloadGui",
     "TestPreferencesSearchPopupGui",
+    "TestTreeEditBackgroundGui",
 ]

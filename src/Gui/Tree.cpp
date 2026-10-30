@@ -4723,12 +4723,13 @@ void DocumentItem::slotResetEdit(const Gui::ViewProviderDocumentObject& v)
     FOREACH_ITEM_ALL(item)
     if (tree->editingItem) {
         if (item == tree->editingItem) {
-            item->setData(0, Qt::BackgroundRole, QVariant());
+            // restore the highlight (e.g. of an active object) instead of clearing it
+            item->restoreBackground();
             break;
         }
     }
     else if (item->object() == &v) {
-        item->setData(0, Qt::BackgroundRole, QVariant());
+        item->restoreBackground();
     }
     END_FOREACH_ITEM
     tree->editingItem = nullptr;
