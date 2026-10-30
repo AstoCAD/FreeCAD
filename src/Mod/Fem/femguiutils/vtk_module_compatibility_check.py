@@ -1,23 +1,34 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 
 """Exits with non-zero return code if the VTK Python package
-at FREECAD_FEM_VTK_PYTHON_PATH is not compatible with the loaded VTK library"""
+at FREECAD_FEM_VTK_PYTHON_PATH is not compatible with the loaded VTK library
+
+Meant to be run in a subprocess by vtk_module_handling.vtk_module_compatible.
+FreeCAD runs a .py file given on the command line as a module named after the
+file, not as "__main__", so the check is gated on an environment variable set
+by the caller. Importing this module anywhere else (e.g. by the FEM test that
+imports all modules) must not terminate FreeCAD."""
 
 import os
 import sys
 
-import Fem
 
-try:
-    folder = os.environ.get("FREECAD_FEM_VTK_PYTHON_PATH")
-    if folder:
-        sys.path = [folder]
+def main():
+    try:
+        import Fem
 
-    from vtkmodules.vtkCommonCore import vtkBitArray, vtkVersion
+        folder = os.environ.get("FREECAD_FEM_VTK_PYTHON_PATH")
+        if folder:
+            sys.path = [folder]
 
-    compatible = Fem.getVtkVersion() == vtkVersion.GetVTKVersion()
-    compatible = compatible and Fem.isVtkCompatible(vtkBitArray())
-except Exception:
-    compatible = False
+        from vtkmodules.vtkCommonCore import vtkBitArray, vtkVersion
 
-os._exit(0 if compatible else 1)
+        compatible = Fem.getVtkVersion() == vtkVersion.GetVTKVersion()
+        compatible = compatible and Fem.isVtkCompatible(vtkBitArray())
+    except Exception:
+        compatible = False
+    return 0 if compatible else 1
+
+
+if os.environ.get("FREECAD_FEM_VTK_COMPATIBILITY_CHECK") == "1":
+    os._exit(main())

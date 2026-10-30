@@ -134,3 +134,45 @@ class TestFemCommon(unittest.TestCase):
                 # to get an error message what was going wrong
                 __import__(f"{mod}")
             self.assertTrue(im, f"Problem importing {mod}")
+
+    # ********************************************************************************************
+    def test_import_vtk_compatibility_check_does_not_exit(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33583
+        # importing femguiutils.vtk_module_compatibility_check (as done by
+        # test_pyimport_all_FEM_modules in the GUI) used to terminate FreeCAD
+        if "BUILD_FEM_VTK_PYTHON" not in FreeCAD.__cmake__:
+            return
+        import os
+        import subprocess
+        import sys
+        import tempfile
+        from pathlib import Path
+
+        from femguiutils import vtk_module_handling
+
+        executable = Path(sys.executable)
+        name = executable.stem.removesuffix("Cmd")
+        freecadcmd = executable.with_name(f"{name}Cmd{executable.suffix}")
+        code = (
+            "import femguiutils.vtk_module_compatibility_check\n"
+            "print('FEM_IMPORT_ALIVE', flush=True)\n"
+        )
+        env = os.environ.copy()
+        env.pop("FREECAD_FEM_VTK_COMPATIBILITY_CHECK", None)
+        result = subprocess.run(
+            [str(freecadcmd), "-c", code],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        self.assertIn(
+            "FEM_IMPORT_ALIVE",
+            result.stdout,
+            "importing vtk_module_compatibility_check terminated FreeCAD",
+        )
+
+        # the check itself must still run when called through vtk_module_compatible
+        with tempfile.TemporaryDirectory() as empty_folder:
+            self.assertFalse(vtk_module_handling.vtk_module_compatible(empty_folder))

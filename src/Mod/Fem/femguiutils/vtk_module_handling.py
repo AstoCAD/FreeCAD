@@ -64,6 +64,7 @@ def vtk_module_compatible(folder: str):
 
     script = Path(__file__).with_name("vtk_module_compatibility_check.py")
     environment = os.environ.copy()
+    environment["FREECAD_FEM_VTK_COMPATIBILITY_CHECK"] = "1"
     if folder:
         environment["FREECAD_FEM_VTK_PYTHON_PATH"] = folder
 
