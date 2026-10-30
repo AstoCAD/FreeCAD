@@ -88,6 +88,13 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
         )
         copy = True
 
+    if occ and utils.get_type(obj) == "BSpline":
+        # A BSpline is offset by moving its points, delta is then a list of
+        # points and not the single vector an OCC-style offset needs.
+        # Ignore occ, as the Draft_Offset command already does when the
+        # offset is picked in the 3D view.
+        occ = False
+
     def getRect(p, obj):
         """returns length,height,placement"""
         pl = obj.Placement.copy()

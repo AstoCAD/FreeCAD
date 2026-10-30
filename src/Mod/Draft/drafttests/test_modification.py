@@ -174,6 +174,22 @@ class DraftModification(test_base.DraftTestCaseDoc):
         new = Draft.offset(obj, offset, copy=True)
         self.assertTrue(len(new.Points) == 4, "'{}' failed".format(operation))
 
+    def test_offset_bspline_with_occ(self):
+        """Offset a BSpline by its points while the OCC option is set."""
+        # Regression test for:
+        # https://github.com/FreeCAD/FreeCAD/issues/17429
+        points = [Vector(0, 0, 0), Vector(10, 5, 0), Vector(20, 0, 0)]
+        spline = Draft.make_bspline(points)
+        self.doc.recompute()
+
+        new_points = [point.add(Vector(0, 1, 0)) for point in points]
+        obj = Draft.offset(spline, new_points, copy=True, occ=True)
+        self.doc.recompute()
+        self.assertTrue(obj, "Draft Offset of a BSpline with occ=True failed")
+        self.assertEqual(utils.get_type(obj), "BSpline")
+        for point, expected in zip(obj.Points, new_points):
+            self.assertTrue(point.isEqual(expected, 1e-6))
+
     def test_offset_rectangle_with_face(self):
         """Create a rectangle with a face, then produce an offset copy."""
         # Regression test for:
