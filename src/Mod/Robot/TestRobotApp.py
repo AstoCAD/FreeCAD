@@ -44,6 +44,29 @@ class TestRobotTrajectory(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             trac.insertWaypoints(waypoints[2])
 
+    def test_edge2trac_non_positive_segvalue(self):
+        """Edge2TracObject looped forever on a circle edge with SegValue <= 0."""
+        import Part
+
+        doc = App.newDocument("TestRobotEdge2Trac")
+        try:
+            circle = doc.addObject("Part::Feature", "Circle")
+            circle.Shape = Part.makeCircle(10)
+            trac = doc.addObject("Robot::Edge2TracObject", "Edge2Trac")
+            trac.Source = (circle, ["Edge1"])
+            doc.recompute()
+            self.assertTrue(trac.isValid())
+            self.assertGreater(len(trac.Trajectory.Waypoints), 2)
+            for value in (0.0, -1.0):
+                trac.SegValue = value
+                doc.recompute()
+                self.assertFalse(trac.isValid())
+            trac.SegValue = 1.0
+            doc.recompute()
+            self.assertTrue(trac.isValid())
+        finally:
+            App.closeDocument(doc.Name)
+
     def test_delete_last_unchanged(self):
         trac = Robot.Trajectory([_waypoint(i) for i in range(5)])
         self.assertEqual(len(trac.deleteLast(0).Waypoints), 4)
