@@ -992,6 +992,21 @@ void TaskSectionView::setUiCommon(const QPointF& center)
     editLayout->addWidget(m_viewDirectionWidget);
     connect(m_viewDirectionWidget, &Gui::VectorEditWidget::valueChanged, this,
             &TaskSectionView::slotViewDirectionChanged);
+
+    // The compass and vector editor are created after the .ui widgets, so they
+    // would come last in the Tab order. Follow the visual top-to-bottom order.
+    QWidget* const tabOrder[] = {
+        ui->tbSectionHorizontal, ui->tbSectionVertical, ui->tbSectionCenterDirection,
+        ui->tbSectionTwoPoints, ui->tbSectionCenterPoint, ui->tbSectionTwoPointsPartial,
+        ui->tbSectionCenterTwoPoints, ui->tbSectionSketchBased, ui->pbResetSectionLine,
+        ui->leSymbol, ui->cmbScaleType, ui->sbScale,
+        ui->leSectionObjects, ui->pbSectionObjects, ui->leProfileObject, ui->pbProfileObject,
+        ui->cmbStrategy, ui->cbConnectionLine, ui->cmbParallelTo, ui->cbSectionCutOnly,
+        ui->cbShowOutsidePartialBoundaries, ui->cbShowManualControls,
+        ui->sbCenterX, ui->sbCenterY, m_compass, m_viewDirectionWidget, ui->cbLiveUpdate};
+    for (std::size_t i = 1; i < std::size(tabOrder); ++i) {
+        QWidget::setTabOrder(tabOrder[i - 1], tabOrder[i]);
+    }
 }
 
 void TaskSectionView::setInteractiveBase(TechDraw::DrawViewPart* base)
