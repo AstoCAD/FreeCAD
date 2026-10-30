@@ -53,6 +53,7 @@ from PartDesignTests.TestMultiTransform import TestMultiTransform
 from PartDesignTests.TestBoolean import TestBoolean
 from PartDesignTests.TestBaseFeature import TestBaseFeature
 from PartDesignTests.TestBodyRemoval import TestBodyBulkRemoval, TestBodyPartialLocalClosure
+from PartDesignTests.TestBodyInsertObject import TestBodyInsertObject
 from PartDesignTests.TestModuleTypes import TestModuleTypes
 from PartDesignTests.TestSetTipOrigin import TestSetTipOrigin
 
