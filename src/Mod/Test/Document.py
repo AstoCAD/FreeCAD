@@ -730,6 +730,20 @@ class DocumentBasicCases(unittest.TestCase):
         self.assertTrue(doc.Link.Label.startswith("Renamed"))
         self.assertEqual(doc.Link.Refs, [doc.Link])
 
+    def testLinksLinkingEachOther(self):
+        # Two links linking each other: setting the second link's LinkedObject rebuilt
+        # its label from the other link, which rebuilt its own label in turn, and so
+        # on until FreeCAD crashed with a stack overflow.
+        a = self.Doc.addObject("App::Link", "A")
+        b = self.Doc.addObject("App::Link", "B")
+        a.LinkedObject = b
+        b.LinkedObject = a
+        self.assertEqual(b.LinkedObject, a)
+        a.Label = "Renamed"
+        self.Doc.recompute()
+        doc = self.saveAndRestore()
+        self.assertEqual(doc.B.LinkedObject, doc.A)
+
     def testNoProxy(self):
         test = self.Doc.addObject("App::DocumentObject", "Object")
         test.addProperty("App::PropertyPythonObject", "Dictionary")
