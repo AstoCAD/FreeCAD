@@ -401,8 +401,13 @@ private:
         Mesh::MeshObject* mesh = static_cast<Mesh::MeshPy*>(m)->getMeshObjectPtr();
         std::vector<MeshCore::FacetIndex> segm;
         segm.reserve(list.size());
+        long numFacets = static_cast<long>(mesh->countFacets());
         for (Py_ssize_t i=0; i<list.size(); i++) {
-            segm.push_back((long)Py::Long(list[i]));
+            long index = static_cast<long>(Py::Long(list[i]));
+            if (index < 0 || index >= numFacets) {
+                throw Py::IndexError("Facet index out of range");
+            }
+            segm.push_back(index);
         }
 
         std::list<std::vector<Base::Vector3f> > bounds;

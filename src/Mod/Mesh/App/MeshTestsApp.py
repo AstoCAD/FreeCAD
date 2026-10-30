@@ -648,6 +648,62 @@ class MeshSubElement(unittest.TestCase):
         pass
 
 
+class MeshFacetIndexRange(unittest.TestCase):
+    """Out-of-range facet indices must raise instead of accessing invalid memory"""
+
+    def setUp(self):
+        self.mesh = Mesh.createBox(1.0, 1.0, 1.0)
+
+    def testRemoveFacets(self):
+        with self.assertRaises(IndexError):
+            self.mesh.removeFacets([12])
+        with self.assertRaises(IndexError):
+            self.mesh.removeFacets([-1])
+        self.assertEqual(self.mesh.CountFacets, 12)
+        self.mesh.removeFacets([0, 11])
+        self.assertEqual(self.mesh.CountFacets, 10)
+
+    def testCollapseFacets(self):
+        with self.assertRaises(IndexError):
+            self.mesh.collapseFacets([12])
+        with self.assertRaises(IndexError):
+            self.mesh.collapseFacets([-1])
+        self.assertEqual(self.mesh.CountFacets, 12)
+
+    def testMeshFromSegment(self):
+        with self.assertRaises(IndexError):
+            self.mesh.meshFromSegment([12])
+        with self.assertRaises(IndexError):
+            self.mesh.meshFromSegment([-1])
+        with self.assertRaises(IndexError):
+            Mesh.Mesh().meshFromSegment([0])
+        self.assertEqual(self.mesh.meshFromSegment([0, 1]).CountFacets, 2)
+
+    def testStaleFacet(self):
+        facet = self.mesh.Facets[11]
+        self.assertGreater(facet.Area, 0.0)
+        self.mesh.clear()
+        with self.assertRaises(IndexError):
+            facet.isDegenerated()
+        with self.assertRaises(IndexError):
+            facet.isDeformed(0.1, 3.0)
+        with self.assertRaises(IndexError):
+            facet.Area
+        with self.assertRaises(IndexError):
+            facet.InCircle
+
+    def testWireFromSegment(self):
+        try:
+            import MeshPart
+        except ImportError:
+            self.skipTest("MeshPart not available")
+        with self.assertRaises(IndexError):
+            MeshPart.wireFromSegment(self.mesh, [-1])
+        with self.assertRaises(IndexError):
+            MeshPart.wireFromSegment(self.mesh, [12])
+        self.assertEqual(len(MeshPart.wireFromSegment(self.mesh, [0, 1])), 1)
+
+
 class MeshProperty(unittest.TestCase):
     def setUp(self):
         self.doc = FreeCAD.newDocument("MeshTest")
