@@ -321,6 +321,7 @@ SET(bimtests_SRCS
     bimtests/TestArchIfc.py
     bimtests/TestBimIfcPropertiesGui.py
     bimtests/TestBimIfcQuantitiesGui.py
+    bimtests/TestArchIfcGui.py
     bimtests/TestBimLibraryGui.py
     bimtests/TestArchReferenceGui.py
 )
