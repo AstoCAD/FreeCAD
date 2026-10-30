@@ -17,6 +17,10 @@ import FreeCAD
 import FreeCADGui
 from pivy import coin
 
+# Extra references to the callables given to remove*(): a wrong release of a reference the
+# view does not own then makes the test fail instead of crashing the interpreter.
+_KEEP_ALIVE = []
+
 
 class Holder:
     def callback(self, *args):
@@ -37,7 +41,7 @@ class TestViewCallbackRemovalGui(unittest.TestCase):
         # 'holder.callback' creates a new bound method object on every access, so the
         # object given to remove() is not the one given to add().
         removed = holder.callback
-        guard = [removed]  # keeps 'removed' alive even if it gets released wrongly
+        _KEEP_ALIVE.extend((removed, removed))
         holder_refs = sys.getrefcount(holder)
         removed_refs = sys.getrefcount(removed)
 
@@ -48,7 +52,6 @@ class TestViewCallbackRemovalGui(unittest.TestCase):
         # the registered callback must be released, and the argument left alone
         self.assertEqual(sys.getrefcount(holder), holder_refs)
         self.assertEqual(sys.getrefcount(removed), removed_refs)
-        del guard
 
     def test_remove_dragger_callback_with_bound_method(self):
         dragger = coin.SoTranslate2Dragger()
@@ -74,6 +77,7 @@ class TestViewCallbackRemovalGui(unittest.TestCase):
         def callback(*args):
             pass
 
+        _KEEP_ALIVE.extend((callback, callback))
         refs = sys.getrefcount(callback)
         self.view.addEventCallback("SoMouseButtonEvent", callback)
         self.view.removeEventCallback("SoMouseButtonEvent", callback)
