@@ -33,6 +33,7 @@
 ## \addtogroup drafttests
 # @{
 
+import math
 import os
 import tempfile
 import unittest
@@ -208,6 +209,35 @@ class DraftSVGExportRegression(test_base.DraftTestCaseDoc):
 
         self.assertIn("<circle ", svg)
         self.assertNotIn("fill-rule: evenodd", svg)
+
+    def test_get_svg_from_arc_uses_hlr_for_all_occ_versions(self):
+        """Arcs must be exported with the HLR projection on OCC >= 7.1.
+
+        Issue #33345: with OCC 8.0 the version check failed (minor version 0)
+        and the manual fallback wrote arcs with a wrong sweep flag.
+        """
+        import TechDraw
+
+        edge = Part.ArcOfCircle(
+            Part.Circle(App.Vector(0, 0, 0), App.Vector(0, 0, 1), 10), 0, math.pi / 2
+        ).toShape()
+        obj = self._add_shape("Arc", edge)
+        for version in ("7.1.0", "7.8.1", "8.0.0", "8.0.0.p1", "8.1.0.dev"):
+            with self.subTest(occ=version):
+                with mock.patch.object(Part, "OCC_VERSION", version), mock.patch.object(
+                    svgshapes.TechDraw, "projectToSVG", wraps=TechDraw.projectToSVG
+                ) as project:
+                    svg = Draft.get_svg(obj, direction=App.Vector(0, 0, 1))
+                project.assert_called()
+                # Counter-clockwise quarter arc: large-arc flag 0, sweep flag 1.
+                self.assertRegex(svg, r"A ?10 10 0 0 1 ")
+        for version in ("6.9.1", "7.0.0"):
+            with self.subTest(occ=version):
+                with mock.patch.object(Part, "OCC_VERSION", version), mock.patch.object(
+                    svgshapes.TechDraw, "projectToSVG"
+                ) as project:
+                    Draft.get_svg(obj, direction=App.Vector(0, 0, 1))
+                project.assert_not_called()
 
 
 ## @}
