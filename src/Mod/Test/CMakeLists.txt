@@ -91,6 +91,7 @@ SET(Test_SRCS
     TestTreeEditBackgroundGui.py
     TestPythonGroupCommandToolTipGui.py
     TestButtonSpaceShortcutGui.py
+    TestTreeLinkActiveObjectGui.py
 )
 
 SET(TestData_SRCS
