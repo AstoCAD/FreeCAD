@@ -27,6 +27,7 @@
 #include <QSignalBlocker>
 
 
+#include <App/Application.h>
 #include <App/Document.h>
 #include <Base/Tools.h>
 #include <Base/UnitsApi.h>
@@ -36,6 +37,8 @@
 #include <Gui/Inventor/Draggers/SoLinearDragger.h>
 #include <Gui/Inventor/Draggers/SoRotationDragger.h>
 #include <Mod/PartDesign/App/FeatureExtrude.h>
+#include <Mod/PartDesign/App/FeaturePad.h>
+#include <Mod/PartDesign/App/FeaturePocket.h>
 #include <Mod/Part/App/GizmoHelper.h>
 
 #include "ui_TaskPadPocketParameters.h"
@@ -1568,7 +1571,25 @@ bool TaskDlgExtrudeParameters::accept()
 {
     getTaskParameters()->setSelectionMode(TaskExtrudeParameters::None);
 
-    return TaskDlgSketchBasedParameters::accept();
+    auto extrude = getObject<PartDesign::FeatureExtrude>();
+    if (!TaskDlgSketchBasedParameters::accept()) {
+        return false;
+    }
+
+    // Remember the accepted length as the initial length of the next Pad or Pocket
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/PartDesign"
+    );
+    if (extrude && hGrp->GetBool("RememberLastLength", false)
+        && extrude->Type.isValue("Length")) {
+        if (extrude->isDerivedFrom<PartDesign::Pad>()) {
+            hGrp->SetFloat("LastPadLength", extrude->Length.getValue());
+        }
+        else if (extrude->isDerivedFrom<PartDesign::Pocket>()) {
+            hGrp->SetFloat("LastPocketLength", extrude->Length.getValue());
+        }
+    }
+    return true;
 }
 
 bool TaskDlgExtrudeParameters::reject()
