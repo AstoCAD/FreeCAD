@@ -165,7 +165,16 @@ public:
 
     void parameterTabOrEnterPressed(int parameterindex)
     {
-        Q_UNUSED(parameterindex);
+        // The widget field may have received the focus by mouse, without the tracked index
+        // being updated. Continue from the field where Tab/Enter was pressed.
+        // The widget numbers all its spinboxes first, then its line edits; the focus order of
+        // this controller only has the spinboxes this tool uses before the line edits.
+        int widgetIndex = parameterindex;
+        if (parameterindex >= static_cast<int>(WParameter::nParameters)) {
+            widgetIndex = nParameter + parameterindex - static_cast<int>(WParameter::nParameters);
+        }
+        ControllerBase::parameterWithFocus = static_cast<int>(ControllerBase::onViewParameters.size())
+            + widgetIndex;
         passFocusToNextParameter();
     }
 
