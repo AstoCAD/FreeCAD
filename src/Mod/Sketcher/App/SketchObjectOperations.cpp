@@ -1256,6 +1256,10 @@ int SketchObject::split(int GeoId, const Base::Vector3d& point)
     // this removes internal geometry and constraints of geometries that still exists ???
     // deleteUnusedInternalGeometryAndUpdateGeoId(GeoId);
     const auto* geoAsCurve = getGeometry<Part::GeomCurve>(GeoId);
+    if (!geoAsCurve) {
+        // e.g. a point: there is nothing to split
+        return -1;
+    }
 
     bool isOriginalCurveClosed = isClosedCurve(geoAsCurve);
     std::vector<int> newIds;
