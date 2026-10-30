@@ -79,6 +79,7 @@ SET(Test_SRCS
     TestViewProviderLink.py
     TestUserEditModeGui.py
     TestPlacementDialogGui.py
+    TestLinkToggleVisibilityGui.py
 )
 
 SET(TestData_SRCS
