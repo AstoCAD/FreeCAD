@@ -100,6 +100,7 @@ if(BUILD_GUI)
         PartDesignTests/TestGroupCommandToolTipGui.py
         PartDesignTests/TestShapeBinderCancelGui.py
         PartDesignTests/TestPreviewColorPythonGui.py
+        PartDesignTests/TestThicknessToolTipsGui.py
         PartDesignTests/TestMaterial.py
         PartDesignTests/TestSuppressed.py
     )
