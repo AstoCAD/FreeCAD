@@ -45,6 +45,7 @@ from SketcherTests.TestConstraintPythonSerialization import (
     TestConstraintPythonRoundTripCompatibility,
 )
 from SketcherTests.TestSketchBlocks import TestSketchBlocks
+from SketcherTests.TestRemoveAxesAlignment import TestRemoveAxesAlignment
 
 # Path and PartDesign tests use these functions that used to live here
 # but moved to SketcherTests/TestSketcherSolver.py
@@ -71,6 +72,7 @@ __all__ = [
     "TestSketchAnnotations",
     "TestSketchLayers",
     "TestSketchBlocks",
+    "TestRemoveAxesAlignment",
     "CreateCircleSketch",
     "CreateRectangleSketch",
     "CreateSlotPlateSet",
