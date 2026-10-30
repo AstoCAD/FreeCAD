@@ -63,6 +63,95 @@ class TestGuiDocument(unittest.TestCase):
         self.doc.abortTransaction()
         self.assertNotIn("AbortedValue", view.PropertiesList)
 
+    def _runGroupCommandOn(self, objects):
+        # https://github.com/FreeCAD/FreeCAD/issues/22091
+        FreeCADGui.Selection.clearSelection()
+        self.addCleanup(FreeCADGui.Selection.clearSelection)
+        for obj in objects:
+            FreeCADGui.Selection.addSelection(obj)
+        names = {o.Name for o in self.doc.Objects}
+        FreeCADGui.runCommand("Std_Group", 0)
+        created = [o for o in self.doc.Objects if o.Name not in names]
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0].TypeId, "App::DocumentObjectGroup")
+        return created[0]
+
+    def testGroupCommandGroupsSelection(self):
+        first = self.doc.addObject("App::FeaturePython", "First")
+        second = self.doc.addObject("App::FeaturePython", "Second")
+        other = self.doc.addObject("App::FeaturePython", "Other")
+        self.doc.recompute()
+
+        group = self._runGroupCommandOn([first, second])
+
+        self.assertCountEqual(group.Group, [first, second])
+        self.assertIsNone(group.getParent())
+        self.assertIsNone(other.getParent())
+
+        # a single transaction: one undo removes the group and frees the objects
+        group_name = group.Name
+        self.doc.undo()
+        self.assertIsNone(self.doc.getObject(group_name))
+        self.assertIsNone(first.getParent())
+        self.assertIsNone(second.getParent())
+
+    def testGroupCommandWithoutSelection(self):
+        obj = self.doc.addObject("App::FeaturePython", "Obj")
+        group = self._runGroupCommandOn([])
+        self.assertEqual(group.Group, [])
+        self.assertIsNone(obj.getParent())
+
+    def testGroupCommandMovesFromCommonParentGroup(self):
+        outer = self.doc.addObject("App::DocumentObjectGroup", "Outer")
+        first = outer.newObject("App::FeaturePython", "First")
+        second = outer.newObject("App::FeaturePython", "Second")
+        self.doc.recompute()
+
+        group = self._runGroupCommandOn([first, second])
+
+        self.assertEqual(group.getParent(), outer)
+        self.assertCountEqual(group.Group, [first, second])
+        self.assertEqual(outer.Group, [group])
+
+    def testGroupCommandMovesOutOfOtherGroups(self):
+        outer1 = self.doc.addObject("App::DocumentObjectGroup", "Outer1")
+        outer2 = self.doc.addObject("App::DocumentObjectGroup", "Outer2")
+        first = outer1.newObject("App::FeaturePython", "First")
+        second = outer2.newObject("App::FeaturePython", "Second")
+        self.doc.recompute()
+
+        group = self._runGroupCommandOn([first, second])
+
+        self.assertIsNone(group.getParent())
+        self.assertCountEqual(group.Group, [first, second])
+        self.assertEqual(outer1.Group, [])
+        self.assertEqual(outer2.Group, [])
+
+    def testGroupCommandInsidePart(self):
+        part = self.doc.addObject("App::Part", "Part")
+        first = part.newObject("App::FeaturePython", "First")
+        second = part.newObject("App::FeaturePython", "Second")
+        self.doc.recompute()
+
+        group = self._runGroupCommandOn([first, second])
+
+        self.assertEqual(group.getParentGeoFeatureGroup(), part)
+        self.assertCountEqual(group.Group, [first, second])
+        self.assertEqual(first.getParentGeoFeatureGroup(), part)
+
+    def testGroupCommandKeepsObjectsInTheirPart(self):
+        part = self.doc.addObject("App::Part", "Part")
+        inside = part.newObject("App::FeaturePython", "Inside")
+        outside = self.doc.addObject("App::FeaturePython", "Outside")
+        self.doc.recompute()
+
+        group = self._runGroupCommandOn([inside, outside])
+
+        # the group lands at the root, an object of a part is not pulled out of its part
+        self.assertIsNone(group.getParent())
+        self.assertEqual(group.Group, [outside])
+        self.assertEqual(inside.getParentGeoFeatureGroup(), part)
+
     def setUp(self):
         # Create a new document
         self.doc = FreeCAD.newDocument("TestDoc")
