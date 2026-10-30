@@ -15,6 +15,8 @@ _EXCLUDE_MODULES = {
     "TestGrblLegacyPost",
     "TestPathJobGui",
     "TestPathDressupLeadInOutGui",
+    "TestPathOpBaseGeometryGui",
+    "TestCAMSimulatorPathColorsGui",
     "TestPathToolBitBrowserWidget",
     "TestPathToolBitEditorWidget",
     "TestPathToolBitListWidget",
