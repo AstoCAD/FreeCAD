@@ -522,7 +522,9 @@ bool MeshInput::LoadOFF(std::istream& input)
     int numPoints = 0, numFaces = 0;
 
     while (true) {
-        std::getline(input, line);
+        if (!std::getline(input, line)) {
+            return false;  // no line with the numbers of vertices and faces
+        }
         boost::algorithm::to_lower(line);
         if (boost::regex_match(line.c_str(), what, rx_n)) {
             numPoints = std::atoi(what[1].first);
