@@ -603,16 +603,20 @@ bool MeshInput::LoadOFF(std::istream& input)
         int count {}, index {};
         str >> count;
         if (count >= 3) {
+            // don't trust the vertex count of the face: it can be huge in a broken file
             std::vector<int> faces;
-            faces.reserve(count);
 
             for (int i = 0; i < count; i++) {
                 str >> std::ws;
                 str >> index;
+                if (!str) {
+                    break;  // fewer indices than announced
+                }
                 faces.push_back(index);
             }
 
-            for (int i = 0; i < count - 2; i++) {
+            const int numTriangles = static_cast<int>(faces.size()) - 2;
+            for (int i = 0; i < numTriangles; i++) {
                 item.SetVertices(faces[0], faces[i + 1], faces[i + 2]);
                 meshFacets.push_back(item);
             }
@@ -635,7 +639,7 @@ bool MeshInput::LoadOFF(std::istream& input)
                         b = static_cast<float>(b) / 255.0F;
                         a = static_cast<float>(a) / 255.0F;
                     }
-                    for (int i = 0; i < count - 2; i++) {
+                    for (int i = 0; i < numTriangles; i++) {
                         diffuseColor.emplace_back(r, g, b, a);
                     }
                 }
