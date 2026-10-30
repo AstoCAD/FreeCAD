@@ -35,6 +35,7 @@ from SketcherTests.TestSnellsLawCommandGui import TestSnellsLawCommandGui
 from SketcherTests.TestToolWidgetTabGui import TestToolWidgetTabGui
 from SketcherTests.TestEditDatumConflictGui import TestEditDatumConflictGui
 from SketcherTests.TestMoveGeometryRedrawGui import TestMoveGeometryRedrawGui
+from SketcherTests.TestOffsetConstraintGui import TestOffsetConstraintGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -71,5 +72,6 @@ from SketcherTests.TestMoveGeometryRedrawGui import TestMoveGeometryRedrawGui
     and TestToolWidgetTabGui
     and TestEditDatumConflictGui
     and TestMoveGeometryRedrawGui
+    and TestOffsetConstraintGui
     else False
 )

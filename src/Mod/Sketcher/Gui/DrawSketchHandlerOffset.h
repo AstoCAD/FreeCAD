@@ -685,7 +685,8 @@ private:
                             Base::Vector3d projectedP;
                             projectedP.ProjectToLine(p1[0] - p2[0], p2[1] - p2[0]);
 
-                            if ((projectedP).Length() - fabs(offsetLength) < Precision::Confusion()) {
+                            if (fabs(projectedP.Length() - fabs(offsetLength))
+                                < Precision::Confusion()) {
                                 if (!forceCreate && !rerunningFirst) {
                                     stream << "conList.append(Sketcher.Constraint('Parallel',"
                                            << curve[j] << ", " << geoId << "))\n";
