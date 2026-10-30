@@ -150,6 +150,37 @@ class TestExpressionCompleterGui(unittest.TestCase):
              ["VarSet", "Placement", "Base.x"]),
         ])
 
+    def testOtherOwnerExtensionProperties(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/18687
+        # Properties added by an extension (here GroupExtension::Group, like
+        # AttachExtension::AttachmentOffset) must be offered for other objects.
+        group = self.doc.addObject("App::DocumentObjectGroup", "Folder")
+        group.addObject(self.varset)
+        self.doc.recompute()
+        self.spin = Gui.UiLoader().createWidget("Gui::QuantitySpinBox")
+        self.spin.setProperty("unit", "mm")
+        self.spin.setProperty("binding", self.doc.Name + "#" + self.other.Name + ".Length")
+        self.spin.show()
+        self.spin.setFocus()
+        QtTest.QTest.keyClicks(self.spin, "=")
+        Gui.updateGui()
+        dialogs = [widget for widget in QtWidgets.QApplication.allWidgets()
+                   if widget.objectName() == "DlgExpressionInput" and widget.isVisible()]
+        self.assertEqual(len(dialogs), 1)
+        self.dialog = dialogs[0]
+        expression = self.dialog.findChild(QtWidgets.QPlainTextEdit, "expression")
+        completer = expression.findChildren(QtWidgets.QCompleter)[0]
+        prefix = "Folder.Gro"
+        expression.setPlainText(prefix)
+        cursor = expression.textCursor()
+        cursor.movePosition(QtGui.QTextCursor.End)
+        expression.setTextCursor(cursor)
+        completer.slotUpdate(prefix, len(prefix))
+        model = completer.completionModel()
+        labels = [model.index(row, 0).data() for row in range(model.rowCount())]
+        self.assertIn("Group", labels)
+        self.assertEqual(self.other.evalExpression("Folder.Group"), [self.varset])
+
     def testLocalCompoundPropertyWithOwnerName(self):
         self.varset.addProperty("App::PropertyPlacement", self.varset.Name)
         self.varset.VarSet = App.Placement(App.Vector(91, 92, 93), App.Rotation())
