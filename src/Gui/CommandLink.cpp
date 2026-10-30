@@ -20,6 +20,7 @@
  *                                                                          *
  ****************************************************************************/
 
+#include <set>
 #include <sstream>
 #include <QMessageBox>
 
@@ -687,6 +688,27 @@ static std::map<App::Document*, std::vector<App::DocumentObject*>> getLinkImport
     return objMap;
 }
 
+// Hide the imported objects that the links now display, i.e. the ones that are
+// not used by another imported object. The other imported objects (e.g. the
+// children of an imported container) keep the visibility they had in the source
+// document, otherwise a link to an imported container or body shows nothing.
+static void hideImportedObjects(const std::vector<App::DocumentObject*>& objs)
+{
+    const std::set<App::DocumentObject*> imported(objs.begin(), objs.end());
+    for (auto obj : objs) {
+        bool usedByImported = false;
+        for (auto parent : obj->getInList()) {
+            if (parent != obj && imported.count(parent) > 0) {
+                usedByImported = true;
+                break;
+            }
+        }
+        if (!usedByImported) {
+            obj->Visibility.setValue(false);
+        }
+    }
+}
+
 bool StdCmdLinkImport::isActive()
 {
     auto links = getLinkImportSelections();
@@ -710,9 +732,7 @@ void StdCmdLinkImport::activated(int)
         for (auto& v : getLinkImportSelections()) {
             auto doc = v.first;
             // TODO: Is it possible to do this using interpreter?
-            for (auto obj : doc->importLinks(v.second)) {
-                obj->Visibility.setValue(false);
-            }
+            hideImportedObjects(doc->importLinks(v.second));
         }
         Command::commitCommand();
     }
@@ -757,9 +777,7 @@ void StdCmdLinkImportAll::activated(int)
         wc.setIgnoreEvents(WaitCursor::NoEvents);
         auto doc = App::GetApplication().getActiveDocument();
         if (doc) {
-            for (auto obj : doc->importLinks()) {
-                obj->Visibility.setValue(false);
-            }
+            hideImportedObjects(doc->importLinks());
         }
         Command::commitCommand();
     }
