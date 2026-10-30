@@ -189,6 +189,16 @@ class TestCommandCreateJoint(unittest.TestCase):
         self.assertEqual(self.value.Label, "Committed unrelated value")
         self.assertFalse(self.other.HasPendingTransaction)
 
+    def test_angle_limit_spinboxes_accept_a_full_turn(self):
+        """Angle limits beyond 180 degrees can be entered (issue #30123)."""
+        for spin in (self.task.jForm.limitRotMinSpinbox, self.task.jForm.limitRotMaxSpinbox):
+            self.assertEqual(spin.property("minimum"), -360.0)
+            self.assertEqual(spin.property("maximum"), 360.0)
+            spin.setProperty("rawValue", 270.0)
+            self.assertAlmostEqual(spin.property("rawValue"), 270.0)
+            spin.setProperty("rawValue", -270.0)
+            self.assertAlmostEqual(spin.property("rawValue"), -270.0)
+
     def test_reject_active_owner_aborts_joint_transaction(self):
         App.setActiveDocument(self.owner_name)
         Gui.updateGui()
