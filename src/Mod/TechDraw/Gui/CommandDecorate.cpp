@@ -568,6 +568,7 @@ void CmdTechDrawImage::activated(int iMsg)
     }
 
     doCommand(Doc, "App.activeDocument().%s.addView(App.activeDocument().%s)", PageName.c_str(), FeatName.c_str());
+    CommandHelpers::stackNewViewTop(this, FeatName);
     updateActive();
     commitCommand();
 }

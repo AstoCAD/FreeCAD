@@ -26,10 +26,13 @@
 
 #include <QMessageBox>
 
+#include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <App/Link.h>
 
+#include <Gui/Application.h>
 #include <Gui/Command.h>
+#include <Gui/Document.h>
 #include <Gui/MainWindow.h>
 #include <Gui/Selection/Selection.h>
 #include <Gui/Selection/SelectionObject.h>
@@ -43,6 +46,7 @@
 
 #include <Mod/TechDraw/Gui/PreferencesGui.h>
 #include <Mod/TechDraw/Gui/DrawGuiUtil.h>
+#include <Mod/TechDraw/Gui/ViewProviderDrawingView.h>
 
 
 #include "CommandHelpers.h"
@@ -125,4 +129,18 @@ std::pair<App::DocumentObject*, std::string> CommandHelpers::faceFromSelection()
     }
 
     return { nullptr, "" };
+}
+
+//! put a newly inserted symbol or image on top of the stack of its page or parent view (#24820)
+void CommandHelpers::stackNewViewTop(Gui::Command* cmd, const std::string& featName)
+{
+    App::DocumentObject* obj = cmd->getDocument()->getObject(featName.c_str());
+    Gui::Document* guiDoc = Gui::Application::Instance->getDocument(cmd->getDocument());
+    if (!obj || !guiDoc) {
+        return;
+    }
+    auto* vpdv = freecad_cast<ViewProviderDrawingView*>(guiDoc->getViewProvider(obj));
+    if (vpdv) {
+        vpdv->stackTop();
+    }
 }

@@ -58,6 +58,8 @@ std::vector<std::string> getSelectedSubElements(Gui::Command* cmd,
 
 std::pair<App::DocumentObject*, std::string> faceFromSelection();
 
+void stackNewViewTop(Gui::Command* cmd, const std::string& featName);
+
 
 }   // end namespace CommandHelpers
 }   // end namespace TechDraw
