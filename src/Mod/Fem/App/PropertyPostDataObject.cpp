@@ -460,6 +460,7 @@ void PropertyPostDataObject::RestoreDocFile(Base::Reader& reader)
     // create a temporary file and copy the content from the zip stream
     Base::FileInfo fi(App::Application::getTempFileName());
     Base::FileInfo fo;
+    Base::FileInfo zipFile;
 
     // read in the ASCII file and write back to the file stream
     Base::ofstream file(fi, std::ios::out | std::ios::binary);
@@ -545,9 +546,9 @@ void PropertyPostDataObject::RestoreDocFile(Base::Reader& reader)
                 // there is no further entry
             }
 
-            // create the reader, and change the file for it to read. Also delete zip file, not
-            // needed anymore
-            fi.deleteFile();
+            // create the reader, and change the file for it to read. The zip file is still
+            // opened by ZipReader, so it is deleted at the end (Windows refuses to delete it now)
+            zipFile = fi;
             fi = Base::FileInfo(fo.filePath() + "/datafile.vtm");
             xmlReader = vtkSmartPointer<vtkXMLMultiBlockDataReader>::New();
         }
@@ -596,6 +597,9 @@ void PropertyPostDataObject::RestoreDocFile(Base::Reader& reader)
     // delete the temp file
     fi.deleteFile();
     if (xml.extension() == "zip") {
+        if (!zipFile.filePath().empty()) {
+            zipFile.deleteFile();
+        }
         fo.deleteDirectoryRecursive();
     }
 }
