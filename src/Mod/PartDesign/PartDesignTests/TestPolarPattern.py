@@ -196,6 +196,25 @@ class TestPolarPattern(unittest.TestCase):
         self.assertAlmostEqual(self.PolarPattern.Shape.Volume, 3000)
         self.assertFalse(self.PolarPattern.Shape.isInside(FreeCAD.Vector(-5, -5, 5), 1e-7, True))
 
+    def testNaNAnglePolarPatternFails(self):
+        # A NaN angle passed every range check and the NaN transformations crashed
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.PadSketch = self.Body.newObject("Sketcher::SketchObject", "SketchPad")
+        TestSketcherApp.CreateRectangleSketch(self.PadSketch, (0, 0), (10, 10))
+        self.Pad = self.Body.newObject("PartDesign::Pad", "Pad")
+        self.Pad.Profile = self.PadSketch
+        self.Pad.Length = 5
+        self.Doc.recompute()
+        self.PolarPattern = self.Body.newObject("PartDesign::PolarPattern", "PolarPattern")
+        self.PolarPattern.Originals = [self.Pad]
+        self.PolarPattern.Axis = (self.Doc.Z_Axis, [""])
+        self.PolarPattern.Occurrences = 3
+        self.Doc.recompute()
+        self.assertIn("Up-to-date", self.PolarPattern.State)
+        self.PolarPattern.Angle = float("nan")
+        self.Doc.recompute()
+        self.assertIn("Invalid", self.PolarPattern.State)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestPolarPattern")

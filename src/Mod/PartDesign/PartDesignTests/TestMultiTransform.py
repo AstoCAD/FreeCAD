@@ -174,6 +174,25 @@ class TestMultiTransform(unittest.TestCase):
         self.Doc.recompute()
         self.assertTrue("Invalid" in first.State or "Invalid" in second.State)
 
+    def testScaledNaNFactorFails(self):
+        # A NaN factor passed the "too small" check and crashed while scaling
+        body, pad = self.makePadBody()
+        scaled = body.newObject("PartDesign::Scaled", "Scaled")
+        scaled.Originals = [pad]
+        scaled.Factor = float("nan")
+        self.Doc.recompute()
+        self.assertIn("Invalid", scaled.State)
+
+    def testMultiTransformScaledNaNFactorFails(self):
+        body, pad = self.makePadBody()
+        multiTransform = body.newObject("PartDesign::MultiTransform", "MultiTransform")
+        multiTransform.Originals = [pad]
+        scaled = body.newObject("PartDesign::Scaled", "Scaled")
+        scaled.Factor = float("nan")
+        multiTransform.Transformations = [scaled]
+        self.Doc.recompute()
+        self.assertIn("Invalid", multiTransform.State)
+
     def testMultiTransformBody(self):
         pass
         # TODO:  Someone who understands the second mode added to transform needs to
