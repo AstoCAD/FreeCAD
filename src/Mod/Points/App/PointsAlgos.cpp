@@ -354,6 +354,12 @@ unsigned int lzfDecompress(
     unsigned char const* const in_end = ip + in_len;
     unsigned char* const out_end = op + out_len;
 
+    // the loop below reads the first control byte unconditionally
+    if (in_len == 0) {
+        errno = EINVAL;
+        return (0);
+    }
+
     do {
         unsigned int ctrl = *ip++;
 
