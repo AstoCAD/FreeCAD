@@ -137,8 +137,12 @@ class AddToLayer(gui_base.GuiCommandNeedsSelection):
             + [None]
             + [self.ui.getIcon(":/icons/list-add.svg")]
         )
+        # A selected layer cannot be added to itself: grey it out, do not
+        # remove it, so that the user does not think it is missing.
+        sel = Gui.Selection.getSelection()
+        self.disabled = [i + 2 for i, obj in enumerate(objs) if obj in sel]
         self.ui.sourceCmd = self
-        self.ui.popupMenu(self.labels, self.icons)
+        self.ui.popupMenu(self.labels, self.icons, disabled=self.disabled)
 
     def proceed(self, option):
         self.ui.sourceCmd = None

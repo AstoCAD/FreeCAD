@@ -105,12 +105,22 @@ class AddToGroup(gui_base.GuiCommandNeedsSelection):
             + [None]
             + [self.ui.getIcon(":/icons/list-add.svg")]
         )
+        # Groups the selection cannot be added to are greyed out, not removed,
+        # so that the user does not think they are missing: a selected group
+        # itself, and groups that depend on a selected object, for example a
+        # group inside a selected Std_Part (that would create a cycle).
+        sel = Gui.Selection.getSelection()
+        self.disabled = [
+            i + 2
+            for i, obj in enumerate(objs)
+            if obj in sel or any(parent in sel for parent in obj.InListRecursive)
+        ]
 
         # It uses the `DraftToolBar` class defined in the `DraftGui` module and
         # globally initialized in the `Gui` namespace to pop up a menu.
         # Once the desired option is chosen it launches the `proceed` method.
         self.ui.sourceCmd = self
-        self.ui.popupMenu(self.labels, self.icons)
+        self.ui.popupMenu(self.labels, self.icons, disabled=self.disabled)
 
     def proceed(self, option):
         """Place the selected objects in the chosen group or ungroup them.
