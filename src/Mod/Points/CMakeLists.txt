@@ -7,6 +7,7 @@ endif(BUILD_GUI)
 
 set(Points_Scripts
     Init.py
+    TestPointsApp.py
 )
 
 if(BUILD_GUI)
