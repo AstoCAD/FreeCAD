@@ -261,6 +261,15 @@ void AssemblyLink::onChanged(const App::Property* prop)
     }
 
     else if (prop == &LinkedObject) {
+        // Linking to an object that depends on this link (e.g. the parent assembly, or an
+        // assembly link that links back to this one) builds a cycle: resolving or
+        // synchronizing the linked assembly then never ends.
+        auto* linked = LinkedObject.getValue();
+        if (linked && !getDocument()->isPerformingTransaction()
+            && !testIfLinkDAGCompatible(linked)) {
+            LinkedObject.setValue(nullptr);
+            throw Base::ValueError("An assembly link cannot link to an object that depends on it");
+        }
         App::Link::updateLabelUtility(this, getLinkedObject2());
     }
     App::Part::onChanged(prop);
