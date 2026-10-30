@@ -96,6 +96,7 @@ if(BUILD_GUI)
         PartDesignTests/TestBodyLineWidthGui.py
         PartDesignTests/TestCloneColorGui.py
         PartDesignTests/TestGroupCommandToolTipGui.py
+        PartDesignTests/TestThicknessToolTipsGui.py
         PartDesignTests/TestMaterial.py
         PartDesignTests/TestSuppressed.py
     )
