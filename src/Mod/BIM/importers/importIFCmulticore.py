@@ -76,14 +76,7 @@ def insert(filename, docname=None, preferences=None):
     # setup ifcopenshell
     if not preferences:
         preferences = importIFCHelper.getPreferences()
-    settings = ifcopenshell.geom.settings()
-    settings.set(settings.USE_BREP_DATA, True)
-    settings.set(settings.SEW_SHELLS, True)
-    settings.set(settings.USE_WORLD_COORDS, True)
-    if preferences["SEPARATE_OPENINGS"]:
-        settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, True)
-    if preferences["SPLIT_LAYERS"] and hasattr(settings, "APPLY_LAYERSETS"):
-        settings.set(settings.APPLY_LAYERSETS, True)
+    settings = importIFCHelper.getGeomSettings(preferences)
 
     # setup document
     if not FreeCAD.ActiveDocument:
