@@ -334,10 +334,24 @@ bool isIOFile(PyObject* file)
 }
 }  // namespace App
 
+namespace
+{
+// PyUnicode_AsUTF8() returns nullptr (with a Python error set) for strings that
+// cannot be encoded, e.g. with an unpaired surrogate such as "\ud800".
+std::string utf8FromPyUnicode(PyObject* value)
+{
+    const char* str = PyUnicode_AsUTF8(value);
+    if (!str) {
+        throw Py::Exception();
+    }
+    return str;
+}
+}  // namespace
+
 void PropertyFileIncluded::setPyObject(PyObject* value)
 {
     if (PyUnicode_Check(value)) {
-        std::string string = PyUnicode_AsUTF8(value);
+        std::string string = utf8FromPyUnicode(value);
         setValue(string.c_str());
     }
     else if (PyBytes_Check(value)) {
@@ -358,7 +372,7 @@ void PropertyFileIncluded::setPyObject(PyObject* value)
         // decoding file
         std::string fileStr;
         if (PyUnicode_Check(file)) {
-            fileStr = PyUnicode_AsUTF8(file);
+            fileStr = utf8FromPyUnicode(file);
         }
         else if (PyBytes_Check(file)) {
             fileStr = PyBytes_AsString(file);
@@ -375,7 +389,7 @@ void PropertyFileIncluded::setPyObject(PyObject* value)
         // decoding name
         std::string nameStr;
         if (PyUnicode_Check(name)) {
-            nameStr = PyUnicode_AsUTF8(name);
+            nameStr = utf8FromPyUnicode(name);
         }
         else if (PyBytes_Check(name)) {
             nameStr = PyBytes_AsString(name);

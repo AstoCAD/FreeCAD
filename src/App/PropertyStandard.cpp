@@ -59,6 +59,20 @@ using namespace App;
 using namespace Base;
 using namespace std;
 
+namespace
+{
+// PyUnicode_AsUTF8() returns nullptr (with a Python error set) for strings that
+// cannot be encoded, e.g. with an unpaired surrogate such as "\ud800".
+std::string utf8FromPyUnicode(PyObject* value)
+{
+    const char* str = PyUnicode_AsUTF8(value);
+    if (!str) {
+        throw Py::Exception();
+    }
+    return str;
+}
+}  // namespace
+
 
 //**************************************************************************
 //**************************************************************************
@@ -231,7 +245,7 @@ void PropertyPath::setPyObject(PyObject* value)
 {
     std::string path;
     if (PyUnicode_Check(value)) {
-        path = PyUnicode_AsUTF8(value);
+        path = utf8FromPyUnicode(value);
     }
     else {
         std::string error = std::string("type must be str or unicode, not ");
@@ -482,7 +496,7 @@ void PropertyEnumeration::setPyObject(PyObject* value)
         return;
     }
     if (PyUnicode_Check(value)) {
-        std::string str = PyUnicode_AsUTF8(value);
+        std::string str = utf8FromPyUnicode(value);
         if (_enum.contains(str.c_str())) {
             aboutToSetValue();
             _enum.setValue(str);
@@ -1694,7 +1708,7 @@ void PropertyString::setPyObject(PyObject* value)
 {
     std::string string;
     if (PyUnicode_Check(value)) {
-        string = PyUnicode_AsUTF8(value);
+        string = utf8FromPyUnicode(value);
     }
     else {
         std::string error = std::string("type must be str or unicode, not ");
@@ -1861,7 +1875,7 @@ void PropertyUUID::setPyObject(PyObject* value)
 {
     std::string string;
     if (PyUnicode_Check(value)) {
-        string = PyUnicode_AsUTF8(value);
+        string = utf8FromPyUnicode(value);
     }
     else {
         std::string error = std::string("type must be unicode or str, not ");
@@ -1967,7 +1981,7 @@ std::string PropertyStringList::getPyValue(PyObject* item) const
 {
     std::string ret;
     if (PyUnicode_Check(item)) {
-        ret = PyUnicode_AsUTF8(item);
+        ret = utf8FromPyUnicode(item);
     }
     else if (PyBytes_Check(item)) {
         ret = PyBytes_AsString(item);
@@ -2228,7 +2242,7 @@ void PropertyMap::setPyObject(PyObject* value)
             std::string keyStr;
             PyObject* key = PyList_GetItem(keyList, i);
             if (PyUnicode_Check(key)) {
-                keyStr = PyUnicode_AsUTF8(key);
+                keyStr = utf8FromPyUnicode(key);
             }
             else {
                 std::string error("type of the key need to be string, not ");
@@ -2239,7 +2253,7 @@ void PropertyMap::setPyObject(PyObject* value)
             // check on the item:
             PyObject* item = PyList_GetItem(itemList, i);
             if (PyUnicode_Check(item)) {
-                values[keyStr] = PyUnicode_AsUTF8(item);
+                values[keyStr] = utf8FromPyUnicode(item);
             }
             else {
                 std::string error("type in values must be string, not ");
@@ -2474,7 +2488,7 @@ void PropertyBoolList::setPyObject(PyObject* value)
     // string is also a sequence and must be treated differently
     std::string str;
     if (PyUnicode_Check(value)) {
-        str = PyUnicode_AsUTF8(value);
+        str = utf8FromPyUnicode(value);
         boost::dynamic_bitset<> values(str);
         setValues(values);
     }
