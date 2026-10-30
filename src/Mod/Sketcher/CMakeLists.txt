@@ -35,6 +35,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketchAnnotations.py
     SketcherTests/TestSketchLayers.py
     SketcherTests/TestSketchBlocks.py
+    SketcherTests/TestRemoveAxesAlignment.py
 )
 
 if(BUILD_GUI)
