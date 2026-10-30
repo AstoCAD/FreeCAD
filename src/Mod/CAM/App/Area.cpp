@@ -3209,8 +3209,14 @@ struct ShapeInfo
                 Standard_Real first, last;
                 Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
                 pt = curve->Value(last);
+                // The edge is reversed in the wire if its curve end is at the
+                // previous point. Vertices may be off the curve ends by up to
+                // their tolerance (e.g. after an offset), so also pick the
+                // closer curve end instead of only testing Confusion.
                 bool reversed;
-                if (pprev.SquareDistance(pt) <= Precision::SquareConfusion()) {
+                double dLast = pprev.SquareDistance(pt);
+                if (dLast <= Precision::SquareConfusion()
+                    || dLast < pprev.SquareDistance(curve->Value(first))) {
                     reversed = true;
                     pt = curve->Value(first);
                 }
