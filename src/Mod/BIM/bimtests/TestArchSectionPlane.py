@@ -232,3 +232,28 @@ class TestArchSectionPlane(TestArchBase.TestArchBase):
         page.addView(view)
         App.ActiveDocument.recompute()
         self.assertTrue("A" in view.Symbol)
+
+
+    def testRendererSortKeepsUnrelatedFaces(self):
+        """The solid-mode renderer must not drop faces that overlap no other face.
+
+        Regression test for https://github.com/FreeCAD/FreeCAD/issues/32647
+        """
+        import ArchVRM
+        import Part
+
+        def sorted_face_count(shapes):
+            renderer = ArchVRM.Renderer()
+            renderer.addShapes(shapes)
+            renderer.sort()
+            return len(renderer.faces)
+
+        # Seen from above, only the top face of each box is visible
+        box1 = Part.makeBox(1000, 1000, 100)
+        box2 = Part.makeBox(1000, 1000, 100, App.Vector(5000, 0, 0))
+        box3 = Part.makeBox(1000, 1000, 100, App.Vector(5500, 500, 300))
+
+        self.assertEqual(sorted_face_count([box2, box3]), 2)
+        # box1 overlaps none of the others when seen from above
+        self.assertEqual(sorted_face_count([box1, box2, box3]), 3)
+        self.assertEqual(sorted_face_count([box1, box2]), 2)
