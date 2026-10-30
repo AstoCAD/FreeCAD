@@ -314,20 +314,14 @@ void TaskTransformedParameters::onGroupFeaturesToggled(bool checked)
         ui->listWidgetFeatures->clear();  // Clear visual list
         blockUpdate = false;
 
-        // Clear Originals property only if necessary and mode actually changed
-        bool originalsCleared = false;
-        if (modeChanged && !pcTransformed->Originals.getValues().empty()) {
-            pcTransformed->Originals.setValues({});
-            originalsCleared = true;
-        }
-
-        // Recompute if mode changed or originals were cleared
-        if ((modeChanged || originalsCleared) && ui->checkBoxUpdateView->isChecked()) {
+        // Keep the Originals property: it is ignored in WholeShape mode, and keeping it lets the
+        // user switch back to Features mode without losing the selected features.
+        if (modeChanged && ui->checkBoxUpdateView->isChecked()) {
             setupTransaction();
             recomputeFeature();
         }
-        else if (modeChanged || originalsCleared) {
-            setupTransaction();  // Need transaction if mode changed or originals cleared
+        else if (modeChanged) {
+            setupTransaction();  // Need transaction if mode changed
             pcTransformed->touch();
         }
     }

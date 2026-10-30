@@ -143,3 +143,35 @@ class TestPointPattern(unittest.TestCase):
             (14.0, 35.0, 45.0, 15.0, 42.0, 46.0),
         ):
             self.assertAlmostEqual(actual, expected)
+
+    def testWholeShapeModeIgnoresKeptOriginals(self):
+        # The task panel keeps Originals when switching to Whole shape mode, so that switching
+        # back restores them. Whole shape mode must ignore them, also when the original
+        # occurrence is suppressed (RelativeToFirst).
+        def wholeShapeVolume(keepOriginals):
+            body = self.doc.addObject("PartDesign::Body", "Body")
+            box = body.newObject("PartDesign::AdditiveBox", "Box")
+            box.Length = box.Width = 20
+            box.Height = 10
+            hole = body.newObject("PartDesign::SubtractiveCylinder", "Hole")
+            hole.Radius = 1
+            hole.Height = 10
+            hole.Placement.Base = FreeCAD.Vector(5, 5, 0)
+            points = self.doc.addObject("Part::Feature", "Points")
+            points.Shape = Part.makeCompound(
+                [Part.Vertex(FreeCAD.Vector(0, 0, 0)), Part.Vertex(FreeCAD.Vector(10, 0, 0))]
+            )
+            pattern = body.newObject("PartDesign::PointPattern", "PointPattern")
+            pattern.PointObject = points
+            pattern.RelativeToFirst = True
+            pattern.Originals = [hole]
+            self.doc.recompute()
+            pattern.TransformMode = "Whole shape"
+            if not keepOriginals:
+                pattern.Originals = []
+            self.doc.recompute()
+            self.assertEqual(pattern.getStatusString(), "Valid")
+            self.assertTrue(pattern.Shape.isValid())
+            return pattern.Shape.Volume
+
+        self.assertAlmostEqual(wholeShapeVolume(True), wholeShapeVolume(False))
