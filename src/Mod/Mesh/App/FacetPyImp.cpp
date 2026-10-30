@@ -57,6 +57,17 @@ public:
         return os;
     }
 };
+
+// Returns the current geometry of a bound facet. The mesh may have been modified since the
+// facet was created, so its index may no longer be valid.
+MeshCore::MeshGeomFacet getBoundFacet(const Facet* face)
+{
+    const MeshCore::MeshKernel& kernel = face->Mesh->getKernel();
+    if (face->Index >= kernel.CountFacets()) {
+        throw Py::IndexError("Facet index out of range");
+    }
+    return kernel.GetFacet(face->Index);
+}
 }  // namespace
 
 // returns a string which represent the object e.g. when printed in python
@@ -203,8 +214,7 @@ PyObject* FacetPy::isDegenerated(PyObject* args)
         throw Py::RuntimeError("Unbound facet");
     }
 
-    const MeshCore::MeshKernel& kernel = face->Mesh->getKernel();
-    MeshCore::MeshGeomFacet tria = kernel.GetFacet(face->Index);
+    MeshCore::MeshGeomFacet tria = getBoundFacet(face);
     return Py::new_reference_to(Py::Boolean(tria.IsDegenerated(fEpsilon)));
 }
 
@@ -223,8 +233,7 @@ PyObject* FacetPy::isDeformed(PyObject* args)
 
     float fCosOfMinAngle = cos(fMinAngle);
     float fCosOfMaxAngle = cos(fMaxAngle);
-    const MeshCore::MeshKernel& kernel = face->Mesh->getKernel();
-    MeshCore::MeshGeomFacet tria = kernel.GetFacet(face->Index);
+    MeshCore::MeshGeomFacet tria = getBoundFacet(face);
     return Py::new_reference_to(Py::Boolean(tria.IsDeformed(fCosOfMinAngle, fCosOfMaxAngle)));
 }
 
@@ -285,8 +294,7 @@ Py::Float FacetPy::getArea() const
         return Py::Float(0.0);
     }
 
-    const MeshCore::MeshKernel& kernel = face->Mesh->getKernel();
-    MeshCore::MeshGeomFacet tria = kernel.GetFacet(face->Index);
+    MeshCore::MeshGeomFacet tria = getBoundFacet(face);
     return Py::Float(tria.Area());
 }
 
@@ -297,8 +305,7 @@ Py::Float FacetPy::getAspectRatio() const
         return Py::Float(-1.0);
     }
 
-    const MeshCore::MeshKernel& kernel = face->Mesh->getKernel();
-    MeshCore::MeshGeomFacet tria = kernel.GetFacet(face->Index);
+    MeshCore::MeshGeomFacet tria = getBoundFacet(face);
     return Py::Float(tria.AspectRatio());
 }
 
@@ -309,8 +316,7 @@ Py::Float FacetPy::getAspectRatio2() const
         return Py::Float(-1.0);
     }
 
-    const MeshCore::MeshKernel& kernel = face->Mesh->getKernel();
-    MeshCore::MeshGeomFacet tria = kernel.GetFacet(face->Index);
+    MeshCore::MeshGeomFacet tria = getBoundFacet(face);
     return Py::Float(tria.AspectRatio2());
 }
 
@@ -321,8 +327,7 @@ Py::Float FacetPy::getRoundness() const
         return Py::Float(-1.0);
     }
 
-    const MeshCore::MeshKernel& kernel = face->Mesh->getKernel();
-    MeshCore::MeshGeomFacet tria = kernel.GetFacet(face->Index);
+    MeshCore::MeshGeomFacet tria = getBoundFacet(face);
     return Py::Float(tria.Roundness());
 }
 
@@ -333,8 +338,7 @@ Py::Tuple FacetPy::getCircumCircle() const
         return Py::None();
     }
 
-    const MeshCore::MeshKernel& kernel = face->Mesh->getKernel();
-    MeshCore::MeshGeomFacet tria = kernel.GetFacet(face->Index);
+    MeshCore::MeshGeomFacet tria = getBoundFacet(face);
     Base::Vector3f center;
     float radius = tria.CenterOfCircumCircle(center);
     Py::Tuple tuple(2);
@@ -350,8 +354,7 @@ Py::Tuple FacetPy::getInCircle() const
         return Py::None();
     }
 
-    const MeshCore::MeshKernel& kernel = face->Mesh->getKernel();
-    MeshCore::MeshGeomFacet tria = kernel.GetFacet(face->Index);
+    MeshCore::MeshGeomFacet tria = getBoundFacet(face);
     Base::Vector3f center;
     float radius = tria.CenterOfInscribedCircle(center);
     Py::Tuple tuple(2);
