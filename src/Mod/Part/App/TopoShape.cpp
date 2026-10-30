@@ -2426,6 +2426,13 @@ TopoDS_Shape TopoShape::makeSpiralHelix(
     }
 
     Standard_Real nbPeriods = nbturns / breakperiod;
+    // The wire gets one edge per period, and building each edge costs more as the
+    // spiral gets longer: past this, the loop below runs for hours, or forever for an
+    // infinite number of turns (same limit as the turns of Part::Helix).
+    constexpr Standard_Real maxPeriods = 1e4;
+    if (nbPeriods > maxPeriods) {
+        throw Standard_Failure("Number of turns too high (more than 1e4 segments)");
+    }
     Standard_Real nbFullPeriods = floor(nbPeriods);
     Standard_Real partPeriod = nbPeriods - nbFullPeriods;
 
