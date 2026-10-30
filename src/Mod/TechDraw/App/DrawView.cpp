@@ -25,6 +25,7 @@
 
 # include <cmath>
 # include <limits>
+# include <set>
 # include <sstream>
 # include <Standard_Failure.hxx>
 # include <Precision.hxx>
@@ -402,25 +403,33 @@ int DrawView::countParentPages() const
 //finds the first DrawPage in this Document that claims to own this DrawView
 //note that it is possible to manipulate the Views property of DrawPage so that
 //more than 1 DrawPage claims a DrawView.
+namespace
+{
+// Depth first search of the page above obj through its parent collections. A collection can be
+// its own parent through a link loop (e.g. a projection group anchored to itself), so the visited
+// collections are remembered instead of recursing without end.
+DrawPage* findParentPageOf(const App::DocumentObject* obj,
+                           std::set<const App::DocumentObject*>& visited)
+{
+    for (auto& parent : obj->getInList()) {
+        if (parent->isDerivedFrom<DrawPage>()) {
+            return static_cast<TechDraw::DrawPage*>(parent);
+        }
+        if (parent->isDerivedFrom<DrawViewCollection>() && visited.insert(parent).second) {
+            if (auto* page = findParentPageOf(parent, visited)) {
+                return page;  // Found a page so leave
+            }
+        }
+    }
+    return nullptr;
+}
+}  // namespace
+
 DrawPage* DrawView::findParentPage() const
 {
     // Get Feature Page
-    DrawPage *page = nullptr;
-    DrawViewCollection *collection = nullptr;
-    std::vector<App::DocumentObject*> parentsAll = getInList();
-    for (auto& parent : parentsAll) {
-        if (parent->isDerivedFrom<DrawPage>()) {
-            page = static_cast<TechDraw::DrawPage *>(parent);
-        } else if (parent->isDerivedFrom<DrawViewCollection>()) {
-            collection = static_cast<TechDraw::DrawViewCollection *>(parent);
-            page = collection->findParentPage();
-        }
-
-        if(page)
-          break; // Found a page so leave
-    }
-
-    return page;
+    std::set<const App::DocumentObject*> visited {this};
+    return findParentPageOf(this, visited);
 }
 
 
