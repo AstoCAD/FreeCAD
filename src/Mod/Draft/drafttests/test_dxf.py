@@ -35,6 +35,7 @@
 # @{
 
 import os
+import tempfile
 
 import FreeCAD as App
 import Draft
@@ -92,6 +93,50 @@ class DraftDXF(test_base.DraftTestCaseDoc):
             hGrp.SetBool("dxfstarblocks", wasImportAnonymousBlocks)
             if doc:
                 App.closeDocument(doc.Name)
+
+    def test_read_dxf_recursive_blocks(self):
+        """Blocks inserting themselves must not crash the C++ importer."""
+
+        def block(name, inserted):
+            return [
+                "0", "BLOCK", "8", "0", "2", name, "70", "0",
+                "10", "0", "20", "0", "30", "0", "3", name,
+                "0", "LINE", "8", "0", "10", "0", "20", "0", "30", "0", "11", "10", "21", "0", "31", "0",
+                "0", "INSERT", "8", "0", "2", inserted, "10", "20", "20", "0", "30", "0",
+                "0", "ENDBLK", "8", "0",
+            ]  # fmt: skip
+
+        lines = ["0", "SECTION", "2", "BLOCKS"]
+        lines += block("SELF", "SELF") + block("A", "B") + block("B", "A")
+        lines += ["0", "ENDSEC", "0", "SECTION", "2", "ENTITIES"]
+        for name in ("SELF", "A"):
+            lines += ["0", "INSERT", "8", "0", "2", name, "10", "0", "20", "0", "30", "0"]
+        lines += ["0", "ENDSEC", "0", "EOF"]
+
+        hGrp = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Draft")
+        wasShowDialog = hGrp.GetBool("dxfShowDialog", True)
+        wasUseLegacyImporter = hGrp.GetBool("dxfUseLegacyImporter", False)
+        wasImportMode = hGrp.GetInt("DxfImportMode", 2)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "recursive_blocks.dxf")
+            with open(in_file, "w", encoding="utf-8") as dxf_file:
+                dxf_file.write("\n".join(lines) + "\n")
+            try:
+                hGrp.SetBool("dxfShowDialog", False)
+                hGrp.SetBool("dxfUseLegacyImporter", False)
+                # 2: parametric blocks (Part::Compound + App::Link), 3: flattened blocks
+                for mode in (2, 3):
+                    with self.subTest(mode=mode):
+                        hGrp.SetInt("DxfImportMode", mode)
+                        doc = importDXF.open(in_file)
+                        try:
+                            self.assertTrue(doc.Objects)
+                        finally:
+                            App.closeDocument(doc.Name)
+            finally:
+                hGrp.SetBool("dxfShowDialog", wasShowDialog)
+                hGrp.SetBool("dxfUseLegacyImporter", wasUseLegacyImporter)
+                hGrp.SetInt("DxfImportMode", wasImportMode)
 
     def test_export_dxf(self):
         """Create some figures and export them to a DXF file."""
