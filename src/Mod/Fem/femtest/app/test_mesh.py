@@ -211,6 +211,85 @@ class TestMeshCommon(unittest.TestCase):
         mesh.addNode(5, 5, 10 + 5e-4, 7)  # just outside
         self.assertEqual(sorted(mesh.getNodesBySolid(solid)), [1, 2, 3, 4, 5])
 
+    # ********************************************************************************************
+    def test_unv_non_ascii_path(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/29274
+        # UNV files (also used to save a mesh in the document through a temporary file)
+        # could not be written or read on Windows when the path had non-ASCII characters
+        import os
+        import subprocess
+        import sys
+
+        char = None
+        for candidate in ("é", "ü", "ж", "中"):
+            try:
+                if sys.platform == "win32":
+                    candidate.encode("mbcs")
+                char = candidate
+                break
+            except UnicodeEncodeError:
+                pass
+        if char is None:
+            return
+        base_dir = testtools.get_fem_test_tmp_dir("mesh_common_unv_non_ascii")
+        non_ascii_dir = join(base_dir, f"d{char}r")
+        os.makedirs(non_ascii_dir)
+
+        tetra4 = Fem.FemMesh()
+        tetra4.addNode(0, 0, 0, 1)
+        tetra4.addNode(1, 0, 0, 2)
+        tetra4.addNode(0, 1, 0, 3)
+        tetra4.addNode(0, 0, 1, 4)
+        tetra4.addVolume([1, 2, 3, 4])
+        unv_file = join(non_ascii_dir, "tetra4_mesh.unv")
+        tetra4.write(unv_file)
+        self.assertTrue(os.path.exists(unv_file), "UNV file was not written")
+        newmesh = Fem.read(unv_file)
+        self.assertEqual(newmesh.NodeCount, 4)
+        self.assertEqual(newmesh.VolumeCount, 1)
+
+        # save and reopen a document with a mesh while the temporary directory is non-ASCII
+        executable = os.path.basename(sys.executable)
+        name, ext = os.path.splitext(executable)
+        if name.endswith("Cmd"):
+            name = name[:-3]
+        freecadcmd = join(os.path.dirname(sys.executable), f"{name}Cmd{ext}")
+        if not os.path.isfile(freecadcmd):
+            return
+        doc_file = join(base_dir, "mesh_doc.FCStd")
+        code = (
+            "import FreeCAD, Fem\n"
+            "m = Fem.FemMesh()\n"
+            "[m.addNode(*p, i + 1) for i, p in "
+            "enumerate([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)])]\n"
+            "m.addVolume([1, 2, 3, 4])\n"
+            "doc = FreeCAD.newDocument('MeshDoc')\n"
+            "doc.addObject('Fem::FemMeshObject', 'Mesh').FemMesh = m\n"
+            f"doc.saveAs({doc_file!r})\n"
+            "FreeCAD.closeDocument(doc.Name)\n"
+            f"doc = FreeCAD.openDocument({doc_file!r})\n"
+            "print('FEM_MESH_NODES', doc.getObject('Mesh').FemMesh.NodeCount, flush=True)\n"
+        )
+        env = os.environ.copy()
+        for var in ("TMP", "TEMP", "TMPDIR"):
+            env[var] = non_ascii_dir
+        result = subprocess.run(
+            [freecadcmd, "-c", code],
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+            check=False,
+        )
+        self.assertIn(
+            "FEM_MESH_NODES 4",
+            result.stdout,
+            "saving and reopening a mesh failed with a non-ASCII temporary directory:\n"
+            + result.stderr[-2000:],
+        )
+
 
 # ************************************************************************************************
 # ************************************************************************************************
