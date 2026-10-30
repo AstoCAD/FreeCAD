@@ -99,6 +99,20 @@ using namespace TechDrawGui;
 using namespace TechDraw;
 using DU = DrawUtil;
 
+//! put a newly inserted symbol or image on top of the page's stack (#24820)
+static void stackNewViewTop(Gui::Command* cmd, const std::string& featName)
+{
+    App::DocumentObject* obj = cmd->getDocument()->getObject(featName.c_str());
+    Gui::Document* guiDoc = Gui::Application::Instance->getDocument(cmd->getDocument());
+    if (!obj || !guiDoc) {
+        return;
+    }
+    auto* vpdv = freecad_cast<ViewProviderDrawingView*>(guiDoc->getViewProvider(obj));
+    if (vpdv) {
+        vpdv->stackTop();
+    }
+}
+
 //===========================================================================
 // TechDraw_NewPage
 //===========================================================================
@@ -588,6 +602,7 @@ void CmdTechDrawView::activated(int iMsg)
                               "App.activeDocument().%s.addView(App.activeDocument().%s)",
                               PageName.c_str(),
                               FeatName.c_str());
+                    stackNewViewTop(this, FeatName);
                 }
                 else {
                     std::string FeatName = getUniqueObjectName("Image");
@@ -599,6 +614,7 @@ void CmdTechDrawView::activated(int iMsg)
                         FeatName.c_str(), FeatName.c_str());
                     doCommand(Doc, "App.activeDocument().%s.ImageFile = '%s'", FeatName.c_str(), filespec.c_str());
                     doCommand(Doc, "App.activeDocument().%s.addView(App.activeDocument().%s)", PageName.c_str(), FeatName.c_str());
+                    stackNewViewTop(this, FeatName);
                     updateActive();
                     commitCommand();
                 }
@@ -1442,6 +1458,7 @@ void CmdTechDrawSymbol::activated(int iMsg)
 
         doCommand(Doc, "App.activeDocument().%s.addView(App.activeDocument().%s)", PageName.c_str(),
                   FeatName.c_str());
+        stackNewViewTop(this, FeatName);
 
         updateActive();
         commitCommand();
