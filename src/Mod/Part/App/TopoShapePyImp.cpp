@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
 #include <limits>
 #include <sstream>
 #include <boost/regex.hpp>
@@ -1723,6 +1724,11 @@ PyObject* TopoShapePy::tessellate(PyObject* args) const
     double tolerance;
     PyObject* ok = Py_False;
     if (!PyArg_ParseTuple(args, "d|O!", &tolerance, &PyBool_Type, &ok)) {
+        return nullptr;
+    }
+    if (std::isnan(tolerance)) {
+        // BRepMesh_IncrementalMesh never returns for a NaN deflection on curved faces
+        PyErr_SetString(PyExc_ValueError, "Tolerance must not be NaN");
         return nullptr;
     }
 
