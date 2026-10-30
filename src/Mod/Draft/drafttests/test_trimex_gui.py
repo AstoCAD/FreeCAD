@@ -197,6 +197,21 @@ class DraftTrimexGui(DraftTestCaseDoc):
             [App.Vector(4, 0, 0), App.Vector(10, 0, 0), App.Vector(10, 15, 0)],
         )
 
+    def test_undo_restores_shape(self):
+        """Undoing a Trimex must also restore the shape, without a manual recompute (#19189)."""
+        points = [App.Vector(0, 0, 0), App.Vector(10, 0, 0), App.Vector(10, 10, 0)]
+        self.doc.UndoMode = 1
+        wire = Draft.make_wire(points)
+        self.doc.recompute()
+        self.doc.clearUndos()
+
+        self._make_wire_command(wire, App.Vector(10, 15, 0)).trimObject()
+        self.assertEqual(wire.Shape.Vertexes[-1].Point, App.Vector(10, 15, 0))
+
+        self.doc.undo()
+        self.assertEqual(wire.Points, points)
+        self.assertEqual([v.Point for v in wire.Shape.Vertexes], points)
+
     def test_value_typed_before_mouse_move(self):
         """Typing a value before the mouse has moved must not fail (#33411)."""
         points = [App.Vector(0, 0, 0), App.Vector(10, 0, 0)]
