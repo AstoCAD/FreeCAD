@@ -414,9 +414,23 @@ void ViewProvider2DObject::onChanged(const App::Property* property)
     ViewProviderPart::onChanged(property);
 
     if (property == &ShowPlane || property == &Visibility) {
-        plane->whichChild = (ShowPlane.getValue() && Visibility.getValue()) ? SO_SWITCH_ALL
-                                                                            : SO_SWITCH_NONE;
+        updatePlaneSwitch();
     }
+}
+
+void ViewProvider2DObject::updatePlaneSwitch()
+{
+    plane->whichChild = ((ShowPlane.getValue() || isPlacementHighlighted()) && Visibility.getValue())
+        ? SO_SWITCH_ALL
+        : SO_SWITCH_NONE;
+}
+
+void ViewProvider2DObject::onPlacementHighlightChanged()
+{
+    ViewProviderPart::onPlacementHighlightChanged();
+
+    // show the plane together with the placement, see "ShowPlacementOnSelection" preference
+    updatePlaneSwitch();
 }
 
 std::vector<std::string> ViewProvider2DObject::getDisplayModes() const
