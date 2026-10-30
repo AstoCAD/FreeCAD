@@ -259,6 +259,18 @@ class RegressionTests(unittest.TestCase):
             # cluster should contain all edges
             self.assertEqual(len(clusters[0]), i)
 
+    def test_project_null_shape_raises(self):
+        "TopoShape.project() with a null shape in the list crashed in BRepAlgo_NormalProjection"
+        box = Part.makeBox(1, 2, 3)
+        face = box.Faces[0]
+        for index, shapes in enumerate(
+            ([Part.Shape()], [box, Part.Shape()], [Part.Shape(), box.Edges[0]])
+        ):
+            with self.subTest(index=index):
+                with self.assertRaises(ValueError):
+                    face.project(shapes)
+        self.assertEqual(len(face.project([box]).Edges), 16)
+
     def test_spiral_infinite_rotations(self):
         "Part::Spiral with an infinite or huge number of rotations looped forever"
         spiral = self.Doc.addObject("Part::Spiral", "Spiral")
