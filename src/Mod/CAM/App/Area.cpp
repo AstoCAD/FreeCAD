@@ -3238,15 +3238,14 @@ struct ShapeInfo
 
                 Standard_Real first, last;
                 Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
-                pt = curve->Value(last);
-                bool reversed;
-                if (pprev.SquareDistance(pt) <= Precision::SquareConfusion()) {
-                    reversed = true;
-                    pt = curve->Value(first);
-                }
-                else {
-                    reversed = false;
-                }
+                // The wire explorer follows the edge orientations, so a
+                // reversed edge runs from its curve end to its curve start.
+                // Do not guess this from the distance between pprev and the
+                // curve ends: vertices may be off the curve ends by up to their
+                // tolerance (e.g. after an offset), and both ends of a closed
+                // edge are at pprev.
+                bool reversed = edge.Orientation() == TopAbs_REVERSED;
+                pt = curve->Value(reversed ? first : last);
 
                 // state!=0 means we've found the new start of wire, now just
                 // keep adding new edges
