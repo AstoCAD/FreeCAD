@@ -1157,3 +1157,102 @@ class TestCore(AssemblyTestBase):
 
     def test_link_array_joint_on_point_pattern(self):
         self._check_pattern_array_joint("Point")
+
+    def test_rack_pinion_marker_on_rotated_rack(self):
+        """The rack marker of a rack and pinion joint must have its Z axis along the
+        pinion axis and its X axis along the sliding axis, also when the rack part is
+        rotated, see github.com/freecad/freecad/issues/30887"""
+        operation = "Rack and pinion marker on rotated rack"
+        _msg("  Test '{}'".format(operation))
+
+        ground = self.assembly.newObject("Part::Box", "Ground")
+        ground.Length = 200
+        ground.Width = 200
+        ground.Height = 10
+
+        # The pinion axis (global Z) is not the Z axis of the rack part.
+        rack_rot = App.Rotation(App.Vector(0, 1, 0), 90)
+        rack = self.assembly.newObject("Part::Box", "Rack")
+        rack.Length = 10
+        rack.Width = 100
+        rack.Height = 10
+        rack.Placement = App.Placement(App.Vector(60, 0, 10), rack_rot)
+
+        pinion = self.assembly.newObject("Part::Cylinder", "Pinion")
+        pinion.Radius = 10
+        pinion.Height = 10
+        pinion.Placement.Base = App.Vector(30, 50, 10)
+        self.doc.recompute()
+
+        ground_joint = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+        JointObject.GroundedJoint(ground_joint, ground)
+
+        along_rack = App.Rotation(App.Vector(1, 0, 0), -90)
+        along_rack_local = rack_rot.inverted() * along_rack
+
+        slider = self.jointgroup.newObject("App::FeaturePython", "Slider")
+        JointObject.Joint(slider, JointObject.JointTypes.index("Slider"))
+        slider.Detach1 = True
+        slider.Detach2 = True
+        slider.Reference1 = (ground, ["Face1"])
+        slider.Reference2 = (rack, ["Face1"])
+        slider.Placement1 = App.Placement(App.Vector(), along_rack)
+        slider.Placement2 = App.Placement(App.Vector(), along_rack_local)
+
+        rackPinion = self.jointgroup.newObject("App::FeaturePython", "RackPinion")
+        JointObject.Joint(rackPinion, JointObject.JointTypes.index("RackPinion"))
+        rackPinion.Detach1 = True
+        rackPinion.Reference1 = (rack, ["Face1"])
+        rackPinion.Reference2 = (pinion, ["Face1"])
+        rackPinion.Placement1 = App.Placement(App.Vector(), along_rack_local)
+        rackPinion.Distance = 10
+
+        self.doc.recompute()
+
+        slide_axis = UtilsAssembly.getJcsGlobalPlc(
+            rackPinion.Placement1, rackPinion.Reference1
+        ).Rotation.multVec(App.Vector(0, 0, 1))
+        pinion_axis = UtilsAssembly.getJcsGlobalPlc(
+            rackPinion.Placement2, rackPinion.Reference2
+        ).Rotation.multVec(App.Vector(0, 0, 1))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fileName = os.path.join(temp_dir, "rackPinionRotated.asmt")
+            self.assembly.exportAsASMT(fileName)
+            with open(fileName) as asmt:
+                lines = [line.strip() for line in asmt]
+
+        # Parts and markers are both written as Name, Position3D and RotationMatrix.
+        entries = []
+        for i in range(len(lines) - 7):
+            if lines[i] == "Name" and lines[i + 2] == "Position3D":
+                if lines[i + 4] == "RotationMatrix":
+                    rows = [[float(v) for v in lines[i + 5 + r].split()] for r in range(3)]
+                    entries.append((lines[i + 1], rows))
+
+        def toMatrix(rows):
+            return App.Matrix(*rows[0], 0, *rows[1], 0, *rows[2], 0, 0, 0, 0, 1)
+
+        names = [entry[0] for entry in entries]
+        rackIndex = names.index(rack.FullName)
+        markerIndex = names.index(rackPinion.FullName, rackIndex + 1)
+        rackMatrix = toMatrix(entries[rackIndex][1])
+        markerMatrix = toMatrix(entries[markerIndex][1])
+        globalMarker = rackMatrix.multiply(markerMatrix)
+
+        markerX = globalMarker.multVec(App.Vector(1, 0, 0))
+        markerZ = globalMarker.multVec(App.Vector(0, 0, 1))
+        self.assertLess(
+            markerZ.cross(pinion_axis).Length,
+            1e-7,
+            "'{}' failed - rack marker Z {} is not the pinion axis {}".format(
+                operation, markerZ, pinion_axis
+            ),
+        )
+        self.assertLess(
+            markerX.cross(slide_axis).Length,
+            1e-7,
+            "'{}' failed - rack marker X {} is not the sliding axis {}".format(
+                operation, markerX, slide_axis
+            ),
+        )
