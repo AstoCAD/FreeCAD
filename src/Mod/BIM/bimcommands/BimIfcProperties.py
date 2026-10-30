@@ -105,10 +105,8 @@ class BIM_IfcProperties:
         custompath = os.path.join(FreeCAD.getUserAppDataDir(), "BIM", "CustomPsets.csv")
         self.psetdefs = self.readFromCSV(psetpath)
         self.psetdefs.update(self.readFromCSV(custompath))
-        self.psetkeys = [
-            "".join(map(lambda x: x if x.islower() else " " + x, t[5:]))[1:]
-            for t in self.psetdefs.keys()
-        ]
+        # use the pset names as is: custom psets do not always start with "Pset_"
+        self.psetkeys = list(self.psetdefs.keys())
         self.psetkeys.sort()
         self.propmodel = QtGui.QStandardItemModel()
         self.form.treeProperties.setModel(self.propmodel)
@@ -692,8 +690,7 @@ class BIM_IfcProperties:
             top.setToolTip("PropertySet")
             self.propmodel.appendRow([top, QtGui.QStandardItem(), QtGui.QStandardItem()])
         elif idx > 1:
-            psetlabel = self.psetkeys[idx - 2]
-            psetdef = "Pset_" + psetlabel.replace(" ", "")
+            psetdef = self.psetkeys[idx - 2]
             if psetdef in self.psetdefs:
                 top = QtGui.QStandardItem(psetdef)
                 top.setDragEnabled(False)
