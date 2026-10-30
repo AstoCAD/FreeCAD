@@ -21,6 +21,7 @@
 # *                                                                         *
 # ***************************************************************************
 
+import math
 import unittest
 
 import FreeCAD
@@ -93,6 +94,56 @@ class TestPipe(unittest.TestCase):
         self.SubtractivePipe.Spine = self.SpineSketch
         self.Doc.recompute()
         self.assertAlmostEqual(self.SubtractivePipe.Shape.Volume, 100 - 3.14159265)
+
+    def testClosedPathPipeKeepsProfileIsland(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/24996
+        # A profile with an island swept along a closed path must stay hollow
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.ProfileSketch = self.Body.newObject("Sketcher::SketchObject", "ProfileSketch")
+        self.ProfileSketch.addGeometry(
+            [
+                Part.Circle(App.Vector(0, 0, 0), App.Vector(0, 0, 1), 1.0),
+                Part.Circle(App.Vector(0, 0, 0), App.Vector(0, 0, 1), 0.5),
+            ],
+            False,
+        )
+        self.SpineSketch = self.Body.newObject("Sketcher::SketchObject", "SpineSketch")
+        self.SpineSketch.MapMode = "FlatFace"
+        self.SpineSketch.AttachmentSupport = (self.Doc.XZ_Plane, [""])
+        self.SpineSketch.addGeometry(
+            Part.Circle(App.Vector(5, 0, 0), App.Vector(0, 0, 1), 5.0), False
+        )
+        self.Doc.recompute()
+        self.AdditivePipe = self.Body.newObject("PartDesign::AdditivePipe", "AdditivePipe")
+        self.AdditivePipe.Profile = self.ProfileSketch
+        self.AdditivePipe.Spine = self.SpineSketch
+        self.Doc.recompute()
+        self.assertTrue(self.AdditivePipe.isValid())
+        # torus with the tube cross-section of a ring: 2*pi*R * pi*(r1^2 - r2^2)
+        expected = 2 * math.pi * 5 * math.pi * (1.0**2 - 0.5**2)
+        self.assertAlmostEqual(self.AdditivePipe.Shape.Volume, expected, places=3)
+        self.assertEqual(len(self.AdditivePipe.Shape.Solids), 1)
+        self.assertEqual(len(self.AdditivePipe.AddSubShape.Solids), 1)
+        self.assertAlmostEqual(self.AdditivePipe.AddSubShape.Volume, expected, places=3)
+
+        # The subtractive pipe must only remove the ring, not the island
+        self.BoxSketch = self.Body.newObject("Sketcher::SketchObject", "BoxSketch")
+        self.BoxSketch.MapMode = "FlatFace"
+        self.BoxSketch.AttachmentSupport = (self.Doc.XZ_Plane, [""])
+        TestSketcherApp.CreateRectangleSketch(self.BoxSketch, (-2, -7), (14, 14))
+        self.Doc.recompute()
+        self.Pad = self.Body.newObject("PartDesign::Pad", "Pad")
+        self.Pad.Profile = self.BoxSketch
+        self.Pad.Midplane = True
+        self.Pad.Length = 4.0
+        self.Doc.recompute()
+        padVolume = self.Pad.Shape.Volume
+        self.SubtractivePipe = self.Body.newObject("PartDesign::SubtractivePipe", "SubtractivePipe")
+        self.SubtractivePipe.Profile = self.ProfileSketch
+        self.SubtractivePipe.Spine = self.SpineSketch
+        self.Doc.recompute()
+        self.assertTrue(self.SubtractivePipe.isValid())
+        self.assertAlmostEqual(self.SubtractivePipe.Shape.Volume, padVolume - expected, places=3)
 
     def tearDown(self):
         # closing doc

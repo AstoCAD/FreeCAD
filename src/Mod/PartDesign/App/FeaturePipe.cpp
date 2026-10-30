@@ -25,7 +25,9 @@
 
 #include <Mod/Part/App/FCBRepAlgoAPI_Cut.h>
 #include <Mod/Part/App/FCBRepAlgoAPI_Fuse.h>
+#include <algorithm>
 #include <BRepBndLib.hxx>
+#include <BRep_Tool.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
@@ -490,17 +492,77 @@ App::DocumentObjectExecReturn* Pipe::execute()
             }
         }
 
-        AddSubShape.setValue(result.makeElementCompound(
-            shapes,
-            nullptr,
-            Part::TopoShape::SingleShapeCompoundCreationPolicy::returnShape
-        ));
+        // With a closed path every profile wire gives its own closed shell, so the
+        // holes (islands) of the profile become separate solids. Find how deeply each
+        // solid is nested in the others: odd levels are holes and must be cut away.
+        std::vector<int> nestingLevels(shapes.size(), 0);
+        int maxNestingLevel = 0;
+        if (shapes.size() > 1 && frontwires.empty() && backwires.empty()) {
+            for (std::size_t i = 0; i < shapes.size(); ++i) {
+                TopExp_Explorer xp(shapes[i].getShape(), TopAbs_VERTEX);
+                if (!xp.More()) {
+                    continue;
+                }
+                gp_Pnt pnt = BRep_Tool::Pnt(TopoDS::Vertex(xp.Current()));
+                for (std::size_t j = 0; j < shapes.size(); ++j) {
+                    if (i == j) {
+                        continue;
+                    }
+                    BRepClass3d_SolidClassifier SC(shapes[j].getShape(), pnt, Precision::Confusion());
+                    if (SC.State() == TopAbs_IN) {
+                        ++nestingLevels[i];
+                    }
+                }
+                maxNestingLevel = std::max(maxNestingLevel, nestingLevels[i]);
+            }
+        }
 
-        if (shapes.size() > 1) {
-            result.makeElementFuse(shapes);
+        if (maxNestingLevel > 0) {
+            for (int level = 0; level <= maxNestingLevel; ++level) {
+                std::vector<TopoShape> levelShapes;
+                for (std::size_t i = 0; i < shapes.size(); ++i) {
+                    if (nestingLevels[i] == level) {
+                        levelShapes.push_back(shapes[i]);
+                    }
+                }
+                if (levelShapes.empty()) {
+                    continue;
+                }
+                if (level == 0) {
+                    if (levelShapes.size() > 1) {
+                        result = TopoShape(0, getDocument()->getStringHasher())
+                                     .makeElementFuse(levelShapes);
+                    }
+                    else {
+                        result = levelShapes.front();
+                    }
+                    continue;
+                }
+                levelShapes.insert(levelShapes.begin(), result);
+                TopoShape nested(0, getDocument()->getStringHasher());
+                if (level % 2) {
+                    nested.makeElementCut(levelShapes);
+                }
+                else {
+                    nested.makeElementFuse(levelShapes);
+                }
+                result = nested;
+            }
+            AddSubShape.setValue(result);
         }
         else {
-            result = shapes.front();
+            AddSubShape.setValue(result.makeElementCompound(
+                shapes,
+                nullptr,
+                Part::TopoShape::SingleShapeCompoundCreationPolicy::returnShape
+            ));
+
+            if (shapes.size() > 1) {
+                result.makeElementFuse(shapes);
+            }
+            else {
+                result = shapes.front();
+            }
         }
 
         if (base.isNull()) {
