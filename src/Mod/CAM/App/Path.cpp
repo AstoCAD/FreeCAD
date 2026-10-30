@@ -29,6 +29,7 @@
 #include <Base/Writer.h>
 #include <Mod/CAM/App/PathSegmentWalker.h>
 
+#include <cmath>
 #include <numbers>
 
 #include "Path.h"
@@ -82,7 +83,12 @@ double getArcLength(
     double radius = (last0 - center0).Length();
     double angle = (next0 - center0).GetAngle(last0 - center0);
     Vector3d normal = (last0 - center0) % (next0 - center0);
-    if (normal.z < 0.0) {
+    // GetAngle can return a tiny nonzero angle for identical radius vectors,
+    // so recognize a full circle by its coinciding projected endpoints.
+    if (last0.x == next0.x && last0.y == next0.y && std::isfinite(angle)) {
+        angle = std::numbers::pi * 2;
+    }
+    else if (normal.z < 0.0) {
         if (command.Name == "G3" || command.Name == "G03") {
             angle = std::numbers::pi * 2 - angle;
         }
