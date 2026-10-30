@@ -218,3 +218,24 @@ class UnitBasicCases(unittest.TestCase):
 
     def testIssue6735(self):
         FreeCAD.Units.Quantity("1400.0 N/mm^2")
+
+    def testUnitExponentOutOfRangeRaises(self):
+        # The C++ OverflowError/UnderflowError used to escape from these
+        # constructors and abort the interpreter.
+        with self.assertRaises(OverflowError):
+            FreeCAD.Units.Quantity("1 m^9")
+        with self.assertRaises(ArithmeticError):
+            FreeCAD.Units.Quantity("1 m^-9")
+        with self.assertRaises(OverflowError):
+            FreeCAD.Units.Quantity(1, "m^9")
+        with self.assertRaises(OverflowError):
+            FreeCAD.Units.Quantity(1, 9)
+        with self.assertRaises(OverflowError):
+            FreeCAD.Units.Unit("m^9")
+        with self.assertRaises(OverflowError):
+            FreeCAD.Units.parseQuantity("1 m^9")
+        # values in range are unchanged
+        self.assertEqual(FreeCAD.Units.Quantity("1 m^3").Value, 1e9)
+        self.assertEqual(FreeCAD.Units.Unit("m^3"), FreeCAD.Units.Volume)
+        self.assertEqual(FreeCAD.Units.Quantity(1, 3).Unit, FreeCAD.Units.Volume)
+        self.assertEqual(FreeCAD.Units.parseQuantity("1 m^3").Value, 1e9)
