@@ -477,6 +477,10 @@ void DlgExtrusion::autoSolid()
                     cntClosedWires++;
                 }
             }
+            else if (leaf.ShapeType() == TopAbs_FACE) {
+                // a face is always a valid profile for a solid extrusion
+                cntClosedWires++;
+            }
         }
         ui->chkSolid->setChecked(cntClosedWires == leaves->Length());
     }
