@@ -24,7 +24,9 @@
 
 # Gui Unit tests for the FEM module
 from OpenSCADTest.gui.test_dummy import TestDummy as OpenSCADGuiTestDummy
+from OpenSCADTest.gui.test_importCSGVisibility import TestImportCSGVisibility as OpenSCADGuiTestImportCSGVisibility
 
 
 # dummy usage to get flake8 and lgtm quiet
 False if OpenSCADGuiTestDummy.__name__ else True
+False if OpenSCADGuiTestImportCSGVisibility.__name__ else True
