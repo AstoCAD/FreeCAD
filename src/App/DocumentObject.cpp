@@ -1072,6 +1072,13 @@ DocumentObject::onProposedLabelChange(std::string& newLabel)
             && !doc->testStatus(App::Document::Importing))) {
         return {};
     }
+    if (newLabel.empty()) {
+        // An empty label is not useful, reset it to the object name instead.
+        newLabel = getNameInDocument();
+        if (newLabel == oldLabel) {
+            return {};
+        }
+    }
     static ParameterGrp::handle _hPGrp;
     if (!_hPGrp) {
         _hPGrp = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Document");
