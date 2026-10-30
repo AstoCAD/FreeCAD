@@ -85,5 +85,12 @@ class TestBimIfcPropertiesGui(TestArchBaseGui.TestArchBaseGui):
             self.assertEqual(name, "Pset_FreeCADCustom")
             self.assertEqual(props, ["Note"])
         finally:
+            # reject() only hides the dialog. Its views use a delegate and models
+            # owned by this command instance, which is freed when the test ends:
+            # destroy the dialog first, or it is left with a dangling delegate
+            # and crashes the application later.
+            form = cmd.form
             cmd.reject()
+            form.deleteLater()
+            self.pump_gui_events()
             Gui.Selection.clearSelection()
