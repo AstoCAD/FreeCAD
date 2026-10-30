@@ -35,6 +35,19 @@
 
 using namespace Gui;
 
+namespace
+{
+bool isInToolBar(const QWidget* widget)
+{
+    for (auto parent = widget->parentWidget(); parent; parent = parent->parentWidget()) {
+        if (parent->inherits("QToolBar")) {
+            return true;
+        }
+    }
+    return false;
+}
+}  // namespace
+
 ShortcutManager::ShortcutManager()
 {
     hShortcuts = WindowParameter::getDefaultParameter()->GetGroup("Shortcut");
@@ -314,6 +327,21 @@ bool ShortcutManager::eventFilter(QObject* o, QEvent* ev)
                 if (focusOrProxy->inherits("QLineEdit")) {
                     ev->accept();
                     return true;
+                }
+
+                // A focused combo box selects items by typing their first letters.
+                // Don't let single-letter application shortcuts (or the first key of
+                // a multi-key one, e.g. "T, ...") swallow those keys. Combo boxes in
+                // tool bars (e.g. the workbench selector) keep focus after use, so
+                // shortcuts stay active there.
+                if (focusOrProxy->inherits("QComboBox") && !isInToolBar(focusOrProxy)) {
+                    const auto modifiers = kev->modifiers() & ~Qt::KeypadModifier;
+                    const QString text = kev->text();
+                    if ((modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier)
+                        && !text.isEmpty() && text.at(0).isPrint() && !text.at(0).isSpace()) {
+                        ev->accept();
+                        return true;
+                    }
                 }
             }
             break;
