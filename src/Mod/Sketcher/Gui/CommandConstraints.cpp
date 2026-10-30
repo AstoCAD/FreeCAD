@@ -4633,6 +4633,15 @@ CmdSketcherConstrainLock::CmdSketcherConstrainLock()
     allowedSelSequences = {{SelVertex}};
 }
 
+// Makes the constraints added since there were *before* constraints non-driving. A layer with
+// "Use constraints" off may reject them, so the last constraints are not necessarily new ones.
+static void setAddedConstraintsNonDriving(Sketcher::SketchObject* Obj, int before)
+{
+    for (int index = before; index < Obj->Constraints.getSize(); ++index) {
+        Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", index, "False");
+    }
+}
+
 void CmdSketcherConstrainLock::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
@@ -4670,8 +4679,6 @@ void CmdSketcherConstrainLock::activated(int iMsg)
         }
     }
 
-    int lastconstraintindex = Obj->Constraints.getSize() - 1;
-
     if (GeoId.size() == 1) {// absolute mode
         // check if the edge already has a Block constraint
         bool edgeisblocked = false;
@@ -4684,6 +4691,7 @@ void CmdSketcherConstrainLock::activated(int iMsg)
 
         // undo command open
         openCommand(QT_TRANSLATE_NOOP("Command", "Add 'Lock' constraint"));
+        const int before = Obj->Constraints.getSize();
         Gui::cmdAppObjectArgs(selection->getObject(),
                               "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%.8g))",
                               GeoId[0],
@@ -4695,21 +4703,10 @@ void CmdSketcherConstrainLock::activated(int iMsg)
                               static_cast<int>(PosId[0]),
                               pnt.y);
 
-        lastconstraintindex += 2;
-
         if (edgeisblocked || GeoId[0] <= Sketcher::GeoEnum::RefExt
             || constraintCreationMode == Reference) {
             // it is a constraint on a external line, make it non-driving
-
-            Gui::cmdAppObjectArgs(selection->getObject(),
-                                  "setDriving(%d,%s)",
-                                  lastconstraintindex - 1,
-                                  "False");
-
-            Gui::cmdAppObjectArgs(selection->getObject(),
-                                  "setDriving(%d,%s)",
-                                  lastconstraintindex,
-                                  "False");
+            setAddedConstraintsNonDriving(Obj, before);
         }
     }
     else {
@@ -4738,6 +4735,7 @@ void CmdSketcherConstrainLock::activated(int iMsg)
 
             // undo command open
             openCommand(QT_TRANSLATE_NOOP("Command", "Add relative 'Lock' constraint"));
+            const int before = Obj->Constraints.getSize();
             Gui::cmdAppObjectArgs(selection->getObject(),
                                   "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%.8g))",
                                   *itg,
@@ -4753,20 +4751,10 @@ void CmdSketcherConstrainLock::activated(int iMsg)
                                   GeoId.back(),
                                   static_cast<int>(PosId.back()),
                                   pntr.y - pnt.y);
-            lastconstraintindex += 2;
 
             if ((refpointfixed && pointfixed) || constraintCreationMode == Reference) {
                 // it is a constraint on a external line, make it non-driving
-
-                Gui::cmdAppObjectArgs(selection->getObject(),
-                                      "setDriving(%d,%s)",
-                                      lastconstraintindex - 1,
-                                      "False");
-
-                Gui::cmdAppObjectArgs(selection->getObject(),
-                                      "setDriving(%d,%s)",
-                                      lastconstraintindex,
-                                      "False");
+                setAddedConstraintsNonDriving(Obj, before);
             }
         }
     }
@@ -4798,6 +4786,7 @@ void CmdSketcherConstrainLock::applyConstraint(std::vector<SelIdPair>& selSeq, i
 
             // undo command open
             openCommand(QT_TRANSLATE_NOOP("Command", "Add fixed constraint"));
+            const int before = Obj->Constraints.getSize();
             Gui::cmdAppObjectArgs(sketchgui->getObject(),
                                   "addConstraint(Sketcher.Constraint('DistanceX', %d, %d, %.8g))",
                                   selSeq.front().GeoId,
@@ -4811,17 +4800,7 @@ void CmdSketcherConstrainLock::applyConstraint(std::vector<SelIdPair>& selSeq, i
 
             if (pointfixed || constraintCreationMode == Reference) {
                 // it is a constraint on a external line, make it non-driving
-                const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                Gui::cmdAppObjectArgs(sketchgui->getObject(),
-                                      "setDriving(%d, %s)",
-                                      ConStr.size() - 2,
-                                      "False");
-
-                Gui::cmdAppObjectArgs(sketchgui->getObject(),
-                                      "setDriving(%d, %s)",
-                                      ConStr.size() - 1,
-                                      "False");
+                setAddedConstraintsNonDriving(Obj, before);
             }
 
             // finish the transaction and update
