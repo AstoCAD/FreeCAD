@@ -917,10 +917,20 @@ void MeshInput::LoadXML(Base::XMLReader& reader)
     reader.readEndElement("Faces");
     reader.readEndElement("Mesh");
 
-    // make sure to have valid point indices (as MeshKernel::Read does for the binary format)
-    for (const auto& it : cFacets) {
+    // make sure to have valid point and neighbour indices (as MeshKernel::Read does for the
+    // binary format)
+    const uint32_t open_edge = 0xffffffff;  // open edge as written where unsigned long is 32-bit
+    for (auto& it : cFacets) {
         for (PointIndex index : it._aulPoints) {
             if (index >= cPoints.size()) {
+                throw Base::BadFormatError("Invalid data structure");
+            }
+        }
+        for (FacetIndex& index : it._aulNeighbours) {
+            if (index == open_edge) {
+                index = FACET_INDEX_MAX;
+            }
+            else if (index != FACET_INDEX_MAX && index >= cFacets.size()) {
                 throw Base::BadFormatError("Invalid data structure");
             }
         }

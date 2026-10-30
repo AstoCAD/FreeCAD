@@ -732,7 +732,7 @@ class MeshProperty(unittest.TestCase):
     def tearDown(self):
         FreeCAD.closeDocument(self.doc.Name)
 
-    def _openWithInlineMesh(self, name, faceIndices):
+    def _openWithInlineMesh(self, name, faceIndices, neighbourIndices=(-1, -1, -1)):
         """Save a document, replace the mesh file by an inline <Mesh> element and reopen it"""
         import re
         import zipfile
@@ -745,12 +745,13 @@ class MeshProperty(unittest.TestCase):
         FreeCAD.closeDocument(self.doc.Name)
 
         p0, p1, p2 = faceIndices
+        n0, n1, n2 = neighbourIndices
         inline = (
             '<Mesh file=""><Points Count="3">'
             '<P x="0" y="0" z="0"/><P x="1" y="0" z="0"/><P x="0" y="1" z="0"/>'
             '</Points><Faces Count="1">'
-            '<F p0="{}" p1="{}" p2="{}" n0="-1" n1="-1" n2="-1"/>'
-            "</Faces></Mesh>".format(p0, p1, p2)
+            '<F p0="{}" p1="{}" p2="{}" n0="{}" n1="{}" n2="{}"/>'
+            "</Faces></Mesh>".format(p0, p1, p2, n0, n1, n2)
         )
         with zipfile.ZipFile(fileName) as src, zipfile.ZipFile(inlineName, "w") as dst:
             for item in src.infolist():
@@ -770,6 +771,12 @@ class MeshProperty(unittest.TestCase):
     def testInlineXmlRestoreRejectsInvalidPointIndex(self):
         # https://github.com/FreeCAD/FreeCAD/issues/33322
         mesh = self._openWithInlineMesh("mesh_inline_xml_invalid", (0, 1, 99))
+        self.assertEqual(mesh.CountFacets, 0)
+
+    def testInlineXmlRestoreRejectsInvalidNeighbourIndex(self):
+        # A neighbour index past the facet array was read out of bounds later on,
+        # e.g. removeFoldsOnSurface() raised an access violation.
+        mesh = self._openWithInlineMesh("mesh_inline_xml_invalid_nb", (0, 1, 2), (99, -1, -1))
         self.assertEqual(mesh.CountFacets, 0)
 
     def testMaterial(self):
