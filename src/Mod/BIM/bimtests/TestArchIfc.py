@@ -197,3 +197,28 @@ class TestArchIfc(TestArchBase.TestArchBase):
         prefs = importIFCHelper.getPreferences()
         importIFC.insert(model, self.document.Name, preferences=prefs)
         self._check_imported_wall()
+
+    def test_lock_document_keeps_empty_building_parts(self):
+        """Converting to strict IFC mode keeps an empty building and its levels
+        when there is no site.
+        https://github.com/FreeCAD/FreeCAD/issues/24926"""
+        import Arch
+        from nativeifc import ifc_status
+
+        level1 = Arch.makeFloor()
+        level1.Label = "Level1"
+        level2 = Arch.makeFloor()
+        level2.Label = "Level2"
+        building = Arch.makeBuilding([level1, level2])
+        building.Label = "Building"
+        self.document.recompute()
+
+        ifc_status.lock_document()
+
+        self.assertIn("IfcFilePath", self.document.PropertiesList)
+        ifcfile = self.document.Proxy.ifcfile
+        self.assertEqual(
+            sorted(e.Name for e in ifcfile.by_type("IfcBuildingStorey")), ["Level1", "Level2"]
+        )
+        self.assertEqual([e.Name for e in ifcfile.by_type("IfcBuilding")], ["Building"])
+        self.assertIn("IfcBuilding", [getattr(o, "IfcClass", None) for o in self.document.Objects])
