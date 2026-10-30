@@ -48,3 +48,4 @@ from TDTest.DrawViewDetailConsoleTest import DrawViewDetailConsoleTest  # noqa: 
 
 from TDTest.SketchAnnotationsTest import SketchAnnotationsTest  # noqa: F401
 from TDTest.TechDrawModuleApiTest import TechDrawModuleApiTest  # noqa: F401
+from TDTest.DrawViewCollectionLoopTest import DrawViewCollectionLoopTest  # noqa: F401
