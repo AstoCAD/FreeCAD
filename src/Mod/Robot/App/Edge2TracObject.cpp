@@ -140,6 +140,10 @@ App::DocumentObjectExecReturn* Edge2TracObject::execute()
                     break;
                 }
                 case GeomAbs_BSplineCurve: {
+                    if (SegValue.getValue() <= 0.0) {
+                        // the step would be zero or point backwards: endless loop
+                        return new App::DocumentObjectExecReturn("SegValue must be greater than zero");
+                    }
                     Standard_Real Length = CPnts_AbscissaPoint::Length(adapt);
                     Standard_Real ParLength = adapt.LastParameter() - adapt.FirstParameter();
                     Standard_Real NbrSegments = Round(Length / SegValue.getValue());
@@ -196,6 +200,10 @@ App::DocumentObjectExecReturn* Edge2TracObject::execute()
 
                 } break;
                 case GeomAbs_Circle: {
+                    if (SegValue.getValue() <= 0.0) {
+                        // the step would be zero or point backwards: endless loop
+                        return new App::DocumentObjectExecReturn("SegValue must be greater than zero");
+                    }
                     Standard_Real Length = CPnts_AbscissaPoint::Length(adapt);
                     Standard_Real ParLength = adapt.LastParameter() - adapt.FirstParameter();
                     Standard_Real NbrSegments = Round(Length / SegValue.getValue());
