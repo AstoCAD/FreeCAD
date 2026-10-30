@@ -66,3 +66,47 @@ class TestPostGroups(unittest.TestCase):
         self.document.recompute()
         self.assertIn(clip, branch.Group)
         self.assertIn(other, branch.Group)
+
+    def test_group_cannot_contain_itself(self):
+        # A pipeline or branch filter holding itself (directly or through another group)
+        # used to crash: a branch on recompute (VTK pipeline loop), a pipeline on reopen
+        # (endless recomputeChildren recursion).
+        import os
+        import tempfile
+
+        pipeline = self.document.addObject("Fem::FemPostPipeline", "Pipeline")
+        branch = self.document.addObject("Fem::FemPostBranchFilter", "Branch")
+        branch2 = self.document.addObject("Fem::FemPostBranchFilter", "Branch2")
+        clip = self.document.addObject("Fem::FemPostScalarClipFilter", "Clip")
+
+        with self.assertRaises(RuntimeError):
+            pipeline.Group = [pipeline]
+        self.assertEqual(pipeline.Group, [])
+        with self.assertRaises(RuntimeError):
+            branch.Group = [clip, branch]
+        self.assertEqual(branch.Group, [clip])
+
+        branch2.Group = [branch]
+        with self.assertRaises(RuntimeError):
+            branch.Group = [clip, branch2]
+        self.assertEqual(branch.Group, [clip])
+
+        pipeline.Group = [branch2]
+        with self.assertRaises(RuntimeError):
+            branch.Group = [clip, pipeline]
+        self.assertEqual(branch.Group, [clip])
+        self.document.recompute()
+
+        # valid nesting is kept, also after reopening
+        self.assertEqual(pipeline.Group, [branch2])
+        self.assertEqual(branch2.Group, [branch])
+        path = os.path.join(tempfile.mkdtemp(), "post_group_cycle.FCStd")
+        self.document.saveAs(path)
+        name = self.document.Name
+        FreeCAD.closeDocument(name)
+        self.document = FreeCAD.openDocument(path)
+        self.document.recompute()
+        pipeline = self.document.getObject("Pipeline")
+        self.assertEqual([o.Name for o in pipeline.Group], ["Branch2"])
+        os.remove(path)
+        os.rmdir(os.path.dirname(path))
