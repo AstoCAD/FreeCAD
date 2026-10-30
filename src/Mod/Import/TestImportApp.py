@@ -112,3 +112,42 @@ class DxfSketchExportTest(unittest.TestCase):
         x, y = self._exportCircleSketch(placement)
         self.assertAlmostEqual(x, 6.0, places=6)
         self.assertAlmostEqual(y, 5.0, places=6)
+
+    def _points(self):
+        with open(self.fileName, encoding="utf-8", errors="replace") as f:
+            lines = [line.strip() for line in f.read().splitlines()]
+        points = []
+        for i in range(1, len(lines)):
+            if lines[i] != "POINT" or lines[i - 1] != "0":
+                continue
+            values = {}
+            j = i + 1
+            while j + 1 < len(lines) and lines[j] != "0":
+                values[lines[j]] = lines[j + 1]
+                j += 2
+            points.append((round(float(values["10"]), 6), round(float(values["20"]), 6)))
+        return points
+
+    def testSketchPointIsExported(self):
+        """A sketch point must be exported as a DXF POINT (#30675)"""
+        import Part
+
+        sketch = self.doc.addObject("Sketcher::SketchObject", "Sketch")
+        sketch.addGeometry(Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)))
+        sketch.addGeometry(Part.Point(App.Vector(3, 4, 0)))
+        sketch.Placement = App.Placement(App.Vector(2, 3, 0), App.Rotation())
+        self.doc.recompute()
+        Import.writeDXFObject([sketch], self.fileName)
+        self.assertIn((5.0, 7.0), self._points())
+
+    def testFreeVertexIsExported(self):
+        """A free-standing vertex of a shape must be exported as a DXF POINT (#30675)"""
+        import Part
+
+        feature = self.doc.addObject("Part::Feature", "Feature")
+        feature.Shape = Part.Compound(
+            [Part.makeLine((0, 0, 0), (10, 0, 0)), Part.Vertex(App.Vector(3, 4, 0))]
+        )
+        self.doc.recompute()
+        Import.writeDXFObject([feature], self.fileName)
+        self.assertIn((3.0, 4.0), self._points())
