@@ -38,6 +38,7 @@
 #include <Base/Vector3D.h>
 
 #include <memory>
+#include <set>
 #include <string>
 
 #include "GeoEnum.h"
@@ -1921,6 +1922,26 @@ int SketchObject::removeAxesAlignment(const std::vector<int>& geoIdList)
     // If nothing was modified, return early to avoid triggering a sketch re-solve/update
     if (!changed) {
         return 0;
+    }
+
+    // Keep the removed horizontal and vertical references at a right angle, or a rectangle
+    // would become a parallelogram.
+    if (referenceGeoIds[Sketcher::Horizontal] != GeoEnum::GeoUndef
+        && referenceGeoIds[Sketcher::Vertical] != GeoEnum::GeoUndef) {
+        Constraint* newConstr = new Constraint();
+        newConstr->Type = Sketcher::Perpendicular;
+        newConstr->First = referenceGeoIds[Sketcher::Horizontal];
+        newConstr->Second = referenceGeoIds[Sketcher::Vertical];
+        newConstraints.push_back(newConstr);
+    }
+
+    // setValues() stores copies, so free the constraints created here.
+    std::vector<std::unique_ptr<Constraint>> created;
+    std::set<const Constraint*> existing(currentConstraints.begin(), currentConstraints.end());
+    for (Constraint* constr : newConstraints) {
+        if (!existing.contains(constr)) {
+            created.emplace_back(constr);
+        }
     }
 
     this->Constraints.setValues(newConstraints);
