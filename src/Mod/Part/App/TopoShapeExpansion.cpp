@@ -2864,7 +2864,19 @@ TopoShape& TopoShape::makeElementOffset2D(
                     haveWires = true;
                     break;
                 case TopAbs_FACE: {
-                    std::ranges::copy(s.getSubTopoShapes(TopAbs_WIRE), std::back_inserter(sourceWires));
+                    // BRepOffsetAPI_MakeOffset takes the working plane, and so the
+                    // offset direction, from the first wire. Put the outer wire of the
+                    // face first, otherwise a face whose hole wire comes first is
+                    // offset the wrong way or fails.
+                    auto faceWires = s.getSubTopoShapes(TopAbs_WIRE);
+                    TopoDS_Shape outerWire = BRepTools::OuterWire(TopoDS::Face(sh));
+                    auto outerIt = std::ranges::find_if(faceWires, [&outerWire](const TopoShape& w) {
+                        return w.getShape().IsSame(outerWire);
+                    });
+                    if (outerIt != faceWires.end()) {
+                        std::rotate(faceWires.begin(), outerIt, std::next(outerIt));
+                    }
+                    std::ranges::copy(faceWires, std::back_inserter(sourceWires));
 
                     haveFaces = true;
                 } break;
