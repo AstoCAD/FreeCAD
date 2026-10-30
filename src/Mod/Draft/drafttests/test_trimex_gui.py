@@ -14,6 +14,7 @@
 
 """Unit tests for the Draft Trimex GUI command."""
 
+import math
 from unittest import mock
 
 import FreeCAD as App
@@ -208,3 +209,61 @@ class DraftTrimexGui(DraftTestCaseDoc):
 
         finish.assert_not_called()
         self.assertEqual(wire.Points, points)
+
+    def _trim_arc(self, rotation, point):
+        """Extend or trim a Draft arc (0 to 90 degrees) with the given rotation."""
+        import FreeCADGui as Gui
+        from draftguitools import gui_trackers as trackers
+
+        if not hasattr(Gui, "draftToolBar"):
+            # The trackers need the working plane set up by the workbench.
+            Gui.activateWorkbench("DraftWorkbench")
+        placement = App.Placement(App.Vector(0, 0, 0), rotation)
+        arc = Draft.make_circle(10, placement=placement, startangle=0, endangle=90)
+        self.doc.recompute()
+        command = gui_trimex.Trimex()
+        command.obj = arc
+        command.placement = arc.getGlobalPlacement()
+        command.edges = gui_trimex._get_global_shape(arc).Edges
+        command.ghost = [trackers.arcTracker()]
+        command.activePoint = 0
+        command.lockedActivePoint = None
+        command.axisSetter = None
+        command.force = None
+        command.doc = self.doc
+        command.extrudeMode = False
+        command.point = point
+        command.snapped = None
+        command.shift = False
+        command.alt = False
+        try:
+            command.trimObject()
+        finally:
+            command.ghost[0].finalize()
+        return arc
+
+    def _assert_arc_ends(self, arc, first, last):
+        """Check the global end points of the arc."""
+        edge = arc.Shape.Edges[0]
+        self.assertTrue(edge.Vertexes[0].Point.isEqual(first, 1e-6), edge.Vertexes[0].Point)
+        self.assertTrue(edge.Vertexes[-1].Point.isEqual(last, 1e-6), edge.Vertexes[-1].Point)
+
+    def test_trim_rotated_arc(self):
+        """Trimex must respect the placement rotation of arcs (#22913)."""
+        # Arc from 30 to 120 degrees (global), extend the end to 150 degrees.
+        rotation = App.Rotation(App.Vector(0, 0, 1), 30)
+        target = App.Vector(10 * math.cos(math.radians(150)), 10 * math.sin(math.radians(150)), 0)
+        arc = self._trim_arc(rotation, target)
+        self.assertAlmostEqual(arc.FirstAngle.Value, 0, places=6)
+        self.assertAlmostEqual(arc.LastAngle.Value, 120, places=6)
+        self._assert_arc_ends(arc, rotation.multVec(App.Vector(10, 0, 0)), target)
+
+    def test_trim_flipped_arc(self):
+        """Trimex must handle arcs whose Z axis points down (#22913)."""
+        # Arc from 0 to -90 degrees (global), extend the -90 end to -120 degrees.
+        rotation = App.Rotation(App.Vector(1, 0, 0), 180)
+        target = App.Vector(10 * math.cos(math.radians(-120)), 10 * math.sin(math.radians(-120)), 0)
+        arc = self._trim_arc(rotation, target)
+        self.assertAlmostEqual(arc.FirstAngle.Value, 0, places=6)
+        self.assertAlmostEqual(arc.LastAngle.Value, 120, places=6)
+        self._assert_arc_ends(arc, App.Vector(10, 0, 0), target)
