@@ -1308,6 +1308,22 @@ void ImpExpDxfRead::OnReadText(
                 App::GetApplication().setActiveDocument(prevActive);
             }
             if (builtText != nullptr) {
+                // The DXF height already is the drawing size, so the annotation scale
+                // multiplier that the Draft view provider takes from the preferences must not
+                // enlarge the text (#30043)
+                PyObject* viewObject = PyObject_GetAttrString(builtText, "ViewObject");
+                if (viewObject != nullptr && viewObject != Py_None
+                    && PyObject_HasAttrString(viewObject, "ScaleMultiplier")) {
+                    PyObject* one = PyFloat_FromDouble(1.0);
+                    if (PyObject_SetAttrString(viewObject, "ScaleMultiplier", one) != 0) {
+                        PyErr_Clear();
+                    }
+                    Py_DECREF(one);
+                }
+                else if (viewObject == nullptr) {
+                    PyErr_Clear();
+                }
+                Py_XDECREF(viewObject);
                 auto* result = dynamic_cast<App::FeaturePython*>(builtText->getDocumentObjectPtr());
                 Py_DECREF(builtText);
                 return result;
