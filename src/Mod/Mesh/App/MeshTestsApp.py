@@ -773,6 +773,34 @@ class MeshCorruptedFacet(unittest.TestCase):
         self.assertEqual(mesh.Topology[1], [(0, 1, 2)])
 
 
+class MeshReadTruncatedOff(unittest.TestCase):
+    """Reading an OFF file without the line of element counts must not hang"""
+
+    def _read(self, text):
+        name = os.path.join(tempfile.gettempdir(), "mesh_truncated_test.off")
+        with open(name, "w") as f:
+            f.write(text)
+        try:
+            return Mesh.Mesh(name)
+        except Exception:
+            return None
+        finally:
+            os.remove(name)
+
+    def testTruncatedOff(self):
+        # The reader looked for the counts line in an endless loop past the end of file
+        for text in ("OFF\n", "OFF\n# comment\n", "OFF\n8 1e-320\n"):
+            mesh = self._read(text)
+            if mesh is not None:
+                self.assertEqual(mesh.CountFacets, 0)
+
+    def testOffWithComment(self):
+        mesh = self._read("OFF\n# comment\n3 1 0\n0 0 0\n1 0 0\n0 1 0\n3 0 1 2\n")
+        self.assertIsNotNone(mesh)
+        self.assertEqual(mesh.CountPoints, 3)
+        self.assertEqual(mesh.CountFacets, 1)
+
+
 class MeshModuleExport(unittest.TestCase):
     def setUp(self):
         self.doc = FreeCAD.newDocument("MeshExportTest")
