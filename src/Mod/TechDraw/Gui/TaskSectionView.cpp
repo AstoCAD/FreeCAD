@@ -4859,6 +4859,22 @@ bool TaskSectionView::reject()
     return false;
 }
 
+//! Undo was used while editing. It has already rolled back this task's transaction and
+//! may have deleted the section or its base view, so drop pointers to deleted objects.
+void TaskSectionView::rejectAfterUndo()
+{
+    m_transactionId = 0;
+    if (!isSectionValid()) {
+        m_section = nullptr;
+        m_profileObject = nullptr;
+    }
+    if (!isBaseValid()) {
+        m_base = nullptr;
+        m_baseItem = nullptr;
+    }
+    reject();
+}
+
 void TaskSectionView::changeEvent(QEvent* event)
 {
     if (event->type() == QEvent::LanguageChange) {
@@ -6284,6 +6300,8 @@ TaskDlgSectionView::TaskDlgSectionView(TechDraw::DrawViewSection* section) : Tas
 
     taskbox->groupLayout()->addWidget(widget);
     Content.push_back(taskbox);
+    // Undo while editing can delete the section this task points to.
+    setAutoCloseOnTransactionChange(true);
 
     auto* mdi = qobject_cast<MDIViewPage*>(
         Gui::getMainWindow()->activeWindow());
@@ -6362,6 +6380,11 @@ bool TaskDlgSectionView::reject()
 {
     widget->reject();
     return true;
+}
+
+void TaskDlgSectionView::autoClosedOnTransactionChange()
+{
+    widget->rejectAfterUndo();
 }
 
 void TaskDlgSectionView::clicked(int id)
