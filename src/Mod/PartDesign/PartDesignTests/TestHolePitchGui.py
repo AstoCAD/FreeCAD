@@ -65,7 +65,8 @@ class TestHolePitchGui(unittest.TestCase):
     def assertPitch(self, expected):
         pitch = self.pitchWidget()
         self.assertTrue(pitch.isVisibleTo(pitch.parentWidget()))
-        self.assertTrue(pitch.isReadOnly())
+        # Display only: a disabled field, since QuantitySpinBox drops readOnly on resize
+        self.assertFalse(pitch.isEnabled())
         self.assertAlmostEqual(pitch.property("rawValue"), expected)
 
     def testPitchFollowsSize(self):
