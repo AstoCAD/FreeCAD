@@ -286,6 +286,7 @@ class BIM_Box:
         )
 
     def _makeBox(self):
+        import Draft
         import DraftGeomUtils
 
         p1 = self.cubetracker[0].p1()
@@ -306,6 +307,7 @@ class BIM_Box:
         cube.Length = self.LengthValue
         cube.Width = self.WidthValue
         cube.Height = abs(self.HeightValue)
+        Draft.autogroup(cube)
         self.doc.commitTransaction()
         self.doc.recompute()
 
