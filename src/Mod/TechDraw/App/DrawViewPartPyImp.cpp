@@ -493,6 +493,10 @@ PyObject* DrawViewPartPy::makeCosmeticCircle(PyObject *args)
                                         &PyTuple_Type, &pColor)) {
         return nullptr;
     }
+    if (!(radius > 0.0)) {
+        PyErr_SetString(PyExc_ValueError, "Radius must be greater than zero");
+        return nullptr;
+    }
 
     DrawViewPart* dvp = getDrawViewPartPtr();
     if (!dvp->hasGeometry()) {
@@ -538,6 +542,10 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc(PyObject *args)
     if (!PyArg_ParseTuple(args, "O!ddd|idO!", &(Base::VectorPy::Type), &pPnt1,
                                         &radius, &angle1, &angle2,
                                         &style, &weight, &PyTuple_Type, &pColor)) {
+        return nullptr;
+    }
+    if (!(radius > 0.0)) {
+        PyErr_SetString(PyExc_ValueError, "Radius must be greater than zero");
         return nullptr;
     }
 
@@ -592,6 +600,10 @@ PyObject* DrawViewPartPy::makeCosmeticCircle3d(PyObject *args)
                                         &PyTuple_Type, &pColor)) {
         return nullptr;
     }
+    if (!(radius > 0.0)) {
+        PyErr_SetString(PyExc_ValueError, "Radius must be greater than zero");
+        return nullptr;
+    }
 
     DrawViewPart* dvp = getDrawViewPartPtr();
     if (!dvp->hasGeometry()) {
@@ -640,6 +652,10 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc3d(PyObject *args)
     if (!PyArg_ParseTuple(args, "O!ddd|idO!", &(Base::VectorPy::Type), &pPnt1,
                                         &radius, &angle1, &angle2,
                                         &style, &weight, &PyTuple_Type, &pColor)) {
+        return nullptr;
+    }
+    if (!(radius > 0.0)) {
+        PyErr_SetString(PyExc_ValueError, "Radius must be greater than zero");
         return nullptr;
     }
 
