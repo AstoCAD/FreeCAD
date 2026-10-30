@@ -67,7 +67,9 @@
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepProj_Projection.hxx>
 #include <BRepTools_WireExplorer.hxx>
+#include <GeomAdaptor_Curve.hxx>
 #include <GeomConvert.hxx>
+#include <Geom_BSplineCurve.hxx>
 #include <GeomFill_BezierCurves.hxx>
 #include <GeomFill_BSplineCurves.hxx>
 #include <Precision.hxx>
@@ -2700,6 +2702,42 @@ TopoShape& TopoShape::makeElementOffsetFace(
     return makeElementCompound(res, "", SingleShapeCompoundCreationPolicy::returnShape);
 }
 
+// The 2D offset of a B-spline gives edges based on Geom_OffsetCurve, and
+// BRepBuilderAPI_MakeFace builds invalid faces from wires of such edges. Convert
+// them to B-splines, like the pre-toponaming makeOffset2D() did. The curves are
+// replaced in place so that the topology, and with it the element map, is kept.
+// The shape must not share its edges with any other shape.
+static void replaceOffsetCurvesWithBSplines(const TopoDS_Shape& shape)
+{
+    BRep_Builder builder;
+    for (TopExp_Explorer xp(shape, TopAbs_EDGE); xp.More(); xp.Next()) {
+        const TopoDS_Edge& edge = TopoDS::Edge(xp.Current());
+        if (edge.Locked()) {
+            continue;
+        }
+        TopLoc_Location loc;
+        double first {};
+        double last {};
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, loc, first, last);
+        if (curve.IsNull() || GeomAdaptor_Curve(curve).GetType() != GeomAbs_OffsetCurve) {
+            continue;
+        }
+        try {
+            ShapeConstruct_Curve scc;
+            Handle(Geom_BSplineCurve) spline
+                = scc.ConvertToBSpline(curve, first, last, Precision::Confusion());
+            if (spline.IsNull()) {
+                continue;
+            }
+            builder.UpdateEdge(edge, spline, loc, BRep_Tool::Tolerance(edge));
+            BRepLib::SameParameter(edge, Precision::Confusion(), Standard_True);
+        }
+        catch (const Standard_Failure&) {
+            // keep the offset curve
+        }
+    }
+}
+
 TopoShape& TopoShape::makeElementOffset2D(
     const TopoShape& shape,
     double offset,
@@ -2857,6 +2895,8 @@ TopoShape& TopoShape::makeElementOffset2D(
             // Copying shape to fix strange orientation behavior, OCC7.0.0. See bug #2699
             //  http://www.freecad.org/tracker/view.php?id=2699
             offsetShape = shape.makeElementShape(mkOffset, op).makeElementCopy();
+            // The copy owns its edges, so they can be modified in place.
+            replaceOffsetCurvesWithBSplines(offsetShape.getShape());
         }
         else {
             offsetShape = TopoShape(Tag, Hasher)
