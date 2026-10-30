@@ -882,6 +882,9 @@ PyObject* ApplicationPy::sSetLogLevel(PyObject* /*self*/, PyObject* args)
         int l {};
         if (PyUnicode_Check(pcObj)) {
             const char* pstr = PyUnicode_AsUTF8(pcObj);
+            if (!pstr) {
+                return nullptr;
+            }
             if (strcmp(pstr, "Log") == 0) {
                 l = FC_LOGLEVEL_LOG;
             }
