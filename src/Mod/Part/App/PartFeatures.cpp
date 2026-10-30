@@ -243,6 +243,15 @@ App::DocumentObjectExecReturn* Loft::execute()
             result.linearize(LinearizeFace::linearizeFaces, LinearizeEdge::noEdges);
         }
         this->Shape.setValue(result);
+        // With open sections, ThruSections still wraps the open shell into a
+        // solid, which is invalid. Report it instead of silently producing a
+        // shape that only fails in later operations.
+        if (isSolid == IsSolid::solid && !result.isClosed()) {
+            return new App::DocumentObjectExecReturn(
+                "Cannot create a solid loft from open sections. "
+                "Use closed sections or turn off 'Solid'."
+            );
+        }
         return Part::Feature::execute();
     }
     catch (Standard_Failure& e) {
