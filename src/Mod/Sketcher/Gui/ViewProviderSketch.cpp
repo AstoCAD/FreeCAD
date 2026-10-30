@@ -4168,6 +4168,13 @@ void ViewProviderSketch::slotConstraintAdded(Sketcher::Constraint* constraint)
         return;
     }
 
+    const int tid = getSketchObject()->getDocument()->getBookedTransactionID();
+    if (tid != constraintsAddedTransaction) {
+        constraintsAddedTransaction = tid;
+        constraintsAddedCount = 0;
+    }
+    ++constraintsAddedCount;
+
     // Auto-scale label distance for dimensional constraints
     if (constraint->Type == Distance || constraint->Type == DistanceX || constraint->Type == DistanceY) {
         // If label distance is default (10.0), scale it based on view.
@@ -5187,6 +5194,11 @@ int ViewProviderSketch::getPreselectCross() const
 Sketcher::SketchObject* ViewProviderSketch::getSketchObject() const
 {
     return dynamic_cast<Sketcher::SketchObject*>(pcObject);
+}
+
+int ViewProviderSketch::countConstraintsAdded(int tid) const
+{
+    return tid == constraintsAddedTransaction ? constraintsAddedCount : 0;
 }
 
 const Sketcher::Sketch& ViewProviderSketch::getSolvedSketch() const

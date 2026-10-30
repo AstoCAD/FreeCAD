@@ -364,12 +364,35 @@ bool isCreateConstraintActive(Gui::Document* doc)
     return false;
 }
 
+// SketchObject.addConstraint() returns -1 without adding anything when the geometry is on a layer
+// with "Use constraints" off. The last constraint is then an older, unrelated one, which the datum
+// commands must neither label, make non-driving nor edit in the datum dialog.
+static bool datumConstraintsAdded(Gui::Command* cmd,
+                                  Sketcher::SketchObject* sketch,
+                                  unsigned int numberofconstraints = 1)
+{
+    Gui::Document* doc = cmd->getActiveGuiDocument();
+    auto* vp = doc ? dynamic_cast<SketcherGui::ViewProviderSketch*>(doc->getInEdit()) : nullptr;
+    if (!vp || vp->getSketchObject() != sketch || cmd->transactionID() == App::NullTransaction) {
+        return sketch->Constraints.getSize() >= static_cast<int>(numberofconstraints);
+    }
+    return vp->countConstraintsAdded(cmd->transactionID())
+        >= static_cast<int>(numberofconstraints);
+}
+
 // Utility method to avoid repeating the same code over and over again
 void finishDatumConstraint(Gui::Command* cmd,
                            Sketcher::SketchObject* sketch,
                            bool isDriving = true,
                            unsigned int numberofconstraints = 1)
 {
+    if (!datumConstraintsAdded(cmd, sketch, numberofconstraints)) {
+        cmd->abortCommand();
+        tryAutoRecomputeIfNotSolve(sketch);
+        cmd->getSelection().clearSelection();
+        return;
+    }
+
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/Sketcher");
 
@@ -458,7 +481,7 @@ static void finishDrivingDatumConstraint(Gui::Command* cmd,
                                          Sketcher::SketchObject* sketch,
                                          bool makeReference)
 {
-    if (makeReference) {
+    if (makeReference && datumConstraintsAdded(cmd, sketch)) {
         const auto& constraints = sketch->Constraints.getValues();
         Gui::cmdAppObjectArgs(sketch, "setDriving(%d,%s)", constraints.size() - 1, "False");
     }
@@ -6168,20 +6191,9 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
                 GeoId2,
                 ActDist);
 
-            if (arebothpointsorsegmentsfixed
-                || constraintCreationMode
-                == Reference) {// it is a constraint on a external line, make it non-driving
-                const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                Gui::cmdAppObjectArgs(selection->getObject(),
-                    "setDriving(%i,%s)",
-                    ConStr.size() - 1,
-                    "False");
-                finishDatumConstraint(this, Obj, false);
-            }
-            else {
-                finishDatumConstraint(this, Obj, true);
-            }
+            // it is a constraint on a external line, make it non-driving
+            finishDrivingDatumConstraint(
+                this, Obj, arebothpointsorsegmentsfixed || constraintCreationMode == Reference);
 
             return;
         }
@@ -8670,16 +8682,22 @@ static void activateRadialDimension(CmdSketcherConstraint* cmd, RadialDimension 
         cmd->openCommand(radialDimensionCommand(dimension));
         commandopened = true;
         unsigned int constrSize = 0;
+        unsigned int added = 0;
 
         for (std::vector<std::pair<int, double>>::iterator it = externalGeoIdRadiusMap.begin();
              it != externalGeoIdRadiusMap.end();
              ++it) {
 
+            const int before = Obj->Constraints.getSize();
             addRadialDimension(Obj, dimension, it->first, it->second, true);
 
             const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
 
             constrSize = ConStr.size();
+            if (static_cast<int>(constrSize) == before) {
+                continue;  // rejected by a layer without constraints
+            }
+            ++added;
 
             Gui::cmdAppObjectArgs(selection->getObject(),
                                   "setDriving(%d,%s)",
@@ -8687,7 +8705,7 @@ static void activateRadialDimension(CmdSketcherConstraint* cmd, RadialDimension 
                                   "False");
         }
 
-        finishDatumConstraint(cmd, Obj, false, externalGeoIdRadiusMap.size());
+        finishDatumConstraint(cmd, Obj, false, std::max(added, 1U));
 
         commitNeeded = true;
         updateNeeded = true;
@@ -8723,9 +8741,10 @@ static void activateRadialDimension(CmdSketcherConstraint* cmd, RadialDimension 
             for (std::vector<std::pair<int, double>>::iterator it = geoIdRadiusMap.begin();
                  it != geoIdRadiusMap.end();
                  ++it) {
+                const int before = Obj->Constraints.getSize();
                 addRadialDimension(Obj, dimension, it->first, it->second);
 
-                if (constraintCreationMode == Reference) {
+                if (constraintCreationMode == Reference && Obj->Constraints.getSize() > before) {
                     const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
                     Gui::cmdAppObjectArgs(selection->getObject(),
                                           "setDriving(%d,%s)",
@@ -8800,7 +8819,7 @@ static void applyRadialDimension(Gui::Command* cmd,
             const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
 
             bool fixed = isPointOrSegmentFixed(Obj, GeoId);
-            if (fixed || constraintCreationMode == Reference) {
+            if ((fixed || constraintCreationMode == Reference) && datumConstraintsAdded(cmd, Obj)) {
                 Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
 
                 updateNeeded = true;// We do need to update the solver DoF after setting the
@@ -10355,6 +10374,13 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
 
     if (!safe) {
         abortCommand();
+        return;
+    }
+    // A layer without constraints may reject the law while keeping its helper constraints.
+    if (Obj->Constraints.getValues().empty()
+        || Obj->Constraints.getValues().back()->Type != SnellsLaw) {
+        abortCommand();
+        tryAutoRecomputeIfNotSolve(Obj);
         return;
     }
     finishDatumConstraint(this, Obj, true);

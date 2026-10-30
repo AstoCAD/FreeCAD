@@ -1116,6 +1116,63 @@ class TestSketchLayersGui(SketcherGuiTestCase):
         self.assertTrue(s.getActive(cross))
         self.assertEqual(list(self.scene_node("ConstraintGroup").enable.getValues()), [True] * 3)
 
+    def testDatumOnNoConstraintsLayerLeavesLastConstraintAlone(self):
+        # addConstraint() rejects the new datum on such a layer; the command must not label,
+        # make non-driving or open the datum dialog on the previous, unrelated last constraint.
+        s = self.sketch
+        s.addConstraint(Sketcher.Constraint("Distance", 0, 20.0))
+        line = s.addGeometry(Part.LineSegment(App.Vector(0, 20, 0), App.Vector(30, 25, 0)))
+        circle = s.addGeometry(Part.Circle(App.Vector(50, 0, 0), App.Vector(0, 0, 1), 5))
+        layer = s.addLayer("Reference")
+        s.setGeometryLayer([line, circle], layer)
+        s.UnconstrainedLayers = [layer]
+        self.doc.recompute()
+        self.flush_gui(100)
+        prefs = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Sketcher")
+        previous = prefs.GetBool("ShowDialogOnDistanceConstraint", True)
+        prefs.SetBool("ShowDialogOnDistanceConstraint", True)
+        dialogs = []
+
+        def close():
+            dialog = QtGui.QApplication.activeModalWidget()
+            if dialog is None:
+                return
+            dialogs.append(dialog.windowTitle())
+            spins = dialog.findChildren(QtGui.QAbstractSpinBox)
+            if spins:
+                spins[0].lineEdit().setText("33 mm")
+                dialog.accept()
+            else:
+                dialog.reject()
+
+        timer = QtCore.QTimer()
+        timer.timeout.connect(close)
+        timer.start(50)
+        undo = self.doc.UndoCount
+        try:
+            for reference in (False, True):
+                if reference:
+                    Gui.Selection.clearSelection()
+                    Gui.runCommand("Sketcher_ToggleDrivingConstraint", 0)
+                for command, geo in (("Sketcher_ConstrainDistance", line),
+                                     ("Sketcher_ConstrainRadius", circle)):
+                    Gui.Selection.clearSelection()
+                    Gui.Selection.addSelection(self.doc.Name, s.Name, f"Edge{geo + 1}")
+                    Gui.runCommand(command, 0)
+                    self.flush_gui(150)
+                    case = (command, reference)
+                    self.assertEqual(dialogs, [], case)
+                    self.assertEqual(s.ConstraintCount, 1, case)
+                    self.assertAlmostEqual(s.Constraints[0].Value, 20.0, msg=case)
+                    self.assertTrue(s.getDriving(0), case)
+                    self.assertEqual(self.doc.UndoCount, undo, case)
+        finally:
+            timer.stop()
+            Gui.Selection.clearSelection()
+            if reference:
+                Gui.runCommand("Sketcher_ToggleDrivingConstraint", 0)
+            prefs.SetBool("ShowDialogOnDistanceConstraint", previous)
+
     def testGeometryLayerSelector(self):
         layer = self.sketch.addLayer("Geometry")
         self.flush_gui(120)
