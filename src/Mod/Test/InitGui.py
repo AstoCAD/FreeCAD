@@ -141,4 +141,5 @@ FreeCAD.__unit_test__ += [
     "TestPreferencesSearchPopupGui",
     "TestTreeEditBackgroundGui",
     "TestPythonGroupCommandToolTipGui",
+    "TestButtonSpaceShortcutGui",
 ]
