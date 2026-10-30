@@ -5,7 +5,7 @@ import unittest
 
 import FreeCAD as App
 import FreeCADGui as Gui
-from PySide import QtCore, QtWidgets
+from PySide import QtCore, QtGui, QtWidgets
 
 
 class TestNavigationPreferenceReloadGui(unittest.TestCase):
@@ -67,3 +67,53 @@ class TestNavigationPreferenceReloadGui(unittest.TestCase):
         self.assertEqual(self.errors, [])
         self.assertEqual(self.results["after"], self.results["before"])
         self.assertEqual(self.results["dialogs"], 1)
+
+    def inspectFont(self):
+        dialog = QtWidgets.QApplication.activeModalWidget()
+        try:
+            page = self.findPage(dialog)
+            if page is None:
+                self.errors.append("navigation preference page not found")
+                return
+            fonts = page.findChild(QtWidgets.QComboBox, "naviCubeFontName")
+            self.results["loaded"] = (fonts.currentIndex(), fonts.currentText())
+            QtCore.QMetaObject.invokeMethod(page, "loadSettings")
+            self.results["reloaded"] = (fonts.currentIndex(), fonts.currentText())
+            # what OK/Apply does
+            QtCore.QMetaObject.invokeMethod(page, "saveSettings")
+        except Exception as e:
+            self.errors.append(repr(e))
+        finally:
+            if dialog is not None:
+                dialog.reject()
+
+    def testFontNameKeepsDefaultEntry(self):
+        """The navigation cube font list starts with a "Default" entry: loading
+        the page must show the stored font, and saving it must not change it."""
+        families = QtGui.QFontDatabase.families()
+        self.assertGreater(len(families), 2)
+        font = families[1]
+        group = App.ParamGet("User parameter:BaseApp/Preferences/NaviCube")
+        had = "FontString" in group.GetStrings()
+        old = group.GetString("FontString")
+        try:
+            group.SetString("FontString", font)
+            QtCore.QTimer.singleShot(500, self.inspectFont)
+            Gui.showPreferences("Display")
+            self.assertEqual(self.errors, [])
+            self.assertEqual(self.results["loaded"][1], font)
+            self.assertEqual(self.results["reloaded"][1], font)
+            self.assertEqual(group.GetString("FontString"), font)
+
+            group.RemString("FontString")
+            QtCore.QTimer.singleShot(500, self.inspectFont)
+            Gui.showPreferences("Display")
+            self.assertEqual(self.errors, [])
+            self.assertEqual(self.results["loaded"][0], 0)
+            self.assertEqual(self.results["reloaded"][0], 0)
+            self.assertNotIn("FontString", group.GetStrings())
+        finally:
+            if had:
+                group.SetString("FontString", old)
+            else:
+                group.RemString("FontString")

@@ -218,7 +218,10 @@ void DlgSettingsNavigation::loadSettings()
 
     // we purposely allow all available fonts on the system
     QStringList familyNames = QFontDatabase::families(QFontDatabase::Any);
-    ui->naviCubeFontName->clear();
+    // Keep the "Default" entry of the form at index 0, only refill the font names after it
+    for (int i = ui->naviCubeFontName->count() - 1; i > 0; --i) {
+        ui->naviCubeFontName->removeItem(i);
+    }
     ui->naviCubeFontName->addItems(familyNames);
 
     // mark this combobox to be excluded from preference search
