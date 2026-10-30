@@ -74,6 +74,33 @@ class TestCcxTools(unittest.TestCase):
         )
 
     # ********************************************************************************************
+    def test_calculixtools_missing_prerequisites(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/23085
+        # the CalculiX solver tool must report analysis setup errors and not write the input file
+        try:
+            from femsolver.calculix import calculixtools
+        except ImportError as e:
+            self.skipTest(f"CalculiX solver tool not available: {e}")
+        from femtools.objecttools import PrerequisiteError
+        import ObjectsFem
+
+        analysis = ObjectsFem.makeAnalysis(self.document, "Analysis")
+        solver = ObjectsFem.makeSolverCalculiX(self.document, "SolverCalculiX")
+        analysis.addObject(solver)
+        # an empty mesh and no material
+        analysis.addObject(self.document.addObject("Fem::FemMeshObject", self.mesh_name))
+        solver.WorkingDirectory = testtools.get_fem_test_tmp_dir(
+            self.pre_dir_name + "missing_prerequisites"
+        )
+        self.document.recompute()
+
+        tool = calculixtools.CalculiXTools(solver)
+        with self.assertRaises(PrerequisiteError) as cm:
+            tool.prepare()
+        self.assertIn("No material object defined in the analysis.", str(cm.exception))
+        self.assertEqual(tool.model_file, "")
+
+    # ********************************************************************************************
     def test_box_frequency(self):
         # set up
         from femexamples.boxanalysis_frequency import setup

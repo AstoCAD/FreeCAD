@@ -38,6 +38,7 @@ import FreeCAD
 import FemGui
 
 from femtools.femutils import getOutputWinColor
+from femtools.objecttools import PrerequisiteError
 
 from . import base_femtaskpanel
 
@@ -53,11 +54,17 @@ class _Thread(QtCore.QThread):
         super().__init__()
         self.tool = tool
         self.prepare_ok = False
+        self.prerequisite_message = ""
 
     def run(self):
+        self.prerequisite_message = ""
         try:
             self.tool.prepare()
             self.prepare_ok = True
+        except PrerequisiteError as e:
+            self.prepare_ok = False
+            self.prerequisite_message = str(e)
+            FreeCAD.Console.PrintError("{}\n".format(e))
         except Exception as e:
             self.prepare_ok = False
             FreeCAD.Console.PrintError("{}\n".format(e))
@@ -132,6 +139,12 @@ class _BaseLogTaskPanel(base_femtaskpanel._BaseTaskPanel, ABC):
         else:
             self.timer.stop()
             self.write_log("Preparation failed.\n", QtGui.QColor(getOutputWinColor("Error")))
+            if self._thread.prerequisite_message:
+                QtGui.QMessageBox.critical(
+                    None,
+                    FreeCAD.Qt.translate("FEM", "Missing prerequisite(s)"),
+                    self._thread.prerequisite_message,
+                )
             return None
 
     def preparation_finished(self):
