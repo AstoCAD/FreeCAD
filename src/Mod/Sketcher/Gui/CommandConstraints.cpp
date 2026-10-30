@@ -3866,6 +3866,9 @@ protected:
 
     void updateDistanceType(Base::Vector2d onSketchPos)
     {
+        if (cstrIndexes.empty()) {
+            return;  // the distance was rejected by a layer without constraints
+        }
         const std::vector< Sketcher::Constraint* >& vals = Obj->Constraints.getValues();
         Sketcher::ConstraintType type = vals[vals.size() - 1]->Type;
 
@@ -3965,8 +3968,23 @@ protected:
         return false;
     }
 
+    // SketchObject.addConstraint() rejects constraints on layers with "Use constraints" off, so
+    // the last constraint is not necessarily the one this tool has just requested.
+    bool lastConstraintAdded()
+    {
+        if (currentTransactionID == App::NullTransaction) {
+            return Obj->Constraints.getSize() > (cstrIndexes.empty() ? 0 : cstrIndexes.back() + 1);
+        }
+        return sketchgui->countConstraintsAdded(currentTransactionID)
+            > static_cast<int>(cstrIndexes.size());
+    }
+
     void finishDimensionCreation(int GeoId1, int GeoId2, Base::Vector2d onSketchPos)
     {
+        if (!lastConstraintAdded()) {
+            return;
+        }
+
         bool fixed = GeoId2 == GeoEnum::GeoUndef ? isPointOrSegmentFixed(Obj, GeoId1) : areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2);
 
         int index = Obj->Constraints.getValues().size() - 1;
@@ -3980,7 +3998,9 @@ protected:
 
     void addConstraintIndex()
     {
-        cstrIndexes.push_back(Obj->Constraints.getValues().size() - 1);
+        if (lastConstraintAdded()) {
+            cstrIndexes.push_back(Obj->Constraints.getSize() - 1);
+        }
     }
 
     bool hasBeenAborted()

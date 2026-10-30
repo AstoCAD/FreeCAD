@@ -1173,6 +1173,83 @@ class TestSketchLayersGui(SketcherGuiTestCase):
                 Gui.runCommand("Sketcher_ToggleDrivingConstraint", 0)
             prefs.SetBool("ShowDialogOnDistanceConstraint", previous)
 
+    def testDimensionOnNoConstraintsLayerLeavesLastConstraintAlone(self):
+        # Sketcher_Dimension must not take the previous, unrelated last constraint (or index -1
+        # in a sketch without constraints) for the datum a layer without constraints rejected.
+        s = self.sketch
+        s.addConstraint(Sketcher.Constraint("Distance", 0, 20.0))
+        line = s.addGeometry(Part.LineSegment(App.Vector(0, 20, 0), App.Vector(30, 25, 0)))
+        circle = s.addGeometry(Part.Circle(App.Vector(50, 0, 0), App.Vector(0, 0, 1), 5))
+        layer = s.addLayer("Reference")
+        s.setGeometryLayer([line, circle], layer)
+        s.UnconstrainedLayers = [layer]
+        self.doc.recompute()
+        view = Gui.ActiveDocument.ActiveView
+        view.viewTop()
+        view.fitAll()
+        self.flush_gui(150)
+        viewport = view.graphicsView().viewport()
+        blank = self.viewport_to_qpoint(view, viewport, view.getPointOnScreen(App.Vector(25, 10, 0)))
+        prefs = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Sketcher")
+        previous = {key: prefs.GetBool(key, True)
+                    for key in ("ShowDialogOnDistanceConstraint", "ContinuousCreationMode")}
+        prefs.SetBool("ShowDialogOnDistanceConstraint", True)
+        prefs.SetBool("ContinuousCreationMode", False)
+        dialogs = []
+
+        def close():
+            dialog = QtGui.QApplication.activeModalWidget()
+            if dialog is None:
+                return
+            dialogs.append(dialog.windowTitle())
+            spins = dialog.findChildren(QtGui.QAbstractSpinBox)
+            if spins:
+                spins[0].lineEdit().setText("33 mm")
+                dialog.accept()
+            else:
+                dialog.reject()
+
+        timer = QtCore.QTimer()
+        timer.timeout.connect(close)
+        timer.start(50)
+        reference = False
+        try:
+            for count in (1, 0):
+                if count == 0:
+                    s.delConstraint(0)
+                    self.doc.recompute()
+                    self.flush_gui(100)
+                for reference in (False, True):
+                    if reference:
+                        Gui.Selection.clearSelection()
+                        Gui.runCommand("Sketcher_ToggleDrivingConstraint", 0)
+                    for geo in (line, circle):
+                        Gui.Selection.clearSelection()
+                        Gui.Selection.addSelection(self.doc.Name, s.Name, f"Edge{geo + 1}")
+                        Gui.runCommand("Sketcher_Dimension", 0)
+                        self.flush_gui(100)
+                        # Clicking empty space finishes the dimension (and the tool).
+                        self.move(viewport, blank)
+                        self.click(viewport, blank)
+                        self.flush_gui(150)
+                        case = (count, geo, reference)
+                        self.assertEqual(dialogs, [], case)
+                        self.assertEqual(s.ConstraintCount, count, case)
+                        if count:
+                            self.assertAlmostEqual(s.Constraints[0].Value, 20.0, msg=case)
+                            self.assertTrue(s.getDriving(0), case)
+                    if reference:
+                        Gui.Selection.clearSelection()
+                        Gui.runCommand("Sketcher_ToggleDrivingConstraint", 0)
+                        reference = False
+        finally:
+            timer.stop()
+            Gui.Selection.clearSelection()
+            if reference:
+                Gui.runCommand("Sketcher_ToggleDrivingConstraint", 0)
+            for key, value in previous.items():
+                prefs.SetBool(key, value)
+
     def testGeometryLayerSelector(self):
         layer = self.sketch.addLayer("Geometry")
         self.flush_gui(120)
