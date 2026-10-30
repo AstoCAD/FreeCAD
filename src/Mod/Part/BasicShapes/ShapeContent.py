@@ -17,6 +17,21 @@ def roundVector(v, dec):
     return str([round(v[0], dec), round(v[1], dec), round(v[2], dec)])
 
 
+def isSolidShape(shp):
+    """True if the shape is made of solids only.
+
+    The physical properties of such shapes (volume, mass, center of mass,
+    inertia) are shown by Std_MassProperties, so they are not repeated here."""
+    if shp.isNull():
+        return False
+    if shp.ShapeType in ("Solid", "CompSolid"):
+        return True
+    if shp.ShapeType == "Compound":
+        children = shp.childShapes()
+        return len(children) > 0 and all(isSolidShape(child) for child in children)
+    return False
+
+
 def buildShapeContent(objArg, decimals=2, advancedShapeContent=True):
     linkName = ""
     if objArg.isDerivedFrom("App::Link"):
@@ -63,6 +78,9 @@ def buildShapeContent(objArg, decimals=2, advancedShapeContent=True):
         + "\n"
     )
     if advancedShapeContent:
+        # Solids: physical properties are shown by Std_MassProperties.
+        # Other shapes keep them, as no other tool shows them yet.
+        physical = not isSolidShape(shp)
         result += "----------\n"
         if (
             hasattr(shp, "Area")
@@ -77,7 +95,8 @@ def buildShapeContent(objArg, decimals=2, advancedShapeContent=True):
                 + "\n"
             )
         if (
-            hasattr(shp, "Volume")
+            physical
+            and hasattr(shp, "Volume")
             and not "Wire" in typeStr
             and not "Edge" in typeStr
             and not "Vertex" in typeStr
@@ -89,7 +108,7 @@ def buildShapeContent(objArg, decimals=2, advancedShapeContent=True):
                 + str(round(shp.Volume, decimals))
                 + "\n"
             )
-        if hasattr(shp, "Mass"):
+        if physical and hasattr(shp, "Mass"):
             result += (
                 translate("TaskCheckGeometryResults", "Mass")
                 + ":  "
@@ -124,7 +143,7 @@ def buildShapeContent(objArg, decimals=2, advancedShapeContent=True):
                 + str(shp.Curve.Continuity)
                 + "\n"
             )
-        if hasattr(shp, "CenterOfMass"):
+        if physical and hasattr(shp, "CenterOfMass"):
             result += (
                 translate("TaskCheckGeometryResults", "Center of mass")
                 + ":  "
@@ -159,7 +178,7 @@ def buildShapeContent(objArg, decimals=2, advancedShapeContent=True):
                 + str(shp.Orientation)
                 + "\n"
             )
-        if hasattr(shp, "PrincipalProperties"):
+        if physical and hasattr(shp, "PrincipalProperties"):
             props = shp.PrincipalProperties
             for p in props:
                 if isinstance(props[p], App.Vector) or isinstance(props[p], tuple):
@@ -170,14 +189,14 @@ def buildShapeContent(objArg, decimals=2, advancedShapeContent=True):
             if obj.getGlobalPlacement() != obj.Placement:
                 rpl = obj.getGlobalPlacement() * obj.Placement.inverse()
                 rot = rpl.Rotation
-                if hasattr(shp, "CenterOfMass"):
+                if physical and hasattr(shp, "CenterOfMass"):
                     result += (
                         translate("TaskCheckGeometryResults", "Global center of mass")
                         + ":  "
                         + roundVector(rpl.multVec(shp.CenterOfMass), decimals)
                         + "\n"
                     )
-                if hasattr(shp, "PrincipalProperties"):
+                if physical and hasattr(shp, "PrincipalProperties"):
                     props = shp.PrincipalProperties
                     for p in props:
                         if "AxisOfInertia" in p:
