@@ -59,3 +59,28 @@ class TestBimBoxGui(TestArchBaseGui.TestArchBaseGui):
             if Gui.draftToolBar.cancel:
                 Gui.draftToolBar.escape()
             App.activeDraftCommand = None
+
+    def test_numeric_length_without_cursor_move(self):
+        """Entering the length right after picking the first point must not fail.
+
+        Regression test for https://github.com/FreeCAD/FreeCAD/issues/33657
+        (the cursor is still on the first point, so there is no direction).
+        """
+        self.printTestMessage("BIM_Box with numeric length and no cursor move...")
+        cmd = BIM_Box()
+        cmd.Activated()
+        try:
+            point = App.Vector(0, 0, 0)
+            cmd.MoveCallback(point, None)
+            cmd.PointCallback(point, None)
+
+            # Type the length in the task panel and press Enter without moving the cursor
+            cmd.LengthValue = 1000.0
+            cmd.setLengthUI()
+
+            self.assertEqual(len(cmd.points), 2)
+            self.assertAlmostEqual(cmd.points[1].sub(cmd.points[0]).Length, 1000.0)
+        finally:
+            if Gui.draftToolBar.cancel:
+                Gui.draftToolBar.escape()
+            App.activeDraftCommand = None
