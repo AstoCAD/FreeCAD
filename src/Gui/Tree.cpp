@@ -5422,6 +5422,26 @@ void TreeWidget::updateChildren(
     }
 }
 
+void DocumentItem::populatePathToObject(
+    const Gui::ViewProviderDocumentObject& obj,
+    const App::DocumentObject* parent,
+    const char* subname
+)
+{
+    // The tree item of an object that is reached through a link (e.g. a Body
+    // inside an App::Part from another document) is only created once the link
+    // item has been expanded. If there is no item for the object yet, populate
+    // the items along the given path so that it can be found.
+    if (!parent || !subname || !*subname || !obj.getObject()) {
+        return;
+    }
+    auto it = ObjectMap.find(obj.getObject());
+    if (it != ObjectMap.end() && !it->second->items.empty()) {
+        return;
+    }
+    findItemByObject(true, const_cast<App::DocumentObject*>(parent), subname, false);
+}
+
 void DocumentItem::slotHighlightObject(
     const Gui::ViewProviderDocumentObject& obj,
     const Gui::HighlightMode& high,
@@ -5439,6 +5459,9 @@ void DocumentItem::slotHighlightObject(
             it->second->slotHighlightObject(obj, high, set, parent, subname);
         }
         return;
+    }
+    if (set) {
+        populatePathToObject(obj, parent, subname);
     }
     FOREACH_ITEM(item, obj)
     if (parent) {
@@ -5587,6 +5610,10 @@ void DocumentItem::slotExpandObject(
             it->second->slotExpandObject(obj, mode, parent, subname);
         }
         return;
+    }
+
+    if (mode == TreeItemMode::ExpandItem || mode == TreeItemMode::ExpandPath) {
+        populatePathToObject(obj, parent, subname);
     }
 
     FOREACH_ITEM(item, obj)
