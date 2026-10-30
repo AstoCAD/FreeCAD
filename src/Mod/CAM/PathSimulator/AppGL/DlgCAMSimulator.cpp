@@ -398,6 +398,15 @@ void DlgCAMSimulator::setPathColor(const QColor& normal, const QColor& rapid)
     const vec3 vnormal = {normal.redF(), normal.greenF(), normal.blueF()};
     const vec3 vrapid = {rapid.redF(), rapid.greenF(), rapid.blueF()};
     mMillSimulator->SetPathColor(vnormal, vrapid);
+    update();
+}
+
+void DlgCAMSimulator::setPathLineWidth(int width)
+{
+    // the simulator has always drawn the path twice as wide as the 3D view does
+    // (2 px for the default width of 1 px)
+    mMillSimulator->SetPathLineWidth(std::max(1, 2 * width));
+    update();
 }
 
 void DlgCAMSimulator::timerEvent(QTimerEvent* event)

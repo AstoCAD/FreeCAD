@@ -106,6 +106,7 @@ public:
 
     void SetBackgroundColor(const vec3& c);
     void SetPathColor(const vec3& normal, const vec3& rapid);
+    void SetPathLineWidth(float width);
 
 protected:
     void InitDisplay(float quality);

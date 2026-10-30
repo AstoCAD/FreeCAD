@@ -36,3 +36,4 @@ from CAMTests.TestPathToolBitListWidget import TestToolBitListWidget
 from CAMTests.TestPathJobGui import TestPathJobTaskPanel
 from CAMTests.TestPathDressupLeadInOutGui import TestDressupLeadInOutTaskPanel
 from CAMTests.TestPathOpBaseGeometryGui import TestPathOpBaseGeometryDeleteKey
+from CAMTests.TestCAMSimulatorPathColorsGui import TestCAMSimulatorPathColors
