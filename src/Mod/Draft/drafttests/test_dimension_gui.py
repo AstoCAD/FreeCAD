@@ -339,6 +339,50 @@ class DraftGuiDimension(test_base.DraftTestCaseDoc):
                 self.doc = App.getDocument(original_name)
             os.unlink(temp_file.name)
 
+    def createLinkedDimensionWithCommandDirection(self, direction_name):
+        """Run the Dimension command on a preselected diagonal edge, as BIM_DimensionHorizontal
+        and BIM_DimensionVertical do (they pass the working plane axis as `dir_vec`)."""
+        from unittest import mock
+
+        import WorkingPlane
+        from draftguitools import gui_dimensions
+
+        line = Draft.make_line(Vector(0, 0, 0), Vector(30, 40, 0))
+        self.doc.recompute()
+
+        command = gui_dimensions.Dimension()
+        command.wp = WorkingPlane.PlaneBase()
+        command.dir = getattr(command.wp, direction_name) if direction_name else None
+        command.link = [line, 0, 1]
+        command.node = [Vector(0, 0, 0), Vector(30, 40, 0), Vector(50, -10, 0)]
+        command.force = 0
+        command.angledata = []
+        command.arcmode = ""
+        command.ui = mock.Mock(chainedMode=False)
+        commands = []
+        command.commit = lambda name, cmd_list: commands.extend(cmd_list)
+
+        command.createObject()
+
+        namespace = {"Draft": Draft, "FreeCAD": App}
+        exec("\n".join(commands), namespace)
+        return namespace["_dim_"]
+
+    def test_linked_dimension_on_preselected_edge_horizontal(self):
+        """BIM_DimensionHorizontal on a preselected diagonal edge measures along the WP X axis (#29766)."""
+        dimension = self.createLinkedDimensionWithCommandDirection("u")
+        self.assertTrue(dimension.Direction.isEqual(Vector(1, 0, 0), 1e-7), dimension.Direction)
+
+    def test_linked_dimension_on_preselected_edge_vertical(self):
+        """BIM_DimensionVertical on a preselected diagonal edge measures along the WP Y axis (#29766)."""
+        dimension = self.createLinkedDimensionWithCommandDirection("v")
+        self.assertTrue(dimension.Direction.isEqual(Vector(0, 1, 0), 1e-7), dimension.Direction)
+
+    def test_linked_dimension_on_preselected_edge_aligned(self):
+        """Draft_Dimension without a command direction keeps measuring along the edge."""
+        dimension = self.createLinkedDimensionWithCommandDirection(None)
+        self.assertEqual(dimension.Direction, Vector(0, 0, 0))
+
     def test_angular_dimension_svg_overshoots_after_restore_and_in_techdraw(self):
         """Angular dimension overshoots survive restore in SVG and propagate into TechDraw DraftView."""
         original_name = self.doc.Name
