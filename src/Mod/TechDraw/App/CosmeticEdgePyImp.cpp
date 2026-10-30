@@ -252,6 +252,9 @@ void CosmeticEdgePy::setRadius(Py::Float arg)
     }
 
     double r = static_cast<double>(arg);
+    if (!(r > 0.0)) {
+        throw Py::ValueError("Radius must be greater than zero");
+    }
     getCosmeticEdgePtr()->permaRadius = r;
 //    auto oldGeom = getCosmeticEdgePtr()->m_geometry;
     getCosmeticEdgePtr()->m_geometry =
