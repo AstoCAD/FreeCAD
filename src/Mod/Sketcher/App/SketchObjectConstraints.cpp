@@ -805,7 +805,7 @@ int SketchObject::setUpSketch()
 }
 
 int SketchObject::diagnoseAdditionalConstraints(
-    std::vector<Sketcher::Constraint*> additionalconstraints)
+    std::vector<Sketcher::Constraint*> additionalconstraints, bool atSolvedPosition)
 {
     auto objectconstraints = Constraints.getValues();
 
@@ -820,6 +820,35 @@ int SketchObject::diagnoseAdditionalConstraints(
             getUnconstrainedGeometry(), getLockedGeometry());
 
     retrieveSolverDiagnostics();
+
+    // The diagnosis evaluates the constraints at the current position of the geometry. Some
+    // redundancies only show where the constraints are satisfied, e.g. the coincidences of an arc
+    // centred on an axis with two points symmetric about this axis (#32680). New geometry is not
+    // there yet (it was drawn with the mouse), so diagnose again at the solved position.
+    if (atSolvedPosition && lastDoF >= 0 && !lastHasRedundancies && !lastHasConflict
+        && !lastHasMalformedConstraints) {
+        solvedSketch.resetInitMove();
+        if (solvedSketch.solve() == GCS::SolveStatus::Success) {
+            std::vector<std::unique_ptr<Part::Geometry>> solvedGeometry;
+            for (auto geo : solvedSketch.extractGeometry(true, false)) {
+                solvedGeometry.emplace_back(geo);
+            }
+            if (solvedGeometry.size() == getInternalGeometry().size()) {
+                std::vector<Part::Geometry*> geometry;
+                geometry.reserve(solvedGeometry.size() + ExternalGeo.getSize());
+                for (const auto& geo : solvedGeometry) {
+                    geometry.push_back(geo.get());
+                }
+                const auto& externalGeometry = getExternalGeometry();
+                geometry.insert(geometry.end(), externalGeometry.rbegin(), externalGeometry.rend());
+
+                lastDoF = solvedSketch.setUpSketch(geometry, allconstraints,
+                    getExternalGeometryCount(), getUnconstrainedGeometry(), getLockedGeometry());
+
+                retrieveSolverDiagnostics();
+            }
+        }
+    }
 
     return lastDoF;
 }
