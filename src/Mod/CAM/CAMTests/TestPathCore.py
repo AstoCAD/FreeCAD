@@ -230,6 +230,57 @@ G0 Z0.500000
                 self.assertGreater(bb.XLength, 1.9 * radius)
                 self.assertGreater(bb.YLength, 1.9 * radius)
 
+    def test53(self):
+        """Test rebasing a closed wire whose vertices are off its curve ends (#33344)"""
+        import Part
+
+        V = FreeCAD.Vector
+        gap = 1e-5
+        # A square whose second edge runs backwards and is slightly short, so
+        # the shared vertices are a few microns off the curve end points, as
+        # happens with offset wires.
+        edges = [
+            Part.makeLine(V(0, 0, 0), V(10, 0, 0)),
+            Part.makeLine(V(10, 10 - gap, 0), V(10 + gap, gap, 0)),
+            Part.makeLine(V(10, 10, 0), V(0, 10, 0)),
+            Part.makeLine(V(0, 10, 0), V(0, 0, 0)),
+        ]
+        for edge in edges:
+            edge.fixTolerance(1e-4)
+        wire = Part.Wire(edges)
+        self.assertTrue(wire.isClosed())
+
+        for orientation in (0, 1):
+            for start in (V(5, -1, 0), V(11, 5, 0), V(5, 11, 0), V(-1, 5, 0)):
+                with self.subTest(orientation=orientation, start=start):
+                    wires = Path.sortWires([wire], start=start, orientation=orientation)[0]
+                    self.assertEqual(len(wires), 1)
+                    self.assertTrue(wires[0].isClosed())
+                    self.assertAlmostEqual(wires[0].Length, wire.Length, places=3)
+
+    def test54(self):
+        """Test rebasing a circle keeps its direction"""
+        import Part
+
+        V = FreeCAD.Vector
+
+        def signedArea(wire):
+            points = wire.discretize(100)
+            return sum(p.x * q.y - q.x * p.y for p, q in zip(points, points[1:])) / 2
+
+        circle = Part.Wire([Part.makeCircle(5)])
+        for orientation in (0, 1):
+            for wire in (circle, circle.reversed()):
+                # a start point on the seam does not rebase the wire
+                seam = Path.sortWires([wire], start=V(10, 0, 0), orientation=orientation)[0]
+                expected = signedArea(seam[0])
+                for start in (V(0, 10, 0), V(-7, -7, 0)):
+                    with self.subTest(orientation=orientation, area=signedArea(wire), start=start):
+                        wires = Path.sortWires([wire], start=start, orientation=orientation)[0]
+                        self.assertEqual(len(wires), 1)
+                        self.assertTrue(wires[0].isClosed())
+                        self.assertAlmostEqual(signedArea(wires[0]), expected, places=1)
+
     # Command (App/Command.cpp) does not try to correctly parse modal g-code.
     # (strings with just the axis, missing the "command" part).
     # As implemented, Command (setFromGCode()) skips non-alpha leading chars (unless comment).
