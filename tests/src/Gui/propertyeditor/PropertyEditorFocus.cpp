@@ -634,6 +634,47 @@ private Q_SLOTS:
         QVERIFY(closeRequested);
         QVERIFY(!editor);
     }
+
+    /// Regression test for https://github.com/FreeCAD/FreeCAD/issues/33853
+    /// The editor is restored after a rebuild from the property path, which must
+    /// use the real (unsplit) group and property names.
+    void propertyPathSurvivesCamelCaseNames()
+    {
+        auto& application = App::GetApplication();
+        const auto documentName = application.getUniqueDocumentName("property_editor_path");
+        auto* document = application.newDocument(documentName.c_str(), "testUser");
+        auto* object = document->addObject("App::VarSet", "Box");
+        auto* property = object->addDynamicProperty(
+            "App::PropertyInteger",
+            "AmbientTemp",
+            "ConstraintTemperature"
+        );
+
+        {
+            Gui::PropertyEditor::PropertyEditor view;
+            view.buildUp({{"AmbientTemp", {property}}});
+            auto* model = static_cast<Gui::PropertyEditor::PropertyModel*>(view.model());
+            const auto group = model->index(0, 0);
+            const auto index = model->index(0, 1, group);
+            QVERIFY(index.isValid());
+
+            const QStringList path = model->propertyPathFromIndex(index);
+            QCOMPARE(
+                path,
+                QStringList({QStringLiteral("ConstraintTemperature"), QStringLiteral("AmbientTemp")})
+            );
+            const auto restored = model->propertyIndexFromPath(path);
+            QVERIFY(restored.isValid());
+            QCOMPARE(restored.internalPointer(), index.internalPointer());
+            QCOMPARE(model->data(group, Qt::DisplayRole).toString(), QStringLiteral("Constraint Temperature"));
+            QCOMPARE(
+                model->data(model->index(0, 0, group), Qt::DisplayRole).toString(),
+                QStringLiteral("Ambient Temp")
+            );
+        }
+
+        application.closeDocument(documentName.c_str());
+    }
 };
 
 QTEST_MAIN(PropertyEditorFocusTest)
