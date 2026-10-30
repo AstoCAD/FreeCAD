@@ -45,7 +45,7 @@ from .calculixutils import define_masks
 from femmesh import meshsetsgetter
 from femtools import membertools
 from femtools.checksanalysis import check_member_for_solver_calculix
-from femtools.objecttools import ObjectTools
+from femtools.objecttools import ObjectTools, PrerequisiteError
 
 
 class CalculiXTools(ObjectTools):
@@ -67,6 +67,8 @@ class CalculiXTools(ObjectTools):
             mesh_obj,
             membertools.AnalysisMember(self.analysis),
         )
+        if message:
+            raise PrerequisiteError(message)
 
         meshdatagetter = meshsetsgetter.MeshSetsGetter(
             self.analysis,
