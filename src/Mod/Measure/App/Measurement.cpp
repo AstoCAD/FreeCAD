@@ -360,6 +360,18 @@ TopoDS_Shape Measurement::getShape(App::DocumentObject* obj, const char* subName
     );
 }
 
+TopoDS_Shape Measurement::getValidShape(App::DocumentObject* obj, const char* subName) const
+{
+    TopoDS_Shape shape = getShape(obj, subName);
+    if (shape.IsNull()) {
+        throw Base::ValueError(
+            "Measurement - referenced element " + std::string(subName ? subName : "")
+            + " is missing"
+        );
+    }
+    return shape;
+}
+
 
 // TODO:: add lengthX, lengthY (and lengthZ??) support
 //  Methods for distances (edge length, two points, edge and a point
@@ -460,12 +472,12 @@ double Measurement::lineLineDistance() const
     const std::vector<std::string>& subElements = References3D.getSubValues();
 
     // Get the first line
-    TopoDS_Shape shape1 = getShape(objects[0], subElements[0].c_str(), TopAbs_EDGE);
+    TopoDS_Shape shape1 = getValidShape(objects[0], subElements[0].c_str());
     const TopoDS_Edge& edge1 = TopoDS::Edge(shape1);
     BRepAdaptor_Curve curve1(edge1);
 
     // Get the second line
-    TopoDS_Shape shape2 = getShape(objects[1], subElements[1].c_str(), TopAbs_EDGE);
+    TopoDS_Shape shape2 = getValidShape(objects[1], subElements[1].c_str());
     const TopoDS_Edge& edge2 = TopoDS::Edge(shape2);
     BRepAdaptor_Curve curve2(edge2);
 
@@ -508,8 +520,8 @@ double Measurement::circleCenterDistance() const
     const std::vector<std::string>& subElements = References3D.getSubValues();
 
     // Get the first circle
-    TopoDS_Shape shape1 = getShape(objects[0], subElements[0].c_str());
-    TopoDS_Shape shape2 = getShape(objects[1], subElements[1].c_str());
+    TopoDS_Shape shape1 = getValidShape(objects[0], subElements[0].c_str());
+    TopoDS_Shape shape2 = getValidShape(objects[1], subElements[1].c_str());
 
     if (shape1.ShapeType() != TopAbs_EDGE) {
         std::swap(shape1, shape2);
@@ -587,13 +599,13 @@ double Measurement::planePlaneDistance() const
     const auto& subElements = References3D.getSubValues();
 
     // Get the first plane
-    TopoDS_Shape shape1 = getShape(objects[0], subElements[0].c_str(), TopAbs_FACE);
+    TopoDS_Shape shape1 = getValidShape(objects[0], subElements[0].c_str());
     const TopoDS_Face& face1 = TopoDS::Face(shape1);
     BRepAdaptor_Surface surface1(face1);
     const gp_Pln& plane1 = surface1.Plane();
 
     // Get the second plane
-    TopoDS_Shape shape2 = getShape(objects[1], subElements[1].c_str(), TopAbs_FACE);
+    TopoDS_Shape shape2 = getValidShape(objects[1], subElements[1].c_str());
     const TopoDS_Face& face2 = TopoDS::Face(shape2);
     BRepAdaptor_Surface surface2(face2);
     const gp_Pln& plane2 = surface2.Plane();
@@ -627,8 +639,8 @@ double Measurement::discAxisDistance() const
         return circle.Circle().Axis();
     };
 
-    const TopoDS_Face face1 = TopoDS::Face(getShape(objects[0], subElements[0].c_str(), TopAbs_FACE));
-    const TopoDS_Face face2 = TopoDS::Face(getShape(objects[1], subElements[1].c_str(), TopAbs_FACE));
+    const TopoDS_Face face1 = TopoDS::Face(getValidShape(objects[0], subElements[0].c_str()));
+    const TopoDS_Face face2 = TopoDS::Face(getValidShape(objects[1], subElements[1].c_str()));
 
     return gp_Lin(getDiscAxis(face1)).Distance(gp_Lin(getDiscAxis(face2)));
 }
@@ -644,8 +656,8 @@ double Measurement::cylinderAxisDistance() const
     const std::vector<std::string>& subElements = References3D.getSubValues();
 
     // Get the first circle
-    TopoDS_Shape shape1 = getShape(objects[0], subElements[0].c_str());
-    TopoDS_Shape shape2 = getShape(objects[1], subElements[1].c_str());
+    TopoDS_Shape shape1 = getValidShape(objects[0], subElements[0].c_str());
+    TopoDS_Shape shape2 = getValidShape(objects[1], subElements[1].c_str());
 
     if (shape1.ShapeType() != TopAbs_FACE) {
         std::swap(shape1, shape2);
@@ -706,8 +718,8 @@ double Measurement::angle(const Base::Vector3d& /*param*/) const
         // Since we don't know if the directions of the lines point in the same general direction
         // we could get the angle we want or the supplementary angle.
         if (numRefs == 2) {
-            TopoDS_Shape shape1 = getShape(objects.at(0), subElements.at(0).c_str(), TopAbs_EDGE);
-            TopoDS_Shape shape2 = getShape(objects.at(1), subElements.at(1).c_str(), TopAbs_EDGE);
+            TopoDS_Shape shape1 = getValidShape(objects.at(0), subElements.at(0).c_str());
+            TopoDS_Shape shape2 = getValidShape(objects.at(1), subElements.at(1).c_str());
 
             BRepAdaptor_Curve curve1(TopoDS::Edge(shape1));
             BRepAdaptor_Curve curve2(TopoDS::Edge(shape2));
@@ -738,9 +750,9 @@ double Measurement::angle(const Base::Vector3d& /*param*/) const
         // NOTE: we are calculating the 3d angle here, not the projected angle
         // ASSUMPTION: the references are in end-apex-end order
         if (numRefs == 3) {
-            TopoDS_Shape shape0 = getShape(objects.at(0), subElements.at(0).c_str(), TopAbs_VERTEX);
-            TopoDS_Shape shape1 = getShape(objects.at(1), subElements.at(1).c_str(), TopAbs_VERTEX);
-            TopoDS_Shape shape2 = getShape(objects.at(2), subElements.at(2).c_str(), TopAbs_VERTEX);
+            TopoDS_Shape shape0 = getValidShape(objects.at(0), subElements.at(0).c_str());
+            TopoDS_Shape shape1 = getValidShape(objects.at(1), subElements.at(1).c_str());
+            TopoDS_Shape shape2 = getValidShape(objects.at(2), subElements.at(2).c_str());
             if (shape0.ShapeType() != TopAbs_VERTEX || shape1.ShapeType() != TopAbs_VERTEX
                 || shape2.ShapeType() != TopAbs_VERTEX) {
                 throw Base::RuntimeError("Measurement references for 3 point angle are not Vertex");
@@ -761,8 +773,8 @@ double Measurement::angle(const Base::Vector3d& /*param*/) const
         || measureType == MeasureType::CircleToCylinder
     ) {
         if (numRefs == 2) {
-            TopoDS_Shape shape1 = getShape(objects.at(0), subElements.at(0).c_str(), TopAbs_EDGE);
-            TopoDS_Shape shape2 = getShape(objects.at(1), subElements.at(1).c_str(), TopAbs_EDGE);
+            TopoDS_Shape shape1 = getValidShape(objects.at(0), subElements.at(0).c_str());
+            TopoDS_Shape shape2 = getValidShape(objects.at(1), subElements.at(1).c_str());
 
             gp_Ax1 axis1;
             gp_Ax1 axis2;
@@ -810,7 +822,7 @@ double Measurement::radius() const
         Base::Console().error("Measurement::radius - No 3D references available\n");
     }
     else if (measureType == MeasureType::Circle || measureType == MeasureType::CircleArc) {
-        TopoDS_Shape shape = getShape(objects.at(0), subElements.at(0).c_str(), TopAbs_EDGE);
+        TopoDS_Shape shape = getValidShape(objects.at(0), subElements.at(0).c_str());
         const TopoDS_Edge& edge = TopoDS::Edge(shape);
 
         BRepAdaptor_Curve curve(edge);
@@ -823,7 +835,7 @@ double Measurement::radius() const
         || measureType == MeasureType::Sphere || measureType == MeasureType::Torus
         || measureType == MeasureType::Disc
     ) {
-        TopoDS_Shape shape = getShape(objects.at(0), subElements.at(0).c_str(), TopAbs_FACE);
+        TopoDS_Shape shape = getValidShape(objects.at(0), subElements.at(0).c_str());
         TopoDS_Face face = TopoDS::Face(shape);
 
         BRepAdaptor_Surface sf(face);
@@ -880,8 +892,8 @@ Base::Vector3d Measurement::delta() const
         if (measureType == MeasureType::PointToPoint) {
             if (numRefs == 2) {
                 // Keep separate case for two points to reduce need for complex algorithm
-                TopoDS_Shape shape1 = getShape(objects.at(0), subElements.at(0).c_str(), TopAbs_VERTEX);
-                TopoDS_Shape shape2 = getShape(objects.at(1), subElements.at(1).c_str(), TopAbs_VERTEX);
+                TopoDS_Shape shape1 = getValidShape(objects.at(0), subElements.at(0).c_str());
+                TopoDS_Shape shape2 = getValidShape(objects.at(1), subElements.at(1).c_str());
 
                 const TopoDS_Vertex& vert1 = TopoDS::Vertex(shape1);
                 const TopoDS_Vertex& vert2 = TopoDS::Vertex(shape2);
@@ -898,8 +910,8 @@ Base::Vector3d Measurement::delta() const
         ) {
             // BrepExtema can calculate minimum distance between any set of topology sets.
             if (numRefs == 2) {
-                TopoDS_Shape shape1 = getShape(objects.at(0), subElements.at(0).c_str());
-                TopoDS_Shape shape2 = getShape(objects.at(1), subElements.at(1).c_str());
+                TopoDS_Shape shape1 = getValidShape(objects.at(0), subElements.at(0).c_str());
+                TopoDS_Shape shape2 = getValidShape(objects.at(1), subElements.at(1).c_str());
 
                 BRepExtrema_DistShapeShape extrema(shape1, shape2);
 
@@ -917,7 +929,7 @@ Base::Vector3d Measurement::delta() const
         else if (measureType == MeasureType::Edges) {
             // Only case that is supported is straight line edge
             if (numRefs == 1) {
-                TopoDS_Shape shape = getShape(objects.at(0), subElements.at(0).c_str(), TopAbs_EDGE);
+                TopoDS_Shape shape = getValidShape(objects.at(0), subElements.at(0).c_str());
                 const TopoDS_Edge& edge = TopoDS::Edge(shape);
                 BRepAdaptor_Curve curve(edge);
 
@@ -929,8 +941,8 @@ Base::Vector3d Measurement::delta() const
                 }
             }
             else if (numRefs == 2) {
-                TopoDS_Shape shape1 = getShape(objects.at(0), subElements.at(0).c_str(), TopAbs_EDGE);
-                TopoDS_Shape shape2 = getShape(objects.at(1), subElements.at(1).c_str(), TopAbs_EDGE);
+                TopoDS_Shape shape1 = getValidShape(objects.at(0), subElements.at(0).c_str());
+                TopoDS_Shape shape2 = getValidShape(objects.at(1), subElements.at(1).c_str());
 
                 BRepAdaptor_Curve curve1(TopoDS::Edge(shape1));
                 BRepAdaptor_Curve curve2(TopoDS::Edge(shape2));
