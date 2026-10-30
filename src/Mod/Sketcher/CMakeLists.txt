@@ -74,6 +74,7 @@ if(BUILD_GUI)
           SketcherTests/TestAlignCameraOnEditGui.py
           SketcherTests/TestSnellsLawCommandGui.py
           SketcherTests/TestToolWidgetTabGui.py
+          SketcherTests/TestEditDatumConflictGui.py
     )
 endif(BUILD_GUI)
 
