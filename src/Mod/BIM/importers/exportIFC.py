@@ -584,6 +584,9 @@ def export(exportList, filename, colors=None, preferences=None):
                 group = obj.Links
             else:
                 group = [FreeCAD.ActiveDocument.getObject(n[:-1]) for n in obj.getSubObjects()]
+            # an App::Part also contains the base objects of its children:
+            # do not export those as separate products
+            group = Arch.pruneIncluded(group, strict=True, silent=True)
             for subobj in group:
                 if subobj.Name in products:
                     subproduct = products[subobj.Name]
