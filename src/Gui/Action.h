@@ -103,6 +103,13 @@ public:
     /// Clean the title by stripping the mnemonic symbol '&' and ending punctuation
     static QString cleanTitle(const QString& title);
 
+    /** Make a status bar tip out of a text that may be a rich text tool tip
+     * @param text: input text, plain text is returned unchanged
+     * @return Return the first paragraph of a rich text as plain text on a single line,
+     * without tags and line breaks
+     */
+    static QString plainStatusTip(const QString& text);
+
     Command* command() const
     {
         return _pcCmd;
