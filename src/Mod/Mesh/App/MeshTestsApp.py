@@ -738,7 +738,7 @@ class MeshProperty(unittest.TestCase):
         import zipfile
 
         mesh = self.doc.addObject("Mesh::Feature", "Triangle")
-        mesh.Mesh = Mesh.Mesh([[0, 0, 0], [1, 0, 0], [0, 1, 0]])
+        mesh.Mesh = Mesh.Mesh([Base.Vector(0, 0, 0), Base.Vector(1, 0, 0), Base.Vector(0, 1, 0)])
         fileName = os.path.join(tempfile.gettempdir(), name + ".FCStd")
         inlineName = os.path.join(tempfile.gettempdir(), name + "_inline.FCStd")
         self.doc.saveAs(fileName)
@@ -746,7 +746,7 @@ class MeshProperty(unittest.TestCase):
 
         p0, p1, p2 = faceIndices
         inline = (
-            '<Mesh><Points Count="3">'
+            '<Mesh file=""><Points Count="3">'
             '<P x="0" y="0" z="0"/><P x="1" y="0" z="0"/><P x="0" y="1" z="0"/>'
             '</Points><Faces Count="1">'
             '<F p0="{}" p1="{}" p2="{}" n0="-1" n1="-1" n2="-1"/>'
