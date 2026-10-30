@@ -71,7 +71,8 @@ public:
 
     virtual std::vector<App::DocumentObject*> getOriginals() const;
     /** Returns the list of original features sorted in chronological order of
-     *  the parent Body's history (retaining suppressed features).
+     *  the parent Body's history (retaining suppressed features), or nothing in
+     *  Whole shape mode, which ignores Originals.
      */
     std::vector<App::DocumentObject*> getSortedOriginals() const;
 
