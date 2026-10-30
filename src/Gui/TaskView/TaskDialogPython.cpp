@@ -508,6 +508,18 @@ void TaskDialogPy::init_type()
     behaviors().readyType();
 }
 
+namespace
+{
+// A bound method can outlive the dialog: getattr() only checks it on attribute lookup
+TaskDialog* checkedDialog(const QPointer<TaskDialog>& dialog)
+{
+    if (!dialog) {
+        throw Py::RuntimeError("Task dialog has been deleted");
+    }
+    return dialog;
+}
+}  // namespace
+
 TaskDialogPy::TaskDialogPy(TaskDialog* dlg)
     : dialog(dlg)
 {}
@@ -516,6 +528,9 @@ TaskDialogPy::~TaskDialogPy() = default;
 
 Py::Object TaskDialogPy::repr()
 {
+    if (!dialog) {
+        throw Py::RuntimeError("Cannot print representation of deleted object");
+    }
     std::stringstream str;
     str << "<Task Dialog for '" << dialog->getDocumentName() << "' >";
     return Py::String(str.str());
@@ -551,7 +566,7 @@ Py::Object TaskDialogPy::getDialogContent(const Py::Tuple& args)
     wrap.loadWidgetsModule();
 
     Py::List list;
-    auto widgets = dialog->getDialogContent();
+    auto widgets = checkedDialog(dialog)->getDialogContent();
     for (auto it : widgets) {
         list.append(wrap.fromQWidget(it));
     }
@@ -564,14 +579,14 @@ Py::Object TaskDialogPy::getStandardButtons(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    auto buttons = dialog->getStandardButtons();
+    auto buttons = checkedDialog(dialog)->getStandardButtons();
     return Py::Long(static_cast<int>(buttons));
 }
 
 Py::Object TaskDialogPy::setEscapeButtonEnabled(const Py::Tuple& args)
 {
     Py::Boolean value(args[0]);
-    dialog->setEscapeButtonEnabled(static_cast<bool>(value));
+    checkedDialog(dialog)->setEscapeButtonEnabled(static_cast<bool>(value));
     return Py::None();
 }
 
@@ -580,13 +595,13 @@ Py::Object TaskDialogPy::isEscapeButtonEnabled(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    return Py::Boolean(dialog->isEscapeButtonEnabled());
+    return Py::Boolean(checkedDialog(dialog)->isEscapeButtonEnabled());
 }
 
 Py::Object TaskDialogPy::setAutoCloseOnTransactionChange(const Py::Tuple& args)
 {
     Py::Boolean value(args[0]);
-    dialog->setAutoCloseOnTransactionChange(static_cast<bool>(value));
+    checkedDialog(dialog)->setAutoCloseOnTransactionChange(static_cast<bool>(value));
     return Py::None();
 }
 
@@ -595,13 +610,13 @@ Py::Object TaskDialogPy::isAutoCloseOnTransactionChange(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    return Py::Boolean(dialog->isAutoCloseOnTransactionChange());
+    return Py::Boolean(checkedDialog(dialog)->isAutoCloseOnTransactionChange());
 }
 
 Py::Object TaskDialogPy::setAutoCloseOnResetEdit(const Py::Tuple& args)
 {
     Py::Boolean value(args[0]);
-    dialog->setAutoCloseOnResetEdit(static_cast<bool>(value));
+    checkedDialog(dialog)->setAutoCloseOnResetEdit(static_cast<bool>(value));
     return Py::None();
 }
 
@@ -610,13 +625,13 @@ Py::Object TaskDialogPy::isAutoCloseOnResetEdit(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    return Py::Boolean(dialog->isAutoCloseOnResetEdit());
+    return Py::Boolean(checkedDialog(dialog)->isAutoCloseOnResetEdit());
 }
 
 Py::Object TaskDialogPy::setAutoCloseOnDeletedDocument(const Py::Tuple& args)
 {
     Py::Boolean value(args[0]);
-    dialog->setAutoCloseOnDeletedDocument(static_cast<bool>(value));
+    checkedDialog(dialog)->setAutoCloseOnDeletedDocument(static_cast<bool>(value));
     return Py::None();
 }
 
@@ -625,7 +640,7 @@ Py::Object TaskDialogPy::isAutoCloseOnDeletedDocument(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    return Py::Boolean(dialog->isAutoCloseOnDeletedDocument());
+    return Py::Boolean(checkedDialog(dialog)->isAutoCloseOnDeletedDocument());
 }
 
 Py::Object TaskDialogPy::getDocumentName(const Py::Tuple& args)
@@ -633,7 +648,7 @@ Py::Object TaskDialogPy::getDocumentName(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    return Py::String(dialog->getDocumentName());
+    return Py::String(checkedDialog(dialog)->getDocumentName());
 }
 
 Py::Object TaskDialogPy::setDocumentName(const Py::Tuple& args)
@@ -642,7 +657,7 @@ Py::Object TaskDialogPy::setDocumentName(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "s", &name)) {
         throw Py::Exception();
     }
-    dialog->setDocumentName(name);
+    checkedDialog(dialog)->setDocumentName(name);
     return Py::None();
 }
 
@@ -651,7 +666,7 @@ Py::Object TaskDialogPy::isAllowedAlterDocument(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    return Py::Boolean(dialog->isAllowedAlterDocument());
+    return Py::Boolean(checkedDialog(dialog)->isAllowedAlterDocument());
 }
 
 Py::Object TaskDialogPy::isAllowedAlterView(const Py::Tuple& args)
@@ -659,7 +674,7 @@ Py::Object TaskDialogPy::isAllowedAlterView(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    return Py::Boolean(dialog->isAllowedAlterView());
+    return Py::Boolean(checkedDialog(dialog)->isAllowedAlterView());
 }
 
 Py::Object TaskDialogPy::isAllowedAlterSelection(const Py::Tuple& args)
@@ -667,7 +682,7 @@ Py::Object TaskDialogPy::isAllowedAlterSelection(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    return Py::Boolean(dialog->isAllowedAlterSelection());
+    return Py::Boolean(checkedDialog(dialog)->isAllowedAlterSelection());
 }
 
 Py::Object TaskDialogPy::needsFullSpace(const Py::Tuple& args)
@@ -675,7 +690,7 @@ Py::Object TaskDialogPy::needsFullSpace(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    return Py::Boolean(dialog->needsFullSpace());
+    return Py::Boolean(checkedDialog(dialog)->needsFullSpace());
 }
 
 namespace
@@ -700,7 +715,7 @@ Py::Object TaskDialogPy::accept(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    auto buttonBox = TaskDialogAttorney::getButtonBox(dialog);
+    auto buttonBox = TaskDialogAttorney::getButtonBox(checkedDialog(dialog));
     clickButton(buttonBox, QDialogButtonBox::AcceptRole);
     return Py::None();
 }
@@ -710,7 +725,7 @@ Py::Object TaskDialogPy::reject(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    auto buttonBox = TaskDialogAttorney::getButtonBox(dialog);
+    auto buttonBox = TaskDialogAttorney::getButtonBox(checkedDialog(dialog));
     clickButton(buttonBox, QDialogButtonBox::RejectRole);
     return Py::None();
 }

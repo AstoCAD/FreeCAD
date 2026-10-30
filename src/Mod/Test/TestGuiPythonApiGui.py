@@ -83,6 +83,49 @@ class TestToggleTreeItemGui(unittest.TestCase):
             self.gui_doc.toggleTreeItem(obj, 2)
 
 
+class TestTaskDialogAfterCloseGui(unittest.TestCase):
+    class Panel:
+        def __init__(self):
+            from PySide import QtWidgets
+
+            self.form = QtWidgets.QWidget()
+
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("TestTaskDialogAfterClose")
+        FreeCADGui.Control.closeDialog()
+
+    def tearDown(self):
+        FreeCADGui.Control.closeDialog()
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def show_and_close(self):
+        FreeCADGui.Control.showDialog(self.Panel())
+        dialog = FreeCADGui.Control.activeTaskDialog()
+        self.assertIsNotNone(dialog)
+        methods = [dialog.getDocumentName, dialog.getStandardButtons, dialog.accept]
+        FreeCADGui.Control.closeDialog()
+        FreeCADGui.updateGui()
+        return dialog, methods
+
+    def test_repr_after_close_raises(self):
+        dialog, _ = self.show_and_close()
+        with self.assertRaises(RuntimeError):
+            repr(dialog)
+
+    def test_bound_methods_after_close_raise(self):
+        _, methods = self.show_and_close()
+        for method in methods:
+            with self.assertRaises(RuntimeError):
+                method()
+
+    def test_methods_while_open(self):
+        FreeCADGui.Control.showDialog(self.Panel())
+        dialog = FreeCADGui.Control.activeTaskDialog()
+        self.assertIn("Task Dialog", repr(dialog))
+        dialog.setDocumentName(self.doc.Name)
+        self.assertEqual(dialog.getDocumentName(), self.doc.Name)
+        self.assertIsInstance(dialog.getStandardButtons(), int)
+
 
 class TestClosedDocumentObjectGui(unittest.TestCase):
     """Objects of a closed document have no C++ object any more."""
