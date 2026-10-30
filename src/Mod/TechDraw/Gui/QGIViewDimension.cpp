@@ -1549,6 +1549,7 @@ void QGIViewDimension::drawRadiusExecutive(const Base::Vector2d& centerPoint,
 
     Base::Vector2d labelCenter(labelRectangle.GetCenter());
     double labelAngle = 0.0;
+    m_radialLineAngle.reset();
 
     if (standardStyle == ViewProviderDimension::STD_STYLE_ISO_REFERENCING
         || standardStyle == ViewProviderDimension::STD_STYLE_ASME_REFERENCING) {
@@ -1681,6 +1682,7 @@ void QGIViewDimension::drawRadiusExecutive(const Base::Vector2d& centerPoint,
             // Correct the label center distance projected on the leader line and subtract radius
             labelPosition =
                 angleFactor * cos(devAngle) * ((labelCenter - centerPoint).Length()) - radius;
+            m_radialLineAngle = lineAngle;  // for label snapping
         }
         else {
             // Leader line outside both arc wedges
@@ -1719,6 +1721,7 @@ void QGIViewDimension::drawRadiusExecutive(const Base::Vector2d& centerPoint,
             arcPoint = centerPoint + Base::Vector2d::FromPolar(radius, lineAngle);
 
             labelPosition = angleFactor * labelDirection.Length() - radius;
+            m_radialLineAngle = lineAngle;  // for label snapping
         }
         else {
             // Leader line outside both arc wedges
@@ -1907,6 +1910,8 @@ void QGIViewDimension::drawDiameter(TechDraw::DrawViewDimension* dimension,
     int renderExtent = viewProvider->RenderingExtent.getValue();
     bool flipArrows = viewProvider->FlipArrowheads.getValue();
 
+    m_radialLineAngle.reset();
+
     if (renderExtent == ViewProviderDimension::REND_EXTENT_NORMAL) {
         // Draw diameter as one line crossing center touching two opposite circle points
         QPainterPath diameterPath;
@@ -1994,6 +1999,7 @@ void QGIViewDimension::drawDiameter(TechDraw::DrawViewDimension* dimension,
             // Correct the label center distance projected on the leader line and subtract radius
             double labelPosition =
                 cos(devAngle) * ((labelCenter - curveCenter).Length()) - curveRadius;
+            m_radialLineAngle = lineAngle;  // for label snapping
 
             drawDimensionLine(diameterPath,
                               curveCenter + Base::Vector2d::FromPolar(curveRadius, lineAngle),
@@ -2004,6 +2010,7 @@ void QGIViewDimension::drawDiameter(TechDraw::DrawViewDimension* dimension,
             // Text must remain horizontal, but it may split the leader line
             double lineAngle = (labelCenter - curveCenter).Angle();
             //Base::Vector2d lineDirection(Base::Vector2d::FromPolar(1.0, lineAngle));
+            m_radialLineAngle = lineAngle;  // for label snapping
 
             drawDimensionLine(
                 diameterPath, curveCenter + Base::Vector2d::FromPolar(curveRadius, lineAngle),
@@ -2252,6 +2259,10 @@ void QGIViewDimension::drawAngle(TechDraw::DrawViewDimension* dimension,
     datumLabel->setRotation(toQtDeg(labelAngle));
 
     dimLines->setPath(anglePath);
+
+    // for label snapping
+    m_angleArcRadius = arcRadius;
+    m_angleLabelOffset = (labelCenter - angleVertex).Length() - arcRadius;
 }
 
 void QGIViewDimension::drawArea(TechDraw::DrawViewDimension* dimension,
