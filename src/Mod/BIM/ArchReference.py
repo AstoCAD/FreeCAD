@@ -171,7 +171,8 @@ class ArchReference:
                                 if part[3]:
                                     # Do not include BuildingParts as their
                                     # shape is just a copy of their group,
-                                    # nor the features of PartDesign Bodies:
+                                    # nor the features of PartDesign Bodies,
+                                    # nor hidden objects:
                                     continue
                                 f = zdoc.open(part[1])
                                 shapedata = f.read()
@@ -392,6 +393,8 @@ class ArchReference:
             types = {}
             groups = {}
             ingroup = False
+            visible = True
+            readvisibility = False
             for line in docf:
                 line = line.decode("utf8")
                 if "<Object type=" in line:
@@ -436,9 +439,16 @@ class ArchReference:
                         materials[n[0]] = v[0]
                 elif writemode and "</Map>" in line:
                     writemode = False
+                elif '<Property name="Visibility"' in line:
+                    readvisibility = True
+                elif readvisibility and "<Bool value=" in line:
+                    visible = 'value="false"' not in line
+                    readvisibility = False
                 elif "</Object>" in line:
                     if name and label and part:
-                        parts[name] = [label, part, materials, is_buildingpart]
+                        # hidden objects (e.g. the inputs of a boolean operation)
+                        # are not included in the whole object either:
+                        parts[name] = [label, part, materials, is_buildingpart or not visible]
                     name = None
                     label = None
                     part = None
@@ -446,6 +456,8 @@ class ArchReference:
                     is_buildingpart = False
                     writemode = False
                     ingroup = False
+                    visible = True
+                    readvisibility = False
         # The shape of a PartDesign Body already contains its features, so
         # do not include them separately when using the whole object:
         for container, children in groups.items():
