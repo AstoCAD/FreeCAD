@@ -341,6 +341,29 @@ public:
         return result;
     }
 
+    // getPropertyNamedList() does not report the properties added by extensions
+    // (e.g. AttachmentOffset of attachable objects), so collect those as well.
+    static void getPropertyNamedList(
+        DocumentObject* obj,
+        std::vector<std::pair<const char*, App::Property*>>& list
+    )
+    {
+        obj->getPropertyNamedList(list);
+
+        std::set<App::Property*> listed;
+        for (auto& p : list) {
+            listed.insert(p.second);
+        }
+        std::vector<App::Property*> props;
+        obj->getPropertyList(props);
+        for (auto prop : props) {
+            const char* name = prop->getName();
+            if (name && listed.insert(prop).second) {
+                list.emplace_back(name, prop);
+            }
+        }
+    }
+
     // Store named object property list in cache for performance purposes,
     // to avoid building it again for each requested index
     std::vector<std::pair<const char*, App::Property*>>& getCachedPropertyNamedList(
@@ -349,7 +372,7 @@ public:
     {
         if (!this->namedPropsCache.contains(obj)) {
             auto& list = this->namedPropsCache[obj];
-            obj->getPropertyNamedList(list);
+            getPropertyNamedList(obj, list);
 
             // If this object is a link-like object (App::Link, LinkGroup, a linked
             // VarSet, etc.), also pull in the linked object's properties so that
@@ -357,7 +380,7 @@ public:
             App::DocumentObject* linked = obj->getLinkedObject(true);
             if (linked && linked != obj) {
                 std::vector<std::pair<const char*, App::Property*>> linkedProps;
-                linked->getPropertyNamedList(linkedProps);
+                getPropertyNamedList(linked, linkedProps);
 
                 std::set<std::string> existingNames;
                 for (auto& p : list) {
