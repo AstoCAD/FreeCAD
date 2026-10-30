@@ -211,6 +211,25 @@ G0 Z0.500000
         )
         self.assertAlmostEqual(absolute_center_path.Length, expected_length, places=12)
 
+    def test52(self):
+        """Test full circle arcs whose radius vector rounds to a nonzero angle (#32741)"""
+        i = -3.690986636971033
+        j = 7.094630419146597e-06
+        radius = math.hypot(i, j)
+        for name in ("G2", "G3"):
+            with self.subTest(name=name):
+                path = Path.Path(
+                    [
+                        Path.Command("G0", {"X": 0, "Y": 0, "Z": 0}),
+                        Path.Command(name, {"I": i, "J": j, "K": 0, "X": 0, "Y": 0, "Z": 0}),
+                    ]
+                )
+                self.assertAlmostEqual(path.Length, 2 * math.pi * radius, places=6)
+                bb = path.BoundBox
+                # the walker approximates the circle with segments
+                self.assertGreater(bb.XLength, 1.9 * radius)
+                self.assertGreater(bb.YLength, 1.9 * radius)
+
     # Command (App/Command.cpp) does not try to correctly parse modal g-code.
     # (strings with just the axis, missing the "command" part).
     # As implemented, Command (setFromGCode()) skips non-alpha leading chars (unless comment).
