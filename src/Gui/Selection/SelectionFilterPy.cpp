@@ -67,6 +67,9 @@ Py::Object SelectionFilterPy::test(const Py::Tuple& args)
     }
 
     auto docObj = static_cast<App::DocumentObjectPy*>(pcObj);
+    if (!docObj->getDocumentObjectPtr()) {
+        throw Py::ValueError("Invalid document object");
+    }
 
     return Py::Boolean(filter.test(docObj->getDocumentObjectPtr(), text));
 }
