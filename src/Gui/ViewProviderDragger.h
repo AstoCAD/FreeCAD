@@ -79,6 +79,16 @@ public:
 
     void setGizmoContainer(Gui::GizmoContainer* gizmoContainer);
 
+    /** Temporarily shows the placement (and the related helpers of derived classes, e.g. the
+     * plane of 2D objects) without changing the ShowPlacement property. Used by the
+     * "Show placement and sketch plane" preference to highlight (pre)selected objects.
+     */
+    void setPlacementHighlighted(bool on);
+    bool isPlacementHighlighted() const
+    {
+        return placementHighlighted;
+    }
+
 public:
     /** @name Edit methods */
     //@{
@@ -133,6 +143,9 @@ protected:
      */
     virtual TaskView::TaskDialog* getTransformDialog();
 
+    /// Called when the placement highlight changes, see setPlacementHighlighted()
+    virtual void onPlacementHighlightChanged();
+
     CoinPtr<SoTransformDragger> transformDragger;
     ViewProvider* forwardedViewProvider = nullptr;
 
@@ -144,8 +157,10 @@ private:
     static void dragMotionCallback(void* data, SoDragger* d);
 
     void updateDraggerPosition();
+    void updatePlacementSwitch();
 
     Base::Placement draggerPlacement {};
+    bool placementHighlighted = false;
 
     // Rotation by orthonormalizing depending on given axes components
     Base::Rotation orthonormalize(

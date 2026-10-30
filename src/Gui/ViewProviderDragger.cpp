@@ -22,6 +22,7 @@
 
 #include <memory>
 #include <ranges>
+#include <set>
 #include <string>
 #include <QAction>
 #include <QMenu>
@@ -30,8 +31,10 @@
 #include <Inventor/nodes/SoSwitch.h>
 #include <Inventor/nodes/SoTransform.h>
 
+#include <App/Application.h>
 #include <App/GeoFeature.h>
 #include <App/DocumentObjectGroup.h>
+#include <App/DocumentObserver.h>
 #include <Base/Tools.h>
 #include <Base/Placement.h>
 #include <Base/Vector3D.h>
@@ -47,6 +50,7 @@
 #include "Inventor/Draggers/Gizmo.h"
 #include "Inventor/SoFCPlacementIndicatorKit.h"
 #include "Inventor/So3DAnnotation.h"
+#include "Selection/Selection.h"
 #include "SoFCUnifiedSelection.h"
 #include "TaskTransform.h"
 #include "View3DInventorViewer.h"
@@ -57,6 +61,126 @@
 
 
 using namespace Gui;
+
+namespace
+{
+
+/// Shows the placement (and the plane of 2D objects) of selected or preselected objects,
+/// according to the "ShowPlacementOnSelection" preference, without touching their properties.
+class PlacementSelectionObserver: public SelectionObserver
+{
+public:
+    enum Mode
+    {
+        Never = 0,
+        OnSelection = 1,
+        OnPreselectionAndSelection = 2,
+    };
+
+    static void init()
+    {
+        // intentionally never deleted, it must not outlive the selection singleton
+        if (!self) {
+            self = new PlacementSelectionObserver();
+        }
+    }
+
+    static void remove(ViewProviderDragger* vp)
+    {
+        if (self) {
+            self->highlighted.erase(vp);
+        }
+    }
+
+private:
+    PlacementSelectionObserver()
+        : SelectionObserver(true, ResolveMode::OldStyleElement)
+    {}
+
+    static int mode()
+    {
+        static ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+            "User parameter:BaseApp/Preferences/View"
+        );
+        return static_cast<int>(hGrp->GetInt("ShowPlacementOnSelection", Never));
+    }
+
+    static void addViewProvider(const App::DocumentObject* obj, std::set<ViewProviderDragger*>& set)
+    {
+        if (!obj || !obj->isAttachedToDocument()) {
+            return;
+        }
+        auto vp = Application::Instance->getViewProvider<ViewProviderDragger>(obj);
+        // the object being edited (e.g. an open sketch) has its own visual aids
+        if (vp && !vp->isEditing()) {
+            set.insert(vp);
+        }
+    }
+
+    void onSelectionChanged(const SelectionChanges& msg) override
+    {
+        switch (msg.Type) {
+            case SelectionChanges::SetPreselect:
+                preselected = msg.Object;
+                break;
+            case SelectionChanges::RmvPreselect:
+                preselected = App::SubObjectT();
+                break;
+            case SelectionChanges::AddSelection:
+                // incremental, to stay cheap when many objects are selected at once
+                if (mode() != Never) {
+                    std::set<ViewProviderDragger*> added;
+                    addViewProvider(msg.Object.getSubObject(), added);
+                    for (auto vp : added) {
+                        if (highlighted.insert(vp).second) {
+                            vp->setPlacementHighlighted(true);
+                        }
+                    }
+                    return;
+                }
+                break;
+            case SelectionChanges::RmvSelection:
+            case SelectionChanges::SetSelection:
+            case SelectionChanges::ClrSelection:
+                break;
+            default:
+                return;
+        }
+
+        const int currentMode = mode();
+        if (currentMode == Never && highlighted.empty()) {
+            return;
+        }
+
+        std::set<ViewProviderDragger*> wanted;
+        if (currentMode == OnSelection || currentMode == OnPreselectionAndSelection) {
+            for (const auto& sel : Selection().getSelection("*", ResolveMode::OldStyleElement)) {
+                addViewProvider(sel.pResolvedObject ? sel.pResolvedObject : sel.pObject, wanted);
+            }
+        }
+        if (currentMode == OnPreselectionAndSelection) {
+            addViewProvider(preselected.getSubObject(), wanted);
+        }
+
+        for (auto vp : highlighted) {
+            if (!wanted.contains(vp)) {
+                vp->setPlacementHighlighted(false);
+            }
+        }
+        for (auto vp : wanted) {
+            if (!highlighted.contains(vp)) {
+                vp->setPlacementHighlighted(true);
+            }
+        }
+        highlighted = std::move(wanted);
+    }
+
+    static inline PlacementSelectionObserver* self = nullptr;
+    std::set<ViewProviderDragger*> highlighted;
+    App::SubObjectT preselected;
+};
+
+}  // namespace
 
 PROPERTY_SOURCE(Gui::ViewProviderDragger, Gui::ViewProviderDocumentObject)
 
@@ -75,7 +199,10 @@ ViewProviderDragger::ViewProviderDragger()
     pcPlacement->whichChild = SO_SWITCH_NONE;
 };
 
-ViewProviderDragger::~ViewProviderDragger() = default;
+ViewProviderDragger::~ViewProviderDragger()
+{
+    PlacementSelectionObserver::remove(this);
+}
 
 void ViewProviderDragger::updateData(const App::Property* prop)
 {
@@ -117,12 +244,32 @@ void ViewProviderDragger::onChanged(const App::Property* property)
         updateDraggerPosition();
     }
     else if (property == &ShowPlacement || property == &Visibility) {
-        pcPlacement->whichChild = (ShowPlacement.getValue() && Visibility.getValue())
-            ? SO_SWITCH_ALL
-            : SO_SWITCH_NONE;
+        updatePlacementSwitch();
     }
 
     ViewProviderDocumentObject::onChanged(property);
+}
+
+void ViewProviderDragger::updatePlacementSwitch()
+{
+    pcPlacement->whichChild
+        = ((ShowPlacement.getValue() || placementHighlighted) && Visibility.getValue())
+        ? SO_SWITCH_ALL
+        : SO_SWITCH_NONE;
+}
+
+void ViewProviderDragger::setPlacementHighlighted(bool on)
+{
+    if (placementHighlighted == on) {
+        return;
+    }
+    placementHighlighted = on;
+    onPlacementHighlightChanged();
+}
+
+void ViewProviderDragger::onPlacementHighlightChanged()
+{
+    updatePlacementSwitch();
 }
 
 TaskView::TaskDialog* ViewProviderDragger::getTransformDialog()
@@ -486,6 +633,8 @@ void ViewProviderDragger::setDraggerPlacement(const Base::Placement& placement)
 void ViewProviderDragger::attach(App::DocumentObject* pcObject)
 {
     ViewProviderDocumentObject::attach(pcObject);
+
+    PlacementSelectionObserver::init();
 
     getOrCreateAnnotation()->addChild(pcPlacement);
 
