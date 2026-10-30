@@ -151,3 +151,73 @@ class DxfSketchExportTest(unittest.TestCase):
         self.doc.recompute()
         Import.writeDXFObject([feature], self.fileName)
         self.assertIn((3.0, 4.0), self._points())
+
+
+class DxfImportOcsTest(unittest.TestCase):
+    """2D entities of a DXF file are given in their Object Coordinate System (#17046)"""
+
+    def setUp(self):
+        self.fileName = os.path.join(tempfile.gettempdir(), "ImportDxfImportOcsTest.dxf")
+        self.paramPath = "User parameter:BaseApp/Preferences/Mod/Import/TestDxfImportOcs"
+        param = App.ParamGet(self.paramPath)
+        param.SetInt("DxfImportMode", 2)  # individual shapes
+        param.SetBool("dxfUseDraftVisGroups", False)
+        param.SetBool("dxfGetOriginalColors", False)
+        param.SetFloat("dxfScaling", 1.0)
+        self.doc = App.newDocument()
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+        App.ParamGet("User parameter:BaseApp/Preferences/Mod/Import").RemGroup(
+            "TestDxfImportOcs"
+        )
+        if os.path.exists(self.fileName):
+            os.remove(self.fileName)
+
+    def _import(self, entity):
+        records = ["0", "SECTION", "2", "ENTITIES"] + entity + ["0", "ENDSEC", "0", "EOF"]
+        with open(self.fileName, "w", encoding="utf-8") as f:
+            f.write("\n".join(records) + "\n")
+        Import.readDXF(self.fileName, self.doc.Name, True, self.paramPath)
+        shapes = [o.Shape for o in self.doc.Objects if hasattr(o, "Shape") and not o.Shape.isNull()]
+        self.assertEqual(len(shapes), 1)
+        return shapes[0].BoundBox
+
+    @staticmethod
+    def _lwpolyline(normal):
+        # vertices (1, 0), (2, 0), (2, 1) in the OCS
+        return [
+            "0", "LWPOLYLINE", "8", "0", "90", "3", "70", "0",
+            "10", "1.0", "20", "0.0",
+            "10", "2.0", "20", "0.0",
+            "10", "2.0", "20", "1.0",
+            "210", str(normal[0]), "220", str(normal[1]), "230", str(normal[2]),
+        ]  # fmt: skip
+
+    def testLwPolylineWithReversedNormal(self):
+        box = self._import(self._lwpolyline((0.0, 0.0, -1.0)))
+        # the OCS X axis of a polyline with normal -Z is the WCS -X axis
+        self.assertAlmostEqual(box.XMin, -2.0, places=6)
+        self.assertAlmostEqual(box.XMax, -1.0, places=6)
+        self.assertAlmostEqual(box.YMin, 0.0, places=6)
+        self.assertAlmostEqual(box.YMax, 1.0, places=6)
+
+    def testLwPolylineWithNegativeXNormal(self):
+        box = self._import(self._lwpolyline((-1.0, 0.0, 0.0)))
+        # arbitrary axis algorithm: OCS X = WCS Z x N = -Y, OCS Y = N x OCS X = +Z
+        self.assertAlmostEqual(box.XMin, 0.0, places=6)
+        self.assertAlmostEqual(box.XMax, 0.0, places=6)
+        self.assertAlmostEqual(box.YMin, -2.0, places=6)
+        self.assertAlmostEqual(box.YMax, -1.0, places=6)
+        self.assertAlmostEqual(box.ZMin, 0.0, places=6)
+        self.assertAlmostEqual(box.ZMax, 1.0, places=6)
+
+    def testPolylineWithReversedNormal(self):
+        entity = ["0", "POLYLINE", "8", "0", "66", "1", "70", "0",
+                  "210", "0.0", "220", "0.0", "230", "-1.0"]  # fmt: skip
+        for x, y in ((1.0, 0.0), (2.0, 0.0), (2.0, 1.0)):
+            entity += ["0", "VERTEX", "8", "0", "10", str(x), "20", str(y), "30", "0.0"]
+        entity += ["0", "SEQEND", "8", "0"]
+        box = self._import(entity)
+        self.assertAlmostEqual(box.XMin, -2.0, places=6)
+        self.assertAlmostEqual(box.XMax, -1.0, places=6)
