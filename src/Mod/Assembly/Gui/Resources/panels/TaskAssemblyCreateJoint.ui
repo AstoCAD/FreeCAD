@@ -437,10 +437,10 @@
          <string notr="true">deg</string>
         </property>
         <property name="minimum">
-          <double>-180.0</double>
+          <double>-360.0</double>
         </property>
         <property name="maximum">
-          <double>180.0</double>
+          <double>360.0</double>
         </property>
         <property name="toolTip"><string>The minimum rotation allowed around the joint axis.</string></property>
        </widget>
@@ -487,10 +487,10 @@
          <string notr="true">deg</string>
         </property>
         <property name="minimum">
-          <double>-180.0</double>
+          <double>-360.0</double>
         </property>
         <property name="maximum">
-          <double>180.0</double>
+          <double>360.0</double>
         </property>
         <property name="toolTip"><string>The maximum rotation allowed around the joint axis.</string></property>
        </widget>
