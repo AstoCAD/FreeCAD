@@ -584,6 +584,11 @@ void CmdPartDesignClone::activated(int iMsg)
         Gui::cmdAppObject(cloneObj, std::stringstream() << "setEditorMode('Placement', 0)");
 
         updateActive();
+        // Give the new body the colors as well: it is what gets selected to clone the clone.
+        copyVisual(bodyObj, "ShapeAppearance", obj);
+        copyVisual(bodyObj, "LineColor", obj);
+        copyVisual(bodyObj, "PointColor", obj);
+        copyVisual(bodyObj, "Transparency", obj);
         copyVisual(cloneObj, "ShapeAppearance", obj);
         copyVisual(cloneObj, "LineColor", obj);
         copyVisual(cloneObj, "PointColor", obj);
