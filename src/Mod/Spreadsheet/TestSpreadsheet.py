@@ -1753,6 +1753,50 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.res, 2)
         self.assertEqual(sorted(sheet.getUsedCells()), ["A1", "B2"])
 
+    def testRemoveRowsColumnsNextToMergedCells(self):
+        """Removing rows/columns that overlap the end of a merged cell, or that
+        lie right after it, gave the merged cell a negative span (saved to the
+        file as rowSpan="-2"), and later edits of the sheet crashed"""
+        import io
+        import re
+        import zipfile
+
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+
+        def spans():
+            data = bytes(sheet.dumpPropertyContent("cells"))
+            archive = zipfile.ZipFile(io.BytesIO(data))
+            xml = archive.read(archive.namelist()[0]).decode()
+            return {
+                m.group(1): (int(m.group(2)), int(m.group(3)))
+                for m in re.finditer(r'address="(\w+)"[^>]*rowSpan="(-?\d+)" colSpan="(-?\d+)"', xml)
+            }
+
+        sheet.set("B1", "1")
+        sheet.mergeCells("B1:B4")
+        sheet.set("D1", "2")
+        sheet.mergeCells("D1:G1")
+        sheet.set("A10", "3")
+        sheet.mergeCells("A10:A11")
+        sheet.set("C20", "4")
+        sheet.mergeCells("C20:C25")
+        # Overlaps the end of B1:B4 -> B1:B2 (A10:A11 -> A7:A8, C20:C25 -> C17:C22)
+        sheet.removeRows("3", 3)
+        # Overlaps the end of D1:G1 -> D1:E1
+        sheet.removeColumns("F", 4)
+        # Right below A7:A8 -> unchanged (C17:C22 -> C15:C20)
+        sheet.removeRows("9", 2)
+        # Inside C15:C20 -> C15:C18
+        sheet.removeRows("18", 2)
+        self.assertEqual(
+            spans(), {"B1": (2, 1), "D1": (1, 2), "A7": (2, 1), "C15": (4, 1)}
+        )
+        # Must not crash on the merged cell bookkeeping
+        sheet.insertColumns("A", 2)
+        sheet.mergeCells("E2:F3")
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("D1"), "1")
+
     def testImportXLSXSharedFormulas(self):
         """Issue #20299: cells using a shared formula (formula dragged down
         or across in Excel) must be imported"""
