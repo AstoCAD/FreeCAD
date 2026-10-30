@@ -205,40 +205,52 @@ def process_object(csg,ob):
         else:
             pass # There should be a fallback solution
 
+    # The Placement of a boolean feature is applied on top of the result of
+    # its operands, so it has to be exported as an enclosing multmatrix.
     elif ob.TypeId == "Part::Cut":
         print("Cut")
+        mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("difference() {\n")
         process_object(csg,ob.Base)
         process_object(csg,ob.Tool)
         csg.write("}\n")
+        if mm == 1: csg.write("}\n")
 
     elif ob.TypeId == "Part::Fuse":
         print("union")
+        mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("union() {\n")
         process_object(csg,ob.Base)
         process_object(csg,ob.Tool)
         csg.write("}\n")
+        if mm == 1: csg.write("}\n")
 
     elif ob.TypeId == "Part::Common":
         print("intersection")
+        mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("intersection() {\n")
         process_object(csg,ob.Base)
         process_object(csg,ob.Tool)
         csg.write("}\n")
+        if mm == 1: csg.write("}\n")
 
     elif ob.TypeId == "Part::MultiFuse":
         print("Multi Fuse / union")
+        mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("union() {\n")
         for subobj in ob.Shapes:
             process_object(csg,subobj)
         csg.write("}\n")
+        if mm == 1: csg.write("}\n")
 
     elif ob.TypeId == "Part::MultiCommon":
         print("Multi Common / intersection")
+        mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("intersection() {\n")
         for subobj in ob.Shapes:
             process_object(csg,subobj)
         csg.write("}\n")
+        if mm == 1: csg.write("}\n")
 
     elif ob.isDerivedFrom('Part::Feature'):
         print("Part::Feature")
