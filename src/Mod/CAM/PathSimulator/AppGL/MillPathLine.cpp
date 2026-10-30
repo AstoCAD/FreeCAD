@@ -47,6 +47,15 @@ void MillPathLine::SetupVertexAttibs()
         sizeof(MillPathPosition),
         (void*)offsetof(MillPathPosition, SegmentId)
     );
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(
+        2,
+        1,
+        GL_INT,
+        GL_FALSE,
+        sizeof(MillPathPosition),
+        (void*)offsetof(MillPathPosition, Rapid)
+    );
 }
 
 void MillPathLine::Clear()
@@ -60,6 +69,8 @@ void MillPathLine::Render()
 {
     SetupVertexAttibs();
     glDrawArrays(GL_LINE_STRIP, 0, mNumVerts);
+    // the other shapes only use attributes 0 and 1
+    glDisableVertexAttribArray(2);
 }
 
 }  // namespace CAMSimulator

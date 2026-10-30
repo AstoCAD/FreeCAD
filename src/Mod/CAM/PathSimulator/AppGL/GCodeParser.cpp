@@ -176,6 +176,9 @@ bool GCodeParser::ParseLine(const char* ptr)
     // a drill cycle's R plane holds for the cycle's next holes
     newState.r = lastState.r;
 
+    // G0 / G1 are modal
+    newState.rapid = lastState.rapid;
+
     while (*ptr != 0 && !exitLoop) {
         ptr = GetNextToken(ptr, &token);
         switch (token.letter) {
@@ -187,18 +190,22 @@ bool GCodeParser::ParseLine(const char* ptr)
                 cmd = token.ival;
                 if (cmd == 0 || cmd == 1) {
                     newState.cmd = eMoveLiner;
+                    newState.rapid = cmd == 0;
                 }
                 else if (cmd == 2) {
                     newState.cmd = eRotateCW;
+                    newState.rapid = false;
                 }
                 else if (cmd == 3) {
                     newState.cmd = eRotateCCW;
+                    newState.rapid = false;
                 }
                 else if (
                     cmd == 73 || cmd == 74 || cmd == 81 || cmd == 82 || cmd == 83 || cmd == 84
                     || cmd == 85 || cmd == 88 || cmd == 89
                 ) {
                     newState.cmd = eDril;
+                    newState.rapid = false;
                 }
                 else if (cmd == 98 || cmd == 99) {
                     newState.retract_mode = cmd;
@@ -268,26 +275,29 @@ bool GCodeParser::AddLine(const char* ptr)
             const float holeX = lastState.x;
             const float holeY = lastState.y;
             const float out = lastState.retract_mode == 99 ? rPlane : std::max(fromZ, rPlane);
-            auto push = [this](float x, float y, float z) {
+            // the positioning moves and the retract are rapid, only the move to the depth feeds
+            auto push = [this](float x, float y, float z, bool rapid) {
                 lastState.x = x;
                 lastState.y = y;
                 lastState.z = z;
+                lastState.rapid = rapid;
                 Operations.push_back(lastState);
             };
             float z = fromZ;
             if (z < rPlane) {
                 z = rPlane;
-                push(fromX, fromY, z);
+                push(fromX, fromY, z, true);
             }
             if (holeX != fromX || holeY != fromY) {
-                push(holeX, holeY, z);
+                push(holeX, holeY, z, true);
             }
             if (z != rPlane) {
-                push(holeX, holeY, rPlane);
+                push(holeX, holeY, rPlane, true);
             }
-            push(holeX, holeY, depth);
-            push(holeX, holeY, out);
+            push(holeX, holeY, depth, false);
+            push(holeX, holeY, out, true);
             lastState.cmd = eDril;
+            lastState.rapid = false;
         }
         else {
             Operations.push_back(lastState);
