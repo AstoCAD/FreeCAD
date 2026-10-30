@@ -84,6 +84,7 @@ SET(Test_SRCS
     TestUserEditModeGui.py
     TestPlacementDialogGui.py
     TestLinkToggleVisibilityGui.py
+    TestShowPlacementOnSelectionGui.py
     TestComboBoxShortcutGui.py
     TestLinkImportVisibilityGui.py
     TestNavigationPreferenceReloadGui.py
