@@ -86,6 +86,7 @@ SET(Test_SRCS
     TestLinkImportVisibilityGui.py
     TestNavigationPreferenceReloadGui.py
     TestPreferencesSearchPopupGui.py
+    TestTreeEditBackgroundGui.py
 )
 
 SET(TestData_SRCS
