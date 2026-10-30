@@ -118,12 +118,15 @@ public:
      * @param allowOpen: Whether allow open wire
      * @param profile: optional profile object, if not given then use 'Profile' property
      * @param subs: optional profile sub-object names, if not given then use 'Profile' property
+     * @param copyWires: build the face on a copy of the profile wires, so that operations on
+     *                   the face do not modify the profile object's shape
      */
     TopoShape getTopoShapeVerifiedFace(
         bool silent = false,
         bool allowOpen = false,
         const App::DocumentObject* profile = nullptr,
-        const std::vector<std::string>& subs = {}
+        const std::vector<std::string>& subs = {},
+        bool copyWires = false
     ) const;
 
     /// Returns the wires the sketch is composed of
