@@ -43,12 +43,12 @@ class TestRobotPlacement(unittest.TestCase):
             if os.path.exists(path):
                 os.remove(path)
 
-    def _assertDrawnAt(self, robot, expected):
-        translation = _root_translation(robot.ViewObject)
+    def _assertDrawnAt(self, obj, expected, tolerance=1e-6):
+        translation = _root_translation(obj.ViewObject)
         self.assertIsNotNone(translation)
         self.assertTrue(
-            translation.isEqual(expected, 1e-6),
-            "robot drawn at {} instead of {}".format(translation, expected),
+            translation.isEqual(expected, tolerance),
+            "drawn at {} instead of {}".format(translation, expected),
         )
 
     def testPlacementChangeMovesRobot(self):
@@ -73,3 +73,29 @@ class TestRobotPlacement(unittest.TestCase):
         self.doc = FreeCAD.openDocument(path)
         self._assertDrawnAt(self.doc.getObject("Robot"), FreeCAD.Vector(0, 0, 0))
         self._assertDrawnAt(self.doc.getObject("Robot001"), FreeCAD.Vector(1500, -300, 0))
+
+    def _assertToolAtTcp(self, robot, tool):
+        expected = robot.Placement.multiply(robot.Tcp).multiply(robot.ToolBase.inverse()).Base
+        # Coin stores the transformation in single precision
+        self._assertDrawnAt(tool, expected, 1e-2)
+
+    def testToolFollowsRobotPlacement(self):
+        """The tool must be drawn at the Tcp of a placed robot (issue #5562)."""
+        robot = self.doc.addObject("Robot::RobotObject", "Robot")
+        robot.Placement = FreeCAD.Placement(FreeCAD.Vector(1000, 200, 0), FreeCAD.Rotation())
+        robot.Axis2 = -60  # moves the Tcp away from the robot origin
+        tool = self.doc.addObject("Part::Box", "Tool")
+        self.doc.recompute()
+
+        # tool attached to an already placed robot
+        robot.ToolShape = tool
+        self.doc.recompute()
+        self.assertFalse(robot.Tcp.Base.isEqual(FreeCAD.Vector(), 1e-6))
+        self._assertToolAtTcp(robot, tool)
+
+        # robot moved after the tool was attached
+        robot.Placement = FreeCAD.Placement(
+            FreeCAD.Vector(-500, 300, 50), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 90)
+        )
+        self.doc.recompute()
+        self._assertToolAtTcp(robot, tool)
