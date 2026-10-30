@@ -103,6 +103,7 @@ public:
 
     virtual bool accept();
     virtual bool reject();
+    void rejectAfterUndo();
     bool apply(bool forceUpdate = false);
     void setInteractiveBase(TechDraw::DrawViewPart* base);
     void setInteractiveParameters(const Base::Vector3d& origin,
@@ -432,6 +433,7 @@ public:
     bool accept() override;
     /// is called by the framework if the dialog is rejected (Cancel)
     bool reject() override;
+    void autoClosedOnTransactionChange() override;
 
     QDialogButtonBox::StandardButtons getStandardButtons() const override
     {
