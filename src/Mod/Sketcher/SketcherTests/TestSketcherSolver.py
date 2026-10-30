@@ -1611,6 +1611,25 @@ class TestSketcherSolver(unittest.TestCase):
         sketch.toggleConstruction(0)
         self.assertTrue(sketch.getConstruction(0))
 
+    def testBlockOnAxisDoesNotCrash(self):
+        """A Block constraint on an axis has no geometry state to set or clear"""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchBlockAxis")
+        sketch.addGeometry(Part.LineSegment(vec(0, 0), vec(10, 0)))
+        for axis in (-1, -2):
+            index = sketch.addConstraint(Sketcher.Constraint("Block", axis))
+            self.assertSuccessfulSolve(sketch)
+            sketch.delConstraint(index)
+        self.assertEqual(len(sketch.Constraints), 0)
+        # a Block on sketch geometry still blocks it
+        block = sketch.addConstraint(Sketcher.Constraint("Block", 0))
+        self.assertSuccessfulSolve(sketch)
+        self.assertTrue(sketch.FullyConstrained)
+        sketch.delConstraint(block)
+        # delConstraint does not update the solver: solve before moving
+        self.assertSuccessfulSolve(sketch)
+        sketch.moveGeometry(0, 2, vec(12, 3), False)
+        self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(12, 3))
+
     def testSetDatumErrorMessages(self):
         # https://github.com/FreeCAD/FreeCAD/issues/26506
         # A sketch with redundant constraints rejected any new datum with the
