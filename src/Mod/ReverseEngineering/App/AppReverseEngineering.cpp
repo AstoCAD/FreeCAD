@@ -405,7 +405,8 @@ private:
             }
 
 #if OCC_VERSION_HEX >= 0x080000
-            TColgp_Array1OfPnt clPoints(pts.size()-1);
+            // zero-based array holding all points (the argument is the size)
+            TColgp_Array1OfPnt clPoints(pts.size());
 #else
             TColgp_Array1OfPnt clPoints(0, pts.size()-1);
 #endif
