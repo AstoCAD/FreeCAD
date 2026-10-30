@@ -704,6 +704,42 @@ class MeshFacetIndexRange(unittest.TestCase):
         self.assertEqual(len(MeshPart.wireFromSegment(self.mesh, [0, 1])), 1)
 
 
+class MeshHugeCoordinates(unittest.TestCase):
+    """A facet with a huge coordinate must not be put outside the facet grid"""
+
+    def testSelfIntersectionsWithHugeCoordinate(self):
+        # The cell index of the bounding box maximum was computed as the grid size itself
+        # (float rounding), so the facet grid wrote outside its cells (access violation).
+        box = Mesh.createBox(10.0, 10.0, 10.0)
+        facets = [list(f.Points) for f in box.Facets]
+        facets.append([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 0.0, 3.0e31)])
+        mesh = Mesh.Mesh(facets)
+        self.assertEqual(mesh.CountFacets, 13)
+        self.assertIsInstance(mesh.hasSelfIntersections(), bool)
+        self.assertIsInstance(mesh.getSelfIntersections(), (list, tuple))
+
+    def testReadStlWithHugeCoordinate(self):
+        text = (
+            "solid huge\n"
+            "facet normal 0 0 0\nouter loop\n"
+            "vertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\n"
+            "endloop\nendfacet\n"
+            "facet normal 0 0 0\nouter loop\n"
+            "vertex 5 5 5\nvertex 6 5 5\nvertex 5 5 3.0e31\n"
+            "endloop\nendfacet\n"
+            "endsolid huge\n"
+        )
+        name = os.path.join(tempfile.gettempdir(), "mesh_huge_coordinate.ast")
+        with open(name, "w") as f:
+            f.write(text)
+        try:
+            mesh = Mesh.Mesh(name)
+            self.assertEqual(mesh.CountFacets, 2)
+            self.assertFalse(mesh.hasSelfIntersections())
+        finally:
+            os.remove(name)
+
+
 class MeshModuleExport(unittest.TestCase):
     def setUp(self):
         self.doc = FreeCAD.newDocument("MeshExportTest")
