@@ -617,10 +617,12 @@ class Renderer:
                         if f2 in faces:
                             faces.remove(f2)
                 else:
-                    # nothing found, move the face to the end of the pile
+                    # nothing found: this face has no z-order relation with any
+                    # remaining face, nor with the ordered stack (otherwise it
+                    # would have been inserted there), so it can go anywhere
                     if f1 in faces:
                         faces.remove(f1)
-                        faces.append(f1)
+                        sfaces.append(f1)
             loopcount += 1
             if loopcount == MAXLOOP * len(self.faces):
                 if DEBUG:
