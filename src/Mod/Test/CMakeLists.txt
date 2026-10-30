@@ -81,6 +81,7 @@ SET(Test_SRCS
     TestCornerAxisCrossVisual.py
     TestViewProviderLink.py
     TestViewCallbackRemovalGui.py
+    TestGuiPythonApiGui.py
     TestUserEditModeGui.py
     TestPlacementDialogGui.py
     TestLinkToggleVisibilityGui.py
