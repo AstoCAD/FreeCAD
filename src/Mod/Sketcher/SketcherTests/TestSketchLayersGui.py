@@ -1250,6 +1250,66 @@ class TestSketchLayersGui(SketcherGuiTestCase):
             for key, value in previous.items():
                 prefs.SetBool(key, value)
 
+    def testReferenceLockOnNoConstraintsLayerLeavesOtherConstraintsAlone(self):
+        # The layer rejects both Lock distances; Reference mode must not make the two previous,
+        # unrelated constraints non-driving (selection first, then continuous picking).
+        s = self.sketch
+        s.addConstraint(Sketcher.Constraint("DistanceX", 0, 1, 0.0))
+        s.addConstraint(Sketcher.Constraint("Distance", 0, 20.0))
+        line = s.addGeometry(Part.LineSegment(App.Vector(0, 20, 0), App.Vector(30, 25, 0)))
+        layer = s.addLayer("Reference")
+        s.setGeometryLayer([line], layer)
+        s.UnconstrainedLayers = [layer]
+        self.doc.recompute()
+        view = Gui.ActiveDocument.ActiveView
+        view.viewTop()
+        view.fitAll()
+        self.flush_gui(150)
+        viewport = view.graphicsView().viewport()
+        vertex = self.viewport_to_qpoint(view, viewport, view.getPointOnScreen(App.Vector(30, 25, 0)))
+        prefs = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Sketcher")
+        previous = prefs.GetBool("ContinuousConstraintMode", True)
+        prefs.SetBool("ContinuousConstraintMode", True)
+        dialogs = []
+
+        def close():
+            dialog = QtGui.QApplication.activeModalWidget()
+            if dialog is not None:
+                dialogs.append(dialog.windowTitle())
+                dialog.reject()
+
+        timer = QtCore.QTimer()
+        timer.timeout.connect(close)
+        timer.start(50)
+        Gui.Selection.clearSelection()
+        Gui.runCommand("Sketcher_ToggleDrivingConstraint", 0)
+        try:
+            Gui.Selection.addSelection(self.doc.Name, s.Name, f"Vertex{2 * line + 2}")
+            Gui.runCommand("Sketcher_ConstrainLock", 0)
+            self.flush_gui(100)
+            self.assertEqual(s.ConstraintCount, 2)
+            self.assertEqual([s.getDriving(0), s.getDriving(1)], [True, True], "selection")
+
+            Gui.Selection.clearSelection()
+            Gui.runCommand("Sketcher_ConstrainLock", 0)
+            self.flush_gui(100)
+            self.move(viewport, vertex)
+            self.click(viewport, vertex)
+            self.flush_gui(150)
+            self.assertEqual(s.ConstraintCount, 2)
+            self.assertEqual([s.getDriving(0), s.getDriving(1)], [True, True], "picking")
+            self.assertEqual(dialogs, [])
+        finally:
+            timer.stop()
+            Gui.Selection.clearSelection()
+            # Leave the continuous Lock tool before restoring the creation mode.
+            Gui.ActiveDocument.resetEdit()
+            self.flush_gui(100)
+            Gui.ActiveDocument.setEdit(s.Name)
+            self.flush_gui(100)
+            Gui.runCommand("Sketcher_ToggleDrivingConstraint", 0)
+            prefs.SetBool("ContinuousConstraintMode", previous)
+
     def testGeometryLayerSelector(self):
         layer = self.sketch.addLayer("Geometry")
         self.flush_gui(120)
