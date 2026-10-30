@@ -56,6 +56,7 @@ struct MillMotion
     float r = 0.0f;
     char retract_mode = '\0';
     float retract_z = 0;
+    bool rapid = false;  // G0 and canned cycle positioning moves
 };
 
 static inline void MotionPosToVec(vec3 vec, const MillMotion& motion)

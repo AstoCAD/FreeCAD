@@ -463,9 +463,14 @@ void SimDisplay::SetPathColor(const vec3& normal, const vec3& rapid)
     pathLineColor[1] = normal[1];
     pathLineColor[2] = normal[2];
 
-    // TODO: Different color for rapid moves is not supported for now.
+    pathLineColorRapid[0] = rapid[0];
+    pathLineColorRapid[1] = rapid[1];
+    pathLineColorRapid[2] = rapid[2];
+}
 
-    (void)rapid;
+void SimDisplay::SetPathLineWidth(float width)
+{
+    pathLineWidth = width;
 }
 
 void SimDisplay::SetupLinePathPass(int curSegment, bool isHidden)
@@ -475,11 +480,12 @@ void SimDisplay::SetupLinePathPass(int curSegment, bool isHidden)
     glDepthFunc(isHidden ? GL_GREATER : GL_LESS);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glLineWidth(2);
+    glLineWidth(pathLineWidth);
     shaderLinePath.Activate();
     pathLineColor[3] = isHidden ? 0.1f : 1.0f;
     shaderLinePath.UpdateObjColorAlpha(pathLineColor);
     shaderLinePath.UpdateObjColor(pathLineColorPassed);
+    shaderLinePath.UpdateRapidColor(pathLineColorRapid);
     shaderLinePath.UpdateCurSegment(curSegment);
     shaderLinePath.UpdateViewMat(mMatLookAt);
 }

@@ -181,6 +181,13 @@ void Shader::UpdateCurSegment(int curSeg)
     }
 }
 
+void Shader::UpdateRapidColor(const vec3& rapidColor)
+{
+    if (mRapidColorPos >= 0) {
+        glUniform3fv(mRapidColorPos, 1, rapidColor);
+    }
+}
+
 
 bool CheckCompileResult(int shaderId, const char* shaderName, bool isVertex)
 {
@@ -301,6 +308,7 @@ unsigned int Shader::CompileShader(const char* name, const char* _vertShader, co
     mRandTexPos = glGetUniformLocation(shaderId, "RandTex");
     mSamplesPos = glGetUniformLocation(shaderId, "SampleKernel");
     mCurSegmentPos = glGetUniformLocation(shaderId, "curSegment");
+    mRapidColorPos = glGetUniformLocation(shaderId, "rapidColor");
     mScreenWidthPos = glGetUniformLocation(shaderId, "screenWidth");
     mScreenHeightPos = glGetUniformLocation(shaderId, "screenHeight");
 
@@ -636,8 +644,10 @@ const char* VertShader3DLine = R"(
 
     layout(location = 0) attribute vec3 aPosition;
     layout(location = 1) attribute float aIndex;
+    layout(location = 2) attribute float aRapid;
 
     varying float Index;
+    varying float Rapid;
 
     uniform mat4 view;
     uniform mat4 projection;
@@ -646,6 +656,7 @@ const char* VertShader3DLine = R"(
     {
         gl_Position = projection * view * vec4(aPosition, 1.0);
         Index = aIndex;
+        Rapid = aRapid;
     }
 )";
 
@@ -653,14 +664,19 @@ const char* FragShader3DLine = R"(
     #version 120
 
     varying float Index;
+    varying float Rapid;
 
     uniform vec4 objectColorAlpha;
     uniform vec3 objectColor;
+    uniform vec3 rapidColor;
     uniform int curSegment;
 
     void main()
     {
-        if (Index > curSegment) gl_FragColor = objectColorAlpha;
+        if (Index > curSegment) {
+            if (Rapid > 0.5) gl_FragColor = vec4(rapidColor, objectColorAlpha.a);
+            else gl_FragColor = objectColorAlpha;
+        }
         else gl_FragColor = vec4(objectColor, objectColorAlpha.a);
     }
 )";

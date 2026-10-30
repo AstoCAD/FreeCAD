@@ -65,6 +65,7 @@ public:
     void UpdateCamera(const SoCamera& camera);
 
     void SetPathColor(const vec3& normal, const vec3& rapid);
+    void SetPathLineWidth(float width);
 
 public:
     bool updateDisplay = false;
@@ -99,6 +100,8 @@ protected:
     vec3 ambientCol = {0.2f, 0.2f, 0.25f};
     vec4 pathLineColor = {0.0f, 0.9f, 0.0f, 1.0};
     vec3 pathLineColorPassed = {0.9f, 0.3f, 0.3f};
+    vec3 pathLineColorRapid = {0.667f, 0.0f, 0.0f};
+    float pathLineWidth = 2.0f;
 
     mat4x4 mMatLookAt;
     StockObject mlightObject;

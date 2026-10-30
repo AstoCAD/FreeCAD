@@ -173,6 +173,9 @@ bool GCodeParser::ParseLine(const char* ptr)
     newState.retract_mode = lastState.retract_mode;
     newState.retract_z = lastState.retract_z;
 
+    // G0 / G1 are modal
+    newState.rapid = lastState.rapid;
+
     while (*ptr != 0 && !exitLoop) {
         ptr = GetNextToken(ptr, &token);
         switch (token.letter) {
@@ -184,18 +187,22 @@ bool GCodeParser::ParseLine(const char* ptr)
                 cmd = token.ival;
                 if (cmd == 0 || cmd == 1) {
                     newState.cmd = eMoveLiner;
+                    newState.rapid = cmd == 0;
                 }
                 else if (cmd == 2) {
                     newState.cmd = eRotateCW;
+                    newState.rapid = false;
                 }
                 else if (cmd == 3) {
                     newState.cmd = eRotateCCW;
+                    newState.rapid = false;
                 }
                 else if (
                     cmd == 73 || cmd == 74 || cmd == 81 || cmd == 82 || cmd == 83 || cmd == 84
                     || cmd == 85 || cmd == 88 || cmd == 89
                 ) {
                     newState.cmd = eDril;
+                    newState.rapid = false;
                     newState.retract_z = lastState.z;
                 }
                 else if (cmd == 98 || cmd == 99) {
@@ -262,13 +269,18 @@ bool GCodeParser::AddLine(const char* ptr)
                 rPlane = lastState.retract_z;
             }
             float finalDepth = lastState.z;
+            // rapid to the retract plane, feed to the depth, rapid back
             lastState.z = rPlane;
+            lastState.rapid = true;
             Operations.push_back(lastState);
             lastState.z = finalDepth;
+            lastState.rapid = false;
             Operations.push_back(lastState);
             lastState.z = rPlane;
+            lastState.rapid = true;
             Operations.push_back(lastState);
             lastState.cmd = eDril;
+            lastState.rapid = false;
         }
         else {
             Operations.push_back(lastState);

@@ -630,6 +630,7 @@ SET(Tests_SRCS
     CAMTests/TestPathLogNew.py
     CAMTests/TestPathMillFacing.py
     CAMTests/TestPathOpBaseGeometryGui.py
+    CAMTests/TestCAMSimulatorPathColorsGui.py
     CAMTests/TestPathOpDeburr.py
     CAMTests/TestPathOpUtil.py
     CAMTests/TestPostCore.py

@@ -45,6 +45,7 @@ extern QOpenGLExtraFunctions gOpenGLFunctions;
 #define glGenVertexArrays gOpenGLFunctions.glGenVertexArrays
 #define glBindVertexArray gOpenGLFunctions.glBindVertexArray
 #define glEnableVertexAttribArray gOpenGLFunctions.glEnableVertexAttribArray
+#define glDisableVertexAttribArray gOpenGLFunctions.glDisableVertexAttribArray
 #define glVertexAttribPointer gOpenGLFunctions.glVertexAttribPointer
 #define glBindAttribLocation gOpenGLFunctions.glBindAttribLocation
 #define glGetAttribLocation gOpenGLFunctions.glGetAttribLocation

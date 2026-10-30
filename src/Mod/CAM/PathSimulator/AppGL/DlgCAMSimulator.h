@@ -117,6 +117,7 @@ public:
 
     void setBackgroundColor(const QColor& c);
     void setPathColor(const QColor& normal, const QColor& rapid);
+    void setPathLineWidth(int width);
 
 Q_SIGNALS:
     void simulationStarted();
