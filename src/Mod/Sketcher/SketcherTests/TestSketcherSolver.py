@@ -1516,6 +1516,23 @@ class TestSketcherSolver(unittest.TestCase):
         self.assertFalse(sketch.Constraints[0].Driving)
         sketch.renameConstraint(0, "Width")
         self.assertEqual(sketch.Constraints[0].Name, "Width")
+
+    def testDelConstraintsRepeatedIndex(self):
+        """A repeated index deletes its constraint once instead of erasing past the end"""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchDelConstraintsTwice")
+        sketch.addGeometry(Part.LineSegment(vec(0, 0), vec(10, 0)))
+        sketch.addGeometry(Part.LineSegment(vec(0, 5), vec(10, 6)))
+        sketch.addConstraint(Sketcher.Constraint("Horizontal", 0))
+        sketch.addConstraint(Sketcher.Constraint("Parallel", 0, 1))
+        sketch.addConstraint(Sketcher.Constraint("Distance", 0, 10.0))
+        sketch.delConstraints([1, 1])
+        self.assertEqual([c.Type for c in sketch.Constraints], ["Horizontal", "Distance"])
+        sketch.delConstraints([1, 1, 1])
+        self.assertEqual([c.Type for c in sketch.Constraints], ["Horizontal"])
+        with self.assertRaises(ValueError):
+            sketch.delConstraints([1, 1])
+        self.assertEqual(len(sketch.Constraints), 1)
+
     def testSetDatumErrorMessages(self):
         # https://github.com/FreeCAD/FreeCAD/issues/26506
         # A sketch with redundant constraints rejected any new datum with the
