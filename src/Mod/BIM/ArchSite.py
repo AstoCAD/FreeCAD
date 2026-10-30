@@ -1842,6 +1842,9 @@ class _ViewProviderSite:
                         del self.diagramnode
                 else:
                     self.diagramswitch.whichChild = -1
+            if prop == "SolarDiagramScale":
+                # the wind rose is drawn at the solar diagram scale
+                self.onChanged(vobj, "WindRose")
         elif prop in [
             "ShowSunPosition",
             "SunDateMonth",
@@ -1861,6 +1864,7 @@ class _ViewProviderSite:
                 self.updateSunPosition(vobj)
         elif prop == "WindRose":
             if hasattr(self, "windrosenode"):
+                self.windrosesep.removeChild(self.windrosenode)
                 del self.windrosenode
             if hasattr(vobj, "WindRose"):
                 if vobj.WindRose:

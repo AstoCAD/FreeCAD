@@ -115,6 +115,52 @@ class TestArchSiteGui(TestArchBaseGui.TestArchBaseGui):
             except Exception:
                 pass
 
+    def test_wind_rose_follows_solar_diagram_scale(self):
+        """Changing SolarDiagramScale must rebuild the wind rose at the new scale.
+
+        https://github.com/FreeCAD/FreeCAD/issues/21979
+        """
+        import sys
+        import types
+        from unittest import mock
+        from pivy import coin
+        import ArchSite
+
+        site = Arch.makeSite()
+        self.document.recompute()
+        self.pump_gui_events()
+
+        tf = tempfile.NamedTemporaryFile(delete=False, suffix=".epw")
+        tf.close()
+        scales = []
+
+        def fake_make_wind_rose(epwfile, scale=1, sectors=24):
+            scales.append(scale)
+            return coin.SoSeparator()
+
+        # The real wind rose needs the optional ladybug module and a real EPW file
+        fake_ladybug = types.ModuleType("ladybug")
+        try:
+            with mock.patch.dict(sys.modules, {"ladybug": fake_ladybug}), mock.patch.object(
+                ArchSite, "makeWindRose", fake_make_wind_rose
+            ):
+                site.EPWFile = tf.name
+                vobj = site.ViewObject
+                vobj.SolarDiagramScale = 20000.0
+                vobj.WindRose = True
+                self.assertEqual(scales, [20000.0])
+                self.assertEqual(vobj.Proxy.windrosesep.getNumChildren(), 1)
+
+                vobj.SolarDiagramScale = 5000.0
+                self.assertEqual(scales[-1], 5000.0, "Wind rose was not rebuilt at the new scale")
+                # the old wind rose must be replaced, not kept next to the new one
+                self.assertEqual(vobj.Proxy.windrosesep.getNumChildren(), 1)
+        finally:
+            try:
+                os.unlink(tf.name)
+            except Exception:
+                pass
+
     def test_legacy_site_migration(self):
         """Legacy migration test (<=1.0.0 -> newer)
 
