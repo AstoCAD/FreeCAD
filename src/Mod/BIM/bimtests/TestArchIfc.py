@@ -170,6 +170,58 @@ class TestArchIfc(TestArchBase.TestArchBase):
         names = sorted(e.Name for e in elements)
         self.assertEqual(names, [equipment.Label])
 
+    def test_export_nested_compound_placement(self):
+        """Nested Part_Compounds are exported at their own placement.
+        https://github.com/FreeCAD/FreeCAD/issues/9324"""
+        import Arch
+        import ifcopenshell.geom
+        import ifcopenshell.util.shape
+        from importers import exportIFC
+
+        box1 = self.document.addObject("Part::Box", "Box1")
+        box2 = self.document.addObject("Part::Box", "Box2")
+        box2.Placement.Base = FreeCAD.Vector(100, 0, 0)
+        inner = self.document.addObject("Part::Compound", "Inner")
+        inner.Links = [box1, box2]
+        inner.Placement.Base = FreeCAD.Vector(0, 500, 0)
+        box3 = self.document.addObject("Part::Box", "Box3")
+        box3.Placement.Base = FreeCAD.Vector(0, 0, 200)
+        outer = self.document.addObject("Part::Compound", "Outer")
+        outer.Links = [inner, box3]
+        outer.Placement.Base = FreeCAD.Vector(1000, 0, 0)
+        site = Arch.makeSite([Arch.makeBuilding([Arch.makeFloor([outer])])])
+        self.document.recompute()
+
+        path = os.path.join(tempfile.mkdtemp(), "nested_compound.ifc")
+        exportIFC.export([site], path)
+        ifcfile = ifcopenshell.open(path)
+        settings = ifcopenshell.geom.settings()
+        settings.set("use-world-coords", True)
+        mins = []
+        maxs = []
+        for product in ifcfile.by_type("IfcProduct"):
+            if product.Representation and not product.is_a("IfcSpatialStructureElement"):
+                shape = ifcopenshell.geom.create_shape(settings, product)
+                verts = ifcopenshell.util.shape.get_vertices(shape.geometry) * 1000
+                mins.append(verts.min(axis=0))
+                maxs.append(verts.max(axis=0))
+        self.assertTrue(mins, "nothing was exported")
+        expected = outer.Shape.BoundBox
+        exported = [min(m[i] for m in mins) for i in range(3)]
+        exported += [max(m[i] for m in maxs) for i in range(3)]
+        for got, exp in zip(
+            exported,
+            [
+                expected.XMin,
+                expected.YMin,
+                expected.ZMin,
+                expected.XMax,
+                expected.YMax,
+                expected.ZMax,
+            ],
+        ):
+            self.assertAlmostEqual(got, exp, delta=1e-3, msg=f"{exported} != {expected}")
+
     def _check_imported_wall(self):
         walls = [o for o in self.document.Objects if o.Label == "TestWall"]
         self.assertEqual(len(walls), 1, "the IFC wall was not imported")
