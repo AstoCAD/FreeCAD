@@ -966,6 +966,29 @@ class TestPathFacingGenerator(PathTestBase):
         p = Path.Path(commands)
         # print(p.toGCode())
 
+    def test_spiral_reaches_center_high_stepover(self):
+        """Test that the last spiral loop reaches the center with a large stepover (#33940)."""
+        wire = Part.makePolygon(
+            [
+                FreeCAD.Vector(0, 0, 0),
+                FreeCAD.Vector(114, 0, 0),
+                FreeCAD.Vector(114, 94, 0),
+                FreeCAD.Vector(0, 94, 0),
+                FreeCAD.Vector(0, 0, 0),
+            ]
+        )
+        tool_diameter = 5.0
+        for stepover in (75, 80, 90, 100):
+            with self.subTest(stepover=stepover):
+                commands = spiral_facing.spiral(
+                    polygon=wire, tool_diameter=tool_diameter, stepover_percent=stepover
+                )
+                # the tool must cover the center line Y=47 of the limiting direction
+                closest = min(
+                    abs(cmd.Parameters["Y"] - 47) for cmd in commands if "Y" in cmd.Parameters
+                )
+                self.assertLessEqual(closest, tool_diameter / 2 + 1e-6)
+
     def test_spiral_milling_direction(self):
         """Test spiral with different milling directions."""
         climb_commands = spiral_facing.spiral(
