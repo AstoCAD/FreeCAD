@@ -89,6 +89,28 @@ class PartGuiViewProviderTestCases(unittest.TestCase):
         with self.assertRaises(TypeError):
             box.ViewObject.dropObject(box, 0)
 
+    def testLineColorArrayShorterThanEdges(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/23346
+        from pivy import coin
+
+        box = self.Doc.addObject("Part::Box", "Box")
+        self.Doc.recompute()
+        vo = box.ViewObject
+        vo.LineColor = (0.0, 0.0, 1.0)
+        vo.LineColorArray = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
+
+        sa = coin.SoSearchAction()
+        sa.setName(coin.SbName("LineMaterial"))
+        sa.apply(vo.RootNode)
+        material = sa.getPath().getTail()
+
+        # Coin needs one color per line: the 12 edges must not read past the colors.
+        self.assertEqual(material.diffuseColor.getNum(), len(box.Shape.Edges))
+        expected = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)] + [(0.0, 0.0, 1.0)] * 10
+        for i, color in enumerate(expected):
+            for actual, wanted in zip(material.diffuseColor[i].getValue(), color):
+                self.assertAlmostEqual(actual, wanted, places=5)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartGuiTest")

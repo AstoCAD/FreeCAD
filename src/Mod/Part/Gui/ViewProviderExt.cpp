@@ -886,18 +886,22 @@ void ViewProviderPartExt::setHighlightedEdges(const std::vector<Base::Color>& co
         pcLineBind->value = SoMaterialBinding::PER_FACE;
         const int32_t* cindices = this->lineset->coordIndex.getValues(0);
         int numindices = this->lineset->coordIndex.getNum();
-        pcLineMaterial->diffuseColor.setNum(size);
-        SbColor* ca = pcLineMaterial->diffuseColor.startEditing();
         int linecount = 0;
-
         for (int i = 0; i < numindices; ++i) {
             if (cindices[i] < 0) {
-                ca[linecount].setValue(colors[linecount].r, colors[linecount].g, colors[linecount].b);
                 linecount++;
-                if (linecount >= size) {
-                    break;
-                }
             }
+        }
+
+        // Coin reads one color per line, so the color array must cover every line.
+        // The colors are indexed by edge, and a line without a color uses the line color.
+        const Base::Color& defaultColor = LineColor.getValue();
+        pcLineMaterial->diffuseColor.setNum(linecount);
+        SbColor* ca = pcLineMaterial->diffuseColor.startEditing();
+        for (int line = 0; line < linecount; ++line) {
+            const int edge = this->lineset->edgeIndexFromLine(line) - 1;
+            const Base::Color& color = edge >= 0 && edge < size ? colors[edge] : defaultColor;
+            ca[line].setValue(color.r, color.g, color.b);
         }
 
         pcLineMaterial->diffuseColor.finishEditing();
