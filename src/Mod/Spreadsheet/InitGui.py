@@ -53,4 +53,4 @@ Gui.addWorkbench(SpreadsheetWorkbench())
 # Append the open handler
 FreeCAD.addImportType("Spreadsheet formats (*.csv *.CSV)", "SpreadsheetGui")
 
-FreeCAD.__unit_test__ += ["TestSpreadsheetContextMenuGui"]
+FreeCAD.__unit_test__ += ["TestSpreadsheetContextMenuGui", "TestSpreadsheetEditMenuGui"]
