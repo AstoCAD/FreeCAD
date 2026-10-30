@@ -31,4 +31,8 @@ class TestPreviewColorPythonGui(unittest.TestCase):
         gui_doc = Gui.getDocument(self.doc.Name)
         self.assertIsNotNone(gui_doc.getObject(additive.Name))
         self.assertIsNotNone(gui_doc.getObject(subtractive.Name))
-        self.assertTrue(hasattr(subtractive.ViewObject, "PreviewColor"))
+
+        # Setting the color while the preview is not attached dereferenced a null
+        # preview node ("OSError: Access violation" on Windows, a crash elsewhere).
+        subtractive.ViewObject.PreviewColor = (0.0, 0.0, 1.0)
+        self.assertEqual(subtractive.ViewObject.PreviewColor[:3], (0.0, 0.0, 1.0))
