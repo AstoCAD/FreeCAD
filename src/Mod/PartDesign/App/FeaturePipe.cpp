@@ -778,6 +778,10 @@ void Pipe::buildPipePath(
                             QT_TRANSLATE_NOOP("Exception", "Invalid element in spine.")
                         );
                     }
+                    if (it.Value().ShapeType() == TopAbs_VERTEX) {
+                        // Isolated points, e.g. of a sketch, are not part of the path
+                        continue;
+                    }
                     if ((it.Value().ShapeType() != TopAbs_EDGE)
                         && (it.Value().ShapeType() != TopAbs_WIRE)) {
                         throw Base::TypeError(QT_TRANSLATE_NOOP(
@@ -788,6 +792,11 @@ void Pipe::buildPipePath(
                 }
 
                 std::vector<Part::TopoShape> edges = shape.getSubTopoShapes(TopAbs_EDGE);
+                if (edges.empty()) {
+                    throw Base::TypeError(
+                        QT_TRANSLATE_NOOP("Exception", "Spine is neither an edge nor a wire.")
+                    );
+                }
 
                 path = path.makeElementWires(edges);
             }
