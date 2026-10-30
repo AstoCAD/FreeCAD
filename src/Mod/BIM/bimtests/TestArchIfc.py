@@ -102,6 +102,37 @@ class TestArchIfc(TestArchBase.TestArchBase):
             },
         )
 
+    def test_remove_property_keeps_valueless_properties(self):
+        """Removing a property must not delete the property set while it still holds
+        properties that get_psets() leaves out because they have no value."""
+        from nativeifc import ifc_psets
+        from nativeifc import ifc_tools
+
+        model, wall = _make_wall_file()
+        pset = ifcopenshell.api.run("pset.add_pset", model, product=wall, name="Pset_Custom")
+        single = model.createIfcPropertySingleValue("Single", None, model.createIfcLabel("one"))
+        empty = model.createIfcPropertySingleValue("Empty", None, None)
+        pset.HasProperties = [single, empty]
+        path = os.path.join(tempfile.mkdtemp(), "remove_property.ifc")
+        model.write(path)
+
+        ifc_tools.create_document(self.document, path, shapemode=1, strategy=2, silent=True)
+        self.document.recompute()
+        obj = [o for o in self.document.Objects if getattr(o, "IfcClass", "") == "IfcWall"][0]
+        ifcfile = ifc_tools.get_ifcfile(obj)
+
+        # what ifc_observer does when the user deletes the dynamic property
+        ifc_psets.remove_property(obj, "Single")
+        psets = [p for p in ifcfile.by_type("IfcPropertySet") if p.Name == "Pset_Custom"]
+        self.assertEqual(len(psets), 1, "the property set was deleted with its valueless property")
+        self.assertEqual([p.Name for p in psets[0].HasProperties], ["Empty"])
+
+        # removing the last property still removes the property set
+        ifcopenshell.api.run("pset.edit_pset", ifcfile, pset=psets[0], properties={"Empty": "x"})
+        ifc_psets.remove_property(obj, "Empty")
+        psets = [p for p in ifcfile.by_type("IfcPropertySet") if p.Name == "Pset_Custom"]
+        self.assertEqual(psets, [])
+
     def test_export_app_part_skips_base_objects(self):
         """The base objects of BIM objects inside an App::Part must not be exported.
         https://github.com/FreeCAD/FreeCAD/issues/28368"""

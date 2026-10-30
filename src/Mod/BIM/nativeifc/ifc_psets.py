@@ -393,7 +393,13 @@ def remove_property(obj, prop):
             if pset:
                 FreeCAD.Console.PrintMessage(translate("BIM", "Removing property") + ": " + prop)
                 ifc_tools.api_run("pset.edit_pset", ifcfile, pset=pset, properties={prop: None})
-                if len(props) == 1:
+                # get_psets() leaves out properties without a value, so count the
+                # properties actually left in the IFC property set
+                if pset.is_a("IfcPropertySet"):
+                    left = pset.HasProperties
+                else:
+                    left = getattr(pset, "Properties", None)
+                if not left:
                     # delete the pset too
                     FreeCAD.Console.PrintMessage(
                         translate("BIM", "Removing property set") + ": " + psetname
