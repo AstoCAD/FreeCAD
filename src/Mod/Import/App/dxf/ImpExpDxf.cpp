@@ -1458,6 +1458,29 @@ void ImpExpDxfRead::OnReadPolyline(std::list<VertexInfo>& vertices, int flags)
         return;
     }
 
+    // The vertices of a 2D polyline are given in the entity's Object Coordinate System, defined
+    // by its extrusion direction (group code 210). 3D polylines (flag 8) and polygon/polyface
+    // meshes (flags 16 and 64) use world coordinates (#17046).
+    if ((flags & (8 | 16 | 64)) == 0 && !OCSOrientationTransform.isUnity()) {
+        const Base::Matrix4D& ocs = OCSOrientationTransform;
+        gp_Trsf ocsToWcs;
+        ocsToWcs.SetValues(
+            ocs[0][0],
+            ocs[0][1],
+            ocs[0][2],
+            ocs[0][3],
+            ocs[1][0],
+            ocs[1][1],
+            ocs[1][2],
+            ocs[1][3],
+            ocs[2][0],
+            ocs[2][1],
+            ocs[2][2],
+            ocs[2][3]
+        );
+        wire = TopoDS::Wire(BRepBuilderAPI_Transform(wire, ocsToWcs, true).Shape());
+    }
+
     if (m_importMode == ImportMode::EditableDraft) {
         GeometryBuilder builder(wire);
         builder.type = GeometryBuilder::PrimitiveType::PolylineFlattened;

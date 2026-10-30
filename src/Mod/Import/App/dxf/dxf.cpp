@@ -2066,8 +2066,8 @@ void CDxfRead::ResolveEntityAttributes()
     // means the X and Y components of EntityNormalVector are less than 1/64, a value chosen because
     // it is exactly representable in all binary floating-point systems.
     Base::Vector3d xDirection;
-    if (EntityNormalVector.x < ArbitraryAxisAlgorithmThreshold
-        && EntityNormalVector.y < ArbitraryAxisAlgorithmThreshold) {
+    if (std::fabs(EntityNormalVector.x) < ArbitraryAxisAlgorithmThreshold
+        && std::fabs(EntityNormalVector.y) < ArbitraryAxisAlgorithmThreshold) {
         // The Z axis is close to the UCS Z axis, the X direction is UCSY × OCSZ
         static const Base::Vector3d UCSYAxis(0, 1, 0);
         xDirection = UCSYAxis % EntityNormalVector;
@@ -2077,6 +2077,7 @@ void CDxfRead::ResolveEntityAttributes()
         static const Base::Vector3d UCSZAxis(0, 0, 1);
         xDirection = UCSZAxis % EntityNormalVector;
     }
+    xDirection.Normalize();
     OCSOrientationTransform.setCol(0, xDirection);
     // In all cases the Y direction is the Zdirection × XDirection which gives a right-hand
     // orthonormal coordinate system
