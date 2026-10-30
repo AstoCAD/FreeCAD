@@ -120,7 +120,12 @@ SketchSolveStatus SketchObject::moveGeometries(
     // geometry to that of of SketchObject upon moving. => use updateGeometry parameter = true then
 
 
-    if (updateGeoBeforeMoving || solverNeedsUpdate) {
+    // Geometry added or removed without a solve (e.g. addGeometry() from Python) leaves the
+    // solver with the old geometry list, which would overwrite the new one below.
+    const bool solverGeometryIsStale = solvedSketch.getGeometrySize()
+        != getHighestCurveIndex() + 1 + getExternalGeometryCount();
+
+    if (updateGeoBeforeMoving || solverNeedsUpdate || solverGeometryIsStale) {
         lastDoF = solvedSketch.setUpSketch(
             getCompleteGeometry(),
             Constraints.getValues(),
@@ -149,7 +154,13 @@ SketchSolveStatus SketchObject::moveGeometries(
 
     if (lastSolverStatus == GCS::SolveStatus::Success) {
         std::vector<Part::Geometry*> geomlist = solvedSketch.extractGeometry();
-        Geometry.setValues(geomlist);
+        if (static_cast<int>(geomlist.size()) == Geometry.getSize()) {
+            Geometry.setValues(geomlist);
+        }
+        else {
+            // never replace the sketch geometry by a shorter or longer solver list
+            lastSolverStatus = GCS::SolveStatus::Failed;
+        }
         for (auto* geo : geomlist) {
             delete geo;
         }
