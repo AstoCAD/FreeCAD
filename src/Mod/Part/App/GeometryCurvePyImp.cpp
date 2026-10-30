@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
 #include <sstream>
 
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -873,6 +874,10 @@ PyObject* GeometryCurvePy::toBSpline(PyObject* args) const
             if (!PyArg_ParseTuple(args, "|dd", &u, &v)) {
                 return nullptr;
             }
+            if (std::isnan(u) || std::isnan(v)) {
+                PyErr_SetString(PyExc_ValueError, "Curve parameter must not be NaN");
+                return nullptr;
+            }
             GeomBSplineCurve* spline = getGeomCurvePtr()->toBSpline(u, v);
             return new BSplineCurvePy(spline);
         }
@@ -898,6 +903,10 @@ PyObject* GeometryCurvePy::toNurbs(PyObject* args) const
             if (!PyArg_ParseTuple(args, "|dd", &u, &v)) {
                 return nullptr;
             }
+            if (std::isnan(u) || std::isnan(v)) {
+                PyErr_SetString(PyExc_ValueError, "Curve parameter must not be NaN");
+                return nullptr;
+            }
             GeomBSplineCurve* spline = getGeomCurvePtr()->toNurbs(u, v);
             return new BSplineCurvePy(spline);
         }
@@ -921,6 +930,10 @@ PyObject* GeometryCurvePy::trim(PyObject* args) const
             u = c->FirstParameter();
             v = c->LastParameter();
             if (!PyArg_ParseTuple(args, "|dd", &u, &v)) {
+                return nullptr;
+            }
+            if (std::isnan(u) || std::isnan(v)) {
+                PyErr_SetString(PyExc_ValueError, "Curve parameter must not be NaN");
                 return nullptr;
             }
             return Py::new_reference_to(makeTrimmedCurvePy(c, u, v));
