@@ -1441,7 +1441,13 @@ void ObjectIdentifier::String::checkImport(const App::DocumentObject* owner,
             }
         }
         else if (str.back() != '@') {
-            str = reader->getName(str.c_str());
+            // A label reference (<<label>>) to an imported object whose label was
+            // changed on import (e.g. to keep it unique) must follow the new label.
+            std::string label;
+            if (isRealString()) {
+                label = ExpressionParser::ExpressionImporter::getLabel(str);
+            }
+            str = label.empty() ? std::string(reader->getName(str.c_str())) : label;
         }
         else {
             str.resize(str.size() - 1);
