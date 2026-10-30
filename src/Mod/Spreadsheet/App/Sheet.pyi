@@ -99,8 +99,8 @@ class Sheet(DocumentObject):
     def getDisplayUnit(self, address: str, /) -> str | None:
         """Get display unit for cell"""
 
-    def setForeground(self, address: str, value: tuple[float, ...], /) -> None:
-        """Set foreground color of the cell"""
+    def setForeground(self, address: str, value: tuple[float, ...] | None, /) -> None:
+        """Set foreground color of the cell, None clears it"""
 
     def clearForeground(self, address: str, /) -> None:
         """Clears foreground color of the cell"""
@@ -108,8 +108,8 @@ class Sheet(DocumentObject):
     def getForeground(self, address: str, /) -> tuple[float, float, float, float] | None:
         """Get foreground color of the cell"""
 
-    def setBackground(self, address: str, value: tuple[float, ...], /) -> None:
-        """Set background color of the cell"""
+    def setBackground(self, address: str, value: tuple[float, ...] | None, /) -> None:
+        """Set background color of the cell, None clears it"""
 
     def clearBackground(self, address: str, /) -> None:
         """Clears background color of the cell"""
