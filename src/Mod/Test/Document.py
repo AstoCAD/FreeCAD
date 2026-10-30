@@ -3641,3 +3641,54 @@ class DocumentPathCases(unittest.TestCase):
         )
         self.assertIsNotNone(node)
         self.assertEqual(node.attrib["file"], "Source.FCStd")
+
+
+class DocumentXLinkStampCases(unittest.TestCase):
+    """External links must notice a linked document saved after them."""
+
+    def setUp(self):
+        from pathlib import Path
+
+        self.previous_document = FreeCAD.ActiveDocument.Name if FreeCAD.ActiveDocument else None
+        self.initial_documents = set(FreeCAD.listDocuments())
+        storage = tempfile.TemporaryDirectory()
+        self.addCleanup(storage.cleanup)
+        self.directory = Path(storage.name)
+
+    def tearDown(self):
+        for name in reversed(list(FreeCAD.listDocuments())):
+            if name not in self.initial_documents:
+                FreeCAD.closeDocument(name)
+        if self.previous_document in FreeCAD.listDocuments():
+            FreeCAD.setActiveDocument(self.previous_document)
+
+    def test_link_touched_when_open_linked_document_changed(self):
+        # Issue #25295: when the linked document was opened, changed and saved
+        # before the owner was opened, the link was not marked touched.
+        import time
+
+        source_file = self.directory / "Source.FCStd"
+        owner_file = self.directory / "Owner.FCStd"
+        source = FreeCAD.newDocument("StampLinkSource")
+        target = source.addObject("App::FeaturePython", "Target")
+        source.saveAs(str(source_file))
+        owner = FreeCAD.newDocument("StampLinkOwner")
+        owner.saveAs(str(owner_file))
+        owner.addObject("App::Link", "Link").LinkedObject = target
+        owner.recompute()
+        owner.save()
+        FreeCAD.closeDocument(owner.Name)
+
+        # Unchanged linked document: the link stays up to date
+        owner = FreeCAD.openDocument(str(owner_file))
+        self.assertNotIn("Touched", owner.Link.State)
+        FreeCAD.closeDocument(owner.Name)
+
+        # The saved time stamp has a resolution of one second
+        time.sleep(1.1)
+        source.Target.Label = "ChangedTarget"
+        source.save()
+
+        owner = FreeCAD.openDocument(str(owner_file))
+        self.assertEqual(owner.Link.LinkedObject, source.Target)
+        self.assertIn("Touched", owner.Link.State)
