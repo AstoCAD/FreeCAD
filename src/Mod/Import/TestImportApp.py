@@ -53,3 +53,62 @@ class StepExportColorTest(unittest.TestCase):
         for value in values:
             self.assertGreaterEqual(value, 0.0)
             self.assertLessEqual(value, 1.0)
+
+
+class DxfSketchExportTest(unittest.TestCase):
+    def setUp(self):
+        self.fileName = os.path.join(tempfile.gettempdir(), "ImportDxfSketchExportTest.dxf")
+        self.doc = App.newDocument()
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+        if os.path.exists(self.fileName):
+            os.remove(self.fileName)
+
+    def _circleCenters(self):
+        with open(self.fileName, encoding="utf-8", errors="replace") as f:
+            lines = [line.strip() for line in f.read().splitlines()]
+        centers = []
+        for i in range(1, len(lines)):
+            if lines[i] != "CIRCLE" or lines[i - 1] != "0":
+                continue
+            values = {}
+            j = i + 1
+            while j + 1 < len(lines) and lines[j] != "0":
+                values[lines[j]] = lines[j + 1]
+                j += 2
+            centers.append((float(values["10"]), float(values["20"])))
+        return centers
+
+    def _exportCircleSketch(self, placement):
+        import Part
+
+        sketch = self.doc.addObject("Sketcher::SketchObject", "Sketch")
+        sketch.addGeometry(Part.Circle(App.Vector(4, 0, 0), App.Vector(0, 0, 1), 1))
+        sketch.Placement = placement
+        self.doc.recompute()
+        Import.writeDXFObject([sketch], self.fileName)
+        centers = self._circleCenters()
+        self.assertEqual(len(centers), 1)
+        return centers[0]
+
+    def testSketchPlacementIsKept(self):
+        """The sketch placement must be applied to the exported geometry (#17962)"""
+        placement = App.Placement(App.Vector(2, 3, 0), App.Rotation())
+        x, y = self._exportCircleSketch(placement)
+        self.assertAlmostEqual(x, 6.0, places=6)
+        self.assertAlmostEqual(y, 3.0, places=6)
+
+    def testRotatedSketchPlacementIsKept(self):
+        """A sketch rotated around Z keeps its global XY position (#17962)"""
+        placement = App.Placement(App.Vector(2, 3, 5), App.Rotation(App.Vector(0, 0, 1), 90))
+        x, y = self._exportCircleSketch(placement)
+        self.assertAlmostEqual(x, 2.0, places=6)
+        self.assertAlmostEqual(y, 7.0, places=6)
+
+    def testVerticalSketchPositionIsKept(self):
+        """A sketch on a vertical plane keeps its offset within that plane (#17962)"""
+        placement = App.Placement(App.Vector(2, 3, 5), App.Rotation(App.Vector(1, 0, 0), 90))
+        x, y = self._exportCircleSketch(placement)
+        self.assertAlmostEqual(x, 6.0, places=6)
+        self.assertAlmostEqual(y, 5.0, places=6)

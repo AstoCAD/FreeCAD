@@ -27,6 +27,7 @@
 #include <HLRBRep_HLRToShape.hxx>
 #include <BRep_Builder.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
+#include <Precision.hxx>
 
 
 #include <App/DocumentObject.h>
@@ -95,13 +96,17 @@ TopoDS_Shape SketchExportHelper::getFlatSketchXY(App::DocumentObject* obj)
     Base::Vector3d sketchX;
     rot.multVec(stdX, sketchX);
 
-    // get the sketch origin
-    Base::Vector3d position = plm.getPosition();
-    gp_Ax2 projectionCS(
-        gp_Pnt(position.x, position.y, position.z),
-        gp_Dir(sketchNormal.x, sketchNormal.y, sketchNormal.z),
-        gp_Dir(sketchX.x, sketchX.y, sketchX.z)
-    );
+    // Project relative to the global origin, so that the sketch's position is kept (#17962).
+    // A sketch parallel to the XY plane is projected onto the global XY plane, which also keeps
+    // its rotation around Z (and does not mirror a sketch whose normal points down).
+    gp_Ax2 projectionCS;
+    if (!sketchNormal.IsParallel(stdZ, Precision::Angular())) {
+        projectionCS = gp_Ax2(
+            gp_Pnt(0.0, 0.0, 0.0),
+            gp_Dir(sketchNormal.x, sketchNormal.y, sketchNormal.z),
+            gp_Dir(sketchX.x, sketchX.y, sketchX.z)
+        );
+    }
     const TopoDS_Shape& shape = sketch->Shape.getValue();
     return projectShape(shape, projectionCS);
 }
