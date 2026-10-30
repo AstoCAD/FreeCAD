@@ -168,6 +168,29 @@ class TestArchSectionPlane(TestArchBase.TestArchBase):
         App.ActiveDocument.recompute()
         assert True
 
+    def testGetSVGLineCap(self):
+        """getSVG uses the requested line cap instead of square.
+
+        https://github.com/FreeCAD/FreeCAD/issues/27866
+        """
+        line = Draft.make_wire([App.Vector(0, 0, 0), App.Vector(2000, 0, 0)])
+        wall = Arch.makeWall(line, height=2000)
+        section = Arch.makeSectionPlane([wall])
+        section.Placement.Base = App.Vector(0, 0, 1000)
+        self.document.recompute()
+
+        default = ArchSectionPlane.getSVG(section, techdraw=True)
+        self.assertIn('stroke-linecap="square"', default)
+        self.assertEqual(ArchSectionPlane.getSVG(section, techdraw=True, linecap="square"), default)
+        for cap in ("round", "butt"):
+            svg = ArchSectionPlane.getSVG(section, techdraw=True, linecap=cap)
+            self.assertNotIn("square", svg)
+            self.assertIn('stroke-linecap="{}"'.format(cap), svg)
+            restored = svg.replace('stroke-linecap="{}"'.format(cap), 'stroke-linecap="square"')
+            self.assertEqual(restored, default)
+        # the cached SVG still produces the default output afterwards
+        self.assertEqual(ArchSectionPlane.getSVG(section, techdraw=True), default)
+
     def testShape2DViewGeneration(self):
         """Tests Draft_Shape2DView face with hole creation"""
 

@@ -32,6 +32,7 @@
 #include <Base/Interpreter.h>
 
 #include "DrawViewArch.h"
+#include "Preferences.h"
 
 
 using namespace TechDraw;
@@ -128,6 +129,10 @@ App::DocumentObjectExecReturn *DrawViewArch::execute()
                  << ", cutlinewidth=" << CutLineWidth.getValue()
                  << ", linespacing=" << LineSpacing.getValue()
                  << ", joinArch=" << (JoinArch.getValue() ? "True" : "False");
+        std::string lineCap = Preferences::svgLineCap();
+        if (!lineCap.empty()) {
+            paramStr << ", linecap=\"" << lineCap << "\"";
+        }
 
         Base::Interpreter().runString("import ArchSectionPlane");
         Base::Interpreter().runStringArg("svgBody = ArchSectionPlane.getSVG(%s %s)",
