@@ -1139,12 +1139,13 @@ void PropertySheet::removeRows(int row, int count)
         else if (key.row() >= row + count) {
             moveCell(key, CellAddress(key.row() - count, key.col()), renames);
         }
-        else if (cell->getSpans(spanRows, spanCols) && key.row() + spanRows >= row) {
+        else if (cell->getSpans(spanRows, spanCols) && key.row() + spanRows > row) {
+            // The merged cell starts above and overlaps the removed rows
             if (key.row() + spanRows >= row + count) {
                 spanRows -= count;
             }
             else {
-                spanRows = key.row() - row;
+                spanRows = row - key.row();
             }
             mergeCells(
                 j->first,
@@ -1286,12 +1287,13 @@ void PropertySheet::removeColumns(int col, int count)
         else if (key.col() >= col + count) {
             moveCell(key, CellAddress(key.row(), key.col() - count), renames);
         }
-        else if (cell->getSpans(spanRows, spanCols) && key.col() + spanCols >= col) {
+        else if (cell->getSpans(spanRows, spanCols) && key.col() + spanCols > col) {
+            // The merged cell starts left of and overlaps the removed columns
             if (key.col() + spanCols >= col + count) {
                 spanCols -= count;
             }
             else {
-                spanCols = key.col() - col;
+                spanCols = col - key.col();
             }
             mergeCells(
                 j->first,
