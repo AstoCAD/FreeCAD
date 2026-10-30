@@ -1535,6 +1535,56 @@ bool DrawSketchHandler::generateOneAutoConstraintFromSuggestion(
     return true;
 }
 
+namespace
+{
+// Diagnoses the sketch with the given autoconstraints added, at the solved position, and returns
+// the number of redundant constraints reported by the solver.
+std::size_t diagnoseRedundancies(
+    Sketcher::SketchObject* sketchobject,
+    const std::vector<std::unique_ptr<Sketcher::Constraint>>& autoConstraints
+)
+{
+    sketchobject->diagnoseAdditionalConstraints(toPointerVector(autoConstraints), true);
+    return sketchobject->getLastHasRedundancies() ? sketchobject->getLastRedundant().size() : 0;
+}
+
+// The popularity contest of the solver may report a constraint of the sketch as redundant,
+// although the sketch is only redundant with the autoconstraints (see #32680). Remove the
+// autoconstraints causing the redundancy instead, the earliest first (for an arc by center, this
+// keeps the endpoints connected). Returns false if this does not resolve the redundancy. On
+// success, the last diagnose matches the remaining autoconstraints.
+bool removeAutoConstraintsCausingRedundancy(
+    Sketcher::SketchObject* sketchobject,
+    std::vector<std::unique_ptr<Sketcher::Constraint>>& autoConstraints
+)
+{
+    if (diagnoseRedundancies(sketchobject, {}) > 0) {
+        return false;  // the sketch is redundant on its own
+    }
+
+    auto redundancies = diagnoseRedundancies(sketchobject, autoConstraints);
+    while (redundancies > 0) {
+        bool reduced = false;
+        for (std::size_t index = 0; index < autoConstraints.size(); ++index) {
+            auto position = std::next(autoConstraints.begin(), index);
+            auto candidate = std::move(*position);
+            autoConstraints.erase(position);
+            auto remaining = diagnoseRedundancies(sketchobject, autoConstraints);
+            if (remaining < redundancies) {
+                redundancies = remaining;
+                reduced = true;
+                break;
+            }
+            autoConstraints.insert(std::next(autoConstraints.begin(), index), std::move(candidate));
+        }
+        if (!reduced) {
+            return false;
+        }
+    }
+    return true;
+}
+}  // namespace
+
 bool DrawSketchHandler::filterRedundantAutoConstraints(
     std::vector<std::unique_ptr<Sketcher::Constraint>>& autoConstraints
 )
@@ -1548,8 +1598,9 @@ bool DrawSketchHandler::filterRedundantAutoConstraints(
     auto constraints = toPointerVector(autoConstraints);
 
     // Allows a diagnose with the new autoconstraints as if they were part of the sketchobject,
-    // but WITHOUT adding them to the sketchobject..
-    sketchobject->diagnoseAdditionalConstraints(constraints);
+    // but WITHOUT adding them to the sketchobject.. The new geometry is where it was drawn, so
+    // diagnose at the solved position, where the autoconstraints are satisfied (see #32680).
+    sketchobject->diagnoseAdditionalConstraints(constraints, true);
 
     if (sketchobject->getLastHasRedundancies()) {
         Base::Console().message(
@@ -1568,7 +1619,12 @@ bool DrawSketchHandler::filterRedundantAutoConstraints(
                 autoConstraints.erase(std::next(autoConstraints.begin(), removeindex));
             }
             else {
-                return false;
+                // The solver chose a constraint of the sketch, although the redundancy is caused
+                // by the autoconstraints. Remove the autoconstraints causing it instead.
+                if (!removeAutoConstraintsCausingRedundancy(sketchobject, autoConstraints)) {
+                    return false;
+                }
+                break;
             }
         }
 
