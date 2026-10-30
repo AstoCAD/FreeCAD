@@ -47,6 +47,7 @@ void CAMSettings::applySettings()
 {
     OnChange(*hGrp, "DefaultNormalPathColor");
     OnChange(*hGrp, "DefaultRapidPathColor");
+    OnChange(*hGrp, "DefaultPathLineWidth");
 }
 
 void CAMSettings::OnChange(ParameterGrp::SubjectType& rCaller, ParameterGrp::MessageType Reason)
@@ -70,6 +71,9 @@ void CAMSettings::OnChange(ParameterGrp::SubjectType& rCaller, ParameterGrp::Mes
         rb = ((rcol >> 8) & 0xff) / 255.0;
 
         mDlg.setPathColor(QColor::fromRgbF(lr, lg, lb), QColor::fromRgbF(rr, rg, rb));
+    }
+    else if (Reason == "DefaultPathLineWidth"sv) {
+        mDlg.setPathLineWidth(static_cast<int>(hGrp->GetInt("DefaultPathLineWidth", 1)));
     }
 }
 
