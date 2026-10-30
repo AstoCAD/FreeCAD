@@ -833,6 +833,9 @@ class _Window(ArchComponent.Component):
             )  # always use original's base; clone's base should not be used to supersede original's base
         else:
             base = obj.Base
+        if not base or not hasattr(base, "Shape"):
+            # no base to drill the hole from, e.g. a clone whose CloneOf was cleared
+            return None
 
         # finding which wire to use to drill the hole
         f = None

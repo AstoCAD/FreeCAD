@@ -622,6 +622,37 @@ class TestArchWindow(TestArchBase.TestArchBase):
             msg="The volume removed from the wall by the cloned window is incorrect.",
         )
 
+    def test_cleared_clone_window_does_not_break_host(self):
+        """A hosted window clone whose CloneOf is cleared must not break the host wall.
+
+        Regression test for https://github.com/FreeCAD/FreeCAD/issues/20417
+        """
+        wall_base = Draft.make_line(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(3000, 0, 0))
+        wall = Arch.makeWall(wall_base, width=200, height=2500)
+        self.document.recompute()
+
+        sketch = self._create_sketch_with_wires("CloneWinSketch", [(0, 0, 800, 1200)])
+        sketch.Placement.Rotation = FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90)
+        self.document.recompute()
+        window = Arch.makeWindow(baseobj=sketch)
+        self.document.recompute()
+
+        clone = Draft.clone(window)
+        clone.Placement.Base = FreeCAD.Vector(1100, 100, 800)
+        self.document.recompute()
+        Arch.addComponents(clone, host=wall)
+        self.document.recompute()
+        self.assertIsNone(clone.Base, "A window clone should not have a Base of its own.")
+
+        # Clear the clone relationship, as done via the 'Clone Of' property editor, then edit
+        # the window so that its host wall recomputes.
+        clone.CloneOf = None
+        clone.Width = 900
+        self.document.recompute()
+
+        self.assertNotIn("Invalid", wall.State, "Host wall failed to recompute.")
+        self.assertFalse(wall.Shape.isNull())
+
     def test_addComponents_window_to_wall(self):
         """
         Tests the Arch.addComponents function for adding a window to a wall.
