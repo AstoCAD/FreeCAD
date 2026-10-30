@@ -204,3 +204,37 @@ class TestArchRebar(TestArchBase.TestArchBase):
         self.document.recompute()
         self.assertTrue(r, "Arch Rebar creation failed")
         self.assertFalse(r.Shape.isNull(), "Rebar shape is null")
+
+    def test_custom_spacing_with_rotated_host(self):
+        """Custom spacing must place the bars like the uniform distribution on a rotated host.
+
+        Regression test for https://github.com/FreeCAD/FreeCAD/issues/33459
+        """
+        import Draft
+
+        host = Arch.makeStructure(length=3000, width=200, height=400)
+        host.Placement = FreeCAD.Placement(
+            FreeCAD.Vector(0, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 90)
+        )
+        self.document.recompute()
+
+        # Straight bar across the host width, distributed along the host length
+        rot = host.Placement.Rotation
+        p1 = host.Placement.multVec(FreeCAD.Vector(30, -70, -150))
+        p2 = host.Placement.multVec(FreeCAD.Vector(30, 70, -150))
+        line = Draft.make_wire([p1, p2])
+        self.document.recompute()
+
+        def bar_centers(custom_spacing):
+            rebar = Arch.makeRebar(host, line, 12, 4, 30)
+            rebar.Direction = rot.multVec(FreeCAD.Vector(1, 0, 0))
+            rebar.CustomSpacing = custom_spacing
+            self.document.recompute()
+            return [s.CenterOfMass for s in rebar.Shape.Solids]
+
+        uniform = bar_centers("")
+        # The same 4 bars, 980 mm apart
+        custom = bar_centers("4@980")
+        self.assertEqual(len(custom), len(uniform))
+        for c, u in zip(custom, uniform):
+            self.assertTrue(c.isEqual(u, 1e-6), f"Custom bar at {c}, expected {u}")
