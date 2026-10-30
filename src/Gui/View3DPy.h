@@ -22,7 +22,10 @@
 
 #pragma once
 
+#include <list>
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "MDIView.h"
 #include "MDIViewPy.h"
@@ -135,6 +138,8 @@ private:
     static void eventCallbackPivy(void* ud, SoEventCallback* n);
     static void eventCallbackPivyEx(void* ud, SoEventCallback* n);
     static void draggerCallback(void* ud, SoDragger* dragger);
+    void storeCallback(const std::string& key, PyObject* method);
+    PyObject* takeCallback(const std::string& key, PyObject* method);
 
 private:
     using method_varargs_handler = PyObject* (*)(PyObject* _self, PyObject* _args);
@@ -144,7 +149,8 @@ private:
 
 private:
     Gui::MDIViewPy base;
-    std::list<PyObject*> callbacks;
+    // registered Python callbacks (owned references) with the key of their registration
+    std::list<std::pair<std::string, PyObject*>> callbacks;
     std::unique_ptr<ToolHandler> activePythonToolHandler;
 };
 
