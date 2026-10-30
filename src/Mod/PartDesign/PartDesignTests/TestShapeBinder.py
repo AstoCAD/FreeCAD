@@ -85,6 +85,43 @@ class TestSubShapeBinder(unittest.TestCase):
 
         self.assertAlmostEqual(binder.Shape.Length, 80)
 
+    def testOffsetBinderOnOutwardThicknessFace(self):
+        """Issue #27113: offsetting the wall top face of an outward Thickness failed."""
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        box = body.newObject("PartDesign::AdditiveBox", "Box")
+        box.Length = 20
+        box.Width = 10
+        box.Height = 10
+        self.Doc.recompute()
+        top = [
+            "Face%d" % (i + 1)
+            for i, f in enumerate(box.Shape.Faces)
+            if abs(f.CenterOfMass.z - 10) < 1e-6
+        ]
+        thickness = body.newObject("PartDesign::Thickness", "Thickness")
+        thickness.Base = (box, top)
+        thickness.Value = 1.5
+        thickness.Reversed = False  # outward
+        thickness.Join = "Intersection"
+        self.Doc.recompute()
+        self.assertTrue(thickness.isValid())
+        wallTop = [
+            "Face%d" % (i + 1)
+            for i, f in enumerate(thickness.Shape.Faces)
+            if abs(f.CenterOfMass.z - 10) < 1e-6 and len(f.Wires) == 2
+        ]
+        self.assertEqual(len(wallTop), 1)
+
+        binder = body.newObject("PartDesign::SubShapeBinder", "Binder")
+        binder.Support = [(thickness, wallTop)]
+        binder.OffsetJoinType = "Intersection"
+        binder.Offset = 1.1
+        self.Doc.recompute()
+
+        # The 23 x 13 outline grows to 25.2 x 15.2, the 20 x 10 hole shrinks to 17.8 x 7.8
+        self.assertTrue(binder.isValid())
+        self.assertAlmostEqual(binder.Shape.Area, 25.2 * 15.2 - 17.8 * 7.8, places=6)
+
     def testBinderBeforeOrAfterPad(self):
         """Test case for PR #8763"""
         body = self.Doc.addObject("PartDesign::Body", "Body")
