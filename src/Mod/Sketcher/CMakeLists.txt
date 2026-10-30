@@ -70,6 +70,7 @@ if(BUILD_GUI)
           SketcherTests/TestEditTextDialogGui.py
           SketcherTests/TestPasteSelectionGui.py
           SketcherTests/TestWireSelectionGui.py
+          SketcherTests/TestAlignCameraOnEditGui.py
     )
 endif(BUILD_GUI)
 

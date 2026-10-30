@@ -4990,23 +4990,29 @@ void ViewProviderSketch::setEditViewer(Gui::View3DInventorViewer* viewer, int Mo
     else
         editSubName.resize(dot - editSubName.c_str() + 1);
 
-    Base::Placement plm = getEditingPlacement();
-    Base::Rotation tmp(plm.getRotation());
+    // The user may prefer to keep the current camera when opening a sketch (#12895)
+    ParameterGrp::handle hGrpGeneral = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/Sketcher/General");
+    if (hGrpGeneral->GetBool("AlignCameraOnEdit", true)) {
+        Base::Placement plm = getEditingPlacement();
+        Base::Rotation tmp(plm.getRotation());
 
-    SbRotation rot((float)tmp[0], (float)tmp[1], (float)tmp[2], (float)tmp[3]);
+        SbRotation rot((float)tmp[0], (float)tmp[1], (float)tmp[2], (float)tmp[3]);
 
-    // Will the sketch be visible from the new position (#0000957)?
-    //
-    SoCamera* camera = viewer->getSoRenderManager()->getCamera();
-    SbVec3f curdir;// current view direction
-    camera->orientation.getValue().multVec(SbVec3f(0, 0, -1), curdir);
-    SbVec3f plnpos = Base::convertTo<SbVec3f>(plm.getPosition());
-    camera->position.setValue(plnpos - camera->focalDistance.getValue() * curdir);
-    viewer->setCameraOrientation(rot);
-    if (getSketchObject()->Geometry.getSize() > 0 || getSketchObject()->ExternalGeometry.getSize() > 0) {
-        std::vector<App::SubObjectT> objs;
-        objs.emplace_back(getObject(), "");
-        viewer->viewObjects(objs);
+        // Will the sketch be visible from the new position (#0000957)?
+        //
+        SoCamera* camera = viewer->getSoRenderManager()->getCamera();
+        SbVec3f curdir;// current view direction
+        camera->orientation.getValue().multVec(SbVec3f(0, 0, -1), curdir);
+        SbVec3f plnpos = Base::convertTo<SbVec3f>(plm.getPosition());
+        camera->position.setValue(plnpos - camera->focalDistance.getValue() * curdir);
+        viewer->setCameraOrientation(rot);
+        if (getSketchObject()->Geometry.getSize() > 0
+            || getSketchObject()->ExternalGeometry.getSize() > 0) {
+            std::vector<App::SubObjectT> objs;
+            objs.emplace_back(getObject(), "");
+            viewer->viewObjects(objs);
+        }
     }
 
     if (annotations) {
