@@ -83,6 +83,7 @@ void DlgSettingsGeneral::saveSettings()
     ui->checkShowProfilePreview->onSave();
     ui->checkSwitchToTask->onSave();
     ui->checkNewSketchAttachmentDialog->onSave();
+    ui->checkRememberLastLength->onSave();
 }
 
 void DlgSettingsGeneral::loadSettings()
@@ -105,6 +106,7 @@ void DlgSettingsGeneral::loadSettings()
     ui->checkShowProfilePreview->onRestore();
     ui->checkSwitchToTask->onRestore();
     ui->checkNewSketchAttachmentDialog->onRestore();
+    ui->checkRememberLastLength->onRestore();
 }
 
 /**
