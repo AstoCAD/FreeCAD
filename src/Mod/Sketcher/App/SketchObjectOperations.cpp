@@ -1266,7 +1266,8 @@ int SketchObject::split(int GeoId, const Base::Vector3d& point)
     // FIXME: we should be able to transfer these to new curves smoothly
     // this removes internal geometry and constraints of geometries that still exists ???
     // deleteUnusedInternalGeometryAndUpdateGeoId(GeoId);
-    const auto* geoAsCurve = getGeometry<Part::GeomCurve>(GeoId);
+    // getGeometry<T>() is a static_cast: check the type, a point is not a curve
+    const auto* geoAsCurve = dynamic_cast<const Part::GeomCurve*>(getGeometry(GeoId));
     if (!geoAsCurve) {
         // e.g. a point: there is nothing to split
         return -1;
