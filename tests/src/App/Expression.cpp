@@ -25,6 +25,10 @@
 
 #include <src/App/InitApplication.h>
 
+#include <string>
+#include <vector>
+
+#include "Base/Console.h"
 #include "App/Document.h"
 #include "App/DocumentObject.h"
 #include "App/Expression.h"
@@ -419,5 +423,50 @@ TEST_F(Evaluate, test_simplify_refer_to_var)
     App::ExpressionPtr simplified = e->simplify();
     EXPECT_EQ(e->toString(), "sqrt(2 + Var)");
     EXPECT_EQ(simplified->toString(), "sqrt(2 + Var)");
+}
+
+namespace {
+class ErrorCounter final: public Base::ILogger
+{
+public:
+    void sendLog(const std::string& /*notifiername*/,
+                 const std::string& msg,
+                 Base::LogStyle level,
+                 Base::IntendedRecipient /*recipient*/,
+                 Base::ContentType /*content*/) override
+    {
+        if (level == Base::LogStyle::Error) {
+            errors.push_back(msg);
+        }
+    }
+
+    const char* name() override
+    {
+        return "ErrorCounter";
+    }
+
+    std::vector<std::string> errors;
+};
+}  // namespace
+
+// The dependencies of a path are collected by walking it in Python, which a path into a property
+// does not always allow (Sketcher's '.Constraints[<<name>>]' is resolved by its property, but is a
+// string index into a Python list). Such a path still depends on its property, and collecting its
+// dependencies must not report the Python error.
+TEST_F(Evaluate, test_dependencies_of_path_not_walkable_in_python)
+{
+    this_obj()->addDynamicProperty("App::PropertyStringList", "Names");
+    App::ExpressionPtr e = App::ExpressionParser::parse(this_obj(), "Names[<<a b>>]");
+
+    ErrorCounter logger;
+    Base::Console().attachObserver(&logger);
+    Base::Console().setConnectionMode(Base::ConsoleSingleton::Direct);
+    App::ExpressionDeps deps = e->getDeps();
+    Base::Console().detachObserver(&logger);
+
+    EXPECT_TRUE(logger.errors.empty()) << (logger.errors.empty() ? "" : logger.errors.front());
+    ASSERT_EQ(deps.size(), 1);
+    EXPECT_EQ(deps.begin()->first, this_obj());
+    EXPECT_EQ(deps.begin()->second.count("Names"), 1);
 }
 // clang-format on

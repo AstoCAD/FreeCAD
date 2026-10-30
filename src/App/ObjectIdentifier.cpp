@@ -534,7 +534,8 @@ void ObjectIdentifier::getSubPathStr(std::ostream& s,
 {
     std::vector<Component>::const_iterator i = components.begin() + result.propertyIndex + 1;
     while (i != components.end()) {
-        if (i->isSimple()) {
+        // a quoted simple component is written with the map syntax, see Component::toString()
+        if (i->isSimple() && !i->name.isRealString()) {
             s << '.';
         }
         i->toString(s, toPython);
@@ -619,12 +620,15 @@ Py::Object ObjectIdentifier::Component::get(const Py::Object& pyobj) const
                          true);
         PyObject* r = PyObject_GetItem(pyobj.ptr(), slice.ptr());
         if (!r) {
-            Base::PyException::throwException();
+            throw Py::Exception();
         }
         res = Py::asObject(r);
     }
+    // Leave the Python error to the callers: getDep() ignores a path that does not resolve in
+    // Python (e.g. '.Constraints[<<name>>]', which its property resolves itself), the others
+    // report it. Base::PyException::throwException() would report it here already.
     if (!res.ptr()) {
-        Base::PyException::throwException();
+        throw Py::Exception();
     }
     if (PyModule_Check(res.ptr()) && !ExpressionParser::isModuleImported(res.ptr())) {
         FC_THROWM(Base::RuntimeError, "Module '" << getName() << "' access denied.");
@@ -754,7 +758,15 @@ void ObjectIdentifier::Component::toString(std::ostream& ss, bool toPython) cons
 {
     switch (type) {
         case Component::SIMPLE:
-            ss << name.getString();
+            if (name.isRealString()) {
+                // The name is not a valid identifier (e.g. a constraint named
+                // "Bottom width" or "mm"). The grammar only accepts identifiers
+                // after a '.', so write it with the map syntax, which it parses.
+                ss << "[" << name.toString(toPython) << "]";
+            }
+            else {
+                ss << name.getString();
+            }
             break;
         case Component::MAP:
             ss << "[" << name.toString(toPython) << "]";
