@@ -71,6 +71,7 @@ from TDTest.DrawViewSelectionTeardownGuiTest import DrawViewSelectionTeardownGui
 from TDTest.DrawViewDeleteWhileRunningGuiTest import DrawViewDeleteWhileRunningGuiTest  # noqa: F401
 from TDTest.TestInsertSymbolStackTopGui import TestInsertSymbolStackTopGui  # noqa: F401
 from TDTest.TestDimensionLabelSnapGui import TestDimensionLabelSnapGui  # noqa: F401
+from TDTest.DrawTaskUndoGuiTest import DrawTaskUndoGuiTest  # noqa: F401
 from TDTest.TechDrawTaskTest import TechDrawTaskTest  # noqa: F401
 
 

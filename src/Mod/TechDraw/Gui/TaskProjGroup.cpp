@@ -997,6 +997,9 @@ TaskDlgProjGroup::TaskDlgProjGroup(TechDraw::DrawView* featView, bool mode)
                                          widget->windowTitle(), true, nullptr);
     taskbox->groupLayout()->addWidget(widget);
     Content.push_back(taskbox);
+    // In create mode the new view lives in the still open "Create view" transaction.
+    // Undo removes it while the dialog keeps raw pointers to it, so close the dialog.
+    setAutoCloseOnTransactionChange(mode);
 }
 
 void TaskDlgProjGroup::update()
@@ -1007,6 +1010,7 @@ void TaskDlgProjGroup::update()
 void TaskDlgProjGroup::setCreateMode(bool mode)
 {
     widget->setCreateMode(mode);
+    setAutoCloseOnTransactionChange(mode);
 }
 
 void TaskDlgProjGroup::modifyStandardButtons(QDialogButtonBox* box)
