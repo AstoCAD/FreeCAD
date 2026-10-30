@@ -36,6 +36,8 @@
 #include <QScreen>
 #include <QSizePolicy>
 #include <QStyleOptionToolButton>
+#include <QTextBlock>
+#include <QTextDocument>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -205,7 +207,27 @@ QIcon Action::icon() const
 
 void Action::setStatusTip(const QString& text)
 {
-    _action->setStatusTip(text);
+    // the status tip often falls back to the tool tip, which may be rich text
+    _action->setStatusTip(plainStatusTip(text));
+}
+
+QString Action::plainStatusTip(const QString& text)
+{
+    if (!Qt::mightBeRichText(text)) {
+        return text;
+    }
+
+    QTextDocument doc;
+    doc.setHtml(text);
+    for (QTextBlock block = doc.begin(); block.isValid(); block = block.next()) {
+        QString line = block.text();
+        line.replace(QChar::LineSeparator, QLatin1Char(' '));
+        line = line.simplified();
+        if (!line.isEmpty()) {
+            return line;
+        }
+    }
+    return {};
 }
 
 QString Action::statusTip() const
