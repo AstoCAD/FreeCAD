@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 
+#include <cmath>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeShell.hxx>
 #include <Geom_BSplineSurface.hxx>
@@ -117,6 +118,10 @@ PyObject* GeometrySurfacePy::toShape(PyObject* args) const
             double u1, u2, v1, v2;
             s->Bounds(u1, u2, v1, v2);
             if (!PyArg_ParseTuple(args, "|dddd", &u1, &u2, &v1, &v2)) {
+                return nullptr;
+            }
+            if (std::isnan(u1) || std::isnan(u2) || std::isnan(v1) || std::isnan(v2)) {
+                PyErr_SetString(PyExc_ValueError, "Surface parameter must not be NaN");
                 return nullptr;
             }
             BRepBuilderAPI_MakeFace mkBuilder(s, u1, u2, v1, v2, Precision::Confusion());
