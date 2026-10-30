@@ -165,7 +165,10 @@ public:
 
     void parameterTabOrEnterPressed(int parameterindex)
     {
-        Q_UNUSED(parameterindex);
+        // The widget field may have received the focus by mouse, without the tracked index
+        // being updated. Continue from the field where Tab/Enter was pressed.
+        ControllerBase::parameterWithFocus = static_cast<int>(ControllerBase::onViewParameters.size())
+            + parameterindex;
         passFocusToNextParameter();
     }
 
