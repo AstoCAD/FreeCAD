@@ -566,6 +566,27 @@ class TestCore(AssemblyTestBase):
         self.doc.recompute()
         self.assertFalse(local_array.ElementList[1].Suppressed)
 
+    def test_assembly_link_rejects_cyclic_link(self):
+        """An assembly link to an object that depends on it (its own parent assembly, or a
+        link back to itself) used to crash on recompute or hang forever."""
+        instance = self.assembly.newObject("Assembly::AssemblyLink", "Instance")
+        with self.assertRaises(ValueError):
+            instance.LinkedObject = self.assembly
+        self.assertIsNone(instance.LinkedObject)
+
+        first = self.doc.addObject("Assembly::AssemblyLink", "First")
+        second = self.doc.addObject("Assembly::AssemblyLink", "Second")
+        first.LinkedObject = second
+        with self.assertRaises(ValueError):
+            second.LinkedObject = first
+        self.assertIsNone(second.LinkedObject)
+
+        # linking another assembly still works
+        other = self.doc.addObject("Assembly::AssemblyObject", "Other")
+        instance.LinkedObject = other
+        self.doc.recompute()
+        self.assertEqual(instance.LinkedObject, other)
+
     def test_assembly_link_maps_generated_array_joint(self):
         self._check_generated_array_joint("Face1")
 
