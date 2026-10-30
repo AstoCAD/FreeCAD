@@ -163,6 +163,24 @@ class TestNavigationStyle(unittest.TestCase):
         self.assertTrue(moved.Rotation.isSame(initial.Rotation, 1e-6))
         self.assertGreater((moved.Base - initial.Base).Length, 1e-6)
 
+    def testZeroDurationViewPositionReturnsAtTarget(self):
+        # Issue #32771: an animated move with a duration of 0 ms never returned
+        animated = self.View.isAnimationEnabled()
+        self.View.setAnimationEnabled(True)
+        try:
+            initial = self.View.viewPosition()
+            target = FreeCAD.Placement(
+                initial.Base + FreeCAD.Vector(10.0, 20.0, 30.0),
+                FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 30) * initial.Rotation,
+            )
+            self.View.viewPosition(target, 0, 0)
+            moved = self.View.viewPosition()
+        finally:
+            self.View.setAnimationEnabled(animated)
+
+        self.assertTrue(moved.Rotation.isSame(target.Rotation, 1e-6))
+        self.assertLess((moved.Base - target.Base).Length, 1e-3)
+
     def testOrientationLockDoesNotBlockCameraTypeChanges(self):
         navigation = self.View.getViewer().getNavigationStyle()
         current = self.View.getCameraType()
