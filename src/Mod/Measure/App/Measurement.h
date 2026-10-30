@@ -140,6 +140,9 @@ protected:
         const char* subName,
         TopAbs_ShapeEnum hint = TopAbs_COMPOUND
     ) const;
+    // Like getShape(), but throws Base::ValueError if the referenced element is
+    // missing, e.g. because the referenced object has changed since it was added
+    TopoDS_Shape getValidShape(App::DocumentObject* obj, const char* subName) const;
 
 private:
     MeasureType measureType;
