@@ -141,3 +141,13 @@ class TestEditableDatumConstructorColorGui(unittest.TestCase):
         )
         self.assertEqual(explicit.getFunction(), baseline.getFunction())
         self._assert_color(explicit_node, self.COLOR)
+
+    def test_invalid_constructor_arguments_raise(self):
+        """The converters throw C++ exceptions: they must reach Python as
+        TypeError instead of escaping tp_new (which hung FreeCAD)."""
+        before = self.scene.getNumChildren()
+        with self.assertRaises(TypeError):
+            Gui.EditableDatumLabel(self.view, App.Placement(), (1.0, 2.0))
+        with self.assertRaises(TypeError):
+            Gui.EditableDatumLabel(self.view, 1)
+        self.assertEqual(self.scene.getNumChildren(), before)
