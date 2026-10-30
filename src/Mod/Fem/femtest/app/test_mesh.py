@@ -684,3 +684,35 @@ class TestMeshGroups(unittest.TestCase):
             new_fm.getGroupElements(new_fm.Groups[0]),
             msg="Group elements not retained",
         )
+
+    def test_group_xdmf_export_node_group(self):
+        """
+        Export a mesh with a node group to xdmf
+        https://github.com/FreeCAD/FreeCAD/issues/22762
+        """
+        from xml.etree import ElementTree as ET
+        from feminout import writeFenicsXDMF
+
+        mesh = Fem.FemMesh()
+        for i, (x, y) in enumerate([(0, 0), (1, 0), (1, 1), (0, 1)]):
+            mesh.addNode(x, y, 0, i + 1)
+        for edge in [(1, 2), (2, 3), (3, 4), (4, 1)]:
+            mesh.addEdge(list(edge))
+        mesh.addFace([1, 2, 3])
+        mesh.addFace([1, 3, 4])
+        group_id = mesh.addGroup("MyNodes", "Node")
+        mesh.addGroupElements(group_id, [1, 2])
+        mesh_obj = self.document.addObject("Fem::FemMeshObject", "Mesh")
+        mesh_obj.FemMesh = mesh
+
+        testfile = join(testtools.get_fem_test_tmp_dir("mesh_groups_xdmf"), "node_group.xdmf")
+        writeFenicsXDMF.write_fenics_mesh_xdmf(mesh_obj, testfile)
+
+        grid = ET.parse(testfile).getroot().find("Domain/Grid[@Name='MyNodes_mesh']")
+        self.assertIsNotNone(grid, "node group grid not written")
+        topology = grid.find("Topology")
+        self.assertEqual(topology.get("TopologyType"), "Polyvertex")
+        self.assertEqual(topology.get("NumberOfElements"), "4")
+        self.assertEqual(topology.find("DataItem").text.split(), ["0", "1", "2", "3"])
+        values = grid.find("Attribute/DataItem").text.split()
+        self.assertEqual(values, ["1", "1", "0", "0"])
