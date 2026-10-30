@@ -1059,13 +1059,20 @@ void SketchObject::delExternalPrivate(const std::set<long>& ids, bool removeRef)
         auto itSub = subs.begin();
         const auto& objs = ExternalGeometry.getValues();
         auto itObj = objs.begin();
+        // ExternalTypes is parallel to ExternalGeometry and must lose the same entries
+        auto types = ExternalTypes.getValues();
+        types.resize(objs.size(), static_cast<long>(ExtType::Projection));
+        std::vector<long> newTypes;
         bool touched = false;
         assert(externalGeoRef.size() == objs.size());
         assert(externalGeoRef.size() == subs.size());
-        for (auto it = externalGeoRef.begin(); it != externalGeoRef.end(); ++it, ++itObj, ++itSub) {
+        std::size_t index = 0;
+        for (auto it = externalGeoRef.begin(); it != externalGeoRef.end();
+             ++it, ++itObj, ++itSub, ++index) {
             if (refs.find(*it) == refs.end()) {
                 newObjs.push_back(*itObj);
                 newSubs.push_back(*itSub);
+                newTypes.push_back(types[index]);
             }
             else {
                 touched = true;
@@ -1073,6 +1080,7 @@ void SketchObject::delExternalPrivate(const std::set<long>& ids, bool removeRef)
         }
         if (touched) {
             ExternalGeometry.setValues(newObjs, newSubs);
+            ExternalTypes.setValues(newTypes);
         }
     }
 
