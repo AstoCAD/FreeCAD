@@ -732,6 +732,53 @@ class MeshProperty(unittest.TestCase):
     def tearDown(self):
         FreeCAD.closeDocument(self.doc.Name)
 
+    def _openWithInlineMesh(self, name, faceIndices, neighbourIndices=(-1, -1, -1)):
+        """Save a document, replace the mesh file by an inline <Mesh> element and reopen it"""
+        import re
+        import zipfile
+
+        mesh = self.doc.addObject("Mesh::Feature", "Triangle")
+        mesh.Mesh = Mesh.Mesh([Base.Vector(0, 0, 0), Base.Vector(1, 0, 0), Base.Vector(0, 1, 0)])
+        fileName = os.path.join(tempfile.gettempdir(), name + ".FCStd")
+        inlineName = os.path.join(tempfile.gettempdir(), name + "_inline.FCStd")
+        self.doc.saveAs(fileName)
+        FreeCAD.closeDocument(self.doc.Name)
+
+        p0, p1, p2 = faceIndices
+        n0, n1, n2 = neighbourIndices
+        inline = (
+            '<Mesh file=""><Points Count="3">'
+            '<P x="0" y="0" z="0"/><P x="1" y="0" z="0"/><P x="0" y="1" z="0"/>'
+            '</Points><Faces Count="1">'
+            '<F p0="{}" p1="{}" p2="{}" n0="{}" n1="{}" n2="{}"/>'
+            "</Faces></Mesh>".format(p0, p1, p2, n0, n1, n2)
+        )
+        with zipfile.ZipFile(fileName) as src, zipfile.ZipFile(inlineName, "w") as dst:
+            for item in src.infolist():
+                data = src.read(item.filename)
+                if item.filename == "Document.xml":
+                    data = re.sub(rb'<Mesh file="[^"]*"/>', inline.encode(), data)
+                dst.writestr(item, data)
+
+        self.doc = FreeCAD.openDocument(inlineName)
+        return self.doc.Triangle.Mesh
+
+    def testInlineXmlRestore(self):
+        mesh = self._openWithInlineMesh("mesh_inline_xml", (0, 1, 2))
+        self.assertEqual(mesh.CountPoints, 3)
+        self.assertEqual(mesh.CountFacets, 1)
+
+    def testInlineXmlRestoreRejectsInvalidPointIndex(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33322
+        mesh = self._openWithInlineMesh("mesh_inline_xml_invalid", (0, 1, 99))
+        self.assertEqual(mesh.CountFacets, 0)
+
+    def testInlineXmlRestoreRejectsInvalidNeighbourIndex(self):
+        # A neighbour index past the facet array was read out of bounds later on,
+        # e.g. removeFoldsOnSurface() raised an access violation.
+        mesh = self._openWithInlineMesh("mesh_inline_xml_invalid_nb", (0, 1, 2), (99, -1, -1))
+        self.assertEqual(mesh.CountFacets, 0)
+
     def testMaterial(self):
         mesh = self.doc.addObject("Mesh::Feature", "Sphere")
         mesh.Mesh = Mesh.createBox(1.0, 1.0, 1.0)
