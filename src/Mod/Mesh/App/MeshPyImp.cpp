@@ -837,9 +837,15 @@ PyObject* MeshPy::removeFacets(PyObject* args)
 
     std::vector<FacetIndex> indices;
     Py::Sequence ary(list);
+    long numFacets = static_cast<long>(getMeshObjectPtr()->countFacets());
     for (Py::Sequence::iterator it = ary.begin(); it != ary.end(); ++it) {
         Py::Long f(*it);
-        indices.push_back((long)f);
+        long index = static_cast<long>(f);
+        if (index < 0 || index >= numFacets) {
+            PyErr_SetString(PyExc_IndexError, "Facet index out of range");
+            return nullptr;
+        }
+        indices.push_back(index);
     }
 
     getMeshObjectPtr()->deleteFacets(indices);
@@ -1083,9 +1089,15 @@ PyObject* MeshPy::meshFromSegment(PyObject* args) const
 
     std::vector<FacetIndex> segment;
     Py::Sequence ary(list);
+    long numFacets = static_cast<long>(getMeshObjectPtr()->countFacets());
     for (Py::Sequence::iterator it = ary.begin(); it != ary.end(); ++it) {
         Py::Long f(*it);
-        segment.push_back((long)f);
+        long index = static_cast<long>(f);
+        if (index < 0 || index >= numFacets) {
+            PyErr_SetString(PyExc_IndexError, "Facet index out of range");
+            return nullptr;
+        }
+        segment.push_back(index);
     }
 
 
@@ -1859,9 +1871,14 @@ PyObject* MeshPy::collapseFacets(PyObject* args)
     try {
         Py::Sequence list(pcObj);
         std::vector<FacetIndex> facets;
+        long numFacets = static_cast<long>(getMeshObjectPtr()->countFacets());
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Long idx(*it);
-            unsigned long iIdx = static_cast<unsigned long>(idx);
+            long iIdx = static_cast<long>(idx);
+            if (iIdx < 0 || iIdx >= numFacets) {
+                PyErr_SetString(PyExc_IndexError, "Facet index out of range");
+                return nullptr;
+            }
             facets.push_back(iIdx);
         }
 
