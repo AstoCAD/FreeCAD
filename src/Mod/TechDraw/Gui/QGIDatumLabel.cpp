@@ -140,17 +140,39 @@ void QGIDatumLabel::snapPosition(QPointF& pos)
         return;
     }
 
-    // We only have snap for distances constraints
-    std::string type = dim->Type.getValueAsString();
-    if(type != "Distance" && type != "DistanceX" && type != "DistanceY") {
-        return;
-    }
-
     auto* vp = freecad_cast<ViewProviderDimension*>(Gui::Application::Instance->getViewProvider(dim));
     if (!vp || !vp->AllowSnap.getValue()) {
         return;
     }
 
+    // Each kind of dimension has its own snapping rules
+    std::string type = dim->Type.getValueAsString();
+    bool snapped = false;
+    if (type == "Distance" || type == "DistanceX" || type == "DistanceY") {
+        snapped = snapDistance(pos, dim, qgivd);
+    }
+    else if (type == "Radius" || type == "Diameter") {
+        snapped = snapRadial(pos, dim, qgivd, vp);
+    }
+    else if (type == "Angle" || type == "Angle3Pt") {
+        snapped = snapAngle(pos, dim, qgivd);
+    }
+    if (!snapped) {
+        return;
+    }
+
+    // block itemChange from calling snapPosition again
+    m_inhibitSnapOnPosChange = true;
+    setPos(pos);
+}
+
+//! Snap a linear dimension label to the middle of its dimension line, and in line or one
+//! spacing apart from the labels of parallel dimensions (chained or cascaded dimensions).
+bool QGIDatumLabel::snapDistance(QPointF& pos, TechDraw::DrawViewDimension* dim,
+                                 QGIViewDimension* qgivd)
+{
+    std::string type = dim->Type.getValueAsString();
+    bool snapped = false;
     qreal snapTextPercent = Preferences::SnapDimensionsTextFactor();
     double dimSpacing = Rez::guiX(activeDimAttributes.getCascadeSpacing());
 
@@ -158,7 +180,7 @@ void QGIDatumLabel::snapPosition(QPointF& pos)
     pointPair pp = dim->getLinearPoints();
     if (pp.first().IsEqual(pp.second(), EWTOLERANCE)) {
         // probably a broken dim
-        return;
+        return false;
     }
     Base::Vector3d p1_3d = Rez::guiX(pp.first());
     Base::Vector3d p2_3d = Rez::guiX(pp.second());
@@ -186,6 +208,7 @@ void QGIDatumLabel::snapPosition(QPointF& pos)
         posV = projPnt;
         pos.setX(posV.x - toCenter.x);
         pos.setY(posV.y - toCenter.y);
+        snapped = true;
     }
 
     // 2 - We check for coord/chain dimensions to offer proper snapping
@@ -241,21 +264,182 @@ void QGIDatumLabel::snapPosition(QPointF& pos)
                     posV = projPnt2;
                     pos.setX(posV.x - toCenter.x);
                     pos.setY(posV.y - toCenter.y);
+                    snapped = true;
                     break;
                 }
                 else if (fabs((projPnt2 - posV).Length() - fabs(dimSpacing)) < dimSpacing * snapChainPercent) {
                     posV = projPnt2 + (posV - projPnt2).Normalize() * dimSpacing;
                     pos.setX(posV.x - toCenter.x);
                     pos.setY(posV.y - toCenter.y);
+                    snapped = true;
                     break;
                 }
             }
         }
     }
 
-    // block itemChange from calling snapPosition again
-    m_inhibitSnapOnPosChange = true;
-    setPos(pos);
+    return snapped;
+}
+
+//! Snap a radius label to the middle of the radius line, and a diameter label to the center
+//! of the diameter line. Only the styles where the label follows the line are concerned.
+bool QGIDatumLabel::snapRadial(QPointF& pos, TechDraw::DrawViewDimension* dim,
+                               QGIViewDimension* qgivd, ViewProviderDimension* vp)
+{
+    int style = vp->StandardAndStyle.getValue();
+    bool isoOriented = style == ViewProviderDimension::STD_STYLE_ISO_ORIENTED;
+    if (!isoOriented && style != ViewProviderDimension::STD_STYLE_ASME_INLINED) {
+        return false;
+    }
+
+    // the angle of the line as last drawn, from the center towards the arc
+    std::optional<double> lineAngle = qgivd->getRadialLineAngle();
+    if (!lineAngle.has_value()) {
+        return false;
+    }
+
+    arcPoints arc = dim->getArcPoints();
+    double radius = Rez::guiX(arc.radius);
+    if (radius < Precision::Confusion()) {
+        // probably a broken dim
+        return false;
+    }
+    Base::Vector3d center3d = Rez::guiX(arc.center);
+    Base::Vector2d center(center3d.x, center3d.y);
+
+    // the line angle is measured with Y up, the label is placed with Y down
+    Base::Vector2d lineDir = Base::Vector2d::FromPolar(1.0, -lineAngle.value());
+    Base::Vector2d normal = lineDir.Perpendicular();
+    Base::Vector2d mid = center;
+    if (std::string(dim->Type.getValueAsString()) == "Radius") {
+        mid += lineDir * (radius * 0.5);
+    }
+
+    Base::Vector2d toCenter = getPosToCenterVec();
+    Base::Vector2d labelCenter = Base::Vector2d(pos.x(), pos.y()) + toCenter;
+
+    // ASME centers the label on the line. ISO keeps it beside the line, on its current side,
+    // at the distance used by QGIViewDimension. The hair more keeps the redrawn line angle
+    // defined when the label sits next to the center of a diameter.
+    double lineLabelDistance = 0.0;
+    if (isoOriented) {
+        lineLabelDistance = mapRectToParent(tightBoundingRect()).height() * 0.5
+            + Rez::guiX(qgivd->getIsoDimensionLineSpacing());
+        lineLabelDistance *= 1.0 + 1e-6;
+    }
+    double side = (labelCenter - mid) * normal >= 0.0 ? 1.0 : -1.0;
+    Base::Vector2d target = mid + normal * (side * lineLabelDistance);
+
+    qreal snapTextPercent = Preferences::SnapDimensionsTextFactor();
+    double dimSpacing = Rez::guiX(activeDimAttributes.getCascadeSpacing());
+    if ((target - labelCenter).Length() >= dimSpacing * snapTextPercent) {
+        return false;
+    }
+
+    pos.setX(target.x - toCenter.x);
+    pos.setY(target.y - toCenter.y);
+    return true;
+}
+
+//! Snap an angle label to the bisector of the angle, and its arc on or one spacing apart
+//! from the arcs of other angle dimensions with the same vertex (chained or cascaded angles).
+bool QGIDatumLabel::snapAngle(QPointF& pos, TechDraw::DrawViewDimension* dim,
+                              QGIViewDimension* qgivd)
+{
+    anglePoints ap = dim->getAnglePoints();
+    if (ap.first().IsEqual(ap.vertex(), EWTOLERANCE)
+        || ap.second().IsEqual(ap.vertex(), EWTOLERANCE)) {
+        // probably a broken dim
+        return false;
+    }
+    Base::Vector3d vertex3d = Rez::guiX(ap.vertex());
+    Base::Vector3d first3d = Rez::guiX(ap.first());
+    Base::Vector3d second3d = Rez::guiX(ap.second());
+    Base::Vector2d vertex(vertex3d.x, vertex3d.y);
+    Base::Vector2d leg1 = Base::Vector2d(first3d.x, first3d.y) - vertex;
+    Base::Vector2d leg2 = Base::Vector2d(second3d.x, second3d.y) - vertex;
+    leg1.Normalize();
+    leg2.Normalize();
+    if (dim->ShowSupplementary.getValue()) {
+        // as drawn by QGIViewDimension::drawAngle
+        leg1.Negate();
+    }
+
+    bool snapped = false;
+    qreal snapTextPercent = Preferences::SnapDimensionsTextFactor();
+    double dimSpacing = Rez::guiX(activeDimAttributes.getCascadeSpacing());
+
+    Base::Vector2d toCenter = getPosToCenterVec();
+    Base::Vector2d labelCenter = Base::Vector2d(pos.x(), pos.y()) + toCenter;
+
+    // 1 - We try to snap the label to the bisector of the angle.
+    Base::Vector2d bisector = leg1 + leg2;
+    if (bisector.Length() < Precision::Confusion()) {
+        // straight angle
+        bisector = leg1.Perpendicular();
+    }
+    Base::Vector2d projPnt;
+    projPnt.ProjectToLine(labelCenter - vertex, bisector);
+    projPnt = projPnt + vertex;
+    if ((projPnt - labelCenter).Length() < dimSpacing * snapTextPercent) {
+        labelCenter = projPnt;
+        snapped = true;
+    }
+
+    // 2 - We check for other angles around the same vertex to align or cascade the arcs.
+    std::optional<double> labelOffset = qgivd->getAngleLabelOffset();
+    Base::Vector2d radial = labelCenter - vertex;
+    double labelDistance = radial.Length();
+    auto* qgiv = dynamic_cast<QGIView*>(qgivd->parentItem());
+    auto* dvp = qgiv ? dynamic_cast<TechDraw::DrawViewPart*>(qgiv->getViewObject()) : nullptr;
+    if (dvp && labelOffset.has_value() && labelDistance > Precision::Confusion()) {
+        double offset = Rez::guiX(labelOffset.value());  // from the arc to the label center
+        double arcRadius = labelDistance - offset;
+        double snapChainPercent = Preferences::SnapDimensionsChainFactor();
+        double bestGap = dimSpacing * snapChainPercent;
+        std::optional<double> bestRadius;
+        for (auto& d : dvp->getDimensions()) {
+            if (d == dim) {
+                continue;
+            }
+            std::string typei = d->Type.getValueAsString();
+            if (typei != "Angle" && typei != "Angle3Pt") {
+                continue;
+            }
+            if (!d->getAnglePoints().vertex().IsEqual(ap.vertex(), EWTOLERANCE)) {
+                // not concentric
+                continue;
+            }
+            auto* vpi = freecad_cast<ViewProviderDimension*>(Gui::Application::Instance->getViewProvider(d));
+            if (!vpi) {
+                continue;
+            }
+            auto* qgivdi = dynamic_cast<QGIViewDimension*>(vpi->getQView());
+            if (!qgivdi || !qgivdi->getAngleArcRadius().has_value()) {
+                continue;
+            }
+            // same arc for chained angles, one spacing inside or outside for cascaded ones
+            double arcRadiusi = Rez::guiX(qgivdi->getAngleArcRadius().value());
+            for (double candidate : {arcRadiusi, arcRadiusi - dimSpacing, arcRadiusi + dimSpacing}) {
+                double gap = fabs(candidate - arcRadius);
+                if (candidate > 0.0 && candidate + offset > Precision::Confusion()
+                    && gap < bestGap) {
+                    bestGap = gap;
+                    bestRadius = candidate;
+                }
+            }
+        }
+        if (bestRadius.has_value()) {
+            labelCenter = vertex + radial * ((bestRadius.value() + offset) / labelDistance);
+            snapped = true;
+        }
+    }
+
+    if (snapped) {
+        pos.setX(labelCenter.x - toCenter.x);
+        pos.setY(labelCenter.y - toCenter.y);
+    }
+    return snapped;
 }
 
 void QGIDatumLabel::mousePressEvent(QGraphicsSceneMouseEvent* event)

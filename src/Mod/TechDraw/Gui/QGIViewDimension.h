@@ -26,6 +26,8 @@
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
+#include <optional>
+
 #include <QColor>
 #include <QFont>
 #include <QGraphicsItem>
@@ -93,6 +95,12 @@ public:
 
     void setNormalColorAll();
     TechDraw::DrawViewDimension* getDimFeat() { return dvDimension; }
+
+    // geometry of the last drawing, used by QGIDatumLabel to snap the label
+    std::optional<double> getRadialLineAngle() const { return m_radialLineAngle; }
+    std::optional<double> getAngleArcRadius() const { return m_angleArcRadius; }
+    std::optional<double> getAngleLabelOffset() const { return m_angleLabelOffset; }
+    double getIsoDimensionLineSpacing() const;
 
 public Q_SLOTS:
     void onPrettyChanged(int state);
@@ -211,7 +219,6 @@ private:
     double getDefaultExtensionLineOverhang() const;
     double getDefaultArrowTailLength() const;
     double getDefaultIsoDimensionLineSpacing() const;
-    double getIsoDimensionLineSpacing() const;
     double getDefaultIsoReferenceLineOverhang() const;
     double getDefaultAsmeHorizontalLeaderLength() const;
 
@@ -224,6 +231,12 @@ private:
     double m_lineWidth;
     QGIDatumLabel* areaLeaderPointLabel;
     bool isAreaLeaderPointDragged;
+
+    // angle of a radius or diameter line, from the center towards the arc (app space)
+    mutable std::optional<double> m_radialLineAngle;
+    // radius of an angle dimension arc, and distance from that arc to the label center
+    mutable std::optional<double> m_angleArcRadius;
+    mutable std::optional<double> m_angleLabelOffset;
 
     // needs Phase2 of autocorrect to be useful
     // QGCustomSvg* m_refFlag;
