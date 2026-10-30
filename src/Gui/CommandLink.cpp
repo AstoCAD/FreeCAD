@@ -78,6 +78,9 @@ protected:
     bool isActive() override;
     Action* createAction() override;
     void languageChange() override;
+
+private:
+    static void setActionToolTips(ActionGroup* pcAction);
 };
 
 StdCmdLinkMakeGroup::StdCmdLinkMakeGroup()
@@ -111,7 +114,25 @@ Action* StdCmdLinkMakeGroup::createAction()
     action->setWhatsThis(QString::fromLatin1(getWhatsThis()));
     action = pcAction->addAction(QObject::tr("Group With Transform Links"));
     action->setWhatsThis(QString::fromLatin1(getWhatsThis()));
+    setActionToolTips(pcAction);
     return pcAction;
+}
+
+void StdCmdLinkMakeGroup::setActionToolTips(ActionGroup* pcAction)
+{
+    QList<QAction*> acts = pcAction->actions();
+    acts[0]->setToolTip(
+        QObject::tr("Puts the selected objects themselves in a new link group")
+    );
+    acts[1]->setToolTip(
+        QObject::tr("Puts a link to each selected object in a new link group.\n"
+                    "Each link gets a copy of the object placement and can then be moved "
+                    "independently.")
+    );
+    acts[2]->setToolTip(
+        QObject::tr("Puts a link to each selected object in a new link group.\n"
+                    "The links follow the placement of the objects (LinkTransform is true).")
+    );
 }
 
 void StdCmdLinkMakeGroup::languageChange()
@@ -126,6 +147,7 @@ void StdCmdLinkMakeGroup::languageChange()
     acts[0]->setText(QObject::tr("Simple Group"));
     acts[1]->setText(QObject::tr("Group With Links"));
     acts[2]->setText(QObject::tr("Group With Transform Links"));
+    setActionToolTips(pcAction);
 }
 
 
