@@ -102,6 +102,7 @@ void MillSimulation::InitSimulation(float quality, float maxStockDimension)
     mpPos.Y = prevMotion.y;
     mpPos.Z = prevMotion.z;
     mpPos.SegmentId = segId++;
+    mpPos.Rapid = prevMotion.rapid ? 1 : 0;
     millPathLine.MillPathPointsBuffer.push_back(mpPos);
 
     for (int i = 1; i < nOperations; i++) {
@@ -113,7 +114,20 @@ void MillSimulation::InitSimulation(float quality, float maxStockDimension)
             segment->segmentIndex = segId++;
             mNTotalSteps += segment->numSimSteps;
             MillPathSegments.push_back(segment);
-            segment->AppendPathPoints(millPathLine.MillPathPointsBuffer);
+            auto& points = millPathLine.MillPathPointsBuffer;
+            const int rapid = curMotion.rapid ? 1 : 0;
+            if (points.back().Rapid != rapid) {
+                // repeat the start point so that the whole segment gets its own move type
+                MillPathPosition start = points.back();
+                start.SegmentId = segment->segmentIndex;
+                start.Rapid = rapid;
+                points.push_back(start);
+            }
+            const size_t first = points.size();
+            segment->AppendPathPoints(points);
+            for (size_t j = first; j < points.size(); j++) {
+                points[j].Rapid = rapid;
+            }
         }
 
         prevMotion = curMotion;
@@ -651,6 +665,11 @@ void MillSimulation::SetBackgroundColor(const vec3& c)
 void MillSimulation::SetPathColor(const vec3& normal, const vec3& rapid)
 {
     simDisplay.SetPathColor(normal, rapid);
+}
+
+void MillSimulation::SetPathLineWidth(float width)
+{
+    simDisplay.SetPathLineWidth(width);
 }
 
 
