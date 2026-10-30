@@ -31,6 +31,7 @@
 
 #include <Mod/Assembly/AssemblyGlobal.h>
 
+#include <App/DocumentObserver.h>
 #include <App/FeaturePython.h>
 #include <App/Part.h>
 #include <App/PropertyLinks.h>
@@ -292,7 +293,8 @@ private:
     std::vector<App::DocumentObject*> draggedParts;
     std::vector<App::DocumentObject*> motions;
 
-    std::vector<std::pair<App::DocumentObject*, Base::Placement>> previousPositions;
+    // Weak pointers: the parts may be deleted before undoSolve() is called.
+    std::vector<std::pair<App::DocumentObjectWeakPtrT, Base::Placement>> previousPositions;
 
     bool bundleFixed;
 
