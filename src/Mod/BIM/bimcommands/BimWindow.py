@@ -122,6 +122,9 @@ class Arch_Window:
                                     + sibling.Name
                                     + "]"
                                 )
+                    else:
+                        FreeCADGui.addModule("Draft")
+                        FreeCADGui.doCommand("Draft.autogroup(win)")
                     self.doc.commitTransaction()
                     self.doc.recompute()
                     return
@@ -132,7 +135,11 @@ class Arch_Window:
                     # we consider the selected object as a type
                     self.doc.openTransaction(translate("Arch", "Create Window"))
                     FreeCADGui.addModule("Arch")
-                    FreeCADGui.doCommand("Arch.makeWindow(FreeCAD.ActiveDocument." + obj.Name + ")")
+                    FreeCADGui.doCommand(
+                        "win = Arch.makeWindow(FreeCAD.ActiveDocument." + obj.Name + ")"
+                    )
+                    FreeCADGui.addModule("Draft")
+                    FreeCADGui.doCommand("Draft.autogroup(win)")
                     self.doc.commitTransaction()
                     self.doc.recompute()
                     return
@@ -196,6 +203,7 @@ class Arch_Window:
         from ArchWindowPresets import WindowPresets
 
         SketchArch = False
+        made = False  # True once "win" holds the window created by this call
 
         self.wp._restore()
         FreeCAD.activeDraftCommand = None
@@ -261,6 +269,7 @@ class Arch_Window:
                         self.Include = False
                         break
                     FreeCADGui.doCommand("win = FreeCAD.ActiveDocument.getObject('" + o.Name + "')")
+                    made = True
                     FreeCADGui.doCommand("win.Base.Placement = pl")
                     # Historically, this normal was deduced by the orientation of the Base Sketch and hardcoded in the Normal property.
                     # Now with the new AutoNormalReversed property/flag, set True as default, the auto Normal previously in opposite direction to is now consistent with that previously hardcoded.
@@ -285,6 +294,7 @@ class Arch_Window:
         else:
             # preset
             preset = True
+            made = True
             wp = ""
             for p in self.wparams:
                 wp += ", " + p.lower() + "=" + str(getattr(self, p))
@@ -350,6 +360,9 @@ class Arch_Window:
                 )
             if SketchArch:
                 ArchSketchObject.attachToHost(w, target=host, pl=wPl)
+        elif made:
+            FreeCADGui.addModule("Draft")
+            FreeCADGui.doCommand("Draft.autogroup(win)")
 
         self.doc.commitTransaction()
         self.doc.recompute()
