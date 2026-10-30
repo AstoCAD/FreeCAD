@@ -211,8 +211,26 @@ public:
 private:
     Py::Object invoke_method_varargs(void *method_def, const Py::Tuple &args) override
     {
-        try {
+        return wrapExceptions([&]() {
             return Py::ExtensionModule<Module>::invoke_method_varargs(method_def, args);
+        });
+    }
+
+    // keyword methods (e.g. projectToSVG) need the same translation, or a C++ exception
+    // escapes into the Python interpreter
+    Py::Object invoke_method_keyword(void *method_def, const Py::Tuple &args,
+                                     const Py::Dict &keywords) override
+    {
+        return wrapExceptions([&]() {
+            return Py::ExtensionModule<Module>::invoke_method_keyword(method_def, args, keywords);
+        });
+    }
+
+    template<typename Func>
+    Py::Object wrapExceptions(Func&& func)
+    {
+        try {
+            return func();
         }
         catch (const Standard_Failure &e) {
             std::string str;
