@@ -421,11 +421,11 @@ int SketchObject::toggleConstruction(int GeoId)
         this->Geometry.set1Value(GeoId, std::move(geo));
     }
     else {
-        if (GeoId > GeoEnum::RefExt) {
+        const std::vector<Part::Geometry*>& extGeos = getExternalGeometry();
+        if (GeoId > GeoEnum::RefExt || -GeoId - 1 >= int(extGeos.size())) {
             return -1;
         }
 
-        const std::vector<Part::Geometry*>& extGeos = getExternalGeometry();
         std::unique_ptr<Part::Geometry> geo(extGeos[-GeoId - 1]->clone());
         auto egf = ExternalGeometryFacade::getFacade(geo.get());
         egf->setFlag(ExternalGeometryExtension::Defining, !egf->testFlag(ExternalGeometryExtension::Defining));
