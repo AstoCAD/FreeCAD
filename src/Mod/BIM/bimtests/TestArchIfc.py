@@ -101,3 +101,31 @@ class TestArchIfc(TestArchBase.TestArchBase):
                 "Several": "IfcLabel('a::b')",
             },
         )
+
+    def _check_imported_wall(self):
+        walls = [o for o in self.document.Objects if o.Label == "TestWall"]
+        self.assertEqual(len(walls), 1, "the IFC wall was not imported")
+        self.assertFalse(walls[0].Shape.isNull())
+        self.assertAlmostEqual(walls[0].Shape.Volume, 5000 * 3000 * 200, delta=1)
+
+    def test_legacy_import_multicore(self):
+        """The legacy (non-native) IFC importer must work with IfcOpenShell 0.8.
+        https://github.com/FreeCAD/FreeCAD/issues/33854"""
+        from importers import importIFC, importIFCHelper
+
+        model, _ = _make_wall_file()
+        path = os.path.join(tempfile.mkdtemp(), "legacy_import.ifc")
+        model.write(path)
+        prefs = importIFCHelper.getPreferences()
+        importIFC.insert(path, self.document.Name, prefs)
+        self._check_imported_wall()
+
+    def test_legacy_import_singlecore(self):
+        """Same as above, through the single-core code path of importIFC.insert.
+        https://github.com/FreeCAD/FreeCAD/issues/33854"""
+        from importers import importIFC, importIFCHelper
+
+        model, _ = _make_wall_file()
+        prefs = importIFCHelper.getPreferences()
+        importIFC.insert(model, self.document.Name, prefs)
+        self._check_imported_wall()
