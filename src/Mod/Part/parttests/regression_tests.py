@@ -259,6 +259,20 @@ class RegressionTests(unittest.TestCase):
             # cluster should contain all edges
             self.assertEqual(len(clusters[0]), i)
 
+    def test_spiral_infinite_rotations(self):
+        "Part::Spiral with an infinite or huge number of rotations looped forever"
+        spiral = self.Doc.addObject("Part::Spiral", "Spiral")
+        self.Doc.recompute()
+        self.assertTrue(spiral.isValid())
+        for rotations in (float("inf"), 1e300, 5e9):
+            spiral.Rotations = rotations
+            self.Doc.recompute()
+            self.assertFalse(spiral.isValid())
+        spiral.Rotations = 3
+        self.Doc.recompute()
+        self.assertTrue(spiral.isValid())
+        self.assertEqual(len(spiral.Shape.Edges), 3)
+
     def test_geometry_nan_parameters_raise(self):
         "NaN curve/surface parameters crashed inside OCC instead of raising"
         nan = float("nan")

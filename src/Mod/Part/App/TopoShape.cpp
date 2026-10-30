@@ -28,6 +28,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <sstream>
 #include <boost/regex.hpp>
 
@@ -2477,6 +2478,12 @@ TopoDS_Shape TopoShape::makeSpiralHelix(
 
     Standard_Real nbPeriods = nbturns / breakperiod;
     Standard_Real nbFullPeriods = floor(nbPeriods);
+    // The loop below counts with an unsigned long: it can never terminate for an
+    // infinite or too large number of periods.
+    if (std::isinf(nbFullPeriods)
+        || nbFullPeriods >= static_cast<double>(std::numeric_limits<unsigned long>::max())) {
+        throw Standard_Failure("Number of turns too high");
+    }
     Standard_Real partPeriod = nbPeriods - nbFullPeriods;
 
     // A Bezier curve is used below, to get a periodic surface also for spirals.
