@@ -730,6 +730,30 @@ class DocumentBasicCases(unittest.TestCase):
         self.assertTrue(doc.Link.Label.startswith("Renamed"))
         self.assertEqual(doc.Link.Refs, [doc.Link])
 
+    def testUnencodableStringPropertyValues(self):
+        # A str with an unpaired surrogate cannot be converted to UTF-8; the
+        # nullptr from PyUnicode_AsUTF8() was assigned to std::string (crash).
+        bad = "\ud800"
+        obj = self.Doc.addObject("App::FeaturePython", "Strings")
+        for typ, name, value in (
+            ("App::PropertyString", "S", bad),
+            ("App::PropertyStringList", "SL", ["ok", bad]),
+            ("App::PropertyMap", "MK", {bad: "v"}),
+            ("App::PropertyMap", "MV", {"k": bad}),
+            ("App::PropertyPath", "P", bad),
+            ("App::PropertyUUID", "U", bad),
+            ("App::PropertyEnumeration", "E", bad),
+            ("App::PropertyBoolList", "BL", bad),
+            ("App::PropertyLength", "L", bad),
+            ("App::PropertyFileIncluded", "FI", bad),
+            ("App::PropertyFileIncluded", "FT", (bad, "name")),
+        ):
+            obj.addProperty(typ, name)
+            with self.assertRaises(UnicodeError, msg=typ):
+                setattr(obj, name, value)
+        obj.SL = ["ok", "é"]
+        self.assertEqual(obj.SL, ["ok", "é"])
+
     def testLinksLinkingEachOther(self):
         # Two links linking each other: setting the second link's LinkedObject rebuilt
         # its label from the other link, which rebuilt its own label in turn, and so
