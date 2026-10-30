@@ -1305,6 +1305,59 @@ G1 X20.000 Y10.000 F6000.000
             self.assertGreater(len(xy_only), 0, "Should have an XY-only G0 move")
             self.assertGreater(len(z_only), 0, "Should have a Z-only G0 move")
 
+    def test091_xy_before_z_after_tool_change_z_first(self):
+        """
+        Test that _expand_xy_before_z moves the XY rapid before leading Z-only rapids.
+
+        Operations start with a Z-only rapid to clearance height, then an XY
+        rapid (issue #33635).
+
+        Expected:
+            BEFORE: G0 Z3
+                    G0 X235.04 Y48.587
+                    G0 Z1
+                    G1 Z-1 F100
+                    G1 X240 Y48.587 F200
+
+            AFTER:  G0 X235.04 Y48.587
+                    G0 Z3
+                    G0 Z1
+                    G1 Z-1 F100
+                    G1 X240 Y48.587 F200
+        """
+        config = self._get_full_machine_config()
+        config["processing"]["xy_before_z_after_tool_change"] = True
+        machine = Machine.from_dict(config)
+
+        with self._modify_operation_path(
+            [
+                Path.Command("M6", {"T": 1}),
+                Path.Command("G0", {"Z": 3.0}),
+                Path.Command("G0", {"X": 235.04, "Y": 48.587}),
+                Path.Command("G0", {"Z": 1.0}),
+                Path.Command("G1", {"Z": -1.0, "F": 100.0}),
+                Path.Command("G1", {"X": 240.0, "Y": 48.587, "F": 200.0}),
+            ]
+        ):
+            results = self._run_export2(machine)
+            gcode = self._get_all_gcode(results)
+            moves = [
+                line.split()[:3]
+                for line in gcode.split("\n")
+                if line.strip().startswith(("G0", "G1"))
+            ]
+            start = moves.index(["G0", "X235.040", "Y48.587"])
+            self.assertEqual(
+                moves[start : start + 5],
+                [
+                    ["G0", "X235.040", "Y48.587"],
+                    ["G0", "Z3.000"],
+                    ["G0", "Z1.000"],
+                    ["G1", "Z-1.000", "F6000.000"],
+                    ["G1", "X240.000", "Y48.587"],
+                ],
+            )
+
     # ===== 100-109: _expand_bcnc_commands tests =====
 
     def test100_bcnc_comments_enabled(self):
