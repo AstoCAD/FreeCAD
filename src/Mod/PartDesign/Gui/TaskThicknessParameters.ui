@@ -78,6 +78,11 @@
      </item>
      <item row="1" column="1">
       <widget class="QComboBox" name="modeComboBox">
+       <property name="toolTip">
+        <string>How the thickness is applied to the solid:
+- Skin: offsets the remaining faces by the thickness value to create a wall on one side
+- Recto verso: applies half of the thickness on each side of the faces</string>
+       </property>
        <item>
         <property name="text">
          <string>Skin</string>
@@ -104,6 +109,11 @@
      </item>
      <item row="2" column="1">
       <widget class="QComboBox" name="joinComboBox">
+       <property name="toolTip">
+        <string>How offset faces are joined where they meet at a sharp edge:
+- Arc: fills the gap with rounded faces
+- Intersection: extends the faces until they intersect, keeping sharp edges</string>
+       </property>
        <item>
         <property name="text">
          <string>Arc</string>
@@ -120,6 +130,10 @@
    </item>
    <item>
     <widget class="QCheckBox" name="checkIntersection">
+     <property name="toolTip">
+      <string>Computes the intersections between offset faces, which can help on shapes where the offset faces collide.
+This OpenCASCADE option is incomplete and can be less robust: enable it only if the thickness fails without it.</string>
+     </property>
      <property name="text">
       <string>Intersection</string>
      </property>
