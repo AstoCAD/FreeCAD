@@ -603,6 +603,8 @@ TaskDlgWeldingSymbol::TaskDlgWeldingSymbol(TechDraw::DrawLeaderLine* leader)
                                              widget->windowTitle(), true, nullptr);
     taskbox->groupLayout()->addWidget(widget);
     Content.push_back(taskbox);
+    // Undo can remove the leader this task points to.
+    setAutoCloseOnTransactionChange(true);
 }
 
 TaskDlgWeldingSymbol::TaskDlgWeldingSymbol(TechDraw::DrawWeldSymbol* weld)
@@ -613,6 +615,8 @@ TaskDlgWeldingSymbol::TaskDlgWeldingSymbol(TechDraw::DrawWeldSymbol* weld)
                                              widget->windowTitle(), true, nullptr);
     taskbox->groupLayout()->addWidget(widget);
     Content.push_back(taskbox);
+    // Undo can remove the welding symbol or leader this task points to.
+    setAutoCloseOnTransactionChange(true);
 }
 
 TaskDlgWeldingSymbol::~TaskDlgWeldingSymbol()
@@ -650,6 +654,12 @@ bool TaskDlgWeldingSymbol::reject()
 {
     widget->reject();
     return true;
+}
+
+void TaskDlgWeldingSymbol::autoClosedOnTransactionChange()
+{
+    // reject() only recomputes and resets the edit, it does not use the possibly removed objects
+    widget->reject();
 }
 
 #include <Mod/TechDraw/Gui/moc_TaskWeldingSymbol.cpp>
