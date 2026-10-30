@@ -1893,11 +1893,21 @@ int SketchObject::removeAxesAlignment(const std::vector<int>& geoIdList)
         }
         case Sketcher::DistanceX:
         case Sketcher::DistanceY: {
+            // A distance of a single point to the origin fixes the position of that point.
+            // A Distance constraint with the same references would mean the length of the
+            // whole edge instead, so keep it as it is.
+            if (constr->FirstPos != Sketcher::PointPos::none
+                && constr->Second == GeoEnum::GeoUndef) {
+                newConstraints.push_back(constr);
+                break;
+            }
             changed = true;
             // Convert projected X/Y distance to standard Euclidean Distance
             // This preserves the length of the line while allowing it to rotate off-axis.
             Constraint* newConstr = constr->clone();
             newConstr->Type = Sketcher::Distance;
+            // X/Y distances are signed, a Distance must be positive.
+            newConstr->setValue(std::abs(newConstr->getValue()));
             newConstraints.push_back(newConstr);
             break;
         }
