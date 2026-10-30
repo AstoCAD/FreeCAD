@@ -626,8 +626,10 @@ def parse(pathobj):
                     elif param in mandatoryParamInt:
                         commandlist.append(param + str(int(c.Parameters[param])))
                     elif param in mandatoryParamFloat:
+                        # I, J, K are lengths too: convert them like X, Y, Z
+                        pos = Units.Quantity(c.Parameters[param], FreeCAD.Units.Length)
                         commandlist.append(
-                            param + format(float(c.Parameters[param]), precision_string)
+                            param + format(float(pos.getValueAs(UNIT_FORMAT)), precision_string)
                         )
                     else:
                         if (
@@ -636,6 +638,11 @@ def parse(pathobj):
                             and (currLocation[param] == c.Parameters[param])
                         ):
                             continue
+                        elif param in ("A", "B", "C"):
+                            # rotary axes are angles, not lengths: no unit conversion
+                            commandlist.append(
+                                param + format(float(c.Parameters[param]), precision_string)
+                            )
                         else:
                             pos = Units.Quantity(c.Parameters[param], FreeCAD.Units.Length)
                             commandlist.append(
