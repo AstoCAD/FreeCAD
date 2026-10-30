@@ -360,7 +360,8 @@ https://wiki.freecad.org/Import_Export_Preferences""",
 def convertToDwg(dxffilename, dwgfilename):
     """Convert a DXF file to a DWG file.
 
-    If the converter is found it is used, otherwise the conversion fails.
+    The configured converter is used. In automatic mode the next available
+    converter is tried if one fails to produce the output file.
 
     Parameters
     ----------
@@ -372,7 +373,7 @@ def convertToDwg(dxffilename, dwgfilename):
     Returns
     -------
     str
-        The same `dwgfilename` file path.
+        The same `dwgfilename` file path, or None if the conversion failed.
     """
     import os
     import subprocess
@@ -380,6 +381,17 @@ def convertToDwg(dxffilename, dwgfilename):
     dxffilename = dxffilename.replace("\\", "/")
     dwgfilename = dwgfilename.replace("\\", "/")
     conv = params.get_param("DWGConversion")
+    error_msg = translate("draft", "Error during DWG conversion.") + "\n"
+
+    # An existing output file must not be mistaken for a successful conversion.
+    old_mtime = os.path.getmtime(dwgfilename) if os.path.exists(dwgfilename) else None
+
+    def converted():
+        if os.path.exists(dwgfilename) and os.path.getmtime(dwgfilename) != old_mtime:
+            FCC.PrintMessage(translate("draft", "Conversion successful") + "\n")
+            return True
+        FCC.PrintError(error_msg)
+        return False
 
     if conv in [0, 1]:  # LibreDWG
         libredwg = get_libredwg_converter("dxf2dwg")
@@ -388,7 +400,8 @@ def convertToDwg(dxffilename, dwgfilename):
             FCC.PrintMessage(translate("draft", "Converting:") + " " + str(cmdline) + "\n")
             proc = subprocess.Popen(cmdline)
             proc.communicate()
-            return dwgfilename
+            if converted():
+                return dwgfilename
         elif conv != 0:
             FCC.PrintError(translate("draft", "LibreDWG converter not found") + "\n")
 
@@ -402,7 +415,8 @@ def convertToDwg(dxffilename, dwgfilename):
             FCC.PrintMessage(translate("draft", "Converting:") + " " + str(cmdline) + "\n")
             proc = subprocess.Popen(cmdline)
             proc.communicate()
-            return dwgfilename
+            if converted():
+                return dwgfilename
         elif conv != 0:
             FCC.PrintError(translate("draft", "ODA converter not found") + "\n")
 
@@ -413,7 +427,8 @@ def convertToDwg(dxffilename, dwgfilename):
             FCC.PrintMessage(translate("draft", "Converting:") + " " + str(cmdline) + "\n")
             proc = subprocess.Popen(cmdline, cwd=os.path.dirname(qcad))  # cwd required for Windows
             proc.communicate()
-            return dwgfilename
+            if converted():
+                return dwgfilename
         elif conv != 0:
             FCC.PrintError(translate("draft", "QCAD converter not found") + "\n")
 
