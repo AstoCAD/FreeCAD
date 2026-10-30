@@ -65,6 +65,8 @@ public:
 
 protected:
     void updatePlane();
+    void onPlacementHighlightChanged() override;
+    void updatePlaneSwitch();
 
     Gui::CoinPtr<SoSwitch> plane;
 };
