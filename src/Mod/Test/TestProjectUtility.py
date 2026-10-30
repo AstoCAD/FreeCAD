@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 
 from freecad import project_utility
 
@@ -40,3 +41,46 @@ class TestProjectUtility(unittest.TestCase):
         project_utility.extractDocument(self.archive, self.outdir)
         self.assertEqual(self._read("thumbnails", "Thumbnail.png"), b"png")
         self.assertEqual(self._read("Document.xml"), b"<Document/>")
+
+    def _make_project_dir(self):
+        srcdir = os.path.join(self.tmpdir, "src")
+        os.mkdir(srcdir)
+        with open(os.path.join(srcdir, "Document.xml"), "w") as stream:
+            stream.write('<Document><Property file="Box.Shape.brp"/></Document>')
+        with open(os.path.join(srcdir, "Box.Shape.brp"), "w") as stream:
+            stream.write("shape")
+        return os.path.join(srcdir, "Document.xml")
+
+    def test_create_and_extract_round_trip(self):
+        target = os.path.join(self.tmpdir, "Repacked.FCStd")
+        project_utility.createDocument(self._make_project_dir(), target)
+        with zipfile.ZipFile(target) as zfile:
+            self.assertEqual(sorted(zfile.namelist()), ["Box.Shape.brp", "Document.xml"])
+        project_utility.extractDocument(target, self.outdir)
+        self.assertEqual(self._read("Box.Shape.brp"), b"shape")
+
+    def test_failed_create_releases_output_file(self):
+        # A failed repack must not keep the archive open (it could not be deleted on Windows)
+        target = os.path.join(self.tmpdir, "Failed.FCStd")
+        error = None
+        with patch.object(zipfile.ZipFile, "write", side_effect=OSError("write failed")):
+            try:
+                project_utility.createDocument(self._make_project_dir(), target)
+            except OSError as exc:
+                error = exc  # keeps the traceback alive, like the Python console does
+        self.assertIsNotNone(error)
+        os.remove(target)
+        self.assertFalse(os.path.exists(target))
+
+    def test_failed_extract_releases_source_file(self):
+        # Make the extraction fail by blocking a directory with a plain file
+        with open(os.path.join(self.outdir, "sub"), "w") as stream:
+            stream.write("not a directory")
+        error = None
+        try:
+            project_utility.extractDocument(self.archive, self.outdir)
+        except OSError as exc:
+            error = exc  # keeps the traceback alive, like the Python console does
+        self.assertIsNotNone(error)
+        os.remove(self.archive)
+        self.assertFalse(os.path.exists(self.archive))
