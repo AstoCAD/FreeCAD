@@ -28,6 +28,7 @@ SET(Test_SRCS
     TestPropertyFloatIntegerConversion.py
     TestFloatConstraintQuantityIntegerConversion.py
     TestHelpFallback.py
+    TestProjectUtility.py
     TestGui.py
     TestAddPropertyGui.py
     TestExpressionVarSetGui.py
