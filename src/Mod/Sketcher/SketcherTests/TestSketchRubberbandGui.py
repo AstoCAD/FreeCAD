@@ -85,9 +85,18 @@ class TestSketchRubberbandGui(unittest.TestCase):
 
     @staticmethod
     def different(a, b):
-        return sum(max(abs(a.pixelColor(x, y).red() - b.pixelColor(x, y).red()),
-                       abs(a.pixelColor(x, y).green() - b.pixelColor(x, y).green()),
-                       abs(a.pixelColor(x, y).blue() - b.pixelColor(x, y).blue())) > 15
+        # Compare only pixels the viewer painted in the reference frame *a*. On some GL
+        # drivers grabFramebuffer() leaves most rows unpainted (pure black instead of the
+        # 0.15 background) and those rows keep stale overlay pixels from earlier frames,
+        # even after an ordinary completed box selection, while the screen is clean.
+        def painted(x, y):
+            color = a.pixelColor(x, y)
+            return (color.red(), color.green(), color.blue()) != (0, 0, 0)
+
+        return sum(painted(x, y)
+                   and max(abs(a.pixelColor(x, y).red() - b.pixelColor(x, y).red()),
+                           abs(a.pixelColor(x, y).green() - b.pixelColor(x, y).green()),
+                           abs(a.pixelColor(x, y).blue() - b.pixelColor(x, y).blue())) > 15
                    for y in range(130) for x in range(125))
 
     def startSelection(self):
