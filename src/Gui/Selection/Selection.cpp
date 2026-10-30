@@ -1828,7 +1828,8 @@ void SelectionSingleton::setVisible(VisibleState vis)
         // get parent object
         App::DocumentObject* parent = nullptr;
         std::string elementName;
-        obj = obj->resolve(sel.SubName.c_str(), &parent, &elementName);
+        const char* subElement = nullptr;
+        obj = obj->resolve(sel.SubName.c_str(), &parent, &elementName, &subElement);
         if (!obj || !obj->isAttachedToDocument() || (parent && !parent->isAttachedToDocument())) {
             continue;
         }
@@ -1878,9 +1879,11 @@ void SelectionSingleton::setVisible(VisibleState vis)
 
         if (vp) {
             if (visible < 0) {
-                // Toggle link instead of the original object
+                // When a geometry element of a linked object is picked (e.g. in the 3D view),
+                // toggle the link instead of the original object. An object inside the link
+                // that is selected as a whole (e.g. in the tree) is toggled itself.
                 ViewProvider* toggleVp = vp;
-                if (parent
+                if (parent && subElement && *subElement
                     && parent->hasExtension(App::LinkBaseExtension::getExtensionClassTypeId(), true)) {
                     if (auto* parentVp = Application::Instance->getViewProvider(parent)) {
                         toggleVp = parentVp;
