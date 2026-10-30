@@ -72,7 +72,13 @@ int TrajectoryPy::PyInit(PyObject* args, PyObject* /*kwd*/)
             }
         }
     }
-    getTrajectoryPtr()->generateTrajectory();
+    try {
+        getTrajectoryPtr()->generateTrajectory();
+    }
+    catch (const Base::Exception& e) {
+        e.setPyException();
+        return -1;
+    }
     return 0;
 }
 
