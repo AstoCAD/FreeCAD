@@ -35,5 +35,6 @@ from bimtests.TestWebGLExportGui import TestWebGLExportGui
 from bimtests.TestArchCoveringGui import TestArchCoveringGui
 from bimtests.TestNativeIfcGui import TestNativeIfcGui
 from bimtests.TestBimIfcPropertiesGui import TestBimIfcPropertiesGui
+from bimtests.TestBimIfcQuantitiesGui import TestBimIfcQuantitiesGui
 from bimtests.TestBimLibraryGui import TestBimLibraryGui
 from bimtests.TestArchReferenceGui import TestArchReferenceGui

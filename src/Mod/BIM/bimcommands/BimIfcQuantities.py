@@ -375,6 +375,8 @@ class BIM_IfcQuantities:
     def accept(self):
         """OK pressed"""
 
+        from PySide import QtCore
+
         PARAMS.SetInt("BimIfcQuantitiesDialogWidth", self.form.width())
         PARAMS.SetInt("BimIfcQuantitiesDialogHeight", self.form.height())
         self.form.hide()
@@ -395,7 +397,8 @@ class BIM_IfcQuantities:
                 for i in range(len(QPROPS)):
                     item = self.qmodel.item(row, i + 1)
                     val = item.text()
-                    sav = bool(item.checkState())
+                    # checkState() is an enum: Unchecked is truthy in PySide6
+                    sav = item.checkState() == QtCore.Qt.Checked
                     if i < 3:  # Length, Width, Height, value can be changed
                         if hasattr(obj, QPROPS[i]):
                             if getattr(obj, QPROPS[i]).getUserPreferred()[0] != val:
@@ -469,7 +472,7 @@ class BIM_IfcQuantities:
                     if state is None:
                         # take the state to apply from the first selected item
                         state = QtCore.Qt.Checked
-                        if item.checkState():
+                        if item.checkState() == QtCore.Qt.Checked:
                             state = QtCore.Qt.Unchecked
                     item.setCheckState(state)
 
