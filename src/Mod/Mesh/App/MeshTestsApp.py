@@ -679,6 +679,30 @@ class MeshFacetIndexRange(unittest.TestCase):
             Mesh.Mesh().meshFromSegment([0])
         self.assertEqual(self.mesh.meshFromSegment([0, 1]).CountFacets, 2)
 
+    def testStaleFacet(self):
+        facet = self.mesh.Facets[11]
+        self.assertGreater(facet.Area, 0.0)
+        self.mesh.clear()
+        with self.assertRaises(IndexError):
+            facet.isDegenerated()
+        with self.assertRaises(IndexError):
+            facet.isDeformed(0.1, 3.0)
+        with self.assertRaises(IndexError):
+            facet.Area
+        with self.assertRaises(IndexError):
+            facet.InCircle
+
+    def testWireFromSegment(self):
+        try:
+            import MeshPart
+        except ImportError:
+            self.skipTest("MeshPart not available")
+        with self.assertRaises(IndexError):
+            MeshPart.wireFromSegment(self.mesh, [-1])
+        with self.assertRaises(IndexError):
+            MeshPart.wireFromSegment(self.mesh, [12])
+        self.assertEqual(len(MeshPart.wireFromSegment(self.mesh, [0, 1])), 1)
+
 
 class MeshProperty(unittest.TestCase):
     def setUp(self):
