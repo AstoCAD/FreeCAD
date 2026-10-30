@@ -593,6 +593,9 @@ void ImpExpDxfRead::ComposeFlattenedBlock(const std::string& blockName, std::set
         return;
     }
     const Block& blockData = it->second;
+    // Mark the block early so that a block inserting itself, directly or through
+    // other blocks, does not recurse forever. It has no shape until step 6.
+    composed.insert(blockName);
 
     // 3. Collect all geometry shapes for this block.
     std::list<TopoDS_Shape> shapeCollection;
@@ -607,6 +610,11 @@ void ImpExpDxfRead::ComposeFlattenedBlock(const std::string& blockName, std::set
     // 5. Process nested inserts recursively.
     for (const auto& insertAttrPair : blockData.Inserts) {
         for (const auto& nestedInsert : insertAttrPair.second) {
+            if (composed.count(nestedInsert.Name)
+                && !m_flattenedBlockShapes.count(nestedInsert.Name)) {
+                ImportError("Block '{}' inserts itself recursively. Skipping.\n", nestedInsert.Name);
+                continue;
+            }
             // Ensure the nested block is composed first.
             ComposeFlattenedBlock(nestedInsert.Name, composed);
             // Mark the nested block as referenced so it's not moved to the "Unreferenced" group.
@@ -647,9 +655,6 @@ void ImpExpDxfRead::ComposeFlattenedBlock(const std::string& blockName, std::set
         m_blockDefinitionGroup->addObject(blockFeature);
         this->m_blockDefinitions[blockName] = blockFeature;
     }
-
-    // 8. Mark this block as composed.
-    composed.insert(blockName);
 }
 
 void ImpExpDxfRead::ComposeParametricBlock(const std::string& blockName, std::set<std::string>& composed)
@@ -666,6 +671,10 @@ void ImpExpDxfRead::ComposeParametricBlock(const std::string& blockName, std::se
         return;
     }
     const Block& blockData = it->second;
+    // Mark the block early so that a block inserting itself, directly or through
+    // other blocks, does not recurse forever. It is registered in
+    // m_blockDefinitions only once it is complete (step 7).
+    composed.insert(blockName);
 
     // 3. Create the master Part::Compound for this block definition.
     std::string compName = "BLOCK_" + blockName;
@@ -675,13 +684,17 @@ void ImpExpDxfRead::ComposeParametricBlock(const std::string& blockName, std::se
     m_blockDefinitionGroup->addObject(blockCompound);
     IncrementCreatedObjectCount();
     blockCompound->Visibility.setValue(false);
-    this->m_blockDefinitions[blockName] = blockCompound;
 
     std::vector<App::DocumentObject*> childObjects;
 
     // 4. Recursively Compose and Link Nested Inserts.
     for (const auto& insertAttrPair : blockData.Inserts) {
         for (const auto& nestedInsert : insertAttrPair.second) {
+            if (composed.count(nestedInsert.Name)
+                && !m_blockDefinitions.count(nestedInsert.Name)) {
+                ImportError("Block '{}' inserts itself recursively. Skipping.\n", nestedInsert.Name);
+                continue;
+            }
             // Ensure the dependency is composed before we try to link to it.
             ComposeParametricBlock(nestedInsert.Name, composed);
             // Mark the nested block as referenced so it's not moved to the "Unreferenced" group.
@@ -794,8 +807,8 @@ void ImpExpDxfRead::ComposeParametricBlock(const std::string& blockName, std::se
         blockCompound->Links.setValues(childObjects);
     }
 
-    // 7. Mark this block as composed.
-    composed.insert(blockName);
+    // 7. Register the completed block definition.
+    this->m_blockDefinitions[blockName] = blockCompound;
 }
 
 void ImpExpDxfRead::ComposeBlocks()
