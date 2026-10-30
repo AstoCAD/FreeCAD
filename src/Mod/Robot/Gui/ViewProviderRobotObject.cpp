@@ -413,6 +413,9 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
             toolShape = nullptr;
         }
     }
+
+    // let the base class handle the common properties, e.g. apply the Placement
+    ViewProviderGeometryObject::updateData(prop);
 }
 void ViewProviderRobotObject::setAxisTo(
     float A1,
