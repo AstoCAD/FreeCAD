@@ -409,6 +409,10 @@ PyObject* DocumentPy::toggleTreeItem(PyObject* args)
     }
 
     App::DocumentObject* Object = static_cast<App::DocumentObjectPy*>(object)->getDocumentObjectPtr();
+    if (!Object) {
+        PyErr_SetString(PyExc_ValueError, "Invalid document object");
+        return nullptr;
+    }
     App::DocumentObject* parent = nullptr;
     if (subname) {
         App::DocumentObject* sobj = Object->getSubObject(subname);
@@ -427,6 +431,10 @@ PyObject* DocumentPy::toggleTreeItem(PyObject* args)
     auto ActiveVp = dynamic_cast<Gui::ViewProviderDocumentObject*>(
         getDocumentPtr()->getViewProvider(Object)
     );
+    if (!ActiveVp) {
+        PyErr_SetString(PyExc_ValueError, "Object has no view provider in this document");
+        return nullptr;
+    }
     switch (mod) {
         case 0:
             getDocumentPtr()->signalExpandObject(*ActiveVp, TreeItemMode::ToggleItem, parent, subname);
@@ -457,6 +465,10 @@ PyObject* DocumentPy::scrollToTreeItem(PyObject* args)
 
     Gui::ViewProviderDocumentObject* vp
         = static_cast<ViewProviderDocumentObjectPy*>(view)->getViewProviderDocumentObjectPtr();
+    if (!vp) {
+        PyErr_SetString(PyExc_ValueError, "Invalid view object");
+        return nullptr;
+    }
     getDocumentPtr()->signalScrollToObject(*vp);
 
     Py_Return;
@@ -470,6 +482,10 @@ PyObject* DocumentPy::toggleInSceneGraph(PyObject* args)
     }
 
     Gui::ViewProvider* vp = static_cast<ViewProviderPy*>(view)->getViewProviderPtr();
+    if (!vp) {
+        PyErr_SetString(PyExc_ValueError, "Invalid view object");
+        return nullptr;
+    }
     getDocumentPtr()->toggleInSceneGraph(vp);
 
     Py_Return;

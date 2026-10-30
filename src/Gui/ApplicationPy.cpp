@@ -840,6 +840,9 @@ PyObject* ApplicationPy::sExport(PyObject* /*self*/, PyObject* args)
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
                 App::DocumentObject* obj
                     = static_cast<App::DocumentObjectPy*>(item)->getDocumentObjectPtr();
+                if (!obj) {
+                    throw Py::ValueError("Invalid document object");
+                }
                 doc = obj->getDocument();
                 break;
             }
