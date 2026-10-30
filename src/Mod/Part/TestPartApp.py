@@ -1394,6 +1394,52 @@ class PartExtrusionTests(unittest.TestCase):
         FreeCAD.closeDocument("PartExtrusionTest")
 
 
+class PartLoftTests(unittest.TestCase):
+    """Regression tests for issue #31307: a solid loft from open sections
+    must be reported as an error instead of silently giving an invalid solid."""
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("PartLoftTest")
+
+    def tearDown(self):
+        FreeCAD.closeDocument("PartLoftTest")
+
+    def _section(self, shape):
+        obj = self.Doc.addObject("Part::Feature", "Section")
+        obj.Shape = shape
+        return obj
+
+    def _loft(self, sections, solid):
+        loft = self.Doc.addObject("Part::Loft", "Loft")
+        loft.Sections = sections
+        loft.Solid = solid
+        self.Doc.recompute()
+        return loft
+
+    def _open_sections(self):
+        pts = [Base.Vector(0, 0, 0), Base.Vector(10, 0, 0), Base.Vector(10, 10, 0)]
+        s1 = self._section(Part.makePolygon(pts))
+        s2 = self._section(Part.makePolygon([p + Base.Vector(0, 0, 10) for p in pts]))
+        return [s1, s2]
+
+    def testSolidLoftFromOpenSectionsReportsError(self):
+        loft = self._loft(self._open_sections(), True)
+        self.assertIn("Invalid", loft.State)
+
+    def testShellLoftFromOpenSectionsIsValid(self):
+        loft = self._loft(self._open_sections(), False)
+        self.assertNotIn("Invalid", loft.State)
+        self.assertEqual(loft.Shape.ShapeType, "Shell")
+
+    def testSolidLoftFromClosedSectionsIsValid(self):
+        s1 = self._section(Part.Wire(Part.makeCircle(5).Edges))
+        s2 = self._section(Part.Wire(Part.makeCircle(5, Base.Vector(0, 0, 10)).Edges))
+        loft = self._loft([s1, s2], True)
+        self.assertNotIn("Invalid", loft.State)
+        self.assertEqual(len(loft.Shape.Solids), 1)
+        self.assertTrue(loft.Shape.isValid())
+
+
 class PartFaceMakerBuildFaceTests(unittest.TestCase):
     """Regression: a Sketch with MakeInternals=True containing two concentric
     ellipses and two short line segments joining them on the right side fails
