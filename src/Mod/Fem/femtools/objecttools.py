@@ -34,6 +34,12 @@ import tempfile
 import FreeCAD
 
 
+class PrerequisiteError(Exception):
+    """Raised by prepare() when the analysis setup is not valid for the tool"""
+
+    pass
+
+
 class ObjectTools(ABC):
     """Abstract base class for the work with solvers and meshers"""
 
