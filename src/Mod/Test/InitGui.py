@@ -131,6 +131,7 @@ FreeCAD.__unit_test__ += [
     "TestEditableDatumLabelColorGui",
     "TestIsolationGui",
     "TestViewProviderLink",
+    "TestViewCallbackRemovalGui",
     "TestLayerWidget",
     "TestUserEditModeGui",
     "TestPlacementDialogGui",
