@@ -22,6 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
+
 #include <Base/MatrixPy.h>
 #include <Base/PlacementPy.h>
 #include <Base/Reader.h>
@@ -653,11 +655,13 @@ void PropertyPlacement::setPathValue(const ObjectIdentifier& path, const boost::
         Base::Rotation rot = _cPos.getRotation();
         double yaw, pitch, roll;
         rot.getYawPitchRoll(yaw, pitch, roll);
+        // Yaw and roll are periodic: wrap them into [-180, +180] so that e.g. an
+        // expression evaluating to 225 deg gives the same rotation as -135 deg.
         if (index == 0) {
-            if (angle < -180.0 || angle > 180.0) {
+            if (!std::isfinite(angle)) {
                 throw Base::ValueError("Yaw angle is out of range [-180, +180]");
             }
-            yaw = angle;
+            yaw = std::remainder(angle, 360.0);
         }
         else if (index == 1) {
             if (angle < -90.0 || angle > 90.0) {
@@ -666,10 +670,10 @@ void PropertyPlacement::setPathValue(const ObjectIdentifier& path, const boost::
             pitch = angle;
         }
         else if (index == 2) {
-            if (angle < -180.0 || angle > 180.0) {
+            if (!std::isfinite(angle)) {
                 throw Base::ValueError("Roll angle is out of range [-180, +180]");
             }
-            roll = angle;
+            roll = std::remainder(angle, 360.0);
         }
         rot.setYawPitchRoll(yaw, pitch, roll);
         Base::Placement plm(base, rot);
