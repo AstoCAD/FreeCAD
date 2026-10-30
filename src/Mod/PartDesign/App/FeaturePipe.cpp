@@ -643,6 +643,9 @@ App::DocumentObjectExecReturn* Pipe::execute()
     catch (Standard_Failure& e) {
         return new App::DocumentObjectExecReturn(e.GetMessageString());
     }
+    catch (const Base::Exception& e) {
+        return new App::DocumentObjectExecReturn(e.what());
+    }
     catch (...) {
         return new App::DocumentObjectExecReturn(
             QT_TRANSLATE_NOOP("Exception", "A fatal error occurred when making the pipe")
