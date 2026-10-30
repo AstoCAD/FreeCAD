@@ -154,6 +154,21 @@ class DrawTaskUndoGuiTest(unittest.TestCase):
 
         self._edit_then_undo(make)
 
+    def test_undo_closes_weld_symbol_edit_task(self):
+        base = self._base_view()
+
+        def make():
+            leader = self.doc.addObject("TechDraw::DrawLeaderLine", "WeldLeader")
+            self.page.addView(leader)
+            leader.LeaderParent = base
+            leader.WayPoints = [App.Vector(0, 0, 0), App.Vector(20, 20, 0)]
+            weld = self.doc.addObject("TechDraw::DrawWeldSymbol", "Weld")
+            self.page.addView(weld)
+            weld.Leader = leader
+            return weld
+
+        self._edit_then_undo(make)
+
 
 if __name__ == "__main__":
     unittest.main()
