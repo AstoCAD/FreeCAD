@@ -78,6 +78,7 @@ if(BUILD_GUI)
           SketcherTests/TestEditDatumConflictGui.py
           SketcherTests/TestMoveGeometryRedrawGui.py
           SketcherTests/TestOffsetConstraintGui.py
+          SketcherTests/TestFilletCurveVertexGui.py
     )
 endif(BUILD_GUI)
 
