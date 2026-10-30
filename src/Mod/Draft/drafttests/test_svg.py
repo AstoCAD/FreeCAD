@@ -239,5 +239,53 @@ class DraftSVGExportRegression(test_base.DraftTestCaseDoc):
                     Draft.get_svg(obj, direction=App.Vector(0, 0, 1))
                 project.assert_not_called()
 
+    def test_get_svg_linecap(self):
+        """The linecap argument replaces the default square line caps.
+
+        Issue #27866: TechDraw Draft views must follow the TechDraw line cap
+        preference.
+        """
+        line = Part.makePolygon([App.Vector(0, 0, 0), App.Vector(10, 0, 0), App.Vector(10, 5, 0)])
+        obj = self._add_shape("Line", line)
+        group = self.doc.addObject("App::DocumentObjectGroup", "Group")
+        group.addObject(obj)
+        for source in (obj, group):
+            with self.subTest(source=source.Name):
+                default = Draft.get_svg(source, direction=App.Vector(0, 0, 1))
+                self.assertIn("stroke-linecap:square", default)
+                self.assertEqual(
+                    Draft.get_svg(source, direction=App.Vector(0, 0, 1), linecap="square"),
+                    default,
+                )
+                for cap in ("round", "butt"):
+                    svg = Draft.get_svg(source, direction=App.Vector(0, 0, 1), linecap=cap)
+                    self.assertNotIn("square", svg)
+                    self.assertIn("stroke-linecap:" + cap, svg)
+                    self.assertEqual(
+                        svg.replace("stroke-linecap:" + cap, "stroke-linecap:square"), default
+                    )
+                self.assertEqual(
+                    Draft.get_svg(source, direction=App.Vector(0, 0, 1), linecap="bogus"),
+                    default,
+                )
+
+    @unittest.skipIf(not App.GuiUp, "Fill patterns are only exported in GUI mode")
+    def test_get_svg_linecap_keeps_fill_pattern(self):
+        """The linecap argument does not change the line caps of a fill pattern."""
+        # a user pattern drawn with square caps
+        pattern = (
+            '<pattern id="SquareCaps" patternUnits="userSpaceOnUse" x="0" y="0" width="1" '
+            'height="1"><path d="M0,0 L1,1" style="stroke:#000000;stroke-linecap:square" />'
+            "</pattern>"
+        )
+        points = [App.Vector(0, 0, 0), App.Vector(10, 0, 0), App.Vector(10, 5, 0)]
+        obj = self._add_shape("Face", Part.Face(Part.makePolygon(points + points[:1])))
+        with mock.patch("draftfunctions.svg.get_pattern", return_value=pattern):
+            svg = Draft.get_svg(
+                obj, direction=App.Vector(0, 0, 1), fillstyle="SquareCaps", linecap="butt"
+            )
+        self.assertIn(pattern, svg)
+        self.assertIn("stroke-linecap:butt", svg)
+
 
 ## @}
