@@ -649,6 +649,7 @@ SET(Tests_SRCS
     CAMTests/TestPathRotaryPostRegression.py
     CAMTests/TestPathRotaryWrap.py
     CAMTests/TestPathRotationGenerator.py
+    CAMTests/TestPathJobGui.py
     CAMTests/TestPathSetupSheet.py
     CAMTests/TestPathSpiralGenerator.py
     CAMTests/TestPathStock.py
