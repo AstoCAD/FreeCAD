@@ -459,14 +459,10 @@ App::DocumentObjectExecReturn* FeatureExtrude::buildExtrusion(ExtrudeOptions opt
     try {
         obj = getVerifiedObject();
         if (makeface) {
-            sketchshape = getTopoShapeVerifiedFace();
-            if (obj->isDerivedFrom<Part::Part2DObject>()) {
-                // The face is built on the sketch's own edges, and the draft and boolean
-                // operations below attach new pcurves and surfaces to them. Work on a copy,
-                // or the sketch shape grows on every recompute (#33926). The copy keeps the
-                // element names.
-                sketchshape = sketchshape.makeElementCopy();
-            }
+            // The draft and boolean operations below attach new pcurves and surfaces to the
+            // edges of the face. Build it on a copy of the profile wires, or the sketch shape
+            // grows on every recompute (#33926). The copy keeps the element names.
+            sketchshape = getTopoShapeVerifiedFace(false, false, nullptr, {}, true);
         }
         else {
             std::vector<TopoShape> shapes;

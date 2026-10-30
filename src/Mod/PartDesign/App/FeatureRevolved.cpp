@@ -277,12 +277,9 @@ App::DocumentObjectExecReturn* Revolved::tryExecuteRevolved(Part::RevolMode revo
         Base::Console().warning("{}\n", warning);
     }
 
-    TopoShape sketchshape = getTopoShapeVerifiedFace();
-    if (Profile.getValue() && Profile.getValue()->isDerivedFrom<Part::Part2DObject>()) {
-        // Work on a copy so that the operations below do not attach new pcurves and
-        // surfaces to the sketch's own edges on every recompute (#33926).
-        sketchshape = sketchshape.makeElementCopy();
-    }
+    // Build the face on a copy of the profile wires so that the operations below do not
+    // attach new pcurves and surfaces to the sketch's own edges on every recompute (#33926).
+    TopoShape sketchshape = getTopoShapeVerifiedFace(false, false, nullptr, {}, true);
 
     // if the Base property has a valid shape, fuse the AddShape into it
     TopoShape base = tryGetBaseShape();
