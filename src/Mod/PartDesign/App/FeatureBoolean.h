@@ -64,6 +64,7 @@ public:
     std::vector<App::DocumentObject*> removeObject(App::DocumentObject* object) override;
     std::vector<App::DocumentObject*> removeObjects(std::vector<App::DocumentObject*> objects) override;
     bool hasObject(const App::DocumentObject* object, bool recursive = false) const override;
+    std::vector<std::string> getSubObjects(int reason = 0) const override;
     /// returns the type name of the view provider
     const char* getViewProviderName() const override
     {

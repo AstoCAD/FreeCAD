@@ -208,6 +208,17 @@ bool Boolean::hasObject(const App::DocumentObject* /*object*/, bool /*recursive*
     return false;
 }
 
+std::vector<std::string> Boolean::getSubObjects(int reason) const
+{
+    // The tool bodies only feed the boolean. Exporters must use the Boolean's
+    // own shape instead of treating it as an assembly of its (usually hidden)
+    // tools, which wrote an empty or wrong file (issue #20641).
+    if (reason == GS_SELECT) {
+        return FeatureRefine::getSubObjects(reason);
+    }
+    return {};
+}
+
 App::DocumentObjectExecReturn* Boolean::execute()
 {
     // Get the operation type
