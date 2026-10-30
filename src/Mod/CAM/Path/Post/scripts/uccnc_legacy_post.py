@@ -626,8 +626,10 @@ def parse(pathobj):
                     elif param in mandatoryParamInt:
                         commandlist.append(param + str(int(c.Parameters[param])))
                     elif param in mandatoryParamFloat:
+                        # I, J, K are lengths too: convert them like X, Y, Z
+                        pos = Units.Quantity(c.Parameters[param], FreeCAD.Units.Length)
                         commandlist.append(
-                            param + format(float(c.Parameters[param]), precision_string)
+                            param + format(float(pos.getValueAs(UNIT_FORMAT)), precision_string)
                         )
                     else:
                         if (
