@@ -1113,16 +1113,7 @@ void ObjectIdentifier::getDep(Dependencies& deps,
 
     if (!result.resolvedProperty) {
         if (!result.propertyName.empty()) {
-            // A container may know the property under another name (e.g. a
-            // spreadsheet alias whose cell property is not created yet while
-            // restoring), so register the dependency under its canonical name.
-            std::string canonicalPropertyName =
-                result.resolvedDocumentObject->getCanonicalPropertyName(
-                    result.propertyName.c_str()
-                );
-            deps[result.resolvedDocumentObject].insert(
-                canonicalPropertyName.empty() ? result.propertyName : canonicalPropertyName
-            );
+            deps[result.resolvedDocumentObject].insert(result.propertyName);
         }
         return;
     }
