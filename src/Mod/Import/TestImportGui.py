@@ -25,4 +25,33 @@
 Imports the GUI test classes from the `importtests` package, so the test runner finds them.
 """
 
+import unittest
+
+import FreeCAD as App
+
 from importtests.TestImportStepGui import TestImportStepGui
+
+
+class ExportModuleTest(unittest.TestCase):
+    """The GUI export modules must survive a language change (#33912)"""
+
+    def testStepExportModuleAfterLanguageChange(self):
+        import FreeCADGui as Gui
+
+        self.assertEqual(App.getExportType("step"), ["ImportGui"])
+
+        # Changing the language re-registers the translatable export types
+        locale = Gui.getLocale()
+        try:
+            Gui.setLocale("German")
+            Gui.updateGui()
+            self.assertEqual(App.getExportType("step"), ["ImportGui"])
+        finally:
+            Gui.setLocale(locale)
+            Gui.updateGui()
+
+        self.assertEqual(App.getExportType("step"), ["ImportGui"])
+
+    def testIgesExportModule(self):
+        self.assertEqual(set(App.getImportType("igs")), {"ImportGui"})
+        self.assertEqual(set(App.getExportType("igs")), {"ImportGui"})
