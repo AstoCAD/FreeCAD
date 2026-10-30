@@ -28,6 +28,8 @@
 //! The leader's X,Y position is relative to the parent's origin.  The X,Y position is unrotated and unscaled.
 
 
+#include <set>
+
 #include <App/Document.h>
 #include <App/DocumentObserver.h>
 #include <Base/Console.h>
@@ -151,6 +153,16 @@ DrawView* DrawLeaderLine::getBaseView() const
         return nullptr;
     }
 
+    // a leader attached to itself, directly or through other leaders, has no base view.
+    // keepUpdated() and getScale() would otherwise ask each other forever.
+    std::set<const App::DocumentObject*> visited {this};
+    for (const App::DocumentObject* obj = baseObj; obj && obj->isDerivedFrom<DrawLeaderLine>();
+         obj = static_cast<const DrawLeaderLine*>(obj)->LeaderParent.getValue()) {
+        if (!visited.insert(obj).second) {
+            return nullptr;
+        }
+    }
+
     auto cast = freecad_cast<DrawView*>(baseObj);
     return cast;
 }
@@ -237,8 +249,9 @@ std::vector<Base::Vector3d> DrawLeaderLine::getTransformedWayPoints() const
     auto doScale = Scalable.getValue();
     auto doRotate = RotatesWithParent.getValue();
     auto vPoints =  getScaledAndRotatedPoints(doScale, doRotate);
-    if (AutoHorizontal.getValue()) {
-        vPoints = DrawLeaderLine::horizLastSegment(vPoints, getBaseView()->Rotation.getValue());
+    DrawView* parent = getBaseView();
+    if (AutoHorizontal.getValue() && parent) {
+        vPoints = DrawLeaderLine::horizLastSegment(vPoints, parent->Rotation.getValue());
     }
 
     return vPoints;
