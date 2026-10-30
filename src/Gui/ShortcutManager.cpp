@@ -343,6 +343,15 @@ bool ShortcutManager::eventFilter(QObject* o, QEvent* ev)
                         return true;
                     }
                 }
+
+                // Space activates a focused button. Don't let an application
+                // shortcut on Space (e.g. Std_ToggleVisibility when there is a
+                // selection) take it away from the button.
+                if (focusOrProxy->inherits("QAbstractButton") && kev->key() == Qt::Key_Space
+                    && (kev->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier) {
+                    ev->accept();
+                    return true;
+                }
             }
             break;
         }

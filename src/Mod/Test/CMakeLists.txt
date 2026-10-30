@@ -87,6 +87,7 @@ SET(Test_SRCS
     TestPreferencesSearchPopupGui.py
     TestTreeEditBackgroundGui.py
     TestPythonGroupCommandToolTipGui.py
+    TestButtonSpaceShortcutGui.py
 )
 
 SET(TestData_SRCS
