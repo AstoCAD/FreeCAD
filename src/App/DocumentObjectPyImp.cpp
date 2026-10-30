@@ -417,6 +417,9 @@ PyObject* DocumentObjectPy::setExpression(PyObject* args)
     }
     else if (PyUnicode_Check(expr)) {
         const char* exprStr = PyUnicode_AsUTF8(expr);
+        if (!exprStr) {
+            return nullptr;
+        }
         std::shared_ptr<Expression> shared_expr(Expression::parse(getDocumentObjectPtr(), exprStr));
         if (shared_expr && comment) {
             shared_expr->comment = comment;
@@ -570,7 +573,11 @@ PyObject* DocumentObjectPy::getSubObject(PyObject* args, PyObject* keywds)
     bool single = true;
 
     if (PyUnicode_Check(obj)) {
-        subs.emplace_back(PyUnicode_AsUTF8(obj));
+        const char* sub = PyUnicode_AsUTF8(obj);
+        if (!sub) {
+            return nullptr;
+        }
+        subs.emplace_back(sub);
     }
     else if (PySequence_Check(obj)) {
         single = false;
@@ -578,7 +585,11 @@ PyObject* DocumentObjectPy::getSubObject(PyObject* args, PyObject* keywds)
         for (Py::Sequence::iterator it = shapeSeq.begin(); it != shapeSeq.end(); ++it) {
             PyObject* item = (*it).ptr();
             if (PyUnicode_Check(item)) {
-                subs.emplace_back(PyUnicode_AsUTF8(item));
+                const char* sub = PyUnicode_AsUTF8(item);
+                if (!sub) {
+                    return nullptr;
+                }
+                subs.emplace_back(sub);
             }
             else {
                 PyErr_SetString(PyExc_TypeError, "non-string object in sequence");
