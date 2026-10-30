@@ -24,3 +24,5 @@
 # ***************************************************************************/
 
 # FreeCAD init script of the Inspection module
+
+FreeCAD.__unit_test__ += ["TestInspectionApp"]
