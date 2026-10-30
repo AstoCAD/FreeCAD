@@ -147,4 +147,5 @@ FreeCAD.__unit_test__ += [
     "TestButtonSpaceShortcutGui",
     "TestTreeLinkActiveObjectGui",
     "TestLinkGroupToolTipsGui",
+    "TestImagePlaneDraggerGui",
 ]
