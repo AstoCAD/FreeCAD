@@ -1836,6 +1836,10 @@ PyObject* TopoShapePy::makePerspectiveProjection(PyObject* args) const
         const TopoDS_Shape& shape = this->getTopoShapePtr()->getShape();
         const TopoDS_Shape& wire = static_cast<TopoShapePy*>(pShape)->getTopoShapePtr()->getShape();
         Base::Vector3d vec = Py::Vector(pDir, false).toVector();
+        if (!std::isfinite(vec.x) || !std::isfinite(vec.y) || !std::isfinite(vec.z)) {
+            PyErr_SetString(PyExc_ValueError, "Projection centre must be finite");
+            return nullptr;
+        }
         BRepProj_Projection proj(wire, shape, gp_Pnt(vec.x, vec.y, vec.z));
         TopoDS_Shape projected = proj.Shape();
         return new TopoShapePy(new TopoShape(projected));
