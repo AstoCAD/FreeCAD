@@ -400,6 +400,12 @@ public:
     SketchSolveStatus solve(bool updateGeoAfterSolving = true);
     /// set the datum of a Distance or Angle constraint and solve
     SketchSolveStatus setDatum(int ConstrId, double Datum);
+    /** The checks setDatum() makes before solving: Success if it would set Datum and solve,
+     *  else the status it returns without solving: InvalidGeometry, SolverError (not a constraint
+     *  with a datum), Overconstrained (negative radius, diameter or weight) or
+     *  MalformedConstraints (zero radius, diameter, weight or distance).
+     */
+    SketchSolveStatus checkDatum(int ConstrId, double Datum) const;
     /// get the datum of a Distance or Angle constraint
     double getDatum(int ConstrId) const;
     /// set the text and font of a text constraint

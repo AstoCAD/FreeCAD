@@ -184,12 +184,8 @@ SketchSolveStatus SketchObject::solve(bool updateGeoAfterSolving /*=true*/)
     return status;
 }
 
-SketchSolveStatus SketchObject::setDatum(int ConstrId, double Datum)
+SketchSolveStatus SketchObject::checkDatum(int ConstrId, double Datum) const
 {
-    // no need to check input data validity as this is an sketchobject managed operation.
-    Base::StateLocker lock(managedoperation, true);
-
-    // set the changed value for the constraint
     if (this->Constraints.hasInvalidGeometry())
         return SketchSolveStatus::InvalidGeometry;
     const std::vector<Constraint*>& vals = this->Constraints.getValues();
@@ -205,6 +201,20 @@ SketchSolveStatus SketchObject::setDatum(int ConstrId, double Datum)
 
     if (type == Distance && Datum == 0)
             return SketchSolveStatus::MalformedConstraints;
+
+    return SketchSolveStatus::Success;
+}
+
+SketchSolveStatus SketchObject::setDatum(int ConstrId, double Datum)
+{
+    // no need to check input data validity as this is an sketchobject managed operation.
+    Base::StateLocker lock(managedoperation, true);
+
+    // set the changed value for the constraint
+    const auto check = checkDatum(ConstrId, Datum);
+    if (check != SketchSolveStatus::Success)
+        return check;
+    const std::vector<Constraint*>& vals = this->Constraints.getValues();
 
     // copy the list
     std::vector<Constraint*> newVals(vals);
