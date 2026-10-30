@@ -54,6 +54,9 @@ static bool getProperty(PropTmpMap& props,
         return false;
     }
     const char* keyStr = PyUnicode_AsUTF8(key);
+    if (!keyStr) {
+        return false;
+    }
     auto it = infoMap.find(keyStr);
     if (it == infoMap.end()) {
         str << "unknown key '" << keyStr << "'";
@@ -71,6 +74,9 @@ static bool getProperty(PropTmpMap& props,
             return false;
         }
         valStr = PyUnicode_AsUTF8(value);
+        if (!valStr) {
+            return false;
+        }
     }
 
     App::Property* prop = nullptr;

@@ -97,7 +97,11 @@ PyObject* StringHasherPy::getID(PyObject* args)
     if (PyArg_ParseTuple(args, "O!|O!", &PyUnicode_Type, &value, &PyBool_Type, &base64)) {
         PY_TRY
         {
-            std::string txt = PyUnicode_AsUTF8(value);
+            const char* utf8 = PyUnicode_AsUTF8(value);
+            if (!utf8) {
+                return nullptr;
+            }
+            std::string txt = utf8;
             QByteArray data;
             StringIDRef sid;
             if (PyObject_IsTrue(base64)) {
