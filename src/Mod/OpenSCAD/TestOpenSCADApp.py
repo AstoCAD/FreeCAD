@@ -27,9 +27,11 @@ from OpenSCADTest.app.test_importCSG import TestImportCSG as OpenSCADTestImportC
 from OpenSCADTest.app.test_importCSGIntersection import TestCsgIntersectionArity as OpenSCADTestCsgIntersectionArity
 from OpenSCADTest.app.test_importCSGIntersection import TestCsgNestedUncomputedChildren as OpenSCADTestCsgNestedUncomputedChildren
 from OpenSCADTest.app.test_exportCSG import TestExportCSGBooleanPlacement as OpenSCADTestExportCSGBooleanPlacement
+from OpenSCADTest.app.test_importCSGFrustum import TestCsgFrustum as OpenSCADTestCsgFrustum
 
 # dummy usage to get flake8 and lgtm quiet
 False if OpenSCADTestImportCSG.__name__ else True
 False if OpenSCADTestCsgIntersectionArity.__name__ else True
 False if OpenSCADTestCsgNestedUncomputedChildren.__name__ else True
 False if OpenSCADTestExportCSGBooleanPlacement.__name__ else True
+False if OpenSCADTestCsgFrustum.__name__ else True

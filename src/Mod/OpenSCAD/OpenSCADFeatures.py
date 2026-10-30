@@ -341,7 +341,7 @@ class Frustum:
         obj.Proxy = self
 
     def execute(self, fp):
-        if all((fp.Radius1,fp.Radius2,fp.FacesNumber,fp.Height)):
+        if all((fp.FacesNumber,fp.Height)) and any((fp.Radius1,fp.Radius2)):
             import math
             import FreeCAD
             import Part
@@ -350,6 +350,10 @@ class Frustum:
             wires = []
             faces = []
             for ir,r in enumerate((fp.Radius1,fp.Radius2)):
+                if r.Value == 0:
+                    # pyramid: this end collapses to the apex
+                    wires.append(Part.Vertex(FreeCAD.Vector(0,0,ir*fp.Height.Value)))
+                    continue
                 angle = (math.pi*2)/fp.FacesNumber
                 pts = [FreeCAD.Vector(r.Value,0,ir*fp.Height.Value)]
                 for i in range(fp.FacesNumber-1):
@@ -363,10 +367,13 @@ class Frustum:
                     face.reverse()
                 wires.append(shape)
                 faces.append(face)
-            #shellperi = Part.makeRuledSurface(*wires)
-            shellperi = Part.makeLoft(wires)
-            shell = Part.Shell(shellperi.Faces+faces)
-            fp.Shape = Part.Solid(shell)
+            if len(faces) < 2:
+                fp.Shape = Part.makeLoft(wires, True)
+            else:
+                #shellperi = Part.makeRuledSurface(*wires)
+                shellperi = Part.makeLoft(wires)
+                shell = Part.Shell(shellperi.Faces+faces)
+                fp.Shape = Part.Solid(shell)
             fp.Placement = plm
 
 class Twist:
