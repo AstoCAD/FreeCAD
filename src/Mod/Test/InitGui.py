@@ -118,6 +118,7 @@ FreeCAD.__unit_test__ += [
     "TestStatusTipGui",
     "TestGraphicsViewWrapping",
     "TestMDIView",
+    "TestPythonEditorTitleGui",
     "TestActivateViewGui",
     "TestRecordedCommandImportsGui",
     "TestWorkbenchSelectorGui",
