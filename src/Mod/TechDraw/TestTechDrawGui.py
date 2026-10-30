@@ -48,6 +48,7 @@ from TDTest.TestHorizontalChainPendingGui import TestHorizontalChainPendingGui  
 from TDTest.TestChainWarningsPendingGui import TestChainWarningsPendingGui  # noqa: F401
 from TDTest.TestDimensionFormatPendingGui import TestDimensionFormatPendingGui  # noqa: F401
 from TDTest.TestDxfExportPendingTransactionGui import TestDxfExportPendingTransactionGui  # noqa: F401
+from TDTest.TestDxfExportDraftWarningGui import TestDxfExportDraftWarningGui  # noqa: F401
 from TDTest.DrawMoveViewPageChooserGuiTest import DrawMoveViewPageChooserGuiTest  # noqa: F401
 from TDTest.DrawFindPageGuiTest import DrawFindPageGuiTest  # noqa: F401
 from TDTest.DrawTemplateFieldsDismissalGuiTest import DrawTemplateFieldsDismissalGuiTest  # noqa: F401

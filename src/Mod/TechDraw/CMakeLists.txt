@@ -205,6 +205,7 @@ SET(TDTest_SRCS
     TDTest/TestChainWarningsPendingGui.py
     TDTest/TestDimensionFormatPendingGui.py
     TDTest/TestDxfExportPendingTransactionGui.py
+    TDTest/TestDxfExportDraftWarningGui.py
     TDTest/DrawMoveViewPageChooserGuiTest.py
     TDTest/DrawFindPageGuiTest.py
     TDTest/DrawTemplateFieldsDismissalGuiTest.py
