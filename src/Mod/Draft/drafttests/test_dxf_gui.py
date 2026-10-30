@@ -100,5 +100,55 @@ class DraftGuiDXF(unittest.TestCase):
             hDoc.SetBool("CanAbortRecompute", wasCanAbort)
             App.closeDocument(doc.Name)
 
+    def test_import_text_ignores_scale_multiplier(self):
+        """Imported DXF texts keep their DXF height whatever the annotation scale multiplier.
+
+        https://github.com/FreeCAD/FreeCAD/issues/30043
+        """
+        import tempfile
+        import importDXF
+
+        records = ["0", "SECTION", "2", "ENTITIES",
+                   "0", "TEXT", "8", "0", "10", "0.0", "20", "0.0", "30", "0.0",
+                   "40", "2.5", "1", "Sample",
+                   "0", "ENDSEC", "0", "EOF"]  # fmt: skip
+        in_file = os.path.join(tempfile.gettempdir(), "DraftGuiDXFTextScale.dxf")
+        with open(in_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(records) + "\n")
+
+        hDraft = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Draft")
+        wasShowDialog = hDraft.GetBool("dxfShowDialog", True)
+        wasUseLegacyImporter = hDraft.GetBool("dxfUseLegacyImporter", False)
+        wasImportTexts = hDraft.GetBool("dxftext", False)
+        wasImportMode = hDraft.GetInt("DxfImportMode", 2)
+        wasScale = hDraft.GetFloat("dxfScaling", 1.0)
+        wasMultiplier = hDraft.GetFloat("DefaultAnnoScaleMultiplier", 1.0)
+        doc = App.newDocument("DraftGuiDXFTextScale")
+        try:
+            hDraft.SetBool("dxfShowDialog", False)
+            hDraft.SetBool("dxfUseLegacyImporter", False)
+            hDraft.SetBool("dxftext", True)
+            hDraft.SetInt("DxfImportMode", 2)
+            hDraft.SetFloat("dxfScaling", 1.0)
+            hDraft.SetFloat("DefaultAnnoScaleMultiplier", 10.0)
+            importDXF.insert(in_file, doc.Name)
+            texts = [
+                obj
+                for obj in doc.Objects
+                if hasattr(obj, "Proxy") and obj.Proxy.__class__.__name__ == "Text"
+            ]
+            self.assertEqual(len(texts), 1)
+            self.assertAlmostEqual(texts[0].ViewObject.FontSize.Value, 2.5, places=6)
+            self.assertAlmostEqual(texts[0].ViewObject.ScaleMultiplier, 1.0)
+        finally:
+            hDraft.SetBool("dxfShowDialog", wasShowDialog)
+            hDraft.SetBool("dxfUseLegacyImporter", wasUseLegacyImporter)
+            hDraft.SetBool("dxftext", wasImportTexts)
+            hDraft.SetInt("DxfImportMode", wasImportMode)
+            hDraft.SetFloat("dxfScaling", wasScale)
+            hDraft.SetFloat("DefaultAnnoScaleMultiplier", wasMultiplier)
+            App.closeDocument(doc.Name)
+            os.remove(in_file)
+
 
 ## @}
