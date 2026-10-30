@@ -194,6 +194,23 @@ class TestMeshCommon(unittest.TestCase):
             f"Problem in test_writeAbaqus_precision, \n{read_node_line}\n{expected}",
         )
 
+    # ********************************************************************************************
+    def test_getNodesBySolid_near_boundary(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33842
+        # nodes just inside the solid (closer than 1e-3 to its boundary) were dropped
+        import Part
+
+        solid = Part.makeBox(10, 10, 10).Solids[0]
+        mesh = Fem.FemMesh()
+        mesh.addNode(5, 5, 5, 1)  # deep inside
+        mesh.addNode(5, 5, 10, 2)  # on the top face
+        mesh.addNode(5, 5, 10 - 5e-6, 3)  # just inside
+        mesh.addNode(5, 5, 10 - 5e-4, 4)  # just inside
+        mesh.addNode(5, 5, 9.9, 5)  # inside
+        mesh.addNode(5, 5, 10.05, 6)  # outside
+        mesh.addNode(5, 5, 10 + 5e-4, 7)  # just outside
+        self.assertEqual(sorted(mesh.getNodesBySolid(solid)), [1, 2, 3, 4, 5])
+
 
 # ************************************************************************************************
 # ************************************************************************************************
