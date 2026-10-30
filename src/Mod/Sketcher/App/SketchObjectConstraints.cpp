@@ -2913,6 +2913,10 @@ int SketchObject::autoRemoveRedundants(DeleteOptions options)
 
 int SketchObject::renameConstraint(int GeoId, std::string name)
 {
+    if (GeoId < 0 || GeoId >= Constraints.getSize()) {
+        return -1;
+    }
+
     // only change the constraint item if the names are different
     const Constraint* item = Constraints[GeoId];
 

@@ -833,7 +833,7 @@ PyObject* SketchObjectPy::renameConstraint(PyObject* args)
     std::string Name = utf8Name;
     PyMem_Free(utf8Name);
 
-    if (this->getSketchObjectPtr()->Constraints.getSize() <= Index) {
+    if (Index < 0 || this->getSketchObjectPtr()->Constraints.getSize() <= Index) {
         std::stringstream str;
         str << "Not able to rename a constraint with the given index: " << Index;
         PyErr_SetString(PyExc_IndexError, str.str().c_str());
@@ -2063,7 +2063,7 @@ PyObject* SketchObjectPy::addSymmetric(PyObject* args)
                       )
             + 1;
 
-        if (ret == -1) {
+        if (ret < 1) {
             throw Py::TypeError("Symmetric operation unsuccessful!");
         }
 
@@ -2108,7 +2108,7 @@ PyObject* SketchObjectPy::addCopy(PyObject* args)
             int ret = this->getSketchObjectPtr()->addCopy(geoIdList, vect, false, Base::asBoolean(clone))
                 + 1;
 
-            if (ret == -1) {
+            if (ret < 1) {
                 throw Py::TypeError("Copy operation unsuccessful!");
             }
 
@@ -2150,7 +2150,9 @@ PyObject* SketchObjectPy::addMove(PyObject* args)
             }
         }
 
-        this->getSketchObjectPtr()->addCopy(geoIdList, vect, true);
+        if (this->getSketchObjectPtr()->addCopy(geoIdList, vect, true) < 0) {
+            throw Py::ValueError("Move operation unsuccessful!");
+        }
 
         Py_Return;
     }
@@ -2209,7 +2211,7 @@ PyObject* SketchObjectPy::addRectangularArray(PyObject* args)
                       )
                 + 1;
 
-            if (ret == -1) {
+            if (ret < 1) {
                 throw Py::TypeError("Copy operation unsuccessful!");
             }
         }
