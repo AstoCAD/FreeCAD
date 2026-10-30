@@ -31,6 +31,7 @@ from SketcherTests.TestAutoConstraintsPreferenceGui import TestAutoConstraintsPr
 from SketcherTests.TestEditTextDialogGui import TestEditTextDialogGui
 from SketcherTests.TestPasteSelectionGui import TestPasteSelectionGui
 from SketcherTests.TestWireSelectionGui import TestWireSelectionGui
+from SketcherTests.TestAlignCameraOnEditGui import TestAlignCameraOnEditGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -63,5 +64,6 @@ from SketcherTests.TestWireSelectionGui import TestWireSelectionGui
     and TestEditTextDialogGui
     and TestPasteSelectionGui
     and TestWireSelectionGui
+    and TestAlignCameraOnEditGui
     else False
 )
