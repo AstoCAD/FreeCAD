@@ -23,6 +23,8 @@
  ***************************************************************************/
 
 
+#include <iomanip>
+#include <limits>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <GeomLib_IsPlanarSurface.hxx>
@@ -1274,7 +1276,10 @@ void prepareProfileBased(Gui::Command* cmd, const std::string& which, double len
         }
 
         // specific parameters for Pad/Pocket
-        FCMD_OBJ_CMD(Feat, "Length = " << length);
+        FCMD_OBJ_CMD(
+            Feat,
+            "Length = " << std::setprecision(std::numeric_limits<double>::digits10) << length
+        );
         Gui::Command::updateActive();
 
         Part::Part2DObject* sketch = dynamic_cast<Part::Part2DObject*>(profile);
@@ -1291,6 +1296,22 @@ void prepareProfileBased(Gui::Command* cmd, const std::string& which, double len
     };
 
     prepareProfileBased(pcActiveBody, cmd, which, worker);
+}
+
+// Length of a new Pad or Pocket: the built-in default, or the last length accepted in its
+// task panel when the "Remember last used length" preference is enabled
+static double initialExtrudeLength(const char* lastLengthEntry, double defaultLength)
+{
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/PartDesign"
+    );
+    if (hGrp->GetBool("RememberLastLength", false)) {
+        double length = hGrp->GetFloat(lastLengthEntry, defaultLength);
+        if (length > 0.0) {
+            return length;
+        }
+    }
+    return defaultLength;
 }
 
 //===========================================================================
@@ -1314,7 +1335,7 @@ void CmdPartDesignPad::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
 
-    prepareProfileBased(this, "Pad", 10.0);
+    prepareProfileBased(this, "Pad", initialExtrudeLength("LastPadLength", 10.0));
 }
 
 bool CmdPartDesignPad::isActive()
@@ -1343,7 +1364,7 @@ void CmdPartDesignPocket::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
 
-    prepareProfileBased(this, "Pocket", 5.0);
+    prepareProfileBased(this, "Pocket", initialExtrudeLength("LastPocketLength", 5.0));
 }
 
 bool CmdPartDesignPocket::isActive()

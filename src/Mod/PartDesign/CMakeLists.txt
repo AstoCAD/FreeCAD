@@ -101,6 +101,7 @@ if(BUILD_GUI)
         PartDesignTests/TestShapeBinderCancelGui.py
         PartDesignTests/TestPreviewColorPythonGui.py
         PartDesignTests/TestThicknessToolTipsGui.py
+        PartDesignTests/TestRememberLastLengthGui.py
         PartDesignTests/TestMaterial.py
         PartDesignTests/TestSuppressed.py
     )
