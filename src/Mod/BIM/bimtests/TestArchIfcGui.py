@@ -76,3 +76,30 @@ class TestArchIfcGui(TestArchBaseGui.TestArchBaseGui):
         self.assertTrue(os.path.exists(ifcpath))
         self.assertFalse(proj.Modified)
         self.assertFalse(gdoc.Modified, "the saved document is marked as modified")
+
+    def test_hybrid_save_new_ifc_path_keeps_document_modified(self):
+        """When the IFC file path of a project is only chosen while saving, the
+        FreeCAD document must stay modified: the saved FreeCAD file does not
+        contain the new IfcFilePath yet, and the link to the IFC file would be
+        lost when closing without saving again."""
+        from unittest import mock
+        from nativeifc import ifc_observer
+        from nativeifc import ifc_tools
+
+        self.printTestMessage("NativeIFC hybrid save with a new IFC path...")
+        proj = ifc_tools.create_document_object(self.document, silent=True)
+        ifcpath = os.path.join(self.tmpdir, "hybrid_new.ifc")
+        proj.Modified = True
+        self.document.recompute()
+        gdoc = FreeCADGui.getDocument(self.document.Name)
+        # the observer runs right after the FreeCAD document was saved
+        gdoc.Modified = False
+        obs = ifc_observer.ifc_observer()
+        obs.docname = self.document.Name
+        with mock.patch(
+            "PySide.QtGui.QFileDialog.getSaveFileName", lambda *args, **kwargs: (ifcpath, "")
+        ):
+            obs.save()
+        self.assertTrue(os.path.exists(ifcpath))
+        self.assertEqual(proj.IfcFilePath, ifcpath)
+        self.assertTrue(gdoc.Modified, "the new IfcFilePath is not saved in the FreeCAD file")

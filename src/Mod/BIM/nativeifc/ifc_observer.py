@@ -208,6 +208,9 @@ class ifc_observer:
                     else:
                         ifc_viewproviders.get_filepath(project)
                         ifc_tools.save(project)
+                        # the new IfcFilePath is not in the saved FreeCAD file:
+                        # the document must stay modified so it gets saved again
+                        was_modified = True
             if not was_modified:
                 # resetting the projects' Modified flag must not mark
                 # the freshly saved FreeCAD document as modified again
