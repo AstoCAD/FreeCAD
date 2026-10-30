@@ -489,6 +489,45 @@ class TestPad(unittest.TestCase):
         self.assertTrue(pocket.isValid(), pocket.getStatusString())
         self.assertAlmostEqual(pocket.Shape.Volume, 20 * 20 * 10 - math.pi * 9 * 10)
 
+    def testRefineKeepsValidShapeAtCylinderSeam(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/32645
+        # A tab tangent to the inner face of a tube at its seam: refining the
+        # fused result breaks it, so the unrefined valid shape must be kept
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        tubeSketch = body.newObject("Sketcher::SketchObject", "TubeSketch")
+        tubeSketch.AttachmentSupport = (self.Doc.getObject("XY_Plane"), [""])
+        tubeSketch.MapMode = "FlatFace"
+        tubeSketch.addGeometry(
+            [
+                Part.Circle(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 0, 1), 5),
+                Part.Circle(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 0, 1), 7),
+            ],
+            False,
+        )
+        self.Doc.recompute()
+        tube = body.newObject("PartDesign::Pad", "Tube")
+        tube.Profile = tubeSketch
+        tube.Length = 10
+        tube.Refine = False
+        tabSketch = body.newObject("Sketcher::SketchObject", "TabSketch")
+        tabSketch.AttachmentSupport = (self.Doc.getObject("XY_Plane"), [""])
+        tabSketch.MapMode = "FlatFace"
+        TestSketcherApp.CreateRectangleSketch(tabSketch, (5, -2), (10, 4))
+        self.Doc.recompute()
+        tab = body.newObject("PartDesign::Pad", "Tab")
+        tab.Profile = tabSketch
+        tab.Length = 5
+        tab.Refine = False
+        self.Doc.recompute()
+        self.assertTrue(tab.isValid(), tab.getStatusString())
+        self.assertTrue(tab.Shape.isValid())
+        unrefinedVolume = tab.Shape.Volume
+        tab.Refine = True
+        self.Doc.recompute()
+        self.assertTrue(tab.isValid(), tab.getStatusString())
+        self.assertTrue(tab.Shape.isValid())
+        self.assertAlmostEqual(tab.Shape.Volume, unrefinedVolume)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestPad")
