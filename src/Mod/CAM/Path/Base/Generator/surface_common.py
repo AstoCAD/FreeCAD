@@ -26,6 +26,8 @@ These are pure functions with no FreeCAD document access — tool parameters
 and geometry are passed in by the operation wrapper.
 """
 
+import math
+
 import Path
 import Part
 import FreeCAD
@@ -177,8 +179,8 @@ def make_ocl_cutter(
         if edge_angle <= 0:
             Path.Log.error("ConeCutter requires a positive edge_angle, got {}".format(edge_angle))
             return None
-        # OCL ConeCutter(diameter, half_angle, length)
-        return ocl.ConeCutter(diameter, edge_angle / 2.0, length_offset)
+        # OCL ConeCutter(diameter, half_angle, length), half_angle in radians
+        return ocl.ConeCutter(diameter, math.radians(edge_angle / 2.0), length_offset)
 
     return None
 

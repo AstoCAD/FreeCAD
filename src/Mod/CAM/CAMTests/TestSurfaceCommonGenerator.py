@@ -127,6 +127,22 @@ class TestSurfaceCommon(PathTestUtils.PathTestBase):
         cutter = make_ocl_cutter("v-bit", 10.0, edge_angle=90.0)
         self.assertIsNotNone(cutter)
 
+    def test03a_vbit_cone_angle(self):
+        """
+        The V-bit angle must reach OCL in radians (issue #33640).
+
+        OCL's ConeCutter takes the half angle in radians and sets the cone
+        height to radius / tan(half_angle). A 90 degree, 10 mm V-bit must give
+        a 5 mm high cone; passing 45 (degrees) as radians gave a ~3.09 mm cone.
+        """
+        from Path.Base.Generator.surface_common import make_ocl_cutter
+
+        for angle, height in ((90.0, 5.0), (60.0, 5.0 / 0.5773502691896258)):
+            with self.subTest(angle=angle):
+                cutter = make_ocl_cutter("v-bit", 10.0, edge_angle=angle)
+                self.assertIsNotNone(cutter)
+                self.assertAlmostEqual(cutter.getLength(), height, places=6)
+
     def test04_unsupported_tool_type(self):
         """
         Tests that unsupported tool types are handled gracefully by returning None.
