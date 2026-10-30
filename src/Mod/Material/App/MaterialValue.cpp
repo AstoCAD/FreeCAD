@@ -485,6 +485,11 @@ void Array2D::setValue(int row, int column, const QVariant& value)
     validateColumn(column);
 
     auto val = getRow(row);
+    // QList does not throw on an invalid index. A row can be shorter than columns()
+    // (e.g. after setColumns() or when read from a malformed file)
+    if (column >= static_cast<int>(val->size())) {
+        throw InvalidIndex();
+    }
     try {
         val->replace(column, value);
     }
@@ -498,6 +503,9 @@ QVariant Array2D::getValue(int row, int column) const
     validateColumn(column);
 
     auto val = getRow(row);
+    if (column >= static_cast<int>(val->size())) {
+        throw InvalidIndex();
+    }
     try {
         return val->at(column);
     }
@@ -677,6 +685,10 @@ Array3D::getTable(const Base::Quantity& depth) const
 const std::shared_ptr<QList<std::shared_ptr<QList<Base::Quantity>>>>&
 Array3D::getTable(int depthIndex) const
 {
+    // QList::at() does not throw on an invalid index
+    if (depthIndex < 0 || depthIndex >= static_cast<int>(_rowMap.size())) {
+        throw InvalidIndex();
+    }
     try {
         return std::get<1>(_rowMap.at(depthIndex));
     }
@@ -848,6 +860,9 @@ void Array3D::setValue(int depth, int row, int column, const Base::Quantity& val
     validateColumn(column);
 
     auto val = getRow(depth, row);
+    if (column >= static_cast<int>(val->size())) {
+        throw InvalidIndex();
+    }
     try {
         val->replace(column, value);
     }
@@ -883,6 +898,9 @@ Base::Quantity Array3D::getValue(int depth, int row, int column) const
     // getRow validates depth and row. Do that first
     auto val = getRow(depth, row);
     validateColumn(column);
+    if (column >= static_cast<int>(val->size())) {
+        throw InvalidIndex();
+    }
 
     try {
         return val->at(column);
