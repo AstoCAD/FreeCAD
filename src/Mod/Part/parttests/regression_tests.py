@@ -271,6 +271,15 @@ class RegressionTests(unittest.TestCase):
                     face.project(shapes)
         self.assertEqual(len(face.project([box]).Edges), 16)
 
+    def test_tessellate_nan_tolerance_raises(self):
+        "TopoShape.tessellate(nan) never returned on shapes with curved faces"
+        sphere = Part.makeSphere(1)
+        with self.assertRaises(ValueError):
+            sphere.tessellate(float("nan"))
+        points, facets = sphere.tessellate(0.1)
+        self.assertGreater(len(points), 0)
+        self.assertGreater(len(facets), 0)
+
     def test_spiral_infinite_rotations(self):
         "Part::Spiral with an infinite or huge number of rotations looped forever"
         spiral = self.Doc.addObject("Part::Spiral", "Spiral")
