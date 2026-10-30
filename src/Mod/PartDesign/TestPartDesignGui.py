@@ -58,6 +58,7 @@ from PartDesignTests.TestBooleanBoundingBoxGui import TestBooleanBoundingBoxGui
 from PartDesignTests.TestBooleanDisplayGui import TestBooleanDisplayGui
 from PartDesignTests.TestBooleanDisplayModesGui import TestBooleanDisplayModesGui
 from PartDesignTests.TestSetTipOriginGui import TestSetTipOriginGui
+from PartDesignTests.TestHolePitchGui import TestHolePitchGui
 
 
 # timer runs this class in order to access modal dialog

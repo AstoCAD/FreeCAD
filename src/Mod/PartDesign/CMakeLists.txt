@@ -90,6 +90,7 @@ if(BUILD_GUI)
         PartDesignTests/TestBooleanDisplayGui.py
         PartDesignTests/TestBooleanDisplayModesGui.py
         PartDesignTests/TestSetTipOriginGui.py
+        PartDesignTests/TestHolePitchGui.py
         PartDesignTests/TestMaterial.py
         PartDesignTests/TestSuppressed.py
     )
