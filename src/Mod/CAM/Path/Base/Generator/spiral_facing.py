@@ -207,10 +207,13 @@ def spiral(
     if stepover_dist > tool_diameter * 1.000001:
         stepover_dist = tool_diameter
 
-    # Calculate adjusted stepover to guarantee center coverage
-    starting_inset = tool_radius - stepover_dist
+    # Standard initial_offset (preserves first engagement exactly)
+    initial_offset = -tool_radius + stepover_dist
+
+    # Calculate adjusted stepover to guarantee center coverage:
+    # the last loop must be at offset limiting_half - tool_radius
     limiting_half = min(primary_length, step_length) / 2.0
-    total_radial_distance = limiting_half - tool_radius - starting_inset
+    total_radial_distance = limiting_half - tool_radius - initial_offset
 
     if total_radial_distance <= 0:
         actual_stepover = stepover_dist
@@ -221,9 +224,6 @@ def spiral(
     Path.Log.debug(
         f"Spiral: adjusted stepover {stepover_dist:.4f} → {actual_stepover:.4f} mm, intervals={number_of_intervals if total_radial_distance > 0 else 0}"
     )
-
-    # Standard initial_offset (preserves first engagement exactly)
-    initial_offset = -tool_radius + stepover_dist
 
     z = polygon.BoundBox.ZMin
 
