@@ -102,6 +102,43 @@ class TestArchIfc(TestArchBase.TestArchBase):
             },
         )
 
+    def test_export_app_part_skips_base_objects(self):
+        """The base objects of BIM objects inside an App::Part must not be exported.
+        https://github.com/FreeCAD/FreeCAD/issues/28368"""
+        import Arch
+        import Draft
+        from importers import exportIFC
+
+        rect = Draft.makeRectangle(1000, 500)
+        ext = self.document.addObject("Part::Extrusion", "Extrusion")
+        ext.Base = rect
+        ext.DirMode = "Custom"
+        ext.Dir = FreeCAD.Vector(0, 0, 1)
+        ext.LengthFwd = 50
+        ext.Solid = True
+        equipment = Arch.makeEquipment(ext)
+        part = self.document.addObject("App::Part", "Part")
+        part.addObject(equipment)
+        level = Arch.makeFloor([part])
+        building = Arch.makeBuilding([level])
+        site = Arch.makeSite([building])
+        self.document.recompute()
+        # the App::Part also holds the base objects of the equipment
+        self.assertIn(ext, part.Group)
+        self.assertEqual(Arch.pruneIncluded(part.Group, strict=True, silent=True), [equipment])
+
+        path = os.path.join(tempfile.mkdtemp(), "app_part.ifc")
+        exportIFC.export([site], path)
+        ifcfile = ifcopenshell.open(path)
+        # every element apart from the assembly itself
+        elements = [
+            e
+            for e in ifcfile.by_type("IfcElement")
+            if not e.is_a("IfcElementAssembly") and not e.is_a("IfcOpeningElement")
+        ]
+        names = sorted(e.Name for e in elements)
+        self.assertEqual(names, [equipment.Label])
+
     def _check_imported_wall(self):
         walls = [o for o in self.document.Objects if o.Label == "TestWall"]
         self.assertEqual(len(walls), 1, "the IFC wall was not imported")

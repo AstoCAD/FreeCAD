@@ -918,6 +918,10 @@ def pruneIncluded(objectslist, strict=False, silent=False):
                     if toplevel == False and strict:
                         if parent not in objectslist and parent not in newlist:
                             toplevel = True
+                    if not toplevel:
+                        # stop here, otherwise a further parent (for ex. an App::Part
+                        # containing obj) could wrongly make obj toplevel again
+                        break
         if toplevel:
             newlist.append(obj)
         elif not silent:
