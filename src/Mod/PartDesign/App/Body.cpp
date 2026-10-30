@@ -276,7 +276,8 @@ std::vector<App::DocumentObject*> Body::addObjects(std::vector<App::DocumentObje
 
 void Body::insertObject(App::DocumentObject* feature, App::DocumentObject* target, bool after)
 {
-    if (target && !hasObject(target)) {
+    // hasObject() also accepts the Origin and its features, which are not in Group
+    if (target && (!hasObject(target) || !std::ranges::count(Group.getValues(), target))) {
         throw Base::ValueError(
             "Body: the feature we should insert relative to is not part of that body"
         );
