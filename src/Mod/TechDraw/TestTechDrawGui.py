@@ -69,6 +69,7 @@ from TDTest.DrawPageDocumentWindowMenuGuiTest import DrawPageDocumentWindowMenuG
 from TDTest.DrawViewAnnotationSpacesGuiTest import DrawViewAnnotationSpacesGuiTest  # noqa: F401
 from TDTest.DrawViewSelectionTeardownGuiTest import DrawViewSelectionTeardownGuiTest  # noqa: F401
 from TDTest.DrawViewDeleteWhileRunningGuiTest import DrawViewDeleteWhileRunningGuiTest  # noqa: F401
+from TDTest.TestInsertSymbolStackTopGui import TestInsertSymbolStackTopGui  # noqa: F401
 from TDTest.TechDrawTaskTest import TechDrawTaskTest  # noqa: F401
 
 
