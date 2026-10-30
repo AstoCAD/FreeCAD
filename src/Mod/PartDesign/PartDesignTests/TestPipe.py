@@ -196,6 +196,28 @@ class TestPipe(unittest.TestCase):
         self.assertTrue(self.SubtractivePipe.isValid())
         self.assertAlmostEqual(self.SubtractivePipe.Shape.Volume, padVolume - expected, places=3)
 
+    def testPipeReportsProfileError(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/28860
+        # Errors from the profile must be reported, not hidden behind a generic message
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.ProfileSketch = self.Body.newObject("Sketcher::SketchObject", "ProfileSketch")
+        TestSketcherApp.CreateCircleSketch(self.ProfileSketch, (0, 0), 1)
+        self.SpineSketch = self.Body.newObject("Sketcher::SketchObject", "SpineSketch")
+        self.SpineSketch.MapMode = "FlatFace"
+        self.SpineSketch.AttachmentSupport = (self.Doc.XZ_Plane, [""])
+        self.SpineSketch.addGeometry(
+            Part.LineSegment(App.Vector(0, 0, 0), App.Vector(0, 10, 0)), False
+        )
+        self.Doc.recompute()
+        self.AdditivePipe = self.Body.newObject("PartDesign::AdditivePipe", "AdditivePipe")
+        self.AdditivePipe.Profile = (self.ProfileSketch, ["Edge5"])
+        self.AdditivePipe.Spine = self.SpineSketch
+        self.Doc.recompute()
+        self.assertFalse(self.AdditivePipe.isValid())
+        status = self.AdditivePipe.getStatusString()
+        self.assertNotIn("fatal error", status)
+        self.assertIn("Edge5", status)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestPipe")
