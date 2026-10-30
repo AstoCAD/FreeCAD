@@ -399,6 +399,7 @@ def get_svg(
     rotation=0,
     fillspaces=False,
     override=True,
+    linecap="square",
 ):
     """Return a string containing an SVG representation of the object.
 
@@ -445,7 +446,34 @@ def get_svg(
 
     override: bool, optional
         It defaults to `True`.
+
+    linecap: str, optional
+        It defaults to `'square'`.
+        The SVG `stroke-linecap` of the lines: `'square'`, `'round'`
+        or `'butt'`.
     """
+    if linecap != "square":
+        svg = get_svg(
+            obj,
+            scale,
+            linewidth,
+            fontsize,
+            fillstyle,
+            direction,
+            linestyle,
+            color,
+            linespacing,
+            techdraw,
+            rotation,
+            fillspaces,
+            override,
+        )
+        if linecap not in ("round", "butt"):
+            _wrn("get_svg: unsupported linecap '{}', using 'square'".format(linecap))
+            return svg
+        svg = svg.replace("stroke-linecap:square", "stroke-linecap:" + linecap)
+        return svg.replace('stroke-linecap="square"', 'stroke-linecap="' + linecap + '"')
+
     # If this is a group, recursively call this function to gather
     # all the SVG strings from the contents of the group.
     if (

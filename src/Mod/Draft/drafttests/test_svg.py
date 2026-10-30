@@ -239,5 +239,35 @@ class DraftSVGExportRegression(test_base.DraftTestCaseDoc):
                     Draft.get_svg(obj, direction=App.Vector(0, 0, 1))
                 project.assert_not_called()
 
+    def test_get_svg_linecap(self):
+        """The linecap argument replaces the default square line caps.
+
+        Issue #27866: TechDraw Draft views must follow the TechDraw line cap
+        preference.
+        """
+        line = Part.makePolygon([App.Vector(0, 0, 0), App.Vector(10, 0, 0), App.Vector(10, 5, 0)])
+        obj = self._add_shape("Line", line)
+        group = self.doc.addObject("App::DocumentObjectGroup", "Group")
+        group.addObject(obj)
+        for source in (obj, group):
+            with self.subTest(source=source.Name):
+                default = Draft.get_svg(source, direction=App.Vector(0, 0, 1))
+                self.assertIn("stroke-linecap:square", default)
+                self.assertEqual(
+                    Draft.get_svg(source, direction=App.Vector(0, 0, 1), linecap="square"),
+                    default,
+                )
+                for cap in ("round", "butt"):
+                    svg = Draft.get_svg(source, direction=App.Vector(0, 0, 1), linecap=cap)
+                    self.assertNotIn("square", svg)
+                    self.assertIn("stroke-linecap:" + cap, svg)
+                    self.assertEqual(
+                        svg.replace("stroke-linecap:" + cap, "stroke-linecap:square"), default
+                    )
+                self.assertEqual(
+                    Draft.get_svg(source, direction=App.Vector(0, 0, 1), linecap="bogus"),
+                    default,
+                )
+
 
 ## @}
