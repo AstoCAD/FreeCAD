@@ -617,8 +617,9 @@ inline void MeshFacetGrid::AddFacet(const MeshGeomFacet& rclFacet, ElementIndex 
 
     // clBB.Enlarge(fEpsilon*fDiagonalLength);
 
-    Pos(Base::Vector3f(clBB.MinX, clBB.MinY, clBB.MinZ), ulX1, ulY1, ulZ1);
-    Pos(Base::Vector3f(clBB.MaxX, clBB.MaxY, clBB.MaxZ), ulX2, ulY2, ulZ2);
+    // With huge or non-finite coordinates the computed cell can fall outside the grid
+    PosWithCheck(Base::Vector3f(clBB.MinX, clBB.MinY, clBB.MinZ), ulX1, ulY1, ulZ1);
+    PosWithCheck(Base::Vector3f(clBB.MaxX, clBB.MaxY, clBB.MaxZ), ulX2, ulY2, ulZ2);
 
     /*
     if (ulX1 > 0) ulX1--;
