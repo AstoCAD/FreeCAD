@@ -66,6 +66,40 @@ class TestSketchValidateCoincidents(unittest.TestCase):
         del geo0, geo1, geo2, geo3
         del sketch
 
+    def testMissingCoincidentOnDimensionedVertex(self):
+        """A vertex referenced by a non-coincidence constraint (here a dimension)
+        must still be checked for a missing coincidence.
+        See https://github.com/FreeCAD/FreeCAD/issues/24335"""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        v0 = Vector(0.0, 0.0, 0.0)
+        v1 = Vector(10.0, 0.0, 0.0)
+        v2 = Vector(10.0, 5.0, 0.0)
+        v3 = Vector(0.0, 5.0, 0.0)
+        geo0 = sketch.addGeometry(Part.LineSegment(v0, v1))
+        geo1 = sketch.addGeometry(Part.LineSegment(v1, v2))
+        geo2 = sketch.addGeometry(Part.LineSegment(v2, v3))
+        geo3 = sketch.addGeometry(Part.LineSegment(v3, v0))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo0, 2, geo1, 1))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo1, 2, geo2, 1))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo2, 2, geo3, 1))
+        # The coincidence between geo3 end and geo0 start is missing.
+        self.Doc.recompute()
+
+        sketch.detectMissingPointOnPointConstraints()
+        self.assertEqual(len(sketch.MissingPointOnPointConstraints), 1)
+
+        # Dimensioning one of the two unmerged vertices must not hide the gap
+        sketch.addConstraint(Sketcher.Constraint("DistanceX", geo2, 2, geo0, 1, 0.0))
+        sketch.addConstraint(Sketcher.Constraint("DistanceX", geo0, 1, geo0, 2, 10.0))
+        self.Doc.recompute()
+
+        sketch.detectMissingPointOnPointConstraints()
+        self.assertEqual(len(sketch.MissingPointOnPointConstraints), 1)
+        sketch.makeMissingPointOnPointCoincident()
+        self.Doc.recompute()
+        sketch.detectMissingPointOnPointConstraints()
+        self.assertEqual(len(sketch.MissingPointOnPointConstraints), 0)
+
     def testDegenratedGeometryCase(self):
         sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
         v0 = Vector(-47.680691, 18.824165000000004, 0.0)
