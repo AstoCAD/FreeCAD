@@ -119,15 +119,19 @@ double Trajectory::getDuration(int n) const
 
 Placement Trajectory::getPosition(double time) const
 {
-    if (pcTrajectory) {
+    if (pcTrajectory && pcTrajectory->Size() > 0) {
         return Placement(toPlacement(pcTrajectory->Pos(time)));
+    }
+    // no motion segment (e.g. a single waypoint): stay at the first waypoint
+    if (!vpcWaypoints.empty()) {
+        return vpcWaypoints.front()->EndPos;
     }
     return {};
 }
 
 double Trajectory::getVelocity(double time) const
 {
-    if (pcTrajectory) {
+    if (pcTrajectory && pcTrajectory->Size() > 0) {
         KDL::Vector vec = pcTrajectory->Vel(time).vel;
         Base::Vector3d vec2(vec[0], vec[1], vec[2]);
         return vec2.Length();
@@ -139,7 +143,7 @@ double Trajectory::getVelocity(double time) const
 
 void Trajectory::deleteLast(unsigned int n)
 {
-    for (unsigned int i = 0; i <= n; i++) {
+    for (unsigned int i = 0; i <= n && !vpcWaypoints.empty(); i++) {
         delete (*vpcWaypoints.rbegin());
         vpcWaypoints.pop_back();
     }
