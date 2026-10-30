@@ -280,6 +280,19 @@ class RegressionTests(unittest.TestCase):
         self.assertGreater(len(points), 0)
         self.assertGreater(len(facets), 0)
 
+    def test_perspective_projection_non_finite_centre_raises(self):
+        "TopoShape.makePerspectiveProjection() crashed for a NaN or infinite centre"
+        box = Part.makeBox(1, 2, 3)
+        edge = box.Edges[0]
+        for centre in (Vector(float("nan"), 0, 0), Vector(float("inf"), 0, 0)):
+            for target in (box, Part.makeSphere(1)):
+                with self.subTest(centre=str(centre), target=target.ShapeType):
+                    with self.assertRaises(ValueError):
+                        target.makePerspectiveProjection(edge, centre)
+        circle = Part.makeCircle(1, Vector(0, 0, 0))
+        projected = Part.makeSphere(5).makePerspectiveProjection(circle, Vector(0, 0, 0))
+        self.assertEqual(len(projected.Edges), 1)
+
     def test_spiral_infinite_rotations(self):
         "Part::Spiral with an infinite or huge number of rotations looped forever"
         spiral = self.Doc.addObject("Part::Spiral", "Spiral")
