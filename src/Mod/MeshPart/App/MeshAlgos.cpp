@@ -230,7 +230,12 @@ void MeshAlgos::LoftOnCurve(
         TopExp::Vertices(Edge, V1, V2);
         bool bBegin = false, bEnd = false;
         // getting the geometric curve and the interval
-        GeomLProp_CLProps prop(BRep_Tool::Curve(Edge, fBegin, fEnd), 1, 0.0000000001);
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(Edge, fBegin, fEnd);
+        if (curve.IsNull()) {
+            // degenerated edge (e.g. the pole of a sphere) or edge without a 3D curve
+            continue;
+        }
+        GeomLProp_CLProps prop(curve, 1, 0.0000000001);
         int res = int((fEnd - fBegin) / MaxSize);
         // do at least 2 segments
         if (res < 2) {

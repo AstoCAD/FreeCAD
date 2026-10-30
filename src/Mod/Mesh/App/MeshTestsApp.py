@@ -808,6 +808,33 @@ class MeshReadTruncatedOff(unittest.TestCase):
         self.assertEqual(mesh.CountFacets, 1)
 
 
+class MeshPartLoftOnCurve(unittest.TestCase):
+    def testDegeneratedEdge(self):
+        # A sphere has degenerated edges (no 3D curve) at its poles.
+        # loftOnCurve() used to pass the null curve to OCC and crash.
+        try:
+            import MeshPart
+            import Part
+        except ImportError:
+            self.skipTest("MeshPart not available")
+        profile = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
+        sphere = Part.makeSphere(5)
+        mesh = MeshPart.loftOnCurve(sphere, profile, (0.0, 0.0, 1.0), 1.0)
+        self.assertGreater(mesh.CountFacets, 0)
+        mesh = MeshPart.loftOnCurve(sphere, [], (0.0, 0.0, 1.0), 1.0)
+        self.assertEqual(mesh.CountFacets, 0)
+
+    def testCircle(self):
+        try:
+            import MeshPart
+            import Part
+        except ImportError:
+            self.skipTest("MeshPart not available")
+        profile = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
+        mesh = MeshPart.loftOnCurve(Part.makeCircle(5), profile, (0.0, 0.0, 1.0), 1.0)
+        self.assertGreater(mesh.CountFacets, 0)
+
+
 class MeshModuleExport(unittest.TestCase):
     def setUp(self):
         self.doc = FreeCAD.newDocument("MeshExportTest")
