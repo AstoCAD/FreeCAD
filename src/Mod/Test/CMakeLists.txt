@@ -57,6 +57,7 @@ SET(Test_SRCS
     unittestgui.py
     testmakeWireString.py
     TestCrashReporter.py
+    TestCmdLineScript.py
     TestPythonSyntax.py
     TestPerf.py
     TestTreeSelection.py

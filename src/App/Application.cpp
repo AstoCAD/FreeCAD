@@ -3141,16 +3141,14 @@ std::list<std::string> Application::processFiles(const std::list<std::string>& f
                 processed.push_back(it);
             }
             else if (file.hasExtension("py")) {
-                try {
-                    Base::Interpreter().addPythonPath(file.dirPath().c_str());
-                    Base::Interpreter().loadModule(file.fileNamePure().c_str());
-                    processed.push_back(it);
-                }
-                catch (const Base::PyException&) {
-                    // if loading the module does not work, try just running the script (run in __main__)
-                    Base::Interpreter().runFile(file.filePath().c_str(),true);
-                    processed.push_back(it);
-                }
+                // Run the script like the Python executable does: as __main__, once,
+                // with its directory on the module search path. Importing it as a
+                // module instead skipped 'if __name__ == "__main__":' blocks, could
+                // pick up a same-named module from elsewhere on sys.path, and ran the
+                // script a second time when the import raised an exception.
+                Base::Interpreter().addPythonPath(file.dirPath().c_str());
+                Base::Interpreter().runFile(file.filePath().c_str(), true);
+                processed.push_back(it);
             }
             else {
                 std::vector<std::string> mods = GetApplication().getImportModules(file.extension());
