@@ -530,3 +530,54 @@ class MaterialTestCases(unittest.TestCase):
         with self.assertRaises(IndexError):
             self.assertEqual(array.getValue(3,0,0).UserString,
                              self.getQuantity("11.00 Pa").UserString)
+
+    def test2DArrayShortRow(self):
+        """
+        Rows created before the column count was raised are shorter than Columns.
+        Accessing the missing cells must raise instead of reading/writing out of bounds.
+        """
+        array = Materials.Array2D()
+        array.Columns = 1
+        array.Rows = 2
+        array.setValue(0, 0, "1 mm")
+        array.Columns = 5
+        with self.assertRaises(IndexError):
+            array.getValue(0, 4)
+        with self.assertRaises(IndexError):
+            array.setValue(0, 4, "2 mm")
+        self.assertEqual(array.getValue(0, 0).UserString, self.getQuantity("1 mm").UserString)
+        self.assertEqual(len(array.getRow(0)), 1)
+
+    def test3DArrayInvalidIndex(self):
+        """
+        Invalid depth indices and short rows in a 3D array must raise instead of
+        reading/writing out of bounds.
+        """
+        array = Materials.Array3D()
+        array.Columns = 1
+        array.Depth = 2
+        array.setRows(0, 2)
+        array.setValue(0, 0, 0, "1 mm")
+        array.Columns = 5
+        with self.assertRaises(IndexError):
+            array.getValue(0, 0, 4)
+        with self.assertRaises(IndexError):
+            array.setValue(0, 0, 4, "2 mm")
+        with self.assertRaises(IndexError):
+            array.setDepthValue(5, "1 mm")
+        with self.assertRaises(IndexError):
+            array.setDepthValue(-1, "1 mm")
+        with self.assertRaises(Exception):
+            array.setRows(-1, 1)
+        with self.assertRaises(Exception):
+            array.setRows(5, 1)
+        array.setDepthValue(1, "20 C")
+        self.assertEqual(array.getDepthValue(1).UserString, self.getQuantity("20 C").UserString)
+        self.assertEqual(array.getValue(0, 0, 0).UserString, self.getQuantity("1 mm").UserString)
+        self.assertEqual(array.getRows(0), 2)
+
+        empty = Materials.Array3D()
+        with self.assertRaises(IndexError):
+            empty.setDepthValue(0, "1 mm")
+        with self.assertRaises(Exception):
+            empty.setRows(0, 99)
