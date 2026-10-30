@@ -1394,6 +1394,45 @@ class PartExtrusionTests(unittest.TestCase):
         FreeCAD.closeDocument("PartExtrusionTest")
 
 
+class PartOffset2DBSplineTests(unittest.TestCase):
+    """Regression test for issue #17708: a face made from the 2D offset of a
+    B-spline wire must be valid."""
+
+    def _bsplineWire(self, closed):
+        if closed:
+            pts = [
+                Base.Vector(10 * math.cos(2 * math.pi * i / 12), 6 * math.sin(2 * math.pi * i / 12), 0)
+                for i in range(12)
+            ]
+        else:
+            pts = [
+                Base.Vector(4 + 10 * math.sin(math.pi * i / 20), -8 * math.cos(math.pi * i / 20), 0)
+                for i in range(21)
+            ]
+        curve = Part.BSplineCurve()
+        curve.interpolate(pts, PeriodicFlag=closed)
+        wire = Part.Wire(curve.toShape())
+        if not closed:
+            vertexes = wire.OrderedVertexes
+            closing = Part.makePolygon([vertexes[-1].Point, vertexes[0].Point])
+            wire = Part.Wire([wire, closing])
+        return wire
+
+    def _checkOffset(self, wire, intersection):
+        offset = wire.makeOffset2D(0.5, 0, fill=False, intersection=intersection)
+        self.assertEqual(offset.ShapeType, "Wire")
+        self.assertTrue(offset.isClosed())
+        face = Part.Face(offset)
+        self.assertTrue(face.isValid())
+        self.assertGreater(face.Area, Part.Face(wire).Area)
+
+    def testOffsetOfPeriodicBSpline(self):
+        self._checkOffset(self._bsplineWire(True), False)
+
+    def testOffsetOfBSplineWithLine(self):
+        self._checkOffset(self._bsplineWire(False), True)
+
+
 class PartLoftTests(unittest.TestCase):
     """Regression tests for issue #31307: a solid loft from open sections
     must be reported as an error instead of silently giving an invalid solid."""
