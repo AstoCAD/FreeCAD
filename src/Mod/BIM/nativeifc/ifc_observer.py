@@ -194,6 +194,13 @@ class ifc_observer:
                 ask = dlg.checkAskBeforeSaving.isChecked()
                 params.SetBool("AskBeforeSaving", ask)
 
+            gdoc = None
+            if FreeCAD.GuiUp:
+                import FreeCADGui
+
+                gdoc = FreeCADGui.getDocument(doc.Name)
+            # this runs right after the FreeCAD document has been saved
+            was_modified = gdoc.Modified if gdoc else True
             for project in projects:
                 if getattr(project.Proxy, "ifcfile", None):
                     if project.IfcFilePath:
@@ -201,6 +208,10 @@ class ifc_observer:
                     else:
                         ifc_viewproviders.get_filepath(project)
                         ifc_tools.save(project)
+            if not was_modified:
+                # resetting the projects' Modified flag must not mark
+                # the freshly saved FreeCAD document as modified again
+                gdoc.Modified = False
 
     def convert(self):
         """Converts an object to IFC"""
