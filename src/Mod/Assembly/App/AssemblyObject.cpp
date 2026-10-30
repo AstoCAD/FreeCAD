@@ -2561,8 +2561,9 @@ void AssemblyObject::getRackPinionMarkers(
     // Create a yaw rotation around the Z axis
     Base::Rotation yawRotation(currentZAxis, yawAdjustment);
 
-    // Combine the initial rotation with the yaw adjustment
-    Base::Rotation adjustedRotation = rot * yawRotation;
+    // Combine the initial rotation with the yaw adjustment. The yaw axis is expressed in the
+    // rack frame, like rot itself, so the yaw has to be applied after rot.
+    Base::Rotation adjustedRotation = yawRotation * rot;
     plc1.setRotation(adjustedRotation);
 
     // Then end of processing similar to handleOneSideOfJoint :
