@@ -116,7 +116,13 @@ int QuantityPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     int i8 {0};
     if (PyArg_ParseTuple(args, "|diiiiiiii", &f, &i1, &i2, &i3, &i4, &i5, &i6, &i7, &i8)) {
         if (f < std::numeric_limits<double>::max()) {
-            *self = Quantity {f, Unit(i1, i2, i3, i4, i5, i6, i7, i8)};
+            try {
+                *self = Quantity {f, Unit(i1, i2, i3, i4, i5, i6, i7, i8)};
+            }
+            catch (const Base::Exception& e) {
+                e.setPyException();
+                return -1;
+            }
         }
         return 0;
     }
@@ -133,6 +139,10 @@ int QuantityPy::PyInit(PyObject* args, PyObject* /*kwd*/)
             PyErr_SetString(PyExc_ValueError, e.what());
             return -1;
         }
+        catch (const Base::Exception& e) {
+            e.setPyException();
+            return -1;
+        }
 
         return 0;
     }
@@ -146,6 +156,10 @@ int QuantityPy::PyInit(PyObject* args, PyObject* /*kwd*/)
         }
         catch (const ParserError& e) {
             PyErr_SetString(PyExc_ValueError, e.what());
+            return -1;
+        }
+        catch (const Base::Exception& e) {
+            e.setPyException();
             return -1;
         }
 
