@@ -65,10 +65,13 @@ class BIM_TDView:
                 page = obj
             else:
                 drafts.append(obj)
-        if not page:
-            pages = FreeCAD.ActiveDocument.findObjects(Type="TechDraw::DrawPage")
-            if pages:
-                page = pages[0]
+        pages = FreeCAD.ActiveDocument.findObjects(Type="TechDraw::DrawPage")
+        if not page and pages and (sections or drafts):
+            # the only page of the document, the page shown in the active view,
+            # or a page chosen by the user, as in the TechDraw commands
+            import TechDrawGui
+
+            page = TechDrawGui.findPage(FreeCAD.ActiveDocument)
         if (not page) or ((not sections) and (not drafts)):
             FreeCAD.Console.PrintError(
                 translate(

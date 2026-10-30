@@ -363,6 +363,12 @@ QIcon DrawGuiUtil::iconForLine(size_t lineNumber,
 // find a page in Selection, Document or CurrentWindow.
 TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
 {
+    return findPage(cmd->getDocument(), findAny);
+}
+
+// find a page in Selection, the given document or CurrentWindow.
+TechDraw::DrawPage* DrawGuiUtil::findPage(App::Document* document, bool findAny)
+{
     std::vector<std::string> names;
     std::vector<std::string> labels;
     auto docs = App::GetApplication().getDocuments();
@@ -403,7 +409,7 @@ TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
                     showNoPageMessage();
                     return nullptr;
                 }
-                App::Document* doc = cmd->getDocument();
+                App::Document* doc = document;
                 return static_cast<TechDraw::DrawPage*>(doc->getObject(selName.c_str()));
             }
         }
@@ -413,12 +419,13 @@ TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
         }
     }
 
-    // check Selection for a page
+    // check Selection for a page of this document (without a name, the active document's)
     std::vector<App::DocumentObject*> selPages =
-        Gui::Command::getSelection().getObjectsOfType(TechDraw::DrawPage::getClassTypeId());
+        Gui::Command::getSelection().getObjectsOfType(TechDraw::DrawPage::getClassTypeId(),
+                                                      document->getName());
     if (selPages.empty()) {
         // no page in selection, try this document
-        auto docPages = cmd->getDocument()->getObjectsOfType(TechDraw::DrawPage::getClassTypeId());
+        auto docPages = document->getObjectsOfType(TechDraw::DrawPage::getClassTypeId());
         if (docPages.empty()) {
             // we are only to look in this document, and there is no page in this document
             showNoPageMessage();
@@ -432,7 +439,11 @@ TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
             auto* mvp = qobject_cast<MDIViewPage*>(mv);
             if (mvp) {
                 QGSPage* qp = mvp->getViewProviderPage()->getQGSPage();
-                return qp->getDrawPage();
+                TechDraw::DrawPage* shownPage = qp->getDrawPage();
+                // the active view can show a page of another document
+                if (!shownPage || shownPage->getDocument() == document) {
+                    return shownPage;
+                }
             }
 
             // none of pages in document is active, ask for help
@@ -449,7 +460,7 @@ TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
                     showNoPageMessage();
                     return nullptr;
             }
-                App::Document* doc = cmd->getDocument();
+                App::Document* doc = document;
                 return static_cast<TechDraw::DrawPage*>(doc->getObject(selName.c_str()));
             }
             return nullptr;
@@ -474,7 +485,7 @@ TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
                 showNoPageMessage();
                 return nullptr;
             }
-            App::Document* doc = cmd->getDocument();
+            App::Document* doc = document;
             return static_cast<TechDraw::DrawPage*>(doc->getObject(selName.c_str()));
         }
     }
