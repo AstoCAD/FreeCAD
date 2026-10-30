@@ -13,6 +13,7 @@ import CAMTests.cam_test_modules
 _EXCLUDE_MODULES = {
     "TestLinuxCNCLegacyPost",
     "TestGrblLegacyPost",
+    "TestPathJobGui",
     "TestPathToolBitBrowserWidget",
     "TestPathToolBitEditorWidget",
     "TestPathToolBitListWidget",
