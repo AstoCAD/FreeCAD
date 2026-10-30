@@ -107,6 +107,7 @@ from drafttests.test_dxf_gui import DraftGuiDXF as DraftTestGui07
 from drafttests.test_shapestring_gui import DraftGuiShapeString as DraftTestGui08
 from drafttests.test_selection_tools_gui import DraftGuiSelectionTools as DraftTestGui09
 from drafttests.test_trimex_gui import DraftTrimexGui as DraftTestGui10
+from drafttests.test_tray_gui import DraftGuiTray as DraftTestGui11
 
 # Use the modules so that code checkers don't complain (flake8)
 True if DraftTestGui01 else False
@@ -119,3 +120,4 @@ True if DraftTestGui07 else False
 True if DraftTestGui08 else False
 True if DraftTestGui09 else False
 True if DraftTestGui10 else False
+True if DraftTestGui11 else False
