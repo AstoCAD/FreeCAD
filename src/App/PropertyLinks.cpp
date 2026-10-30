@@ -3396,7 +3396,14 @@ public:
         }
 
         QFileInfo docFileInfo{QString::fromUtf8(docPath)};
-        QDir docDir(docFileInfo.canonicalPath());
+        // canonicalPath() is empty while the owner file does not exist yet
+        // (e.g. a link made during the first save), which would make the
+        // path relative to the current working directory.
+        QString docDirPath = docFileInfo.canonicalPath();
+        if (docDirPath.isEmpty()) {
+            docDirPath = docFileInfo.absolutePath();
+        }
+        QDir docDir(docDirPath);
         if (!absolute) {
             path = QDir::cleanPath(docDir.absoluteFilePath(path));
             if (fullPath) {
