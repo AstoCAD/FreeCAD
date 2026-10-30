@@ -142,6 +142,18 @@ class DrawTaskUndoGuiTest(unittest.TestCase):
 
         self._edit_then_undo(make)
 
+    def test_undo_closes_leader_edit_task(self):
+        base = self._base_view()
+
+        def make():
+            leader = self.doc.addObject("TechDraw::DrawLeaderLine", "Leader")
+            self.page.addView(leader)
+            leader.LeaderParent = base
+            leader.WayPoints = [App.Vector(0, 0, 0), App.Vector(20, 20, 0)]
+            return leader
+
+        self._edit_then_undo(make)
+
 
 if __name__ == "__main__":
     unittest.main()
