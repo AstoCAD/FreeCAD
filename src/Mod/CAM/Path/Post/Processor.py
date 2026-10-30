@@ -1626,10 +1626,16 @@ class PostProcessor:
                 if item.path:
                     new_commands = []
                     first_move_processed = False
+                    changed = False
+                    # Z-only rapids seen after the tool change but before the
+                    # first XY move. They are output after the XY move.
+                    held_z_moves = []
 
                     for cmd in item.path.Commands:
                         # Check if this is a tool change command (M6)
                         if cmd.Name in Constants.MCODE_TOOL_CHANGE:
+                            new_commands.extend(held_z_moves)
+                            held_z_moves = []
                             new_commands.append(cmd)
                             tool_change_seen = True
                             first_move_processed = False
@@ -1646,7 +1652,45 @@ class PostProcessor:
                             has_xy = "X" in cmd.Parameters or "Y" in cmd.Parameters
                             has_z = "Z" in cmd.Parameters
 
-                            if has_xy and has_z:
+                            if has_z and not has_xy and cmd.Name in Constants.GCODE_MOVE_RAPID:
+                                # Operations usually start with a Z-only rapid to
+                                # clearance height. Hold it back until the XY move.
+                                held_z_moves.append(cmd)
+                                continue
+
+                            if held_z_moves and (
+                                not has_xy or cmd.Name not in Constants.GCODE_MOVE_RAPID
+                            ):
+                                # Not a rapid XY positioning move: keep the
+                                # original order to preserve the cutting moves.
+                                new_commands.extend(held_z_moves)
+                                held_z_moves = []
+                                new_commands.append(cmd)
+                                first_move_processed = True
+                                tool_change_seen = False
+                            elif held_z_moves:
+                                Path.Log.debug(
+                                    f"Moving XY move before {len(held_z_moves)} Z move(s)"
+                                )
+                                if has_z:
+                                    xy_params = {
+                                        param: value
+                                        for param, value in cmd.Parameters.items()
+                                        if param != "Z"
+                                    }
+                                    new_commands.append(Path.Command(cmd.Name, xy_params))
+                                else:
+                                    new_commands.append(cmd)
+                                new_commands.extend(held_z_moves)
+                                held_z_moves = []
+                                if has_z:
+                                    new_commands.append(
+                                        Path.Command(cmd.Name, {"Z": cmd.Parameters["Z"]})
+                                    )
+                                changed = True
+                                first_move_processed = True
+                                tool_change_seen = False
+                            elif has_xy and has_z:
                                 Path.Log.debug(
                                     f"Decomposing first move after tool change: {cmd.Name}"
                                 )
@@ -1685,7 +1729,10 @@ class PostProcessor:
                             # Not the first move or not a move command
                             new_commands.append(cmd)
 
-                    if len(new_commands) != len(item.path.Commands):
+                    # No XY move followed: keep the held moves in their place
+                    new_commands.extend(held_z_moves)
+
+                    if changed or len(new_commands) != len(item.path.Commands):
                         item.path = Path.Path(new_commands)
                         Path.Log.debug(f"Updated path for {item.label}")
 
