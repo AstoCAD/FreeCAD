@@ -450,7 +450,10 @@ def checkObjShape(obj):
     if hasattr(obj, 'Shape'):
         if obj.Shape.isNull():
             if printverbose: print('Shape is Null - recompute')
-            obj.recompute()
+            # Recompute the object together with its dependencies: an
+            # object-level recompute fails when a child (e.g. a MultiFuse or
+            # a nested Cut) has not been computed yet either.
+            obj.Document.recompute([obj])
         if obj.Shape.isNull():
             print(f'Recompute failed : {obj.Name}')
     else:
