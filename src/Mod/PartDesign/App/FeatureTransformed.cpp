@@ -140,6 +140,12 @@ Part::Feature* Transformed::getBaseObject(bool silent) const
 
 std::vector<App::DocumentObject*> Transformed::getSortedOriginals() const
 {
+    // Whole shape mode transforms the support and ignores Originals, which the task panel
+    // keeps so that switching back to Features mode restores them.
+    if (static_cast<Mode>(TransformMode.getValue()) == Mode::WholeShape) {
+        return {};
+    }
+
     std::vector<DocumentObject*> originals = Originals.getValues();
 
     // Sort originals in chronological order of the body's group history
@@ -163,12 +169,6 @@ std::vector<App::DocumentObject*> Transformed::getSortedOriginals() const
 
 std::vector<App::DocumentObject*> Transformed::getOriginals() const
 {
-    auto const mode = static_cast<Mode>(TransformMode.getValue());
-
-    if (mode == Mode::WholeShape) {
-        return {};
-    }
-
     std::vector<DocumentObject*> originals = getSortedOriginals();
 
     const auto isSuppressed = [](const DocumentObject* obj) {
