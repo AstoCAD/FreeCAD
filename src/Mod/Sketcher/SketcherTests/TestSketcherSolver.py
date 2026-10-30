@@ -1651,6 +1651,24 @@ class TestSketcherSolver(unittest.TestCase):
         sketch.moveGeometry(0, 2, vec(12, 3), False)
         self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(12, 3))
 
+    def testDelExternalKeepsLinkTypes(self):
+        """ExternalTypes loses the same entries as ExternalGeometry"""
+        box = self.Doc.addObject("Part::Box", "BoxExternalTypes")
+        box.Placement.Base = FreeCAD.Vector(0, 0, -5)
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchExternalTypes")
+        self.Doc.recompute()
+        sketch.addExternal(box.Name, "Edge2", False, False)  # projection
+        sketch.addExternal(box.Name, "Face1", False, True)  # intersection
+        self.Doc.recompute()
+        self.assertEqual(list(sketch.ExternalTypes), [0, 1])
+        sketch.delExternal(0)
+        self.assertEqual(len(sketch.ExternalGeometry), 1)
+        self.assertEqual(list(sketch.ExternalTypes), [1])
+        self.Doc.recompute()
+        self.assertEqual(list(sketch.ExternalTypes), [1])
+        # the remaining link is still an intersection after the rebuild
+        self.assertEqual(len(sketch.ExternalGeo), 3)
+
     def testSetDatumErrorMessages(self):
         # https://github.com/FreeCAD/FreeCAD/issues/26506
         # A sketch with redundant constraints rejected any new datum with the
