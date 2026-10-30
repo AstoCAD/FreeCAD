@@ -148,6 +148,8 @@ void CmdPrimtiveCompAdditive::activated(int iMsg)
     copyVisual(prm, "PointColor", base);
     copyVisual(prm, "Transparency", base);
     copyVisual(prm, "DisplayMode", base);
+    copyVisual(prm, "LineWidth", base);
+    copyVisual(prm, "PointSize", base);
 
     PartDesignGui::setEdit(prm, pcActiveBody);
 }
@@ -328,6 +330,8 @@ void CmdPrimtiveCompSubtractive::activated(int iMsg)
     copyVisual(Feat, "PointColor", prevSolid);
     copyVisual(Feat, "Transparency", prevSolid);
     copyVisual(Feat, "DisplayMode", prevSolid);
+    copyVisual(Feat, "LineWidth", prevSolid);
+    copyVisual(Feat, "PointSize", prevSolid);
 
     if (isActiveObjectValid()) {
         // TODO  (2015-08-05, Fat-Zer)
