@@ -21,6 +21,7 @@
  ***************************************************************************/
 
 
+#include <cmath>
 #include <vector>
 
 #include <App/Application.h>
@@ -263,7 +264,13 @@ void PathSegmentWalker::walk(PathSegmentVisitor& cb, const Base::Vector3d& start
             double angle = (next0 - center0).GetAngle(last0 - center0);
             // GetAngle will always return the minor angle. Switch if needed
             Base::Vector3d anorm = (last0 - center0) % (next0 - center0);
-            if (anorm.*pz < 0) {
+            // GetAngle can return a tiny nonzero angle for identical radius vectors,
+            // so recognize a full circle by its coinciding projected endpoints.
+            if (last0.x == next0.x && last0.y == next0.y && last0.z == next0.z
+                && std::isfinite(angle)) {
+                angle = std::numbers::pi * 2;
+            }
+            else if (anorm.*pz < 0) {
                 if (name == "G3" || name == "G03") {
                     angle = std::numbers::pi * 2 - angle;
                 }
