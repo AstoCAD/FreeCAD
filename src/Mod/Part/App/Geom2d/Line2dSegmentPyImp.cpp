@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
 #include <GCE2d_MakeSegment.hxx>
 #include <Geom2d_Line.hxx>
 #include <Geom2d_TrimmedCurve.hxx>
@@ -185,6 +186,10 @@ PyObject* Line2dSegmentPy::setParameterRange(PyObject* args)
 {
     double first, last;
     if (!PyArg_ParseTuple(args, "dd", &first, &last)) {
+        return nullptr;
+    }
+    if (std::isnan(first) || std::isnan(last)) {
+        PyErr_SetString(PyExc_ValueError, "Curve parameter must not be NaN");
         return nullptr;
     }
 
