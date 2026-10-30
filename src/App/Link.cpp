@@ -2771,7 +2771,8 @@ void Link::onDocumentRestored()
 
 void Link::migrateLabelUtility(App::DocumentObject* link, App::DocumentObject* linked)
 {
-    if (!link || !linked || !link->getDocument() || link->isRestoring()) {
+    // getLinkedObject() returns the link itself when it has no linked object
+    if (!link || !linked || linked == link || !link->getDocument() || link->isRestoring()) {
         return;
     }
 
@@ -2827,7 +2828,11 @@ void Link::migrateLabelUtility(App::DocumentObject* link, App::DocumentObject* l
 
 void Link::updateLabelUtility(App::DocumentObject* link, App::DocumentObject* linked)
 {
-    if (!link || !linked || !link->getDocument()) {
+    // getLinkedObject() returns the link itself when it has no linked object.
+    // Deriving the label from itself would append " <n>" again on each call,
+    // and recurse through onParentLabelChanged() if the link is in its own
+    // InList (dependency cycle through another link property).
+    if (!link || !linked || linked == link || !link->getDocument()) {
         return;
     }
 

@@ -870,6 +870,43 @@ class DocumentDuplicateLabelCases(unittest.TestCase):
         self.assertTrue(obj.Label.startswith(obj.Name))
 
 
+class DocumentLinkLabelCases(unittest.TestCase):
+    """Link instance labels when the link loses its linked object."""
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("LinkLabelTest")
+
+    def tearDown(self):
+        FreeCAD.closeDocument("LinkLabelTest")
+
+    def testUnlinkKeepsLabel(self):
+        # Without a linked object getLinkedObject() returns the link itself, the
+        # label must not be rebuilt from it ("Cube <1>" -> "Cube <1> <1>")
+        cube = self.Doc.addObject("App::FeatureTest", "Cube")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(cube)
+        label = link.Label
+        link.LinkedObject = None
+        self.assertEqual(link.Label, label)
+        link.setLink(cube)
+        self.Doc.removeObject("Cube")
+        self.assertEqual(link.Label, label)
+
+    def testUnlinkLinkInDependencyCycle(self):
+        # A link that is in its own InList (here through another link property)
+        # recursed through onParentLabelChanged() until the stack overflowed
+        # when its linked object was cleared
+        cube = self.Doc.addObject("App::FeatureTest", "Cube")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(cube)
+        link.addProperty("App::PropertyLink", "Other")
+        link.Other = link
+        label = link.Label
+        link.LinkedObject = None
+        self.assertIsNone(link.LinkedObject)
+        self.assertEqual(link.Label, label)
+
+
 class DocumentSettingsCases(unittest.TestCase):
     def setUp(self):
         self.Doc = FreeCAD.newDocument("DocumentSettingsTests")
