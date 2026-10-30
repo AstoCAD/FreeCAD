@@ -85,7 +85,7 @@ class DrawSketchHandlerText: public DrawSketchHandlerTextBase
     friend DSHTextControllerBase;
 
 public:
-    explicit DrawSketchHandlerText(ConstructionMethod constrMethod = ConstructionMethod::Width)
+    explicit DrawSketchHandlerText(ConstructionMethod constrMethod = lastConstructionMethod())
         : DrawSketchHandlerTextBase(constrMethod)
         , length(0.0)
         , handleId(0)
@@ -175,6 +175,8 @@ private:
             );
 
             commitCommand();
+
+            saveTextToolSettings();
         }
         catch (const Base::Exception& e) {
             Gui::NotifyError(
@@ -276,6 +278,35 @@ private:
     std::string cachedTextName;
     std::string cachedFontName;
     std::vector<TopoDS_Shape> cachedBaseShapes;
+
+    // The last font and width/height mode are remembered for the next use of the tool
+    static ParameterGrp::handle getTextToolParameters()
+    {
+        return App::GetApplication().GetParameterGroupByPath(
+            "User parameter:BaseApp/Preferences/Mod/Sketcher/Tools/Text"
+        );
+    }
+
+    static ConstructionMethod lastConstructionMethod()
+    {
+        return getTextToolParameters()->GetBool("HeightMode", false) ? ConstructionMethod::Height
+                                                                     : ConstructionMethod::Width;
+    }
+
+    static QString lastFontName()
+    {
+        return QString::fromStdString(getTextToolParameters()->GetASCII("FontName", ""));
+    }
+
+    void saveTextToolSettings() const
+    {
+        auto hGrp = getTextToolParameters();
+        hGrp->SetBool("HeightMode", constructionMethod() == ConstructionMethod::Height);
+        QString fontName = fontPathMap.key(QString::fromStdString(font));
+        if (!fontName.isEmpty()) {
+            hGrp->SetASCII("FontName", fontName.toStdString());
+        }
+    }
 
     void createShape(bool onlyeditoutline) override
     {
@@ -383,9 +414,13 @@ void DSHTextController::configureToolWidget()
         fontNames.sort(Qt::CaseInsensitive);
         toolWidget->setComboboxElements(WCombobox::SecondCombo, fontNames);
 
-        // 3. Set a sensible default font
+        // 3. Set a sensible default font: the last used one, if still available
         QString defaultFontName;
-        if (fontNames.contains(QString::fromUtf8("osifont-lgpl3fe"), Qt::CaseInsensitive)) {
+        QString savedFontName = DrawSketchHandlerText::lastFontName();
+        if (!savedFontName.isEmpty() && fontNames.contains(savedFontName, Qt::CaseInsensitive)) {
+            defaultFontName = savedFontName;
+        }
+        else if (fontNames.contains(QString::fromUtf8("osifont-lgpl3fe"), Qt::CaseInsensitive)) {
             defaultFontName = QString::fromUtf8("osifont-lgpl3fe");
         }
         else if (fontNames.contains(QString::fromUtf8("DejaVu Sans"), Qt::CaseInsensitive)) {
@@ -442,6 +477,7 @@ void DSHTextController::adaptDrawingToComboboxChange(int comboboxindex, int valu
 {
     if (comboboxindex == WCombobox::FirstCombo) {
         handler->setConstructionMethod(static_cast<ConstructionMethod>(value));
+        handler->saveTextToolSettings();
     }
     else if (comboboxindex == WCombobox::SecondCombo) {
         // Get the selected friendly name
@@ -449,6 +485,7 @@ void DSHTextController::adaptDrawingToComboboxChange(int comboboxindex, int valu
         // Look up the full path in our map and update the handler
         if (handler->fontPathMap.contains(fontName)) {
             handler->font = handler->fontPathMap.value(fontName).toStdString();
+            handler->saveTextToolSettings();
         }
         // The redraw is handled by the controller's finishControlsChanged()
     }
