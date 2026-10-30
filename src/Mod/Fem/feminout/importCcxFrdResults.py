@@ -152,7 +152,10 @@ def importFrd(filename, analysis=None, result_name_prefix="", result_analysis_ty
                 step_time = result_set["time"]
                 if not math.isfinite(step_time):
                     step_time = 0
-                step_time = round(step_time, 2)
+                # the rounded value is only used for the name, the pipeline frame values
+                # need the exact one, close values (e.g. the frequencies of rigid body modes)
+                # would otherwise become equal
+                step_time_name = round(step_time, 2)
                 if eigenmode_number > 0:
                     results_name = "{}EigenMode_{}_Results".format(
                         result_name_prefix, eigenmode_number
@@ -160,10 +163,10 @@ def importFrd(filename, analysis=None, result_name_prefix="", result_analysis_ty
                 elif number_of_increments > 1:
                     if result_analysis_type == "buckling":
                         results_name = "{}BucklingFactor_{}_Results".format(
-                            result_name_prefix, step_time
+                            result_name_prefix, step_time_name
                         )
                     else:
-                        results_name = f"{result_name_prefix}Time_{step_time}_Results"
+                        results_name = f"{result_name_prefix}Time_{step_time_name}_Results"
                 else:
                     results_name = f"{result_name_prefix}Results"
 
