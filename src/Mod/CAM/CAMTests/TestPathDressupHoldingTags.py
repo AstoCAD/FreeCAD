@@ -22,7 +22,11 @@
 # ***************************************************************************
 
 import CAMTests.PathTestUtils as PathTestUtils
+import FreeCAD
 import math
+import Path.Dressup.Tags as PathDressupTag
+import Path.Main.Job as PathJob
+import Path.Op.Profile as PathProfile
 
 from FreeCAD import Vector
 from Path.Dressup.Tags import Tag
@@ -68,3 +72,29 @@ class TestHoldingTags(PathTestUtils.PathTestBase):
         h = 2.5 * math.tan((60 / 180.0) * math.pi) * 1.01
         print(h)
         self.assertConeAt(tag.solid, Vector(0, 0, -h * 0.01), 2.5, 0, h)
+
+
+class TestHoldingTagsCreate(PathTestUtils.PathTestBase):
+    """Tests for creating the HoldingTags dressup without the GUI."""
+
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("TestHoldingTagsCreate")
+        FreeCAD.setActiveDocument(self.doc.Name)
+        box = self.doc.addObject("Part::Box", "Box")
+        self.job = PathJob.Create("Job", [box], None)
+        self.profile = PathProfile.Create("Profile")
+        self.doc.recompute()
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def test10(self):
+        """Verify the dressup replaces its base operation in the job (#33599)."""
+        self.assertIn(self.profile, self.job.Operations.Group)
+
+        dressup = PathDressupTag.Create(self.profile)
+
+        self.assertIsNotNone(dressup)
+        group = self.job.Operations.Group
+        self.assertIn(dressup, group)
+        self.assertNotIn(self.profile, group)
