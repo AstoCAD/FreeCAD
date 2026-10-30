@@ -1964,7 +1964,9 @@ void PythonGroupCommand::languageChange()
             QFont font = it->font();
             QString newTip = Gui::Action::createToolTip(helpText, text, font, shortCut, cmd);
             it->setToolTip(newTip);
-            it->setStatusTip(QApplication::translate(context, statustip));
+            it->setStatusTip(
+                Gui::Action::plainStatusTip(QApplication::translate(context, statustip))
+            );
         }
     }
 }
