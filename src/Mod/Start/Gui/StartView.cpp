@@ -331,7 +331,20 @@ void StartView::newDraftFile()
 {
     Gui::Application::Instance->commandManager().runCommandByName("Std_New");
     Gui::Application::Instance->activateWorkbench("DraftWorkbench");
-    Gui::Application::Instance->commandManager().runCommandByName("Std_ViewTop");
+
+    // Look at the default working plane of the Draft preferences:
+    // 0 = automatic, 1 = XY (top), 2 = XZ (front), 3 = YZ (side)
+    auto defaultWP = App::GetApplication()
+                         .GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/Draft")
+                         ->GetInt("defaultWP", 1);
+    const char* viewCommand = "Std_ViewTop";
+    if (defaultWP == 2) {
+        viewCommand = "Std_ViewFront";
+    }
+    else if (defaultWP == 3) {
+        viewCommand = "Std_ViewRight";
+    }
+    Gui::Application::Instance->commandManager().runCommandByName(viewCommand);
     postStart(PostStartBehavior::doNotSwitchWorkbench);
 }
 
