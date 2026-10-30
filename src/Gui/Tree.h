@@ -421,6 +421,11 @@ protected:
         const App::DocumentObject* parent,
         const char* subname
     );
+    void populatePathToObject(
+        const Gui::ViewProviderDocumentObject&,
+        const App::DocumentObject* parent,
+        const char* subname
+    );
     void slotScrollToObject(const Gui::ViewProviderDocumentObject&);
     void slotRecomputed(const App::Document& doc, const std::vector<App::DocumentObject*>& objs);
     void slotRecomputedObject(const App::DocumentObject&);
