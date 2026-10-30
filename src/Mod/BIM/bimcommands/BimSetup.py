@@ -30,6 +30,12 @@ import FreeCADGui
 translate = FreeCAD.Qt.translate
 QT_TRANSLATE_NOOP = FreeCAD.Qt.QT_TRANSLATE_NOOP
 
+# The licenses of Preferences > General > Document > Default license, in the same
+# order, so the "prefLicenseType" index means the same in both dialogs. The labels
+# are translated with the context of the Preferences page. A last "Other" item keeps
+# the custom license URL typed in Preferences.
+LICENSES = [(name, url) for _, name, url in FreeCAD.getLicenses()] + [("Other", None)]
+
 
 class BIM_Setup:
 
@@ -67,6 +73,9 @@ class BIM_Setup:
         # connect signals / slots
         self.form.comboPresets.currentIndexChanged[int].connect(self.setPreset)
         self.form.labelIfcOpenShell.linkActivated.connect(self.handleLink)
+
+        # same license list as in the preferences
+        self.fillLicenses()
 
         # fill default values
         self.setPreset(None)
@@ -243,14 +252,7 @@ class BIM_Setup:
         FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").SetString(
             "prefAuthor", author
         )
-        lic = self.form.settingLicense.currentIndex()
-        lic = [0, 1, 2, 4, 5][lic]  # less choices in our simplified dialog
-        FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").SetInt(
-            "prefLicenseType", lic
-        )
-        FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").SetString(
-            "prefLicenseUrl", ""
-        )  # TODO - set correct license URL
+        self.saveLicense(self.form.settingLicense.currentIndex())
         newdoc = self.form.settingNewdocument.isChecked()
         FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").SetBool(
             "CreateNewDoc", newdoc
@@ -490,9 +492,6 @@ class BIM_Setup:
             lic = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").GetInt(
                 "prefLicenseType", 0
             )
-            lic = [0, 1, 2, 1, 3, 4, 1, 1, 2, 1, 3, 4, 1, 0, 0, 0, 0, 0, 0][
-                lic
-            ]  # less choices in our simplified dialog
             newdoc = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").GetBool(
                 "CreateNewDoc", False
             )
@@ -574,6 +573,25 @@ class BIM_Setup:
         if height:
             self.form.settingCameraHeight.setValue(height)
         # TODO - antialiasing?
+
+    def fillLicenses(self):
+        """fills the license combo box with the licenses of the preferences"""
+
+        self.form.settingLicense.clear()
+        for name, url in LICENSES:
+            self.form.settingLicense.addItem(translate("Gui::Dialog::DlgSettingsDocument", name))
+
+    def saveLicense(self, index):
+        """stores the license of the given index of LICENSES and its URL in the preferences"""
+
+        if index < 0 or index >= len(LICENSES):
+            return
+        param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document")
+        param.SetInt("prefLicenseType", index)
+        url = LICENSES[index][1]
+        if url is not None:
+            # "Other" keeps the URL typed by the user in the preferences
+            param.SetString("prefLicenseUrl", url)
 
     def handleLink(self, link):
         if hasattr(self, "form"):
