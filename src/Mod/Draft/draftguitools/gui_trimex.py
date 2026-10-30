@@ -586,6 +586,8 @@ class Trimex(gui_base_original.Modifier):
                 self.obj.LastAngle = angles[1]
             else:
                 self.obj.Shape = newshape
+            # recompute inside the transaction, so that undo also restores the shape
+            self.doc.recompute()
             self.doc.commitTransaction()
         self.doc.recompute()
         for g in self.ghost:
