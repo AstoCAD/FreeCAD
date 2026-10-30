@@ -485,11 +485,29 @@ bool MeshKernel::DeleteFacet(const MeshFacetIterator& rclIter)
     }
 
     // erase corner point if needed
+    // a corrupted facet can reference the same point twice: erase it only once
+    const PointIndex corners[3] = {
+        rclIter._clIter->_aulPoints[0],
+        rclIter._clIter->_aulPoints[1],
+        rclIter._clIter->_aulPoints[2]
+    };
+    bool erased[3] = {false, false, false};
     for (int i = 0; i < 3; i++) {
         if ((rclIter._clIter->_aulNeighbours[i] == FACET_INDEX_MAX)
             && (rclIter._clIter->_aulNeighbours[(i + 1) % 3] == FACET_INDEX_MAX)) {
+            int corner = (i + 1) % 3;
+            bool done = false;
+            for (int j = 0; j < 3; j++) {
+                if (erased[j] && corners[j] == corners[corner]) {
+                    done = true;
+                }
+            }
+            if (done) {
+                continue;
+            }
+            erased[corner] = true;
             // no neighbours, possibly delete point
-            ErasePoint(rclIter._clIter->_aulPoints[(i + 1) % 3], ulInd);
+            ErasePoint(rclIter._clIter->_aulPoints[corner], ulInd);
         }
     }
 
