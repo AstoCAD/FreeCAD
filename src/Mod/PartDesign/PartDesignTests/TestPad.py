@@ -528,6 +528,47 @@ class TestPad(unittest.TestCase):
         self.assertTrue(tab.Shape.isValid())
         self.assertAlmostEqual(tab.Shape.Volume, unrefinedVolume)
 
+    def _makeLengthFeature(self, typeName):
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        if typeName == "PartDesign::Pocket":
+            box = body.newObject("PartDesign::AdditiveBox", "Box")
+            box.Length = box.Width = box.Height = 20
+        sketch = body.newObject("Sketcher::SketchObject", "Sketch")
+        sketch.AttachmentSupport = (self.Doc.XY_Plane, [""])
+        sketch.MapMode = "FlatFace"
+        TestSketcherApp.CreateRectangleSketch(sketch, (0, 0), (10, 10))
+        feature = body.newObject(typeName, "Feature")
+        feature.Profile = sketch
+        self.Doc.recompute()
+        self.assertIn("Up-to-date", feature.State)
+        return feature
+
+    def testPadNaNLengthFails(self):
+        # NaN passed the zero length check and crashed while making the prism
+        pad = self._makeLengthFeature("PartDesign::Pad")
+        pad.Length = float("nan")
+        self.Doc.recompute()
+        self.assertIn("Invalid", pad.State)
+
+    def testPadInfiniteLengthFails(self):
+        pad = self._makeLengthFeature("PartDesign::Pad")
+        pad.Length = float("inf")
+        self.Doc.recompute()
+        self.assertIn("Invalid", pad.State)
+
+    def testPadNaNSecondLengthFails(self):
+        pad = self._makeLengthFeature("PartDesign::Pad")
+        pad.SideType = "Two sides"
+        pad.Length2 = float("nan")
+        self.Doc.recompute()
+        self.assertIn("Invalid", pad.State)
+
+    def testPocketNaNLengthFails(self):
+        pocket = self._makeLengthFeature("PartDesign::Pocket")
+        pocket.Length = float("nan")
+        self.Doc.recompute()
+        self.assertIn("Invalid", pocket.State)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestPad")
