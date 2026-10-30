@@ -62,6 +62,7 @@ set(PartDesign_TestScripts
     PartDesignTests/TestBoolean.py
     PartDesignTests/TestBaseFeature.py
     PartDesignTests/TestBodyRemoval.py
+    PartDesignTests/TestBodyInsertObject.py
     PartDesignTests/TestModuleTypes.py
     PartDesignTests/TestSetTipOrigin.py
     PartDesignTests/TestFillet.py
