@@ -81,6 +81,7 @@ SET(Test_SRCS
     TestPlacementDialogGui.py
     TestLinkToggleVisibilityGui.py
     TestComboBoxShortcutGui.py
+    TestLinkImportVisibilityGui.py
 )
 
 SET(TestData_SRCS

@@ -20,11 +20,13 @@
  *                                                                          *
  ****************************************************************************/
 
+#include <set>
 #include <sstream>
 #include <QMessageBox>
 
 #include <App/Application.h>
 #include <App/ElementNamingUtils.h>
+#include <App/GeoFeatureGroupExtension.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <App/Link.h>
@@ -687,6 +689,23 @@ static std::map<App::Document*, std::vector<App::DocumentObject*>> getLinkImport
     return objMap;
 }
 
+// Hide the imported objects, so that only the links display them. Objects inside an
+// imported Part or Body keep the visibility they had in the source document: the
+// hidden container already hides them in the document, and the link displays them
+// according to their own visibility, so hiding them too would make a link to an
+// imported container or body show nothing. Every other dependency (e.g. the tools
+// of a boolean) is displayed by nothing but itself, so it is hidden as before.
+static void hideImportedObjects(const std::vector<App::DocumentObject*>& objs)
+{
+    const std::set<App::DocumentObject*> imported(objs.begin(), objs.end());
+    for (auto obj : objs) {
+        auto container = App::GeoFeatureGroupExtension::getGroupOfObject(obj);
+        if (!container || !imported.contains(container)) {
+            obj->Visibility.setValue(false);
+        }
+    }
+}
+
 bool StdCmdLinkImport::isActive()
 {
     auto links = getLinkImportSelections();
@@ -710,9 +729,7 @@ void StdCmdLinkImport::activated(int)
         for (auto& v : getLinkImportSelections()) {
             auto doc = v.first;
             // TODO: Is it possible to do this using interpreter?
-            for (auto obj : doc->importLinks(v.second)) {
-                obj->Visibility.setValue(false);
-            }
+            hideImportedObjects(doc->importLinks(v.second));
         }
         Command::commitCommand();
     }
@@ -757,9 +774,7 @@ void StdCmdLinkImportAll::activated(int)
         wc.setIgnoreEvents(WaitCursor::NoEvents);
         auto doc = App::GetApplication().getActiveDocument();
         if (doc) {
-            for (auto obj : doc->importLinks()) {
-                obj->Visibility.setValue(false);
-            }
+            hideImportedObjects(doc->importLinks());
         }
         Command::commitCommand();
     }
