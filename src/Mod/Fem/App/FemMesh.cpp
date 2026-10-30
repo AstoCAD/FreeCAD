@@ -83,6 +83,25 @@ using namespace boost;
 
 SMESH_Gen* FemMesh::_mesh_gen = nullptr;
 
+namespace
+{
+// SMESH opens UNV files with a narrow std::fstream. On Windows such a path is interpreted in
+// the ANSI code page and not as UTF-8, so a non-ASCII path (e.g. a temporary directory below
+// a user name with accents or Cyrillic characters) cannot be opened.
+std::string smeshFilePath(const Base::FileInfo& fi)
+{
+#ifdef _WIN32
+    try {
+        return Base::FileInfo::stringToPath(fi.filePath()).string();
+    }
+    catch (const std::exception&) {
+        // not representable in the ANSI code page, keep the UTF-8 path
+    }
+#endif
+    return fi.filePath();
+}
+}  // namespace
+
 TYPESYSTEM_SOURCE(Fem::FemMesh, Base::Persistence)
 
 FemMesh::FemMesh()
@@ -1656,7 +1675,7 @@ void FemMesh::read(const char* FileName)
 
     if (File.hasExtension("unv")) {
         // read UNV file
-        myMesh->UNVToMesh(File.filePath().c_str());
+        myMesh->UNVToMesh(smeshFilePath(File).c_str());
     }
     else if (File.hasExtension("med")) {
         myMesh->MEDToMesh(File.filePath().c_str(), File.fileNamePure().c_str());
@@ -2345,7 +2364,7 @@ void FemMesh::write(const char* FileName) const
     if (File.hasExtension("unv")) {
         Base::Console().log("FEM mesh object will be exported to unv format.\n");
         // write UNV file
-        myMesh->ExportUNV(File.filePath().c_str());
+        myMesh->ExportUNV(smeshFilePath(File).c_str());
     }
     else if (File.hasExtension("med")) {
         Base::Console().log("FEM mesh object will be exported to med format.\n");
@@ -2462,7 +2481,7 @@ void FemMesh::SaveDocFile(Base::Writer& writer) const
     // create a temporary file and copy the content to the zip stream
     Base::FileInfo fi(App::Application::getTempFileName().c_str());
 
-    myMesh->ExportUNV(fi.filePath().c_str());
+    myMesh->ExportUNV(smeshFilePath(fi).c_str());
 
     Base::ifstream file(fi, std::ios::in | std::ios::binary);
     if (file) {
@@ -2488,7 +2507,7 @@ void FemMesh::RestoreDocFile(Base::Reader& reader)
     file.close();
 
     // read the shape from the temp file
-    myMesh->UNVToMesh(fi.filePath().c_str());
+    myMesh->UNVToMesh(smeshFilePath(fi).c_str());
 
     // delete the temp file
     fi.deleteFile();
