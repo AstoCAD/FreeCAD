@@ -48,6 +48,16 @@ using namespace RobotGui;
 
 PROPERTY_SOURCE(RobotGui::ViewProviderRobotObject, Gui::ViewProviderGeometryObject)
 
+namespace
+{
+// The Tcp is computed from the kinematics and is relative to the robot, so the
+// tool must also follow the placement of the robot itself.
+Base::Matrix4D toolTransformation(const Robot::RobotObject* robObj, const Base::Placement& tcp)
+{
+    return (robObj->Placement.getValue() * tcp * robObj->ToolBase.getValue().inverse()).toMatrix();
+}
+}  // namespace
+
 ViewProviderRobotObject::ViewProviderRobotObject()
 {
     ADD_PROPERTY(Manipulator, (0));
@@ -308,7 +318,7 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
             );
             if (toolShape) {
                 toolShape->setTransformation(
-                    (robObj->Tcp.getValue() * (robObj->ToolBase.getValue().inverse())).toMatrix()
+                    toolTransformation(robObj, robObj->Tcp.getValue())
                 );
             }
         }
@@ -321,7 +331,7 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
             );
             if (toolShape) {
                 toolShape->setTransformation(
-                    (robObj->Tcp.getValue() * (robObj->ToolBase.getValue().inverse())).toMatrix()
+                    toolTransformation(robObj, robObj->Tcp.getValue())
                 );
             }
         }
@@ -334,7 +344,7 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
             );
             if (toolShape) {
                 toolShape->setTransformation(
-                    (robObj->Tcp.getValue() * (robObj->ToolBase.getValue().inverse())).toMatrix()
+                    toolTransformation(robObj, robObj->Tcp.getValue())
                 );
             }
         }
@@ -347,7 +357,7 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
             );
             if (toolShape) {
                 toolShape->setTransformation(
-                    (robObj->Tcp.getValue() * (robObj->ToolBase.getValue().inverse())).toMatrix()
+                    toolTransformation(robObj, robObj->Tcp.getValue())
                 );
             }
         }
@@ -360,7 +370,7 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
             );
             if (toolShape) {
                 toolShape->setTransformation(
-                    (robObj->Tcp.getValue() * (robObj->ToolBase.getValue().inverse())).toMatrix()
+                    toolTransformation(robObj, robObj->Tcp.getValue())
                 );
             }
         }
@@ -373,7 +383,7 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
             );
             if (toolShape) {
                 toolShape->setTransformation(
-                    (robObj->Tcp.getValue() * (robObj->ToolBase.getValue().inverse())).toMatrix()
+                    toolTransformation(robObj, robObj->Tcp.getValue())
                 );
             }
         }
@@ -396,8 +406,13 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
         }
         if (toolShape) {
             toolShape->setTransformation(
-                (robObj->Tcp.getValue() * (robObj->ToolBase.getValue().inverse())).toMatrix()
+                toolTransformation(robObj, robObj->Tcp.getValue())
             );
+        }
+    }
+    else if (prop == &robObj->Placement || prop == &robObj->ToolBase) {
+        if (toolShape) {
+            toolShape->setTransformation(toolTransformation(robObj, robObj->Tcp.getValue()));
         }
     }
     else if (prop == &robObj->ToolShape) {
@@ -406,7 +421,7 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
         if (o && (o->isDerivedFrom<Part::Feature>() || o->isDerivedFrom<App::VRMLObject>())) {
             toolShape = Gui::Application::Instance->getViewProvider(o);
             toolShape->setTransformation(
-                (robObj->Tcp.getValue() * (robObj->ToolBase.getValue().inverse())).toMatrix()
+                toolTransformation(robObj, robObj->Tcp.getValue())
             );
         }
         else {
@@ -451,7 +466,7 @@ void ViewProviderRobotObject::setAxisTo(
     }
     // update tool position
     if (toolShape) {
-        toolShape->setTransformation((Tcp * (robObj->ToolBase.getValue().inverse())).toMatrix());
+        toolShape->setTransformation(toolTransformation(robObj, Tcp));
     }
 }
 
