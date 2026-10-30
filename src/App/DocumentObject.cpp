@@ -1185,7 +1185,12 @@ void DocumentObject::onChanged(const Property* prop)
         oldLabel = Label.getStrValue();
 
         for (auto* obj : getInListRecursive()) {
-            obj->onParentLabelChanged(this);
+            // An object that links to itself (directly or through a dependency loop) is in
+            // its own in-list. It is not its own parent, and notifying it would let a link
+            // relabel itself from inside this handler again and again (stack overflow).
+            if (obj != this) {
+                obj->onParentLabelChanged(this);
+            }
         }
     }
 

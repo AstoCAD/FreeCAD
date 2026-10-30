@@ -713,6 +713,23 @@ class DocumentBasicCases(unittest.TestCase):
         self.assertIn("Test", self.Doc.Python.PropertiesList)
         self.assertIn("Test", self.Doc.Link.PropertiesList)
 
+    def testRelabelLinkReferencingItself(self):
+        # A link that references itself through another link property is in its own
+        # in-list. Relabeling it (and so restoring its Label from a file) used to notify
+        # the link that its "parent" was relabeled, the link relabeled itself again and
+        # FreeCAD crashed with a stack overflow.
+        link = self.Doc.addObject("App::Link", "Link")
+        link.addProperty("App::PropertyLinkList", "Refs")
+        link.Refs = [link]
+        link.Label = "Renamed"
+        self.assertEqual(link.Label, "Renamed")
+
+        doc = self.saveAndRestore()
+        # The link instance-label migration may append " <n>" on restore; only the
+        # base label matters here.
+        self.assertTrue(doc.Link.Label.startswith("Renamed"))
+        self.assertEqual(doc.Link.Refs, [doc.Link])
+
     def testNoProxy(self):
         test = self.Doc.addObject("App::DocumentObject", "Object")
         test.addProperty("App::PropertyPythonObject", "Dictionary")
