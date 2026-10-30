@@ -2,6 +2,7 @@
 
 #include <src/App/InitApplication.h>
 #include <App/Document.h>
+#include <Base/Exception.h>
 #include <Base/Placement.h>
 #include <Base/Rotation.h>
 #include <Base/Vector3D.h>
@@ -14,6 +15,8 @@
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Vertex.hxx>
+#include <gp_Ax2.hxx>
+#include <gp_Circ.hxx>
 #include <gp_Pnt.hxx>
 #include <gtest/gtest.h>
 
@@ -136,6 +139,69 @@ TEST_F(MeasurementPointAngleTest, TwoPerpendicularLines)
 
     ASSERT_EQ(measurement.getType(), Measure::MeasureType::TwoLines);
     EXPECT_NEAR(measurement.angle(), 90.0, 1e-7);
+}
+
+// The referenced elements can disappear after the measurement was set up, e.g. when the
+// referenced object changes. This used to dereference a null shape and crash.
+TEST_F(MeasurementPointAngleTest, MissingElementsThrowInsteadOfCrashing)
+{
+    auto points = makeVertices(
+        "Points",
+        {gp_Pnt(1.0, 0.0, 0.0), gp_Pnt(0.0, 0.0, 0.0), gp_Pnt(0.0, 1.0, 0.0)}
+    );
+
+    BRep_Builder builder;
+    TopoDS_Compound lines;
+    builder.MakeCompound(lines);
+    builder.Add(lines, BRepBuilderAPI_MakeEdge(gp_Pnt(), gp_Pnt(1.0, 0.0, 0.0)).Edge());
+    builder.Add(lines, BRepBuilderAPI_MakeEdge(gp_Pnt(0.0, 1.0, 0.0), gp_Pnt(1.0, 1.0, 0.0)).Edge());
+    auto parallel = document->addObject<Part::Feature>("ParallelLines");
+    parallel->Shape.setValue(lines);
+
+    TopoDS_Compound circles;
+    builder.MakeCompound(circles);
+    builder.Add(circles, BRepBuilderAPI_MakeEdge(gp_Circ(gp_Ax2(), 1.0)).Edge());
+    builder.Add(
+        circles,
+        BRepBuilderAPI_MakeEdge(gp_Circ(gp_Ax2(gp_Pnt(0.0, 0.0, 1.0), gp_Dir(1.0, 0.0, 0.0)), 2.0))
+            .Edge()
+    );
+    auto circleFeature = document->addObject<Part::Feature>("Circles");
+    circleFeature->Shape.setValue(circles);
+    document->recompute();
+
+    Measure::Measurement pointAngle;
+    pointAngle.addReference3D(points, "Vertex1");
+    pointAngle.addReference3D(points, "Vertex2");
+    pointAngle.addReference3D(points, "Vertex3");
+    ASSERT_EQ(pointAngle.getType(), Measure::MeasureType::Points);
+
+    Measure::Measurement lineDistance;
+    lineDistance.addReference3D(parallel, "Edge1");
+    lineDistance.addReference3D(parallel, "Edge2");
+    ASSERT_EQ(lineDistance.getType(), Measure::MeasureType::TwoParallelLines);
+
+    Measure::Measurement circleAngle;
+    circleAngle.addReference3D(circleFeature, "Edge1");
+    circleAngle.addReference3D(circleFeature, "Edge2");
+    ASSERT_EQ(circleAngle.getType(), Measure::MeasureType::TwoCircles);
+
+    Measure::Measurement circleRadius;
+    circleRadius.addReference3D(circleFeature, "Edge1");
+    ASSERT_EQ(circleRadius.getType(), Measure::MeasureType::Circle);
+
+    // Replace every shape by a single vertex, so the referenced elements are gone
+    const TopoDS_Vertex lonelyVertex = BRepBuilderAPI_MakeVertex(gp_Pnt(5.0, 5.0, 5.0)).Vertex();
+    points->Shape.setValue(lonelyVertex);
+    parallel->Shape.setValue(lonelyVertex);
+    circleFeature->Shape.setValue(lonelyVertex);
+    document->recompute();
+
+    EXPECT_THROW(pointAngle.angle(), Base::ValueError);
+    EXPECT_THROW(lineDistance.lineLineDistance(), Base::ValueError);
+    EXPECT_THROW(circleAngle.angle(), Base::ValueError);
+    EXPECT_THROW(circleAngle.circleCenterDistance(), Base::ValueError);
+    EXPECT_THROW(circleRadius.radius(), Base::ValueError);
 }
 
 // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
