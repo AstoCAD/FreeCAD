@@ -1609,3 +1609,45 @@ class PartFaceMakerBuildFaceTests(unittest.TestCase):
             2,
             f"Expected >=2 faces in InternalShape, got {len(sk.InternalShape.Faces)}",
         )
+
+
+class PartShapeContentTests(unittest.TestCase):
+    """Issue #28643: Part_CheckGeometry no longer repeats the physical
+    properties of solids (shown by Std_MassProperties), but keeps them for
+    shapes that are not solids."""
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("ShapeContentTest")
+
+    def tearDown(self):
+        FreeCAD.closeDocument("ShapeContentTest")
+
+    def _content(self, shape):
+        from BasicShapes import ShapeContent
+
+        obj = self.Doc.addObject("Part::Feature", "Feature")
+        obj.Shape = shape
+        return ShapeContent.buildShapeContent(obj, 2, True)
+
+    def testSolidHasNoPhysicalProperties(self):
+        for shape in (
+            Part.makeBox(10, 10, 10),
+            Part.Compound([Part.makeBox(1, 1, 1), Part.makeSphere(1, Base.Vector(5, 0, 0))]),
+        ):
+            content = self._content(shape)
+            self.assertIn("Area", content)
+            for name in ("Volume", "Mass", "Center of mass", "Moment", "AxisOfInertia"):
+                self.assertNotIn(name, content)
+
+    def testNonSolidKeepsPhysicalProperties(self):
+        for shape in (
+            Part.makePlane(10, 10),
+            Part.makeBox(10, 10, 10).Shells[0],
+            Part.makeLine(Base.Vector(0, 0, 0), Base.Vector(10, 0, 0)),
+        ):
+            content = self._content(shape)
+            self.assertIn("Center of mass", content)
+            self.assertIn("Mass", content)
+        # A compound that is not made of solids only keeps its volume
+        mixed = Part.Compound([Part.makeBox(1, 1, 1), Part.makePlane(1, 1, Base.Vector(5, 0, 0))])
+        self.assertIn("Volume", self._content(mixed))
