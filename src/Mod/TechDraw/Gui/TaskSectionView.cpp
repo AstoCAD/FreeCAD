@@ -48,6 +48,7 @@
 #include <limits>
 #include <numbers>
 #include <sstream>
+#include <vector>
 
 #include "Widgets/CompassWidget.h"
 #include <Gui/VectorEditWidget.h>
@@ -1004,8 +1005,24 @@ void TaskSectionView::setUiCommon(const QPointF& center)
         ui->cmbStrategy, ui->cbConnectionLine, ui->cmbParallelTo, ui->cbSectionCutOnly,
         ui->cbShowOutsidePartialBoundaries, ui->cbShowManualControls,
         ui->sbCenterX, ui->sbCenterY, m_compass, m_viewDirectionWidget, ui->cbLiveUpdate};
-    for (std::size_t i = 1; i < std::size(tabOrder); ++i) {
-        QWidget::setTabOrder(tabOrder[i - 1], tabOrder[i]);
+    // QWidget::setTabOrder() ignores widgets that take no focus, such as the
+    // compass and the vector editor containers, so chain their focusable
+    // children (in their own focus order) instead.
+    std::vector<QWidget*> focusChain;
+    for (QWidget* widget : tabOrder) {
+        if (widget->focusPolicy() != Qt::NoFocus) {
+            focusChain.push_back(widget);
+            continue;
+        }
+        for (QWidget* child = widget->nextInFocusChain(); child && child != widget;
+             child = child->nextInFocusChain()) {
+            if (widget->isAncestorOf(child) && child->focusPolicy() != Qt::NoFocus) {
+                focusChain.push_back(child);
+            }
+        }
+    }
+    for (std::size_t i = 1; i < focusChain.size(); ++i) {
+        QWidget::setTabOrder(focusChain[i - 1], focusChain[i]);
     }
 }
 
