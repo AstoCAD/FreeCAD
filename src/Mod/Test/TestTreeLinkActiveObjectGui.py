@@ -60,9 +60,13 @@ class TestTreeLinkActiveObjectGui(unittest.TestCase):
         QtCore.QTimer.singleShot(milliseconds, loop.quit)
         loop.exec_()
 
-    def _bodyItemsUnderLink(self):
-        """Return the tree items of the body below the link in the assembly document."""
-        items = []
+    def _bodyItemStatesUnderLink(self):
+        """Return whether each tree item of the body below the link in the
+        assembly document is highlighted.
+
+        The state is read during the traversal: the item wrappers are not owned
+        by Python and become invalid once their parent wrappers are released."""
+        states = []
         for tree in self.trees:
             for i in range(tree.topLevelItemCount()):
                 top = tree.topLevelItem(i)
@@ -74,9 +78,9 @@ class TestTreeLinkActiveObjectGui(unittest.TestCase):
                     for j in range(item.childCount()):
                         child = item.child(j)
                         if child.text(0) == self.body.Label:
-                            items.append(child)
+                            states.append(self._isHighlighted(child))
                         stack.append(child)
-        return items
+        return states
 
     @staticmethod
     def _isHighlighted(item):
@@ -85,21 +89,18 @@ class TestTreeLinkActiveObjectGui(unittest.TestCase):
     def testActiveBodyThroughCollapsedLinkIsHighlighted(self):
         # The link item has never been expanded, so the body has no tree item
         # in the assembly document yet.
-        self.assertEqual(self._bodyItemsUnderLink(), [])
+        self.assertEqual(self._bodyItemStatesUnderLink(), [])
 
         view = Gui.getDocument(self.asmDoc.Name).ActiveView
         view.setActiveObject("pdbody", self.body)
         self._events(200)
         try:
             self.assertEqual(view.getActiveObject("pdbody"), self.body)
-            items = self._bodyItemsUnderLink()
-            self.assertTrue(items, "The active body has no item below the link")
-            self.assertTrue(
-                any(self._isHighlighted(item) for item in items),
-                "The active body is not highlighted below the link",
-            )
+            states = self._bodyItemStatesUnderLink()
+            self.assertTrue(states, "The active body has no item below the link")
+            self.assertTrue(any(states), "The active body is not highlighted below the link")
         finally:
             view.setActiveObject("pdbody", None)
             self._events(200)
 
-        self.assertFalse(any(self._isHighlighted(item) for item in self._bodyItemsUnderLink()))
+        self.assertFalse(any(self._bodyItemStatesUnderLink()))
