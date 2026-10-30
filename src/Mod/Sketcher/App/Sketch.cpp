@@ -5561,6 +5561,11 @@ GCS::SolveStatus Sketch::moveGeometries(
         return GCS::SolveStatus::Failed;
     }
 
+    if (!std::isfinite(toPoint.x) || !std::isfinite(toPoint.y) || !std::isfinite(toPoint.z)) {
+        // an infinite or NaN target would feed the solver NaN parameters
+        return GCS::SolveStatus::Failed;
+    }
+
     if (!isInitMove) {
         if (initMove(geoEltIds) != 0) {
             return GCS::SolveStatus::Failed;
