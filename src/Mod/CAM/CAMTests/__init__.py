@@ -13,6 +13,8 @@ import CAMTests.cam_test_modules
 _EXCLUDE_MODULES = {
     "TestPathJobGui",
     "TestPathDressupLeadInOutGui",
+    "TestPathOpBaseGeometryGui",
+    "TestCAMSimulatorPathColorsGui",
     "TestPathToolBitBrowserWidget",
     "TestPathToolBitEditorWidget",
     "TestPathToolBitListWidget",

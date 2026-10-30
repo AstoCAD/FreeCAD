@@ -453,6 +453,7 @@ class TaskPanelHoleGeometryPage(PathOpGui.TaskPanelBaseGeometryPage):
         self.form.baseList.horizontalHeader().sortIndicatorChanged.connect(
             self.onSortIndicatorChanged
         )
+        self.installDeleteKeyFilter()
 
     def onSortIndicatorChanged(self, column, order):
         """Handle when the user clicks a column header to sort"""
