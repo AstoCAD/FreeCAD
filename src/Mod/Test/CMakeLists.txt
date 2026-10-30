@@ -78,6 +78,7 @@ SET(Test_SRCS
     TestCornerAxisCrossVisual.py
     TestViewProviderLink.py
     TestUserEditModeGui.py
+    TestPlacementDialogGui.py
 )
 
 SET(TestData_SRCS
