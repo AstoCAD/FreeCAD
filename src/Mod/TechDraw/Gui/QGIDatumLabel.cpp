@@ -319,11 +319,12 @@ bool QGIDatumLabel::snapRadial(QPointF& pos, TechDraw::DrawViewDimension* dim,
     Base::Vector2d labelCenter = Base::Vector2d(pos.x(), pos.y()) + toCenter;
 
     // ASME centers the label on the line. ISO keeps it beside the line, on its current side,
-    // at the distance used by QGIViewDimension. The hair more keeps the redrawn line angle
-    // defined when the label sits next to the center of a diameter.
+    // at the distance used by QGIViewDimension, which measures the label before rotating it.
+    // The hair more keeps the redrawn line angle defined when the label sits next to the
+    // center of a diameter.
     double lineLabelDistance = 0.0;
     if (isoOriented) {
-        lineLabelDistance = mapRectToParent(tightBoundingRect()).height() * 0.5
+        lineLabelDistance = tightBoundingRect().height() * 0.5
             + Rez::guiX(qgivd->getIsoDimensionLineSpacing());
         lineLabelDistance *= 1.0 + 1e-6;
     }
