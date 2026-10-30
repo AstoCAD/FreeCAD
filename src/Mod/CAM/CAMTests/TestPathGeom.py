@@ -490,6 +490,55 @@ class TestPathGeom(PathTestBase):
             "CCW",
         )
 
+    def test21(self):
+        """Verify a very short arc is not turned into a half circle (#33146)."""
+        startPoint = Vector(-195.121182, 57.494287, -5.999999)
+        endPoint = Vector(-195.122314, 57.492542, -5.999999)
+        cmd = Path.Command(
+            "G2",
+            {
+                "I": -2.013849,
+                "J": 1.305531,
+                "K": 0,
+                "X": endPoint.x,
+                "Y": endPoint.y,
+                "Z": endPoint.z,
+            },
+        )
+        edge = Path.Geom.edgeForCmd(cmd, startPoint)
+        self.assertRoughly(edge.Length, 0.002, 0.001)
+        self.assertCoincide(edge.valueAt(edge.FirstParameter), startPoint)
+        self.assertCoincide(edge.valueAt(edge.LastParameter), endPoint)
+
+        # a real half circle is still recognized
+        p1 = Vector(1, 0, 0)
+        p2 = Vector(-1, 0, 0)
+        self.assertArc(
+            Path.Geom.edgeForCmd(Path.Command("G2", {"X": -1, "Y": 0, "I": -1, "J": 0}), p1),
+            p1,
+            p2,
+            "CW",
+        )
+        self.assertArc(
+            Path.Geom.edgeForCmd(Path.Command("G3", {"X": -1, "Y": 0, "I": -1, "J": 0}), p1),
+            p1,
+            p2,
+            "CCW",
+        )
+
+        # an arc that is almost a full circle, ending just behind its start,
+        # still goes the long way around; a short arc in the same direction does not
+        start = Vector(1, 0, 0)
+        for name, theta in (("G3", -0.003), ("G2", 0.003)):
+            with self.subTest(name=name):
+                end = Vector(math.cos(theta), math.sin(theta), 0)
+                params = {"X": end.x, "Y": end.y, "I": -1, "J": 0}
+                almostFull = Path.Geom.edgeForCmd(Path.Command(name, params), start)
+                self.assertRoughly(almostFull.Length, 2 * math.pi - 0.003, 0.0001)
+                short = "G2" if name == "G3" else "G3"
+                shortArc = Path.Geom.edgeForCmd(Path.Command(short, params), start)
+                self.assertRoughly(shortArc.Length, 0.003, 0.0001)
+
     def test30(self):
         """Verify proper geometry for arcs with rising and fall ing Z-axis are created."""
         # print("------ rising helix -------")

@@ -481,7 +481,13 @@ def edgeForCmd(cmd, startPoint):
         B = xy(endPoint - center)
         d = -B.x * A.y + B.y * A.x
 
-        if isRoughly(d, 0, 0.005):
+        # d is also about zero when A and B point the same way: for a very
+        # short arc, which is not a half circle, and for an almost full circle,
+        # whose end lies just behind its start (d > 0 for a CW arc, d < 0 for a
+        # CCW one). The half circle midpoint, a quarter turn along the arc,
+        # keeps the latter going the long way around.
+        almostFull = (d > 0) == (cmd.Name in CmdMoveCW)
+        if isRoughly(d, 0, 0.005) and (A.dot(B) < 0 or almostFull):
             # Path.Log.debug(
             #    "Half circle arc at: (%.2f, %.2f, %.2f)" % (center.x, center.y, center.z)
             # )
