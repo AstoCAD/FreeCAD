@@ -330,6 +330,8 @@ class Dimension(gui_base_original.Creator):
         if arg["Type"] == "SoKeyboardEvent":
             if arg["Key"] == "ESCAPE":
                 self.finish(cont=None)
+        elif not self.ui.mouse:
+            pass
         elif arg["Type"] == "SoLocation2Event":  # mouse movement detection
             shift = gui_tool_utils.hasMod(arg, gui_tool_utils.get_mod_constrain_key())
             if self.arcmode or self.point2:
