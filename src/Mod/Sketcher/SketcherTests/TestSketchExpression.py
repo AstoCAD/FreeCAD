@@ -79,6 +79,34 @@ class TestSketchExpression(unittest.TestCase):
             context.exception
         )
 
+    def testConstraintNamesThatAreNotIdentifiersSurviveSaveRestore(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/6593
+        # https://github.com/FreeCAD/FreeCAD/issues/19866
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        sketch.addGeometry(Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)))
+        sketch.addGeometry(Part.LineSegment(App.Vector(0, 0, 0), App.Vector(0, 4, 0)))
+        base = sketch.addConstraint(Sketcher.Constraint("DistanceX", 0, 1, 0, 2, 10.0))
+        height = sketch.addConstraint(Sketcher.Constraint("DistanceY", 1, 1, 1, 2, 4.0))
+        sketch.renameConstraint(base, "Base")
+        sketch.renameConstraint(height, "Height")
+        sketch.setExpression("Constraints.Height", ".Constraints.Base / 2")
+        # names with a space or a unit name are not identifiers
+        sketch.renameConstraint(base, "Bottom, width")
+        sketch.renameConstraint(height, "mm")
+        self.Doc.recompute()
+        self.assertAlmostEqual(sketch.getDatum("mm").Value, 5.0)
+
+        path = os.path.join(FreeCAD.getUserCachePath(), "TestSketchExprNames.FCStd")
+        self.Doc.saveAs(path)
+        FreeCAD.closeDocument(self.Doc.Name)
+        self.Doc = FreeCAD.openDocument(path)
+        sketch = self.Doc.getObject("Sketch")
+
+        self.assertEqual(len(sketch.ExpressionEngine), 1)
+        sketch.setDatum("Bottom, width", App.Units.Quantity("20 mm"))
+        self.Doc.recompute()
+        self.assertAlmostEqual(sketch.getDatum("mm").Value, 10.0)
+
     def tearDown(self):
         # comment out to omit closing document for debugging
         FreeCAD.closeDocument(self.Doc.Name)
