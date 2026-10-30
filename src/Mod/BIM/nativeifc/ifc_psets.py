@@ -60,18 +60,38 @@ def get_psets(element):
         return result
     for pset in psets:
         pset_dict = {}
+        props = []
         if pset.is_a("IfcPropertySet") and pset.HasProperties:
-            for prop in pset.HasProperties:
-                pset_dict[prop.Name] = str(prop.NominalValue)
+            props = pset.HasProperties
         if pset.is_a("IfcMaterialProperties") and pset.Properties:
-            for prop in pset.Properties:
-                pset_dict[prop.Name] = str(prop.NominalValue)
-        elif pset.is_a("IfcElementQuantity"):
+            props = pset.Properties
+        for prop in props:
+            value = get_property_value(prop)
+            if value is not None:
+                pset_dict[prop.Name] = value
+        if pset.is_a("IfcElementQuantity"):
             # TODO implement quantities
             pass
         if pset_dict:
             result[pset.Name] = pset_dict
     return result
+
+
+def get_property_value(prop):
+    """Returns the value of an IFC property as an IfcType(value) string,
+    or None if the property has no single value that can be represented
+    this way. Enumerated values with several selected values are joined
+    with the FreeCAD-specific :: delimiter"""
+
+    value = getattr(prop, "NominalValue", None)
+    if value is not None:
+        return str(value)
+    values = getattr(prop, "EnumerationValues", None)
+    if values:
+        if len(values) == 1:
+            return str(values[0])
+        return "IfcLabel('" + "::".join(str(v.wrappedValue) for v in values) + "')"
+    return None
 
 
 def get_pset(psetname, element):
