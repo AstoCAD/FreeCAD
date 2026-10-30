@@ -631,6 +631,11 @@ App::DocumentObjectExecReturn* MeasureAngle::execute()
             | Part::ShapeOption::Transform,
         subs2.at(0).c_str()
     );
+    // The referenced element may be missing (e.g. the face disappeared after a model change)
+    if (s1.IsNull() || s2.IsNull()) {
+        return new App::DocumentObjectExecReturn("Could not get the shape of the element(s)");
+    }
+
     const bool s1Axis = isAxisBearingFace(s1);
     const bool s2Axis = isAxisBearingFace(s2);
     if (s1Axis || s2Axis) {

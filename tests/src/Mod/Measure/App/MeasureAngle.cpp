@@ -353,4 +353,30 @@ TEST_F(MeasureAngle, testPrioritizedSelectionUnreadableDirectionRejected)
     EXPECT_FALSE(Measure::MeasureAngle::isPrioritizedSelection(selection));
 }
 
+// A reference to an element that does not exist (any more), or to an object without
+// a shape, must make the measurement fail instead of crashing on a null shape.
+TEST_F(MeasureAngle, testMissingElementDoesNotCrash)
+{
+    App::Document* doc = getDocument();
+    auto planeXY = addFeature("PlaneXY", makePlaneFace(gp_Dir(0.0, 0.0, 1.0)));
+    auto planeYZ = addFeature("PlaneYZ", makePlaneFace(gp_Dir(1.0, 0.0, 0.0)));
+    auto empty = doc->addObject<Part::Feature>("Empty");
+
+    auto measure = doc->addObject<Measure::MeasureAngle>("Angle");
+    measure->Element1.setValue(planeXY, {"Face1"});
+    measure->Element2.setValue(planeYZ, {"Face1"});
+    doc->recompute();
+    EXPECT_NEAR(measure->Angle.getValue(), 90.0, Precision::Angular());
+    EXPECT_FALSE(measure->isError());
+
+    measure->Element1.setValue(planeXY, {"Face99"});
+    doc->recompute();
+    EXPECT_TRUE(measure->isError());
+
+    measure->Element1.setValue(planeXY, {"Face1"});
+    measure->Element2.setValue(empty, {"Edge1"});
+    doc->recompute();
+    EXPECT_TRUE(measure->isError());
+}
+
 // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
