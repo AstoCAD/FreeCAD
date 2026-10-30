@@ -193,3 +193,41 @@ class TestResult(unittest.TestCase):
         self.assertEqual(
             disp_abs, expected_dispabs, "Calculated displacement abs are not the expected values."
         )
+
+    # ********************************************************************************************
+    def test_frd_import_close_eigenfrequencies(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/23083
+        # frequencies of the rigid body modes of an unconstrained model differ only after the second
+        # decimal, rounding them made the pipeline frame values equal: "Values need to be unique"
+        if "BUILD_FEM_VTK" not in FreeCAD.__cmake__:
+            self.skipTest("FEM was built without VTK, there is no result pipeline")
+        import ObjectsFem
+        from feminout import importCcxFrdResults
+
+        frd_file = join(testtools.get_fem_test_home_dir(), "calculix", "box_frequency.frd")
+        with open(frd_file) as f:
+            lines = f.read().splitlines()
+        # mesh, then the result blocks of eigenmode 1 (starting at the first PSTEP) up to 9999
+        first_step = next(i for i, ln in enumerate(lines) if ln[4:10] == "1PSTEP")
+        mesh_part = lines[:first_step]
+        mode_part = lines[first_step:-1]
+        frd_lines = list(mesh_part)
+        for mode, freq in ((1, "1.00000E-03"), (2, "2.00000E-03")):
+            for ln in mode_part:
+                if ln[5:10] == "PMODE":
+                    ln = ln[:30] + f"{mode:6d}" + ln[36:]
+                elif ln[2:7] == "100CL":
+                    ln = ln[:13] + freq + ln[24:]
+                frd_lines.append(ln)
+        frd_lines.append(lines[-1])
+        test_frd = join(testtools.get_fem_test_tmp_dir("result_frd_freq"), "box_frequency.frd")
+        with open(test_frd, "w") as f:
+            f.write("\n".join(frd_lines) + "\n")
+
+        analysis = ObjectsFem.makeAnalysis(self.document, "Analysis")
+        importCcxFrdResults.importFrd(test_frd, analysis, "", "frequency")
+
+        pipelines = analysis.getObjectsOfType("Fem::FemPostPipeline")
+        self.assertEqual(len(pipelines), 1)
+        frames = pipelines[0].getEnumerationsOfProperty("Frame")
+        self.assertEqual(len(frames), 2, f"unexpected frames: {frames}")
