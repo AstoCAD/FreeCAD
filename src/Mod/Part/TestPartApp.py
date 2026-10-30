@@ -1433,6 +1433,44 @@ class PartOffset2DBSplineTests(unittest.TestCase):
         self._checkOffset(self._bsplineWire(False), True)
 
 
+class PartOffset2DFaceWithHoleTests(unittest.TestCase):
+    """Regression test for issue #27113: the 2D offset of a face with a hole
+    must not depend on the order in which the face lists its wires."""
+
+    def _wallTopFace(self, thickness):
+        # The top face of the wall left by an outward thickness lists its hole
+        # wire before its outer wire.
+        box = Part.makeBox(20, 10, 10)
+        top = [f for f in box.Faces if abs(f.CenterOfMass.z - 10) < 1e-6][0]
+        solid = box.makeThickness([top], thickness, 1e-3, False, False, 0, 2)
+        faces = [
+            f for f in solid.Faces if abs(f.CenterOfMass.z - 10) < 1e-6 and len(f.Wires) == 2
+        ]
+        self.assertEqual(len(faces), 1)
+        return faces[0]
+
+    def _checkOffset(self, thickness):
+        face = self._wallTopFace(thickness)
+        outer = face.OuterWire.BoundBox
+        offset = face.makeOffset2D(1.1, 2)
+        self.assertTrue(offset.isValid())
+        self.assertEqual(len(offset.Faces), 1)
+        self.assertEqual(len(offset.Faces[0].Wires), 2)
+        # The outer boundary grows by the offset and the hole shrinks by it.
+        self.assertAlmostEqual(offset.BoundBox.XLength, outer.XLength + 2.2, places=6)
+        self.assertAlmostEqual(offset.BoundBox.YLength, outer.YLength + 2.2, places=6)
+        holeX = outer.XLength - 2 * abs(thickness)
+        holeY = outer.YLength - 2 * abs(thickness)
+        expected = (outer.XLength + 2.2) * (outer.YLength + 2.2) - (holeX - 2.2) * (holeY - 2.2)
+        self.assertAlmostEqual(offset.Area, expected, places=6)
+
+    def testOffsetOfInwardThicknessFace(self):
+        self._checkOffset(-1.5)
+
+    def testOffsetOfOutwardThicknessFace(self):
+        self._checkOffset(1.5)
+
+
 class PartLoftTests(unittest.TestCase):
     """Regression tests for issue #31307: a solid loft from open sections
     must be reported as an error instead of silently giving an invalid solid."""
