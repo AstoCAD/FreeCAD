@@ -906,6 +906,48 @@ class DocumentLinkLabelCases(unittest.TestCase):
         self.assertIsNone(link.LinkedObject)
         self.assertEqual(link.Label, label)
 
+    def testUndoTargetDeletionKeepsLabel(self):
+        # Undoing the deletion of the linked object restores the link's LinkedObject.
+        # The label must not be rebuilt from the linked object during undo/redo
+        # ("Custom" became "Child <1>").
+        self.Doc.UndoMode = 1
+        child = self.Doc.addObject("App::FeatureTest", "Child")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(child)
+        link.Label = "Custom"
+        self.Doc.clearUndos()
+        self.Doc.openTransaction("Delete child")
+        self.Doc.removeObject("Child")
+        self.Doc.commitTransaction()
+        for _ in range(2):
+            self.Doc.undo()
+            self.assertEqual(link.LinkedObject, self.Doc.getObject("Child"))
+            self.assertEqual(link.Label, "Custom")
+            self.Doc.redo()
+            self.assertIsNone(link.LinkedObject)
+            self.assertEqual(link.Label, "Custom")
+
+    def testUndoTargetRelabelRestoresInstanceLabel(self):
+        # Relabeling the linked object updates the instance label; undo and redo
+        # restore both labels
+        self.Doc.UndoMode = 1
+        child = self.Doc.addObject("App::FeatureTest", "Child")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(child)
+        label = link.Label
+        self.assertEqual(label, "Child <1>")
+        self.Doc.clearUndos()
+        self.Doc.openTransaction("Relabel child")
+        child.Label = "Renamed"
+        self.Doc.commitTransaction()
+        self.assertEqual(link.Label, "Renamed <1>")
+        self.Doc.undo()
+        self.assertEqual(child.Label, "Child")
+        self.assertEqual(link.Label, label)
+        self.Doc.redo()
+        self.assertEqual(child.Label, "Renamed")
+        self.assertEqual(link.Label, "Renamed <1>")
+
 
 class DocumentSettingsCases(unittest.TestCase):
     def setUp(self):
