@@ -18,6 +18,7 @@ if(BUILD_GUI)
     list (APPEND Robot_Scripts
         InitGui.py
         MovieTool.py
+        TestRobotGui.py
     )
 endif(BUILD_GUI)
 
