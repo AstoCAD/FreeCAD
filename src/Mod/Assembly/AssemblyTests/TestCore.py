@@ -587,6 +587,24 @@ class TestCore(AssemblyTestBase):
         self.doc.recompute()
         self.assertEqual(instance.LinkedObject, other)
 
+    def test_delete_linked_sub_assembly(self):
+        """Deleting a sub-assembly used by a rigid assembly link crashed (access violation):
+        the link synchronized while the document was breaking the links to the deleted
+        sub-assembly and removed its own components from the document."""
+        sub = self.doc.addObject("Assembly::AssemblyObject", "Sub")
+        sub.newObject("Part::Box", "SubBox")
+        self.doc.recompute()
+        instance = self.assembly.newObject("Assembly::AssemblyLink", "Instance")
+        instance.LinkedObject = sub
+        self.doc.recompute()
+        self.assertEqual(len(instance.Group), 1)
+
+        self.doc.removeObject("Sub")
+        self.assertIsNone(instance.LinkedObject)
+        self.assertIsNotNone(self.doc.getObject("SubBox"))
+        self.doc.recompute()
+        self.assembly.solve()
+
     def test_assembly_link_maps_generated_array_joint(self):
         self._check_generated_array_joint("Face1")
 
