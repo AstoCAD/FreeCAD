@@ -882,8 +882,9 @@ class TaskPanel:
         self.stockCreateBox = None
         self.stockCreateCylinder = None
         self.stockEdit = None
+        self.tcListenerConnected = False
 
-        self.setupGlobal = PathSetupSheetGui.GlobalEditor(self.obj.SetupSheet, self.form)
+        self.setupGlobal =PathSetupSheetGui.GlobalEditor(self.obj.SetupSheet, self.form)
         self.setupOps = PathSetupSheetGui.OpsDefaultEditor(self.obj.SetupSheet, self.form)
 
     def populateCombobox(self, form, enumTups, comboBoxesPropertyMap):
@@ -944,6 +945,9 @@ class TaskPanel:
     def preCleanup(self):
         Path.Log.track()
         FreeCADGui.Selection.removeObserver(self)
+        if self.tcListenerConnected:
+            PathJob.Notification.updateTC.disconnect(self.toolControllerAdded)
+            self.tcListenerConnected = False
         # Restore natural selectability: model selectable, stock non-selectable
         # and reset transparency after leaving the task panel.
         stock = self.obj.Stock
@@ -1323,14 +1327,10 @@ class TaskPanel:
             self.updateToolController()
 
     def toolControllerAdd(self):
-        # Listen while the dock is open so tools appear in the table as they
-        # are added, rather than only once the dock is closed.
-        PathJob.Notification.updateTC.connect(self.toolControllerAdded)
-        try:
-            dock = ToolBitLibraryDock(self.obj)
-            dock.open()
-        finally:
-            PathJob.Notification.updateTC.disconnect(self.toolControllerAdded)
+        # The panel listens to updateTC for as long as it is open (see
+        # setupUi), so tools appear in the table as they are added.
+        dock = ToolBitLibraryDock(self.obj)
+        dock.open()
         self.updateToolController()
 
     def toolControllerDelete(self):
@@ -1963,6 +1963,11 @@ class TaskPanel:
         self.form.toolControllerEdit.clicked.connect(self.toolControllerEdit)
         self.form.toolControllerDelete.clicked.connect(self.toolControllerDelete)
         self.form.toolControllerAdd.clicked.connect(self.toolControllerAdd)
+        # Tools can also be added to the job from outside the panel, e.g.
+        # through the toolbit library opened from the toolbar, so keep the
+        # tool table current while the panel is open.
+        PathJob.Notification.updateTC.connect(self.toolControllerAdded)
+        self.tcListenerConnected = True
 
         self.operationSelect()
         self.toolControllerSelect()
