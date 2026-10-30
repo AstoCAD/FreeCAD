@@ -19,6 +19,7 @@ set(Measure_Scripts
     TestMassPropertiesPreviewLifecycleGui.py
     TestMeasurementGroupProviderGui.py
     TestMeasureShapeFinder.py
+    TestMeasurementMissingElement.py
 )
 
 if(BUILD_GUI)
