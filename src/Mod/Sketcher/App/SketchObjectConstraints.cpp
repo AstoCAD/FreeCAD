@@ -35,6 +35,7 @@
 #include <Base/Vector3D.h>
 
 #include <memory>
+#include <set>
 #include <string>
 
 #include "GeoEnum.h"
@@ -1818,6 +1819,34 @@ int SketchObject::removeAxesAlignment(const std::vector<int>& geoIdList)
         {Sketcher::Vertical,   GeoEnum::GeoUndef}
     };
 
+    // Whether a DistanceX/DistanceY can become a Distance with the same value without moving the
+    // current geometry: its two points are apart along the measured axis only, and not zero.
+    auto isDistanceAlongItsAxis = [this](const Constraint* constr) {
+        int firstGeoId = constr->First;
+        int secondGeoId = constr->Second;
+        PointPos firstPos = constr->FirstPos;
+        PointPos secondPos = constr->SecondPos;
+        if (firstPos == PointPos::none) {
+            // The extent of an edge along the axis
+            secondGeoId = firstGeoId;
+            firstPos = PointPos::start;
+            secondPos = PointPos::end;
+        }
+        if (secondPos == PointPos::none) {
+            return false;
+        }
+        Base::Vector3d offset;
+        try {
+            offset = getPoint(secondGeoId, secondPos) - getPoint(firstGeoId, firstPos);
+        }
+        catch (const Base::Exception&) {
+            return false;
+        }
+        double across = (constr->Type == Sketcher::DistanceX) ? offset.y : offset.x;
+        return std::abs(across) <= Precision::Confusion()
+            && std::abs(constr->getValue()) > Precision::Confusion();
+    };
+
     for (Constraint* constr : currentConstraints) {
         bool involvesSelection = false;
         for (const auto& geoid : geoIdList) {
@@ -1890,11 +1919,29 @@ int SketchObject::removeAxesAlignment(const std::vector<int>& geoIdList)
         }
         case Sketcher::DistanceX:
         case Sketcher::DistanceY: {
+            // A distance of a single point to the origin fixes the position of that point.
+            // A Distance constraint with the same references would mean the length of the
+            // whole edge instead, so keep it as it is.
+            if (constr->FirstPos != Sketcher::PointPos::none
+                && constr->Second == GeoEnum::GeoUndef) {
+                newConstraints.push_back(constr);
+                break;
+            }
+            // The X/Y distance is the true distance between its two points only if they lie on
+            // a parallel to the measured axis (and do not coincide: a Distance cannot be zero).
+            // Otherwise a Distance with the same value would move the geometry, or conflict with
+            // the distance along the other axis, so keep the constraint as it is.
+            if (!isDistanceAlongItsAxis(constr)) {
+                newConstraints.push_back(constr);
+                break;
+            }
             changed = true;
             // Convert projected X/Y distance to standard Euclidean Distance
             // This preserves the length of the line while allowing it to rotate off-axis.
             Constraint* newConstr = constr->clone();
             newConstr->Type = Sketcher::Distance;
+            // X/Y distances are signed, a Distance must be positive.
+            newConstr->setValue(std::abs(newConstr->getValue()));
             newConstraints.push_back(newConstr);
             break;
         }
@@ -1908,6 +1955,26 @@ int SketchObject::removeAxesAlignment(const std::vector<int>& geoIdList)
     // If nothing was modified, return early to avoid triggering a sketch re-solve/update
     if (!changed) {
         return 0;
+    }
+
+    // Keep the removed horizontal and vertical references at a right angle, or a rectangle
+    // would become a parallelogram.
+    if (referenceGeoIds[Sketcher::Horizontal] != GeoEnum::GeoUndef
+        && referenceGeoIds[Sketcher::Vertical] != GeoEnum::GeoUndef) {
+        Constraint* newConstr = new Constraint();
+        newConstr->Type = Sketcher::Perpendicular;
+        newConstr->First = referenceGeoIds[Sketcher::Horizontal];
+        newConstr->Second = referenceGeoIds[Sketcher::Vertical];
+        newConstraints.push_back(newConstr);
+    }
+
+    // setValues() stores copies, so free the constraints created here.
+    std::vector<std::unique_ptr<Constraint>> created;
+    std::set<const Constraint*> existing(currentConstraints.begin(), currentConstraints.end());
+    for (Constraint* constr : newConstraints) {
+        if (!existing.contains(constr)) {
+            created.emplace_back(constr);
+        }
     }
 
     this->Constraints.setValues(newConstraints);
