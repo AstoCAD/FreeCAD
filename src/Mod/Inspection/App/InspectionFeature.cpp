@@ -32,6 +32,7 @@
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <gp_Pnt.hxx>
 
+#include <QCoreApplication>
 #include <QEventLoop>
 #include <QFuture>
 #include <QFutureWatcher>
@@ -963,7 +964,11 @@ App::DocumentObjectExecReturn* Feature::execute()
             &QEventLoop::quit
         );
         watcher.setFuture(future);
-        loop.exec();
+        // Without an application object (console mode) the finished signal is never
+        // delivered and the loop would never quit. future.result() waits anyway.
+        if (QCoreApplication::instance()) {
+            loop.exec();
+        }
         res = future.result();
     }
     else {
