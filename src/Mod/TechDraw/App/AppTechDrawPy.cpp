@@ -255,6 +255,9 @@ private:
                 if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapeEdgePy::Type))) {
                     const TopoDS_Shape& shape = static_cast<TopoShapePy*>((*it).ptr())->
                         getTopoShapePtr()->getShape();
+                    if (shape.IsNull()) {
+                        continue;
+                    }
                     const TopoDS_Edge edge = TopoDS::Edge(shape);
                     edgeList.push_back(edge);
                 }
@@ -319,6 +322,9 @@ private:
                 if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapeEdgePy::Type))) {
                     const TopoDS_Shape& shape = static_cast<TopoShapePy*>((*it).ptr())->
                         getTopoShapePtr()->getShape();
+                    if (shape.IsNull()) {
+                        continue;
+                    }
                     const TopoDS_Edge edge = TopoDS::Edge(shape);
                     edgeList.push_back(edge);
                 }
@@ -1411,6 +1417,9 @@ private:
                 if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapeEdgePy::Type))) {
                     const TopoDS_Shape& shape = static_cast<TopoShapePy*>((*it).ptr())->
                         getTopoShapePtr()->getShape();
+                    if (shape.IsNull()) {
+                        continue;
+                    }
                     const TopoDS_Edge edge = TopoDS::Edge(shape);
                     edgeList.push_back(edge);
                 }
