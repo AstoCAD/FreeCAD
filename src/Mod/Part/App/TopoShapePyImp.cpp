@@ -1772,6 +1772,11 @@ PyObject* TopoShapePy::project(PyObject* args) const
             if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapePy::Type))) {
                 const TopoDS_Shape& shape
                     = static_cast<TopoShapePy*>((*it).ptr())->getTopoShapePtr()->getShape();
+                if (shape.IsNull()) {
+                    // BRepAlgo_NormalProjection::Build() crashes on a null shape
+                    PyErr_SetString(PyExc_ValueError, "Cannot project a null shape");
+                    return nullptr;
+                }
                 algo.Add(shape);
             }
         }
