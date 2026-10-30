@@ -2446,6 +2446,23 @@ class DocumentExpressionCases(unittest.TestCase):
         self.assertEqual(self.Obj3.Float, 4)
         self.assertEqual(self.Obj3.evalExpression(self.Obj3.ExpressionEngine[0][1]), 4)
 
+    def testYawRollExpressionOutsideHalfTurn(self):
+        # issue #12193: yaw and roll are periodic, an expression result beyond
+        # +-180 degrees must give the equivalent rotation instead of an error
+        obj = self.Doc.addObject("App::FeatureTest", "YawRoll")
+        obj.setExpression(".Placement.Rotation.Yaw", "45 deg + 180 deg")
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", obj.State)
+        ypr = obj.Placement.Rotation.toEulerAngles("YawPitchRoll")
+        self.assertAlmostEqual(round(ypr[0], 9), -135.0)
+        obj.setExpression(".Placement.Rotation.Yaw", None)
+
+        obj.setExpression(".Placement.Rotation.Roll", "-200 deg")
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", obj.State)
+        ypr = obj.Placement.Rotation.toEulerAngles("YawPitchRoll")
+        self.assertAlmostEqual(round(ypr[2], 9), 160.0)
+
     def testIssue4649(self):
         class Cls:
             def __init__(self, obj):
