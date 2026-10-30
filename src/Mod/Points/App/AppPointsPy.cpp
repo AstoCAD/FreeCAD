@@ -62,6 +62,21 @@ public:
     }
 
 private:
+    // The readers can also throw exceptions not derived from Base::Exception (e.g.
+    // boost::bad_lexical_cast for a malformed PCD or PLY header). Translate them, or
+    // they escape into the Python interpreter and terminate the application.
+    Py::Object invoke_method_varargs(void* method_def, const Py::Tuple& args) override
+    {
+        try {
+            return Py::ExtensionModule<Module>::invoke_method_varargs(method_def, args);
+        }
+        catch (const Base::Exception& e) {
+            throw Py::RuntimeError(e.what());
+        }
+        catch (const std::exception& e) {
+            throw Py::RuntimeError(e.what());
+        }
+    }
     std::tuple<bool, bool, double> readE57Settings() const
     {
         Base::Reference<ParameterGrp> hGrp = App::GetApplication()

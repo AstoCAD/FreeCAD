@@ -66,6 +66,22 @@ class PointsLoadTest(unittest.TestCase):
         self.fileNames.append(fileName)
         return fileName
 
+    def testInsertPcdWithBadHeader(self):
+        """A non-numeric SIZE entry must raise a Python exception"""
+        # boost::bad_lexical_cast escaped from Points.insert() into the interpreter and
+        # terminated the application.
+        header = (
+            "VERSION 0.7\nFIELDS x y z\nSIZE 4 x 4\nTYPE F F F\nCOUNT 1 1 1\n"
+            "WIDTH 1\nHEIGHT 1\nPOINTS 1\nDATA ascii\n0 0 0\n"
+        )
+        fileName = self.writeBinaryFile(".pcd", header.encode("ascii"))
+        doc = FreeCAD.newDocument("TestPointsAppPcd")
+        try:
+            with self.assertRaises(RuntimeError):
+                Points.insert(fileName, doc.Name)
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
     def testCompressedPcdWithoutData(self):
         """A binary_compressed PCD with an empty compressed block must raise"""
         # The LZF decoder read the first control byte of an empty input buffer
