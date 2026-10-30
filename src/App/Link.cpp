@@ -23,6 +23,7 @@
  ****************************************************************************/
 
 #include <limits>
+#include <set>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/range.hpp>
@@ -2843,6 +2844,23 @@ void Link::updateLabelUtility(App::DocumentObject* link, App::DocumentObject* li
     if (link->isRestoring() || link->getDocument()->isPerformingTransaction()) {
         return;
     }
+
+    // Setting the label notifies the link's in-list (onParentLabelChanged()). When links
+    // form a cycle (A -> B -> A), that comes back here for this same link and the two
+    // labels are rebuilt from each other until the stack overflows. Without a cycle this
+    // link is never notified again while its own label is being set.
+    thread_local std::set<const App::DocumentObject*> updating;
+    if (!updating.insert(link).second) {
+        return;
+    }
+    struct Guard
+    {
+        const App::DocumentObject* obj;
+        ~Guard()
+        {
+            updating.erase(obj);
+        }
+    } guard {link};
 
     std::string targetLabel = linked->Label.getValue();
     std::string currentLabel = link->Label.getValue();
