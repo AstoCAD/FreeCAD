@@ -45,6 +45,8 @@ DlgSettings3DViewPart::DlgSettings3DViewPart(QWidget* parent)
     : PreferencePage(parent)
     , ui(new Ui_DlgSettings3DViewPart)
     , checkValue(false)
+    , loadedDeviation(-1.0)
+    , loadedAngularDeflection(-1.0)
 {
     ui->setupUi(this);
     connect(
@@ -122,6 +124,15 @@ void DlgSettings3DViewPart::saveSettings()
     ui->maxDeviation->onSave();
     ui->maxAngularDeflection->onSave();
 
+    // Only push the settings to existing objects if they were changed here,
+    // otherwise per-object values set by the user would be lost on every OK.
+    if (ui->maxDeviation->value() == loadedDeviation
+        && ui->maxAngularDeflection->value() == loadedAngularDeflection) {
+        return;
+    }
+    loadedDeviation = ui->maxDeviation->value();
+    loadedAngularDeflection = ui->maxAngularDeflection->value();
+
     // search for Part view providers and apply the new settings
     std::vector<App::Document*> docs = App::GetApplication().getDocuments();
     for (auto it : docs) {
@@ -138,6 +149,8 @@ void DlgSettings3DViewPart::loadSettings()
 {
     ui->maxDeviation->onRestore();
     ui->maxAngularDeflection->onRestore();
+    loadedDeviation = ui->maxDeviation->value();
+    loadedAngularDeflection = ui->maxAngularDeflection->value();
 }
 
 /**

@@ -270,6 +270,71 @@ class AttachmentEditorGuiTestCases(unittest.TestCase):
         self.assertAlmostEqual(self.feature.Placement.Base.z, 30.0)
 
 
+class PartPreferencesTessellationGuiTestCases(unittest.TestCase):
+    # https://github.com/FreeCAD/FreeCAD/issues/33020
+    ParamPath = "User parameter:BaseApp/Preferences/Mod/Part"
+    Entries = ("MeshDeviation", "MeshAngularDeflection")
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("PartPrefsTessellationTest")
+        self.box = self.Doc.addObject("Part::Box", "Box")
+        self.Doc.recompute()
+        grp = FreeCAD.ParamGet(self.ParamPath)
+        self.savedParams = {
+            name: (grp.GetFloat(name) if name in grp.GetFloats() else None)
+            for name in self.Entries
+        }
+
+    def tearDown(self):
+        grp = FreeCAD.ParamGet(self.ParamPath)
+        for name, value in self.savedParams.items():
+            if value is None:
+                grp.RemFloat(name)
+            else:
+                grp.SetFloat(name, value)
+        FreeCAD.closeDocument(self.Doc.Name)
+
+    def acceptPreferences(self, deviation=None):
+        from PySide import QtCore
+
+        seen = []
+
+        def accept():
+            dialog = QtWidgets.QApplication.activeModalWidget()
+            seen.append(dialog)
+            if dialog is None:
+                return
+            if deviation is not None:
+                spin = dialog.findChild(QtWidgets.QDoubleSpinBox, "maxDeviation")
+                seen.append(spin)
+                if spin is not None:
+                    spin.setValue(deviation)
+            dialog.accept()
+
+        QtCore.QTimer.singleShot(500, accept)
+        FreeCADGui.runCommand("Std_DlgPreferences")
+        QtWidgets.QApplication.processEvents()
+        self.assertTrue(seen and seen[0] is not None, "Preferences dialog did not open.")
+        if deviation is not None:
+            self.assertIsNotNone(seen[1], "Part tessellation preferences not found.")
+
+    def testOkKeepsCustomTessellation(self):
+        vo = self.box.ViewObject
+        vo.Deviation = 0.05
+        vo.AngularDeflection = 10
+        self.acceptPreferences()
+        self.assertAlmostEqual(vo.Deviation, 0.05, places=5)
+        self.assertAlmostEqual(vo.AngularDeflection.Value, 10, places=5)
+
+    def testChangedPreferenceIsApplied(self):
+        vo = self.box.ViewObject
+        vo.Deviation = 0.05
+        current = FreeCAD.ParamGet(self.ParamPath).GetFloat("MeshDeviation", 0.2)
+        newValue = 0.37 if abs(current - 0.37) > 1e-6 else 0.42
+        self.acceptPreferences(newValue)
+        self.assertAlmostEqual(vo.Deviation, newValue, places=5)
+
+
 class SectionCutTestCases(unittest.TestCase):
     def setUp(self):
         self.Doc = FreeCAD.newDocument("SectionCut")

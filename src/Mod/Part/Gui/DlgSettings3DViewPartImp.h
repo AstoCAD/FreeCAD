@@ -56,6 +56,9 @@ private:
 private:
     std::unique_ptr<Ui_DlgSettings3DViewPart> ui;
     bool checkValue;
+    // values shown when the page was loaded, to detect if the user changed them
+    double loadedDeviation;
+    double loadedAngularDeflection;
 };
 
 }  // namespace PartGui
