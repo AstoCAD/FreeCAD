@@ -357,6 +357,7 @@ def getSVG(
     fillSpaces=False,
     cutlinewidth=0,
     joinArch=False,
+    linecap="square",
 ):
     """
     Return an SVG fragment from an Arch SectionPlane or BuildingPart.
@@ -385,6 +386,10 @@ def getSVG(
 
     fillSpaces
         If `True`, shows space objects as filled surfaces.
+
+    linecap
+        The SVG `stroke-linecap` of the lines: `'square'` (default),
+        `'round'` or `'butt'`.
     """
     import Part
 
@@ -634,7 +639,7 @@ def getSVG(
             ]
 
     svgcache = svgcache.replace("SVGLINECOLOR", svgLineColor)
-    svgcache = svgcache.replace("SVGLINECAP", "square")
+    svgcache = svgcache.replace("SVGLINECAP", linecap)
     svgcache = svgcache.replace("SVGLINEWIDTH", svgLineWidth)
     svgcache = svgcache.replace("SVGHIDDENPATTERN", svgHiddenPattern)
     svgcache = svgcache.replace("SVGCUTLINEWIDTH", svgCutLineWidth)
@@ -655,6 +660,7 @@ def getSVG(
                 techdraw=techdraw,
                 rotation=rotation,
                 override=False,
+                linecap=linecap,
             )
         if not techdraw:
             svg += "</g>"
@@ -681,6 +687,7 @@ def getSVG(
                 techdraw=techdraw,
                 rotation=rotation,
                 fillspaces=fillSpaces,
+                linecap=linecap,
             )
         if not techdraw:
             svg += "</g>"
@@ -720,6 +727,7 @@ def getSVG(
                     color=lineColor,
                     techdraw=techdraw,
                     rotation=rotation,
+                    linecap=linecap,
                 )
             if not techdraw:
                 svg += "</g>"

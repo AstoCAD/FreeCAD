@@ -214,6 +214,7 @@ SET(TDTest_SRCS
     TDTest/DrawCosmeticCircleGuiTest.py
     TDTest/DrawDraftViewDocumentTest.py
     TDTest/DrawArchViewDocumentTest.py
+    TDTest/DrawViewLineCapGuiTest.py
     TDTest/DrawImportFilenameTest.py
     TDTest/DrawPagePdfFilenameTest.py
     TDTest/DrawPageUnshownExportTest.py
