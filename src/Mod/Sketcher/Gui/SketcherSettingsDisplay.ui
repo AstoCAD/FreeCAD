@@ -524,6 +524,26 @@ Defaults to: %N = %V
         </property>
        </widget>
       </item>
+      <item row="17" column="0" colspan="2">
+       <widget class="Gui::PrefCheckBox" name="checkBoxAlignCameraOnEdit">
+        <property name="toolTip">
+         <string>Rotates the camera to look straight at the sketch plane when a sketch is opened for editing.
+If unchecked, the camera keeps its current orientation and position.</string>
+        </property>
+        <property name="text">
+         <string>Align camera to sketch on edit</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+        <property name="prefEntry" stdset="0">
+         <cstring>AlignCameraOnEdit</cstring>
+        </property>
+        <property name="prefPath" stdset="0">
+         <cstring>Mod/Sketcher/General</cstring>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -772,6 +792,7 @@ Works only when &quot;Restore camera position after editing&quot; is enabled.</s
   <tabstop>checkBoxShowDimensionalName</tabstop>
   <tabstop>prefDimensionalStringFormat</tabstop>
   <tabstop>checkBoxShowDirectionalAutoConstraintHints</tabstop>
+  <tabstop>checkBoxAlignCameraOnEdit</tabstop>
   <tabstop>checkBoxTVHideDependent</tabstop>
   <tabstop>checkBoxTVShowLinks</tabstop>
   <tabstop>checkBoxTVShowSupport</tabstop>
