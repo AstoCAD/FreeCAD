@@ -34,6 +34,7 @@
 
 
 #include <array>
+#include <cmath>
 #include <unordered_map>
 #include <algorithm>
 
@@ -429,6 +430,24 @@ App::DocumentObjectExecReturn* Transformed::execute()
 
     if (transformations.empty()) {
         return App::DocumentObject::StdReturn;  // No transformations defined, exit silently
+    }
+
+    // A NaN parameter (e.g. Scaled Factor or PolarPattern Angle) passes the range checks of
+    // the patterns and gives a NaN transformation, which crashes OCC when it is applied.
+    const auto isFinite = [](const gp_Trsf& transformation) {
+        for (int row = 1; row <= 3; ++row) {
+            for (int column = 1; column <= 4; ++column) {
+                if (!std::isfinite(transformation.Value(row, column))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+    if (!std::ranges::all_of(transformations, isFinite)) {
+        return new App::DocumentObjectExecReturn(
+            QT_TRANSLATE_NOOP("Exception", "Transformation parameters must be finite numbers")
+        );
     }
 
     // Get the support
