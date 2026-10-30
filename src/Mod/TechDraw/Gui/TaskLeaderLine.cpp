@@ -867,6 +867,22 @@ bool TaskLeaderLine::reject()
     return false;
 }
 
+//! Undo was used while editing and may have removed the leader (and its graphics item).
+//! Forget the removed objects, give up any point edit in progress and close as Cancel.
+void TaskLeaderLine::rejectAfterUndo()
+{
+    if (m_lineFeat && !m_basePage->getDocument()->isIn(m_lineFeat)) {
+        m_lineFeat = nullptr;
+        m_lineVP = nullptr;
+        m_qgLeader = nullptr;
+    }
+    if (m_inProgressLock) {
+        abandonEditSession();
+        m_inProgressLock = false;
+    }
+    reject();
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 TaskDlgLeaderLine::TaskDlgLeaderLine(TechDraw::DrawView* baseFeat,
                                      TechDraw::DrawPage* page)
@@ -887,6 +903,8 @@ TaskDlgLeaderLine::TaskDlgLeaderLine(TechDrawGui::ViewProviderLeader* leadVP)
                                              widget->windowTitle(), true, nullptr);
     taskbox->groupLayout()->addWidget(widget);
     Content.push_back(taskbox);
+    // Undo while editing can remove the leader this task points to.
+    setAutoCloseOnTransactionChange(true);
 }
 
 TaskDlgLeaderLine::~TaskDlgLeaderLine()
@@ -924,6 +942,11 @@ bool TaskDlgLeaderLine::reject()
 {
     widget->reject();
     return true;
+}
+
+void TaskDlgLeaderLine::autoClosedOnTransactionChange()
+{
+    widget->rejectAfterUndo();
 }
 
 #include <Mod/TechDraw/Gui/moc_TaskLeaderLine.cpp>
