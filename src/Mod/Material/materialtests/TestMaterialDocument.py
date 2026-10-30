@@ -110,3 +110,28 @@ class DocumentTestCases(unittest.TestCase):
             default_color,
             "Applying Wood after Air must update ShapeAppearance to Wood's color",
         )
+
+    def testLinkLegacyShapeMaterial(self):
+        """Links must keep the legacy ShapeMaterial view attribute (issue #30978)."""
+        if "BUILD_PART" not in FreeCAD.__cmake__ or not FreeCAD.GuiUp:
+            return
+
+        box = self.doc.addObject("Part::Box")
+        link = self.doc.addObject("App::Link")
+        link.setLink(box)
+        self.doc.recompute()
+        vobj = link.ViewObject
+
+        self.assertTrue(hasattr(box.ViewObject, "ShapeMaterial"))
+        self.assertTrue(hasattr(vobj, "ShapeMaterial"))
+        self.assertEqual(
+            vobj.ShapeMaterial.DiffuseColor, vobj.ShapeAppearance[0].DiffuseColor
+        )
+
+        mat = FreeCAD.Material()
+        mat.DiffuseColor = (1.0, 0.0, 0.0, 0.0)
+        mat.Transparency = 0.25
+        vobj.ShapeMaterial = mat
+        self.assertEqual(vobj.ShapeAppearance[0].DiffuseColor[:3], (1.0, 0.0, 0.0))
+        self.assertAlmostEqual(vobj.ShapeAppearance[0].Transparency, 0.25, places=6)
+        self.assertEqual(vobj.ShapeMaterial.DiffuseColor[:3], (1.0, 0.0, 0.0))
