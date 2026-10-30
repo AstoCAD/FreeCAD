@@ -179,7 +179,10 @@ void Constraint::onChanged(const App::Property* prop)
         bool execute = this->isRecomputing();
         for (std::size_t i = 0; i < Objects.size(); i++) {
             App::DocumentObject* obj = Objects[i];
-            Part::Feature* feat = static_cast<Part::Feature*>(obj);
+            auto* feat = freecad_cast<Part::Feature*>(obj);
+            if (!feat) {
+                continue;
+            }
             sh = Tools::getFeatureSubShape(feat, SubElements[i].c_str(), !execute);
             if (!sh.IsNull() && sh.ShapeType() == TopAbs_FACE) {
                 // Get face normal in center point
@@ -275,7 +278,10 @@ bool Constraint::getPoints(
     TopoDS_Shape sh;
 
     for (std::size_t i = 0; i < Objects.size(); i++) {
-        Part::Feature* feat = static_cast<Part::Feature*>(Objects[i]);
+        auto* feat = freecad_cast<Part::Feature*>(Objects[i]);
+        if (!feat) {
+            return false;
+        }
         sh = Tools::getFeatureSubShape(feat, SubElements[i].c_str(), true);
         if (sh.IsNull()) {
             return false;
@@ -482,8 +488,14 @@ Base::Vector3d Constraint::getBasePoint(
         return Base::Vector3d(0, 0, 0);
     }
     std::string subName = names.front();
-    Part::Feature* featLoc = static_cast<Part::Feature*>(objLoc);
+    auto* featLoc = freecad_cast<Part::Feature*>(objLoc);
+    if (!featLoc) {
+        return Base::Vector3d(0, 0, 0);
+    }
     TopoDS_Shape shloc = featLoc->Shape.getShape().getSubShape(subName.c_str());
+    if (shloc.IsNull()) {
+        return Base::Vector3d(0, 0, 0);
+    }
 
     // Get a plane from the Location reference
     gp_Pln plane;
