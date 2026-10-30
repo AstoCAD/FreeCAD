@@ -63,6 +63,7 @@ from PartDesignTests.TestBodyLineWidthGui import TestBodyLineWidthGui
 from PartDesignTests.TestCloneColorGui import TestCloneColorGui
 from PartDesignTests.TestGroupCommandToolTipGui import TestGroupCommandToolTipGui
 from PartDesignTests.TestShapeBinderCancelGui import TestShapeBinderCancelGui
+from PartDesignTests.TestPreviewColorPythonGui import TestPreviewColorPythonGui
 
 
 # timer runs this class in order to access modal dialog
