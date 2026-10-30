@@ -303,9 +303,15 @@ App::DocumentObjectExecReturn* AssemblyObject::execute()
 void AssemblyObject::onChanged(const App::Property* prop)
 {
     if (prop == &Group) {
-        for (auto* obj : getInList()) {
-            if (auto* assemblyLink = freecad_cast<AssemblyLink*>(obj)) {
-                assemblyLink->updateContents();
+        // While this assembly is being deleted, its Group is cleared from inside
+        // Document::breakDependency(), which iterates the document's object array.
+        // Synchronizing the assembly links would delete their components from the
+        // document at that point (access violation).
+        if (!isRemoving()) {
+            for (auto* obj : getInList()) {
+                if (auto* assemblyLink = freecad_cast<AssemblyLink*>(obj)) {
+                    assemblyLink->updateContents();
+                }
             }
         }
         updateSolveStatus();

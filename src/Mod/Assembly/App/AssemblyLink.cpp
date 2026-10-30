@@ -125,7 +125,8 @@ void AssemblyLink::onChanged(const App::Property* prop)
         return;
     }
 
-    if (prop == &Group) {
+    if (prop == &Group && !isRemoving()) {
+        // (not while this link is being deleted, see AssemblyObject::onChanged)
         for (auto* obj : getInList()) {
             if (auto* assemblyLink = freecad_cast<AssemblyLink*>(obj)) {
                 assemblyLink->updateContents();
