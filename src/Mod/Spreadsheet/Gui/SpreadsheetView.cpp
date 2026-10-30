@@ -191,11 +191,19 @@ bool SheetView::onMsg(const char* pMsg)
         return true;
     }
     else if (strcmp("Copy", pMsg) == 0) {
+        if (!ui->cells->selectionModel()->hasSelection()) {
+            // no cells: let Std_Copy copy the selected objects instead
+            return false;
+        }
         ui->cells->copySelection();
         return true;
     }
     else if (strcmp("Paste", pMsg) == 0) {
         ui->cells->pasteClipboard();
+        return true;
+    }
+    else if (strcmp("SelectAll", pMsg) == 0) {
+        ui->cells->selectAll();
         return true;
     }
     else {
@@ -219,13 +227,14 @@ bool SheetView::onHasMsg(const char* pMsg) const
     if (strcmp("SaveAs", pMsg) == 0) {
         return true;
     }
-    if (strcmp("Cut", pMsg) == 0) {
-        return true;
-    }
-    if (strcmp("Copy", pMsg) == 0) {
-        return true;
+    if (strcmp("Cut", pMsg) == 0 || strcmp("Copy", pMsg) == 0 || strcmp("Std_Delete", pMsg) == 0) {
+        // only act on cells when some are selected
+        return ui->cells->selectionModel()->hasSelection();
     }
     if (strcmp("Paste", pMsg) == 0) {
+        return true;
+    }
+    if (strcmp("SelectAll", pMsg) == 0) {
         return true;
     }
     if (strcmp(pMsg, "Print") == 0) {
