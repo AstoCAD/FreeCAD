@@ -138,15 +138,22 @@ class TestNavigationStyle(unittest.TestCase):
         initial = self.View.getCameraOrientation()
         target = (0.0, 0.70710678, 0.0, 0.70710678)
 
-        navigation.setOrientationLocked(True)
-        self.View.setViewDirection((1.0, 0.0, 0.0))
-        self.assertTrue(self.View.getCameraOrientation().isSame(initial, 1e-6))
-        self.View.setCameraOrientation(target)
-        self.assertTrue(self.View.getCameraOrientation().isSame(initial, 1e-6))
+        # With navigation animations enabled (the default) setCameraOrientation
+        # only starts an asynchronous animation, so check the orientation without it
+        animated = self.View.isAnimationEnabled()
+        self.View.setAnimationEnabled(False)
+        try:
+            navigation.setOrientationLocked(True)
+            self.View.setViewDirection((1.0, 0.0, 0.0))
+            self.assertTrue(self.View.getCameraOrientation().isSame(initial, 1e-6))
+            self.View.setCameraOrientation(target)
+            self.assertTrue(self.View.getCameraOrientation().isSame(initial, 1e-6))
 
-        navigation.setOrientationLocked(False)
-        self.View.setCameraOrientation(target)
-        self.assertFalse(self.View.getCameraOrientation().isSame(initial, 1e-6))
+            navigation.setOrientationLocked(False)
+            self.View.setCameraOrientation(target)
+            self.assertFalse(self.View.getCameraOrientation().isSame(initial, 1e-6))
+        finally:
+            self.View.setAnimationEnabled(animated)
 
     def testOrientationLockAllowsTranslationOnlyViewPosition(self):
         navigation = self.View.getViewer().getNavigationStyle()
