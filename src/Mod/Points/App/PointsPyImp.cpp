@@ -76,7 +76,17 @@ int PointsPy::PyInit(PyObject* args, PyObject* /*kwd*/)
         }
     }
     else if (PyUnicode_Check(pcObj)) {
-        getPointKernelPtr()->load(PyUnicode_AsUTF8(pcObj));
+        try {
+            getPointKernelPtr()->load(PyUnicode_AsUTF8(pcObj));
+        }
+        catch (const Base::Exception& e) {
+            e.setPyException();
+            return -1;
+        }
+        catch (const std::exception& e) {
+            PyErr_SetString(Base::PyExc_FC_GeneralError, e.what());
+            return -1;
+        }
     }
     else {
         PyErr_SetString(PyExc_TypeError, "optional argument must be list, tuple or string");

@@ -65,6 +65,7 @@ SET(Points_SRCS
 
 set(Points_Scripts
     ../Init.py
+    ../TestPointsApp.py
 )
 
 if(FREECAD_USE_PCH)

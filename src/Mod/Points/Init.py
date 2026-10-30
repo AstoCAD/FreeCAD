@@ -34,3 +34,5 @@ FreeCAD.addImportType("Point formats (*.asc *.ASC *.pcd *.PCD *.ply *.PLY *.e57 
 FreeCAD.addTranslatableExportType(
     translate("FileFormat", "Point formats"), ["asc", "pcd", "ply"], "Points"
 )
+
+FreeCAD.__unit_test__ += ["TestPointsApp"]
