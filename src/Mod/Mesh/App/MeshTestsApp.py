@@ -732,6 +732,46 @@ class MeshProperty(unittest.TestCase):
     def tearDown(self):
         FreeCAD.closeDocument(self.doc.Name)
 
+    def _openWithInlineMesh(self, name, faceIndices):
+        """Save a document, replace the mesh file by an inline <Mesh> element and reopen it"""
+        import re
+        import zipfile
+
+        mesh = self.doc.addObject("Mesh::Feature", "Triangle")
+        mesh.Mesh = Mesh.Mesh([[0, 0, 0], [1, 0, 0], [0, 1, 0]])
+        fileName = os.path.join(tempfile.gettempdir(), name + ".FCStd")
+        inlineName = os.path.join(tempfile.gettempdir(), name + "_inline.FCStd")
+        self.doc.saveAs(fileName)
+        FreeCAD.closeDocument(self.doc.Name)
+
+        p0, p1, p2 = faceIndices
+        inline = (
+            '<Mesh><Points Count="3">'
+            '<P x="0" y="0" z="0"/><P x="1" y="0" z="0"/><P x="0" y="1" z="0"/>'
+            '</Points><Faces Count="1">'
+            '<F p0="{}" p1="{}" p2="{}" n0="-1" n1="-1" n2="-1"/>'
+            "</Faces></Mesh>".format(p0, p1, p2)
+        )
+        with zipfile.ZipFile(fileName) as src, zipfile.ZipFile(inlineName, "w") as dst:
+            for item in src.infolist():
+                data = src.read(item.filename)
+                if item.filename == "Document.xml":
+                    data = re.sub(rb'<Mesh file="[^"]*"/>', inline.encode(), data)
+                dst.writestr(item, data)
+
+        self.doc = FreeCAD.openDocument(inlineName)
+        return self.doc.Triangle.Mesh
+
+    def testInlineXmlRestore(self):
+        mesh = self._openWithInlineMesh("mesh_inline_xml", (0, 1, 2))
+        self.assertEqual(mesh.CountPoints, 3)
+        self.assertEqual(mesh.CountFacets, 1)
+
+    def testInlineXmlRestoreRejectsInvalidPointIndex(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33322
+        mesh = self._openWithInlineMesh("mesh_inline_xml_invalid", (0, 1, 99))
+        self.assertEqual(mesh.CountFacets, 0)
+
     def testMaterial(self):
         mesh = self.doc.addObject("Mesh::Feature", "Sphere")
         mesh.Mesh = Mesh.createBox(1.0, 1.0, 1.0)

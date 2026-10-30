@@ -917,6 +917,15 @@ void MeshInput::LoadXML(Base::XMLReader& reader)
     reader.readEndElement("Faces");
     reader.readEndElement("Mesh");
 
+    // make sure to have valid point indices (as MeshKernel::Read does for the binary format)
+    for (const auto& it : cFacets) {
+        for (PointIndex index : it._aulPoints) {
+            if (index >= cPoints.size()) {
+                throw Base::BadFormatError("Invalid data structure");
+            }
+        }
+    }
+
     _rclMesh.Adopt(cPoints, cFacets);
 }
 
