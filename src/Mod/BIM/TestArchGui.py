@@ -34,3 +34,4 @@ from bimtests.TestArchWindowGui import TestArchWindowGui
 from bimtests.TestWebGLExportGui import TestWebGLExportGui
 from bimtests.TestArchCoveringGui import TestArchCoveringGui
 from bimtests.TestNativeIfcGui import TestNativeIfcGui
+from bimtests.TestBimIfcPropertiesGui import TestBimIfcPropertiesGui
