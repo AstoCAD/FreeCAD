@@ -26,7 +26,10 @@
 #include <QImage>
 #include <QPointer>
 
+#include <algorithm>
 #include <memory>
+#include <sstream>
+#include <string>
 #include <utility>
 
 #include <Inventor/SoPickedPoint.h>
@@ -406,6 +409,21 @@ View3DInventorPy::View3DInventorPy(View3DInventor* vi)
     : base(vi)
 {}
 
+namespace
+{
+std::string eventCallbackKey(const char* kind, const SoType& eventType)
+{
+    return std::string(kind) + ":" + eventType.getName().getString();
+}
+
+std::string draggerCallbackKey(const SoDragger* dragger, const char* type)
+{
+    std::ostringstream key;
+    key << "dragger:" << static_cast<const void*>(dragger) << ":" << type;
+    return key.str();
+}
+}  // namespace
+
 View3DInventorPy::~View3DInventorPy()
 {
     if (activePythonToolHandler) {
@@ -413,9 +431,43 @@ View3DInventorPy::~View3DInventorPy()
         activePythonToolHandler.reset();
     }
     Base::PyGILStateLocker lock;
-    for (auto it : callbacks) {
-        Py_DECREF(it);
+    for (const auto& it : callbacks) {
+        Py_DECREF(it.second);
     }
+}
+
+void View3DInventorPy::storeCallback(const std::string& key, PyObject* method)
+{
+    Py_INCREF(method);
+    callbacks.emplace_back(key, method);
+}
+
+PyObject* View3DInventorPy::takeCallback(const std::string& key, PyObject* method)
+{
+    // Returns the stored callback (and its reference) registered under 'key' that matches
+    // 'method', or nullptr. An identical object is preferred, otherwise an equal one is
+    // used because e.g. 'self.func' creates a new bound method object on every access.
+    auto found = std::ranges::find_if(callbacks, [&](const auto& it) {
+        return it.first == key && it.second == method;
+    });
+    if (found == callbacks.end()) {
+        found = std::ranges::find_if(callbacks, [&](const auto& it) {
+            if (it.first != key) {
+                return false;
+            }
+            int equal = PyObject_RichCompareBool(it.second, method, Py_EQ);
+            if (equal < 0) {
+                PyErr_Clear();
+            }
+            return equal > 0;
+        });
+    }
+    if (found == callbacks.end()) {
+        return nullptr;
+    }
+    PyObject* stored = found->second;
+    callbacks.erase(found);
+    return stored;
 }
 
 View3DInventor* View3DInventorPy::getView3DInventorPtr()
@@ -2183,8 +2235,7 @@ Py::Object View3DInventorPy::addEventCallback(const Py::Tuple& args)
             View3DInventorPy::eventCallback,
             method
         );
-        callbacks.push_back(method);
-        Py_INCREF(method);
+        storeCallback(eventCallbackKey("event", eventId), method);
         return Py::Callable(method, false);
     }
     catch (const Py::Exception&) {
@@ -2211,13 +2262,14 @@ Py::Object View3DInventorPy::removeEventCallback(const Py::Tuple& args)
             throw Py::TypeError(s_out.str());
         }
 
-        getView3DInventorPtr()->getViewer()->removeEventCallback(
-            eventId,
-            View3DInventorPy::eventCallback,
-            method
-        );
-        callbacks.remove(method);
-        Py_DECREF(method);
+        if (PyObject* stored = takeCallback(eventCallbackKey("event", eventId), method)) {
+            getView3DInventorPtr()->getViewer()->removeEventCallback(
+                eventId,
+                View3DInventorPy::eventCallback,
+                stored
+            );
+            Py_DECREF(stored);
+        }
         return Py::None();
     }
     catch (const Py::Exception&) {
@@ -2379,8 +2431,7 @@ Py::Object View3DInventorPy::addEventCallbackPivy(const Py::Tuple& args)
         SoEventCallbackCB* callback
             = (ex == 1 ? View3DInventorPy::eventCallbackPivyEx : View3DInventorPy::eventCallbackPivy);
         getView3DInventorPtr()->getViewer()->addEventCallback(*eventId, callback, method);
-        callbacks.push_back(method);
-        Py_INCREF(method);
+        storeCallback(eventCallbackKey(ex == 1 ? "pivyex" : "pivy", *eventId), method);
         return Py::Callable(method, false);
     }
     catch (const Py::Exception&) {
@@ -2440,9 +2491,11 @@ Py::Object View3DInventorPy::removeEventCallbackPivy(const Py::Tuple& args)
 
         SoEventCallbackCB* callback
             = (ex == 1 ? View3DInventorPy::eventCallbackPivyEx : View3DInventorPy::eventCallbackPivy);
-        getView3DInventorPtr()->getViewer()->removeEventCallback(*eventId, callback, method);
-        callbacks.remove(method);
-        Py_DECREF(method);
+        const std::string key = eventCallbackKey(ex == 1 ? "pivyex" : "pivy", *eventId);
+        if (PyObject* stored = takeCallback(key, method)) {
+            getView3DInventorPtr()->getViewer()->removeEventCallback(*eventId, callback, stored);
+            Py_DECREF(stored);
+        }
         return Py::Callable(method, false);
     }
     catch (const Py::Exception&) {
@@ -2584,8 +2637,7 @@ Py::Object View3DInventorPy::addDraggerCallback(const Py::Tuple& args)
             throw Py::TypeError(s_out.str());
         }
 
-        callbacks.push_back(method);
-        Py_INCREF(method);
+        storeCallback(draggerCallbackKey(drag, type), method);
         return Py::Callable(method, false);
     }
     catch (const Py::Exception&) {
@@ -2616,27 +2668,36 @@ Py::Object View3DInventorPy::removeDraggerCallback(const Py::Tuple& args)
 
     auto drag = static_cast<SoDragger*>(ptr);
     try {
-        if (strcmp(type, "addFinishCallback") == 0) {
-            drag->removeFinishCallback(draggerCallback, method);
-        }
-        else if (strcmp(type, "addStartCallback") == 0) {
-            drag->removeStartCallback(draggerCallback, method);
-        }
-        else if (strcmp(type, "addMotionCallback") == 0) {
-            drag->removeMotionCallback(draggerCallback, method);
-        }
-        else if (strcmp(type, "addValueChangedCallback") == 0) {
-            drag->removeValueChangedCallback(draggerCallback, method);
-        }
-        else {
+        if (strcmp(type, "addFinishCallback") != 0 && strcmp(type, "addStartCallback") != 0
+            && strcmp(type, "addMotionCallback") != 0
+            && strcmp(type, "addValueChangedCallback") != 0) {
             std::string s;
             std::ostringstream s_out;
             s_out << type << " is not a valid dragger callback type";
             throw Py::TypeError(s_out.str());
         }
 
-        callbacks.remove(method);
-        Py_DECREF(method);
+        // The registered object may differ from 'method' (e.g. a new bound method object
+        // is created each time 'self.func' is evaluated), so use the stored one.
+        PyObject* stored = takeCallback(draggerCallbackKey(drag, type), method);
+        if (!stored) {
+            return Py::Callable(method, false);
+        }
+
+        if (strcmp(type, "addFinishCallback") == 0) {
+            drag->removeFinishCallback(draggerCallback, stored);
+        }
+        else if (strcmp(type, "addStartCallback") == 0) {
+            drag->removeStartCallback(draggerCallback, stored);
+        }
+        else if (strcmp(type, "addMotionCallback") == 0) {
+            drag->removeMotionCallback(draggerCallback, stored);
+        }
+        else {
+            drag->removeValueChangedCallback(draggerCallback, stored);
+        }
+
+        Py_DECREF(stored);
         return Py::Callable(method, false);
     }
     catch (const Py::Exception&) {
