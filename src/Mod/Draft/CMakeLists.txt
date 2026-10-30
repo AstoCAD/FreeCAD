@@ -68,6 +68,7 @@ SET(Draft_tests
     drafttests/test_dxf.py
     drafttests/test_dxf_gui.py
     drafttests/test_grid_settings.py
+    drafttests/test_groups_gui.py
     drafttests/test_import.py
     drafttests/test_import_gui.py
     drafttests/test_import_tools.py

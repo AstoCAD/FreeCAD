@@ -1864,19 +1864,24 @@ class DraftToolBar:
         self.linewidth = linewidth
         self.fontsize = fontsize
 
-    def popupMenu(self, llist, ilist=None, pos=None):
+    def popupMenu(self, llist, ilist=None, pos=None, disabled=None):
         """pops up a menu filled with the given list
 
         "---" in llist inserts a separator
+        disabled is an optional collection of indices in llist whose entries
+        are shown greyed out and cannot be picked
         """
         self.groupmenu = QtWidgets.QMenu()
         for i, l in enumerate(llist):
             if "---" in l:
                 self.groupmenu.addSeparator()
+                continue
             elif ilist:
-                self.groupmenu.addAction(ilist[i], l)
+                action = self.groupmenu.addAction(ilist[i], l)
             else:
-                self.groupmenu.addAction(l)
+                action = self.groupmenu.addAction(l)
+            if disabled and i in disabled:
+                action.setEnabled(False)
         if not pos:
             pos = FreeCADGui.getMainWindow().cursor().pos()
         self.groupmenu.popup(pos)
