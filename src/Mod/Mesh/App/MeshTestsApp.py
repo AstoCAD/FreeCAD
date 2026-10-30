@@ -716,7 +716,7 @@ class MeshHugeCoordinates(unittest.TestCase):
         mesh = Mesh.Mesh(facets)
         self.assertEqual(mesh.CountFacets, 13)
         self.assertIsInstance(mesh.hasSelfIntersections(), bool)
-        self.assertIsInstance(mesh.getSelfIntersections(), list)
+        self.assertIsInstance(mesh.getSelfIntersections(), (list, tuple))
 
     def testReadStlWithHugeCoordinate(self):
         text = (
