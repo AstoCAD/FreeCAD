@@ -74,6 +74,7 @@
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
 #include <limits>
+#include <set>
 #include <sstream>
 
 
@@ -163,6 +164,21 @@ bool sectionPlaneIntersectsBox(const gp_Pln& plane, const Bnd_Box& box)
         + std::abs(normal.Z()) * (zMax - zMin) * 0.5;
     return std::abs(centerDistance)
         <= projectedRadius + box.GetGap() + EWTOLERANCE;
+}
+
+//! true if following BaseView from this section through other sections reaches
+//! a section a second time. getShapeToCut() recurses along that chain.
+bool sectionChainLoops(const DrawViewSection* section)
+{
+    std::set<const App::DocumentObject*> visited;
+    const App::DocumentObject* current = section;
+    while (current && current->isDerivedFrom<DrawViewSection>()) {
+        if (!visited.insert(current).second) {
+            return true;
+        }
+        current = static_cast<const DrawViewSection*>(current)->BaseView.getValue();
+    }
+    return false;
 }
 
 }  // namespace
@@ -432,6 +448,9 @@ TopoDS_Shape DrawViewSection::getShapeToCut()
     if (!base) {
         return {};
     }
+    if (sectionChainLoops(this)) {
+        return {};
+    }
 
     TopoDS_Shape shapeToCut;
     if (base->isDerivedFrom<TechDraw::DrawViewSection>()) {
@@ -474,6 +493,10 @@ App::DocumentObjectExecReturn* DrawViewSection::execute()
 
     if (!isBaseValid()) {
         return new App::DocumentObjectExecReturn("BaseView object not found");
+    }
+
+    if (sectionChainLoops(this)) {
+        return new App::DocumentObjectExecReturn("BaseView leads back to this section");
     }
 
     if (waitingForCut() || waitingForHlr()) {
