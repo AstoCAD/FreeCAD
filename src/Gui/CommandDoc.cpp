@@ -1540,6 +1540,12 @@ void StdCmdSelectAll::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
 
+    // let a focused view with its own selection (e.g. a spreadsheet) handle it
+    if (getGuiApplication()->sendHasMsgToFocusView("SelectAll")
+        && getGuiApplication()->sendMsgToFocusView("SelectAll")) {
+        return;
+    }
+
     auto* activeDoc = Application::Instance->activeDocument();
     if (activeDoc) {
         auto* editingVP = activeDoc->getInEdit();
@@ -1703,6 +1709,8 @@ void StdCmdDelete::activated(int iMsg)
         };
 
         if (getGuiApplication()->sendHasMsgToFocusView(getName())) {
+            // the focused view (e.g. a spreadsheet) deletes its own selection
+            getGuiApplication()->sendMsgToFocusView(getName());
             // no command has been opened yet so we can skip this commit
             // commitCommand();
             return;
@@ -1891,6 +1899,9 @@ void StdCmdDelete::activated(int iMsg)
 
 bool StdCmdDelete::isActive()
 {
+    if (getGuiApplication()->sendHasMsgToFocusView(getName())) {
+        return true;
+    }
     return !Selection().getCompleteSelection().empty();
 }
 
