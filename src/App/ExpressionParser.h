@@ -675,6 +675,12 @@ public:
     explicit ExpressionImporter(Base::XMLReader& reader);
     ~ExpressionImporter();
     static Base::XMLReader* reader();
+    /// Record that an imported object restored with label \a oldLabel got \a newLabel instead,
+    /// e.g. to keep labels unique
+    static void addLabel(const std::string& oldLabel, const std::string& newLabel);
+    /// Return the new label of an imported object restored with label \a oldLabel, or an empty
+    /// string if that label was not changed
+    static std::string getLabel(const std::string& oldLabel);
 };
 
 AppExport bool isModuleImported(PyObject*);

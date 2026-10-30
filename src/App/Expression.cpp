@@ -41,6 +41,7 @@
 #include <numbers>
 #include <cctype>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <stack>
 #include <string>
@@ -3514,18 +3515,34 @@ void RangeExpression::_offsetCells(int rowOffset, int colOffset, ExpressionVisit
 ////////////////////////////////////////////////////////////////////////////////////
 
 static Base::XMLReader *_Reader = nullptr;
+// Labels of imported objects that were changed on restore, old label -> new label
+static std::map<std::string, std::string> _LabelMap;
 ExpressionParser::ExpressionImporter::ExpressionImporter(Base::XMLReader &reader) {
     assert(!_Reader);
     _Reader = &reader;
+    _LabelMap.clear();
 }
 
 ExpressionParser::ExpressionImporter::~ExpressionImporter() {
     assert(_Reader);
     _Reader = nullptr;
+    _LabelMap.clear();
 }
 
 Base::XMLReader *ExpressionParser::ExpressionImporter::reader() {
     return _Reader;
+}
+
+void ExpressionParser::ExpressionImporter::addLabel(const std::string &oldLabel,
+                                                    const std::string &newLabel) {
+    if (_Reader) {
+        _LabelMap[oldLabel] = newLabel;
+    }
+}
+
+std::string ExpressionParser::ExpressionImporter::getLabel(const std::string &oldLabel) {
+    auto it = _LabelMap.find(oldLabel);
+    return it != _LabelMap.end() ? it->second : std::string();
 }
 
 namespace App {
