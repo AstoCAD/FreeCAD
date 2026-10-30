@@ -105,6 +105,7 @@ from drafttests.test_manual_input_gui import DraftGuiManualInput as DraftTestGui
 from drafttests.test_lines_gui import DraftGuiLines as DraftTestGui06
 from drafttests.test_dxf_gui import DraftGuiDXF as DraftTestGui07
 from drafttests.test_selection_tools_gui import DraftGuiSelectionTools as DraftTestGui09
+from drafttests.test_tray_gui import DraftGuiTray as DraftTestGui11
 
 # Use the modules so that code checkers don't complain (flake8)
 True if DraftTestGui01 else False
@@ -115,3 +116,4 @@ True if DraftTestGui05 else False
 True if DraftTestGui06 else False
 True if DraftTestGui07 else False
 True if DraftTestGui09 else False
+True if DraftTestGui11 else False
