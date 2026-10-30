@@ -136,4 +136,5 @@ FreeCAD.__unit_test__ += [
     "TestPlacementDialogGui",
     "TestLinkToggleVisibilityGui",
     "TestComboBoxShortcutGui",
+    "TestLinkImportVisibilityGui",
 ]
