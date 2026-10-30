@@ -61,6 +61,9 @@ else:
 hassetcolor = []
 alreadyhidden = []
 original_root_objects = []
+# Objects whose shape was copied into a non-parametric feature: they stay
+# orphaned root objects in the document but must remain hidden.
+consumed_objects = []
 
 # Get the token map from the lexer. This is required.
 import tokrules
@@ -104,7 +107,7 @@ def fixVisibility():
     # children are ignored.
     for root_object in FreeCAD.ActiveDocument.RootObjects:
         if root_object not in original_root_objects:
-            root_object.ViewObject.Visibility = True
+            root_object.ViewObject.Visibility = root_object not in consumed_objects
             for obj in root_object.OutListRecursive:
                 obj.ViewObject.Visibility = False
 
@@ -181,6 +184,7 @@ def processcsg(filename):
         fixVisibility()
     hassetcolor.clear()
     alreadyhidden.clear()
+    consumed_objects.clear()
     FreeCAD.Console.PrintMessage('End processing CSG file\n')
     doc.recompute()
 
@@ -1027,6 +1031,7 @@ def p_multmatrix_action(p):
             doc.recompute()
         new_part = doc.addObject("Part::Feature","Matrix Deformation")
         new_part.Shape = part.Shape.transformGeometry(transform_matrix)
+        consumed_objects.append(part)
         if gui:
             part.ViewObject.hide()
     if False :
