@@ -3,3 +3,5 @@
 import _PartDesign
 
 makeFilletArc = _PartDesign.makeFilletArc
+Feature = _PartDesign.Feature
+Body = _PartDesign.Body

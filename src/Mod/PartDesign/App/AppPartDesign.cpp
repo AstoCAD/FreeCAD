@@ -28,6 +28,7 @@
 #include <Base/PyObjectBase.h>
 
 #include "Body.h"
+#include "BodyPy.h"
 #include "DatumCS.h"
 #include "DatumLine.h"
 #include "DatumPlane.h"
@@ -49,6 +50,7 @@
 #include "FeatureMirrored.h"
 #include "FeatureMultiTransform.h"
 #include "FeaturePad.h"
+#include "FeaturePy.h"
 #include "FeaturePathPattern.h"
 #include "FeaturePipe.h"
 #include "FeaturePointPattern.h"
@@ -85,6 +87,11 @@ PyMOD_INIT_FUNC(_PartDesign)
     PyObject* mod = PartDesign::initModule();
     Base::Console().log("Loading Part Design module… done\n");
 
+    // Expose the Python types of the PartDesign objects, which are named
+    // 'PartDesign.Feature' and 'PartDesign.Body', so that scripts can use them
+    // e.g. with isinstance(). The PartDesign package re-exports them.
+    Base::Interpreter().addType(&PartDesign::FeaturePy::Type, mod, "Feature");
+    Base::Interpreter().addType(&PartDesign::BodyPy::Type, mod, "Body");
 
     // NOTE: To finish the initialization of our own type objects we must
     // call PyType_Ready, otherwise we run into a segmentation fault, later on.
