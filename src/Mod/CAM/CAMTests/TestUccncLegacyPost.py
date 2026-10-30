@@ -51,3 +51,14 @@ class TestUccncLegacyPost(PathTestUtils.PathTestBase):
         self.assertIn("I0.394", words)
         self.assertIn("J0.000", words)
         self.assertIn("K0.000", words)
+
+    def test_rotary_axes_inches(self):
+        # Issue #30603: A, B and C are angles and must not be converted to inches.
+        self.docobj.Path = Path.Path([Path.Command("G1 X25.4 A90 B45 C10 F600")])
+        gcode = postprocessor.export([self.docobj], "-", "--no-header --inches --no-show-editor")
+        line = next(l for l in gcode.splitlines() if re.match(r"^\s*(N\d+\s+)?G1\b", l))
+        words = line.split()
+        self.assertIn("X1.000", words)
+        self.assertIn("A90.000", words)
+        self.assertIn("B45.000", words)
+        self.assertIn("C10.000", words)
