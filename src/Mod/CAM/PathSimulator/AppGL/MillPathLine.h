@@ -11,6 +11,7 @@ struct MillPathPosition
 {
     float X, Y, Z;
     int SegmentId;
+    int Rapid = 0;  // 1 for rapid moves
 };
 
 class MillPathLine

@@ -54,6 +54,7 @@ public:
     void UpdateSsaoTexSlot(int ssaoSlot);
     void UpdateKernelVals(int nVals, float* vals);
     void UpdateCurSegment(int curSeg);
+    void UpdateRapidColor(const vec3& rapidColor);
     void UpdateStartEnd(const vec3& start, const vec3& end);
 
     unsigned int CompileShader(const char* name, const char* vertShader, const char* fragShader);
@@ -82,6 +83,7 @@ protected:
     int mRandTexPos = -1;
     int mSamplesPos = -1;
     int mCurSegmentPos = -1;
+    int mRapidColorPos = -1;
     int mScreenWidthPos = -1;
     int mScreenHeightPos = -1;
     int mStartEndPos = -1;
