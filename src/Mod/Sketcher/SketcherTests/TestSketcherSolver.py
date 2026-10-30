@@ -1571,6 +1571,26 @@ class TestSketcherSolver(unittest.TestCase):
         sketch.moveGeometry(1, 3, vec(1, -15), False)
         self.assertVectorAlmostEqual(sketch.Geometry[1].Center, vec(1, -15))
 
+    def testMoveGeometryAfterUnsolvedChanges(self):
+        """Moving after adding geometry without a solve keeps the new geometry"""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchMoveStaleSolver")
+        sketch.addGeometry(Part.LineSegment(vec(0, 0), vec(5, 1)))
+        self.assertSuccessfulSolve(sketch)
+        sketch.addGeometry(Part.LineSegment(vec(0, 5), vec(1, 9)))
+        sketch.moveGeometry(0, 2, vec(6, 2), False)
+        self.assertEqual(sketch.GeometryCount, 2)
+        self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(6, 2))
+        self.assertVectorAlmostEqual(sketch.Geometry[1].EndPoint, vec(1, 9))
+        # addCopy also adds constraints on the copy; losing the copy left them
+        # pointing at missing geometry (calculateConstraintError then crashed)
+        sketch.addCopy([0], vec(0, 20), False)
+        self.assertEqual(sketch.GeometryCount, 4)
+        sketch.moveGeometry(0, 2, vec(7, 2), False)
+        self.assertEqual(sketch.GeometryCount, 4)
+        self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(7, 2))
+        for index in range(len(sketch.Constraints)):
+            self.assertAlmostEqual(sketch.calculateConstraintError(index), 0.0, delta=1e-6)
+
     def testSetDatumErrorMessages(self):
         # https://github.com/FreeCAD/FreeCAD/issues/26506
         # A sketch with redundant constraints rejected any new datum with the
