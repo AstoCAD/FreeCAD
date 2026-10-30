@@ -37,6 +37,7 @@ from SketcherTests.TestMoveGeometryRedrawGui import TestMoveGeometryRedrawGui
 from SketcherTests.TestOffsetConstraintGui import TestOffsetConstraintGui
 from SketcherTests.TestFilletCurveVertexGui import TestFilletCurveVertexGui
 from SketcherTests.TestTextToolLastFontGui import TestTextToolLastFontGui
+from SketcherTests.TestAutoConstraintRedundancyGui import TestAutoConstraintRedundancyGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -75,5 +76,6 @@ from SketcherTests.TestTextToolLastFontGui import TestTextToolLastFontGui
     and TestOffsetConstraintGui
     and TestFilletCurveVertexGui
     and TestTextToolLastFontGui
+    and TestAutoConstraintRedundancyGui
     else False
 )
