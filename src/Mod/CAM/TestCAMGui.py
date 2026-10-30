@@ -34,3 +34,4 @@ from CAMTests.TestPathToolBitBrowserWidget import TestToolBitBrowserWidget
 from CAMTests.TestPathToolBitEditorWidget import TestToolBitPropertiesWidget
 from CAMTests.TestPathToolBitListWidget import TestToolBitListWidget
 from CAMTests.TestPathJobGui import TestPathJobTaskPanel
+from CAMTests.TestPathDressupLeadInOutGui import TestDressupLeadInOutTaskPanel
