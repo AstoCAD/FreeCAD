@@ -250,6 +250,8 @@ public:
 
     void getPropertyList(std::vector<Property*>& List) const override;
 
+    void getPropertyNamedList(std::vector<std::pair<const char*, Property*>>& List) const override;
+
     short getPropertyType(const Property* prop) const override;
 
     short getPropertyType(const char* name) const override;

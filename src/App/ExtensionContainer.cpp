@@ -170,6 +170,16 @@ void ExtensionContainer::getPropertyList(std::vector<Property*>& List) const
     }
 }
 
+void ExtensionContainer::getPropertyNamedList(
+    std::vector<std::pair<const char*, Property*>>& List
+) const
+{
+    App::PropertyContainer::getPropertyNamedList(List);
+    for (const auto& entry : _extensions) {
+        entry.second->extensionGetPropertyNamedList(List);
+    }
+}
+
 void ExtensionContainer::getPropertyMap(std::map<std::string, Property*>& Map) const
 {
     App::PropertyContainer::getPropertyMap(Map);

@@ -229,6 +229,11 @@ public:
     virtual void extensionGetPropertyList(std::vector<Property*> &List) const;
 
     /**
+     * @copydoc PropertyContainer::getPropertyNamedList()
+     */
+    virtual void extensionGetPropertyNamedList(std::vector<std::pair<const char*, Property*>>& List) const;
+
+    /**
      * @copydoc PropertyContainer::getPropertyType(const Property*) const
      */
     virtual short extensionGetPropertyType(const Property* prop) const;
