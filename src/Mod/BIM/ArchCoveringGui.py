@@ -1659,9 +1659,14 @@ if FreeCAD.GuiUp:
             obj = self.template.buffer
 
             # Sync numeric properties directly from the widget property. Use "value" to get the
-            # unit-converted float value.
-            obj.TileLength = self.sb_length.property("value")
-            obj.TileWidth = self.sb_width.property("value")
+            # unit-converted float value. Monolithic mode has its own Length/Width spinboxes on a
+            # separate page, so read the ones the user can actually see and edit.
+            if self.combo_mode.currentIndex() == self.GEO_PAGE_MONOLITHIC:
+                obj.TileLength = self.sb_length_mono.property("value")
+                obj.TileWidth = self.sb_width_mono.property("value")
+            else:
+                obj.TileLength = self.sb_length.property("value")
+                obj.TileWidth = self.sb_width.property("value")
             obj.TileThickness = self.sb_thick.property("value")
             obj.JointWidth = self.sb_joint.property("value")
             obj.Rotation = self.sb_rot.property("value")
