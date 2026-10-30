@@ -278,6 +278,11 @@ App::DocumentObjectExecReturn* Revolved::tryExecuteRevolved(Part::RevolMode revo
     }
 
     TopoShape sketchshape = getTopoShapeVerifiedFace();
+    if (Profile.getValue() && Profile.getValue()->isDerivedFrom<Part::Part2DObject>()) {
+        // Work on a copy so that the operations below do not attach new pcurves and
+        // surfaces to the sketch's own edges on every recompute (#33926).
+        sketchshape = sketchshape.makeElementCopy();
+    }
 
     // if the Base property has a valid shape, fuse the AddShape into it
     TopoShape base = tryGetBaseShape();
