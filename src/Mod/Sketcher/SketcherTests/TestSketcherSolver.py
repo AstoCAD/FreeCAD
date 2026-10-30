@@ -1549,6 +1549,33 @@ class TestSketcherSolver(unittest.TestCase):
         sketch.split(0, vec(4, 0))
         self.assertEqual(sketch.GeometryCount, 3)
 
+    def testMoveGeometryRejectsNonFiniteTarget(self):
+        """An infinite or NaN target is rejected instead of reaching the solver"""
+        nonFinite = (
+            FreeCAD.Vector(float("inf"), 0, 0),
+            FreeCAD.Vector(float("nan"), 0, 0),
+            FreeCAD.Vector(0, float("-inf"), 0),
+        )
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchMoveNonFinite")
+        sketch.addGeometry(Part.Circle(vec(0, 0), FreeCAD.Vector(0, 0, 1), 3))
+        self.assertSuccessfulSolve(sketch)
+        for target in nonFinite:
+            with self.assertRaises(ValueError, msg=str(target)):
+                sketch.moveGeometry(0, 3, target, False)
+            with self.assertRaises(ValueError, msg=str(target)):
+                sketch.moveGeometries([(0, 3)], target, False)
+            self.assertVectorAlmostEqual(sketch.Geometry[0].Center, vec(0, 0))
+        # NaN parameters for a hyperbola used to crash the solver
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchMoveNonFiniteHyperbola")
+        sketch.addGeometry(Part.ArcOfHyperbola(Part.Hyperbola(vec(8, -8), 4, 2), -1, 1))
+        circle = Part.Circle(vec(0, -16), FreeCAD.Vector(0, 0, 1), 4)
+        sketch.addGeometry(Part.ArcOfCircle(circle, 1, 3.5))
+        self.assertSuccessfulSolve(sketch)
+        with self.assertRaises(ValueError):
+            sketch.moveGeometry(0, 1, FreeCAD.Vector(float("inf"), 1e12, 0), False)
+        sketch.moveGeometry(1, 3, vec(1, -15), False)
+        self.assertVectorAlmostEqual(sketch.Geometry[1].Center, vec(1, -15))
+
     def testSetDatumErrorMessages(self):
         # https://github.com/FreeCAD/FreeCAD/issues/26506
         # A sketch with redundant constraints rejected any new datum with the
