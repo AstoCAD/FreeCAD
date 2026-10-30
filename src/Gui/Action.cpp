@@ -645,14 +645,22 @@ void ActionGroup::onToggled(bool check)
 void ActionGroup::onActivated(QAction* act)
 {
     int index = groupAction()->actions().indexOf(act);
-    this->setIcon(act->icon());
     if (_rememberLast) {
+        this->setIcon(act->icon());
         if (!this->_isMode) {
             this->action()->setToolTip(act->toolTip());
         }
         this->setProperty("defaultAction", QVariant(index));
     }
+    else if (dynamic_cast<GroupCommand*>(command())) {
+        // A group command that does not remember the last used tool keeps showing its
+        // default tool. GroupCommand::setup() owns the icon and the tool tip. Do not touch
+        // them here: the child tool tip is already formatted, and when the group command is
+        // inactive (e.g. the child opened a task dialog) setup() is not called again.
+        this->setProperty("defaultAction", QVariant(0));
+    }
     else {
+        this->setIcon(act->icon());
         // for Std_RecentMacros and Std_RecentFiles
         if (!this->_isMode) {
             QString str = act->text();
