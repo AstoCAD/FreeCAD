@@ -528,7 +528,7 @@ class _Rebar(ArchComponent.Component):
                     spacinglist,
                     i + 1,
                     axis,
-                    father.Placement.Rotation,
+                    rot,
                     obj.OffsetStart.Value,
                     obj.OffsetEnd.Value,
                 )
