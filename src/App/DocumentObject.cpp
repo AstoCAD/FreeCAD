@@ -37,6 +37,7 @@
 #include <Base/Writer.h>
 
 #include "Expression.h"
+#include "ExpressionParser.h"
 #include "Application.h"
 #include "ElementNamingUtils.h"
 #include "Document.h"
@@ -1072,6 +1073,7 @@ DocumentObject::onProposedLabelChange(std::string& newLabel)
             && !doc->testStatus(App::Document::Importing))) {
         return {};
     }
+    const std::string proposedLabel = newLabel;
     if (newLabel.empty()) {
         // An empty label is not useful, reset it to the object name instead.
         newLabel = getNameInDocument();
@@ -1108,6 +1110,13 @@ DocumentObject::onProposedLabelChange(std::string& newLabel)
 
     // Despite our efforts to make a unique label, onBeforeLabelChange can change it.
     onBeforeChangeLabel(newLabel);
+
+    if (doc->testStatus(App::Document::Importing) && testStatus(ObjectStatus::Restore)
+        && !proposedLabel.empty() && newLabel != proposedLabel) {
+        // The label restored from the imported file was changed. Remember it so that
+        // label references in the imported expressions can be mapped in afterRestore().
+        ExpressionParser::ExpressionImporter::addLabel(proposedLabel, newLabel);
+    }
 
     if (oldLabel == newLabel || getDocument()->testStatus(App::Document::Restoring)) {
         // Don't update label reference if we are restoring or if the label is unchanged.
