@@ -24,6 +24,7 @@ import os
 import tempfile
 import unittest
 
+import FreeCAD
 import Points
 
 
@@ -57,3 +58,27 @@ class PointsLoadTest(unittest.TestCase):
         fileName = os.path.join(tempfile.gettempdir(), "TestPointsAppMissingFile.asc")
         with self.assertRaises(OSError):
             Points.Points(fileName)
+
+    def writeBinaryFile(self, suffix, content):
+        fd, fileName = tempfile.mkstemp(suffix=suffix)
+        with os.fdopen(fd, "wb") as f:
+            f.write(content)
+        self.fileNames.append(fileName)
+        return fileName
+
+    def testCompressedPcdWithoutData(self):
+        """A binary_compressed PCD with an empty compressed block must raise"""
+        # The LZF decoder read the first control byte of an empty input buffer
+        # (access violation).
+        header = (
+            "VERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1\n"
+            "WIDTH 1\nHEIGHT 1\nPOINTS 1\nDATA binary_compressed\n"
+        )
+        fileName = self.writeBinaryFile(".pcd", header.encode("ascii") + bytes(8))
+        doc = FreeCAD.newDocument("TestPointsAppPcd")
+        try:
+            with self.assertRaises(Exception) as cm:
+                Points.insert(fileName, doc.Name)
+            self.assertNotIn("Access violation", str(cm.exception))
+        finally:
+            FreeCAD.closeDocument(doc.Name)
