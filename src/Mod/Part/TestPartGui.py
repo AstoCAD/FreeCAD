@@ -30,7 +30,7 @@ import FreeCADGui
 import Part
 import PartGui
 import Sketcher
-from PySide import QtWidgets
+from PySide import QtCore, QtWidgets
 
 
 def findDockWidget(name):
@@ -222,6 +222,54 @@ class PartExtrudeGuiTestCases(unittest.TestCase):
         V = FreeCAD.Vector
         wire = Part.makePolygon([V(0, 0, 0), V(10, 0, 0), V(10, 10, 0)])
         self.assertFalse(self.solidCheckBoxFor(wire))
+
+    def extrusions(self):
+        return [o for o in self.Doc.Objects if o.isDerivedFrom("Part::Extrusion")]
+
+    def clickApplyClosingMessageBoxes(self, button):
+        messages = []
+
+        def closeMessageBoxes():
+            for widget in QtWidgets.QApplication.topLevelWidgets():
+                if isinstance(widget, QtWidgets.QMessageBox) and widget.isVisible():
+                    messages.append(widget.text())
+                    widget.close()
+
+        timer = QtCore.QTimer()
+        timer.timeout.connect(closeMessageBoxes)
+        timer.start(100)
+        try:
+            button.click()
+            QtWidgets.QApplication.processEvents()
+        finally:
+            timer.stop()
+        return messages
+
+    def testApplyAfterUndo(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33314
+        V = FreeCAD.Vector
+        wire = Part.makePolygon([V(0, 0, 0), V(10, 0, 0), V(10, 10, 0), V(0, 10, 0), V(0, 0, 0)])
+        self.solidCheckBoxFor(Part.Face(wire))
+        applyButton = None
+        for box in FreeCADGui.getMainWindow().findChildren(QtWidgets.QDialogButtonBox):
+            button = box.button(QtWidgets.QDialogButtonBox.Apply)
+            if button and button.isVisible():
+                applyButton = button
+                break
+        self.assertIsNotNone(applyButton, "Apply button of the Extrude task dialog not found.")
+
+        self.assertEqual(self.clickApplyClosingMessageBoxes(applyButton), [])
+        self.assertEqual(len(self.extrusions()), 1)
+
+        FreeCADGui.runCommand("Std_Undo")
+        QtWidgets.QApplication.processEvents()
+        self.assertEqual(len(self.extrusions()), 0)
+
+        self.assertEqual(self.clickApplyClosingMessageBoxes(applyButton), [])
+        extrusions = self.extrusions()
+        self.assertEqual(len(extrusions), 1)
+        self.assertFalse(extrusions[0].Shape.isNull())
+        self.assertAlmostEqual(extrusions[0].Shape.Volume, 1000.0, places=3)
 
 
 class AttachmentEditorGuiTestCases(unittest.TestCase):
