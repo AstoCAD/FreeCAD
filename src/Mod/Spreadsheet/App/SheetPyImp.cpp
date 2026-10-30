@@ -814,9 +814,18 @@ PyObject* SheetPy::setForeground(PyObject* args)
             return nullptr;
         }
 
+        Range rangeIter(range);
+
+        // None (as returned by getForeground() for a cell without a color) resets the color
+        if (value == Py_None) {
+            do {
+                getSheetPtr()->clearForeground(*rangeIter);
+            } while (rangeIter.next());
+            Py_Return;
+        }
+
         decodeColor(value, c);
 
-        Range rangeIter(range);
         getSheetPtr()->setForeground(rangeIter, c);
         Py_Return;
     }
@@ -901,8 +910,17 @@ PyObject* SheetPy::setBackground(PyObject* args)
             return nullptr;
         }
 
-        decodeColor(value, c);
         Range rangeIter(strAddress);
+
+        // None (as returned by getBackground() for a cell without a color) resets the color
+        if (value == Py_None) {
+            do {
+                getSheetPtr()->clearBackground(*rangeIter);
+            } while (rangeIter.next());
+            Py_Return;
+        }
+
+        decodeColor(value, c);
 
         getSheetPtr()->setBackground(rangeIter, c);
         Py_Return;

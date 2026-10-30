@@ -1712,6 +1712,27 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.getForeground("A1"), (0.0, 0.0, 0.0, 1.0))
         self.assertEqual(sheet.getBackground("A1"), (1.0, 1.0, 1.0, 1.0))
 
+    def testColorRoundTripWithNone(self):
+        """Issue #11865: getForeground()/getBackground() return None for a cell
+        without a color; passing that back to the setters must reset the color
+        instead of raising TypeError"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "1")
+        sheet.setBackground("A1", sheet.getBackground("A1"))
+        sheet.setForeground("A1", sheet.getForeground("A1"))
+        self.assertIsNone(sheet.getBackground("A1"))
+        self.assertIsNone(sheet.getForeground("A1"))
+        sheet.setBackground("A1:B2", (1.0, 0.0, 0.0))
+        sheet.setForeground("A1:B2", (0.0, 1.0, 0.0))
+        sheet.setBackground("A1:B2", None)
+        sheet.setForeground("A1:B1", None)
+        self.assertIsNone(sheet.getBackground("A1"))
+        self.assertIsNone(sheet.getBackground("B2"))
+        self.assertIsNone(sheet.getForeground("B1"))
+        self.assertEqual(sheet.getForeground("B2"), (0.0, 1.0, 0.0, 1.0))
+        with self.assertRaises(TypeError):
+            sheet.setBackground("A1", "red")
+
     def testImportXLSXSharedFormulas(self):
         """Issue #20299: cells using a shared formula (formula dragged down
         or across in Excel) must be imported"""
