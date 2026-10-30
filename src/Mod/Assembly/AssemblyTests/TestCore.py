@@ -1256,3 +1256,39 @@ class TestCore(AssemblyTestBase):
                 operation, markerX, slide_axis
             ),
         )
+
+    def test_undo_solve_after_part_deleted(self):
+        """undoSolve() must skip parts deleted since the solve instead of using
+        dangling pointers (access violation)."""
+        operation = "Undo solve after a part was deleted"
+        _msg("  Test '{}'".format(operation))
+
+        grounded = self.assembly.newObject("Part::Box", "Grounded")
+        deleted = self.assembly.newObject("Part::Box", "Deleted")
+        kept = self.assembly.newObject("Part::Box", "Kept")
+        self.doc.recompute()
+
+        ground = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+        JointObject.GroundedJoint(ground, grounded)
+        for part in (deleted, kept):
+            joint = self.jointgroup.newObject("App::FeaturePython", "Fixed" + part.Name)
+            JointObject.Joint(joint, JointObject.JointTypes.index("Fixed"))
+            joint.Proxy.setJointConnectors(
+                joint,
+                [[grounded, ["Face6", "Vertex7"]], [part, ["Face6", "Vertex7"]]],
+            )
+        self.doc.recompute()
+
+        self.assertEqual(self.assembly.solve(True), 0)
+        solved = App.Placement(kept.Placement)
+
+        kept.Placement = App.Placement(App.Vector(100, 200, 300), App.Rotation())
+        self.doc.removeObject("Fixed" + deleted.Name)
+        self.doc.removeObject(deleted.Name)
+
+        self.assembly.undoSolve()
+
+        self.assertTrue(
+            kept.Placement.isSame(solved, 1e-7),
+            "'{}' failed - {} not restored to {}".format(operation, kept.Placement, solved),
+        )
