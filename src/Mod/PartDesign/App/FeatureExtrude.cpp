@@ -437,6 +437,13 @@ App::DocumentObjectExecReturn* FeatureExtrude::buildExtrusion(ExtrudeOptions opt
                                                                     : 0.0
                                           : 0.0;
 
+    // NaN passes the zero length check below, and a NaN or infinite length crashes the prism
+    if (!std::isfinite(L) || !std::isfinite(L2)) {
+        return new App::DocumentObjectExecReturn(
+            QT_TRANSLATE_NOOP("Exception", "Length must be a finite number")
+        );
+    }
+
     if ((Sidemethod == "One side" && method == "Length")
         || (Sidemethod == "Two sides" && method == "Length" && method2 == "Length")) {
 
