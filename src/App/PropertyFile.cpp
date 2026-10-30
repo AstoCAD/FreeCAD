@@ -69,6 +69,32 @@ bool isPlainFileName(const std::string& name)
     }
     return Base::FileInfo(name).fileName() == name;
 }
+
+/**
+ * @brief Return a path in @p dir for @p name that no existing file uses yet.
+ *
+ * If the name is taken, a counter is appended to the pure file name, keeping
+ * the extension (e.g. <tt>Template.svg</tt> becomes <tt>Template1.svg</tt>).
+ */
+std::string getFreeFilePath(const std::string& dir, const std::string& name)
+{
+    Base::FileInfo fi(dir + "/" + name);
+    if (fi.exists()) {
+        std::string fnp = fi.fileNamePure();
+        std::string ext = fi.extension();
+        int i = 0;
+        do {
+            i++;
+            std::stringstream str;
+            str << dir << "/" << fnp << i;
+            if (!ext.empty()) {
+                str << "." << ext;
+            }
+            fi.setFile(str.str());
+        } while (fi.exists());
+    }
+    return fi.filePath();
+}
 }  // namespace
 
 //**************************************************************************
@@ -437,8 +463,11 @@ void PropertyFileIncluded::Restore(Base::XMLReader& reader)
             reader.addFile(file.c_str(), this);
             // is in the document transient path
             aboutToSetValue();
-            _cValue = getDocTransientPath() + "/" + file;
-            _BaseFileName = file;
+            // When objects are copied inside the same document the original
+            // already owns a file with this name. Never share it, otherwise
+            // deleting either object deletes the file of the other one.
+            _cValue = getFreeFilePath(getDocTransientPath(), file);
+            _BaseFileName = Base::FileInfo(_cValue).fileName();
             hasSetValue();
         }
     }
@@ -452,10 +481,10 @@ void PropertyFileIncluded::Restore(Base::XMLReader& reader)
             }
             // is in the document transient path
             aboutToSetValue();
-            _cValue = getDocTransientPath() + "/" + file;
+            _cValue = getFreeFilePath(getDocTransientPath(), file);
             reader.readBinFile(_cValue.c_str());
             reader.readEndElement("FileIncluded");
-            _BaseFileName = file;
+            _BaseFileName = Base::FileInfo(_cValue).fileName();
             // set read-only after restoring the file
             Base::FileInfo fi(_cValue.c_str());
             fi.setPermissions(Base::FileInfo::ReadOnly);

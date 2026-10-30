@@ -2324,6 +2324,37 @@ class DocumentFileIncludeCases(unittest.TestCase):
             self.assertEqual(file.read(), payload)
         self.assertEqual(obj.File.split("/")[-1], "BinaryPayload.bin")
 
+    def testCopyInSameDocumentDoesNotShareFile(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/11151
+        source_path = os.path.join(tempfile.gettempdir(), "FileIncludeCopySource.svg")
+        with open(source_path, "w") as file:
+            file.write("original content")
+
+        # without undo, removeObject() destroys the copy and its property
+        self.Doc.UndoMode = 0
+        obj = self.Doc.addObject("App::DocumentObjectFileIncluded", "Original")
+        obj.File = source_path
+        copy = self.Doc.copyObject(obj)
+
+        self.assertNotEqual(copy.File, obj.File)
+        self.assertTrue(copy.File.endswith(".svg"))
+        with open(copy.File, "r") as file:
+            self.assertEqual(file.read(), "original content")
+
+        # deleting the copy must not delete the file of the original
+        self.Doc.removeObject(copy.Name)
+        self.assertTrue(os.path.exists(obj.File))
+        with open(obj.File, "r") as file:
+            self.assertEqual(file.read(), "original content")
+
+        doc_path = os.path.join(tempfile.gettempdir(), "FileIncludeTests.FCStd")
+        self.Doc.saveAs(doc_path)
+        FreeCAD.closeDocument("FileIncludeTests")
+        self.Doc = FreeCAD.open(doc_path)
+        obj = self.Doc.getObject("Original")
+        with open(obj.File, "r") as file:
+            self.assertEqual(file.read(), "original content")
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("FileIncludeTests")
