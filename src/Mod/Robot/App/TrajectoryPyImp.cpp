@@ -143,6 +143,10 @@ PyObject* TrajectoryPy::deleteLast(PyObject* args)
     if (!PyArg_ParseTuple(args, "|i", &n)) {
         return nullptr;
     }
+    if (n < 0) {
+        PyErr_SetString(PyExc_ValueError, "Number of waypoints to delete must not be negative");
+        return nullptr;
+    }
     getTrajectoryPtr()->deleteLast(n);
     return new TrajectoryPy(new Robot::Trajectory(*getTrajectoryPtr()));
 }
