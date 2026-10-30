@@ -241,6 +241,18 @@ class TestHole(unittest.TestCase):
         self.Doc.recompute()
         self.assertEqual(len(self.Hole.Shape.Faces), 7)
 
+    def testFirstThreadSizeKeptOnThreadTypeReassign(self):
+        """Selecting the first thread size must survive re-setting the thread type (#32406)"""
+        self.Hole.Threaded = True
+        self.Hole.ThreadType = "ISOMetricProfile"
+        self.Hole.ThreadSize = "M1.2x0.25"
+        self.Hole.ThreadSize = "M1x0.25"
+        self.assertAlmostEqual(self.Hole.ThreadDiameter.Value, 1.0)
+        # the task panel writes ThreadType back on accept, which re-runs the
+        # closest designation search based on ThreadDiameter
+        self.Hole.ThreadType = "ISOMetricProfile"
+        self.assertEqual(self.Hole.ThreadSize, "M1x0.25")
+
     def testThreadEnums(self):
         """Test thread enums for correct order"""
         # Due to the savefile use of indexes and not strings
