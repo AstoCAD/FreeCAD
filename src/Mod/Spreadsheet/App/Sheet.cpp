@@ -1415,6 +1415,10 @@ void Sheet::updateColumnsOrRows(bool horizontal, int section, int count)
 
 void Sheet::insertColumns(int col, int count)
 {
+    // With a zero count every cell would be moved onto itself, which frees it
+    if (count <= 0) {
+        return;
+    }
     cells.insertColumns(col, count);
     updateColumnsOrRows(true, col, count);
 }
@@ -1429,6 +1433,11 @@ void Sheet::insertColumns(int col, int count)
 
 void Sheet::removeColumns(int col, int count)
 {
+    // With a zero count every cell would be moved onto itself, which frees it
+    if (count <= 0) {
+        return;
+    }
+
     // Remove aliases, if defined
     for (const auto& address : cells.getColumns(col, count)) {
         auto cell = getCell(address);
@@ -1452,6 +1461,10 @@ void Sheet::removeColumns(int col, int count)
 
 void Sheet::insertRows(int row, int count)
 {
+    // With a zero count every cell would be moved onto itself, which frees it
+    if (count <= 0) {
+        return;
+    }
     cells.insertRows(row, count);
     updateColumnsOrRows(false, row, count);
 }
@@ -1466,6 +1479,11 @@ void Sheet::insertRows(int row, int count)
 
 void Sheet::removeRows(int row, int count)
 {
+    // With a zero count every cell would be moved onto itself, which frees it
+    if (count <= 0) {
+        return;
+    }
+
     // Remove aliases, if defined
     for (const auto& address : cells.getRows(row, count)) {
         auto cell = getCell(address);
