@@ -194,7 +194,7 @@ void PlacementHandler::openTransaction()
 {
     App::Document* activeDoc = App::GetApplication().getActiveDocument();
     if (activeDoc) {
-        activeDoc->openTransaction("Placement");
+        transactions[activeDoc->getName()] = activeDoc->openTransaction("Placement");
     }
 }
 
@@ -464,7 +464,9 @@ void PlacementHandler::slotActiveDocument(const Gui::Document& doc)
 void PlacementHandler::openCommandIfActive(Gui::Document* doc)
 {
     if (!ignoreTransaction) {
-        doc->openCommand(QT_TRANSLATE_NOOP("Command", "Placement"));
+        transactions[doc->getDocument()->getName()] = doc->openCommand(
+            QT_TRANSLATE_NOOP("Command", "Placement")
+        );
     }
 }
 
@@ -478,7 +480,14 @@ void PlacementHandler::commitCommandIfActive(Gui::Document* doc)
 void PlacementHandler::abortCommandIfActive(Gui::Document* doc)
 {
     if (!ignoreTransaction) {
-        doc->abortCommand();
+        // Only abort the transaction opened by this dialog. If another command has
+        // opened its own transaction meanwhile, aborting it would delete the objects
+        // that command is still working on.
+        auto it = transactions.find(doc->getDocument()->getName());
+        if (it != transactions.end() && it->second != 0
+            && it->second == doc->getDocument()->getBookedTransactionID()) {
+            doc->abortCommand();
+        }
     }
 }
 
