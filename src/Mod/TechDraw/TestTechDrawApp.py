@@ -37,6 +37,7 @@ from TDTest.DrawViewDimensionSavedGeometryTest import DrawViewDimensionSavedGeom
 from TDTest.TestCosmeticEdgeLifetime import TestCosmeticEdgeLifetime  # noqa: F401
 from TDTest.DrawCosmeticLifetimeTest import DrawCosmeticLifetimeTest  # noqa: F401
 from TDTest.DrawCosmeticCircleRadiusTest import DrawCosmeticCircleRadiusTest  # noqa: F401
+from TDTest.DrawEdgeWalkerNullEdgeTest import DrawEdgeWalkerNullEdgeTest  # noqa: F401
 from TDTest.DrawViewDetailConsoleTest import DrawViewDetailConsoleTest  # noqa: F401
 from TDTest.DrawViewDetailMattingTest import DrawViewDetailMattingTest  # noqa: F401
 
