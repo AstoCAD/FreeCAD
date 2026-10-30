@@ -226,7 +226,7 @@ StdCmdGroup::StdCmdGroup()
     sToolTipText = QT_TR_NOOP(
         "Creates a group, which is a general-purpose container to group objects in the "
         "tree view, regardless of their data type. It is a simple folder to organize "
-        "the objects in a model."
+        "the objects in a model. Selected objects are moved into the new group."
     );
     sWhatsThis = "Std_Group";
     sStatusTip = sToolTipText;
@@ -238,6 +238,9 @@ void StdCmdGroup::activated(int iMsg)
     Q_UNUSED(iMsg);
 
     openCommand(QT_TRANSLATE_NOOP("Command", "Add a group"));
+
+    // remember the selection before the group is created, it is moved into the new group below
+    doCommand(Doc, "selected_objects = Gui.Selection.getSelection(App.activeDocument().Name)");
 
     std::string GroupName;
     GroupName = getUniqueObjectName("Group");
@@ -268,7 +271,37 @@ void StdCmdGroup::activated(int iMsg)
                 );
             }
         }
-    }  // if we have no active object, group will be added to root doc
+    }
+
+    // otherwise, if all selected objects share the same parent (group or part), create the group
+    // there, else the group is added to the root of the document
+    doCommand(
+        Doc,
+        "parents = {(p.Name if p else '') for p in (obj.getParent() for obj in "
+        "selected_objects)}\n"
+        "if not group.getParent() and len(parents) == 1 and '' not in parents:\n"
+        "    parent = App.activeDocument().getObject(parents.pop())\n"
+        "    if parent.allowObject(group):\n"
+        "        parent.addObject(group)"
+    );
+
+    // move the selected objects into the new group, objects already in another group are taken
+    // out of it. Skip what the group does not accept, what contains the group itself and what
+    // would have to leave its coordinate system (part, body) to go into the group.
+    doCommand(
+        Doc,
+        "def _geo_name(o):\n"
+        "    g = o.getParentGeoFeatureGroup()\n"
+        "    return g.Name if g else ''\n"
+        "for obj in selected_objects:\n"
+        "    if obj == group or not group.allowObject(obj):\n"
+        "        continue\n"
+        "    if obj.hasExtension('App::GroupExtension') and obj.hasObject(group, True):\n"
+        "        continue\n"
+        "    if _geo_name(obj) != _geo_name(group):\n"
+        "        continue\n"
+        "    group.addObject(obj)"
+    );
 
     commitCommand();
 
