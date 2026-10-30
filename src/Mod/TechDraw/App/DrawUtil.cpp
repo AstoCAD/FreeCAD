@@ -1451,6 +1451,13 @@ std::pair<int, int> DrawUtil::nearestFraction(double val, int maxDenom)
 //  ( 1  0 ) ( 1  0 ) ( 1  0 )
 // Instead of keeping the sequence of continued fraction terms,
 // we just keep the last partial product of these matrices.
+    if (val < 0.0) {
+        // the algorithm below expects a positive value
+        std::pair<int, int> result = nearestFraction(-val, maxDenom);
+        result.first = -result.first;
+        return result;
+    }
+
     std::pair<int, int> result;
     long m[2][2];
     long maxden = maxDenom;

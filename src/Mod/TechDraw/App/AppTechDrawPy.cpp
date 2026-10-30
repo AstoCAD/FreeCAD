@@ -33,6 +33,8 @@
 # include <TopoDS_Face.hxx>
 # include <TopoDS_Wire.hxx>
 
+#include <cmath>
+#include <limits>
 
 #include <boost_regex.hpp>
 
@@ -1395,6 +1397,11 @@ private:
         double valueWithDecimals{0.0};
         if (!PyArg_ParseTuple(args.ptr(), "d", &valueWithDecimals)) {
             throw Py::TypeError("expected (valueWithDecimals)");
+        }
+        if (!std::isfinite(valueWithDecimals)
+            || std::fabs(valueWithDecimals) > std::numeric_limits<int>::max()) {
+            // NaN looped forever and infinity divided by zero
+            throw Py::ValueError("expected a finite value in the range of int");
         }
 
         std::pair<int, int> numAndDen = DrawUtil::nearestFraction(valueWithDecimals);
