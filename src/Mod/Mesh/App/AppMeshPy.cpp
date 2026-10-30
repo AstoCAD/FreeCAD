@@ -146,6 +146,24 @@ private:
             throw Py::RuntimeError(e.what());
         }
     }
+    // keyword methods (export) need the same translation, or a C++ exception escapes
+    // into the Python interpreter
+    Py::Object invoke_method_keyword(
+        void* method_def,
+        const Py::Tuple& args,
+        const Py::Dict& keywords
+    ) override
+    {
+        try {
+            return Py::ExtensionModule<Module>::invoke_method_keyword(method_def, args, keywords);
+        }
+        catch (const Base::Exception& e) {
+            throw Py::RuntimeError(e.what());
+        }
+        catch (const std::exception& e) {
+            throw Py::RuntimeError(e.what());
+        }
+    }
     Py::Object read(const Py::Tuple& args)
     {
         char* Name {};
