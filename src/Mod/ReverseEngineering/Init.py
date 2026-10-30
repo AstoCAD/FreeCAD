@@ -24,3 +24,5 @@
 # *                                                                         *
 # ***************************************************************************/
 # FreeCAD init script of the ReverseEngineering module
+
+FreeCAD.__unit_test__ += ["TestReverseEngineeringApp"]
