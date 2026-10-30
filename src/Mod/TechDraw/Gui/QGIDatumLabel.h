@@ -104,6 +104,16 @@ protected:
     int getPrecision();
 
     void snapPosition(QPointF& position);
+    bool snapDistance(QPointF& pos, TechDraw::DrawViewDimension* dim, QGIViewDimension* qgivd);
+    bool snapRadial(QPointF& pos, TechDraw::DrawViewDimension* dim, QGIViewDimension* qgivd,
+                    ViewProviderDimension* vp);
+    std::optional<Base::Vector2d> diameterTargetNextToCenter(const Base::Vector2d& center,
+                                                             const Base::Vector2d& centered,
+                                                             const Base::Vector2d& lineDir,
+                                                             const Base::Vector2d& labelCenter,
+                                                             double lineLabelDistance,
+                                                             bool isoOriented) const;
+    bool snapAngle(QPointF& pos, TechDraw::DrawViewDimension* dim, QGIViewDimension* qgivd);
 
     bool getVerticalSep() const { return verticalSep; }
     void setVerticalSep(bool sep) { verticalSep = sep; }
