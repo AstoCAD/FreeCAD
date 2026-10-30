@@ -159,6 +159,27 @@ class TestPostDataObjectSecurity(unittest.TestCase):
         self.open_malicious_document(["/../zipslip_mixed_escape.txt", "/datafile.vtm"])
         self.assertFalse(os.path.exists(target))
 
+    def test_restore_does_not_leak_temp_files(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33360
+        # the temporary copy of the inner zip was deleted while still open, which fails on Windows
+        path = self.write_malicious_document(["/datafile.vtm"])
+        temp_path = FreeCAD.getTempPath()
+
+        def temp_files():
+            return {
+                name
+                for name in os.listdir(temp_path)
+                if os.path.isfile(os.path.join(temp_path, name))
+            }
+
+        before = temp_files()
+        self.document = FreeCAD.openDocument(path)
+        self.assertEqual(len(self.document.Objects), 1)
+        leaked = temp_files() - before
+        for name in leaked:
+            os.remove(os.path.join(temp_path, name))
+        self.assertEqual(leaked, set(), "temporary files left behind after restoring the dataset")
+
     def test_legitimate_dataset_survives_a_round_trip(self):
         """The names FreeCAD itself writes start with a separator and must keep working. Make sure
         that the separator-prefixed names that get generated aren't rejected by the sanitizer: if
