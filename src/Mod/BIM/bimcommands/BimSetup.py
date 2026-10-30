@@ -30,6 +30,64 @@ import FreeCADGui
 translate = FreeCAD.Qt.translate
 QT_TRANSLATE_NOOP = FreeCAD.Qt.QT_TRANSLATE_NOOP
 
+# The licenses of Preferences > General > Document > Default license, in the same
+# order, so the "prefLicenseType" index means the same in both dialogs. This mirrors
+# App::licenseItems in src/App/License.h: keep both lists in sync. The labels are
+# translated with the context of the Preferences page. A last "Other" item keeps
+# the custom license URL typed in Preferences.
+LICENSES = [
+    ("All rights reserved", "https://en.wikipedia.org/wiki/All_rights_reserved"),
+    ("Creative Commons Attribution 4.0", "https://creativecommons.org/licenses/by/4.0/"),
+    (
+        "Creative Commons Attribution-ShareAlike 4.0",
+        "https://creativecommons.org/licenses/by-sa/4.0/",
+    ),
+    (
+        "Creative Commons Attribution-NoDerivatives 4.0",
+        "https://creativecommons.org/licenses/by-nd/4.0/",
+    ),
+    (
+        "Creative Commons Attribution-NonCommercial 4.0",
+        "https://creativecommons.org/licenses/by-nc/4.0/",
+    ),
+    (
+        "Creative Commons Attribution-NonCommercial-ShareAlike 4.0",
+        "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    ),
+    (
+        "Creative Commons Attribution-NonCommercial-NoDerivatives 4.0",
+        "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+    ),
+    ("Creative Commons Attribution 3.0", "https://creativecommons.org/licenses/by/3.0/"),
+    (
+        "Creative Commons Attribution-ShareAlike 3.0",
+        "https://creativecommons.org/licenses/by-sa/3.0/",
+    ),
+    (
+        "Creative Commons Attribution-NoDerivatives 3.0",
+        "https://creativecommons.org/licenses/by-nd/3.0/",
+    ),
+    (
+        "Creative Commons Attribution-NonCommercial 3.0",
+        "https://creativecommons.org/licenses/by-nc/3.0/",
+    ),
+    (
+        "Creative Commons Attribution-NonCommercial-ShareAlike 3.0",
+        "https://creativecommons.org/licenses/by-nc-sa/3.0/",
+    ),
+    (
+        "Creative Commons Attribution-NonCommercial-NoDerivatives 3.0",
+        "https://creativecommons.org/licenses/by-nc-nd/3.0/",
+    ),
+    ("Public Domain", "https://en.wikipedia.org/wiki/Public_domain"),
+    ("FreeArt", "https://artlibre.org/licence/lal"),
+    ("CERN Open Hardware Licence strongly-reciprocal", "https://cern-ohl.web.cern.ch/"),
+    ("CERN Open Hardware Licence weakly-reciprocal", "https://cern-ohl.web.cern.ch/"),
+    ("CERN Open Hardware Licence permissive", "https://cern-ohl.web.cern.ch/"),
+    ("GNU General Public License 3.0 or later", "https://www.gnu.org/licenses/gpl-3.0.html"),
+    ("Other", None),
+]
+
 
 class BIM_Setup:
 
@@ -67,6 +125,9 @@ class BIM_Setup:
         # connect signals / slots
         self.form.comboPresets.currentIndexChanged[int].connect(self.setPreset)
         self.form.labelIfcOpenShell.linkActivated.connect(self.handleLink)
+
+        # same license list as in the preferences
+        self.fillLicenses()
 
         # fill default values
         self.setPreset(None)
@@ -243,14 +304,7 @@ class BIM_Setup:
         FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").SetString(
             "prefAuthor", author
         )
-        lic = self.form.settingLicense.currentIndex()
-        lic = [0, 1, 2, 4, 5][lic]  # less choices in our simplified dialog
-        FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").SetInt(
-            "prefLicenseType", lic
-        )
-        FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").SetString(
-            "prefLicenseUrl", ""
-        )  # TODO - set correct license URL
+        self.saveLicense(self.form.settingLicense.currentIndex())
         newdoc = self.form.settingNewdocument.isChecked()
         FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").SetBool(
             "CreateNewDoc", newdoc
@@ -490,9 +544,6 @@ class BIM_Setup:
             lic = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").GetInt(
                 "prefLicenseType", 0
             )
-            lic = [0, 1, 2, 1, 3, 4, 1, 1, 2, 1, 3, 4, 1, 0, 0, 0, 0, 0, 0][
-                lic
-            ]  # less choices in our simplified dialog
             newdoc = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document").GetBool(
                 "CreateNewDoc", False
             )
@@ -574,6 +625,25 @@ class BIM_Setup:
         if height:
             self.form.settingCameraHeight.setValue(height)
         # TODO - antialiasing?
+
+    def fillLicenses(self):
+        """fills the license combo box with the licenses of the preferences"""
+
+        self.form.settingLicense.clear()
+        for name, url in LICENSES:
+            self.form.settingLicense.addItem(translate("Gui::Dialog::DlgSettingsDocument", name))
+
+    def saveLicense(self, index):
+        """stores the license of the given index of LICENSES and its URL in the preferences"""
+
+        if index < 0 or index >= len(LICENSES):
+            return
+        param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document")
+        param.SetInt("prefLicenseType", index)
+        url = LICENSES[index][1]
+        if url is not None:
+            # "Other" keeps the URL typed by the user in the preferences
+            param.SetString("prefLicenseUrl", url)
 
     def handleLink(self, link):
         if hasattr(self, "form"):
