@@ -107,3 +107,56 @@ class TestArchIfc(TestArchBase.TestArchBase):
         properties that get_psets() leaves out because they have no value."""
         from nativeifc import ifc_psets
         from nativeifc import ifc_tools
+
+        model, wall = _make_wall_file()
+        pset = ifcopenshell.api.run("pset.add_pset", model, product=wall, name="Pset_Custom")
+        single = model.createIfcPropertySingleValue("Single", None, model.createIfcLabel("one"))
+        empty = model.createIfcPropertySingleValue("Empty", None, None)
+        pset.HasProperties = [single, empty]
+        path = os.path.join(tempfile.mkdtemp(), "remove_property.ifc")
+        model.write(path)
+
+        ifc_tools.create_document(self.document, path, shapemode=1, strategy=2, silent=True)
+        self.document.recompute()
+        obj = [o for o in self.document.Objects if getattr(o, "IfcClass", "") == "IfcWall"][0]
+        ifcfile = ifc_tools.get_ifcfile(obj)
+
+        # what ifc_observer does when the user deletes the dynamic property
+        ifc_psets.remove_property(obj, "Single")
+        psets = [p for p in ifcfile.by_type("IfcPropertySet") if p.Name == "Pset_Custom"]
+        self.assertEqual(len(psets), 1, "the property set was deleted with its valueless property")
+        self.assertEqual([p.Name for p in psets[0].HasProperties], ["Empty"])
+
+        # removing the last property still removes the property set
+        ifcopenshell.api.run("pset.edit_pset", ifcfile, pset=psets[0], properties={"Empty": "x"})
+        ifc_psets.remove_property(obj, "Empty")
+        psets = [p for p in ifcfile.by_type("IfcPropertySet") if p.Name == "Pset_Custom"]
+        self.assertEqual(psets, [])
+
+    def _check_imported_wall(self):
+        walls = [o for o in self.document.Objects if o.Label == "TestWall"]
+        self.assertEqual(len(walls), 1, "the IFC wall was not imported")
+        self.assertFalse(walls[0].Shape.isNull())
+        self.assertAlmostEqual(walls[0].Shape.Volume, 5000 * 3000 * 200, delta=1)
+
+    def test_legacy_import_multicore(self):
+        """The legacy (non-native) IFC importer must work with IfcOpenShell 0.8.
+        https://github.com/FreeCAD/FreeCAD/issues/33854"""
+        from importers import importIFC, importIFCHelper
+
+        model, _ = _make_wall_file()
+        path = os.path.join(tempfile.mkdtemp(), "legacy_import.ifc")
+        model.write(path)
+        prefs = importIFCHelper.getPreferences()
+        importIFC.insert(path, self.document.Name, preferences=prefs)
+        self._check_imported_wall()
+
+    def test_legacy_import_singlecore(self):
+        """Same as above, through the single-core code path of importIFC.insert.
+        https://github.com/FreeCAD/FreeCAD/issues/33854"""
+        from importers import importIFC, importIFCHelper
+
+        model, _ = _make_wall_file()
+        prefs = importIFCHelper.getPreferences()
+        importIFC.insert(model, self.document.Name, preferences=prefs)
+        self._check_imported_wall()
