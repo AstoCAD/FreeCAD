@@ -195,3 +195,16 @@ class DraftTrimexGui(DraftTestCaseDoc):
             wire.Points,
             [App.Vector(4, 0, 0), App.Vector(10, 0, 0), App.Vector(10, 15, 0)],
         )
+
+    def test_value_typed_before_mouse_move(self):
+        """Typing a value before the mouse has moved must not fail (#33411)."""
+        points = [App.Vector(0, 0, 0), App.Vector(10, 0, 0)]
+        wire = Draft.make_wire(points)
+        self.doc.recompute()
+        command = self._make_wire_command(wire, None)
+
+        with mock.patch.object(command, "finish") as finish:
+            command.numericRadius(5)
+
+        finish.assert_not_called()
+        self.assertEqual(wire.Points, points)
