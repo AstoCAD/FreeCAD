@@ -60,6 +60,7 @@ class Trajectory_Composite: public Trajectory
         
         // access the single members
         Trajectory *Get(unsigned int n){return vt[n];} // FreeCAD change
+        std::size_t Size() const {return vt.size();} // FreeCAD change
 
 		virtual ~Trajectory_Composite();
 	};
