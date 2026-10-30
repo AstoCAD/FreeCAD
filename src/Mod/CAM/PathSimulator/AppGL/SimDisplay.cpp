@@ -466,11 +466,15 @@ void SimDisplay::SetPathColor(const vec3& normal, const vec3& rapid)
     pathLineColorRapid[0] = rapid[0];
     pathLineColorRapid[1] = rapid[1];
     pathLineColorRapid[2] = rapid[2];
+
+    // the rendered scene is cached, redraw it with the new colors
+    updateDisplay = true;
 }
 
 void SimDisplay::SetPathLineWidth(float width)
 {
     pathLineWidth = width;
+    updateDisplay = true;
 }
 
 void SimDisplay::SetupLinePathPass(int curSegment, bool isHidden)
