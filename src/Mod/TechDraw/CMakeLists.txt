@@ -206,6 +206,7 @@ SET(TDTest_SRCS
     TDTest/TestDimensionFormatPendingGui.py
     TDTest/TestDxfExportPendingTransactionGui.py
     TDTest/DrawMoveViewPageChooserGuiTest.py
+    TDTest/DrawFindPageGuiTest.py
     TDTest/DrawTemplateFieldsDismissalGuiTest.py
     TDTest/TestTemplateFieldsMissingTemplateGui.py
     TDTest/DrawPositionSectionSelectionGuiTest.py

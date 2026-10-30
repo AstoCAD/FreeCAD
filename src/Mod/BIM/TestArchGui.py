@@ -41,4 +41,5 @@ from bimtests.TestBimIfcQuantitiesGui import TestBimIfcQuantitiesGui
 from bimtests.TestArchIfcGui import TestArchIfcGui
 from bimtests.TestBimLibraryGui import TestBimLibraryGui
 from bimtests.TestBimSetupGui import TestBimSetupGui
+from bimtests.TestBimTDViewGui import TestBimTDViewGui
 from bimtests.TestArchReferenceGui import TestArchReferenceGui
