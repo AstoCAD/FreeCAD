@@ -60,6 +60,7 @@ from PartDesignTests.TestSetTipOriginGui import TestSetTipOriginGui
 from PartDesignTests.TestHolePitchGui import TestHolePitchGui
 from PartDesignTests.TestTransformedModeGui import TestTransformedModeGui
 from PartDesignTests.TestBodyLineWidthGui import TestBodyLineWidthGui
+from PartDesignTests.TestCloneColorGui import TestCloneColorGui
 
 
 # timer runs this class in order to access modal dialog
