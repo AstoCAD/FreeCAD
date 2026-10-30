@@ -173,7 +173,8 @@ class ArchReference:
                             for part in self.parts.values():
                                 if part[3]:
                                     # Do not include BuildingParts as their
-                                    # shape is just a copy of their group:
+                                    # shape is just a copy of their group,
+                                    # nor the features of PartDesign Bodies:
                                     continue
                                 f = zdoc.open(part[1])
                                 shapedata = f.read()
@@ -391,12 +392,28 @@ class ArchReference:
             materials = {}
             is_buildingpart = False
             writemode = False
+            types = {}
+            groups = {}
+            ingroup = False
             for line in docf:
                 line = line.decode("utf8")
-                if "<Object name=" in line:
+                if "<Object type=" in line:
+                    n = re.findall(r"name=\"(.*?)\"", line)
+                    t = re.findall(r"type=\"(.*?)\"", line)
+                    if n and t:
+                        types[n[0]] = t[0]
+                elif "<Object name=" in line:
                     n = re.findall(r"name=\"(.*?)\"", line)
                     if n:
                         name = n[0]
+                elif '<Property name="Group" type="App::PropertyLinkList"' in line:
+                    ingroup = True
+                elif ingroup and "<Link value=" in line:
+                    n = re.findall(r"value=\"(.*?)\"", line)
+                    if n and name:
+                        groups.setdefault(name, []).append(n[0])
+                elif ingroup and "</Property>" in line:
+                    ingroup = False
                 elif 'class="BuildingPart"' in line:
                     is_buildingpart = True
                 elif '<Property name="Label"' in line:
@@ -431,6 +448,14 @@ class ArchReference:
                     materials = {}
                     is_buildingpart = False
                     writemode = False
+                    ingroup = False
+        # The shape of a PartDesign Body already contains its features, so
+        # do not include them separately when using the whole object:
+        for container, children in groups.items():
+            if types.get(container) == "PartDesign::Body":
+                for child in children:
+                    if child in parts:
+                        parts[child][3] = True
         return parts
 
     def getIfcFile(self, filename):
