@@ -70,6 +70,7 @@ set(PartDesign_TestScripts
     PartDesignTests/TestThickness.py
     PartDesignTests/TestTopologicalNamingProblem.py
     PartDesignTests/TestInvoluteGear.py
+    PartDesignTests/TestSprocket.py
     PartDesignTests/TestSketch.py
 )
 
