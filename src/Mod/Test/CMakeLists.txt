@@ -46,6 +46,7 @@ SET(Test_SRCS
     TestTreeIconSizePreferenceGui.py
     TestTreeLinkDeletionGui.py
     TestExpressionCompleterGui.py
+    TestStatusTipGui.py
     TestPySideUic.py
     UnicodeTests.py
     UnitTests.py
