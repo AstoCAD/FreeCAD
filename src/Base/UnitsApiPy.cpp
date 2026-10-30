@@ -50,6 +50,10 @@ PyObject* UnitsApi::sParseQuantity(PyObject* /*self*/, PyObject* args)
         PyErr_Format(PyExc_ValueError, "invalid unit expression: '%s'\n", str.c_str());
         return nullptr;
     }
+    catch (const Base::Exception& e) {
+        e.setPyException();
+        return nullptr;
+    }
 }
 
 PyObject* UnitsApi::sListSchemas(PyObject* /*self*/, PyObject* args)

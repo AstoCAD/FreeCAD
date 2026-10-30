@@ -80,6 +80,10 @@ int UnitPy::PyInit(PyObject* args, PyObject* /*kwd*/)
             PyErr_SetString(PyExc_ValueError, e.what());
             return -1;
         }
+        catch (const Base::Exception& e) {
+            e.setPyException();
+            return -1;
+        }
     }
     PyErr_Clear();  // set by PyArg_ParseTuple()
 
