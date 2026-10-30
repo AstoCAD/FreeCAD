@@ -29,8 +29,15 @@
 #include <HLRAlgo_Projector.hxx>
 #include <HLRBRep_HLRToShape.hxx>
 #include <BRep_Builder.hxx>
+#include <BRep_Tool.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <Precision.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Compound.hxx>
+#include <gp_Ax3.hxx>
+#include <gp_Trsf.hxx>
 
 
 #include <App/DocumentObject.h>
@@ -111,5 +118,20 @@ TopoDS_Shape SketchExportHelper::getFlatSketchXY(App::DocumentObject* obj)
         );
     }
     const TopoDS_Shape& shape = sketch->Shape.getValue();
-    return projectShape(shape, projectionCS);
+
+    BRep_Builder builder;
+    TopoDS_Compound comp;
+    builder.MakeCompound(comp);
+    builder.Add(comp, projectShape(shape, projectionCS));
+
+    // the hlr projection only returns edges, so map the sketch's free-standing vertices (sketch
+    // points) to the projection plane separately (#30675)
+    gp_Trsf toProjectionCS;
+    toProjectionCS.SetTransformation(gp_Ax3(projectionCS));
+    for (TopExp_Explorer verts(shape, TopAbs_VERTEX, TopAbs_EDGE); verts.More(); verts.Next()) {
+        gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(verts.Current())).Transformed(toProjectionCS);
+        p.SetZ(0.0);
+        builder.Add(comp, BRepBuilderAPI_MakeVertex(p).Vertex());
+    }
+    return comp;
 }
