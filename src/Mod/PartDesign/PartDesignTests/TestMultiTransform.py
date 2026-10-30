@@ -144,6 +144,36 @@ class TestMultiTransform(unittest.TestCase):
         self.assertAlmostEqual(abs(Body.Shape.Volume), volume, 6)
         self.assertAlmostEqual(abs(Link.Shape.Volume), volume, 6)
 
+    def makePadBody(self):
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        sketch = body.newObject("Sketcher::SketchObject", "SketchPad")
+        TestSketcherApp.CreateRectangleSketch(sketch, (0, 0), (10, 10))
+        pad = body.newObject("PartDesign::Pad", "Pad")
+        pad.Profile = sketch
+        pad.Length = 10
+        self.Doc.recompute()
+        return body, pad
+
+    def testMultiTransformListingItselfFails(self):
+        # Used to recurse in getTransformations() until the stack overflowed
+        body, pad = self.makePadBody()
+        multiTransform = body.newObject("PartDesign::MultiTransform", "MultiTransform")
+        multiTransform.Originals = [pad]
+        multiTransform.Transformations = [multiTransform]
+        self.Doc.recompute()
+        self.assertIn("Invalid", multiTransform.State)
+
+    def testMultiTransformsListingEachOtherFail(self):
+        body, pad = self.makePadBody()
+        first = body.newObject("PartDesign::MultiTransform", "First")
+        second = body.newObject("PartDesign::MultiTransform", "Second")
+        first.Originals = [pad]
+        second.Originals = [pad]
+        first.Transformations = [second]
+        second.Transformations = [first]
+        self.Doc.recompute()
+        self.assertTrue("Invalid" in first.State or "Invalid" in second.State)
+
     def testMultiTransformBody(self):
         pass
         # TODO:  Someone who understands the second mode added to transform needs to
