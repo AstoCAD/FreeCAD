@@ -44,6 +44,7 @@
 #include <Gui/Application.h>
 #include <Gui/Command.h>
 #include <Gui/Document.h>
+#include <Gui/MainWindow.h>
 #include <Gui/ViewProvider.h>
 #include <Gui/PreferencePages/DlgSettingsPDF.h>
 
@@ -51,6 +52,8 @@
 #include <Mod/TechDraw/App/DrawPagePy.h>
 #include <Mod/TechDraw/App/DrawTemplate.h>
 #include <Mod/TechDraw/App/DrawUtil.h>
+#include <Mod/TechDraw/App/DrawViewArch.h>
+#include <Mod/TechDraw/App/DrawViewDraft.h>
 #include <Mod/TechDraw/App/Preferences.h>
 
 #include "PagePrinter.h"
@@ -505,6 +508,32 @@ void PagePrinter::saveDXF(ViewProviderPage* vpPage, const std::string& inFileNam
                             PageName.c_str(),
                             filespec.c_str());
     vpPage->getDocument()->commitCommand();
+}
+
+//! warn the user that the DXF exporter skips BIM and Draft views.
+//! Returns false if the user chose not to export the page.
+bool PagePrinter::confirmDXFExport(TechDraw::DrawPage* page)
+{
+    if (!page) {
+        return true;
+    }
+    for (auto* view : page->getViews()) {
+        QString message;
+        if (view->isDerivedFrom<TechDraw::DrawViewArch>()) {
+            message = QObject::tr("Page contains a BIM view which will not be exported. Continue?");
+        }
+        else if (view->isDerivedFrom<TechDraw::DrawViewDraft>()) {
+            message = QObject::tr("Page contains a Draft view which will not be exported. Continue?");
+        }
+        else {
+            continue;
+        }
+        QMessageBox::StandardButton rc = QMessageBox::question(
+            Gui::getMainWindow(), QObject::tr("Cannot export selection"), message,
+            QMessageBox::StandardButtons(QMessageBox::Yes | QMessageBox::No));
+        return rc != QMessageBox::No;
+    }
+    return true;
 }
 
 // this one is somewhat superfluous (just a redirect).

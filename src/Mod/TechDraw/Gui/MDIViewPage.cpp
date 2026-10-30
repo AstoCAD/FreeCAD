@@ -850,6 +850,9 @@ void MDIViewPage::saveDXF(std::string filename)
 
 void MDIViewPage::saveDXF()
 {
+    if (!PagePrinter::confirmDXFExport(getViewProviderPage()->getDrawPage())) {
+        return;
+    }
     const Gui::FileDialog::FilterList filter {
         {QStringLiteral("DXF"), {"*.dxf"}},
         Gui::FileDialog::Filter::AllFiles(),

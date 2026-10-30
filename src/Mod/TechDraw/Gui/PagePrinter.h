@@ -114,6 +114,7 @@ public:
 
     static void saveSVG(ViewProviderPage* vpPage, const std::string& file);
     static void saveDXF(ViewProviderPage* vpPage, const std::string& file);
+    static bool confirmDXFExport(TechDraw::DrawPage* page);
     static void savePDF(ViewProviderPage* vpPage, const std::string& file);
 
     static void postRenderCleanUp(QGSPage* ourScene,

@@ -65,6 +65,7 @@
 
 #include "DrawGuiUtil.h"
 #include "MDIViewPage.h"
+#include "PagePrinter.h"
 #include "QGIViewPart.h"
 #include "QGSPage.h"
 #include "QGVPage.h"
@@ -1769,20 +1770,8 @@ void CmdTechDrawExportPageDXF::activated(int iMsg)
         return;
     }
 
-    std::vector<App::DocumentObject*> views = page->getViews();
-    for (auto& v : views) {
-        if (v->isDerivedFrom<TechDraw::DrawViewArch>()) {
-            QMessageBox::StandardButton rc = QMessageBox::question(
-                Gui::getMainWindow(), QObject::tr("Cannot export selection"),
-                QObject::tr("Page contains a BIM view which will not be exported. Continue?"),
-                QMessageBox::StandardButtons(QMessageBox::Yes | QMessageBox::No));
-            if (rc == QMessageBox::No) {
-                return;
-            }
-            else {
-                break;
-            }
-        }
+    if (!PagePrinter::confirmDXFExport(page)) {
+        return;
     }
 
     //WF? allow more than one TD Page per Dxf file??  1 TD page = 1 DXF file = 1 drawing?
