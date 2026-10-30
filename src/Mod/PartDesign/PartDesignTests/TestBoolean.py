@@ -493,7 +493,7 @@ class TestBoolean(unittest.TestCase):
         tool.Visibility = False
         self.Doc.recompute()
         self.assertAlmostEqual(boolean.Shape.Volume, 500)
-        self.assertEqual(boolean.getSubObjects(), [])
+        self.assertEqual(len(boolean.getSubObjects()), 0)
 
         with tempfile.TemporaryDirectory() as tmp:
             step = os.path.join(tmp, "boolean.step")
