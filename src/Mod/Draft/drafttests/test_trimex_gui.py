@@ -40,7 +40,8 @@ class DraftTrimexGui(DraftTestCaseDoc):
             [vertex.Point for vertex in line.Shape.Vertexes],
             [App.Vector(-300, -300, 0), App.Vector(100, -300, 0)],
         )
-        shape = gui_trimex._get_global_shape(line)
+        # The selection path starts at the root object (the App Part).
+        shape = gui_trimex._get_global_shape(part, f"{line.Name}.")
         self.assertEqual(
             [vertex.Point for vertex in shape.Vertexes],
             [App.Vector(100, 100, 0), App.Vector(500, 100, 0)],
@@ -99,6 +100,8 @@ class DraftTrimexGui(DraftTestCaseDoc):
         command.edges = shape.Edges
         command.ghost = [mock.Mock()]
         command.activePoint = 0
+        command.lockedActivePoint = None
+        command.axisSetter = None
         command.force = None
         command.doc = self.doc
         command.extrudeMode = False
@@ -112,7 +115,8 @@ class DraftTrimexGui(DraftTestCaseDoc):
 
         command.trimObject()
 
-        self.assertEqual(horizontal.Points, [App.Vector(20, 0, 0), App.Vector(0, 0, 0)])
+        # The start and end points keep their identity (#19189).
+        self.assertEqual(horizontal.Points, [App.Vector(0, 0, 0), App.Vector(20, 0, 0)])
 
     def test_extend_to_object_in_translated_part(self):
         """Trimex should extend between world-space shapes in an App Part."""
@@ -127,15 +131,15 @@ class DraftTrimexGui(DraftTestCaseDoc):
         self.doc.recompute()
 
         command = gui_trimex.Trimex()
-        command.edges = gui_trimex._get_global_shape(horizontal).Edges
+        # Selection and snapping paths start at the root object (the App Part).
+        snapped = {"ParentObject": part, "SubName": f"{vertical.Name}.Edge1"}
+        command.edges = gui_trimex._get_global_shape(part, f"{horizontal.Name}.").Edges
         command.ghost = [mock.Mock()]
         command.activePoint = 0
+        command.lockedActivePoint = None
+        command.axisSetter = None
         command.force = None
-        edges = command.redraw(
-            App.Vector(700, 100, 0),
-            {"ParentObject": vertical, "SubName": "Edge1"},
-            real=True,
-        )
+        edges = command.redraw(App.Vector(700, 100, 0), snapped, real=True)
 
         points = [vertex.Point for vertex in Part.Wire(edges).Vertexes]
         self.assertEqual(points, [App.Vector(700, 100, 0), App.Vector(100, 100, 0)])
@@ -145,11 +149,49 @@ class DraftTrimexGui(DraftTestCaseDoc):
         command.placement = horizontal.getGlobalPlacement()
         command.extrudeMode = False
         command.point = App.Vector(700, 100, 0)
-        command.snapped = {"ParentObject": vertical, "SubName": "Edge1"}
+        command.snapped = snapped
         command.shift = False
         command.alt = False
         command.trimObject()
         self.assertEqual(
             horizontal.Points,
-            [App.Vector(700, 100, 0), App.Vector(100, 100, 0)],
+            [App.Vector(100, 100, 0), App.Vector(700, 100, 0)],
+        )
+
+    def _make_wire_command(self, wire, point):
+        command = gui_trimex.Trimex()
+        command.obj = wire
+        command.placement = wire.getGlobalPlacement()
+        command.edges = gui_trimex._get_global_shape(wire).Wires[0].Edges
+        command.ghost = [mock.Mock() for _ in command.edges]
+        command.activePoint = 0
+        command.lockedActivePoint = None
+        command.axisSetter = None
+        command.force = None
+        command.doc = self.doc
+        command.extrudeMode = False
+        command.point = point
+        command.snapped = None
+        command.shift = False
+        command.alt = False
+        return command
+
+    def test_trim_wire_keeps_start_and_end(self):
+        """Moving either end of a wire must not swap its start and end (#19189)."""
+        points = [App.Vector(0, 0, 0), App.Vector(10, 0, 0), App.Vector(10, 10, 0)]
+        wire = Draft.make_wire(points)
+        self.doc.recompute()
+
+        # Extend the end point.
+        self._make_wire_command(wire, App.Vector(10, 15, 0)).trimObject()
+        self.assertEqual(
+            wire.Points,
+            [App.Vector(0, 0, 0), App.Vector(10, 0, 0), App.Vector(10, 15, 0)],
+        )
+
+        # Shorten the start point.
+        self._make_wire_command(wire, App.Vector(4, 0, 0)).trimObject()
+        self.assertEqual(
+            wire.Points,
+            [App.Vector(4, 0, 0), App.Vector(10, 0, 0), App.Vector(10, 15, 0)],
         )
