@@ -83,3 +83,40 @@ class TestArchReference(TestArchBase.TestArchBase):
         finally:
             os.remove(filename)
             os.rmdir(os.path.dirname(filename))
+
+    def test_wholeFileSkipsHiddenObjects(self):
+        """A whole-file reference must not include hidden objects such as boolean inputs.
+
+        https://github.com/FreeCAD/FreeCAD/issues/23142
+        """
+        source = FreeCAD.newDocument("TestArchReferenceHidden")
+        try:
+            box = source.addObject("Part::Box", "Box")
+            box.Length = box.Width = box.Height = 10
+            cyl = source.addObject("Part::Cylinder", "Cylinder")
+            cyl.Radius = 3
+            cyl.Height = 20
+            common = source.addObject("Part::MultiCommon", "Common")
+            common.Shapes = [box, cyl]
+            source.recompute()
+            # what the GUI does when it creates the boolean
+            box.Visibility = False
+            cyl.Visibility = False
+            expected = common.Shape.Volume
+            filename = os.path.join(tempfile.mkdtemp(), "TestArchReferenceHidden.FCStd")
+            source.saveAs(filename)
+        finally:
+            FreeCAD.closeDocument(source.Name)
+            FreeCAD.setActiveDocument(self.document.Name)
+
+        try:
+            ref = Arch.makeReference(filename)
+            self.document.recompute()
+            self.assertEqual(len(ref.Shape.Solids), 1)
+            self.assertAlmostEqual(ref.Shape.Volume, expected, places=3)
+        finally:
+            try:
+                os.remove(filename)
+                os.rmdir(os.path.dirname(filename))
+            except OSError:
+                pass
