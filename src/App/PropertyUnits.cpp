@@ -68,7 +68,11 @@ Base::Quantity PropertyQuantity::createQuantityFromPy(PyObject* value)
     Base::Quantity quant;
 
     if (PyUnicode_Check(value)) {
-        quant = Quantity::parse(PyUnicode_AsUTF8(value));
+        const char* str = PyUnicode_AsUTF8(value);
+        if (!str) {
+            throw Py::Exception();
+        }
+        quant = Quantity::parse(str);
     }
     else if (PyFloat_Check(value)) {
         quant = Quantity(PyFloat_AsDouble(value), _Unit);
