@@ -85,6 +85,9 @@ CONVERTTXT = translate(
 )
 PREFS = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Help")
 ICON = ":/icons/help-browser.svg"
+# seconds to wait for the documentation server; these requests run in the GUI
+# thread, so without a timeout a stalled connection freezes FreeCAD
+NETWORK_TIMEOUT = 10
 
 
 def show(page, view=None, conv=None):
@@ -166,7 +169,7 @@ def location_url(url_localized: str, url_english: str) -> tuple:
     """
     try:
         req = urllib.request.Request(url_localized)
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=NETWORK_TIMEOUT) as response:
             html = response.read().decode("utf-8")
             if url_localized.startswith(MD_RAW_URL):
                 pagename_match = re.search(r"Name/.*?:\s*(.+)", html)
@@ -177,7 +180,7 @@ def location_url(url_localized: str, url_english: str) -> tuple:
                 return (url_localized, pagename_match.group(1))
             else:
                 return (url_localized, "")
-    except urllib.error.URLError:
+    except (urllib.error.URLError, TimeoutError):
         return (url_english, "")
 
 
@@ -306,10 +309,11 @@ def get_contents(location):
         import urllib.request
 
         try:
-            r = urllib.request.urlopen(location)
+            r = urllib.request.urlopen(location, timeout=NETWORK_TIMEOUT)
+            data = r.read()
         except:
             return ERRORTXT
-        contents = r.read().decode("utf8")
+        contents = data.decode("utf8")
         return contents
     else:
         if os.path.exists(location):
