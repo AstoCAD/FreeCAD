@@ -852,6 +852,15 @@ App::DocumentObjectExecReturn* FeatureExtrude::buildExtrusion(ExtrudeOptions opt
         // set the additive shape property for later usage in e.g. pattern
         this->AddSubShape.setValue(prism);
 
+        // A pocket needs material to remove. Without a base shape it must not
+        // fall through to the code below, which would output the tool itself
+        // and turn the pocket into an additive feature.
+        if (base.isNull() && addSubType == Type::Subtractive) {
+            return new App::DocumentObjectExecReturn(
+                QT_TRANSLATE_NOOP("Exception", "Pocket: There is nothing to subtract from")
+            );
+        }
+
         if (base.shapeType(true) <= TopAbs_SOLID && fuse) {
             prism.Tag = -this->getID();
 
