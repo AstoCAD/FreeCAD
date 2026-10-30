@@ -108,6 +108,7 @@ from drafttests.test_selection_tools_gui import DraftGuiSelectionTools as DraftT
 from drafttests.test_tray_gui import DraftGuiTray as DraftTestGui11
 from drafttests.test_mouse_delay_gui import DraftGuiMouseDelay as DraftTestGui12
 from drafttests.test_layers_gui import DraftGuiLayersManager as DraftTestGui13
+from drafttests.test_groups_gui import DraftGuiGroups as DraftTestGui14
 
 # Use the modules so that code checkers don't complain (flake8)
 True if DraftTestGui01 else False
@@ -121,3 +122,4 @@ True if DraftTestGui09 else False
 True if DraftTestGui11 else False
 True if DraftTestGui12 else False
 True if DraftTestGui13 else False
+True if DraftTestGui14 else False
