@@ -1477,6 +1477,46 @@ class TestSketcherSolver(unittest.TestCase):
         self.checkPerpendicularSplineProjection(App.Vector(a, -a, 0), placement,
                                                verify_alignment=True)
 
+    def testInvalidIndicesAreRejected(self):
+        """Out-of-range geometry and constraint indices raise instead of crashing"""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchInvalidIndices")
+        sketch.addGeometry(Part.LineSegment(vec(0, 0), vec(10, 0)))
+        sketch.addGeometry(Part.LineSegment(vec(0, 5), vec(10, 5)))
+        sketch.addConstraint(Sketcher.Constraint("Distance", 0, 10.0))
+        undef = -2000  # GeoEnum::GeoUndef
+        # Not OSError: Windows reports an access violation as OSError
+        rejected = (IndexError, TypeError, ValueError)
+
+        for index in (-1, 1, 50):
+            with self.assertRaises(rejected, msg="renameConstraint(%d)" % index):
+                sketch.renameConstraint(index, "name")
+            with self.assertRaises(rejected, msg="toggleDriving(%d)" % index):
+                sketch.toggleDriving(index)
+        for refGeoId in (undef, -50, 2, 50):
+            with self.assertRaises(rejected, msg="addSymmetric ref %d" % refGeoId):
+                sketch.addSymmetric([0], refGeoId)
+        for geoId in (undef, -50, 2, 50):
+            with self.assertRaises(rejected, msg="addSymmetric geo %d" % geoId):
+                sketch.addSymmetric([geoId], 1)
+            with self.assertRaises(rejected, msg="addCopy geo %d" % geoId):
+                sketch.addCopy([geoId], vec(1, 0))
+        for geoId in (undef, -2, -1, 2):
+            with self.assertRaises(rejected, msg="addMove geo %d" % geoId):
+                sketch.addMove([geoId], vec(1, 0))
+
+        # The sketch is untouched and the valid operations still work
+        self.assertEqual(sketch.GeometryCount, 2)
+        self.assertEqual(len(sketch.Constraints), 1)
+        self.assertEqual(sketch.addSymmetric([0], 1), (2,))
+        self.assertEqual(len(sketch.addCopy([0], vec(0, 20))), 1)
+        self.assertGreater(sketch.GeometryCount, 3)
+        sketch.addMove([0], vec(1, 0))
+        self.assertAlmostEqual(sketch.Geometry[0].StartPoint.x, 1.0)
+        sketch.toggleDriving(0)
+        self.assertFalse(sketch.Constraints[0].Driving)
+        sketch.renameConstraint(0, "Width")
+        self.assertEqual(sketch.Constraints[0].Name, "Width")
+
     def assertSuccessfulSolve(self, sketch, msg=None):
         status = sketch.solve()
         # TODO: can we get the solver's messages somehow to improve the message?

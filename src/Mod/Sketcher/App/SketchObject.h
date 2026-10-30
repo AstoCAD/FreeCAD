@@ -424,6 +424,9 @@ public:
     /// toggle the driving status of this constraint
     int toggleDriving(int ConstrId)
     {
+        if (ConstrId < 0 || ConstrId >= Constraints.getSize()) {
+            return -1;
+        }
         return setDriving(ConstrId, !Constraints.getValues()[ConstrId]->isDriving);
     }
 

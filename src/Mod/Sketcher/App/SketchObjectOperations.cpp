@@ -1575,6 +1575,11 @@ int SketchObject::addSymmetric(
     // no need to check input data validity as this is an sketchobject managed operation.
     Base::StateLocker lock(managedoperation, true);
 
+    if (!getGeometry(refGeoId)
+        || std::ranges::any_of(geoIdList, [this](int geoId) { return !getGeometry(geoId); })) {
+        return -1;
+    }
+
     const std::vector<Constraint*>& constrvals = this->Constraints.getValues();
     std::vector<Constraint*> newconstrVals(constrvals);
 
@@ -2376,6 +2381,17 @@ int SketchObject::addCopy(
     if (newgeoIdList.empty()) {  // default option to operate on all the geometry
         for (int i = 0; i < int(geovals.size()); i++) {
             newgeoIdList.push_back(i);
+        }
+    }
+
+    if (newgeoIdList.empty()) {
+        return -1;
+    }
+    for (int id : newgeoIdList) {
+        // Only the sketch's own geometry can be moved, copies can also be made of external
+        // geometry.
+        if (!getGeometry(id) || (moveonly && id < 0)) {
+            return -1;
         }
     }
 
