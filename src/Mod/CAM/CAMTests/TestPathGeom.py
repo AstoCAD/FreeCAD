@@ -490,6 +490,42 @@ class TestPathGeom(PathTestBase):
             "CCW",
         )
 
+    def test21(self):
+        """Verify a very short arc is not turned into a half circle (#33146)."""
+        startPoint = Vector(-195.121182, 57.494287, -5.999999)
+        endPoint = Vector(-195.122314, 57.492542, -5.999999)
+        cmd = Path.Command(
+            "G2",
+            {
+                "I": -2.013849,
+                "J": 1.305531,
+                "K": 0,
+                "X": endPoint.x,
+                "Y": endPoint.y,
+                "Z": endPoint.z,
+            },
+        )
+        edge = Path.Geom.edgeForCmd(cmd, startPoint)
+        self.assertRoughly(edge.Length, 0.002, 0.001)
+        self.assertCoincide(edge.valueAt(edge.FirstParameter), startPoint)
+        self.assertCoincide(edge.valueAt(edge.LastParameter), endPoint)
+
+        # a real half circle is still recognized
+        p1 = Vector(1, 0, 0)
+        p2 = Vector(-1, 0, 0)
+        self.assertArc(
+            Path.Geom.edgeForCmd(Path.Command("G2", {"X": -1, "Y": 0, "I": -1, "J": 0}), p1),
+            p1,
+            p2,
+            "CW",
+        )
+        self.assertArc(
+            Path.Geom.edgeForCmd(Path.Command("G3", {"X": -1, "Y": 0, "I": -1, "J": 0}), p1),
+            p1,
+            p2,
+            "CCW",
+        )
+
     def test30(self):
         """Verify proper geometry for arcs with rising and fall ing Z-axis are created."""
         # print("------ rising helix -------")
