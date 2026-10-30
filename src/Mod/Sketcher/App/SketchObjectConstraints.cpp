@@ -863,6 +863,10 @@ int SketchObject::deleteAllConstraints(DeleteOptions options)
 void SketchObject::addGeometryState(const Constraint* cstr) const
 {
     const std::vector<Part::Geometry*>& vals = getInternalGeometry();
+    // the state lives on internal geometry only (a Block on an axis or external edge has none)
+    if (cstr->First < 0 || cstr->First >= int(vals.size())) {
+        return;
+    }
 
     Sketcher::InternalType::InternalType constraintInternalAlignment = InternalType::None;
     bool constraintBlockedState = false;
@@ -880,6 +884,9 @@ void SketchObject::addGeometryState(const Constraint* cstr) const
 void SketchObject::removeGeometryState(const Constraint* cstr) const
 {
     const std::vector<Part::Geometry*>& vals = getInternalGeometry();
+    if (cstr->First < 0 || cstr->First >= int(vals.size())) {
+        return;
+    }
 
     // Assign correct Internal Geometry Type (see SketchGeometryExtension)
     if (cstr->Type == InternalAlignment) {
