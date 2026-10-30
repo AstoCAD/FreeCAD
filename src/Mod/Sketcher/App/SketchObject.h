@@ -1258,7 +1258,9 @@ private:
 
     /** this internal flag indicate that an operation modifying the geometry, but not the DoF of the
        sketch took place (e.g. toggle construction), so if next action is a movement of a point
-       (moveGeometry), the geometry must be updated first.
+       (moveGeometry), the geometry must be updated first. It is also set by any change of Geometry
+       or Constraints that the solver did not write itself (e.g. addGeometry() or delConstraint()
+       without a solve), whose solver copy is then out of date.
     */
     bool solverNeedsUpdate;
 

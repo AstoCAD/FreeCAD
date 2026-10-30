@@ -176,6 +176,8 @@ SketchSolveStatus SketchObject::solve(bool updateGeoAfterSolving /*=true*/)
             Part::PropertyGeometryList tmp;
             tmp.setValues(std::move(geomlist));
             Geometry.moveValues(std::move(tmp));
+            // the solver's own result: it is up to date
+            solverNeedsUpdate = false;
         }
     }
 

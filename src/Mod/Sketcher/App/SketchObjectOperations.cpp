@@ -120,6 +120,9 @@ SketchSolveStatus SketchObject::moveGeometries(
     // geometry to that of of SketchObject upon moving. => use updateGeometry parameter = true then
 
 
+    // A change of Geometry or Constraints without a solve (e.g. addGeometry() or delConstraint()
+    // from Python) sets solverNeedsUpdate: the solver's old copy would overwrite the new geometry
+    // below.
     if (updateGeoBeforeMoving || solverNeedsUpdate) {
         lastDoF = solvedSketch.setUpSketch(
             getCompleteGeometry(),
@@ -149,7 +152,15 @@ SketchSolveStatus SketchObject::moveGeometries(
 
     if (lastSolverStatus == GCS::SolveStatus::Success) {
         std::vector<Part::Geometry*> geomlist = solvedSketch.extractGeometry();
-        Geometry.setValues(geomlist);
+        if (static_cast<int>(geomlist.size()) == Geometry.getSize()) {
+            Geometry.setValues(geomlist);
+            // the solver's own result: it is up to date
+            solverNeedsUpdate = false;
+        }
+        else {
+            // never replace the sketch geometry by a shorter or longer solver list
+            lastSolverStatus = GCS::SolveStatus::Failed;
+        }
         for (auto* geo : geomlist) {
             delete geo;
         }

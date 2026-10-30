@@ -1576,6 +1576,52 @@ class TestSketcherSolver(unittest.TestCase):
         sketch.moveGeometry(1, 3, vec(1, -15), False)
         self.assertVectorAlmostEqual(sketch.Geometry[1].Center, vec(1, -15))
 
+    def testMoveGeometryAfterUnsolvedChanges(self):
+        """Moving after adding geometry without a solve keeps the new geometry"""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchMoveStaleSolver")
+        sketch.addGeometry(Part.LineSegment(vec(0, 0), vec(5, 1)))
+        self.assertSuccessfulSolve(sketch)
+        sketch.addGeometry(Part.LineSegment(vec(0, 5), vec(1, 9)))
+        sketch.moveGeometry(0, 2, vec(6, 2), False)
+        self.assertEqual(sketch.GeometryCount, 2)
+        self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(6, 2))
+        self.assertVectorAlmostEqual(sketch.Geometry[1].EndPoint, vec(1, 9))
+        # addCopy also adds constraints on the copy; losing the copy left them
+        # pointing at missing geometry (calculateConstraintError then crashed)
+        sketch.addCopy([0], vec(0, 20), False)
+        self.assertEqual(sketch.GeometryCount, 4)
+        sketch.moveGeometry(0, 2, vec(7, 2), False)
+        self.assertEqual(sketch.GeometryCount, 4)
+        self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(7, 2))
+        for index, constraint in enumerate(sketch.Constraints):
+            self.assertLess(constraint.First, sketch.GeometryCount)
+            self.assertLess(constraint.Second, sketch.GeometryCount)
+            error = sketch.calculateConstraintError(index)
+            # calculateConstraintError gives NaN for a one-line Angle (unrelated to this fix)
+            if constraint.Type != "Angle":
+                self.assertAlmostEqual(error, 0.0, delta=1e-6)
+
+    def testMoveGeometryAfterUnsolvedReplacement(self):
+        """Moving after changes that keep the geometry count uses the current sketch"""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchMoveReplaced")
+        sketch.addGeometry(Part.LineSegment(vec(0, 0), vec(5, 1)))
+        self.assertSuccessfulSolve(sketch)
+        # one line removed, another added: the solver still has the removed one
+        sketch.addGeometry(Part.LineSegment(vec(0, 10), vec(3, 14)))
+        sketch.delGeometry(0)
+        sketch.moveGeometry(0, 2, vec(4, 15), False)
+        self.assertEqual(sketch.GeometryCount, 1)
+        self.assertVectorAlmostEqual(sketch.Geometry[0].StartPoint, vec(0, 10))
+        self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(4, 15))
+        # a removed constraint must not hold the moved geometry any more
+        sketch.addConstraint(Sketcher.Constraint("Horizontal", 0))
+        self.assertSuccessfulSolve(sketch)
+        sketch.delConstraint(0)
+        start = App.Vector(sketch.Geometry[0].StartPoint)
+        sketch.moveGeometry(0, 2, vec(9, 30), False)
+        self.assertVectorAlmostEqual(sketch.Geometry[0].StartPoint, start)
+        self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(9, 30))
+
     def testSetDatumErrorMessages(self):
         # https://github.com/FreeCAD/FreeCAD/issues/26506
         # A sketch with redundant constraints rejected any new datum with the
