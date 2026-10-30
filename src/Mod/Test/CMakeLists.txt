@@ -80,6 +80,7 @@ SET(Test_SRCS
     TestUserEditModeGui.py
     TestPlacementDialogGui.py
     TestLinkToggleVisibilityGui.py
+    TestComboBoxShortcutGui.py
 )
 
 SET(TestData_SRCS
