@@ -374,6 +374,9 @@ bool Fem::Tools::getCylinderParams(
     double& radius
 )
 {
+    if (sh.IsNull()) {
+        return false;
+    }
     if (sh.ShapeType() == TopAbs_FACE) {
         TopoDS_Face face = TopoDS::Face(sh);
         BRepAdaptor_Surface surface(face);

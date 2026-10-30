@@ -120,6 +120,62 @@ class TestObjectCreate(unittest.TestCase):
 
 # ************************************************************************************************
 # ************************************************************************************************
+class TestConstraintReferences(unittest.TestCase):
+    fcc_print("import TestConstraintReferences")
+
+    # ********************************************************************************************
+    def setUp(self):
+        self.document = FreeCAD.newDocument(self.__class__.__name__)
+
+    # ********************************************************************************************
+    def tearDown(self):
+        FreeCAD.closeDocument(self.document.Name)
+
+    # ********************************************************************************************
+    def test_00print(self):
+        fcc_print(
+            "\n{0}\n{1} run FEM TestConstraintReferences tests {2}\n{0}".format(
+                100 * "*", 10 * "*", 50 * "*"
+            )
+        )
+
+    # ********************************************************************************************
+    def test_references_without_part_shape(self):
+        # The C++ constraints treated every referenced object as a Part::Feature with a
+        # valid sub shape. A reference to another kind of object (here a group) or to an
+        # empty shape crashed (access violation).
+        doc = self.document
+        group = doc.addObject("App::DocumentObjectGroup", "Group")
+        empty = doc.addObject("Part::Feature", "Empty")
+        cylinder = doc.addObject("Part::Cylinder", "Cylinder")
+        doc.recompute()
+
+        type_ids = [
+            "Fem::ConstraintFixed",
+            "Fem::ConstraintForce",
+            "Fem::ConstraintBearing",
+            "Fem::ConstraintGear",
+            "Fem::ConstraintPulley",
+            "Fem::ConstraintTransform",
+        ]
+        for type_id in type_ids:
+            con = doc.addObject(type_id)
+            if type_id == "Fem::ConstraintTransform":
+                con.TransformType = "Cylindrical"
+            con.References = [(group, "")]
+            con.References = [(empty, "")]
+            con.References = [(cylinder, "Face1")]
+            if hasattr(con, "Location"):
+                con.Location = (group, [""])
+                con.Location = (empty, [""])
+                con.Dist = 2
+                self.assertEqual(con.Location, (empty, [""]))
+            self.assertEqual(con.References, [(cylinder, ("Face1",))])
+        doc.recompute()
+
+
+# ************************************************************************************************
+# ************************************************************************************************
 class TestObjectType(unittest.TestCase):
     fcc_print("import TestObjectType")
 

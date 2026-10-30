@@ -108,8 +108,11 @@ void ConstraintTransform::onChanged(const App::Property* prop)
                 return;
             }
 
-            Part::Feature* feat = static_cast<Part::Feature*>(ref.front());
-            TopoDS_Shape sh = Tools::getFeatureSubShape(feat, subRef.front().c_str(), true);
+            auto* feat = freecad_cast<Part::Feature*>(ref.front());
+            TopoDS_Shape sh;
+            if (feat) {
+                sh = Tools::getFeatureSubShape(feat, subRef.front().c_str(), true);
+            }
 
             Base::Vector3d axis, base;
             double height, radius;
