@@ -79,6 +79,7 @@ SET(Test_SRCS
     TestSelectionSearchClearGui.py
     TestCornerAxisCrossVisual.py
     TestViewProviderLink.py
+    TestViewCallbackRemovalGui.py
     TestUserEditModeGui.py
     TestPlacementDialogGui.py
     TestLinkToggleVisibilityGui.py
