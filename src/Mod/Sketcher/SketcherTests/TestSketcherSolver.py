@@ -1538,6 +1538,17 @@ class TestSketcherSolver(unittest.TestCase):
             sketch.delConstraints([1, 1])
         self.assertEqual(len(sketch.Constraints), 1)
 
+    def testSplitRejectsPoint(self):
+        """Splitting a point raises instead of dereferencing a missing curve"""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchSplitPoint")
+        sketch.addGeometry(Part.LineSegment(vec(0, 0), vec(10, 0)))
+        sketch.addGeometry(Part.Point(vec(3, 3)))
+        with self.assertRaises(ValueError):
+            sketch.split(1, vec(3, 3))
+        self.assertEqual(sketch.GeometryCount, 2)
+        sketch.split(0, vec(4, 0))
+        self.assertEqual(sketch.GeometryCount, 3)
+
     def testSetDatumErrorMessages(self):
         # https://github.com/FreeCAD/FreeCAD/issues/26506
         # A sketch with redundant constraints rejected any new datum with the
