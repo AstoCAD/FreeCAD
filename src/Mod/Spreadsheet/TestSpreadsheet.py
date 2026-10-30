@@ -1775,6 +1775,26 @@ class SpreadsheetCases(unittest.TestCase):
         with self.assertRaises(TypeError):
             sheet.setBackground("A1", "red")
 
+    def testInsertRemoveZeroRowsColumns(self):
+        """Inserting or removing zero (or a negative number of) rows/columns
+        used to move every following cell onto itself, which freed the cell
+        and crashed (access violation)"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "1")
+        sheet.set("B2", "=A1 + 1")
+        sheet.setAlias("B2", "res")
+        for count in (0, -1):
+            sheet.insertColumns("A", count)
+            sheet.removeColumns("A", count)
+            sheet.insertRows("1", count)
+            sheet.removeRows("1", count)
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("A1"), "1")
+        self.assertEqual(sheet.getContents("B2"), "=A1 + 1")
+        self.assertEqual(sheet.getAlias("B2"), "res")
+        self.assertEqual(sheet.res, 2)
+        self.assertEqual(sorted(sheet.getUsedCells()), ["A1", "B2"])
+
     def testImportXLSXSharedFormulas(self):
         """Issue #20299: cells using a shared formula (formula dragged down
         or across in Excel) must be imported"""
