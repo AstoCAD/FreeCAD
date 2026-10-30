@@ -235,14 +235,7 @@ def insert(srcfile, docname, skip=[], only=[], root=None, preferences=None):
     #         ctx.Precision = ctx.Precision/100
 
     # Set default ifcopenshell options to work in brep mode
-    settings = geom.settings()
-    settings.set(settings.USE_BREP_DATA, True)
-    settings.set(settings.SEW_SHELLS, True)
-    settings.set(settings.USE_WORLD_COORDS, True)
-    if preferences["SEPARATE_OPENINGS"]:
-        settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, True)
-    if preferences["SPLIT_LAYERS"] and hasattr(settings, "APPLY_LAYERSETS"):
-        settings.set(settings.APPLY_LAYERSETS, True)
+    settings = importIFCHelper.getGeomSettings(preferences)
 
     # build all needed tables
     if preferences["DEBUG"]:

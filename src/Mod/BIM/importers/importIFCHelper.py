@@ -195,6 +195,30 @@ class ProjectImporter:
         return round(math.degrees(math.atan2(y, x)) - 90, 6)
 
 
+def getGeomSettings(preferences):
+    """Return ifcopenshell geometry settings that produce brep data.
+
+    Works with IfcOpenShell 0.7 (USE_BREP_DATA) and 0.8 (ITERATOR_OUTPUT).
+    """
+    import ifcopenshell
+    from ifcopenshell import geom
+
+    settings = geom.settings()
+    if hasattr(settings, "USE_BREP_DATA"):
+        # IfcOpenShell 0.7
+        settings.set(settings.USE_BREP_DATA, True)
+        settings.set(settings.SEW_SHELLS, True)
+    else:
+        # IfcOpenShell 0.8
+        settings.set("ITERATOR_OUTPUT", ifcopenshell.ifcopenshell_wrapper.SERIALIZED)
+    settings.set(settings.USE_WORLD_COORDS, True)
+    if preferences["SEPARATE_OPENINGS"]:
+        settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, True)
+    if preferences["SPLIT_LAYERS"] and hasattr(settings, "APPLY_LAYERSETS"):
+        settings.set(settings.APPLY_LAYERSETS, True)
+    return settings
+
+
 def buildRelProductsAnnotations(ifcfile, root_element="IfcProduct"):
     """Build the products and annotations relation table."""
     products = ifcfile.by_type(root_element)
