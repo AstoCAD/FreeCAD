@@ -35,6 +35,7 @@
 #include <Precision.hxx>
 #include <Bnd_Box.hxx>
 #include <QApplication>
+#include <QLocale>
 #include <QPainter>
 #include <algorithm>
 #include <sstream>
@@ -69,7 +70,6 @@
 #include "EditDatumDialog.h"
 #include "Utils.h"
 #include "ViewProviderSketch.h"
-#include "ui_InsertDatum.h"
 #include <Inventor/events/SoKeyboardEvent.h>
 #include "SnapManager.h"
 
@@ -10181,6 +10181,24 @@ void CmdSketcherConstrainSymmetric::applyConstraint(std::vector<SelIdPair>& selS
 
 // ======================================================================================
 
+// Last ratio accepted in the datum dialog of a Snell's law constraint (see EditDatumDialog)
+static double lastUsedRefractiveIndexRatio()
+{
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/History/SketcherRefrIndexRatio");
+    QString text = QString::fromStdString(hGrp->GetASCII("DatumValue", "")).trimmed();
+
+    bool ok = false;
+    double ratio = QLocale().toDouble(text, &ok);
+    if (!ok) {
+        ratio = QLocale::c().toDouble(text, &ok);
+    }
+    if (!ok || ratio <= 0.0) {
+        ratio = 1.0;
+    }
+    return ratio;
+}
+
 DEF_STD_CMD_A(CmdSketcherConstrainSnellsLaw)
 
 CmdSketcherConstrainSnellsLaw::CmdSketcherConstrainSnellsLaw()
@@ -10291,35 +10309,9 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
         return;
     }
 
-    double n2divn1 = 0;
-
-    // the essence.
-    // Unlike other constraints, we'll ask for a value immediately.
-    QDialog dlg(Gui::getMainWindow());
-    Ui::InsertDatum ui_Datum;
-    ui_Datum.setupUi(&dlg);
-    dlg.setWindowTitle(EditDatumDialog::tr("Refractive Index Ratio"));
-    ui_Datum.label->setText(EditDatumDialog::tr("Ratio n2/n1:"));
-    Base::Quantity init_val;
-    init_val.setUnit(Base::Unit());
-    init_val.setValue(0.0);
-
-    ui_Datum.labelEdit->setValue(init_val);
-    ui_Datum.labelEdit->setParamGrpPath(
-        QByteArray("User parameter:BaseApp/History/SketcherRefrIndexRatio"));
-    ui_Datum.labelEdit->setEntryName(QByteArray("DatumValue"));
-    ui_Datum.labelEdit->setToLastUsedValue();
-    ui_Datum.labelEdit->selectNumber();
-    ui_Datum.labelEdit->setSingleStep(0.05);
-    // Unable to bind, because the constraint does not yet exist
-
-    if (dlg.exec() != QDialog::Accepted) {
-        return;
-    }
-    ui_Datum.labelEdit->pushToHistory();
-
-    Base::Quantity newQuant = ui_Datum.labelEdit->value();
-    n2divn1 = newQuant.getValue();
+    // Create the constraint with the last ratio entered in the datum dialog, then let the user
+    // edit it with the same dialog as the other dimensional constraints.
+    double n2divn1 = lastUsedRefractiveIndexRatio();
 
     // add constraint
     openCommand(QT_TRANSLATE_NOOP("Command", "Add Snell's law constraint"));
@@ -10365,7 +10357,7 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
         abortCommand();
         return;
     }
-    finishTransactionAndUpdate(this, Obj);
+    finishDatumConstraint(this, Obj, true);
 }
 
 bool CmdSketcherConstrainSnellsLaw::isActive()
