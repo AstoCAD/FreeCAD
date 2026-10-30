@@ -34,6 +34,16 @@ class TestRobotTrajectory(unittest.TestCase):
         with self.assertRaises(ValueError):
             Robot.Trajectory([_waypoint(0), _waypoint(1)]).deleteLast(-1)
 
+    def test_infeasible_trajectory_constructor_raises(self):
+        """A KDL failure in Trajectory() must become a Python exception, not escape as C++."""
+        waypoints = [_waypoint(0, cont=True) for _ in range(3)]
+        with self.assertRaises(RuntimeError):
+            Robot.Trajectory(waypoints)
+        # the same failure through a regular method was already converted
+        trac = Robot.Trajectory(waypoints[:2])
+        with self.assertRaises(RuntimeError):
+            trac.insertWaypoints(waypoints[2])
+
     def test_delete_last_unchanged(self):
         trac = Robot.Trajectory([_waypoint(i) for i in range(5)])
         self.assertEqual(len(trac.deleteLast(0).Waypoints), 4)
