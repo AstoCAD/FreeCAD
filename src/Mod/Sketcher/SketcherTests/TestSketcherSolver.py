@@ -1516,6 +1516,53 @@ class TestSketcherSolver(unittest.TestCase):
         self.assertFalse(sketch.Constraints[0].Driving)
         sketch.renameConstraint(0, "Width")
         self.assertEqual(sketch.Constraints[0].Name, "Width")
+    def testSetDatumErrorMessages(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/26506
+        # A sketch with redundant constraints rejected any new datum with the
+        # message "Datum ... is invalid", blaming the value instead of the sketch.
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SetDatumMessages")
+        sketch.addGeometry(Part.LineSegment(vec(0, 0), vec(10, 0)), False)
+        sketch.addGeometry(Part.Circle(vec(30, 0), App.Vector(0, 0, 1), 5), False)
+        sketch.addConstraint(Sketcher.Constraint("Horizontal", 0))
+        sketch.addConstraint(Sketcher.Constraint("Horizontal", 0))
+        distance = sketch.addConstraint(Sketcher.Constraint("Distance", 0, 10.0))
+        radius = sketch.addConstraint(Sketcher.Constraint("Radius", 1, 5.0))
+        self.Doc.recompute()
+
+        with self.assertRaises(ValueError) as context:
+            sketch.setDatum(distance, App.Units.Quantity("20 mm"))
+        message = str(context.exception)
+        self.assertIn("redundant constraints", message)
+        self.assertNotIn("is invalid", message)
+        self.assertAlmostEqual(sketch.getDatum(distance).Value, 10.0)
+
+        # The checks on the value itself keep their own messages.
+        with self.assertRaises(ValueError) as context:
+            sketch.setDatum(radius, -1.0)
+        self.assertIn("Negative datum values are not valid", str(context.exception))
+        with self.assertRaises(ValueError) as context:
+            sketch.setDatum(radius, 0.0)
+        self.assertIn("Zero is not a valid datum", str(context.exception))
+        with self.assertRaises(ValueError) as context:
+            sketch.setDatum(42, 1.0)
+        self.assertIn("Invalid constraint index", str(context.exception))
+
+        # A positive radius on an over-constrained sketch used to be rejected
+        # as "Negative datum values are not valid".
+        sketch2 = self.Doc.addObject("Sketcher::SketchObject", "SetDatumOverconstrained")
+        circle = sketch2.addGeometry(Part.Circle(vec(0, 0), App.Vector(0, 0, 1), 20), False)
+        point = sketch2.addGeometry(Part.Point(vec(20, 0)), False)
+        sketch2.addConstraint(Sketcher.Constraint("Coincident", circle, 3, -1, 1))
+        sketch2.addConstraint(Sketcher.Constraint("DistanceX", -1, 1, point, 1, 20.0))
+        sketch2.addConstraint(Sketcher.Constraint("DistanceY", -1, 1, point, 1, 0.0))
+        sketch2.addConstraint(Sketcher.Constraint("PointOnObject", point, 1, circle))
+        radius2 = sketch2.addConstraint(Sketcher.Constraint("Radius", circle, 20.0))
+        self.Doc.recompute()
+        with self.assertRaises(ValueError) as context:
+            sketch2.setDatum(radius2, 5.0)
+        message = str(context.exception)
+        self.assertNotIn("Negative", message)
+        self.assertIn("Cannot set the datum", message)
 
     def assertSuccessfulSolve(self, sketch, msg=None):
         status = sketch.solve()
