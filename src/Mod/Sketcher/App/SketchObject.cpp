@@ -1036,9 +1036,12 @@ void SketchObject::onChanged(const App::Property* prop)
         }
     }
     else if (prop == &Geometry) {
+        // the solver's copy is older now, unless the solver wrote it (see solve())
+        solverNeedsUpdate = true;
         onGeometryChanged();
     }
     else if (prop == &Constraints) {
+        solverNeedsUpdate = true;
         onConstraintsChanged();
     }
     else if (prop == &ExternalGeo && !prop->testStatus(App::Property::User3)) {
