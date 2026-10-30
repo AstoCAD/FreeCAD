@@ -76,6 +76,7 @@ SET(Draft_tests
     drafttests/test_manual_input_gui.py
     drafttests/test_modification.py
     drafttests/test_trimex_gui.py
+    drafttests/test_tray_gui.py
     drafttests/test_oca.py
     drafttests/test_pivy.py
     drafttests/test_selection_tools_gui.py
