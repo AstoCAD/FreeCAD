@@ -7,6 +7,7 @@ endif(BUILD_GUI)
 
 set(Inspection_Scripts
     Init.py
+    TestInspectionApp.py
 )
 
 if(BUILD_GUI)
