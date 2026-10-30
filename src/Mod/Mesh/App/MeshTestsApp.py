@@ -704,6 +704,27 @@ class MeshFacetIndexRange(unittest.TestCase):
         self.assertEqual(len(MeshPart.wireFromSegment(self.mesh, [0, 1])), 1)
 
 
+class MeshModuleExport(unittest.TestCase):
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("MeshExportTest")
+        self.mesh = self.doc.addObject("Mesh::Feature", "Box")
+        self.mesh.Mesh = Mesh.createBox(1.0, 1.0, 1.0)
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def testExportErrorRaisesPythonException(self):
+        # Mesh.export() accepts keywords. Its C++ exceptions were not translated, so a
+        # failing export escaped the Python interpreter as a C++ exception (aborting the
+        # running script) instead of raising a Python exception.
+        name = os.path.join(tempfile.gettempdir(), "no_such_mesh_export_dir", "box.amf")
+        self.assertFalse(os.path.exists(os.path.dirname(name)))
+        with self.assertRaises(RuntimeError):
+            Mesh.export([self.mesh], name)
+        with self.assertRaises(RuntimeError):
+            Mesh.export([self.mesh], name, tolerance=0.1, exportAmfCompressed=False)
+
+
 class MeshProperty(unittest.TestCase):
     def setUp(self):
         self.doc = FreeCAD.newDocument("MeshTest")
