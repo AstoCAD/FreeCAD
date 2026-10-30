@@ -72,5 +72,34 @@ class DraftArray(test_base.DraftTestCaseDoc):
         self.doc.recompute(None, True, True)
         self.assertEqual(array.Count, array.NumberX)
 
+    def test_link_array_self_base(self):
+        """A link array must not accept itself as Base.
+
+        Linking to itself used to overflow the stack on the next recompute.
+        """
+        box = self.doc.addObject("Part::Box", "Box")
+        wire = Draft.make_wire([Vector(0, 0, 0), Vector(10, 0, 0), Vector(20, 5, 0)])
+        point = Draft.make_point(0, 0, 0)
+        self.doc.recompute()
+        arrays = [
+            Draft.make_ortho_array(box, Vector(10, 0, 0), Vector(0, 10, 0), Vector(0, 0, 10), 2, 1, 1),
+            Draft.make_path_array(box, wire, 3),
+            Draft.make_point_array(box, point),
+        ]
+        self.doc.recompute()
+        for array in arrays:
+            array.Base = array
+            self.assertIsNone(array.Base, array.Name)
+        self.doc.addObject("Part::Box", "Box001")
+        self.doc.recompute()
+        self.doc.Box001.touch()
+        self.doc.recompute()
+        for array in arrays:
+            array.Base = box
+        self.doc.recompute()
+        for array in arrays:
+            self.assertEqual(array.Base, box, array.Name)
+            self.assertFalse(array.Shape.isNull(), array.Name)
+
 
 ## @}
