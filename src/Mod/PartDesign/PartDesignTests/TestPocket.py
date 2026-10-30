@@ -314,6 +314,23 @@ class TestPocket(unittest.TestCase):
         self.assertEqual(representations(padSketch.Shape), padBefore)
         self.assertEqual(representations(pocketSketch.Shape), pocketBefore)
         self.assertEqual(representations(grooveSketch.Shape), grooveBefore)
+    def testPocketWithoutBaseIsNotAdditive(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/28712
+        # A pocket that has no base shape (e.g. after the feature in front of it
+        # was deleted) must fail instead of producing its tool as a solid.
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.PocketSketch = self.Doc.addObject("Sketcher::SketchObject", "PocketSketch")
+        self.Body.addObject(self.PocketSketch)
+        TestSketcherApp.CreateRectangleSketch(self.PocketSketch, (0, 0), (10, 10))
+        self.Doc.recompute()
+        self.Pocket = self.Doc.addObject("PartDesign::Pocket", "Pocket")
+        self.Body.addObject(self.Pocket)
+        self.Pocket.Profile = self.PocketSketch
+        self.Pocket.Length = 5
+        self.Doc.recompute()
+        self.assertIn("Invalid", self.Pocket.State)
+        self.assertTrue(self.Pocket.Shape.isNull() or self.Pocket.Shape.Volume < 1e-7)
+        self.assertTrue(self.Body.Shape.isNull() or self.Body.Shape.Volume < 1e-7)
 
     def tearDown(self):
         # closing doc
