@@ -463,6 +463,47 @@ class TestBoolean(unittest.TestCase):
         self.assertIsNone(common.getParent())
         self.assertAlmostEqual(common.Shape.Volume, 125)
 
+    def testBooleanExportUsesBooleanShape(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/20641
+        # Exporting a Boolean must write its result, not its tool bodies.
+        import os
+        import tempfile
+
+        import Import
+        import Mesh
+        import Part
+
+        tool = self.Doc.addObject("PartDesign::Body", "Body")
+        toolBox = self.Doc.addObject("PartDesign::AdditiveBox", "Box")
+        toolBox.Length = 10
+        toolBox.Width = 10
+        toolBox.Height = 10
+        tool.addObject(toolBox)
+        body = self.Doc.addObject("PartDesign::Body", "Body001")
+        box = self.Doc.addObject("PartDesign::AdditiveBox", "Box001")
+        box.Length = 10
+        box.Width = 10
+        box.Height = 10
+        box.Placement.Base = App.Vector(-5, 0, 0)
+        body.addObject(box)
+        boolean = self.Doc.addObject("PartDesign::Boolean", "BooleanCut")
+        body.addObject(boolean)
+        boolean.setObjects([tool])
+        boolean.Type = 1
+        tool.Visibility = False
+        self.Doc.recompute()
+        self.assertAlmostEqual(boolean.Shape.Volume, 500)
+        self.assertEqual(len(boolean.getSubObjects()), 0)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            step = os.path.join(tmp, "boolean.step")
+            Import.export([boolean], step)
+            self.assertAlmostEqual(Part.read(step).Volume, 500, places=3)
+
+            stl = os.path.join(tmp, "boolean.stl")
+            Mesh.export([boolean], stl)
+            self.assertAlmostEqual(Mesh.Mesh(stl).Volume, 500, places=3)
+
     def tearDown(self):
         if hasattr(App, "KeepTestDoc") and App.KeepTestDoc:
             return
