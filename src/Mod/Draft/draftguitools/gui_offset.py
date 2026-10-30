@@ -318,8 +318,11 @@ class Offset(gui_base_original.Modifier):
             _cmd += "FreeCAD.ActiveDocument."
             _cmd += self.sel.Name + ", "
             _cmd += delta + ", "
-            _cmd += "copy=" + str(copymode) + ", "
-            _cmd += "occ=" + str(occmode)
+            _cmd += "copy=" + str(copymode)
+            if self.mode != "BSpline":
+                # A BSpline is offset by moving its points, as in action(),
+                # the OCC-style offset does not apply to it.
+                _cmd += ", occ=" + str(occmode)
             _cmd += ")"
             _cmd_list = ["offst = " + _cmd, "FreeCAD.ActiveDocument.recompute()"]
             self.commit(translate("draft", "Offset"), _cmd_list)
