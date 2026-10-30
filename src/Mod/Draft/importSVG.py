@@ -1482,7 +1482,22 @@ def replace_use_with_reference(file_path):
             ns_prefix = "" if prefix is None or prefix == "svg" else prefix
             ET.register_namespace(ns_prefix, uri)
 
+    def used_ids(use, parent_map, expanded):
+        # ids of the use tag, of its ancestors and of the elements already
+        # expanded around it: referencing one of them would never end.
+        ids = set()
+        node = use
+        while node is not None:
+            if node in expanded:
+                ids |= expanded[node]
+                break
+            if "id" in node.attrib:
+                ids.add(node.attrib["id"])
+            node = parent_map.get(node)
+        return ids
+
     def replace_use(element, tree):
+        expanded = {}
         while True:
             uses = element.findall(".//{http://www.w3.org/2000/svg}use")
             if uses == []:
@@ -1501,6 +1516,16 @@ def replace_use_with_reference(file_path):
                     if ref_element is not None:
                         # defs tag could not be referenced by use tag.
                         if ref_element.tag.endswith("defs"):
+                            parent.remove(use)
+                            continue
+                        ids = used_ids(use, parent_map, expanded)
+                        if ref_id in ids:
+                            _wrn(
+                                translate("ImportSVG", "Ignoring recursive use of '{}'").format(
+                                    ref_id
+                                )
+                            )
+                            parent.remove(use)
                             continue
                         # make new element named freecad:used because use tag may have it own transform.
                         new_element = ET.Element("freecad:used")
@@ -1523,6 +1548,7 @@ def replace_use_with_reference(file_path):
                             if "id" in child.attrib:
                                 del child.attrib["id"]
                         new_element.append(ref_element)
+                        expanded[new_element] = ids | {ref_id}
                         # replace use tag by freecad:used tag.
                         parent.append(new_element)
                 # remove use when referenced element is not found.
