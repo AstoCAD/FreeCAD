@@ -113,6 +113,10 @@ int EditDatumDialog::exec(bool atCursor)
                     "sketch contains conflicting constraints"
                 )
             );
+            // The dialog is not shown, so neither accepted() nor rejected() will close the
+            // transaction. Close it here, keeping whatever the caller already did in it,
+            // otherwise it stays open and breaks Undo.
+            Gui::Command::commitCommand(transactionID);
             return QDialog::Rejected;
         }
 
@@ -226,6 +230,7 @@ int EditDatumDialog::exec(bool atCursor)
         return dlg.exec();
     }
 
+    Gui::Command::commitCommand(transactionID);
     return QDialog::Rejected;
 }
 
