@@ -2908,8 +2908,13 @@ void ViewProviderSketch::onSelectionChanged(const Gui::SelectionChanges& msg)
     if (isInEditMode()) {
         // ignore external object
         if (!msg.Object.getObjectName().empty()
-            && msg.Object.getDocument() != getObject()->getDocument())
+            && msg.Object.getDocument() != getObject()->getDocument()) {
+            if (Mode == STATUS_SKETCH_UseHandler && sketchHandler
+                && sketchHandler->acceptsOtherDocumentSelection()) {
+                sketchHandler->onSelectionChanged(msg);
+            }
             return;
+        }
 
         bool handled = false;
         if (Mode == STATUS_SKETCH_UseHandler) {

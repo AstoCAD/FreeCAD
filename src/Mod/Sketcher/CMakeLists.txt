@@ -80,6 +80,7 @@ if(BUILD_GUI)
           SketcherTests/TestFilletCurveVertexGui.py
           SketcherTests/TestTextToolLastFontGui.py
           SketcherTests/TestAutoConstraintRedundancyGui.py
+          SketcherTests/TestExternalInAssemblyGui.py
     )
 endif(BUILD_GUI)
 
