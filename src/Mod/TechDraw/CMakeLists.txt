@@ -223,6 +223,7 @@ SET(TDTest_SRCS
     TDTest/TestBSplineAngleDimensionGui.py
     TDTest/DrawViewDimensionTreeTest.py
     TDTest/DrawViewCaptionGuiTest.py
+    TDTest/DrawPageDocumentWindowMenuGuiTest.py
     TDTest/DrawViewAnnotationSpacesGuiTest.py
     TDTest/DrawViewSelectionTeardownGuiTest.py
     TDTest/DrawViewDeleteWhileRunningGuiTest.py

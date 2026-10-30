@@ -544,6 +544,9 @@ void MDIViewPage::contextMenuEvent(QContextMenuEvent* event)
     if (!addSelectionGroups(menu)) {
         addPageGroup(menu);
     }
+    // "Document window" submenu, so an undocked page can be docked again without a shortcut
+    menu.addSeparator();
+    addCommandsByName(menu, {"Std_ViewDockUndockFullscreen"});
     menu.exec(event->globalPos());
 }
 
