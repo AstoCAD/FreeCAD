@@ -13,7 +13,7 @@ set(Spreadsheet_Scripts
 )
 
 if(BUILD_GUI)
-    list (APPEND Spreadsheet_Scripts InitGui.py)
+    list (APPEND Spreadsheet_Scripts InitGui.py TestSpreadsheetContextMenuGui.py)
 endif(BUILD_GUI)
 
 add_custom_target(SpreadsheetScripts ALL
