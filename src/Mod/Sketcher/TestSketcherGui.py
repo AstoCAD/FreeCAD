@@ -35,6 +35,7 @@ from SketcherTests.TestAlignCameraOnEditGui import TestAlignCameraOnEditGui
 from SketcherTests.TestSnellsLawCommandGui import TestSnellsLawCommandGui
 from SketcherTests.TestToolWidgetTabGui import TestToolWidgetTabGui
 from SketcherTests.TestEditDatumConflictGui import TestEditDatumConflictGui
+from SketcherTests.TestMoveGeometryRedrawGui import TestMoveGeometryRedrawGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -71,5 +72,6 @@ from SketcherTests.TestEditDatumConflictGui import TestEditDatumConflictGui
     and TestSnellsLawCommandGui
     and TestToolWidgetTabGui
     and TestEditDatumConflictGui
+    and TestMoveGeometryRedrawGui
     else False
 )
