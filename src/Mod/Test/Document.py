@@ -2429,6 +2429,66 @@ class DocumentFileIncludeCases(unittest.TestCase):
             self.assertEqual(file.read(), payload)
         self.assertEqual(obj.File.split("/")[-1], "BinaryPayload.bin")
 
+    def testCopyInSameDocumentDoesNotShareFile(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/11151
+        source_path = os.path.join(tempfile.gettempdir(), "FileIncludeCopySource.svg")
+        with open(source_path, "w") as file:
+            file.write("original content")
+
+        # without undo, removeObject() destroys the copy and its property
+        self.Doc.UndoMode = 0
+        obj = self.Doc.addObject("App::DocumentObjectFileIncluded", "Original")
+        obj.File = source_path
+        copy = self.Doc.copyObject(obj)
+
+        self.assertNotEqual(copy.File, obj.File)
+        self.assertTrue(copy.File.endswith(".svg"))
+        with open(copy.File, "r") as file:
+            self.assertEqual(file.read(), "original content")
+
+        # deleting the copy must not delete the file of the original
+        self.Doc.removeObject(copy.Name)
+        self.assertTrue(os.path.exists(obj.File))
+        with open(obj.File, "r") as file:
+            self.assertEqual(file.read(), "original content")
+
+        doc_path = os.path.join(tempfile.gettempdir(), "FileIncludeTests.FCStd")
+        self.Doc.saveAs(doc_path)
+        FreeCAD.closeDocument("FileIncludeTests")
+        self.Doc = FreeCAD.open(doc_path)
+        obj = self.Doc.getObject("Original")
+        with open(obj.File, "r") as file:
+            self.assertEqual(file.read(), "original content")
+
+    def testCopyIntoDocumentKeepsEachFile(self):
+        # The target already has Template.svg, so the first copy is renamed to Template1.svg,
+        # which is also the stored name of the second copy's file.
+        source_path = os.path.join(tempfile.gettempdir(), "FileIncludeCopySource.svg")
+
+        def include(doc, name, content):
+            with open(source_path, "w") as file:
+                file.write(content)
+            obj = doc.addObject("App::DocumentObjectFileIncluded", name)
+            obj.File = (source_path, "Template.svg")
+            return obj
+
+        include(self.Doc, "Target", "target content")
+        source = FreeCAD.newDocument("FileIncludeSource")
+        try:
+            first = include(source, "First", "first content")
+            second = include(source, "Second", "second content")
+            self.assertEqual(second.File.split("/")[-1], "Template1.svg")
+
+            copies = self.Doc.copyObject([first, second])
+        finally:
+            FreeCAD.closeDocument(source.Name)
+
+        files = [obj.File for obj in self.Doc.Objects]
+        self.assertEqual(len(set(files)), 3)
+        for copy, content in zip(copies, ("first content", "second content")):
+            with open(copy.File, "r") as file:
+                self.assertEqual(file.read(), content)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("FileIncludeTests")
