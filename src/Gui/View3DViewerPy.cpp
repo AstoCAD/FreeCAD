@@ -187,7 +187,9 @@ void View3DInventorViewerPy::init_type()
         "setNaviCubeCorner(int): sets the corner where to show the navi cube:\n"
         "0=top left, 1=top right, 2=bottom left, 3=bottom right"
     );
-    add_noargs_method(
+    // getattr() routes every non-keyword method through the varargs handler, so
+    // a noargs method would be called with a null argument tuple
+    add_varargs_method(
         "isSpinning",
         &View3DInventorViewerPy::isSpinning,
         "isSpinning() -> bool: check whether a spinning animation is currently active."
@@ -843,7 +845,10 @@ Py::Object View3DInventorViewerPy::getNavigationStyle(const Py::Tuple& args)
     return Py::None();
 }
 
-Py::Object View3DInventorViewerPy::isSpinning()
+Py::Object View3DInventorViewerPy::isSpinning(const Py::Tuple& args)
 {
+    if (!PyArg_ParseTuple(args.ptr(), "")) {
+        throw Py::Exception();
+    }
     return Py::Boolean(_viewer->isSpinning());
 }
