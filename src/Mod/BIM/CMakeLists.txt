@@ -311,6 +311,7 @@ SET(bimtests_SRCS
     bimtests/TestArchReportGui.py
     bimtests/TestArchIfc.py
     bimtests/TestBimIfcPropertiesGui.py
+    bimtests/TestBimLibraryGui.py
 )
 
 set(bimtests_FIXTURES
