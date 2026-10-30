@@ -170,6 +170,22 @@ class DrawViewSelectionTeardownGuiTest(unittest.TestCase):
         self.assertFalse(caption.hasFocus())
         self.assertEqual(caption.textInteractionFlags(), QtCore.Qt.NoTextInteraction)
 
+    def _store_unhovered_mouse_move(self, doc):
+        # Leave the view, then let it store a mouse move over the caption
+        # without dispatching it. Closing the page scrolls the view, which
+        # replays that move as a hover enter after the Gui document is gone.
+        widget, caption = self._caption(doc)
+        viewport = widget.viewport()
+        center = widget.mapFromScene(caption.mapToScene(caption.boundingRect().center()))
+        QtWidgets.QApplication.sendEvent(viewport, QtCore.QEvent(QtCore.QEvent.Leave))
+        self._events(25)
+        widget.setInteractive(False)
+        try:
+            self._mouse(viewport, QtCore.QEvent.MouseMove, center,
+                        QtCore.Qt.NoButton, QtCore.Qt.NoButton)
+        finally:
+            widget.setInteractive(True)
+
     def _observe_selection(self, scene, name):
         states = []
 
@@ -223,6 +239,12 @@ class DrawViewSelectionTeardownGuiTest(unittest.TestCase):
 
     def test_selected_three_view_close(self):
         self._selected_close(3)
+
+    def test_hover_replayed_during_close(self):
+        doc = self._page_with_views(1)
+        self._select_caption(doc)
+        self._store_unhovered_mouse_move(doc)
+        self._close_document(doc.Name)
 
     def test_delete_selected_view_and_undo_preserves_live_peer(self):
         doc = self._page_with_views(2)
