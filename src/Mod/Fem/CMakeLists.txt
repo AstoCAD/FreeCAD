@@ -395,6 +395,7 @@ SET(FemTestsApp_SRCS
     femtest/app/test_mesh.py
     femtest/app/test_object.py
     femtest/app/test_open.py
+    femtest/app/test_post.py
     femtest/app/test_result.py
     femtest/app/test_security.py
     femtest/app/test_solver_elmer.py
