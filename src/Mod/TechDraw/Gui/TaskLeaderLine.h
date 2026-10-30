@@ -64,6 +64,7 @@ public:
 
     virtual bool accept();
     virtual bool reject();
+    void rejectAfterUndo();
     virtual void setCreateMode(bool mode) { m_createMode = mode; }
     virtual bool getCreateMode() { return m_createMode; }
     void updateTask();
@@ -163,6 +164,7 @@ public:
     bool accept() override;
     /// is called by the framework if the dialog is rejected (Cancel)
     bool reject() override;
+    void autoClosedOnTransactionChange() override;
     /// is called by the framework if the user presses the help button
     bool isAllowedAlterDocument() const override
                         { return false; }
