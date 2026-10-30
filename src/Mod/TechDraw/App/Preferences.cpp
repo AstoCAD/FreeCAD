@@ -575,6 +575,23 @@ int Preferences::LineCapIndex()
     return getPreferenceGroup("General")->GetInt("EdgeCapStyle", 0x20);
 }
 
+//! returns the SVG stroke-linecap matching the line cap preference, or an empty string
+//! if the preference has not been set. Used by the Draft and Arch views, which keep
+//! their historical square caps until the user picks a line cap style.
+std::string Preferences::svgLineCap()
+{
+    switch (getPreferenceGroup("General")->GetInt("EdgeCapStyle", -1)) {
+        case 0:
+            return "round";
+        case 1:
+            return "square";
+        case 2:
+            return "butt";
+        default:
+            return {};
+    }
+}
+
 //! returns 0 (use ANSI style section cut line) or 1 (use ISO style section cut line)
 int Preferences::sectionLineConvention()
 {

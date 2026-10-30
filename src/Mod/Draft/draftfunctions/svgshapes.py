@@ -124,7 +124,18 @@ def getDiscretized(edge, plane):
 
 
 def _get_path_circ_ellipse(
-    plane, edge, verts, edata, iscircle, isellipse, fill, stroke, linewidth, lstyle, allow_final_svg
+    plane,
+    edge,
+    verts,
+    edata,
+    iscircle,
+    isellipse,
+    fill,
+    stroke,
+    linewidth,
+    lstyle,
+    allow_final_svg,
+    linecap="square",
 ):
     """Get the edge data from a path that is a circle or ellipse."""
     if plane:
@@ -170,7 +181,7 @@ def _get_path_circ_ellipse(
         if len(edge.Vertexes) == 1 and iscircle:
             # Complete circle not only arc
             if allow_final_svg:
-                svg = get_circle(plane, fill, stroke, linewidth, lstyle, edge)
+                svg = get_circle(plane, fill, stroke, linewidth, lstyle, edge, linecap)
                 # If it's the whole exported shape we can return a compact SVG
                 # circle, otherwise we must keep a single path so islands work.
                 return "svg", svg
@@ -268,7 +279,7 @@ def _get_path_bspline(plane, edge, edata):
     return edata
 
 
-def get_circle(plane, fill, stroke, linewidth, lstyle, edge):
+def get_circle(plane, fill, stroke, linewidth, lstyle, edge, linecap="square"):
     """Get the SVG representation from a circular edge."""
     cen = get_proj(edge.Curve.Center, plane)
     rad = edge.Curve.Radius
@@ -294,7 +305,7 @@ def get_circle(plane, fill, stroke, linewidth, lstyle, edge):
     svg += "stroke-width:{};".format(linewidth)
     svg += "stroke-miterlimit:4;"
     svg += "stroke-dasharray:{};".format(lstyle)
-    svg += "stroke-linecap:square;"
+    svg += "stroke-linecap:{};".format(linecap)
     svg += "fill:{}".format(fill) + '"'
     svg += "/>\n"
     return svg
@@ -306,7 +317,7 @@ def getCircle(plane, fill, stroke, linewidth, lstyle, edge):
     return get_circle(plane, fill, stroke, linewidth, lstyle, edge)
 
 
-def get_ellipse(plane, fill, stroke, linewidth, lstyle, edge):
+def get_ellipse(plane, fill, stroke, linewidth, lstyle, edge, linecap="square"):
     """Get the SVG representation from an elliptical edge."""
     cen = get_proj(edge.Curve.Center, plane)
     mir = edge.Curve.MinorRadius
@@ -320,7 +331,7 @@ def get_ellipse(plane, fill, stroke, linewidth, lstyle, edge):
     svg += "stroke-width:{};".format(linewidth)
     svg += "stroke-miterlimit:4;"
     svg += "stroke-dasharray:{};".format(lstyle)
-    svg += "stroke-linecap:square;"
+    svg += "stroke-linecap:{};".format(linecap)
     svg += "fill:{}".format(fill) + '"'
     svg += "/>\n"
     return svg
@@ -344,6 +355,7 @@ def get_path(
     edges=[],
     wires=[],
     pathname=None,
+    linecap="square",
 ):
     """Get the SVG representation from an object's edges or wires.
 
@@ -418,6 +430,7 @@ def get_path(
                     linewidth,
                     lstyle,
                     allow_final_svg=len(egroups) == 1 and len(_edges) == 1,
+                    linecap=linecap,
                 )
                 if _type == "svg":
                     # final svg string already calculated, so just return it
@@ -450,7 +463,7 @@ def get_path(
     svg += "stroke-width:{};".format(linewidth)
     svg += "stroke-miterlimit:4;"
     svg += "stroke-dasharray:{};".format(lstyle)
-    svg += "stroke-linecap:square;"
+    svg += "stroke-linecap:{};".format(linecap)
     svg += "fill:{};".format(fill)
     # fill_opacity must be a number, but if it's `None` it is omitted
     if fill_opacity is not None:

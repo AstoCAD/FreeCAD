@@ -103,7 +103,7 @@ def getPattern(pat):
     return get_pattern(pat)
 
 
-def get_arrow(obj, arrowtype, point, arrowsize, color, linewidth, angle=0):
+def get_arrow(obj, arrowtype, point, arrowsize, color, linewidth, angle=0, linecap="square"):
     """Get the SVG representation from an arrow."""
     svg = ""
     vobj = _get_view_object(obj)
@@ -115,14 +115,14 @@ def get_arrow(obj, arrowtype, point, arrowsize, color, linewidth, angle=0):
     _rotate = "rotate({},{},{})".format(math.degrees(angle), point.x, point.y)
     _transl = "translate({},{})".format(point.x, point.y)
     _scale = "scale({size},{size})".format(size=arrowsize)
-    _style = 'style="stroke-miterlimit:4;stroke-dasharray:none;stroke-linecap:square"'
+    _style = 'style="stroke-miterlimit:4;stroke-dasharray:none;stroke-linecap:{}"'.format(linecap)
 
     if arrowtype == "Circle":
         svg += "<circle "
         svg += _cx_cy_r + " "
         svg += 'fill="{}" stroke="{}" '.format("none", color)
         svg += 'style="stroke-width:{};'.format(linewidth)
-        svg += 'stroke-miterlimit:4;stroke-dasharray:none;stroke-linecap:square" '
+        svg += 'stroke-miterlimit:4;stroke-dasharray:none;stroke-linecap:{}" '.format(linecap)
         svg += 'freecad:skip="1"'
         svg += "/>\n"
     elif arrowtype == "Dot":
@@ -161,7 +161,7 @@ def get_arrow(obj, arrowtype, point, arrowsize, color, linewidth, angle=0):
         svg += _transl + '" '
         svg += 'freecad:skip="1" '
         svg += 'fill="{}" stroke="{}" '.format("none", color)
-        svg += 'style="stroke-dasharray:none;stroke-linecap:square;'
+        svg += 'style="stroke-dasharray:none;stroke-linecap:{};'.format(linecap)
         svg += 'stroke-width:{}" '.format(linewidth)
         svg += 'x1="-{}" y1="0" '.format(2 * arrowsize)
         svg += 'x2="{}" y2="0"'.format(2 * arrowsize)
@@ -180,7 +180,7 @@ def getArrow(obj, arrowtype, point, arrowsize, color, linewidth, angle=0):
     return get_arrow(obj, arrowtype, point, arrowsize, color, linewidth, angle)
 
 
-def get_overshoot(point, shootsize, color, linewidth, angle=0):
+def get_overshoot(point, shootsize, color, linewidth, angle=0, linecap="square"):
     """Get the SVG representation of a dimension line overshoot."""
     svg = "<line "
     svg += 'transform="'
@@ -188,7 +188,7 @@ def get_overshoot(point, shootsize, color, linewidth, angle=0):
     svg += 'translate({},{})" '.format(point.x, point.y)
     svg += 'freecad:skip="1" '
     svg += 'fill="{}" stroke="{}" '.format("none", color)
-    svg += 'style="stroke-dasharray:none;stroke-linecap:square;'
+    svg += 'style="stroke-dasharray:none;stroke-linecap:{};'.format(linecap)
     svg += 'stroke-width:{}" '.format(linewidth)
     svg += 'x1="0" y1="0" '
     svg += 'x2="{}" y2="0"'.format(-1 * shootsize)
@@ -207,7 +207,7 @@ def format_point(coords, action="L"):
     return "{action}{x},{y}".format(x=coords.x, y=coords.y, action=action)
 
 
-def _svg_shape(svg, obj, plane, fillstyle, pathdata, stroke, linewidth, lstyle):
+def _svg_shape(svg, obj, plane, fillstyle, pathdata, stroke, linewidth, lstyle, linecap="square"):
     """Return the SVG representation of a Part.Shape."""
     if "#" in fillstyle:
         fill = fillstyle
@@ -229,12 +229,23 @@ def _svg_shape(svg, obj, plane, fillstyle, pathdata, stroke, linewidth, lstyle):
         fill_opacity=None,
         edges=obj.Edges,
         pathname="",
+        linecap=linecap,
     )
     return svg
 
 
 def _svg_dimension(
-    obj, plane, scale, linewidth, fontsize, stroke, tstroke, pointratio, techdraw, rotation
+    obj,
+    plane,
+    scale,
+    linewidth,
+    fontsize,
+    stroke,
+    tstroke,
+    pointratio,
+    techdraw,
+    rotation,
+    linecap="square",
 ):
     """Return the SVG representation of a linear dimension."""
     if not App.GuiUp:
@@ -327,7 +338,7 @@ def _svg_dimension(
         svg += stroke + '" '
         svg += 'stroke-width="' + str(linewidth) + 'px" '
         svg += 'style="stroke-width:' + str(linewidth)
-        svg += ';stroke-miterlimit:4;stroke-dasharray:none;stroke-linecap:square" '
+        svg += ';stroke-miterlimit:4;stroke-dasharray:none;stroke-linecap:' + linecap + '" '
         svg += 'freecad:basepoint1="' + str(p1.x) + " " + str(p1.y) + '" '
         svg += 'freecad:basepoint2="' + str(p4.x) + " " + str(p4.y) + '" '
         svg += 'freecad:dimpoint="' + str(p2.x) + " " + str(p2.y) + '"'
@@ -336,14 +347,14 @@ def _svg_dimension(
         # drawing dimension and extension lines overshoots
         if hasattr(vobj, "DimOvershoot") and vobj.DimOvershoot.Value:
             shootsize = vobj.DimOvershoot.Value / pointratio
-            svg += get_overshoot(p2, shootsize, stroke, linewidth, angle)
-            svg += get_overshoot(p3, shootsize, stroke, linewidth, angle + math.pi)
+            svg += get_overshoot(p2, shootsize, stroke, linewidth, angle, linecap)
+            svg += get_overshoot(p3, shootsize, stroke, linewidth, angle + math.pi, linecap)
 
         if hasattr(vobj, "ExtOvershoot") and vobj.ExtOvershoot.Value:
             shootsize = vobj.ExtOvershoot.Value / pointratio
             shootangle = -DraftVecUtils.angle(p1 - p2)
-            svg += get_overshoot(p2, shootsize, stroke, linewidth, shootangle)
-            svg += get_overshoot(p3, shootsize, stroke, linewidth, shootangle)
+            svg += get_overshoot(p2, shootsize, stroke, linewidth, shootangle, linecap)
+            svg += get_overshoot(p3, shootsize, stroke, linewidth, shootangle, linecap)
 
         # drawing arrows
         if (
@@ -365,6 +376,7 @@ def _svg_dimension(
                 stroke,
                 linewidth,
                 angle,
+                linecap,
             )
 
             svg += get_arrow(
@@ -375,6 +387,7 @@ def _svg_dimension(
                 stroke,
                 linewidth,
                 angle + math.pi,
+                linecap,
             )
 
     # drawing text
@@ -399,6 +412,7 @@ def get_svg(
     rotation=0,
     fillspaces=False,
     override=True,
+    linecap="square",
 ):
     """Return a string containing an SVG representation of the object.
 
@@ -445,7 +459,16 @@ def get_svg(
 
     override: bool, optional
         It defaults to `True`.
+
+    linecap: str, optional
+        It defaults to `'square'`.
+        The SVG `stroke-linecap` of the lines: `'square'`, `'round'`
+        or `'butt'`.
     """
+    if linecap not in ("square", "round", "butt"):
+        _wrn("get_svg: unsupported linecap '{}', using 'square'".format(linecap))
+        linecap = "square"
+
     # If this is a group, recursively call this function to gather
     # all the SVG strings from the contents of the group.
     if (
@@ -500,6 +523,7 @@ def get_svg(
                 rotation,
                 fillspaces,
                 override,
+                linecap,
             )
 
         if hidden_doc is not None:
@@ -535,6 +559,7 @@ def get_svg(
             rotation,
             fillspaces,
             override,
+            linecap,
         )
         try:
             App.closeDocument(hidden_doc.Name)
@@ -630,13 +655,23 @@ def get_svg(
         pass
 
     elif isinstance(obj, Part.Shape):
-        svg = _svg_shape(svg, obj, plane, fillstyle, pathdata, stroke, linewidth, lstyle)
+        svg = _svg_shape(svg, obj, plane, fillstyle, pathdata, stroke, linewidth, lstyle, linecap)
 
     elif utils.get_type(obj) in ["Dimension", "LinearDimension"] or (
         utils.get_type(obj) == "IfcAnnotation" and obj.ObjectType == "DIMENSION"
     ):
         svg = _svg_dimension(
-            obj, plane, scale, linewidth, fontsize, stroke, tstroke, pointratio, techdraw, rotation
+            obj,
+            plane,
+            scale,
+            linewidth,
+            fontsize,
+            stroke,
+            tstroke,
+            pointratio,
+            techdraw,
+            rotation,
+            linecap,
         )
 
     elif utils.get_type(obj) == "AngularDimension":
@@ -664,7 +699,15 @@ def get_svg(
                             edges = [prx.circle]
 
                     svg += get_path(
-                        obj, plane, fill, pathdata, stroke, linewidth, lstyle, edges=edges
+                        obj,
+                        plane,
+                        fill,
+                        pathdata,
+                        stroke,
+                        linewidth,
+                        lstyle,
+                        edges=edges,
+                        linecap=linecap,
                     )
 
                     if hasattr(vobj, "DimOvershoot") and vobj.DimOvershoot.Value:
@@ -673,7 +716,12 @@ def get_svg(
                         tangent2 = get_proj(prx.circle.tangentAt(prx.circle.LastParameter), plane)
                         if not DraftVecUtils.isNull(tangent1):
                             svg += get_overshoot(
-                                p2, shootsize, stroke, linewidth, -DraftVecUtils.angle(tangent1)
+                                p2,
+                                shootsize,
+                                stroke,
+                                linewidth,
+                                -DraftVecUtils.angle(tangent1),
+                                linecap,
                             )
                         if not DraftVecUtils.isNull(tangent2):
                             svg += get_overshoot(
@@ -682,6 +730,7 @@ def get_svg(
                                 stroke,
                                 linewidth,
                                 -DraftVecUtils.angle(tangent2) + math.pi,
+                                linecap,
                             )
 
                     if hasattr(vobj, "ExtOvershoot") and vobj.ExtOvershoot.Value:
@@ -690,11 +739,11 @@ def get_svg(
                         ext2 = p4 - p3
                         if not DraftVecUtils.isNull(ext1):
                             svg += get_overshoot(
-                                p2, shootsize, stroke, linewidth, -DraftVecUtils.angle(ext1)
+                                p2, shootsize, stroke, linewidth, -DraftVecUtils.angle(ext1), linecap
                             )
                         if not DraftVecUtils.isNull(ext2):
                             svg += get_overshoot(
-                                p3, shootsize, stroke, linewidth, -DraftVecUtils.angle(ext2)
+                                p3, shootsize, stroke, linewidth, -DraftVecUtils.angle(ext2), linecap
                             )
 
                     # draw extlines
@@ -712,7 +761,9 @@ def get_svg(
                         svg += (
                             ";stroke-miterlimit:4;stroke-dasharray:"
                             + lstyle
-                            + ';stroke-linecap:square" />\n'
+                            + ";stroke-linecap:"
+                            + linecap
+                            + '" />\n'
                         )
                         svg += '<path d="' + d2 + '" '
                         svg += 'fill="none" stroke="' + stroke + '" '
@@ -721,7 +772,9 @@ def get_svg(
                         svg += (
                             ";stroke-miterlimit:4;stroke-dasharray:"
                             + lstyle
-                            + ';stroke-linecap:square" />\n'
+                            + ";stroke-linecap:"
+                            + linecap
+                            + '" />\n'
                         )
 
                     # drawing arrows
@@ -755,10 +808,24 @@ def get_svg(
                         angle2 = -DraftVecUtils.angle(u2)
 
                         svg += get_arrow(
-                            obj, vobj.ArrowTypeStart, p2, arrowsizestart, stroke, linewidth, angle1
+                            obj,
+                            vobj.ArrowTypeStart,
+                            p2,
+                            arrowsizestart,
+                            stroke,
+                            linewidth,
+                            angle1,
+                            linecap,
                         )
                         svg += get_arrow(
-                            obj, vobj.ArrowTypeEnd, p3, arrowsizeend, stroke, linewidth, angle2
+                            obj,
+                            vobj.ArrowTypeEnd,
+                            p3,
+                            arrowsizeend,
+                            stroke,
+                            linewidth,
+                            angle2,
+                            linecap,
                         )
 
                     # drawing text
@@ -804,7 +871,7 @@ def get_svg(
                 svg_path += 'fill="none" '
                 svg_path += 'stroke="{}" '.format(stroke)
                 svg_path += 'stroke-width="{}px" '.format(linewidth)
-                svg_path += 'stroke-linecap="square" '
+                svg_path += 'stroke-linecap="{}" '.format(linecap)
                 svg_path += 'd="{}"'.format(path_dir_str)
                 svg_path += "/>"
                 svg += svg_path
@@ -826,6 +893,7 @@ def get_svg(
                         stroke,
                         linewidth,
                         angle,
+                        linecap,
                     )
 
             fontname = vobj.FontName
@@ -889,6 +957,7 @@ def get_svg(
                     lstyle,
                     fill_opacity=None,
                     edges=[e],
+                    linecap=linecap,
                 )
 
             if is_linked_axis:
@@ -921,7 +990,7 @@ def get_svg(
             for b in bubble_shapes:
                 shape = b
                 if hasattr(shape, "Curve") and isinstance(shape.Curve, Part.Circle):
-                    svg += get_circle(plane, fill, stroke, linewidth, "none", shape)
+                    svg += get_circle(plane, fill, stroke, linewidth, "none", shape, linecap)
                 else:
                     sfill = stroke
                     svg += get_path(
@@ -934,6 +1003,7 @@ def get_svg(
                         "none",
                         fill_opacity=None,
                         edges=shape.Edges,
+                        linecap=linecap,
                     )
 
     elif utils.get_type(obj) == "Pipe":
@@ -949,11 +1019,12 @@ def get_svg(
                 lstyle,
                 fill_opacity=None,
                 edges=obj.Base.Shape.Edges,
+                linecap=linecap,
             )
         for f in obj.Shape.Faces:
             if len(f.Edges) == 1:
                 if isinstance(f.Edges[0].Curve, Part.Circle):
-                    svg += get_circle(plane, fill, stroke, linewidth, lstyle, f.Edges[0])
+                    svg += get_circle(plane, fill, stroke, linewidth, lstyle, f.Edges[0], linecap)
 
     elif utils.get_type(obj) == "Rebar":
         fill = "none"
@@ -969,7 +1040,16 @@ def get_svg(
             wire.Placement = placement.multiply(basewire.Placement)
             wires.append(wire)
         svg += get_path(
-            obj, plane, fill, pathdata, stroke, linewidth, lstyle, fill_opacity=None, wires=wires
+            obj,
+            plane,
+            fill,
+            pathdata,
+            stroke,
+            linewidth,
+            lstyle,
+            fill_opacity=None,
+            wires=wires,
+            linecap=linecap,
         )
 
     elif utils.get_type(obj) == "PipeConnector":
@@ -1003,6 +1083,7 @@ def get_svg(
                         lstyle,
                         fill_opacity=fill_opacity,
                         wires=[obj.Proxy.face.OuterWire],
+                        linecap=linecap,
                     )
 
             text1 = vobj.Proxy.text1.string.getValues()  # List with the 1st string.
@@ -1103,6 +1184,7 @@ def get_svg(
                         fill_opacity=fill_opacity,
                         wires=f.Wires,
                         pathname="%s_f%04d" % (obj.Name, i),
+                        linecap=linecap,
                     )
                     wiredEdges.extend(f.Edges)
             else:
@@ -1118,6 +1200,7 @@ def get_svg(
                         fill_opacity=fill_opacity,
                         edges=w.Edges,
                         pathname="%s_w%04d" % (obj.Name, i),
+                        linecap=linecap,
                     )
                     wiredEdges.extend(w.Edges)
 
@@ -1145,12 +1228,15 @@ def get_svg(
                             fill_opacity=fill_opacity,
                             edges=[e],
                             pathname="%s_nwe%04d" % (obj.Name, i),
+                            linecap=linecap,
                         )
         else:
             # closed circle or spline
             if obj.Shape.Edges:
                 if isinstance(obj.Shape.Edges[0].Curve, Part.Circle):
-                    svg = get_circle(plane, fill, stroke, linewidth, lstyle, obj.Shape.Edges[0])
+                    svg = get_circle(
+                        plane, fill, stroke, linewidth, lstyle, obj.Shape.Edges[0], linecap
+                    )
                 else:
                     svg = get_path(
                         obj,
@@ -1162,6 +1248,7 @@ def get_svg(
                         lstyle,
                         fill_opacity=fill_opacity,
                         edges=obj.Shape.Edges,
+                        linecap=linecap,
                     )
 
         if (
@@ -1196,6 +1283,7 @@ def get_svg(
                 stroke,
                 linewidth,
                 -DraftVecUtils.angle(p2 - p1),
+                linecap,
             )
             p1 = get_proj(shp.Vertexes[end_idx].Point, plane)
             p2 = get_proj(shp.Vertexes[end_idx].Point + v2, plane)
@@ -1207,6 +1295,7 @@ def get_svg(
                 stroke,
                 linewidth,
                 -DraftVecUtils.angle(p2 - p1),
+                linecap,
             )
 
     # techdraw expects bottom-to-top coordinates

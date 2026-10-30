@@ -35,6 +35,7 @@
 #include <App/FeaturePythonPyImp.h>
 #include "DrawViewDraft.h"
 #include "DrawViewSymbolPy.h"
+#include "Preferences.h"
 
 
 using namespace TechDraw;
@@ -110,6 +111,10 @@ App::DocumentObjectExecReturn *DrawViewDraft::execute()
                  // We must set techdraw to "true" becausea couple of things behave differently than in Drawing
                  << ", techdraw=True"
                  << ", override=" << (OverrideStyle.getValue() ? "True" : "False");
+        std::string lineCap = Preferences::svgLineCap();
+        if (!lineCap.empty()) {
+            paramStr << ", linecap=\"" << lineCap << "\"";
+        }
 
 // this is ok for a starting point, but should eventually make dedicated Draft functions that build the svg for all the special cases
 // (Arch section, etc)

@@ -135,6 +135,7 @@ public:
     static int BreakLineStyle();
     static int LineCapStyle();
     static int LineCapIndex();
+    static std::string svgLineCap();
 
     static float LineSpacingISO();
 
