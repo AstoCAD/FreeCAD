@@ -47,7 +47,7 @@ def extractDocument(filename, outpath):
             curpath = outpath
             for j in dirs:
                 curpath = curpath + "/" + j
-                os.mkdir(curpath)
+                os.makedirs(curpath, exist_ok=True)
         output = open(outpath + "/"+i, 'wb')
         output.write(data)
         output.close()
