@@ -22,6 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <set>
+
 #include <Base/Reader.h>
 
 #include "DrawRichAnno.h"
@@ -113,6 +115,17 @@ DrawPage* DrawRichAnno::findParentPage() const
 //    Base::Console().message("DRA::findParentPage()\n");
     if (!AnnoParent.getValue()) {
         return DrawView::findParentPage();
+    }
+
+    // an annotation attached to itself, directly or through other annotations, would
+    // ask its parent for the page forever
+    std::set<const App::DocumentObject*> visited {this};
+    for (const App::DocumentObject* obj = AnnoParent.getValue();
+         obj && obj->isDerivedFrom<DrawRichAnno>();
+         obj = static_cast<const DrawRichAnno*>(obj)->AnnoParent.getValue()) {
+        if (!visited.insert(obj).second) {
+            return DrawView::findParentPage();
+        }
     }
 
     DrawView* parent = freecad_cast<DrawView*>(AnnoParent.getValue());
