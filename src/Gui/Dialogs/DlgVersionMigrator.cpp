@@ -256,7 +256,11 @@ void PathMigrationWorker::run()
 {
     try {
         App::GetApplication().GetUserParameter().SaveDocument();
-        auto result = App::Application::directories()->migrateAllPaths({_userAppDir, _configDir});
+        // The directories are UTF-8 strings: convert them explicitly, an implicit std::string to
+        // path conversion uses the ANSI code page on Windows and breaks non-ASCII user names.
+        auto result = App::Application::directories()->migrateAllPaths(
+            {Base::FileInfo::stringToPath(_userAppDir), Base::FileInfo::stringToPath(_configDir)}
+        );
         replaceOccurrencesInPreferences();
         if (!result.failedPaths.empty()) {
             writeMigrationLog(result.failedPaths);
@@ -314,7 +318,7 @@ void PathMigrationWorker::replaceOccurrencesInPreferences()
 
 std::filesystem::path PathMigrationWorker::locateNewPreferences() const
 {
-    std::filesystem::path path(_configDir);
+    std::filesystem::path path = Base::FileInfo::stringToPath(_configDir);
     if (path.filename().empty()) {
         // Handle the case where the path was constructed from a std::string with a trailing /
         path = path.parent_path();
