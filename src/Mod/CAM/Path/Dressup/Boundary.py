@@ -44,6 +44,27 @@ def _vstr(v):
     return "-"
 
 
+def _opHeight(op, prop):
+    """Return the height prop (SafeHeight, ClearanceHeight) of the operation
+    underlying op, or None. An Array has a list of base operations and no
+    heights of its own: the highest of its bases' heights is used, so the
+    retracts clear every one of them."""
+    if hasattr(op, prop):
+        return float(getattr(op, prop))
+    base = getattr(op, "Base", None)
+    if isinstance(base, list):
+        heights = [
+            _opHeight(b, prop)
+            for b in base
+            if hasattr(b, "isDerivedFrom") and b.isDerivedFrom("Path::Feature")
+        ]
+        heights = [h for h in heights if h is not None]
+        return max(heights) if heights else None
+    if base is not None:
+        return _opHeight(base, prop)
+    return None
+
+
 class DressupPathBoundary(object):
     def promoteStockToBoundary(self, stock):
         """Ensure stock object has boundary properties set."""
@@ -278,8 +299,8 @@ class PathBoundary:
 
         tc = PathDressup.toolController(self.baseOp)
 
-        self.safeHeight = float(PathUtil.opProperty(self.baseOp, "SafeHeight"))
-        self.clearanceHeight = float(PathUtil.opProperty(self.baseOp, "ClearanceHeight"))
+        self.safeHeight = _opHeight(self.baseOp, "SafeHeight")
+        self.clearanceHeight = _opHeight(self.baseOp, "ClearanceHeight")
         self.strG0ZsafeHeight = Path.Command("G0", {"Z": self.safeHeight})
         op = PathDressup.baseOp(self.baseOp)
         self.linkingArgs = linking.get_linking_args(op, PathUtils.findParentJob(op))
