@@ -44,7 +44,7 @@ import FreeCAD as App
 from draftgeoutils import general as geo_general
 from draftobjects.base import DraftObject
 from draftutils import gui_utils
-from draftutils.messages import _log
+from draftutils.messages import _err, _log
 
 # Delay import of module until first use because it is heavy
 Part = lz.LazyLoader("Part", globals(), "Part")
@@ -239,6 +239,14 @@ class DraftLink(DraftObject):
         self.props_changed_store(prop)
 
         if not getattr(self, "use_link", False):
+            return
+
+        if prop == "Base" and getattr(obj, "Base", None) == obj:
+            # 'Base' is the LinkedObject of the link extension. Reject a
+            # link to itself like the PropertyXLink of App::Link does, a
+            # plain PropertyLink accepts it.
+            _err("'{}' cannot use itself as base".format(obj.Label))
+            obj.Base = None
             return
 
         if prop == "Fuse":
