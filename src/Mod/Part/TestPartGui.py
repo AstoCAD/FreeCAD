@@ -224,6 +224,52 @@ class PartExtrudeGuiTestCases(unittest.TestCase):
         self.assertFalse(self.solidCheckBoxFor(wire))
 
 
+class AttachmentEditorGuiTestCases(unittest.TestCase):
+    # https://github.com/FreeCAD/FreeCAD/issues/33389
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("AttachmentEditorGuiTest")
+        self.feature = self.Doc.addObject("Part::Feature", "Feature")
+        self.feature.Shape = Part.makeBox(1, 1, 1)
+        self.Doc.recompute()
+        self.assertFalse(self.feature.hasExtension("Part::AttachExtension"))
+
+    def tearDown(self):
+        if FreeCADGui.Control.activeDialog():
+            FreeCADGui.Control.closeDialog()
+        FreeCADGui.Selection.clearSelection()
+        FreeCAD.closeDocument(self.Doc.Name)
+
+    def openEditor(self):
+        import AttachmentEditor.TaskAttachmentEditor as TaskAttachmentEditor
+
+        panel = TaskAttachmentEditor.AttachmentEditorTaskPanel(self.feature)
+        FreeCADGui.Control.showDialog(panel)
+        QtWidgets.QApplication.processEvents()
+        return panel
+
+    def testCancelDoesNotAddAttachment(self):
+        self.openEditor().reject()
+        self.assertFalse(self.feature.hasExtension("Part::AttachExtension"))
+        self.assertFalse(hasattr(self.feature, "AttachmentSupport"))
+
+    def testOkWithoutReferencesDoesNotAddAttachment(self):
+        self.openEditor().accept()
+        self.assertFalse(self.feature.hasExtension("Part::AttachExtension"))
+
+    def testOkWithReferenceAddsAttachment(self):
+        support = self.Doc.addObject("Part::Box", "Support")
+        support.Placement.Base = FreeCAD.Vector(0, 0, 20)
+        self.Doc.recompute()
+        panel = self.openEditor()
+        panel.attacher.References = [(support, "Face6")]
+        panel.attacher.Mode = "FlatFace"
+        panel.accept()
+        self.assertTrue(self.feature.hasExtension("Part::AttachExtension"))
+        self.assertEqual(self.feature.MapMode, "FlatFace")
+        self.Doc.recompute()
+        self.assertAlmostEqual(self.feature.Placement.Base.z, 30.0)
+
+
 class SectionCutTestCases(unittest.TestCase):
     def setUp(self):
         self.Doc = FreeCAD.newDocument("SectionCut")
