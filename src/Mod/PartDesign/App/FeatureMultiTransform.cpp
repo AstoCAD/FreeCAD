@@ -33,10 +33,38 @@
 #include "FeatureScaled.h"
 #include "FeaturePointPattern.h"
 
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 
 using namespace PartDesign;
+
+namespace
+{
+// MultiTransforms whose transformations are being collected. A Transformations list that
+// leads back to one of them (itself, or nested MultiTransforms listing each other) would
+// otherwise recurse until the stack overflows.
+std::vector<const PartDesign::MultiTransform*> collectingTransformations;
+
+struct CollectingTransformationsGuard
+{
+    explicit CollectingTransformationsGuard(const PartDesign::MultiTransform* feature)
+    {
+        if (std::ranges::find(collectingTransformations, feature)
+            != collectingTransformations.end()) {
+            throw Base::ValueError("Multi-transform cannot use itself as a transformation");
+        }
+        collectingTransformations.push_back(feature);
+    }
+    ~CollectingTransformationsGuard()
+    {
+        collectingTransformations.pop_back();
+    }
+    CollectingTransformationsGuard(const CollectingTransformationsGuard&) = delete;
+    CollectingTransformationsGuard& operator=(const CollectingTransformationsGuard&) = delete;
+};
+}  // namespace
 
 namespace PartDesign
 {
@@ -90,6 +118,7 @@ const std::list<gp_Trsf> MultiTransform::getTransformations(
     const std::vector<App::DocumentObject*> originals
 )
 {
+    CollectingTransformationsGuard guard(this);
     generatedSuppression.clear();
     originalTransformation = true;
     suppressOriginalTransformation = false;
