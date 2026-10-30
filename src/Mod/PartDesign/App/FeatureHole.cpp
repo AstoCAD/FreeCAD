@@ -1247,7 +1247,7 @@ void Hole::updateDiameterParam()
 {
     int threadType = ThreadType.getValue();
     int threadSize = ThreadSize.getValue();
-    if (threadType > 0 && threadSize > 0) {
+    if (threadType > 0 && threadSize >= 0) {
         ThreadDiameter.setValue(threadDescription[threadType][threadSize].diameter);
     }
     if (auto opt = determineDiameter()) {
