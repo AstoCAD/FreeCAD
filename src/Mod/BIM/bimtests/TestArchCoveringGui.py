@@ -416,6 +416,35 @@ class TestArchCoveringGui(TestArchBaseGui.TestArchBaseGui):
         # accept() cleans up the panel; prevent tearDown from calling reject() again.
         self.panel = None
 
+    def test_edit_mode_accept_monolithic(self):
+        """Verify that Length/Width edited on the Monolithic page are applied on accept.
+
+        Regression test for https://github.com/FreeCAD/FreeCAD/issues/30773
+        """
+        self.printTestMessage("edit mode accept in Monolithic mode...")
+        covering = Arch.makeCovering(self.box)
+        covering.FinishMode = "Monolithic"
+        covering.TileLength = 300.0
+        covering.TileWidth = 300.0
+        self.document.recompute()
+
+        self.panel = ArchCoveringGui.ArchCoveringTaskPanel(obj=covering)
+        self.assertEqual(self.panel.geo_stack.currentIndex(), self.panel.GEO_PAGE_MONOLITHIC)
+
+        # Simulate the user changing Length and Width on the Monolithic page
+        self.panel.sb_length_mono.setProperty("rawValue", 1000.0)
+        self.panel.sb_width_mono.setProperty("rawValue", 2000.0)
+        self.pump_gui_events()
+
+        result = self.panel.accept()
+        self.pump_gui_events()
+
+        self.assertTrue(result, "Edit mode accept should return True.")
+        self.assertAlmostEqual(covering.TileLength.Value, 1000.0, places=3)
+        self.assertAlmostEqual(covering.TileWidth.Value, 2000.0, places=3)
+        # accept() cleans up the panel; prevent tearDown from calling reject() again.
+        self.panel = None
+
     def test_preference_saving_on_accept(self):
         """Verify that accepting a creation saves the current values to user preferences."""
         self.printTestMessage("preference saving on accept...")
