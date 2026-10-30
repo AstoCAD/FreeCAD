@@ -794,6 +794,13 @@ class MeshReadTruncatedOff(unittest.TestCase):
             if mesh is not None:
                 self.assertEqual(mesh.CountFacets, 0)
 
+    def testOffWithHugeFaceVertexCount(self):
+        # The reader reserved and looped over the announced vertex count of a face
+        mesh = self._read("OFF\n3 1 0\n0 0 0\n1 0 0\n0 1 0\n2147483647 0 1 2\n")
+        self.assertIsNotNone(mesh)
+        self.assertEqual(mesh.CountPoints, 3)
+        self.assertEqual(mesh.CountFacets, 1)
+
     def testOffWithComment(self):
         mesh = self._read("OFF\n# comment\n3 1 0\n0 0 0\n1 0 0\n0 1 0\n3 0 1 2\n")
         self.assertIsNotNone(mesh)
