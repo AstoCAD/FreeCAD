@@ -28,6 +28,7 @@
 
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
@@ -605,6 +606,18 @@ std::set<int> FemMesh::getNodesBySolid(const TopoDS_Solid& solid) const
         vec = Mtrx * vec;
 
         if (!box.IsOut(gp_Pnt(vec.x, vec.y, vec.z))) {
+            // BRepExtrema_DistShapeShape only returns 0 for points classified as
+            // inside with its own hard-coded tolerance of 1e-3, closer to the boundary
+            // it returns the distance to the boundary. So ask the classifier first,
+            // otherwise nodes just inside the solid are dropped.
+            BRepClass3d_SolidClassifier classifier(solid, gp_Pnt(vec.x, vec.y, vec.z), limit);
+            if (classifier.State() == TopAbs_IN) {
+#pragma omp critical
+                {
+                    result.insert(aNode->GetID());
+                }
+                continue;
+            }
             // create a vertex
             BRepBuilderAPI_MakeVertex aBuilder(gp_Pnt(vec.x, vec.y, vec.z));
             TopoDS_Shape s = aBuilder.Vertex();
