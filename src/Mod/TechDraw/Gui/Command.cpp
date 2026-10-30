@@ -591,6 +591,7 @@ void CmdTechDrawView::activated(int iMsg)
                               "App.activeDocument().%s.addView(App.activeDocument().%s)",
                               PageName.c_str(),
                               FeatName.c_str());
+                    CommandHelpers::stackNewViewTop(this, FeatName);
                 }
                 else {
                     std::string FeatName = getUniqueObjectName("Image");
@@ -602,6 +603,7 @@ void CmdTechDrawView::activated(int iMsg)
                         FeatName.c_str(), FeatName.c_str());
                     doCommand(Doc, "App.activeDocument().%s.ImageFile = '%s'", FeatName.c_str(), filespec.c_str());
                     doCommand(Doc, "App.activeDocument().%s.addView(App.activeDocument().%s)", PageName.c_str(), FeatName.c_str());
+                    CommandHelpers::stackNewViewTop(this, FeatName);
                     updateActive();
                     commitCommand();
                 }
@@ -1477,6 +1479,7 @@ void CmdTechDrawSymbol::activated(int iMsg)
 
         doCommand(Doc, "App.activeDocument().%s.addView(App.activeDocument().%s)", PageName.c_str(),
                   FeatName.c_str());
+        CommandHelpers::stackNewViewTop(this, FeatName);
 
         updateActive();
         commitCommand();
