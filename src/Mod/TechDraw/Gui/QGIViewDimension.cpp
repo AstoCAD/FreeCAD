@@ -1549,6 +1549,7 @@ void QGIViewDimension::drawRadiusExecutive(const Base::Vector2d& centerPoint,
 
     Base::Vector2d labelCenter(labelRectangle.GetCenter());
     double labelAngle = 0.0;
+    m_radialLineAngle.reset();
 
     if (standardStyle == ViewProviderDimension::STD_STYLE_ISO_REFERENCING
         || standardStyle == ViewProviderDimension::STD_STYLE_ASME_REFERENCING) {
@@ -1681,6 +1682,7 @@ void QGIViewDimension::drawRadiusExecutive(const Base::Vector2d& centerPoint,
             // Correct the label center distance projected on the leader line and subtract radius
             labelPosition =
                 angleFactor * cos(devAngle) * ((labelCenter - centerPoint).Length()) - radius;
+            m_radialLineAngle = lineAngle;  // for label snapping
         }
         else {
             // Leader line outside both arc wedges
@@ -1719,6 +1721,7 @@ void QGIViewDimension::drawRadiusExecutive(const Base::Vector2d& centerPoint,
             arcPoint = centerPoint + Base::Vector2d::FromPolar(radius, lineAngle);
 
             labelPosition = angleFactor * labelDirection.Length() - radius;
+            m_radialLineAngle = lineAngle;  // for label snapping
         }
         else {
             // Leader line outside both arc wedges
@@ -1907,6 +1910,10 @@ void QGIViewDimension::drawDiameter(TechDraw::DrawViewDimension* dimension,
     int renderExtent = viewProvider->RenderingExtent.getValue();
     bool flipArrows = viewProvider->FlipArrowheads.getValue();
 
+    // the line angle of the last drawing, kept when the label sits at the center
+    std::optional<double> previousLineAngle = m_radialLineAngle;
+    m_radialLineAngle.reset();
+
     if (renderExtent == ViewProviderDimension::REND_EXTENT_NORMAL) {
         // Draw diameter as one line crossing center touching two opposite circle points
         QPainterPath diameterPath;
@@ -1986,14 +1993,26 @@ void QGIViewDimension::drawDiameter(TechDraw::DrawViewDimension* dimension,
         else if (standardStyle == ViewProviderDimension::STD_STYLE_ISO_ORIENTED) {
             // We may rotate the label so no reference line is needed
             double lineAngle;
+            double lineLabelDistance = labelRectangle.Height() * 0.5 + getIsoDimensionLineSpacing();
             double devAngle = computeLineAndLabelAngles(curveCenter, labelCenter,
-                                                        labelRectangle.Height() * 0.5
-                                                            + getIsoDimensionLineSpacing(),
-                                                        lineAngle, labelAngle);
+                                                        lineLabelDistance, lineAngle, labelAngle);
 
             // Correct the label center distance projected on the leader line and subtract radius
             double labelPosition =
                 cos(devAngle) * ((labelCenter - curveCenter).Length()) - curveRadius;
+
+            Base::Vector2d labelDirection(labelCenter - curveCenter);
+            if (previousLineAngle.has_value()
+                && labelDirection.Length() <= 2.0 * lineLabelDistance) {
+                // Near the center the computed line angle swings around, so keep the previous
+                // one. This lets the label be snapped next to the center of the diameter line.
+                lineAngle = previousLineAngle.value();
+                Base::Vector2d lineDirection(Base::Vector2d::FromPolar(1.0, lineAngle));
+                labelPosition = labelDirection * lineDirection - curveRadius;
+                double side = lineDirection.x * labelDirection.y - lineDirection.y * labelDirection.x;
+                labelAngle = side >= 0.0 ? lineAngle : DrawUtil::angleComposition(lineAngle, pi);
+            }
+            m_radialLineAngle = lineAngle;  // for label snapping
 
             drawDimensionLine(diameterPath,
                               curveCenter + Base::Vector2d::FromPolar(curveRadius, lineAngle),
@@ -2004,6 +2023,12 @@ void QGIViewDimension::drawDiameter(TechDraw::DrawViewDimension* dimension,
             // Text must remain horizontal, but it may split the leader line
             double lineAngle = (labelCenter - curveCenter).Angle();
             //Base::Vector2d lineDirection(Base::Vector2d::FromPolar(1.0, lineAngle));
+            if (previousLineAngle.has_value()
+                && (labelCenter - curveCenter).Length() <= Precision::Confusion()) {
+                // label snapped to the center: the direction is undefined, keep the previous one
+                lineAngle = previousLineAngle.value();
+            }
+            m_radialLineAngle = lineAngle;  // for label snapping
 
             drawDimensionLine(
                 diameterPath, curveCenter + Base::Vector2d::FromPolar(curveRadius, lineAngle),
@@ -2252,6 +2277,10 @@ void QGIViewDimension::drawAngle(TechDraw::DrawViewDimension* dimension,
     datumLabel->setRotation(toQtDeg(labelAngle));
 
     dimLines->setPath(anglePath);
+
+    // for label snapping
+    m_angleArcRadius = arcRadius;
+    m_angleLabelOffset = (labelCenter - angleVertex).Length() - arcRadius;
 }
 
 void QGIViewDimension::drawArea(TechDraw::DrawViewDimension* dimension,

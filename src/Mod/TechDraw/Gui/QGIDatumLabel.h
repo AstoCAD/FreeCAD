@@ -104,6 +104,10 @@ protected:
     int getPrecision();
 
     void snapPosition(QPointF& position);
+    bool snapDistance(QPointF& pos, TechDraw::DrawViewDimension* dim, QGIViewDimension* qgivd);
+    bool snapRadial(QPointF& pos, TechDraw::DrawViewDimension* dim, QGIViewDimension* qgivd,
+                    ViewProviderDimension* vp);
+    bool snapAngle(QPointF& pos, TechDraw::DrawViewDimension* dim, QGIViewDimension* qgivd);
 
     bool getVerticalSep() const { return verticalSep; }
     void setVerticalSep(bool sep) { verticalSep = sep; }
