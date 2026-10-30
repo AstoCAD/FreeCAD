@@ -1265,25 +1265,65 @@ PyObject* SketchObjectPy::setDatum(PyObject* args)
         return nullptr;
     } while (false);
 
+    // SketchObject::setDatum() reports both its own argument checks and the result of solving
+    // the sketch through the same status values, so tell them apart here to give the right
+    // message (see https://github.com/FreeCAD/FreeCAD/issues/26506).
+    bool validIndex = false;
+    bool negativeDatum = false;
+    bool zeroDatum = false;
+    {
+        const auto& vals = this->getSketchObjectPtr()->Constraints.getValues();
+        if (Index >= 0 && Index < static_cast<int>(vals.size())) {
+            const Constraint* constr = vals[Index];
+            const ConstraintType type = constr->Type;
+            validIndex = constr->isDimensional() || type == Tangent || type == Perpendicular;
+            if (type == Radius || type == Diameter || type == Weight) {
+                negativeDatum = Datum < 0;
+                zeroDatum = Datum == 0;
+            }
+            else if (type == Distance) {
+                zeroDatum = Datum == 0;
+            }
+        }
+    }
+
     const auto status = this->getSketchObjectPtr()->setDatum(Index, Datum);
     if (status != SketchSolveStatus::Success) {
         std::stringstream str;
         switch (status) {
             case SketchSolveStatus::SolverError:
-                str << "Invalid constraint index: " << Index;
+                if (validIndex) {
+                    str << "Cannot set the datum " << Quantity.getUserString()
+                        << " for the constraint with index " << Index
+                        << " because the sketch cannot be solved with this value";
+                }
+                else {
+                    str << "Invalid constraint index: " << Index;
+                }
                 break;
             case SketchSolveStatus::ConflictingConstraints:
                 str << "Cannot set the datum because the sketch contains conflicting constraints";
                 break;
             case SketchSolveStatus::RedundantConstraints:
-                str << "Datum " << Quantity.getUserString() << " for the constraint with index "
-                    << Index << " is invalid";
+                str << "Cannot set the datum because the sketch contains redundant constraints";
                 break;
             case SketchSolveStatus::Overconstrained:
-                str << "Negative datum values are not valid for the constraint with index " << Index;
+                if (negativeDatum) {
+                    str << "Negative datum values are not valid for the constraint with index "
+                        << Index;
+                }
+                else {
+                    str << "Cannot set the datum because the sketch is over-constrained";
+                }
                 break;
             case SketchSolveStatus::MalformedConstraints:
-                str << "Zero is not a valid datum for the constraint with index " << Index;
+                if (zeroDatum) {
+                    str << "Zero is not a valid datum for the constraint with index " << Index;
+                }
+                else {
+                    str << "Cannot set the datum because the sketch contains malformed "
+                           "constraints";
+                }
                 break;
             case SketchSolveStatus::InvalidGeometry:
                 str << "Cannot set the datum because of invalid geometry";
