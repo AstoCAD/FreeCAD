@@ -701,6 +701,19 @@ void CmdPartDesignMoveTip::activated(int iMsg)
     App::DocumentObject* selFeature;
     PartDesign::Body* body = nullptr;
 
+    if (features.empty()) {
+        // The body's Origin is not a Part::Feature, but selecting it means "no tip"
+        std::vector<App::DocumentObject*> origins = getSelection().getObjectsOfType(
+            App::Origin::getClassTypeId()
+        );
+        if (origins.size() == 1 && getSelection().size() == 1) {
+            body = PartDesignGui::getBodyFor(origins.front(), /* messageIfNot =*/false);
+            if (body && body->Origin.getValue() == origins.front()) {
+                features.push_back(body);
+            }
+        }
+    }
+
     if (features.size() == 1) {
         selFeature = features.front();
         if (selFeature->isDerivedFrom<PartDesign::Body>()) {
@@ -748,6 +761,10 @@ void CmdPartDesignMoveTip::activated(int iMsg)
     App::DocumentObject* oldTip = body->Tip.getValue();
     if (oldTip == selFeature) {  // it's not generally an error, so print only a console message
         Base::Console().message("{} is already the tip of the body\n", selFeature->getNameInDocument());
+        return;
+    }
+    if (selFeature == body && !oldTip) {
+        Base::Console().message("{} has no tip already\n", body->getNameInDocument());
         return;
     }
 
