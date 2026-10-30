@@ -790,10 +790,15 @@ class ViewProviderArchReference:
             )
             return
 
-        # keep a copy of the original nodes
-        self.orig_flatlines = switch.getChild(0).copy()
-        self.orig_shaded = switch.getChild(1).copy()
-        self.orig_wireframe = switch.getChild(2).copy()
+        # keep the original nodes (not copies: the view provider keeps updating
+        # these very nodes when the shape changes, so they must be restored as is)
+        if not getattr(self, "orig_flatlines", None):
+            self.orig_flatlines = switch.getChild(0)
+            self.orig_shaded = switch.getChild(1)
+            self.orig_wireframe = switch.getChild(2)
+            # keep them alive while they are out of the scene graph
+            for node in (self.orig_flatlines, self.orig_shaded, self.orig_wireframe):
+                node.ref()
 
         # replace root node of object
         switch.replaceChild(0, flatlines)
@@ -826,6 +831,8 @@ class ViewProviderArchReference:
         switch.replaceChild(0, self.orig_flatlines)
         switch.replaceChild(1, self.orig_shaded)
         switch.replaceChild(2, self.orig_wireframe)
+        for node in (self.orig_flatlines, self.orig_shaded, self.orig_wireframe):
+            node.unref()
 
         # discard old content
         self.orig_flatlines = None
