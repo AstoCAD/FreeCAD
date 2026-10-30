@@ -826,6 +826,32 @@ class DocumentDuplicateLabelCases(unittest.TestCase):
         copy = self.Doc.copyObject(obj)
         self.assertEqual(copy.Label, "Label001")
 
+    def testEmptyLabelResetsToName(self):
+        # An empty label is replaced by the object name (issue #26323)
+        for duplicates in (False, True):
+            with self.subTest(DuplicateLabels=duplicates):
+                self.Params.SetBool("DuplicateLabels", duplicates)
+                obj = self.Doc.addObject("App::FeatureTest", "Feature")
+                obj.Label = "Renamed"
+                obj.Label = ""
+                self.assertEqual(obj.Label, obj.Name)
+                # Clearing a label already equal to the name keeps it unchanged
+                obj.Label = ""
+                self.assertEqual(obj.Label, obj.Name)
+
+    def testEmptyLabelResetsToUniqueNameWhenDisabled(self):
+        # When the name is already used as another object's label, the reset
+        # label is made unique if duplicate labels are disallowed
+        self.Params.SetBool("DuplicateLabels", False)
+        obj = self.Doc.addObject("App::FeatureTest", "Feature")
+        other = self.Doc.addObject("App::FeatureTest", "Other")
+        obj.Label = "Renamed"
+        other.Label = obj.Name
+        obj.Label = ""
+        self.assertNotEqual(obj.Label, "")
+        self.assertNotEqual(obj.Label, other.Label)
+        self.assertTrue(obj.Label.startswith(obj.Name))
+
 
 class DocumentSettingsCases(unittest.TestCase):
     def setUp(self):
