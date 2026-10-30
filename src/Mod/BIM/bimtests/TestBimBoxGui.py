@@ -60,6 +60,36 @@ class TestBimBoxGui(TestArchBaseGui.TestArchBaseGui):
                 Gui.draftToolBar.escape()
             App.activeDraftCommand = None
 
+    def test_box_goes_to_active_level(self):
+        """The box is added to the active level.
+
+        https://github.com/FreeCAD/FreeCAD/issues/24581
+        """
+        import Arch
+
+        self.printTestMessage("BIM_Box in an active level...")
+        level = Arch.makeFloor()
+        self.document.recompute()
+        view = Gui.ActiveDocument.ActiveView
+        view.setActiveObject("Arch", level)
+        cmd = BIM_Box()
+        try:
+            cmd.Activated()
+            for point in (App.Vector(0, 0, 0), App.Vector(1000, 0, 0), App.Vector(1000, 500, 0)):
+                cmd.MoveCallback(point, None)
+                cmd.PointCallback(point, None)
+            cmd.HeightValue = 300.0
+            cmd.setHeightUI()
+            self.pump_gui_events()
+        finally:
+            if Gui.draftToolBar.cancel:
+                Gui.draftToolBar.escape()
+            App.activeDraftCommand = None
+            view.setActiveObject("Arch", None)
+        boxes = [o for o in self.document.Objects if o.TypeId == "Part::Box"]
+        self.assertEqual(len(boxes), 1)
+        self.assertIn(boxes[0], level.Group)
+
     def test_numeric_length_without_cursor_move(self):
         """Entering the length right after picking the first point must not fail.
 
