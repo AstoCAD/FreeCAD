@@ -157,6 +157,12 @@ SketchSolveStatus SketchObject::moveGeometries(
 
     solvedSketch.resetInitMove();  // reset solver point moving mechanism
 
+    if (lastSolverStatus == GCS::SolveStatus::Success) {
+        // like solve(), notify that the solver geometry changed, so that a sketch in edit mode
+        // is redrawn (e.g. when the move is done from Python)
+        signalSolverUpdate();
+    }
+
     return lastSolverStatus == GCS::SolveStatus::Success ? SketchSolveStatus::Success
                                                          : SketchSolveStatus::SolverError;
 }
