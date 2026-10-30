@@ -996,6 +996,22 @@ void DlgPreferencesImp::restartIfRequired()
     }
 }
 
+void DlgPreferencesImp::moveEvent(QMoveEvent* event)
+{
+    QDialog::moveEvent(event);
+    if (m_searchController) {
+        m_searchController->updateSearchResultsListPosition();
+    }
+}
+
+void DlgPreferencesImp::resizeEvent(QResizeEvent* event)
+{
+    QDialog::resizeEvent(event);
+    if (m_searchController) {
+        m_searchController->updateSearchResultsListPosition();
+    }
+}
+
 void DlgPreferencesImp::showEvent(QShowEvent* ev)
 {
     QDialog::showEvent(ev);
@@ -1614,6 +1630,15 @@ void PreferencesSearchController::showSearchResultsList()
             m_searchBox->activateWindow();
         }
     });
+}
+
+void PreferencesSearchController::updateSearchResultsListPosition()
+{
+    // The popup is a separate top-level window, so it does not follow the
+    // dialog by itself when the dialog is moved or resized
+    if (isPopupVisible()) {
+        configurePopupSize();
+    }
 }
 
 QString PreferencesSearchController::findGroupBoxForWidget(QWidget* widget)
