@@ -22,6 +22,7 @@
 # ***************************************************************************
 
 import math
+import re
 import unittest
 
 import FreeCAD
@@ -261,6 +262,58 @@ class TestPocket(unittest.TestCase):
             self.Pocket001.UpToFace = (self.Pocket, ["Face" + str(self.FaceNumber)])
             self.Doc.recompute()
         self.assertAlmostEqual(self.Pocket001.Shape.Volume, 50.0)
+
+    def testRecomputeDoesNotGrowProfileShape(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33926
+        # The tapered Pad, the Pocket and the Groove must not attach new pcurves
+        # and surfaces to the edges of their sketch on every recompute.
+        def representations(shape):
+            brep = shape.exportBrepToString()
+            return [int(re.search(key + r" (\d+)", brep).group(1))
+                    for key in ("Curve2ds", "Surfaces", "Locations")]
+
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        padSketch = body.newObject("Sketcher::SketchObject", "PadSketch")
+        TestSketcherApp.CreateRectangleSketch(padSketch, (0, 0), (10, 10))
+        self.Doc.recompute()
+        pad = body.newObject("PartDesign::Pad", "Pad")
+        pad.Profile = padSketch
+        pad.Length = 5
+        pad.Reversed = 1
+        pad.TaperAngle = 5
+        self.Doc.recompute()
+        pocketSketch = body.newObject("Sketcher::SketchObject", "PocketSketch")
+        TestSketcherApp.CreateRectangleSketch(pocketSketch, (2.5, 2.5), (5, 5))
+        self.Doc.recompute()
+        pocket = body.newObject("PartDesign::Pocket", "Pocket")
+        pocket.Profile = pocketSketch
+        pocket.Length = 1
+        self.Doc.recompute()
+        grooveSketch = body.newObject("Sketcher::SketchObject", "GrooveSketch")
+        grooveSketch.Placement = FreeCAD.Placement(
+            FreeCAD.Vector(), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90)
+        )
+        TestSketcherApp.CreateRectangleSketch(grooveSketch, (5, -4), (3, 3))
+        self.Doc.recompute()
+        groove = body.newObject("PartDesign::Groove", "Groove")
+        groove.Profile = grooveSketch
+        groove.ReferenceAxis = (grooveSketch, ["V_Axis"])
+        groove.Angle = 90
+        self.Doc.recompute()
+        self.assertTrue(groove.Shape.isValid())
+
+        padBefore = representations(padSketch.Shape)
+        pocketBefore = representations(pocketSketch.Shape)
+        grooveBefore = representations(grooveSketch.Shape)
+        for i in range(5):
+            pad.Length = 5 + (i % 2)
+            pocket.Length = 1 + (i % 2)
+            groove.Angle = 90 + 30 * (i % 2)
+            self.Doc.recompute()
+        self.assertTrue(groove.Shape.isValid())
+        self.assertEqual(representations(padSketch.Shape), padBefore)
+        self.assertEqual(representations(pocketSketch.Shape), pocketBefore)
+        self.assertEqual(representations(grooveSketch.Shape), grooveBefore)
 
     def tearDown(self):
         # closing doc
