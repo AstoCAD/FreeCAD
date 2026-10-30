@@ -322,6 +322,7 @@ struct PointConstraints
 
                     // Look if one of the constrained vertices is already in a group of coincident
                     // vertices
+                    bool grouped = false;
                     for (std::set<VertexIds, VertexID_Less>& grp : coincVertexGrps) {
                         if ((grp.find(v1) != grp.end()) || (grp.find(v2) != grp.end())) {
                             // If yes add them to the existing group
@@ -331,11 +332,25 @@ struct PointConstraints
                             if (!nv2.empty()) {
                                 grp.insert(nv2.value());
                             }
-                            continue;
+                            grouped = true;
+                            break;
                         }
                     }
 
+                    if (grouped) {
+                        continue;
+                    }
+
                     if (nv1.empty() || nv2.empty()) {
+                        // The other vertex is not part of this group of adjacent vertices (e.g.
+                        // endpoint-to-edge tangency): give the vertex back so that it is still
+                        // checked against its neighbours.
+                        if (!nv1.empty()) {
+                            vertexGrp.insert(std::move(nv1));
+                        }
+                        if (!nv2.empty()) {
+                            vertexGrp.insert(std::move(nv2));
+                        }
                         continue;
                     }
 
@@ -521,7 +536,9 @@ int SketchAnalysis::detectMissingPointOnPointConstraints(double precision, bool 
 
     // Build a list of all coincidences in the sketch
 
-    std::vector<Sketcher::Constraint*> coincidences = sketch->Constraints.getValues();
+    // Only constraints that can make two vertices coincide are relevant here. Any other
+    // constraint referencing a vertex (e.g. a dimension) must not hide a missing coincidence.
+    std::vector<Sketcher::Constraint*> coincidences;
     for (auto& constraint : sketch->Constraints.getValues()) {
         // clang-format off
         if (constraint->Type == Sketcher::Coincident ||
