@@ -19,6 +19,7 @@ SET(Inspection_SRCS
 
 set(Inspection_Scripts
     ../Init.py
+    ../TestInspectionApp.py
 )
 
 add_library(Inspection SHARED ${Inspection_SRCS} ${Inspection_Scripts})
