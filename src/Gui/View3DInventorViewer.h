@@ -701,6 +701,9 @@ private:
     SoSeparator* pcViewProviderRoot;
     // Child group in the scene graph that contains view providers related to the physical object
     SoGroup* objectGroup;
+    // Child group in the scene graph that contains annotations (e.g. measurements) that must not
+    // be cut by clipping planes
+    SoGroup* annotationGroup;
 
     std::unique_ptr<View3DInventorSelection> inventorSelection;
 
