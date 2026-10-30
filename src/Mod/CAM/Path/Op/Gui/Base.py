@@ -797,6 +797,31 @@ class TaskPanelPage:
                 )
 
 
+class _BaseListDeleteKeyFilter(QtCore.QObject):
+    """Event filter letting the Delete key remove the selected base geometry
+    entries instead of triggering the global delete command (#13877)."""
+
+    def __init__(self, page):
+        super().__init__(page.form.baseList)
+        self.page = page
+
+    def eventFilter(self, obj, event):
+        if not isinstance(event, QtCore.QEvent):
+            return False
+        if event.type() not in (QtCore.QEvent.ShortcutOverride, QtCore.QEvent.KeyPress):
+            return False
+        if event.key() != QtCore.Qt.Key_Delete or event.modifiers() not in (
+            QtCore.Qt.NoModifier,
+            QtCore.Qt.KeypadModifier,
+        ):
+            return False
+        if event.type() == QtCore.QEvent.ShortcutOverride:
+            event.accept()
+        elif self.page.form.baseList.selectedItems():
+            self.page.deleteBase()
+        return True
+
+
 class TaskPanelBaseGeometryPage(TaskPanelPage):
     """Page controller for the base geometry."""
 
@@ -983,6 +1008,12 @@ class TaskPanelBaseGeometryPage(TaskPanelPage):
         self.form.deleteBase.clicked.connect(self.deleteBase)
         self.form.clearBase.clicked.connect(self.clearBase)
         self.form.geometryImportButton.clicked.connect(self.importBaseGeometry)
+        self.installDeleteKeyFilter()
+
+    def installDeleteKeyFilter(self):
+        """installDeleteKeyFilter() ... make the Delete key in the base list act like Remove."""
+        self._deleteKeyFilter = _BaseListDeleteKeyFilter(self)
+        self.form.baseList.installEventFilter(self._deleteKeyFilter)
 
     def pageUpdateData(self, obj, prop):
         if prop in ["Base"]:
