@@ -2571,6 +2571,59 @@ class DocumentExpressionCases(unittest.TestCase):
         FreeCAD.closeDocument(self.Doc.Name)
         self.Doc = FreeCAD.openDocument(SaveName)
 
+    def testMergeProjectRelabelsLabelReferences(self):
+        # issue #6284: merging a project whose objects get new unique labels
+        # must update the label references (<<label>>) in the merged expressions
+        params = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document")
+        hadDuplicateLabels = "DuplicateLabels" in params.GetBools()
+        oldDuplicateLabels = params.GetBool("DuplicateLabels", False)
+        params.SetBool("DuplicateLabels", False)
+        fileName = os.path.join(tempfile.gettempdir(), "MergeLabelReferences.FCStd")
+        try:
+            src = FreeCAD.newDocument("MergeLabelSource")
+            box = src.addObject("App::FeatureTest", "Box")
+            box.Label = "Cube"
+            box.Float = 3.0
+            other = src.addObject("App::FeatureTest", "Other")
+            other.Float = 5.0
+            user = src.addObject("App::FeatureTest", "User")
+            user.setExpression("Float", "<<Cube>>.Float")
+            user.setExpression("Integer", "Other.Float")
+            src.saveAs(fileName)
+            FreeCAD.closeDocument(src.Name)
+
+            self.Doc.mergeProject(fileName)
+            self.Doc.mergeProject(fileName)
+            self.Doc.recompute()
+            self.assertEqual(self.Doc.getObject("Box001").Label, "Cube001")
+            first = self.Doc.getObject("User")
+            second = self.Doc.getObject("User001")
+            self.assertIn(("Float", "<<Cube>>.Float"), first.ExpressionEngine)
+            self.assertIn(("Float", "<<Cube001>>.Float"), second.ExpressionEngine)
+            self.assertIn(("Integer", "Other001.Float"), second.ExpressionEngine)
+
+            # the merged expression follows the merged object, not the first copy
+            self.Doc.getObject("Box001").Float = 7.0
+            self.Doc.recompute()
+            self.assertEqual(first.Float, 3.0)
+            self.assertEqual(second.Float, 7.0)
+
+            # copying objects within the document keeps working as before:
+            # a copied reference follows the copied object, an uncopied one
+            # keeps pointing to the original object
+            copiedBox, copiedUser = self.Doc.copyObject([self.Doc.getObject("Box"), first])
+            self.assertNotEqual(copiedBox.Label, "Cube")
+            self.assertIn(("Float", "<<%s>>.Float" % copiedBox.Label), copiedUser.ExpressionEngine)
+            alone = self.Doc.copyObject(second)
+            self.assertIn(("Float", "<<Cube001>>.Float"), alone.ExpressionEngine)
+        finally:
+            if hadDuplicateLabels:
+                params.SetBool("DuplicateLabels", oldDuplicateLabels)
+            else:
+                params.RemBool("DuplicateLabels")
+            if os.path.exists(fileName):
+                os.remove(fileName)
+
     def testCyclicDependencyOnPlacement(self):
         obj = self.Doc.addObject("App::FeaturePython", "Python")
         obj.addProperty("App::PropertyPlacement", "Placement")
