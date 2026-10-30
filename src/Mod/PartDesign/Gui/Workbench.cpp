@@ -87,8 +87,10 @@ void Workbench::setupContextMenu(const char* recipient, Gui::MenuItem* item) con
 
         body = PartDesignGui::getBodyFor(feature, false, false, true);
         // lote of assertion so feature should be marked as a tip
+        // The body's Origin stands for "no tip": new features are inserted first
         if (selection.size() == 1 && feature && body
             && (feature->isDerivedFrom<PartDesign::Feature>()
+                || feature == body->Origin.getValue()
                 || (feature->isDerivedFrom<Part::Feature>()
                     && body->BaseFeature.getValue() == feature))) {
             *item << "PartDesign_MoveTip";

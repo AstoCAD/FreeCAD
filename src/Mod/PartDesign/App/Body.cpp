@@ -133,9 +133,19 @@ App::DocumentObject* Body::getNextSolidFeature(App::DocumentObject* start)
 {
     if (!start) {  // default to tip
         start = Tip.getValue();
+        if (!start) {
+            // No tip (e.g. it was set on the Origin): the insert point is the start of the
+            // body, right after the internal base feature if there is one
+            for (auto obj : Group.getValues()) {
+                if (isSolidFeature(obj) && !obj->isDerivedFrom<FeatureBase>()) {
+                    return obj;
+                }
+            }
+            return nullptr;
+        }
     }
 
-    if (!start || !hasObject(start)) {  // no or faulty tip
+    if (!hasObject(start)) {  // faulty tip
         return nullptr;
     }
 
