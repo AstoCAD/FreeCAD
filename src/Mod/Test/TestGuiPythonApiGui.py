@@ -135,3 +135,35 @@ class TestClosedDocumentObjectGui(unittest.TestCase):
             view.dropObject(self.closed)
         with self.assertRaises(ValueError):
             view.dragObject(self.closed)
+
+
+class TestSelectionGateWithoutActiveViewGui(unittest.TestCase):
+    """A selection gate must not need an active document view."""
+
+    def setUp(self):
+        if FreeCAD.listDocuments():
+            self.skipTest("needs no other open document")
+        self.doc = FreeCAD.newDocument("TestGateHidden", hidden=True)
+        self.obj = self.doc.addObject("App::FeaturePython", "Feature")
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.clearPreselection()
+
+    def tearDown(self):
+        FreeCADGui.Selection.removeSelectionGate()
+        FreeCADGui.Selection.clearPreselection()
+        FreeCADGui.Selection.clearSelection()
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def test_preselection_with_gate(self):
+        self.assertIsNone(FreeCADGui.ActiveDocument)
+        FreeCADGui.Selection.addSelectionGate("SELECT App::FeaturePython")
+        FreeCADGui.Selection.setPreselection(self.obj, tp=0)
+        FreeCADGui.Selection.clearPreselection()
+        FreeCADGui.Selection.addSelectionGate("SELECT App::DocumentObjectGroup")
+        FreeCADGui.Selection.setPreselection(self.obj, tp=0)
+        self.assertEqual(FreeCADGui.Selection.getPreselection().ObjectName, "")
+
+    def test_rejected_selection_with_gate(self):
+        FreeCADGui.Selection.addSelectionGate("SELECT App::DocumentObjectGroup")
+        FreeCADGui.Selection.addSelection(self.obj)
+        self.assertEqual(FreeCADGui.Selection.getSelection(self.doc.Name), [])

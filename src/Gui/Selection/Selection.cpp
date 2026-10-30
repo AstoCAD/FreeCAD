@@ -62,6 +62,16 @@ using namespace Gui;
 using namespace std;
 namespace sp = std::placeholders;
 
+namespace
+{
+// There is no active document view e.g. when only hidden documents are open
+Gui::MDIView* getActiveDocumentView()
+{
+    Gui::Document* doc = Gui::Application::Instance->activeDocument();
+    return doc ? doc->getActiveView() : nullptr;
+}
+}  // namespace
+
 SelectionGateFilterExternal::SelectionGateFilterExternal(const char* docName, const char* objName)
 {
     if (docName) {
@@ -986,13 +996,15 @@ int SelectionSingleton::setPreselect(
 
             if (getMainWindow()) {
                 getMainWindow()->showMessage(msg);
-                Gui::MDIView* mdi = Gui::Application::Instance->activeDocument()->getActiveView();
-                mdi->setOverrideCursor(QCursor(Qt::ForbiddenCursor));
+                if (Gui::MDIView* mdi = getActiveDocumentView()) {
+                    mdi->setOverrideCursor(QCursor(Qt::ForbiddenCursor));
+                }
             }
             return 0;
         }
-        Gui::MDIView* mdi = Gui::Application::Instance->activeDocument()->getActiveView();
-        mdi->restoreOverrideCursor();
+        if (Gui::MDIView* mdi = getActiveDocumentView()) {
+            mdi->restoreOverrideCursor();
+        }
     }
 
     DocName = pDocName;
@@ -1163,8 +1175,9 @@ void SelectionSingleton::rmvPreselect(bool signal)
     hz = 0;
 
     if (ActiveGate && getMainWindow()) {
-        Gui::MDIView* mdi = Gui::Application::Instance->activeDocument()->getActiveView();
-        mdi->restoreOverrideCursor();
+        if (Gui::MDIView* mdi = getActiveDocumentView()) {
+            mdi->restoreOverrideCursor();
+        }
     }
 
     FC_TRACE("rmv preselect");
@@ -1338,8 +1351,9 @@ bool SelectionSingleton::addSelection(
                 msg = QCoreApplication::translate("SelectionFilter", "Selection not allowed by filter");
             }
             getMainWindow()->showMessage(msg);
-            Gui::MDIView* mdi = Gui::Application::Instance->activeDocument()->getActiveView();
-            mdi->setOverrideCursor(Qt::ForbiddenCursor);
+            if (Gui::MDIView* mdi = getActiveDocumentView()) {
+                mdi->setOverrideCursor(Qt::ForbiddenCursor);
+            }
         }
         QApplication::beep();
         return false;
