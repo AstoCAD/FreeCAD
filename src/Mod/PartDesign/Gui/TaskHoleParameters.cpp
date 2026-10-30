@@ -105,6 +105,7 @@ TaskHoleParameters::TaskHoleParameters(ViewProviderHole* HoleView, QWidget* pare
         ui->ThreadSize->addItem(tr(it.c_str()));
     }
     ui->ThreadSize->setCurrentIndex(pcHole->ThreadSize.getValue());
+    updateThreadPitch();
 
     ui->ThreadClass->clear();
     cursor = pcHole->ThreadClass.getEnumVector();
@@ -834,6 +835,27 @@ void TaskHoleParameters::threadSizeChanged(int index)
     }
 }
 
+void TaskHoleParameters::updateThreadPitch()
+{
+    auto hole = getObject<PartDesign::Hole>();
+    if (!hole) {
+        return;
+    }
+
+    // The pitch is read-only: it follows from the standard profile and size
+    bool isNone = std::string(hole->ThreadType.getValueAsString()) == "None";
+    ui->labelThreadPitch->setHidden(isNone);
+    ui->ThreadPitch->setHidden(isNone);
+
+    long size = hole->ThreadSize.getValue();
+    if (isNone || size < 0 || size >= static_cast<long>(hole->ThreadSize.getEnumVector().size())) {
+        return;
+    }
+
+    [[maybe_unused]] QSignalBlocker blocker(ui->ThreadPitch);
+    ui->ThreadPitch->setValue(hole->getThreadPitch());
+}
+
 void TaskHoleParameters::threadClassChanged(int index)
 {
     if (index < 0) {
@@ -961,10 +983,12 @@ void TaskHoleParameters::changedObject(const App::Document&, const App::Property
             translatedClassTypes.push_back(tr(it.c_str()).toStdString());
         }
         updateComboBoxItems(ui->ThreadClass, translatedClassTypes, hole->ThreadClass.getValue());
+        updateThreadPitch();
     }
     else if (&Prop == &hole->ThreadSize) {
         ui->ThreadSize->setEnabled(true);
         updateComboBox(ui->ThreadSize, hole->ThreadSize.getValue());
+        updateThreadPitch();
     }
     else if (&Prop == &hole->ThreadClass) {
         ui->ThreadClass->setEnabled(true);
