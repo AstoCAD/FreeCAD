@@ -576,7 +576,11 @@ class BIM_Library_TaskPanel:
         if ext in [".stp", ".step", ".brp", ".brep"]:
             self.place(path)
         elif ext == ".fcstd":
-            FreeCADGui.ActiveDocument.mergeProject(path)
+            FreeCAD.ActiveDocument.openTransaction(translate("BIM", "Insert library object"))
+            try:
+                FreeCADGui.ActiveDocument.mergeProject(path)
+            finally:
+                FreeCAD.ActiveDocument.commitTransaction()
             from draftutils import todo
 
             todo.ToDo.delay(self.reject, None)
@@ -584,7 +588,11 @@ class BIM_Library_TaskPanel:
             from importers import importIFC
 
             importIFC.ZOOMOUT = False
-            importIFC.insert(path, FreeCAD.ActiveDocument.Name)
+            FreeCAD.ActiveDocument.openTransaction(translate("BIM", "Insert library object"))
+            try:
+                importIFC.insert(path, FreeCAD.ActiveDocument.Name)
+            finally:
+                FreeCAD.ActiveDocument.commitTransaction()
             from draftutils import todo
 
             todo.ToDo.delay(self.reject, None)
@@ -728,9 +736,11 @@ class BIM_Library_TaskPanel:
 
             self.box.off()
             self.shape.translate(point.add(self.getDelta()))
+            FreeCAD.ActiveDocument.openTransaction(translate("BIM", "Insert library object"))
             obj = Arch.makeEquipment()
             obj.Shape = self.shape
             obj.Label = self.name
+            FreeCAD.ActiveDocument.commitTransaction()
         self.reject()
 
     def getDelta(self):
