@@ -109,6 +109,37 @@ class DraftSVG(test_base.DraftTestCaseDoc):
             self.fail("no exception thrown")
 
 
+class DraftSVGImportRegression(test_base.DraftTestCaseDoc):
+    """Regression tests for SVG import edge cases."""
+
+    def test_read_svg_recursive_use(self):
+        """Recursive use tags and use tags pointing to defs must not hang the import."""
+        body = (
+            '<rect id="r" width="10" height="10"/>'
+            '<use xlink:href="#r" x="20"/>'
+            '<use id="u" xlink:href="#u"/>'
+            '<g id="a"><use xlink:href="#b"/></g>'
+            '<g id="b"><use xlink:href="#a"/></g>'
+            '<defs id="d"><circle r="5"/></defs>'
+            '<use xlink:href="#d"/>'
+        )
+        svg = (
+            '<?xml version="1.0"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'xmlns:xlink="http://www.w3.org/1999/xlink" '
+            'width="100mm" height="100mm" viewBox="0 0 100 100">' + body + "</svg>\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "recursive_use.svg")
+            with open(in_file, "w", encoding="utf-8") as svg_file:
+                svg_file.write(svg)
+            result = importSVG.replace_use_with_reference(in_file)
+            importSVG.insert(in_file, self.doc.Name)
+        self.assertNotIn("<use", result)
+        # 'r' itself and its valid use
+        self.assertEqual(result.count("<rect"), 2)
+
+
 class DraftSVGExportRegression(test_base.DraftTestCaseDoc):
     """Regression tests for SVG export edge cases."""
 
