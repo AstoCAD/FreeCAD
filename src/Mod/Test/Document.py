@@ -754,6 +754,29 @@ class DocumentBasicCases(unittest.TestCase):
         obj.SL = ["ok", "é"]
         self.assertEqual(obj.SL, ["ok", "é"])
 
+    def testUnencodableStringArguments(self):
+        # Same as testUnencodableStringPropertyValues for method arguments.
+        bad = "\ud800"
+        obj = self.Doc.addObject("App::FeatureTest", "Args")
+        link = self.Doc.addObject("App::Link", "ArgsLink")
+        with self.assertRaises(UnicodeError):
+            obj.setExpression("Integer", bad)
+        with self.assertRaises(UnicodeError):
+            obj.getSubObject(bad)
+        with self.assertRaises(UnicodeError):
+            obj.getSubObject([bad])
+        with self.assertRaises(UnicodeError):
+            self.Doc.openTransaction(bad)
+        self.Doc.abortTransaction()
+        with self.assertRaises(UnicodeError):
+            self.Doc.getTempFileName(bad)
+        with self.assertRaises(UnicodeError):
+            link.configLinkProperty(bad)
+        with self.assertRaises(UnicodeError):
+            link.configLinkProperty(LinkedObject=bad)
+        with self.assertRaises(UnicodeError):
+            FreeCAD.setLogLevel("Document", bad)
+
     def testLinksLinkingEachOther(self):
         # Two links linking each other: setting the second link's LinkedObject rebuilt
         # its label from the other link, which rebuilt its own label in turn, and so

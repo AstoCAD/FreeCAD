@@ -618,7 +618,11 @@ PyObject* DocumentPy::openTransaction(PyObject* args)
         cmd = "<empty>";
     }
     else if (PyUnicode_Check(value)) {
-        cmd = PyUnicode_AsUTF8(value);
+        const char* str = PyUnicode_AsUTF8(value);
+        if (!str) {
+            return nullptr;
+        }
+        cmd = str;
     }
     else {
         PyErr_SetString(PyExc_TypeError, "string or unicode expected");
@@ -1056,7 +1060,11 @@ PyObject* DocumentPy::getTempFileName(PyObject* args)
 
     std::string string;
     if (PyUnicode_Check(value)) {
-        string = PyUnicode_AsUTF8(value);
+        const char* str = PyUnicode_AsUTF8(value);
+        if (!str) {
+            return nullptr;
+        }
+        string = str;
     }
     else {
         std::string error = std::string("type must be a string!");
