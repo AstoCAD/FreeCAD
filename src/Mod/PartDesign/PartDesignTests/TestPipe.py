@@ -212,6 +212,17 @@ class TestPipe(unittest.TestCase):
         self.assertNotIn("fatal error", status)
         self.assertIn("Spine is neither an edge nor a wire", status)
 
+    def testPipeSpineSketchWithIsolatedPoints(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/26853
+        # Points of the spine sketch are not part of the path and must be ignored
+        self.createSquarePipe()
+        self.SpineSketch.addGeometry(Part.Point(App.Vector(0, 0.5, 0)), False)
+        self.SpineSketch.addGeometry(Part.Point(App.Vector(3, 3, 0)), False)
+        self.AdditivePipe.Profile = self.ProfileSketch
+        self.Doc.recompute()
+        self.assertTrue(self.AdditivePipe.isValid(), self.AdditivePipe.getStatusString())
+        self.assertAlmostEqual(self.AdditivePipe.Shape.Volume, 4.0)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestPipe")
