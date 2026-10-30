@@ -234,6 +234,12 @@ PyObject* ApplicationPy::sCloseDocument(PyObject* /*self*/, PyObject* args)
             PyErr_Format(PyExc_RuntimeError, "The document '%s' is not closable for the moment", pstr);
             return nullptr;
         }
+        // Document::recompute() keeps using the document (and its objects) after a
+        // feature's execute() or a recompute observer returns.
+        if (doc->testStatus(Document::Recomputing)) {
+            PyErr_Format(PyExc_RuntimeError, "The document '%s' cannot be closed while it is recomputing", pstr);
+            return nullptr;
+        }
 
         if (!GetApplication().closeDocument(pstr)) {
             PyErr_Format(PyExc_RuntimeError, "Closing the document '%s' failed", pstr);
@@ -254,6 +260,10 @@ PyObject* ApplicationPy::sCloseDocument(PyObject* /*self*/, PyObject* args)
 
         if (!doc->isClosable()) {
             PyErr_Format(PyExc_RuntimeError, "The document '%s' is not closable for the moment", doc->getName());
+            return nullptr;
+        }
+        if (doc->testStatus(Document::Recomputing)) {
+            PyErr_Format(PyExc_RuntimeError, "The document '%s' cannot be closed while it is recomputing", doc->getName());
             return nullptr;
         }
 

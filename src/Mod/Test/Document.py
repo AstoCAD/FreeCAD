@@ -1648,6 +1648,29 @@ class DocumentRecomputeCases(unittest.TestCase):
         with self.assertRaises(ReferenceError):
             victim.TypeId
 
+    def testCloseDocumentFromExecuteIsRefused(self):
+        # Closing the document from a feature's execute() destroyed it while
+        # Document::recompute() was still running on it (access violation).
+        doc = self.Doc
+
+        class Closer:
+            error = None
+
+            def __init__(self, obj):
+                obj.Proxy = self
+
+            def execute(self, obj):
+                try:
+                    FreeCAD.closeDocument(doc.Name)
+                except RuntimeError as e:
+                    Closer.error = e
+
+        Closer(doc.addObject("App::FeaturePython", "Closer"))
+        doc.recompute()
+        self.assertIsInstance(Closer.error, RuntimeError)
+        self.assertIn(doc.Name, FreeCAD.listDocuments())
+        self.assertIsNotNone(doc.getObject("Closer"))
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("RecomputeTests")
