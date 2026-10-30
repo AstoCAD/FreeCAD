@@ -2840,7 +2840,7 @@ PyObject* SelectionSingleton::sAddSelectionGate(PyObject* /*self*/, PyObject* ar
 
     PyErr_Clear();
     PyObject* filterPy;
-    if (PyArg_ParseTuple(args, "O!|i", SelectionFilterPy::type_object(), &filterPy, resolve)) {
+    if (PyArg_ParseTuple(args, "O!|i", SelectionFilterPy::type_object(), &filterPy, &resolve)) {
         PY_TRY
         {
             Selection().addSelectionGate(
