@@ -27,6 +27,7 @@
 #include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <App/DocumentObjectPy.h>
+#include <App/DocumentPy.h>
 #include <Base/Console.h>
 #include <Base/Exception.h>
 #include <Base/FileInfo.h>
@@ -39,6 +40,7 @@
 #include <Mod/TechDraw/App/DrawPagePy.h>
 #include <Mod/TechDraw/App/DrawViewPy.h>  // generated from DrawViewPy.xml
 
+#include "DrawGuiUtil.h"
 #include "QGIView.h"
 #include "QGSPage.h"
 #include "ViewProviderPage.h"
@@ -76,6 +78,12 @@ public:
         );
         add_varargs_method("getSceneForPage", &Module::getSceneForPage,
             "QGSPage = getSceneForPage(page) -- get the scene for a DrawPage."
+        );
+        add_varargs_method("findPage", &Module::findPage,
+            "page = findPage([document]) -- find the page to work on, as the TechDraw commands do.\n"
+            "Looks in document (default: the active document) for the selected page, else the only\n"
+            "page, else the page of the active page view, else asks the user to choose a page.\n"
+            "Returns None if there is no page or if the choice is cancelled."
         );
         initialize("This is a module for displaying drawings"); // register with Python
     }
@@ -444,6 +452,33 @@ private:
         }
 
         return Py::None();
+    }
+
+    Py::Object findPage(const Py::Tuple& args)
+    {
+        PyObject *docPy = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "|O!", &(App::DocumentPy::Type), &docPy)) {
+            throw Py::TypeError("expected ([document])");
+        }
+
+        App::Document* doc = nullptr;
+        if (docPy) {
+            doc = static_cast<App::DocumentPy*>(docPy)->getDocumentPtr();
+        }
+        else {
+            // the same document as Gui::Command::getDocument()
+            Gui::Document* guiDoc = Gui::Application::Instance->activeDocument();
+            doc = guiDoc ? guiDoc->getDocument() : nullptr;
+        }
+        if (!doc) {
+            throw Py::RuntimeError("No active document");
+        }
+
+        TechDraw::DrawPage* page = DrawGuiUtil::findPage(doc);
+        if (!page) {
+            return Py::None();
+        }
+        return Py::asObject(page->getPyObject());
     }
 };
 

@@ -49,6 +49,9 @@ class DrawView;
 class DrawViewPart;
 class LineGenerator;
 }
+namespace App {
+class Document;
+}
 namespace Gui {
 class Command;
 }
@@ -68,6 +71,7 @@ class TechDrawGuiExport DrawGuiUtil {
     Q_DECLARE_TR_FUNCTIONS(TechDrawGui::DrawGuiUtil)
     public:
     static TechDraw::DrawPage* findPage(Gui::Command* cmd, bool findAny = false);
+    static TechDraw::DrawPage* findPage(App::Document* document, bool findAny = false);
 
     static bool isDraftObject(App::DocumentObject* obj);
     static bool isArchObject(App::DocumentObject* obj);

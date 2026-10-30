@@ -363,6 +363,12 @@ QIcon DrawGuiUtil::iconForLine(size_t lineNumber,
 // find a page in Selection, Document or CurrentWindow.
 TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
 {
+    return findPage(cmd->getDocument(), findAny);
+}
+
+// find a page in Selection, the given document or CurrentWindow.
+TechDraw::DrawPage* DrawGuiUtil::findPage(App::Document* document, bool findAny)
+{
     std::vector<std::string> names;
     std::vector<std::string> labels;
     auto docs = App::GetApplication().getDocuments();
@@ -403,7 +409,7 @@ TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
                     showNoPageMessage();
                     return nullptr;
                 }
-                App::Document* doc = cmd->getDocument();
+                App::Document* doc = document;
                 return static_cast<TechDraw::DrawPage*>(doc->getObject(selName.c_str()));
             }
         }
@@ -418,7 +424,7 @@ TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
         Gui::Command::getSelection().getObjectsOfType(TechDraw::DrawPage::getClassTypeId());
     if (selPages.empty()) {
         // no page in selection, try this document
-        auto docPages = cmd->getDocument()->getObjectsOfType(TechDraw::DrawPage::getClassTypeId());
+        auto docPages = document->getObjectsOfType(TechDraw::DrawPage::getClassTypeId());
         if (docPages.empty()) {
             // we are only to look in this document, and there is no page in this document
             showNoPageMessage();
@@ -449,7 +455,7 @@ TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
                     showNoPageMessage();
                     return nullptr;
             }
-                App::Document* doc = cmd->getDocument();
+                App::Document* doc = document;
                 return static_cast<TechDraw::DrawPage*>(doc->getObject(selName.c_str()));
             }
             return nullptr;
@@ -474,7 +480,7 @@ TechDraw::DrawPage* DrawGuiUtil::findPage(Gui::Command* cmd, bool findAny)
                 showNoPageMessage();
                 return nullptr;
             }
-            App::Document* doc = cmd->getDocument();
+            App::Document* doc = document;
             return static_cast<TechDraw::DrawPage*>(doc->getObject(selName.c_str()));
         }
     }
