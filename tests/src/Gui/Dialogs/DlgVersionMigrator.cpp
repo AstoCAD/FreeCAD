@@ -250,6 +250,27 @@ private Q_SLOTS:
         QCOMPARE(actualNewPreferencesString, expectedNewPreferencesString);
     }
 
+    void locateNewPreferences_non_ascii_directory()
+    {
+        // Regression test for issue #28292: the worker gets UTF-8 strings, and an implicit
+        // std::string to path conversion used the ANSI code page on Windows, so a user name with
+        // non-ASCII characters (here Cyrillic) produced a wrong path and the migration failed.
+        const std::string nonAscii = "\xD0\x98\xD0\xBC\xD1\x8F";  // "Имя" in UTF-8
+        std::filesystem::path base = std::filesystem::temp_directory_path()
+            / Base::FileInfo::stringToPath(nonAscii);
+        std::string configDir = Base::FileInfo::pathToString(base / "Config");
+        configDir += std::filesystem::path::preferred_separator;
+        std::string userAppDataDir = Base::FileInfo::pathToString(base / "AppData");
+        userAppDataDir += std::filesystem::path::preferred_separator;
+        TestablePathMigrationWorker worker(configDir, userAppDataDir, 1, 1);
+
+        std::filesystem::path expected = base / "Config" / "v1-1" / "user.cfg";
+        QCOMPARE(
+            Base::FileInfo::pathToString(worker.testableLocateNewPreferences()),
+            Base::FileInfo::pathToString(expected)
+        );
+    }
+
     static void _writePreferencesTestData(std::ostream& stream, const std::string& pathToInject)
     {
         stream << "<FCParamGroup Name=\"Macro\">\n"
