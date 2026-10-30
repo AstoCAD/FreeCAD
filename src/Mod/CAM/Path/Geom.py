@@ -476,7 +476,9 @@ def edgeForCmd(cmd, startPoint):
         B = xy(endPoint - center)
         d = -B.x * A.y + B.y * A.x
 
-        if isRoughly(d, 0, 0.005):
+        # d is also about zero for a very short arc, where A and B point
+        # the same way: only opposite vectors make a half circle.
+        if isRoughly(d, 0, 0.005) and A.dot(B) < 0:
             # Path.Log.debug(
             #    "Half circle arc at: (%.2f, %.2f, %.2f)" % (center.x, center.y, center.z)
             # )
