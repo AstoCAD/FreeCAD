@@ -92,6 +92,7 @@ if(BUILD_GUI)
         PartDesignTests/TestSetTipOriginGui.py
         PartDesignTests/TestHolePitchGui.py
         PartDesignTests/TestTransformedModeGui.py
+        PartDesignTests/TestBodyLineWidthGui.py
         PartDesignTests/TestMaterial.py
         PartDesignTests/TestSuppressed.py
     )
