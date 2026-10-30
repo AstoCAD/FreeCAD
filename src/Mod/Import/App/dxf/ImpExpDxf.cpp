@@ -1894,6 +1894,17 @@ void ImpExpDxfWrite::exportShape(const TopoDS_Shape input)
             writePoint(point);
         }
     }
+    else {
+        // export free-standing vertices (e.g. sketch points), which are not part of any edge
+        // (#30675)
+        TopExp_Explorer verts(input, TopAbs_VERTEX, TopAbs_EDGE);
+        for (; verts.More(); verts.Next()) {
+            gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(verts.Current()));
+            double point[3] = {0, 0, 0};
+            gPntToTuple(point, p);
+            writePoint(point);
+        }
+    }
 }
 
 bool ImpExpDxfWrite::gp_PntEqual(gp_Pnt p1, gp_Pnt p2)
