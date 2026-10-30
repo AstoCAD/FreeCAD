@@ -23,4 +23,4 @@
 # *                                                                         *
 # ***************************************************************************/
 
-FreeCAD.__unit_test__ += ["TestMeasureShapeFinder"]
+FreeCAD.__unit_test__ += ["TestMeasureShapeFinder", "TestMeasurementMissingElement"]
