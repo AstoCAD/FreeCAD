@@ -3238,3 +3238,36 @@ class DocumentPathCases(unittest.TestCase):
 
     def test_relative_owner_and_project_derived_source_link_paths(self):
         self._check_spreadsheet_link_paths(True, True)
+
+    def test_link_created_during_first_save_is_relative_to_owner(self):
+        # Issue #33468: a link made while the owner is saved for the first
+        # time (slotStartSaveDocument) was stored relative to the process cwd.
+        model = self.directory / "model"
+        model.mkdir()
+        source_file = model / "Source.FCStd"
+        owner_file = model / "Owner.FCStd"
+        source = FreeCAD.newDocument("FirstSaveLinkSource")
+        target = source.addObject("App::FeaturePython", "Target")
+        source.saveAs(str(source_file))
+        owner = FreeCAD.newDocument("FirstSaveLinkOwner")
+
+        class Observer:
+            def slotStartSaveDocument(self, doc, filename):
+                if doc == owner and not doc.getObject("FirstSaveLink"):
+                    doc.addObject("App::Link", "FirstSaveLink").LinkedObject = target
+
+        observer = Observer()
+        FreeCAD.addDocumentObserver(observer)
+        try:
+            owner.saveAs(str(owner_file))
+        finally:
+            FreeCAD.removeDocumentObserver(observer)
+
+        with zipfile.ZipFile(owner_file) as archive:
+            xml = ET.fromstring(archive.read("Document.xml"))
+        node = xml.find(
+            ".//ObjectData/Object[@name='FirstSaveLink']/Properties/"
+            "Property[@name='LinkedObject']/XLink"
+        )
+        self.assertIsNotNone(node)
+        self.assertEqual(node.attrib["file"], "Source.FCStd")
