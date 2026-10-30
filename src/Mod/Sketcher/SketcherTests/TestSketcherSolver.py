@@ -1620,6 +1620,8 @@ class TestSketcherSolver(unittest.TestCase):
         self.assertSuccessfulSolve(sketch)
         self.assertTrue(sketch.FullyConstrained)
         sketch.delConstraint(block)
+        # delConstraint does not update the solver: solve before moving
+        self.assertSuccessfulSolve(sketch)
         sketch.moveGeometry(0, 2, vec(12, 3), False)
         self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(12, 3))
 
