@@ -14,6 +14,7 @@ _EXCLUDE_MODULES = {
     "TestLinuxCNCLegacyPost",
     "TestGrblLegacyPost",
     "TestPathJobGui",
+    "TestPathDressupLeadInOutGui",
     "TestPathToolBitBrowserWidget",
     "TestPathToolBitEditorWidget",
     "TestPathToolBitListWidget",

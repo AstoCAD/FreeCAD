@@ -606,6 +606,7 @@ SET(Tests_SRCS
     CAMTests/TestPathDepthParams.py
     CAMTests/TestPathDressupArray.py
     CAMTests/TestPathDressupBoundary.py
+    CAMTests/TestPathDressupLeadInOutGui.py
     CAMTests/TestPathDressupDogboneII.py
     CAMTests/TestPathDressupHoldingTags.py
     CAMTests/TestPathDrillGenerator.py

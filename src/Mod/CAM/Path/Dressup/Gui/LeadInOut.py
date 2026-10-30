@@ -595,6 +595,37 @@ class ObjectDressup:
 class TaskDressupLeadInOut(SimpleEditPanel):
     _transaction_name = "Edit LeadInOut Dress-up"
     _ui_file = ":/panels/DressUpLeadInOutEdit.ui"
+    # True while editing a dressup that was just created: cancelling the
+    # panel then means the user changed their mind about creating it.
+    deleteOnReject = False
+
+    def abort(self):
+        App.ActiveDocument.abortTransaction()
+        self.cleanup(False)
+        self.closeAndUncreate()
+
+    def reject(self):
+        App.ActiveDocument.abortTransaction()
+        self.closeAndUncreate()
+
+    def closeAndUncreate(self):
+        FreeCADGui.Control.closeDialog()
+        self.uncreate()
+        App.ActiveDocument.recompute()
+
+    def uncreate(self):
+        """Removes a dressup created for this edit session, putting its base
+        operation back into the job. Called once the panel is closed."""
+        if not self.deleteOnReject:
+            return
+        self.deleteOnReject = False
+        doc = self.obj.Document
+        if doc.getObject(self.obj.Name) is None:
+            return
+        doc.openTransaction("Uncreate LeadInOut Dress-up")
+        self.viewProvider.onDelete(self.obj.ViewObject)
+        doc.removeObject(self.obj.Name)
+        doc.commitTransaction()
 
     def setupUi(self):
         self.setupSpinBoxes()
@@ -790,6 +821,8 @@ class ViewProviderDressup:
         elif mode == 0:
             FreeCADGui.Control.closeDialog()
             panel = TaskDressupLeadInOut(vobj.Object, self)
+            panel.deleteOnReject = getattr(self, "deleteOnReject", False)
+            self.deleteOnReject = False
             FreeCADGui.Control.showDialog(panel)
         return True
 
@@ -879,7 +912,10 @@ def Create(baseObject, name="DressupLeadInOut", mode=0):
     dbo.setup(obj)
     ViewProviderDressup(obj.ViewObject)
     App.ActiveDocument.commitTransaction()
+    # Cancelling the first edit session removes the new dressup again.
+    obj.ViewObject.Proxy.deleteOnReject = True
     obj.ViewObject.Document.setEdit(obj.ViewObject, mode)
+    obj.ViewObject.Proxy.deleteOnReject = False
 
     return obj
 
