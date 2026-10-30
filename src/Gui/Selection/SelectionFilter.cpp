@@ -172,13 +172,14 @@ SelectionFilterGatePython::SelectionFilterGatePython(SelectionFilterPy* obj)
     : filter(obj)
 {
     Base::PyGILStateLocker lock;
-    Py_INCREF(filter);
+    // SelectionFilterPy is a Py::PythonClass: the Python object is selfPtr(), not 'filter'
+    Py_INCREF(filter->selfPtr());
 }
 
 SelectionFilterGatePython::~SelectionFilterGatePython()
 {
     Base::PyGILStateLocker lock;
-    Py_DECREF(filter);
+    Py_DECREF(filter->selfPtr());
 }
 
 bool SelectionFilterGatePython::allow(App::Document*, App::DocumentObject* obj, const char* sub)

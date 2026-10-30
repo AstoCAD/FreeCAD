@@ -133,6 +133,7 @@ FreeCAD.__unit_test__ += [
     "TestIsolationGui",
     "TestViewProviderLink",
     "TestViewCallbackRemovalGui",
+    "TestGuiPythonApiGui",
     "TestLayerWidget",
     "TestUserEditModeGui",
     "TestPlacementDialogGui",
