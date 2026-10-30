@@ -186,6 +186,7 @@ SET(TDTest_SRCS
     TDTest/DrawEdgeWalkerNullEdgeTest.py
     TDTest/DrawNearestFractionTest.py
     TDTest/DrawViewSectionCycleTest.py
+    TDTest/DrawLeaderParentLoopTest.py
     TDTest/SketchAnnotationsTest.py
     TDTest/SketchAnnotationsGuiTest.py
     TDTest/DrawHatchTest.py
