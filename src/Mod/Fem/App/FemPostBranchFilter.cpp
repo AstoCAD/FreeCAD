@@ -90,7 +90,8 @@ short FemPostBranchFilter::mustExecute() const
 void FemPostBranchFilter::setupPipeline()
 {
     // we check if all connections are right and add new ones if needed
-    std::vector<App::DocumentObject*> objs = Group.getValues();
+    // (only filters can be connected, the group may contain other objects when set from Python)
+    std::vector<FemPostFilter*> objs = getFilter();
 
     if (objs.empty()) {
         return;
@@ -104,7 +105,7 @@ void FemPostBranchFilter::setupPipeline()
     for (auto& obj : objs) {
 
         // prepare the filter: make all connections new
-        auto* nextFilter = static_cast<FemPostFilter*>(obj);
+        FemPostFilter* nextFilter = obj;
         nextFilter->getFilterInput()->RemoveAllInputConnections(0);
 
         // handle input modes
