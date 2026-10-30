@@ -123,6 +123,8 @@ private Q_SLOTS:
     void setCutDiagram();
 
 private:
+    void updateThreadPitch();
+
     class Observer: public App::DocumentObserver
     {
     public:
