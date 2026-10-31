@@ -15,7 +15,7 @@ if App.GuiUp:
     import AssemblyGui  # noqa: F401
     import Part  # noqa: F401
     import CommandCreateBom
-    from PySide import QtCore, QtWidgets
+    from PySide import QtCore, QtGui, QtWidgets
     try:
         from PySide6 import QtTest
     except ImportError:
@@ -29,6 +29,7 @@ class TestBomRestoredColumns(unittest.TestCase):
         self.previous_workbench = Gui.activeWorkbench().name() if Gui.activeWorkbench() else None
         self.owned = []
         self.retained = []
+        self.previous_cursor = QtGui.QCursor.pos()
         self.temp = tempfile.TemporaryDirectory(prefix="freecad_bom_columns_")
         pref = CommandCreateBom.Preferences.preferences()
         self.preferences = {key: pref.GetBool(key) if key in pref.GetBools() else None
@@ -106,6 +107,7 @@ class TestBomRestoredColumns(unittest.TestCase):
                     pref.RemBool(key)
                 else:
                     pref.SetBool(key, value)
+            QtGui.QCursor.setPos(self.previous_cursor)
             self.temp.cleanup()
 
     def _ui_names(self):
@@ -154,7 +156,11 @@ class TestBomRestoredColumns(unittest.TestCase):
                 self.retained.extend(actions)
                 rectangle = menu.actionGeometry(actions[0])
                 self.assertTrue(rectangle.isValid())
-                QtTest.QTest.mouseClick(menu, QtCore.Qt.LeftButton, QtCore.Qt.NoModifier, rectangle.center())
+                # The dock overlay manager routes mouse events by the real cursor
+                # position; keep it on the menu so a transparent overlay cannot
+                # take the click.
+                QtGui.QCursor.setPos(menu.mapToGlobal(rectangle.center()))
+                QtTest.QTest.mouseClick(menu,QtCore.Qt.LeftButton, QtCore.Qt.NoModifier, rectangle.center())
                 chosen.append(name)
             except BaseException as error:
                 errors.append(error)
