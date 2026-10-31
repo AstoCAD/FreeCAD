@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import FreeCAD as App
 import FreeCADGui as Gui
-from PySide import QtCore, QtWidgets
+from PySide import QtCore, QtGui, QtWidgets
 
 try:
     from PySide6 import QtTest
@@ -33,6 +33,7 @@ class DrawMoveViewPageChooserGuiTest(unittest.TestCase):
         self.task_shown = False
         self.choosers = []
         self.retained = []
+        self.previous_cursor = QtGui.QCursor.pos()
         self.addCleanup(self._cleanup)
         self.assertFalse(Gui.Control.activeDialog())
         self.settings.SetBool("DuplicateLabels", True)
@@ -97,6 +98,7 @@ class DrawMoveViewPageChooserGuiTest(unittest.TestCase):
             App.setActiveDocument(self.previous_document)
         if self.previous_workbench:
             Gui.activateWorkbench(self.previous_workbench)
+        QtGui.QCursor.setPos(self.previous_cursor)
 
     def _set_labels(self, duplicate=True):
         for index, page in enumerate(self.pages):
@@ -164,6 +166,10 @@ class DrawMoveViewPageChooserGuiTest(unittest.TestCase):
                 ok = buttons.button(QtWidgets.QDialogButtonBox.Ok)
                 testcase.assertIsNotNone(ok)
                 testcase.retained.extend([dialog, listing, buttons, ok, *items])
+                # The dock overlay manager routes mouse events by the real cursor
+                # position; keep it on the row so a transparent overlay cannot
+                # take the click.
+                QtGui.QCursor.setPos(listing.viewport().mapToGlobal(rectangle.center()))
                 QtTest.QTest.mouseClick(
                     listing.viewport(),
                     QtCore.Qt.LeftButton,
