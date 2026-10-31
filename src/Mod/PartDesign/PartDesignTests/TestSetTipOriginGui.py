@@ -24,6 +24,7 @@ class TestSetTipOriginGui(unittest.TestCase):
     def setUp(self):
         previous = Gui.activeWorkbench()
         self.previous_workbench = previous.name() if previous else None
+        self.previous_cursor = QtGui.QCursor.pos()
         Gui.activateWorkbench("PartDesignWorkbench")
         self.doc = App.newDocument("PartDesignTestSetTipOriginGui")
         self.doc.UndoMode = 1
@@ -41,6 +42,7 @@ class TestSetTipOriginGui(unittest.TestCase):
         finally:
             if self.previous_workbench:
                 Gui.activateWorkbench(self.previous_workbench)
+            QtGui.QCursor.setPos(self.previous_cursor)
 
     def treeWidget(self):
         for widget in Gui.getMainWindow().findChildren(QtWidgets.QTreeWidget):
@@ -61,7 +63,15 @@ class TestSetTipOriginGui(unittest.TestCase):
         item = self.treeItem(tree, label)
         tree.scrollToItem(item)
         pump()
-        center = tree.visualItemRect(item).center()
+        rect = tree.visualItemRect(item)
+        icon = tree.iconSize().width()
+        # Aim at the item icon and keep the real cursor there: the dock overlay
+        # manager routes mouse events by the real cursor position and passes
+        # clicks on transparent overlay pixels through to the 3D view.
+        center = QtCore.QPoint(
+            rect.left() + (icon if icon > 0 else 16) // 2 + 2, rect.center().y()
+        )
+        QtGui.QCursor.setPos(tree.viewport().mapToGlobal(center))
         Gui.Selection.clearSelection()
         pump()
         QtTest.QTest.mouseClick(
