@@ -195,6 +195,18 @@ class TestExplodedViewAlignHoverGui(unittest.TestCase):
         QtWidgets.QApplication.sendEvent(viewport, event)
         self._pump()
 
+    def _corner(self):
+        # The dock overlay manager routes mouse events by the real cursor position,
+        # so use a viewport corner that no (transparent) overlay panel covers.
+        viewport = self._viewport()
+        width, height = viewport.width(), viewport.height()
+        for x, y in ((4, 4), (4, height - 5), (width // 2, height - 5), (width // 2, 4)):
+            point = QtCore.QPointF(x, y)
+            hit = QtWidgets.QApplication.widgetAt(viewport.mapToGlobal(point.toPoint()))
+            if hit is not None and (hit == viewport or viewport.isAncestorOf(hit)):
+                return point
+        self.fail("Every viewport corner is covered by another widget")
+
     def _screen(self, world):
         viewport = self._viewport()
         x, y = self.view.getPointOnScreen(world)
@@ -223,7 +235,7 @@ class TestExplodedViewAlignHoverGui(unittest.TestCase):
     def _end_alignment(self):
         if not self.panel.selectingFeature:
             return
-        point = QtCore.QPointF(4, 4)
+        point = self._corner()
         self._move_mouse(point)
         viewport = self._viewport()
         global_point = QtCore.QPointF(viewport.mapToGlobal(point.toPoint()))
@@ -289,7 +301,7 @@ class TestExplodedViewAlignHoverGui(unittest.TestCase):
         report = self._report_snapshot()
         self._action(0)
         self.assertTrue(self.panel.selectingFeature)
-        self._move_mouse(QtCore.QPointF(4, 4))
+        self._move_mouse(self._corner())
         self.assertTrue(
             self._wait(
                 lambda: not self.view.getObjectInfo(self.view.getCursorPos())
