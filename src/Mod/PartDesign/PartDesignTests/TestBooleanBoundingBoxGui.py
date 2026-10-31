@@ -18,6 +18,7 @@ class TestBooleanBoundingBoxGui(unittest.TestCase):
     def setUp(self):
         previous = Gui.activeWorkbench()
         self.previous_workbench = previous.name() if previous else None
+        self.previous_cursor = QtGui.QCursor.pos()
         Gui.activateWorkbench("PartDesignWorkbench")
         self.doc = App.newDocument("BooleanBounds")
         self.body = self.doc.addObject("PartDesign::Body", "ResultBody")
@@ -45,6 +46,7 @@ class TestBooleanBoundingBoxGui(unittest.TestCase):
             App.closeDocument(self.doc.Name)
         if self.previous_workbench:
             Gui.activateWorkbench(self.previous_workbench)
+        QtGui.QCursor.setPos(self.previous_cursor)
 
     def pump(self):
         loop = QtCore.QEventLoop()
@@ -268,6 +270,10 @@ class TestBooleanBoundingBoxGui(unittest.TestCase):
         end = QtCore.QPoint(max(p.x() for p in points) + 15, max(p.y() for p in points) + 15)
         self.assertTrue(viewport.rect().contains(start))
         self.assertTrue(viewport.rect().contains(end))
+        # The dock overlay manager routes mouse events by the real cursor position.
+        # Keep the cursor on the viewport so a transparent overlay panel under it
+        # cannot forward these events a second time.
+        QtGui.QCursor.setPos(viewport.mapToGlobal(start))
         Gui.Selection.clearSelection()
         Gui.runCommand("Std_BoxSelection")
         self.pump()
