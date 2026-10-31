@@ -143,10 +143,21 @@ class TestExternalInAssemblyGui(SketcherGuiTestCase):
         self.recomputeAll()
         self.checkProjectedAt(edge)
 
-        # one undoable step
-        Gui.getDocument(self.sketch.Document.Name).resetEdit()
+        # binder and external geometry are one undoable step. Closing the edit
+        # may record its own "Sketch recompute" step on top of it
+        # (ViewProviderSketch::unsetEdit), e.g. here in the single-file layout
+        # because Link2 was moved during the edit.
+        doc = self.sketch.Document
+        Gui.getDocument(doc.Name).resetEdit()
         self.flush_gui(50)
-        self.sketch.Document.undo()
+        names = doc.UndoNames
+        self.assertIn("Add external geometry", names)
+        steps = names.index("Add external geometry")
+        self.assertTrue(all(n == "Sketch recompute" for n in names[:steps]), names)
+        for _ in range(steps):
+            doc.undo()
+        self.assertEqual(len(self.binders()), 1)
+        doc.undo()
         self.assertEqual(self.binders(), [])
         self.assertEqual(len(self.sketch.ExternalGeometry), 0)
 
