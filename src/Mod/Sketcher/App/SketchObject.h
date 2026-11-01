@@ -149,6 +149,23 @@ public:
     Sketcher::PropertyConstraintList Constraints;
     App::PropertyLinkSubList ExternalGeometry;
     App::PropertyIntegerList ExternalTypes;
+    /// Tree the sketch is placed in for ExternalContextGeometry (top-down design, e.g. an
+    /// assembly): its root and the path of this sketch in it. A hidden link, so that the
+    /// sketch does not depend on that root, which usually depends on the sketch.
+    App::PropertyXLinkSubHidden ExternalContext;
+    /// External references to other components of ExternalContext, each linked from the
+    /// highest object of the context that does not contain this sketch. Hidden links: they
+    /// usually belong to the assembly, which depends on the sketch (directly or through its
+    /// document), see ExternalContextDependencies.
+    App::PropertyXLinkSubList ExternalContextGeometry;
+    App::PropertyIntegerList ExternalContextTypes;
+    /// The objects owning the geometry of ExternalContextGeometry, which the sketch depends on
+    App::PropertyXLinkList ExternalContextDependencies;
+    /// Design position of each link of ExternalContextGeometry, in its order: where the
+    /// component was relative to the sketch's own component when it was referenced. Moving
+    /// the components in the context afterwards does not move the projections, until
+    /// updateExternalContext().
+    App::PropertyPlacementList ExternalContextPlacements;
     App::PropertyLinkListHidden Exports;
     PropertyLayerGeometryList ExternalGeo;
     App::PropertyBool FullyConstrained;
@@ -300,6 +317,30 @@ public:
     );
     /// add several projected external geometry references with a single rebuild
     int addExternals(App::DocumentObject* Obj, const std::vector<std::string>& SubNames);
+    /** add an external geometry reference to another component of the tree the sketch is
+     *  placed in (e.g. another part of an assembly the sketch is edited in).
+     *  @param root: root of the tree, e.g. the assembly
+     *  @param sketchPath: path of this sketch in root, e.g. "Link1.Body1.Sketch."
+     *  @param subName: path of the element in root, e.g. "Link2.Body2.Pad.Edge1"
+     *  The reference is stored relative to the highest object of the path that does not
+     *  contain this sketch, and projected with the placement of both in root.
+     *  @return the index of the reference, -1 on failure
+     */
+    int addExternalInContext(
+        App::DocumentObject* root,
+        const char* sketchPath,
+        const char* subName,
+        bool defining = false,
+        bool intersection = false
+    );
+    /// The context the sketch is placed in for ExternalContextGeometry, if it resolves.
+    bool getExternalContext(App::DocumentObject*& root, std::string& sketchPath) const;
+    /// Whether the components referenced in the context moved away from their design
+    /// position, relative to the sketch's own component
+    bool isExternalContextOutdated() const;
+    /// Takes the current positions in the context as the design positions and projects
+    /// the references there. False if the context does not resolve.
+    bool updateExternalContext();
     /** delete external
      *  ExtGeoId >= 0 with 0 corresponding to the first user defined
      *  external geometry
@@ -1060,6 +1101,8 @@ public:
     fastsignals::signal<void()> signalSolverUpdate;
     fastsignals::signal<void()> signalElementsChanged;
     fastsignals::signal<void(Constraint*)> signalConstraintAdded;
+    /// Signaled when isExternalContextOutdated() changes
+    fastsignals::signal<void()> signalExternalContextOutdatedChanged;
 
     Part::TopoShape buildInternals(const Part::TopoShape& edges) const;
 
@@ -1101,6 +1144,7 @@ protected:
     void onConstraintsChanged();
     void onExternalGeoChanged();
     void onExternalGeometryChanged();
+    void onExternalContextChanged();
     void onPlacementChanged();
     void onExpressionEngineChanged();
     void onAttachmentSupportChanged();
@@ -1291,7 +1335,52 @@ private:
     bool updateGeoRef = false;
 
     // backup of ExternalGeometry in case of element reference change
+    // (ExternalGeometry first, then ExternalContextGeometry)
     std::vector<std::string> externalGeoRef;
+
+    /// All the external references: ExternalGeometry first, then ExternalContextGeometry
+    /// (flattened in the order of its links). Types are padded with projections.
+    void getExternalLinks(
+        std::vector<App::DocumentObject*>& objs,
+        std::vector<std::string>& subs,
+        std::vector<long>* types = nullptr,
+        std::vector<App::PropertyLinkBase::ShadowSub>* shadows = nullptr
+    ) const;
+    /// Writes back such a list: an entry goes to ExternalContextGeometry if that property
+    /// already holds it, else to ExternalGeometry.
+    void setExternalLinks(
+        const std::vector<App::DocumentObject*>& objs,
+        const std::vector<std::string>& subs,
+        const std::vector<long>* types = nullptr
+    );
+    /// Transformation of a shape of the context root into the sketch's coordinate system
+    /// (i.e. the one of its Placement), false if the context does not resolve.
+    bool getExternalContextTransform(Base::Matrix4D& mat) const;
+    /// Path in the context root of a link of ExternalContextGeometry, e.g. "Link2."
+    bool getExternalContextLinkPath(const App::DocumentObject* link, std::string& path) const;
+    /// Current position of a link of ExternalContextGeometry relative to the sketch's own
+    /// component, i.e. the transformation of its shapes into the coordinate system of the
+    /// sketch's Placement. False if the context does not resolve.
+    bool getExternalContextLinkPlacement(
+        const App::DocumentObject* link,
+        Base::Matrix4D& mat
+    ) const;
+    /// ExternalContextPlacements by link, empty if it does not match the links
+    std::map<const App::DocumentObject*, Base::Placement> getExternalContextDesignPlacements() const;
+    /// Writes ExternalContextPlacements in the order of the links: the known ones are kept,
+    /// the others take their current position. Nothing is written if one is not available.
+    void setExternalContextDesignPlacements(
+        const std::map<const App::DocumentObject*, Base::Placement>& known
+    );
+    void updateExternalContextOutdated();
+    bool contextOutdated = false;
+    /// Sets ExternalContextDependencies from ExternalContextGeometry
+    void updateExternalContextDependencies();
+    /// The object owning the geometry of a reference of ExternalContextGeometry
+    static App::DocumentObject* getExternalContextOwner(App::DocumentObject* link,
+                                                        const std::string& sub);
+    void slotContextRecomputed(const App::DocumentObject& obj);
+    fastsignals::scoped_connection connContextRecomputed;
 
     // mapping from ExternalGeo[*].Id to index of ExternalGeo
     std::map<long, int> externalGeoMap;

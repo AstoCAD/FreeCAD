@@ -17,6 +17,7 @@ set(Sketcher_Scripts
 
 set(Sketcher_TestScripts
     SketcherTests/__init__.py
+    SketcherTests/TestSketchExternalContext.py
     SketcherTests/TestSketchFillet.py
     SketcherTests/TestSketcherSolver.py
     SketcherTests/TestSketchExpression.py
@@ -80,6 +81,7 @@ if(BUILD_GUI)
           SketcherTests/TestFilletCurveVertexGui.py
           SketcherTests/TestTextToolLastFontGui.py
           SketcherTests/TestAutoConstraintRedundancyGui.py
+          SketcherTests/TestExternalInAssemblyGui.py
     )
 endif(BUILD_GUI)
 

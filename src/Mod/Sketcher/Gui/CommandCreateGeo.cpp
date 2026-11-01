@@ -1992,6 +1992,81 @@ bool CmdSketcherIntersection::isActive()
     return isExternalGeometryCommandActive(getActiveGuiDocument());
 }
 
+// Externals - Update context ================================================================
+
+namespace
+{
+/// The sketch in edit, else the selected sketches, whose components referenced in an
+/// assembly moved away from their design positions
+std::vector<Sketcher::SketchObject*> getOutdatedContextSketches()
+{
+    std::vector<Sketcher::SketchObject*> sketches;
+    if (auto* doc = Gui::Application::Instance->editDocument()) {
+        if (auto* vp = dynamic_cast<ViewProviderSketch*>(doc->getInEdit())) {
+            sketches.push_back(vp->getSketchObject());
+        }
+    }
+    else {
+        sketches = Gui::Selection().getObjectsOfType<Sketcher::SketchObject>(
+            nullptr,
+            Gui::ResolveMode::FollowLink
+        );
+    }
+    std::erase_if(sketches, [](Sketcher::SketchObject* sketch) {
+        return !sketch->isExternalContextOutdated();
+    });
+    return sketches;
+}
+}  // namespace
+
+DEF_STD_CMD_A(CmdSketcherUpdateExternalContext)
+
+CmdSketcherUpdateExternalContext::CmdSketcherUpdateExternalContext()
+    : Command("Sketcher_UpdateExternalContext")
+{
+    sAppModule = "Sketcher";
+    sGroup = "Sketcher";
+    sMenuText = QT_TR_NOOP("Update Context Positions");
+    sToolTipText = QT_TR_NOOP(
+        "Moves the external geometry taken from other components of the assembly to their "
+        "current positions.\nUntil then, it stays where the components were when it was "
+        "referenced."
+    );
+    sWhatsThis = "Sketcher_UpdateExternalContext";
+    sStatusTip = sToolTipText;
+    sPixmap = "view-refresh";
+    eType = ForEdit;
+}
+
+void CmdSketcherUpdateExternalContext::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    // The undo step goes to the document of the sketch, which may not be the one of the
+    // assembly
+    for (auto* sketch : getOutdatedContextSketches()) {
+        auto* doc = Gui::Application::Instance->getDocument(sketch->getDocument());
+        if (!doc) {
+            continue;
+        }
+        doc->openCommand(QT_TRANSLATE_NOOP("Command", "Update context positions"));
+        try {
+            Gui::cmdAppObjectArgs(sketch, "updateExternalContext()");
+            doc->commitCommand();
+        }
+        catch (const Base::Exception& e) {
+            doc->abortCommand();
+            e.reportException();
+            continue;
+        }
+        tryAutoRecomputeIfNotSolve(sketch);
+    }
+}
+
+bool CmdSketcherUpdateExternalContext::isActive()
+{
+    return !getOutdatedContextSketches().empty();
+}
+
 // ======================================================================================
 // Carbon copy =============================================
 
@@ -2068,6 +2143,7 @@ void CreateSketcherCommandsCreateGeo()
     rcCmdMgr.addCommand(new CmdSketcherSplit());
     rcCmdMgr.addCommand(new CmdSketcherProjection());
     rcCmdMgr.addCommand(new CmdSketcherIntersection());
+    rcCmdMgr.addCommand(new CmdSketcherUpdateExternalContext());
     rcCmdMgr.addCommand(new CmdSketcherCarbonCopy());
 
     // Group command must be added after its subcommands.
