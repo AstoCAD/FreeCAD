@@ -3817,6 +3817,9 @@ PropertyXLink::PropertyXLink(bool _allowPartial, PropertyLinkBase* parent)
     setSyncSubObject(true);
     if (parent) {
         setContainer(parent->getContainer());
+        // The links of a list follow its scope, so that e.g. a hidden list does not make its
+        // document depend on the documents it links to.
+        setScope(parent->getScope());
     }
 }
 
