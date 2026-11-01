@@ -36,6 +36,7 @@ from SketcherTests.TestSketcherEllipse import TestSketcherEllipse
 from SketcherTests.TestSketchLayers import TestSketchLayers
 from SketcherTests.TestSketchAnnotations import TestSketchAnnotations
 from SketcherTests.TestSketchGroups import TestSketchGroups
+from SketcherTests.TestSketchExternalContext import TestSketchExternalContext
 from SketcherTests.TestConstraintIntegerRange import TestConstraintElementIntegerRange
 from SketcherTests.TestConstraintScalarDispatch import (
     TestConstraintScalarIntegerValues,
