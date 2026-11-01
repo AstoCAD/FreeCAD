@@ -120,6 +120,8 @@ if [[ ${HOST} =~ .*linux.* ]]; then
     # 2. Icons
     mkdir -p "${PREFIX}/share/icons/hicolor/scalable/apps/"
     install -m 644 "$BRANDING_DIR/AstoCAD.svg" "${PREFIX}/share/icons/hicolor/scalable/apps/"
+    mkdir -p "${PREFIX}/share/icons/hicolor/256x256/apps/"
+    install -m 644 "$BRANDING_DIR/AstoCAD.png" "${PREFIX}/share/icons/hicolor/256x256/apps/"
 fi
 
 # 3. Branding XML and Configs
