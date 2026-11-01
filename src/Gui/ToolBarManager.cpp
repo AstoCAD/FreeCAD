@@ -1378,7 +1378,12 @@ void ToolBarManager::setState(const QString& name, State state)
     };
 
     auto saveVisibility = [this, visibility, name](bool value, ToolBarItem::DefaultVisibility policy) {
-        auto show = visibility(policy == ToolBarItem::DefaultVisibility::Visible);
+        // Compare against the default ForceAvailable shows with: an Unavailable toolbar is
+        // visible when made available, so hiding it must be stored even without a saved value.
+        auto show = visibility(
+            policy == ToolBarItem::DefaultVisibility::Visible
+            || policy == ToolBarItem::DefaultVisibility::Unavailable
+        );
 
         if (show != value) {
             blockRestore = true;
