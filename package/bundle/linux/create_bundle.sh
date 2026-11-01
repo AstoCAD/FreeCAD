@@ -35,6 +35,8 @@ echo -e "\nCopying Icon and Desktop file"
 cp ${conda_env}/share/applications/com.astocad.desktop AppDir/
 sed -i 's/Exec=astocad/Exec=AppRun/g' AppDir/com.astocad.desktop
 cp ${conda_env}/share/icons/hicolor/scalable/apps/AstoCAD.svg AppDir/
+# appimagetool creates .DirIcon from a PNG (or XPM) named after Icon= at the top of the AppDir
+cp ${conda_env}/share/icons/hicolor/256x256/apps/AstoCAD.png AppDir/
 
 # Remove __pycache__ folders and .pyc files
 find . -path "*/__pycache__/*" -delete
