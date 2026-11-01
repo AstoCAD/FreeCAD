@@ -172,6 +172,9 @@ public:
     void addTaskWatcher(const std::vector<TaskWatcher*>& Watcher);
     void clearTaskWatcher();
     void takeTaskWatcher(TaskView* other);
+    /// update the visibility of the TaskWatcher accordant to the selection
+    /// (public for state changes that watchers depend on but that are not selection changes)
+    void updateWatcher();
 
     bool isEmpty(bool includeWatcher = true) const;
 
@@ -226,8 +229,6 @@ protected:
     void addTaskWatcher(TaskIndex index);
     void removeActiveTaskWatcher();
     void removeTaskWatcher(TaskInfo& taskInfo);
-    /// update the visibility of the TaskWatcher accordant to the selection
-    void updateWatcher();
 
     /// used by Gui::Control to register Dialogs, returns true if the dialog was not already there
     bool showDialog(TaskDialog* dlg, App::Document* doc);

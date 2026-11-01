@@ -120,6 +120,7 @@ class AssemblyWorkbench(Workbench):
             "Assembly_ExportASMT",
             "Assembly_SelectJointsOfComponent",
             "Assembly_IsolateSelection",
+            "Assembly_EndIsolation",
         ]
 
         cmdListJoints = [
@@ -172,7 +173,7 @@ class AssemblyWorkbench(Workbench):
             return
 
         if assembly.ViewObject and assembly.ViewObject.hasPersistentIsolation():
-            self.appendContextMenu("", ["Assembly_IsolateSelection"])
+            self.appendContextMenu("", ["Assembly_EndIsolation"])
             return
 
         selection = Gui.Selection.getSelectionEx("*", 0)
@@ -331,7 +332,22 @@ class AssemblyWorkbench(Workbench):
 
                 return UtilsAssembly.number_of_components_in(self.assembly) > 0
 
+        class AssemblyIsolationWatcher(AssemblyBaseWatcher):
+            """Shows 'End Isolation' while Isolate Selection keeps components isolated."""
+
+            def __init__(self):
+                super().__init__()
+                self.commands = ["Assembly_EndIsolation"]
+                self.title = translate("Assembly", "Isolation")
+
+            def shouldShow(self):
+                if not super().shouldShow():
+                    return False
+                vobj = self.assembly.ViewObject
+                return vobj is not None and vobj.hasPersistentIsolation()
+
         watchers = [
+            AssemblyIsolationWatcher(),
             AssemblyCreateWatcher(),
             AssemblyActivateWatcher(),
             AssemblyInsertWatcher(),

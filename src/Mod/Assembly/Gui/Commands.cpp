@@ -29,7 +29,9 @@
 #include <Gui/CommandT.h>
 #include <Gui/Document.h>
 #include <Gui/MainWindow.h>
+#include <Gui/Control.h>
 #include <Gui/Selection/Selection.h>
+#include <Gui/TaskView/TaskView.h>
 #include <Gui/Tree.h>
 
 #include <Mod/Assembly/App/AssemblyLink.h>
@@ -374,6 +376,14 @@ ViewProviderAssembly* getAssemblyViewProvider(AssemblyObject* assembly)
         Gui::Application::Instance->getViewProvider(assembly)
     );
 }
+
+/// The isolation box of the task view shows only while an isolation runs.
+void updateIsolationWatcher()
+{
+    if (auto* taskView = Gui::Control().taskPanel()) {
+        taskView->updateWatcher();
+    }
+}
 }  // namespace
 
 DEF_STD_CMD_A(CmdAssemblyIsolateSelection)
@@ -403,6 +413,7 @@ void CmdAssemblyIsolateSelection::activated(int iMsg)
 
     if (viewProvider->hasPersistentIsolation()) {
         viewProvider->clearIsolate();
+        updateIsolationWatcher();
         return;
     }
 
@@ -435,6 +446,7 @@ void CmdAssemblyIsolateSelection::activated(int iMsg)
         /*persistent=*/true
     );
     Gui::Selection().clearSelection();
+    updateIsolationWatcher();
 }
 
 bool CmdAssemblyIsolateSelection::isActive()
@@ -446,6 +458,44 @@ bool CmdAssemblyIsolateSelection::isActive()
     ViewProviderAssembly* viewProvider = getAssemblyViewProvider(assembly);
     return viewProvider
         && (viewProvider->hasPersistentIsolation() || !Gui::Selection().getSelection().empty());
+}
+
+// ================================================================================
+// End Isolation
+// ================================================================================
+
+DEF_STD_CMD_A(CmdAssemblyEndIsolation)
+
+CmdAssemblyEndIsolation::CmdAssemblyEndIsolation()
+    : Command("Assembly_EndIsolation")
+{
+    sGroup = QT_TR_NOOP("Assembly");
+    sMenuText = QT_TR_NOOP("End Isolation");
+    sToolTipText = QT_TR_NOOP(
+        "Ends the isolation started by Isolate Selection: all the components\n"
+        "become visible and selectable again."
+    );
+    sWhatsThis = "Assembly_EndIsolation";
+    sStatusTip = sToolTipText;
+    eType = ForEdit;
+}
+
+void CmdAssemblyEndIsolation::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    AssemblyObject* assembly = getActiveAssembly();
+    ViewProviderAssembly* viewProvider = assembly ? getAssemblyViewProvider(assembly) : nullptr;
+    if (viewProvider && viewProvider->hasPersistentIsolation()) {
+        viewProvider->clearIsolate();
+    }
+    updateIsolationWatcher();
+}
+
+bool CmdAssemblyEndIsolation::isActive()
+{
+    AssemblyObject* assembly = getActiveAssembly();
+    ViewProviderAssembly* viewProvider = assembly ? getAssemblyViewProvider(assembly) : nullptr;
+    return viewProvider && viewProvider->hasPersistentIsolation();
 }
 
 
@@ -464,4 +514,5 @@ void AssemblyGui::CreateAssemblyCommands()
     rcCmdMgr.addCommand(new CmdAssemblySelectComponentsWithDoFs());
     rcCmdMgr.addCommand(new CmdAssemblySelectJointsOfComponent());
     rcCmdMgr.addCommand(new CmdAssemblyIsolateSelection());
+    rcCmdMgr.addCommand(new CmdAssemblyEndIsolation());
 }

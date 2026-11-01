@@ -167,6 +167,60 @@ class TestViewProviderAssembly(unittest.TestCase):
         self.assertFalse(self.provider.hasPersistentIsolation())
         self.assertEqual(self._state(), ((True, True), (True, True)))
 
+    def test_isolation_task_box_ends_isolation(self):
+        # A running isolation shows an "Isolation" box in the task panel whose
+        # button ends it, so the isolation can be dismissed without the menus.
+        import FreeCADGui as Gui
+        from PySide import QtWidgets
+
+        def shown(widget):
+            # The task box is hidden while its watcher does not apply.
+            while widget is not None and not isinstance(widget, QtWidgets.QStackedWidget):
+                if widget.isHidden():
+                    return False
+                widget = widget.parentWidget()
+            return True
+
+        def endButtons():
+            return [
+                button
+                for button in Gui.getMainWindow().findChildren(QtWidgets.QToolButton)
+                if button.defaultAction()
+                and button.defaultAction().objectName() == "Assembly_EndIsolation"
+                and shown(button)
+            ]
+
+        previousWorkbench = Gui.activeWorkbench().name()
+        Gui.activateWorkbench("AssemblyWorkbench")
+        self.addCleanup(Gui.activateWorkbench, previousWorkbench)
+        Gui.ActiveDocument.setEdit(self.assembly)
+        self.addCleanup(Gui.ActiveDocument.resetEdit)
+        self.assertEqual(endButtons(), [])
+
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(self.doc.Name, self.assembly.Name, "First.Face1")
+        Gui.runCommand("Assembly_IsolateSelection")
+        self.assertTrue(self.provider.hasPersistentIsolation())
+        buttons = endButtons()
+        self.assertEqual(len(buttons), 1)
+
+        # Let the main window's action update enable the command, as it does for a user.
+        from PySide import QtCore
+
+        loop = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(400, loop.quit)
+        loop.exec_()
+        self.assertTrue(buttons[0].defaultAction().isEnabled())
+        buttons[0].click()
+        self.assertFalse(self.provider.hasPersistentIsolation())
+        self.assertEqual(self._state(), ((True, True), (True, True)))
+        self.assertEqual(endButtons(), [])
+
+        # A temporary (joint) isolation does not show the box.
+        self.provider.isolateComponents([self.first], 2)
+        Gui.Selection.clearSelection()
+        self.assertEqual(endButtons(), [])
+
     def test_leaving_edit_ends_persistent_isolation(self):
         # Outside the assembly edit the command is inactive, so an isolation kept
         # there would leave the other components unselectable with no way back.
