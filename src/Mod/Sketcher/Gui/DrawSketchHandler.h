@@ -195,6 +195,11 @@ public:
     {
         return false;
     }
+    /// Whether onSelectionChanged() also receives selections of objects of other documents
+    virtual bool acceptsOtherDocumentSelection() const
+    {
+        return false;
+    }
 
     /// The construction toggle switched the creation mode while this tool is active.
     virtual void onConstructionModeChanged()

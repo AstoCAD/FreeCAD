@@ -2915,8 +2915,13 @@ void ViewProviderSketch::onSelectionChanged(const Gui::SelectionChanges& msg)
     if (isInEditMode()) {
         // ignore external object
         if (!msg.Object.getObjectName().empty()
-            && msg.Object.getDocument() != getObject()->getDocument())
+            && msg.Object.getDocument() != getObject()->getDocument()) {
+            if (Mode == STATUS_SKETCH_UseHandler && sketchHandler
+                && sketchHandler->acceptsOtherDocumentSelection()) {
+                sketchHandler->onSelectionChanged(msg);
+            }
             return;
+        }
 
         bool handled = false;
         if (Mode == STATUS_SKETCH_UseHandler) {
@@ -4448,6 +4453,10 @@ void ViewProviderSketch::attach(App::DocumentObject* pcFeat)
     }
     reparentAnnotations(false);
     annotations->scheduleUpdate(true);
+
+    connectContextOutdated = getSketchObject()->signalExternalContextOutdatedChanged.connect(
+        [this]() { signalChangeIcon(); }
+    );
 }
 
 void ViewProviderSketch::reparentAnnotations(bool editing)
@@ -4483,6 +4492,13 @@ void ViewProviderSketch::setupContextMenu(QMenu* menu, QObject* receiver, const 
 {
     QAction* act = menu->addAction(tr("Edit Sketch"), receiver, member);
     act->setData(QVariant((int)ViewProvider::Default));
+    if (getSketchObject()->isExternalContextOutdated()) {
+        auto* cmd = Gui::Application::Instance->commandManager().getCommandByName(
+            "Sketcher_UpdateExternalContext");
+        if (cmd) {
+            cmd->addTo(menu);
+        }
+    }
     // Call the extensions
     ViewProvider::setupContextMenu(menu, receiver, member);
     if (annotations) {
@@ -5495,6 +5511,12 @@ QIcon ViewProviderSketch::mergeColorfulOverlayIcons(const QIcon& orig) const
         mergedicon = Gui::BitmapFactoryInst::mergePixmap(
             mergedicon, warning, Gui::BitmapFactoryInst::TopRight);
     }
+    else if (getSketchObject()->isExternalContextOutdated()) {
+        // The components referenced in the assembly moved, see Sketcher_UpdateExternalContext
+        static QPixmap outdated(Gui::BitmapFactory().pixmapFromSvg("view-refresh", QSize(10, 10)));
+        mergedicon = Gui::BitmapFactoryInst::mergePixmap(
+            mergedicon, outdated, Gui::BitmapFactoryInst::TopRight);
+    }
 
     if (!getSketchObject()->FullyConstrained.getValue()) {
         static QPixmap px(Gui::BitmapFactory().pixmapFromSvg("Sketcher_NotFullyConstrained", QSize(10, 10)));
@@ -6079,8 +6101,11 @@ void ViewProviderSketch::generateContextMenu(const Gui::View3DInventorViewer* vi
              << "Sketcher_Extend"
              << "Separator"
              << "Sketcher_Projection"
-             << "Sketcher_Intersection"
-             << "Separator"
+             << "Sketcher_Intersection";
+        if (getSketchObject()->isExternalContextOutdated()) {
+            menu << "Sketcher_UpdateExternalContext";
+        }
+        menu << "Separator"
              << "Sketcher_CompDimensionTools"
              << "Sketcher_CompConstrainTools"
              << "Separator"

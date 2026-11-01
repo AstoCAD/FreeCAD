@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <limits>
 
 #include <BRepAdaptor_Curve.hxx>
@@ -1055,13 +1056,13 @@ void SketchObject::delExternalPrivate(const std::set<long>& ids, bool removeRef)
     if (!refs.empty()) {
         std::vector<std::string> newSubs;
         std::vector<App::DocumentObject*> newObjs;
-        const auto& subs = ExternalGeometry.getSubValues();
-        auto itSub = subs.begin();
-        const auto& objs = ExternalGeometry.getValues();
-        auto itObj = objs.begin();
+        std::vector<std::string> subs;
+        std::vector<App::DocumentObject*> objs;
         // ExternalTypes is parallel to ExternalGeometry and must lose the same entries
-        auto types = ExternalTypes.getValues();
-        types.resize(objs.size(), static_cast<long>(ExtType::Projection));
+        std::vector<long> types;
+        getExternalLinks(objs, subs, &types);
+        auto itSub = subs.begin();
+        auto itObj = objs.begin();
         std::vector<long> newTypes;
         bool touched = false;
         assert(externalGeoRef.size() == objs.size());
@@ -1079,8 +1080,7 @@ void SketchObject::delExternalPrivate(const std::set<long>& ids, bool removeRef)
             }
         }
         if (touched) {
-            ExternalGeometry.setValues(newObjs, newSubs);
-            ExternalTypes.setValues(newTypes);
+            setExternalLinks(newObjs, newSubs, &newTypes);
         }
     }
 
@@ -1130,7 +1130,19 @@ int SketchObject::delAllExternal()
         }
     }
 
+    std::vector<App::PropertyLinkSubList::SubSet> originalContextSets;
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        if (link.getValue()) {
+            originalContextSets.emplace_back(link.getValue(), link.getSubValues());
+        }
+    }
+    const auto originalContextTypes = ExternalContextTypes.getValues();
+
     ExternalGeometry.setValues(Objects, SubElements);
+    if (ExternalContextGeometry.getSize() > 0) {
+        ExternalContextGeometry.setValue(nullptr, nullptr);
+        ExternalContextTypes.setValues({});
+    }
     try {
         rebuildExternalGeometry();
     }
@@ -1138,6 +1150,10 @@ int SketchObject::delAllExternal()
         Base::Console().error("{}\n", e.what());
         // revert to original values
         ExternalGeometry.setValues(originalObjects, originalSubElements);
+        if (!originalContextSets.empty()) {
+            ExternalContextGeometry.setSubListValues(originalContextSets);
+            ExternalContextTypes.setValues(originalContextTypes);
+        }
         for (Constraint* it : newConstraints) {
             delete it;
         }
@@ -1145,6 +1161,12 @@ int SketchObject::delAllExternal()
     }
 
     ExternalGeometry.setValue(0);
+    if (ExternalContext.getValue()) {
+        ExternalContext.setValue(nullptr);
+    }
+    if (ExternalContextDependencies.getSize() > 0) {
+        ExternalContextDependencies.setValue(nullptr);
+    }
     ExternalGeo.setValues(std::move(geos));
     solverNeedsUpdate = true;
     Constraints.setValues(std::move(newConstraints));
@@ -1202,10 +1224,13 @@ int SketchObject::attachExternal(
 
     auto geos = ExternalGeo.getValues();
 
-    std::vector<DocumentObject*> Objects     = ExternalGeometry.getValues();
+    std::vector<DocumentObject*> Objects;
+    std::vector<std::string>     SubElements;
+    std::vector<long>            Types;
+    getExternalLinks(Objects, SubElements, &Types);
     auto itObj = Objects.begin();
-    std::vector<std::string>     SubElements = ExternalGeometry.getSubValues();
     auto itSub = SubElements.begin();
+    auto itType = Types.begin();
 
     assert(Objects.size()==SubElements.size());
     assert(externalGeoRef.size() == Objects.size());
@@ -1219,21 +1244,30 @@ int SketchObject::attachExternal(
         if(detached.count(key)) {
             itObj = Objects.erase(itObj);
             itSub = SubElements.erase(itSub);
+            itType = Types.erase(itType);
         }else{
             ++itObj;
             ++itSub;
+            ++itType;
         }
     }
 
     // add the new ones
     Objects.push_back(Obj);
     SubElements.push_back(std::string(SubName));
+    Types.push_back(static_cast<long>(ExtType::Projection));
 
-    ExternalGeometry.setValues(Objects,SubElements);
+    if (ExternalContextGeometry.getSize() == 0) {
+        ExternalGeometry.setValues(Objects,SubElements);
+    }
+    else {
+        setExternalLinks(Objects, SubElements, &Types);
+    }
     if(externalGeoRef.size()!=Objects.size())
         return -1;
 
-    std::string ref = externalGeoRef.back();
+    // the new reference is the last one of ExternalGeometry, which comes first
+    std::string ref = externalGeoRef[ExternalGeometry.getSize() - 1];
     for(auto geoId : idSet) {
         auto &geo = geos[-geoId-1];
         geo = geo->clone();
@@ -2440,13 +2474,29 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
     }
 
     // get the actual lists of the externals
-    auto Types       = ExternalTypes.getValues();
-    auto Objects     = ExternalGeometry.getValues();
-    auto SubElements = ExternalGeometry.getSubValues();
+    std::vector<long> Types;
+    std::vector<App::DocumentObject*> Objects;
+    std::vector<std::string> SubElements;
+    getExternalLinks(Objects, SubElements, &Types);
     if (externalGeoRef.size() != Objects.size()) {
         throw Base::RuntimeError("Inconsistency with external geometries");
     }
     auto keys = externalGeoRef;
+
+    // ExternalContextGeometry: projected from the tree the sketch is placed in
+    const std::size_t contextBegin = ExternalGeometry.getSize();
+    const std::size_t contextEnd = Objects.size();
+    Base::Matrix4D contextMat;
+    App::DocumentObject* contextRoot = nullptr;
+    std::string contextSketchPath;
+    const bool hasContext = contextBegin < contextEnd && getExternalContextTransform(contextMat)
+        && getExternalContext(contextRoot, contextSketchPath);
+    std::map<const App::DocumentObject*, Base::Placement> designPlacements;
+    if (hasContext) {
+        // A new reference, or one saved before the design positions, takes its current one
+        setExternalContextDesignPlacements(getExternalContextDesignPlacements());
+        designPlacements = getExternalContextDesignPlacements();
+    }
 
     // re-check for any missing geometry element. The code here has a side
     // effect that the linked external geometry will continue to work even if
@@ -2545,6 +2595,17 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
             refSet.insert(std::move(key));
             continue;
         }
+
+        const bool inContext = i >= static_cast<int>(contextBegin) && i < static_cast<int>(contextEnd);
+        std::string contextLinkPath;
+        if (inContext
+            && (!hasContext || !Obj || !getExternalContextLinkPath(Obj, contextLinkPath))) {
+            // The context is not available (e.g. the assembly is not open): keep the last
+            // projection, as for a frozen geometry.
+            refSet.insert(key);
+            continue;
+        }
+
         if (!Obj || !Obj->getNameInDocument()) {
             continue;
         }
@@ -2577,7 +2638,33 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
                 }
             }
 
-            if (auto* datum = freecad_cast<const Part::Datum*>(resolvedObj)) {
+            if (inContext) {
+                // The element as placed in the context root, brought into the sketch's
+                // coordinate system (the root's own placement is left out, it cancels).
+                // The component is put back at its design position: moving it in the
+                // context does not move the projection.
+                Base::Matrix4D mat = contextMat;
+                auto design = designPlacements.find(Obj);
+                Base::Matrix4D linkMat;
+                if (design != designPlacements.end()
+                    && contextRoot->getSubObject(contextLinkPath.c_str(), nullptr, &linkMat, false)) {
+                    linkMat.inverseGauss();
+                    mat = design->second.toMatrix() * linkMat;
+                }
+                auto shape = Part::Feature::getTopoShape(
+                    contextRoot,
+                    Part::ShapeOption::ResolveLink | Part::ShapeOption::NeedSubElement,
+                    (contextLinkPath + SubElement).c_str()
+                );
+                if (shape.isNull()) {
+                    throw Base::TypeError(
+                        "Object does not provide geometry usable as external sketch geometry"
+                    );
+                }
+                shape.transformShape(mat, false, true);
+                refSubShape = shape.getShape();
+            }
+            else if (auto* datum = freecad_cast<const Part::Datum*>(resolvedObj)) {
                 refSubShape = datum->getShape();
             }
             else if (auto* refObj = freecad_cast<const Part::Feature*>(resolvedObj)) {
@@ -2854,22 +2941,35 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
 
     reorientConstraintsOnReversedGeometry(reversedGeoIds);
 
+    if (hasContext) {
+        updateExternalContextOutdated();
+    }
+
     // clean up geometry reference
-    if(refSet.size() != (size_t)ExternalGeometry.getSize()) {
+    if(refSet.size() != contextEnd) {
         if(refSet.size() < keys.size()) {
+            Types.resize(Objects.size(), static_cast<long>(ExtType::Projection));
             auto itObj = Objects.begin();
             auto itSub = SubElements.begin();
+            auto itType = Types.begin();
             for(auto &ref : keys) {
                 if(!refSet.count(ref)) {
                     itObj = Objects.erase(itObj);
                     itSub = SubElements.erase(itSub);
+                    itType = Types.erase(itType);
                 }else {
                     ++itObj;
                     ++itSub;
+                    ++itType;
                 }
             }
         }
-        ExternalGeometry.setValues(Objects,SubElements);
+        if (contextBegin == contextEnd) {
+            ExternalGeometry.setValues(Objects,SubElements);
+        }
+        else {
+            setExternalLinks(Objects, SubElements, &Types);
+        }
     }
 
     solverNeedsUpdate=true;
@@ -2914,6 +3014,9 @@ void SketchObject::fixExternalGeometry(const std::vector<int> &geoIds) {
                 || (idSet.size() && !idSet.count(GeoId)))
             continue;
         std::string ref = egf->getRef();
+        if (ref.front() == '#') {
+            continue;  // ExternalContextGeometry, not in this document
+        }
         auto pos = ref.find('.');
         if(pos == std::string::npos) {
             FC_ERR("Invalid geometry reference " << ref);
@@ -2953,10 +3056,19 @@ void SketchObject::fixExternalGeometry(const std::vector<int> &geoIds) {
 
 void SketchObject::updateGeometryRefs()
 {
-    const auto &objs = ExternalGeometry.getValues();
-    const auto &subs = ExternalGeometry.getSubValues();
-    const auto &shadows = ExternalGeometry.getShadowSubs();
+    std::vector<App::DocumentObject*> objs;
+    std::vector<std::string> subs;
+    std::vector<App::PropertyLinkBase::ShadowSub> shadows;
+    getExternalLinks(objs, subs, nullptr, &shadows);
     assert(subs.size() == shadows.size());
+    const int contextBegin = ExternalGeometry.getSize();
+    std::vector<std::string> contextNames;
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        // the name is known even while the document of the link is not loaded
+        for (std::size_t i = 0; i < link.getSubValues().size(); ++i) {
+            contextNames.emplace_back(link.getObjectName());
+        }
+    }
     std::vector<std::string> originalRefs;
     std::map<std::string,std::string> refMap;
     if (updateGeoRef) {
@@ -2969,6 +3081,17 @@ void SketchObject::updateGeometryRefs()
     for (int i=0;i<(int)objs.size();++i) {
         auto obj = objs[i];
         const std::string& sub = shadows[i].newName.empty() ? subs[i] : shadows[i].newName;
+        if (i >= contextBegin) {
+            std::string key("#");
+            key += contextNames[i - contextBegin];
+            key += '.';
+            legacyMap[key + Data::oldElementName(sub.c_str())] = i;
+            externalGeoRef.push_back(key + Data::newElementName(sub.c_str()));
+            if (!originalRefs.empty() && originalRefs[i] != externalGeoRef.back()) {
+                refMap[originalRefs[i]] = externalGeoRef.back();
+            }
+            continue;
+        }
         externalGeoRef.emplace_back(obj->getNameInDocument());
         auto &key = externalGeoRef.back();
         key += '.';
@@ -3068,6 +3191,519 @@ void SketchObject::updateGeometryRefs()
     if (touched) {
         ExternalGeo.setValues(std::move(geos));
     }
+}
+
+// ExternalContextGeometry: references to other components of the tree the sketch is placed in
+// (top-down design, https://github.com/FreeCAD/FreeCAD/issues/17951). They share externalGeoRef,
+// ExternalGeo and the rebuild with ExternalGeometry; only their storage and their placement
+// differ. Their keys in externalGeoRef start with '#', which cannot appear in an object name:
+// they never collide with the ones of ExternalGeometry, and the code resolving a key in the
+// sketch's document skips them.
+
+void SketchObject::getExternalLinks(
+    std::vector<App::DocumentObject*>& objs,
+    std::vector<std::string>& subs,
+    std::vector<long>* types,
+    std::vector<App::PropertyLinkBase::ShadowSub>* shadows
+) const
+{
+    objs = ExternalGeometry.getValues();
+    subs = ExternalGeometry.getSubValues();
+    if (shadows) {
+        *shadows = ExternalGeometry.getShadowSubs();
+    }
+    if (types) {
+        *types = ExternalTypes.getValues();
+        types->resize(objs.size(), static_cast<long>(ExtType::Projection));
+    }
+
+    const auto& contextTypes = ExternalContextTypes.getValues();
+    std::size_t index = 0;
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        const auto& linkSubs = link.getSubValues();
+        const auto& linkShadows = link.getShadowSubs();
+        for (std::size_t i = 0; i < linkSubs.size(); ++i, ++index) {
+            // null while the document of the link is not loaded
+            objs.push_back(link.getValue());
+            subs.push_back(linkSubs[i]);
+            if (shadows) {
+                shadows->push_back(i < linkShadows.size() ? linkShadows[i] : App::PropertyLinkBase::ShadowSub());
+            }
+            if (types) {
+                types->push_back(
+                    index < contextTypes.size() ? contextTypes[index]
+                                                : static_cast<long>(ExtType::Projection)
+                );
+            }
+        }
+    }
+}
+
+void SketchObject::setExternalLinks(
+    const std::vector<App::DocumentObject*>& objs,
+    const std::vector<std::string>& subs,
+    const std::vector<long>* types
+)
+{
+    const auto designPlacements = getExternalContextDesignPlacements();
+    using Entry = std::pair<App::DocumentObject*, std::string>;
+    std::set<Entry> contextEntries;
+    std::map<Entry, long> currentContextTypes;
+    bool unresolved = false;
+    const auto& currentTypes = ExternalContextTypes.getValues();
+    std::size_t index = 0;
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        if (!link.getValue()) {
+            unresolved = true;
+            index += link.getSubValues().size();
+            continue;
+        }
+        for (const auto& sub : link.getSubValues()) {
+            contextEntries.emplace(link.getValue(), sub);
+            currentContextTypes[Entry(link.getValue(), sub)] = index < currentTypes.size()
+                ? currentTypes[index]
+                : static_cast<long>(ExtType::Projection);
+            ++index;
+        }
+    }
+
+    std::vector<App::DocumentObject*> localObjs;
+    std::vector<std::string> localSubs;
+    std::vector<long> localTypes;
+    std::vector<App::PropertyLinkSubList::SubSet> contextSets;
+    std::map<Entry, long> contextTypeMap;
+    for (std::size_t i = 0; i < objs.size() && i < subs.size(); ++i) {
+        long type = types && i < types->size() ? (*types)[i]
+                                                : static_cast<long>(ExtType::Projection);
+        Entry entry(objs[i], subs[i]);
+        if (!objs[i] || contextEntries.count(entry)) {
+            if (!objs[i]) {
+                continue;  // kept below, see `unresolved`
+            }
+            contextTypeMap[entry] = types ? type : currentContextTypes[entry];
+            auto it = std::find_if(contextSets.begin(), contextSets.end(), [&](const auto& set) {
+                return set.first == objs[i];
+            });
+            if (it == contextSets.end()) {
+                contextSets.emplace_back(objs[i], std::vector<std::string> {subs[i]});
+            }
+            else {
+                it->second.push_back(subs[i]);
+            }
+            continue;
+        }
+        localObjs.push_back(objs[i]);
+        localSubs.push_back(subs[i]);
+        localTypes.push_back(type);
+    }
+
+    ExternalGeometry.setValues(localObjs, localSubs);
+    if (types) {
+        ExternalTypes.setValues(localTypes);
+    }
+
+    // While the document of a link is not loaded, its references cannot be told apart, so
+    // the context references are kept as they are.
+    if (unresolved) {
+        return;
+    }
+
+    std::size_t contextCount = 0;
+    for (const auto& set : contextSets) {
+        contextCount += set.second.size();
+    }
+    if (contextCount != contextEntries.size()) {
+        ExternalContextGeometry.setSubListValues(contextSets);
+        // Changing the elements of an existing link does not notify the sketch
+        updateGeometryRefs();
+    }
+    if (types || contextCount != contextEntries.size()) {
+        // The property orders its links by itself, so the types follow its order
+        std::vector<long> contextTypes;
+        for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+            for (const auto& sub : link.getSubValues()) {
+                auto it = contextTypeMap.find(Entry(link.getValue(), sub));
+                contextTypes.push_back(
+                    it != contextTypeMap.end() ? it->second : static_cast<long>(ExtType::Projection)
+                );
+            }
+        }
+        if (contextTypes != ExternalContextTypes.getValues()) {
+            ExternalContextTypes.setValues(contextTypes);
+        }
+    }
+    setExternalContextDesignPlacements(designPlacements);
+    updateExternalContextDependencies();
+    if (ExternalContextGeometry.getSize() == 0 && ExternalContext.getValue()) {
+        ExternalContext.setValue(nullptr);
+    }
+}
+
+bool SketchObject::getExternalContext(App::DocumentObject*& root, std::string& sketchPath) const
+{
+    root = ExternalContext.getValue();
+    const auto& subs = ExternalContext.getSubValues();
+    if (!root || !root->isAttachedToDocument() || subs.empty()) {
+        return false;
+    }
+    sketchPath = subs.front();
+    return root->getSubObject(sketchPath.c_str()) == this;
+}
+
+bool SketchObject::getExternalContextTransform(Base::Matrix4D& mat) const
+{
+    App::DocumentObject* root = nullptr;
+    std::string sketchPath;
+    if (!getExternalContext(root, sketchPath)) {
+        return false;
+    }
+    // The placement of the root itself is left out on both sides, it cancels.
+    Base::Matrix4D sketchMat;
+    if (root->getSubObject(sketchPath.c_str(), nullptr, &sketchMat, false) != this) {
+        return false;
+    }
+    // sketchMat includes the sketch's own Placement, which the rebuild applies again.
+    sketchMat.inverseGauss();
+    mat = Placement.getValue().toMatrix() * sketchMat;
+    return true;
+}
+
+bool SketchObject::getExternalContextLinkPath(const App::DocumentObject* link, std::string& path) const
+{
+    App::DocumentObject* root = nullptr;
+    std::string sketchPath;
+    if (!link || !getExternalContext(root, sketchPath)) {
+        return false;
+    }
+    // The link is a child of one of the objects on the path of the sketch: the highest one
+    // that does not contain the sketch.
+    std::string name(link->getNameInDocument());
+    for (std::size_t end = sketchPath.size(); end != std::string::npos;) {
+        std::string candidate = sketchPath.substr(0, end) + name + ".";
+        if (root->getSubObject(candidate.c_str()) == link) {
+            path = candidate;
+            return true;
+        }
+        if (end == 0) {
+            break;
+        }
+        end = sketchPath.rfind('.', end - 2);
+        end = end == std::string::npos ? 0 : end + 1;
+    }
+    return false;
+}
+
+bool SketchObject::getExternalContextLinkPlacement(
+    const App::DocumentObject* link,
+    Base::Matrix4D& mat
+) const
+{
+    App::DocumentObject* root = nullptr;
+    std::string sketchPath;
+    std::string path;
+    Base::Matrix4D contextMat;
+    Base::Matrix4D linkMat;
+    if (!getExternalContext(root, sketchPath) || !getExternalContextTransform(contextMat)
+        || !getExternalContextLinkPath(link, path)
+        || !root->getSubObject(path.c_str(), nullptr, &linkMat, false)) {
+        return false;
+    }
+    mat = contextMat * linkMat;
+    return true;
+}
+
+std::map<const App::DocumentObject*, Base::Placement>
+SketchObject::getExternalContextDesignPlacements() const
+{
+    std::map<const App::DocumentObject*, Base::Placement> placements;
+    const auto& links = ExternalContextGeometry.getSubListValues();
+    const auto& values = ExternalContextPlacements.getValues();
+    if (links.size() != values.size()) {
+        return placements;
+    }
+    auto value = values.begin();
+    for (const auto& link : links) {
+        if (link.getValue()) {
+            placements[link.getValue()] = *value;
+        }
+        ++value;
+    }
+    return placements;
+}
+
+void SketchObject::setExternalContextDesignPlacements(
+    const std::map<const App::DocumentObject*, Base::Placement>& known
+)
+{
+    std::vector<Base::Placement> placements;
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        auto it = known.find(link.getValue());
+        if (it != known.end()) {
+            placements.push_back(it->second);
+            continue;
+        }
+        Base::Matrix4D mat;
+        if (!getExternalContextLinkPlacement(link.getValue(), mat)) {
+            return;  // taken on a rebuild in the context
+        }
+        placements.emplace_back(mat);
+    }
+    if (placements != ExternalContextPlacements.getValues()) {
+        ExternalContextPlacements.setValues(placements);
+    }
+}
+
+bool SketchObject::isExternalContextOutdated() const
+{
+    auto design = getExternalContextDesignPlacements();
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        auto it = design.find(link.getValue());
+        Base::Matrix4D mat;
+        if (it == design.end() || !getExternalContextLinkPlacement(link.getValue(), mat)) {
+            continue;  // not available: nothing to compare
+        }
+        if (!it->second.isSame(Base::Placement(mat), Precision::Confusion())) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void SketchObject::updateExternalContextOutdated()
+{
+    bool outdated = isExternalContextOutdated();
+    if (outdated != contextOutdated) {
+        contextOutdated = outdated;
+        signalExternalContextOutdatedChanged();
+    }
+}
+
+bool SketchObject::updateExternalContext()
+{
+    Base::Matrix4D mat;
+    if (ExternalContextGeometry.getSize() == 0 || !getExternalContextTransform(mat)) {
+        return false;
+    }
+    std::map<const App::DocumentObject*, Base::Placement> current;
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        if (!getExternalContextLinkPlacement(link.getValue(), mat)) {
+            return false;
+        }
+        current[link.getValue()] = Base::Placement(mat);
+    }
+    setExternalContextDesignPlacements(current);
+    rebuildExternalGeometry();
+    solve();
+    touch();
+    return true;
+}
+
+App::DocumentObject* SketchObject::getExternalContextOwner(App::DocumentObject* link,
+                                                           const std::string& sub)
+{
+    if (!link) {
+        return nullptr;
+    }
+    // e.g. "Body2.Pad.Edge1" -> Pad, through the links
+    std::string path = sub.substr(0, sub.size() - std::strlen(Data::findElementName(sub.c_str())));
+    auto* owner = path.empty() ? link : link->getSubObject(path.c_str());
+    return owner ? owner->getLinkedObject(true) : nullptr;
+}
+
+void SketchObject::updateExternalContextDependencies()
+{
+    std::vector<App::DocumentObject*> owners;
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        if (!link.getValue()) {
+            return;  // keep the dependencies while the document of the link is not loaded
+        }
+        for (const auto& sub : link.getSubValues()) {
+            auto* owner = getExternalContextOwner(link.getValue(), sub);
+            if (owner && owner != this && std::ranges::find(owners, owner) == owners.end()) {
+                owners.push_back(owner);
+            }
+        }
+    }
+    if (owners != ExternalContextDependencies.getValues()) {
+        ExternalContextDependencies.setValues(owners);
+    }
+}
+
+void SketchObject::slotContextRecomputed(const App::DocumentObject& obj)
+{
+    if (&obj != ExternalContext.getValue() || isRestoring()) {
+        return;
+    }
+    // The references go through the assembly without depending on it. Moving a component in
+    // it (the one of the sketch or a referenced one) does not move the projections: it is
+    // only noticed here, until updateExternalContext().
+    updateExternalContextOutdated();
+}
+
+int SketchObject::addExternalInContext(
+    App::DocumentObject* root,
+    const char* sketchPath,
+    const char* subName,
+    bool defining,
+    bool intersection
+)
+{
+    Base::StateLocker lock(managedoperation, true);
+
+    if (!root || !root->isAttachedToDocument() || Base::Tools::isNullOrEmpty(sketchPath)
+        || Base::Tools::isNullOrEmpty(subName)) {
+        return -1;
+    }
+    std::string path(sketchPath);
+    if (root->getSubObject(path.c_str()) != this) {
+        Base::Console().error("{} is not at {} in {}.\n", getFullName(), path, root->getFullName());
+        return -1;
+    }
+
+    App::DocumentObject* currentRoot = nullptr;
+    std::string currentPath;
+    if (ExternalContextGeometry.getSize() > 0 && getExternalContext(currentRoot, currentPath)
+        && (currentRoot != root || currentPath != path)) {
+        Base::Console().error(
+            "{} already references components of {}.\n",
+            getFullName(),
+            currentRoot->getFullName()
+        );
+        return -1;
+    }
+
+    // Link from the highest object that does not contain the sketch: the root and the
+    // objects containing the sketch depend on it.
+    App::DocumentObject* link = root;
+    std::string linkSub(subName);
+    std::string ownSub = path;
+    root->resolveRelativeLink(ownSub, link, linkSub);
+    // The sketch depends on the object owning the geometry, not on the context
+    App::DocumentObject* owner =
+        link && link != root ? getExternalContextOwner(link, linkSub) : nullptr;
+    if (!owner || owner == this || linkSub.empty() || !testIfLinkDAGCompatible(owner)) {
+        Base::Console().error("Linking {} would cause a circular dependency.\n", subName);
+        return -1;
+    }
+    auto element = Data::findElementName(linkSub.c_str());
+    if (Base::Tools::isNullOrEmpty(element)) {
+        Base::Console().error("{} is not a geometry element.\n", subName);
+        return -1;
+    }
+
+    using Entry = std::pair<App::DocumentObject*, std::string>;
+    std::vector<App::DocumentObject*> objs;
+    std::vector<std::string> subs;
+    std::vector<long> types;
+    getExternalLinks(objs, subs, &types);
+
+    // Types are matched to the references by key: the property orders its links by itself.
+    std::map<Entry, long> typeMap;
+    for (std::size_t i = ExternalGeometry.getSize(); i < objs.size(); ++i) {
+        if (!objs[i]) {
+            Base::Console().error(
+                "Open the documents of the components referenced by {} first.\n",
+                getFullName()
+            );
+            return -1;
+        }
+        typeMap[Entry(objs[i], subs[i])] = types[i];
+    }
+
+    long type = static_cast<long>(intersection ? ExtType::Intersection : ExtType::Projection);
+    bool add = true;
+    auto found = typeMap.find(Entry(link, linkSub));
+    if (found != typeMap.end()) {
+        if (found->second == static_cast<long>(ExtType::Both) || found->second == type) {
+            Base::Console().error("Link to {} already exists in this sketch.\n", subName);
+            return -1;
+        }
+        // Case where projections are already there when adding intersections.
+        add = false;
+        found->second = static_cast<long>(ExtType::Both);
+    }
+    else {
+        typeMap[Entry(link, linkSub)] = type;
+    }
+
+    std::vector<App::PropertyLinkSubList::SubSet> originalSets;
+    for (const auto& contextLink : ExternalContextGeometry.getSubListValues()) {
+        originalSets.emplace_back(contextLink.getValue(), contextLink.getSubValues());
+    }
+    const auto originalTypes = ExternalContextTypes.getValues();
+    const auto originalPlacements = ExternalContextPlacements.getValues();
+    const auto designPlacements = getExternalContextDesignPlacements();
+    App::DocumentObject* originalRoot = ExternalContext.getValue();
+    const auto originalPaths = ExternalContext.getSubValues();
+
+    auto syncTypes = [&]() {
+        std::vector<long> contextTypes;
+        for (const auto& contextLink : ExternalContextGeometry.getSubListValues()) {
+            for (const auto& sub : contextLink.getSubValues()) {
+                auto it = typeMap.find(Entry(contextLink.getValue(), sub));
+                contextTypes.push_back(
+                    it != typeMap.end() ? it->second : static_cast<long>(ExtType::Projection)
+                );
+            }
+        }
+        ExternalContextTypes.setValues(contextTypes);
+    };
+
+    if (originalRoot != root || originalPaths.empty() || originalPaths.front() != path) {
+        ExternalContext.setValue(root, std::vector<std::string> {path});
+    }
+    if (add) {
+        // Not addValue(): adding to an existing link that way is not recorded for undo
+        auto sets = originalSets;
+        auto it = std::find_if(sets.begin(), sets.end(), [link](const auto& set) {
+            return set.first == link;
+        });
+        if (it == sets.end()) {
+            sets.emplace_back(link, std::vector<std::string> {linkSub});
+        }
+        else {
+            it->second.push_back(linkSub);
+        }
+        ExternalContextGeometry.setSubListValues(sets);
+        // Changing the elements of an existing link does not notify the sketch
+        updateGeometryRefs();
+    }
+    syncTypes();
+    // A component referenced for the first time takes its current position as design one
+    setExternalContextDesignPlacements(designPlacements);
+    updateExternalContextDependencies();
+
+    try {
+        ExternalToAdd ext {link, linkSub, defining, intersection};
+        rebuildExternalGeometry(ext);
+    }
+    catch (const Base::Exception& e) {
+        Base::Console().error("{}\n", e.what());
+        // revert to original values
+        ExternalContextGeometry.setSubListValues(originalSets);
+        updateGeometryRefs();
+        ExternalContextTypes.setValues(originalTypes);
+        ExternalContextPlacements.setValues(originalPlacements);
+        updateExternalContextDependencies();
+        if (originalRoot) {
+            ExternalContext.setValue(originalRoot, originalPaths);
+        }
+        else {
+            ExternalContext.setValue(nullptr);
+        }
+        return -1;
+    }
+
+    acceptGeometry();
+    solverNeedsUpdate = true;
+
+    getExternalLinks(objs, subs);
+    for (std::size_t i = 0; i < objs.size(); ++i) {
+        if (objs[i] == link && subs[i] == linkSub) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
 }
 
 std::string SketchObject::getGeometryReference(int GeoId) const {

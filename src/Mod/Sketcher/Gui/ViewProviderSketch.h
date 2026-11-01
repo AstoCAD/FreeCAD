@@ -1101,6 +1101,8 @@ private:
     fastsignals::connection connectRedoDocument;
     fastsignals::connection connectSolverUpdate;
     fastsignals::connection connectConstraintAdded;
+    /// Updates the icon when the components referenced in the assembly move
+    fastsignals::scoped_connection connectContextOutdated;
 
     QMetaObject::Connection screenChangeConnection;
 

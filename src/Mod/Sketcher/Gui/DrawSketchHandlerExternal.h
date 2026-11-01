@@ -24,10 +24,15 @@
 
 #pragma once
 
+#include <string>
+
 #include <App/Datums.h>
 #include <Mod/Part/App/DatumFeature.h>
 
+#include <Gui/Application.h>
+#include <Gui/Document.h>
 #include <Gui/Notifications.h>
+#include <Gui/ViewProviderDocumentObject.h>
 #include <Gui/Selection/SelectionFilter.h>
 #include <Gui/Command.h>
 #include <Gui/CommandT.h>
@@ -47,6 +52,51 @@
 namespace SketcherGui
 {
 
+// Top-down design (#17951): while a sketch is edited in place inside a parent tree (e.g. an
+// assembly), the other components can be referenced through that tree, see
+// SketchObject::addExternalInContext(). Returns the root of the tree and the path of the
+// sketch in it.
+inline bool getInPlaceEditContext(
+    Sketcher::SketchObject* sketch,
+    App::DocumentObject*& root,
+    std::string& sketchPath
+)
+{
+    root = nullptr;
+    auto editDoc = Gui::Application::Instance->editDocument();
+    if (!editDoc) {
+        return false;
+    }
+    Gui::ViewProviderDocumentObject* parentVp = nullptr;
+    editDoc->getInEdit(&parentVp, &sketchPath);
+    if (!parentVp || !parentVp->getObject() || parentVp->getObject() == sketch
+        || sketchPath.size() < 2 || sketchPath.back() != '.'
+        || parentVp->getObject()->getSubObject(sketchPath.c_str()) != sketch) {
+        return false;  // not edited in place inside a parent tree
+    }
+    root = parentVp->getObject();
+    return true;
+}
+
+// Elements of other bodies, parts or documents that addExternalInContext() may reference
+inline bool isContextReason(Sketcher::SketchObject::eReasonList reason)
+{
+    return reason == Sketcher::SketchObject::rlOtherDoc
+        || reason == Sketcher::SketchObject::rlOtherPart
+        || reason == Sketcher::SketchObject::rlOtherBody;
+}
+
+inline bool isExternalElement(const char* sSubName)
+{
+    if (Base::Tools::isNullOrEmpty(sSubName)) {
+        return false;
+    }
+    std::string element(sSubName);
+    return (element.size() > 4 && element.substr(0, 4) == "Edge")
+        || (element.size() > 6 && element.substr(0, 6) == "Vertex")
+        || (element.size() > 4 && element.substr(0, 4) == "Face");
+}
+
 class ExternalSelection: public Gui::SelectionFilterGate
 {
     App::DocumentObject* object;
@@ -64,6 +114,13 @@ public:
         this->notAllowedReason = "";
         Sketcher::SketchObject::eReasonList msg;
         if (!sketch->isExternalAllowed(pDoc, pObj, &msg)) {
+            App::DocumentObject* root = nullptr;
+            std::string sketchPath;
+            if (isContextReason(msg) && isExternalElement(sSubName)
+                && getInPlaceEditContext(sketch, root, sketchPath)) {
+                // referenced through the edit root, see addExternalInContext()
+                return true;
+            }
             switch (msg) {
                 case Sketcher::SketchObject::rlCircularReference:
                     this->notAllowedReason = QT_TR_NOOP("Linking this will cause circular dependency.");
@@ -160,9 +217,21 @@ public:
         return true;
     }
 
+    bool acceptsOtherDocumentSelection() const override
+    {
+        return true;  // components of an assembly the sketch is edited in, see addInContext()
+    }
+
     bool onSelectionChanged(const Gui::SelectionChanges& msg) override
     {
         if (msg.Type == Gui::SelectionChanges::AddSelection) {
+            if (addInContext(msg)) {
+                return true;
+            }
+            if (App::GetApplication().getDocument(msg.pDocName)
+                != sketchgui->getObject()->getDocument()) {
+                return false;  // only referenced through addInContext()
+            }
             App::DocumentObject* obj = sketchgui->getObject()->getDocument()->getObject(
                 msg.pObjectName
             );
@@ -221,6 +290,64 @@ public:
     }
 
 private:
+    // Handles a pick of another component while the sketch is edited in place (#17951): the
+    // element is referenced through the edit root, see SketchObject::addExternalInContext().
+    // Returns false if the selection is not such a pick.
+    bool addInContext(const Gui::SelectionChanges& msg)
+    {
+        auto sketch = sketchgui->getObject<Sketcher::SketchObject>();
+        App::Document* pickDoc = App::GetApplication().getDocument(msg.pDocName);
+        App::DocumentObject* picked = pickDoc ? pickDoc->getObject(msg.pObjectName) : nullptr;
+        Sketcher::SketchObject::eReasonList reason = Sketcher::SketchObject::rlAllowed;
+        if (!picked || sketch->isExternalAllowed(picked->getDocument(), picked, &reason)
+            || !isContextReason(reason) || !isExternalElement(msg.pSubName)) {
+            return false;
+        }
+        App::DocumentObject* root = nullptr;
+        std::string sketchPath;
+        if (!msg.pOriginalMsg || !getInPlaceEditContext(sketch, root, sketchPath)) {
+            return false;
+        }
+
+        auto fail = [this](const char* text) {
+            Gui::NotifyError(sketchgui, QT_TRANSLATE_NOOP("Notifications", "Error"), text);
+            Gui::Selection().clearSelection();
+        };
+
+        // The pick must lie in the tree the sketch is edited from
+        const Gui::SelectionChanges& original = *msg.pOriginalMsg;
+        App::Document* rootDoc = App::GetApplication().getDocument(original.pDocName);
+        if (!rootDoc || rootDoc->getObject(original.pObjectName) != root
+            || Base::Tools::isNullOrEmpty(original.pSubName)) {
+            fail(QT_TRANSLATE_NOOP(
+                "Notifications",
+                "This object is not part of the tree the sketch is edited in."
+            ));
+            return true;
+        }
+
+        try {
+            openCommand(QT_TRANSLATE_NOOP("Command", "Add external geometry"));
+            Gui::cmdAppObjectArgs(
+                sketch,
+                "addExternalInContext(%s, '%s', '%s', %s, %s)",
+                Gui::Command::getObjectCmd(root).c_str(),
+                sketchPath.c_str(),
+                original.pSubName,
+                alwaysReference || isConstructionMode() ? "False" : "True",
+                intersection ? "True" : "False"
+            );
+            commitCommand();
+            tryAutoRecomputeIfNotSolve(sketch);
+            Gui::Selection().clearSelection();
+        }
+        catch (const Base::Exception&) {
+            abortCommand();
+            fail(QT_TRANSLATE_NOOP("Notifications", "Failed to add external geometry"));
+        }
+        return true;
+    }
+
     void activated() override
     {
         setAxisPickStyle(false);

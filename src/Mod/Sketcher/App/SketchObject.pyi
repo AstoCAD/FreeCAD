@@ -4,6 +4,7 @@ from Base.Metadata import deprecated, export, constmethod, no_args
 from Base.Quantity import Quantity
 from Base.Vector import Vector
 from Base.Axis import Axis
+from App.DocumentObject import DocumentObject
 from Part.App.Part2DObject import Part2DObject
 from Part.App.Geometry import Geometry
 from Sketcher.App.Constraint import Constraint
@@ -382,6 +383,60 @@ class SketchObject(Part2DObject):
                 defining: Should the external edges be defining or construction?
                 intersection: Should the external edges be projections or intersections?
         """
+
+    def addExternalInContext(
+        self,
+        root: DocumentObject,
+        sketch_path: str,
+        sub_name: str,
+        defining: bool = False,
+        intersection: bool = False,
+        /,
+    ) -> int:
+        """
+        Add a link to an external geometry of another component of the tree the sketch is
+        placed in, e.g. another part of an assembly.
+
+        addExternalInContext(root:DocumentObject, sketchPath:str, subName:str,
+                             defining:bool=False, intersection:bool=False) -> int
+
+            Args:
+                root: The root of the tree, e.g. the assembly.
+                sketchPath: The path of this sketch in root, e.g. "Link1.Body1.Sketch.".
+                subName: The path of the element in root, e.g. "Link2.Body2.Pad.Edge1".
+                defining: Should the external edges be defining or construction?
+                intersection: Should the external edges be projections or intersections?
+
+            The element is linked from the highest object of its path that does not contain
+            the sketch (so the sketch does not depend on root), and projected with the
+            placements of both in root. The component keeps that design position relative to
+            the one of the sketch: moving either afterwards does not move the projection,
+            until updateExternalContext().
+
+            Returns the index of the external reference.
+        """
+        ...
+
+    @constmethod
+    def isExternalContextOutdated(self) -> bool:
+        """
+        Whether the components referenced with addExternalInContext() moved away from their
+        design position, relative to the component of the sketch.
+
+        isExternalContextOutdated() -> bool
+        """
+        ...
+
+    def updateExternalContext(self) -> bool:
+        """
+        Take the current positions of the components referenced with addExternalInContext()
+        as their design positions, and project the references there.
+
+        updateExternalContext() -> bool
+
+            Returns False if the context is not available, e.g. the assembly is not open.
+        """
+        ...
 
     def delExternal(self, ext_geo_id: int, /) -> None:
         """

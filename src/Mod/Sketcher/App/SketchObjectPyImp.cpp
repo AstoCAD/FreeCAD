@@ -31,6 +31,7 @@
 #include "HatchPattern.h"
 
 #include <App/Document.h>
+#include <App/DocumentObjectPy.h>
 #include <Base/AxisPy.h>
 #include <Base/QuantityPy.h>
 #include <Base/Tools.h>
@@ -988,6 +989,65 @@ PyObject* SketchObjectPy::addExternal(PyObject* args)
     }
 
     Py_Return;
+}
+
+PyObject* SketchObjectPy::addExternalInContext(PyObject* args)
+{
+    PyObject* pyRoot = nullptr;
+    char* sketchPath = nullptr;
+    char* subName = nullptr;
+    PyObject* defining = Py_False;
+    PyObject* intersection = Py_False;
+    if (!PyArg_ParseTuple(
+            args,
+            "O!ss|O!O!",
+            &App::DocumentObjectPy::Type,
+            &pyRoot,
+            &sketchPath,
+            &subName,
+            &PyBool_Type,
+            &defining,
+            &PyBool_Type,
+            &intersection
+        )) {
+        return nullptr;
+    }
+
+    auto* root = static_cast<App::DocumentObjectPy*>(pyRoot)->getDocumentObjectPtr();
+    int index = getSketchObjectPtr()->addExternalInContext(
+        root,
+        sketchPath,
+        subName,
+        Base::asBoolean(defining),
+        Base::asBoolean(intersection)
+    );
+    if (index < 0) {
+        std::stringstream str;
+        str << "Not able to add external shape element " << subName;
+        PyErr_SetString(PyExc_ValueError, str.str().c_str());
+        return nullptr;
+    }
+    return Py::new_reference_to(Py::Long(index));
+}
+
+PyObject* SketchObjectPy::isExternalContextOutdated(PyObject* args) const
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    return Py::new_reference_to(Py::Boolean(getSketchObjectPtr()->isExternalContextOutdated()));
+}
+
+PyObject* SketchObjectPy::updateExternalContext(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    PY_TRY
+    {
+        return Py::new_reference_to(Py::Boolean(getSketchObjectPtr()->updateExternalContext()));
+    }
+    PY_CATCH;
 }
 
 PyObject* SketchObjectPy::delExternal(PyObject* args)

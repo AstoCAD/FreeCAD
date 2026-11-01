@@ -216,6 +216,37 @@ SketchObject::SketchObject() : geoLastId(0)
                       "Sketch",
                       (App::PropertyType)(App::Prop_None | App::Prop_Hidden),
                       "Sketch external geometry type: 0 = projection, 1 = intersection, 2 = both.");
+    ADD_PROPERTY_TYPE(ExternalContext,
+                      (nullptr),
+                      "Sketch",
+                      (App::PropertyType)(App::Prop_ReadOnly | App::Prop_Hidden),
+                      "Tree the sketch is placed in for the external geometry of other\n"
+                      "components (e.g. an assembly), and the path of the sketch in it");
+    ADD_PROPERTY_TYPE(ExternalContextGeometry,
+                      (nullptr),
+                      "Sketch",
+                      (App::PropertyType)(App::Prop_ReadOnly),
+                      "Sketch external geometry of other components of the external context");
+    ADD_PROPERTY_TYPE(ExternalContextTypes,
+                      ({}),
+                      "Sketch",
+                      (App::PropertyType)(App::Prop_None | App::Prop_Hidden),
+                      "Type of the external context geometry: 0 = projection, 1 = intersection, "
+                      "2 = both.");
+    ADD_PROPERTY_TYPE(ExternalContextDependencies,
+                      (nullptr),
+                      "Sketch",
+                      (App::PropertyType)(App::Prop_ReadOnly | App::Prop_Hidden),
+                      "Objects owning the external context geometry");
+    // Output: taking the design positions on a rebuild must not touch the sketch again
+    ADD_PROPERTY_TYPE(ExternalContextPlacements,
+                      (std::vector<Base::Placement>()),
+                      "Sketch",
+                      (App::PropertyType)(App::Prop_Hidden | App::Prop_Output),
+                      "Design position of each component of the external context geometry,\n"
+                      "relative to the component of the sketch");
+    // The references go through the assembly, see ExternalContextDependencies
+    ExternalContextGeometry.setScope(App::LinkScope::Hidden);
     ADD_PROPERTY_TYPE(FullyConstrained,
                       (false),
                       "Sketch",
@@ -315,6 +346,8 @@ short SketchObject::mustExecute() const
     if (Constraints.isTouched())
         return 1;
     if (ExternalGeometry.isTouched())
+        return 1;
+    if (ExternalContextGeometry.isTouched())
         return 1;
     if (ExternalGeo.isTouched())
         return 1;
@@ -1050,8 +1083,11 @@ void SketchObject::onChanged(const App::Property* prop)
     else if (prop == &ExternalGeo && !prop->testStatus(App::Property::User3)) {
         onExternalGeoChanged();
     }
-    else if (prop == &ExternalGeometry) {
+    else if (prop == &ExternalGeometry || prop == &ExternalContextGeometry) {
         onExternalGeometryChanged();
+    }
+    else if (prop == &ExternalContext) {
+        onExternalContextChanged();
     }
     else if (prop == &Placement) {
         onPlacementChanged();
@@ -1280,12 +1316,13 @@ void SketchObject::onExternalGeoChanged()
         return;
     }
 
-    auto objs = ExternalGeometry.getValues();
+    std::vector<App::DocumentObject*> objs;
+    std::vector<std::string> subs;
+    getExternalLinks(objs, subs);
     if (externalGeoRef.size() != objs.size()) {
         throw Base::RuntimeError("Inconsistency with external geometries");
     }
     auto itObj = objs.begin();
-    auto subs = ExternalGeometry.getSubValues();
     auto itSub = subs.begin();
     for (const auto& i : externalGeoRef) {
         if (detached.count(i) == 0U) {
@@ -1306,7 +1343,7 @@ void SketchObject::onExternalGeoChanged()
         }
         refs.clear();
     }
-    ExternalGeometry.setValues(objs, subs);
+    setExternalLinks(objs, subs);
 }
 
 void SketchObject::onExternalGeometryChanged()
@@ -1327,8 +1364,25 @@ void SketchObject::onExternalGeometryChanged()
 
 void SketchObject::onPlacementChanged()
 {
-    if (ExternalGeometry.getSize() > 0) {
+    if (ExternalGeometry.getSize() > 0 || ExternalContextGeometry.getSize() > 0) {
         touch();
+    }
+}
+
+void SketchObject::onExternalContextChanged()
+{
+    // Notice the moves of the components in the context, see slotContextRecomputed()
+    auto* root = ExternalContext.getValue();
+    if (!root || !root->getDocument()) {
+        connContextRecomputed.disconnect();
+    }
+    else {
+        connContextRecomputed = root->getDocument()->signalRecomputedObject.connect(
+            [this](const App::DocumentObject& obj) { slotContextRecomputed(obj); }
+        );
+    }
+    if (!isRestoring()) {
+        updateExternalContextOutdated();
     }
 }
 
@@ -1373,7 +1427,7 @@ void SketchObject::onAttachmentSupportChanged()
 
 void SketchObject::onUpdateElementReference(const App::Property *prop)
 {
-    if(prop == &ExternalGeometry) {
+    if(prop == &ExternalGeometry || prop == &ExternalContextGeometry) {
         updateGeoRef = true;
         // Must call updateGeometryRefs() now to avoid the case of recursive
         // property change (e.g. temporary object removal in SubShapeBinder)
@@ -1449,6 +1503,7 @@ void SketchObject::onSketchRestore()
     try {
         migrateSketch();
 
+        onExternalContextChanged();
         updateGeometryRefs();
 
         fixMissingAxisInExternalGeo();
@@ -1461,7 +1516,7 @@ void SketchObject::onSketchRestore()
                 externalGeoRefMap[key].push_back(id);
             }
             rebuildExternalGeometry();
-            if(ExternalGeometry.getSize()+2!=ExternalGeo.getSize())
+            if(externalGeoRef.size()+2!=static_cast<std::size_t>(ExternalGeo.getSize()))
                 FC_WARN("Failed to restore some external geometry in " << getFullName());
         }else
             acceptGeometry();
