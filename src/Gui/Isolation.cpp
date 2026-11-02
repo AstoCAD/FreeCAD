@@ -22,6 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <Inventor/nodes/SoSwitch.h>
+
 #include <App/Application.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
@@ -66,6 +68,13 @@ void setSelectable(App::PropertyBool& prop, bool selectable)
     prop.setValue(selectable);
 }
 
+ParameterGrp::handle viewParameters()
+{
+    return App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/View"
+    );
+}
+
 /// The object, the objects shown as part of it and, for a link, what it links to
 void collectIsolated(App::DocumentObject* obj, std::set<App::DocumentObject*>& isolated)
 {
@@ -107,6 +116,27 @@ Isolation::Isolation()
         [this](const App::Document& doc, const std::string&) { slotFinishSave(doc); }
     );
     // NOLINTEND
+}
+
+Isolation::Mode Isolation::mode() const
+{
+    long value = viewParameters()->GetInt("IsolationMode", 0);
+    if (value < 0 || value > static_cast<long>(Mode::Hidden)) {
+        return Mode::Transparent;
+    }
+    return static_cast<Mode>(value);
+}
+
+void Isolation::setMode(Mode mode)
+{
+    if (mode == this->mode()) {
+        return;
+    }
+    viewParameters()->SetInt("IsolationMode", static_cast<long>(mode));
+    for (auto& [doc, state] : documents) {
+        restore(state);
+        apply(doc, state);
+    }
 }
 
 void Isolation::isolate(const std::vector<Path>& paths)
@@ -203,8 +233,11 @@ bool Isolation::isIsolated(const App::DocumentObject* obj) const
 
 void Isolation::apply(const App::Document* doc, DocumentState& state)
 {
+    const Mode current = mode();
+
+    // Wireframe shows the edges only: the faces become fully transparent
     Base::Color transparentColor(App::Material::getDefaultAppearance().diffuseColor);
-    transparentColor.setTransparency(0.8F);
+    transparentColor.setTransparency(current == Mode::Wireframe ? 1.0F : 0.8F);
     std::map<std::string, Base::Color> colorMap;
     colorMap["Face"] = transparentColor;  // The "Face" wildcard targets all faces
 
@@ -218,8 +251,20 @@ void Isolation::apply(const App::Document* doc, DocumentState& state)
             continue;  // only geometry and links are shown in the 3D view
         }
 
-        state.changed[obj].selectable = selectable->getValue();
+        auto& objState = state.changed[obj];
+        objState.selectable = selectable->getValue();
         setSelectable(*selectable, false);
+
+        // Hidden in the scene only: the Visibility property would go to the undo stack
+        if (current == Mode::Hidden) {
+            SoSwitch* modeSwitch = vp->getModeSwitch();
+            int which = modeSwitch->whichChild.getValue();
+            if (which != SO_SWITCH_NONE) {
+                objState.hiddenMode = which;
+                modeSwitch->whichChild = SO_SWITCH_NONE;
+            }
+            continue;
+        }
 
         // swapColors() takes the map: each object needs its own copy
         auto colors = colorMap;
@@ -241,6 +286,12 @@ void Isolation::restore(DocumentState& state)
             continue;
         }
         setSelectable(*selectable, objState.selectable);
+        // Unless the object was hidden or shown again meanwhile
+        SoSwitch* modeSwitch = vp->getModeSwitch();
+        if (objState.hiddenMode >= 0 && modeSwitch->whichChild.getValue() == SO_SWITCH_NONE
+            && obj->Visibility.getValue()) {
+            modeSwitch->whichChild = objState.hiddenMode;
+        }
         SoSelectionElementAction action(SoSelectionElementAction::Color, true);
         action.apply(vp->getRoot());
     }

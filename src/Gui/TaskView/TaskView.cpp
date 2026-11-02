@@ -24,8 +24,11 @@
 #include <QAbstractSpinBox>
 #include <QActionEvent>
 #include <QApplication>
+#include <QComboBox>
 #include <QCursor>
 #include <QDockWidget>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPointer>
 #include <QPushButton>
@@ -59,20 +62,46 @@ namespace sp = std::placeholders;
 
 namespace
 {
-/// Ends Isolate Selection, which works in every workbench
+/// Ends Isolate Selection, which works in every workbench, and chooses how the other
+/// objects are shown with the modes of the joint task of Assembly
 class TaskWatcherIsolation: public TaskWatcherCommands
 {
 public:
     TaskWatcherIsolation()
         : TaskWatcherCommands(nullptr, commands(), QT_TR_NOOP("Isolation"), "Std_ToggleTransparency")
-    {}
+    {
+        auto* box = Content.empty() ? nullptr : qobject_cast<TaskBox*>(Content.front());
+        if (!box) {
+            return;
+        }
+        auto* row = new QWidget();
+        auto* layout = new QHBoxLayout(row);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->addWidget(new QLabel(tr("Isolate")));
+        modeBox = new QComboBox();
+        modeBox->setObjectName(QStringLiteral("isolationMode"));
+        modeBox->addItems({tr("Transparent"), tr("Wireframe"), tr("Hidden")});
+        layout->addWidget(modeBox, 1);
+        box->groupLayout()->insertWidget(0, row);
+
+        QObject::connect(modeBox, qOverload<int>(&QComboBox::currentIndexChanged), [](int index) {
+            Gui::Isolation::instance().setMode(static_cast<Gui::Isolation::Mode>(index));
+        });
+    }
 
     bool shouldShow() override
     {
-        return Gui::Isolation::instance().isActive();
+        bool active = Gui::Isolation::instance().isActive();
+        if (active && modeBox) {
+            QSignalBlocker blocker(modeBox);
+            modeBox->setCurrentIndex(static_cast<int>(Gui::Isolation::instance().mode()));
+        }
+        return active;
     }
 
 private:
+    QPointer<QComboBox> modeBox;
+
     static const char** commands()
     {
         static const char* names[] = {"Std_EndIsolation", nullptr};

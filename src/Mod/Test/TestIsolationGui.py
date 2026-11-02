@@ -161,3 +161,68 @@ class TestIsolationGui(unittest.TestCase):
         buttons[0].click()
         self.assertEqual(self._selectable(), [True, True, True])
         self.assertEqual(end_buttons(), [])
+
+    def _mode_box(self):
+        boxes = Gui.getMainWindow().findChildren(QtWidgets.QComboBox, "isolationMode")
+        self.assertEqual(len(boxes), 1)
+        return boxes[0]
+
+    def _visible_in_scene(self):
+        return [bool(box.ViewObject.isVisible()) for box in self.boxes]
+
+    def test_task_box_chooses_the_isolation_mode(self):
+        params = App.ParamGet("User parameter:BaseApp/Preferences/View")
+        previous = params.GetInt("IsolationMode", 0)
+        self.addCleanup(params.SetInt, "IsolationMode", previous)
+        params.SetInt("IsolationMode", 0)
+        self.gui_doc.Modified = False
+
+        self._isolate(self.boxes[1])
+        mode_box = self._mode_box()
+        self.assertEqual(
+            [mode_box.itemText(i) for i in range(mode_box.count())],
+            ["Transparent", "Wireframe", "Hidden"],
+        )
+        self.assertEqual(mode_box.currentIndex(), 0)
+        self.assertEqual(self._visible_in_scene(), [True, True, True])
+
+        # Hidden in the scene only: the objects stay visible in the document
+        mode_box.setCurrentIndex(2)
+        self.assertEqual(params.GetInt("IsolationMode"), 2)
+        self.assertEqual(self._visible_in_scene(), [False, True, False])
+        self.assertTrue(all(box.Visibility for box in self.boxes))
+        self.assertEqual(self._selectable(), [False, True, False])
+        self.assertFalse(self.gui_doc.Modified)
+
+        mode_box.setCurrentIndex(1)
+        self.assertEqual(self._visible_in_scene(), [True, True, True])
+        self.assertEqual(self._selectable(), [False, True, False])
+
+        mode_box.setCurrentIndex(2)
+        Gui.runCommand("Std_EndIsolation")
+        self.assertEqual(self._visible_in_scene(), [True, True, True])
+        self.assertEqual(self._selectable(), [True, True, True])
+        self.assertFalse(self.gui_doc.Modified)
+
+        # The next isolation uses the mode chosen last
+        self._isolate(self.boxes[0])
+        self.assertEqual(self._mode_box().currentIndex(), 2)
+        self.assertEqual(self._visible_in_scene(), [True, False, False])
+        Gui.runCommand("Std_EndIsolation")
+
+    def test_hidden_object_shown_again_during_isolation(self):
+        params = App.ParamGet("User parameter:BaseApp/Preferences/View")
+        previous = params.GetInt("IsolationMode", 0)
+        self.addCleanup(params.SetInt, "IsolationMode", previous)
+        params.SetInt("IsolationMode", 2)
+
+        self._isolate(self.boxes[0])
+        self.boxes[1].Visibility = False
+        self.boxes[1].Visibility = True
+        Gui.runCommand("Std_EndIsolation")
+        self.assertEqual(self._visible_in_scene(), [True, True, True])
+
+        self._isolate(self.boxes[0])
+        self.boxes[2].Visibility = False
+        Gui.runCommand("Std_EndIsolation")
+        self.assertEqual(self._visible_in_scene(), [True, True, False])

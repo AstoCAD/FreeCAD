@@ -45,10 +45,10 @@ class Document;
 
 /** Isolation of some objects of a document.
  *
- * The other visible objects of the document become transparent and unselectable until
- * the isolation ends. Only the scene and the Selectable view property are changed, and
- * the document is not marked as modified. The isolation is suspended while the document
- * is saved, so the saved file keeps the original selectability.
+ * The other visible objects of the document become transparent, wireframe or hidden, and
+ * unselectable, until the isolation ends. Only the scene and the Selectable view property
+ * are changed, and the document is not marked as modified. The isolation is suspended
+ * while the document is saved, so the saved file keeps the original selectability.
  */
 class GuiExport Isolation
 {
@@ -56,7 +56,19 @@ public:
     /// A selected object: its root object and the subname path to it
     using Path = std::pair<App::DocumentObject*, std::string>;
 
+    /// How the objects that are not isolated are shown, as in the joint task of Assembly
+    enum class Mode
+    {
+        Transparent,
+        Wireframe,
+        Hidden,
+    };
+
     static Isolation& instance();
+
+    /// The mode is kept in the preferences and applies to every isolated document
+    Mode mode() const;
+    void setMode(Mode mode);
 
     /// Isolates the objects of the paths in their document, replacing any isolation there
     void isolate(const std::vector<Path>& paths);
@@ -76,6 +88,8 @@ private:
     struct ObjectState
     {
         bool selectable {true};
+        /// The display mode shown before the object was hidden, -1 when it was not hidden
+        int hiddenMode {-1};
     };
     struct DocumentState
     {
