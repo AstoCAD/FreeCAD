@@ -239,6 +239,8 @@ protected:
     void setShowTaskWatcher(bool show);
 
     std::vector<TaskWatcher*> ActiveWatcher;
+    /// Shown in every workbench while the active document is isolated
+    TaskWatcher* isolationWatcher = nullptr;
 
     // First index of the stack is reserved to the active watcher
     std::vector<TaskInfo> taskInfos;

@@ -58,6 +58,7 @@
 #include <Gui/BitmapFactory.h>
 #include <Gui/CommandT.h>
 #include <Gui/Control.h>
+#include <Gui/Isolation.h>
 #include <Gui/Inventor/Draggers/SoTransformDragger.h>
 #include <Gui/MDIView.h>
 #include <Gui/MainWindow.h>
@@ -350,9 +351,8 @@ void ViewProviderAssembly::unsetEdit(int mode)
         unsetDragger();
         detachSelection();
 
-        // Assembly_IsolateSelection is only available while editing, so a persistent
-        // isolation must not outlive the edit: it would leave the other components
-        // unselectable with no command to restore them.
+        // A persistent isolation requested from Python must not outlive the edit: it would
+        // leave the other components unselectable with no command to restore them.
         if (persistentIsolation) {
             clearIsolate();
         }
@@ -1307,8 +1307,8 @@ void ViewProviderAssembly::onSelectionChanged(const Gui::SelectionChanges& msg)
     }
 
     // Joint components isolation. The selection does not change an isolation the user
-    // asked for explicitly.
-    if (!persistentIsolation) {
+    // asked for explicitly, here or with Std_IsolateSelection.
+    if (!persistentIsolation && !Gui::Isolation::instance().isActive(getObject()->getDocument())) {
         if (msg.Type == Gui::SelectionChanges::AddSelection) {
             auto selection = Gui::Selection().getSelection();
             if (selection.size() == 1) {

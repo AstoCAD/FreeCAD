@@ -119,8 +119,8 @@ class AssemblyWorkbench(Workbench):
             "Assembly_LinkSelectLinked",
             "Assembly_ExportASMT",
             "Assembly_SelectJointsOfComponent",
-            "Assembly_IsolateSelection",
-            "Assembly_EndIsolation",
+            "Std_IsolateSelection",
+            "Std_EndIsolation",
         ]
 
         cmdListJoints = [
@@ -172,10 +172,6 @@ class AssemblyWorkbench(Workbench):
         if assembly is None:
             return
 
-        if assembly.ViewObject and assembly.ViewObject.hasPersistentIsolation():
-            self.appendContextMenu("", ["Assembly_EndIsolation"])
-            return
-
         selection = Gui.Selection.getSelectionEx("*", 0)
         if not selection:
             return
@@ -184,9 +180,7 @@ class AssemblyWorkbench(Workbench):
             for sub_name in sel.SubElementNames:
                 comp, new_sub = UtilsAssembly.getComponentReference(assembly, sel.Object, sub_name)
                 if comp:
-                    self.appendContextMenu(
-                        "", ["Assembly_SelectJointsOfComponent", "Assembly_IsolateSelection"]
-                    )
+                    self.appendContextMenu("", ["Assembly_SelectJointsOfComponent"])
                     return
 
     def setWatchers(self):
@@ -332,22 +326,7 @@ class AssemblyWorkbench(Workbench):
 
                 return UtilsAssembly.number_of_components_in(self.assembly) > 0
 
-        class AssemblyIsolationWatcher(AssemblyBaseWatcher):
-            """Shows 'End Isolation' while Isolate Selection keeps components isolated."""
-
-            def __init__(self):
-                super().__init__()
-                self.commands = ["Assembly_EndIsolation"]
-                self.title = translate("Assembly", "Isolation")
-
-            def shouldShow(self):
-                if not super().shouldShow():
-                    return False
-                vobj = self.assembly.ViewObject
-                return vobj is not None and vobj.hasPersistentIsolation()
-
         watchers = [
-            AssemblyIsolationWatcher(),
             AssemblyCreateWatcher(),
             AssemblyActivateWatcher(),
             AssemblyInsertWatcher(),

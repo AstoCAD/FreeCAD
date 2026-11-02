@@ -29,9 +29,7 @@
 #include <Gui/CommandT.h>
 #include <Gui/Document.h>
 #include <Gui/MainWindow.h>
-#include <Gui/Control.h>
 #include <Gui/Selection/Selection.h>
-#include <Gui/TaskView/TaskView.h>
 #include <Gui/Tree.h>
 
 #include <Mod/Assembly/App/AssemblyLink.h>
@@ -364,140 +362,6 @@ bool CmdAssemblySelectJointsOfComponent::isActive()
     return getActiveAssembly() != nullptr && !Gui::Selection().getSelection().empty();
 }
 
-// ================================================================================
-// Isolate Selection
-// ================================================================================
-
-namespace
-{
-ViewProviderAssembly* getAssemblyViewProvider(AssemblyObject* assembly)
-{
-    return dynamic_cast<ViewProviderAssembly*>(
-        Gui::Application::Instance->getViewProvider(assembly)
-    );
-}
-
-/// The isolation box of the task view shows only while an isolation runs.
-void updateIsolationWatcher()
-{
-    if (auto* taskView = Gui::Control().taskPanel()) {
-        taskView->updateWatcher();
-    }
-}
-}  // namespace
-
-DEF_STD_CMD_A(CmdAssemblyIsolateSelection)
-
-CmdAssemblyIsolateSelection::CmdAssemblyIsolateSelection()
-    : Command("Assembly_IsolateSelection")
-{
-    sGroup = QT_TR_NOOP("Assembly");
-    sMenuText = QT_TR_NOOP("Isolate Selection");
-    sToolTipText = QT_TR_NOOP(
-        "Makes the components that are not selected transparent and unselectable.\n"
-        "Run it again to end the isolation."
-    );
-    sWhatsThis = "Assembly_IsolateSelection";
-    sStatusTip = sToolTipText;
-    eType = ForEdit;
-}
-
-void CmdAssemblyIsolateSelection::activated(int iMsg)
-{
-    Q_UNUSED(iMsg);
-    AssemblyObject* assembly = getActiveAssembly();
-    ViewProviderAssembly* viewProvider = assembly ? getAssemblyViewProvider(assembly) : nullptr;
-    if (!viewProvider) {
-        return;
-    }
-
-    if (viewProvider->hasPersistentIsolation()) {
-        viewProvider->clearIsolate();
-        updateIsolationWatcher();
-        return;
-    }
-
-    auto selection = Gui::Selection().getSelectionEx(
-        "",
-        App::DocumentObject::getClassTypeId(),
-        Gui::ResolveMode::NoResolve
-    );
-
-    std::set<App::DocumentObject*> components;
-    for (auto& sel : selection) {
-        std::vector<std::string> subs = sel.getSubNames();
-        if (subs.empty()) {
-            subs.emplace_back();
-        }
-        for (const auto& sub : subs) {
-            if (App::DocumentObject* comp = getMovingPartFromSel(assembly, sel.getObject(), sub)) {
-                components.insert(comp);
-            }
-        }
-    }
-
-    if (components.empty()) {
-        return;
-    }
-
-    viewProvider->isolateComponents(
-        components,
-        ViewProviderAssembly::IsolateMode::Transparent,
-        /*persistent=*/true
-    );
-    Gui::Selection().clearSelection();
-    updateIsolationWatcher();
-}
-
-bool CmdAssemblyIsolateSelection::isActive()
-{
-    AssemblyObject* assembly = getActiveAssembly();
-    if (!assembly) {
-        return false;
-    }
-    ViewProviderAssembly* viewProvider = getAssemblyViewProvider(assembly);
-    return viewProvider
-        && (viewProvider->hasPersistentIsolation() || !Gui::Selection().getSelection().empty());
-}
-
-// ================================================================================
-// End Isolation
-// ================================================================================
-
-DEF_STD_CMD_A(CmdAssemblyEndIsolation)
-
-CmdAssemblyEndIsolation::CmdAssemblyEndIsolation()
-    : Command("Assembly_EndIsolation")
-{
-    sGroup = QT_TR_NOOP("Assembly");
-    sMenuText = QT_TR_NOOP("End Isolation");
-    sToolTipText = QT_TR_NOOP(
-        "Ends the isolation started by Isolate Selection: all the components\n"
-        "become visible and selectable again."
-    );
-    sWhatsThis = "Assembly_EndIsolation";
-    sStatusTip = sToolTipText;
-    eType = ForEdit;
-}
-
-void CmdAssemblyEndIsolation::activated(int iMsg)
-{
-    Q_UNUSED(iMsg);
-    AssemblyObject* assembly = getActiveAssembly();
-    ViewProviderAssembly* viewProvider = assembly ? getAssemblyViewProvider(assembly) : nullptr;
-    if (viewProvider && viewProvider->hasPersistentIsolation()) {
-        viewProvider->clearIsolate();
-    }
-    updateIsolationWatcher();
-}
-
-bool CmdAssemblyEndIsolation::isActive()
-{
-    AssemblyObject* assembly = getActiveAssembly();
-    ViewProviderAssembly* viewProvider = assembly ? getAssemblyViewProvider(assembly) : nullptr;
-    return viewProvider && viewProvider->hasPersistentIsolation();
-}
-
 
 // ================================================================================
 // Command Creation
@@ -513,6 +377,4 @@ void AssemblyGui::CreateAssemblyCommands()
     rcCmdMgr.addCommand(new CmdAssemblySelectMalformedConstraints());
     rcCmdMgr.addCommand(new CmdAssemblySelectComponentsWithDoFs());
     rcCmdMgr.addCommand(new CmdAssemblySelectJointsOfComponent());
-    rcCmdMgr.addCommand(new CmdAssemblyIsolateSelection());
-    rcCmdMgr.addCommand(new CmdAssemblyEndIsolation());
 }
