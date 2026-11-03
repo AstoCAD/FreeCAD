@@ -2157,6 +2157,7 @@ PyObject* SketchObjectPy::addSymmetric(PyObject* args)
             }
         }
 
+        const int firstNewGeo = getSketchObjectPtr()->Geometry.getSize();
         int ret = this->getSketchObjectPtr()
                       ->addSymmetric(
                           geoIdList,
@@ -2170,10 +2171,11 @@ PyObject* SketchObjectPy::addSymmetric(PyObject* args)
             throw Py::TypeError("Symmetric operation unsuccessful!");
         }
 
-        std::size_t numGeo = geoIdList.size();
+        // Internal alignment geometry can be filtered out of the selection.
+        std::size_t numGeo = ret - firstNewGeo;
         Py::Tuple tuple(numGeo);
         for (std::size_t i = 0; i < numGeo; ++i) {
-            int geoId = ret - int(numGeo - i);
+            int geoId = firstNewGeo + int(i);
             tuple.setItem(i, Py::Long(geoId));
         }
 
@@ -2208,17 +2210,18 @@ PyObject* SketchObjectPy::addCopy(PyObject* args)
         }
 
         try {
-            int ret = this->getSketchObjectPtr()->addCopy(geoIdList, vect, false, Base::asBoolean(clone))
-                + 1;
+            const int firstNewGeo = getSketchObjectPtr()->Geometry.getSize();
+            int ret = this->getSketchObjectPtr()->addCopy(geoIdList, vect, false, Base::asBoolean(clone));
 
-            if (ret < 1) {
+            if (ret < 0) {
                 throw Py::TypeError("Copy operation unsuccessful!");
             }
 
-            std::size_t numGeo = geoIdList.size();
+            // The final appended geometry is a displacement helper, not a copy.
+            std::size_t numGeo = ret - firstNewGeo;
             Py::Tuple tuple(numGeo);
             for (std::size_t i = 0; i < numGeo; ++i) {
-                int geoId = ret - int(numGeo - i);
+                int geoId = firstNewGeo + int(i);
                 tuple.setItem(i, Py::Long(geoId));
             }
 
