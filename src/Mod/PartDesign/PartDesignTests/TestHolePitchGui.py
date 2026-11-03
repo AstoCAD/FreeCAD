@@ -7,7 +7,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import PartDesignGui
 import TestSketcherApp
-from PySide import QtWidgets
+from PySide import QtCore, QtWidgets
 
 
 class TestHolePitchGui(unittest.TestCase):
@@ -97,3 +97,53 @@ class TestHolePitchGui(unittest.TestCase):
         self.assertEqual(self.hole.ThreadType, "None")
         pitch = self.pitchWidget()
         self.assertFalse(pitch.isVisibleTo(pitch.parentWidget()))
+
+    def testKeyboardOrderFollowsHeadCutLayout(self):
+        panel = self.widget(QtWidgets.QGroupBox, "HoleGroupBox")
+        counterbore = ("HoleCutDiameter", "Depth", "HoleCutDepth")
+        countersink = ("HoleCutDiameter", "HoleCutCountersinkAngle", "HoleCutDepth", "Depth")
+        self.hole.Depth = 10
+        drill = panel.findChild(QtWidgets.QCheckBox, "DrillPointAngled")
+        self.assertIsNotNone(drill)
+        if drill.isChecked():
+            drill.click()
+        self.assertEqual(self.hole.DrillPoint, "Flat")
+
+        for mode, fields in (
+            ("None", ("Depth",)),
+            ("Counterbore", counterbore),
+            ("Countersink", countersink),
+            ("Counterbore", counterbore),
+        ):
+            with self.subTest(mode=mode):
+                self.selectCombo(
+                    "HoleCutType",
+                    QtWidgets.QApplication.translate("PartDesignGui::TaskHoleParameters", mode),
+                )
+                self.assertEqual(self.hole.HoleCutType, mode)
+                names = ("HoleCutType", "DepthType", *fields, "DrillPointAngled")
+                widgets = [panel.findChild(QtWidgets.QWidget, name) for name in names]
+                for name, widget in zip(names, widgets):
+                    self.assertIsNotNone(widget, name)
+                    self.assertTrue(widget.isVisibleTo(panel) and widget.isEnabled(), name)
+                    self.assertTrue(widget.focusPolicy() & QtCore.Qt.TabFocus, name)
+
+                first = widgets[0]
+                chain = [first]
+                item = first.nextInFocusChain()
+                while item is not None and item != first:
+                    chain.append(item)
+                    self.assertLess(len(chain), 20000, "The focus chain does not loop")
+                    item = item.nextInFocusChain()
+                self.assertEqual(item, first, "The focus chain is incomplete")
+
+                positions = []
+                for name, widget in zip(names, widgets):
+                    proxy = widget.focusProxy()
+                    for index, item in enumerate(chain):
+                        if item == widget or item == proxy or widget.isAncestorOf(item):
+                            positions.append(index)
+                            break
+                    else:
+                        self.fail(f"{name} is missing from the focus chain")
+                self.assertEqual(positions, sorted(positions), names)
