@@ -1030,6 +1030,37 @@ class TestDynamics(unittest.TestCase):
             delta=2e-3,
         )
 
+    def test_compliant_limit_keeps_stiffness_and_damping_precision(self):
+        ground = self.box("Ground", density=None)
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        body = self.box()
+        joint = self.joint("Slider", ground, body)
+        joint.EnableLengthMin = True
+        joint.LengthMin = "-10 mm"
+        joint.LengthMinLimitBehavior = "Compliant"
+        joint.LengthMinLimitStiffness = "0.0012345678901 N/mm"
+        joint.LengthMinLimitDamping = "0.0012345678901 kg/s"
+        study = self.study()
+        study.EndTime = "0.15 s"
+        study.OutputStep = "0.005 s"
+        study.MaximumStep = "0.001 s"
+        data = Dynamics.run(study)
+        limit = data["Limits"][joint.FullName + "-LimitLenMin"]
+        result = data["Bodies"][body.Name]
+        checked = 0
+        for index, pose in enumerate(result["Placements"]):
+            penetration = -10 - pose[2]
+            velocity = result["Velocity"][index][2]
+            if penetration < 1 or abs(velocity) < 10:
+                continue
+            # Stored energy N mm = 0.5 k d^2; dissipated power mW = 0.001 c v^2.
+            stiffness = 2 * limit["StoredEnergy"][index] / penetration**2
+            damping = 1000 * limit["DissipatedPower"][index] / velocity**2
+            self.assertAlmostEqual(stiffness / 0.0012345678901, 1, delta=1e-9)
+            self.assertAlmostEqual(damping / 0.0012345678901, 1, delta=1e-9)
+            checked += 1
+        self.assertGreater(checked, 5)
+
     def test_slider_limit_sides_have_independent_compliance(self):
         ground = self.box("Ground", density=None)
         ground.setPropertyStatus("Placement", "ReadOnly")
