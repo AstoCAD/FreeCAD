@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""Regression tests for pending edits during DXF export.
+"""Regression tests for DXF export from a TechDraw page.
 
 The real save dialog writes only to an explicitly selected disposable profile.
 Normal GUI sessions skip these profile-dependent tests.
@@ -252,12 +252,16 @@ class TestDxfExportPendingTransactionGui(unittest.TestCase):
         self.assertFalse(path.exists())
         return path
 
-    def _file_valid(self, path):
+    def _file_pairs(self, path):
         self.assertTrue(path.is_file())
         lines = path.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(lines) % 2, 0)
         pairs = [(int(code.strip()), value.strip()) for code, value in zip(lines[::2], lines[1::2])]
         self.assertEqual(pairs[-1], (0, "EOF"))
+        return pairs
+
+    def _file_valid(self, path):
+        pairs = self._file_pairs(path)
         entities = []
         in_entities = False
         current = None
@@ -446,6 +450,64 @@ class TestDxfExportPendingTransactionGui(unittest.TestCase):
         self._pending_export(
             "gui-api-pending-target.dxf", lambda path: TechDrawGui.export([self.page], str(path))
         )
+
+    def test_gui_api_exports_page_from_inactive_document(self):
+        import TechDrawGui
+
+        from .TechDrawTestUtilities import createPageWithSVGTemplate
+
+        peer = App.newDocument("DxfExportPeer")
+        peer_name = peer.Name
+        self.addCleanup(App.closeDocument, peer_name)
+        peer.UndoMode = 1
+        peer_page = createPageWithSVGTemplate(peer)
+        peer_annotation = peer.addObject("TechDraw::DrawViewAnnotation", "Annotation")
+        peer_annotation.Text = ["DXF export peer"]
+        peer_page.addView(peer_annotation)
+        peer.recompute()
+        self._pump()
+        peer.clearUndos()
+        peer_gui = Gui.getDocument(peer_name)
+        peer_gui.Modified = False
+
+        def peer_snapshot():
+            return (
+                tuple((obj.Name, obj.Label, obj.TypeId) for obj in peer.Objects),
+                tuple(obj.Name for obj in peer_page.Views),
+                tuple(peer_annotation.Text),
+                peer.HasPendingTransaction,
+                peer.getBookedTransactionID(),
+                tuple(peer.UndoNames),
+                tuple(peer.RedoNames),
+                peer.isTouched(),
+                peer_gui.Modified,
+            )
+
+        self.assertEqual(peer_page.Name, self.page.Name)
+        self.assertNotEqual(peer_name, self.doc.Name)
+        self.assertEqual(App.ActiveDocument.Name, peer_name)
+        self.assertEqual(Gui.activeDocument().Document.Name, peer_name)
+        before = self._snapshot()
+        peer_before = peer_snapshot()
+
+        direct = self._path("inactive-page-direct.dxf")
+        self._observe(lambda: TechDraw.writeDXFPage(self.page, str(direct)))
+        self._file_valid(direct)
+        self.assertEqual(App.ActiveDocument.Name, peer_name)
+
+        exported = self._path("inactive-page-gui.dxf")
+        self._observe(lambda: TechDrawGui.export([self.page], str(exported)))
+        self.assertEqual(App.ActiveDocument.Name, peer_name)
+        self.assertEqual(Gui.activeDocument().Document.Name, peer_name)
+        self.assertEqual(self._snapshot(), before)
+        self.assertEqual(peer_snapshot(), peer_before)
+
+        markers = [
+            text
+            for code, text in self._file_pairs(exported)
+            if code == 1 and text in ("DXF export control", "DXF export peer")
+        ]
+        self.assertEqual(markers, ["DXF export control"])
 
     def _cleanup(self):
         Gui.Selection.clearSelection()
