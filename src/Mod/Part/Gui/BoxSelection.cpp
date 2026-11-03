@@ -23,7 +23,9 @@
  ***************************************************************************/
 
 
+#include <algorithm>
 #include <sstream>
+#include <vector>
 #include <BRep_Tool.hxx>
 #include <gp_Pnt.hxx>
 #include <TopExp_Explorer.hxx>
