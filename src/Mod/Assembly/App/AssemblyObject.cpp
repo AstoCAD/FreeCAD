@@ -1596,6 +1596,11 @@ std::unordered_set<App::DocumentObject*> AssemblyObject::fixGroundedParts()
             continue;
         }
 
+        // Rigid cluster members share one solver body at the representative's placement.
+        if (auto* rep = getRigidRepresentative(obj); rep && rep != obj) {
+            continue;
+        }
+
         Base::Placement plc = getPlacementFromProp(obj, "Placement");
         std::string str = obj->getFullName();
         fixGroundedPart(obj, plc, str);
