@@ -27,6 +27,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 
+#include <Base/Exception.h>
 #include <Base/Interpreter.h>
 #include <Base/Converter.h>
 #include <App/Document.h>
@@ -238,7 +239,14 @@ void TaskFilletParameters::setGizmoPositions()
         return;
     }
     Part::TopoShape baseShape = fillet->getBaseTopoShape(true);
-    std::vector<Part::TopoShape> shapes = fillet->getContinuousEdges(baseShape);
+    std::vector<Part::TopoShape> shapes;
+    try {
+        shapes = fillet->getContinuousEdges(baseShape);
+    }
+    catch (const Base::CADKernelError&) {
+        gizmoContainer->visible = false;
+        return;
+    }
 
     if (shapes.size() == 0) {
         gizmoContainer->visible = false;

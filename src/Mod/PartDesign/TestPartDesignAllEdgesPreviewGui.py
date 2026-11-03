@@ -342,3 +342,102 @@ class TestPartDesignAllEdgesPreviewGui(unittest.TestCase):
 
     def test_valid_to_missing_edges_fillet_refreshes_preview_style(self):
         self._backward("Fillet")
+
+    def _all_edges_edits_after_selected_edge_disappears(self, kind):
+        import Part
+        from uuid import uuid4
+
+        preferences = App.ParamGet("User parameter:BaseApp/Preferences/Gui/Gizmos")
+        if not preferences.GetBool("EnableGizmos", True):
+            self.skipTest("Requires the ordinary enabled-gizmo path")
+
+        document = App.newDocument(kind + "MissingEdge_" + uuid4().hex[:12])
+        self.document_name, self.document_uid = document.Name, str(document.Uid)
+        gui_document = Gui.getDocument(document.Name)
+        body = document.addObject("PartDesign::Body", "Body")
+        sketch = body.newObject("Sketcher::SketchObject", "Profile")
+        points = [(0, 0), (20, 0), (20, 15), (15, 20), (0, 20)]
+        sketch.addGeometry(
+            [
+                Part.LineSegment(App.Vector(*a, 0), App.Vector(*b, 0))
+                for a, b in zip(points, points[1:] + points[:1])
+            ],
+            False,
+        )
+        pad = body.newObject("PartDesign::Pad", "Pad")
+        pad.Profile = sketch
+        pad.Length = 10
+        pad.Refine = True
+        document.recompute()
+        self.assertTrue(pad.isValid() and pad.Shape.isValid())
+        self.assertAlmostEqual(pad.Shape.Volume, 3875)
+
+        def endpoints(edge):
+            return sorted(
+                (vertex.Point.x, vertex.Point.y, vertex.Point.z) for vertex in edge.Vertexes
+            )
+
+        candidates = []
+        for index, edge in enumerate(pad.Shape.Edges, 1):
+            ends = endpoints(edge)
+            if (
+                len(ends) == 2 and all(abs(point[2] - 10) < 1e-7 for point in ends)
+                and abs(ends[0][0] - ends[1][0]) > 1e-7
+                and abs(ends[0][1] - ends[1][1]) > 1e-7
+            ):
+                candidates.append(("Edge" + str(index), ends))
+        self.assertEqual(len(candidates), 1, "The Pad has one real upper diagonal edge")
+        edge_name, diagonal = candidates[0]
+        feature = body.newObject("PartDesign::" + kind, kind)
+        feature.Base = (pad, [edge_name])
+        setattr(feature, "Size" if kind == "Chamfer" else "Radius", 0.5)
+        feature.UseAllEdges = True
+        document.recompute()
+        fx = {"doc": document, "body": body, "box": pad,
+              "feature": feature, "kind": kind}
+        self.assertTrue(self._valid({"model": self._model(fx)}))
+        gui_document.activeView().setActiveObject("pdbody", body)
+
+        def open_and_reject():
+            before = self._model(fx)
+            Gui.Selection.clearSelection(document.Name)
+            Gui.Selection.addSelection(feature)
+            self.assertTrue(gui_document.setEdit(feature.Name))
+            self._pump()
+            self.assertEqual(gui_document.getInEdit().Object, feature)
+            task = Gui.Control.activeTaskDialog(gui_document)
+            self.assertIsNotNone(task)
+            checkbox, _size = self._widgets(kind)
+            self.assertTrue(checkbox.isChecked())
+            task.reject()
+            self._pump()
+            self.assertIsNone(gui_document.getInEdit())
+            self.assertIsNone(Gui.Control.activeTaskDialog(gui_document))
+            document.recompute()
+            self.assertEqual(self._model(fx), before)
+
+        open_and_reject()
+        sketch.delGeometry(2)
+        sketch.addGeometry(
+            [
+                Part.LineSegment(App.Vector(20, 15, 0), App.Vector(20, 20, 0)),
+                Part.LineSegment(App.Vector(20, 20, 0), App.Vector(15, 20, 0)),
+            ],
+            False,
+        )
+        document.recompute()
+        self.assertTrue(pad.isValid() and pad.Shape.isValid())
+        self.assertEqual(len(pad.Shape.Edges), 12)
+        self.assertAlmostEqual(pad.Shape.Volume, 4000)
+        self.assertNotIn(diagonal, [endpoints(edge) for edge in pad.Shape.Edges])
+        self.assertTrue(feature.UseAllEdges)
+        self.assertTrue(self._valid({"model": self._model(fx)}))
+        self.assertEqual(len(feature.Base[1]), 1)
+        self.assertTrue(feature.Base[1][0].startswith("?"))
+        open_and_reject()
+
+    def test_all_edges_chamfer_edits_after_selected_edge_disappears(self):
+        self._all_edges_edits_after_selected_edge_disappears("Chamfer")
+
+    def test_all_edges_fillet_edits_after_selected_edge_disappears(self):
+        self._all_edges_edits_after_selected_edge_disappears("Fillet")
