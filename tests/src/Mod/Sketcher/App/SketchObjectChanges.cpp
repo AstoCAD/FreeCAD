@@ -1522,3 +1522,57 @@ TEST_F(SketchObjectTest, testJoinCurvesWhenTangent)
         = static_cast<const Part::GeomBSplineCurve*>(getObject()->getGeometry(0))->getMultiplicities();
     EXPECT_TRUE(std::all_of(mults.begin(), mults.end(), [](auto mult) { return mult >= 1; }));
 }
+
+TEST_F(SketchObjectTest, testSetVisibilityPreservesTouchAndSolverUpdates)
+{
+    auto* sketch = getObject();
+    auto* doc = sketch->getDocument();
+    Part::GeomLineSegment line;
+    line.setPoints(Base::Vector3d(0.0, 0.0, 0.0), Base::Vector3d(10.0, 0.0, 0.0));
+    const int geometryId = sketch->addGeometry(&line);
+    ASSERT_GE(geometryId, 0);
+
+    Sketcher::Constraint horizontal;
+    horizontal.Type = Sketcher::Horizontal;
+    horizontal.First = geometryId;
+    const int constraintId = sketch->addConstraint(&horizontal);
+    ASSERT_EQ(constraintId, 0);
+    doc->recompute();
+    ASSERT_FALSE(sketch->isTouched());
+    ASSERT_EQ(sketch->Constraints.getValues().size(), 1U);
+    ASSERT_TRUE(sketch->Constraints.getValues().front()->isVisible);
+
+    int solverUpdates = 0;
+    const fastsignals::scoped_connection connection(
+        sketch->signalSolverUpdate.connect([&solverUpdates]() { ++solverUpdates; })
+    );
+
+    EXPECT_EQ(sketch->setVisibility(constraintId, true), 0);
+    EXPECT_FALSE(sketch->isTouched()) << "same-value scalar call";
+    EXPECT_EQ(solverUpdates, 1);
+
+    doc->recompute();
+    ASSERT_FALSE(sketch->isTouched());
+    const int beforeList = solverUpdates;
+    EXPECT_EQ(sketch->setVisibility(std::vector<int> {constraintId}, true), 0);
+    EXPECT_FALSE(sketch->isTouched()) << "same-value list call";
+    EXPECT_EQ(solverUpdates, beforeList + 1);
+
+    doc->recompute();
+    ASSERT_FALSE(sketch->isTouched());
+    const int beforeIgnored = solverUpdates;
+    const int invalidId = constraintId + 1;
+    EXPECT_EQ(sketch->setVisibility(invalidId, false), -1);
+    EXPECT_EQ(sketch->setVisibility(std::vector<int> {constraintId, invalidId}, false), -1);
+    EXPECT_EQ(sketch->setVisibility(std::vector<int> {}, false), 0);
+    EXPECT_EQ(solverUpdates, beforeIgnored);
+    EXPECT_FALSE(sketch->isTouched());
+    ASSERT_EQ(sketch->Constraints.getValues().size(), 1U);
+    EXPECT_TRUE(sketch->Constraints.getValues().front()->isVisible);
+
+    EXPECT_EQ(sketch->setVisibility(std::vector<int> {constraintId}, false), 0);
+    EXPECT_EQ(solverUpdates, beforeIgnored + 1);
+    EXPECT_TRUE(sketch->isTouched());
+    ASSERT_EQ(sketch->Constraints.getValues().size(), 1U);
+    EXPECT_FALSE(sketch->Constraints.getValues().front()->isVisible);
+}
