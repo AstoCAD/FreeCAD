@@ -23,7 +23,6 @@
 # ******************************************************************************/
 
 import FreeCAD  # just for debug printing to console...
-import numpy as np
 
 
 class SegmentFunctionSegment:
@@ -291,6 +290,8 @@ class TranslationFunction:
         if f.isZero():
             self.transfunc = None
             return
+        import numpy as np  # imported here so that loading PartDesign does not pay for it
+
         # Note: Integration has to be segment-wise because the area moment is not constant in different segments. But this only becomes relevant
         # when boundary conditions are being applied
         # E I_i w_i'(x) = tangfunc + C_i0
