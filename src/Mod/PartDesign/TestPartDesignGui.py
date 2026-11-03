@@ -556,6 +556,17 @@ class PartDesignGuiTestCases(unittest.TestCase):
         self.assertEqual(len(self.BodyTarget.Group), 0, "Target body feature count is wrong")
 
     def testMoveSingleFeature(self):
+        self.movePadToBody()
+        self.assertFalse(
+            self.Sketch.AttachmentSupport[0][0] in self.BodySource.Origin.OriginFeatures
+        )
+        self.assertTrue(
+            self.Sketch.AttachmentSupport[0][0] in self.BodyTarget.Origin.OriginFeatures
+        )
+        self.assertEqual(len(self.BodySource.Group), 0, "Source body feature count is wrong")
+        self.assertEqual(len(self.BodyTarget.Group), 2, "Target body feature count is wrong")
+
+    def movePadToBody(self, selection_names=None):
         FreeCAD.Console.PrintMessage("Testing moving one feature from one body to another\n")
         self.BodySource = self.Doc.addObject("PartDesign::Body", "Body")
         Gui.activateView("Gui::View3DInventor", True)
@@ -615,21 +626,22 @@ class PartDesignGuiTestCases(unittest.TestCase):
 
         self.BodyTarget = self.Doc.addObject("PartDesign::Body", "Body")
 
-        Gui.Selection.addSelection(App.ActiveDocument.Pad)
+        if selection_names is None:
+            Gui.Selection.addSelection(App.ActiveDocument.Pad)
+        else:
+            for name in selection_names:
+                Gui.Selection.addSelection(self.Doc.getObject(name))
+            self.assertEqual(
+                [
+                    (entry.Object.Name, tuple(entry.SubElementNames))
+                    for entry in Gui.Selection.getSelectionEx(self.Doc.Name, 1)
+                ],
+                [(name, ()) for name in selection_names],
+            )
         cobj = CallableComboBox(self)
         QtCore.QTimer.singleShot(500, cobj)
         Gui.runCommand("PartDesign_MoveFeature")
-        # assert dependencies of the Sketch
         self.Doc.recompute()
-
-        self.assertFalse(
-            self.Sketch.AttachmentSupport[0][0] in self.BodySource.Origin.OriginFeatures
-        )
-        self.assertTrue(
-            self.Sketch.AttachmentSupport[0][0] in self.BodyTarget.Origin.OriginFeatures
-        )
-        self.assertEqual(len(self.BodySource.Group), 0, "Source body feature count is wrong")
-        self.assertEqual(len(self.BodyTarget.Group), 2, "Target body feature count is wrong")
 
     def tearDown(self):
         FreeCAD.closeDocument("SketchGuiTest")
