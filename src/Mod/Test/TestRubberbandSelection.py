@@ -125,6 +125,50 @@ class TestRubberbandSelection(unittest.TestCase):
                 self._drag_select(self._selection_rect(self.left_box))
                 self.assertEqual(self._selected_names(), {self.left_box.Name})
 
+    def test_part_box_selection_skips_faces_in_hidden_parts(self):
+        if Part is None:
+            self.skipTest("Part module is unavailable")
+        import PartGui  # noqa: F401  (registers Part_BoxSelection)
+
+        outer = self.doc.addObject("App::Part", "OuterPart")
+        inner = self.doc.addObject("App::Part", "InnerPart")
+        outer.addObject(inner)
+        nested = self._add_part_feature(
+            "NestedFace", Part.makePlane(8, 8, FreeCAD.Vector(10, -4, 0))
+        )
+        inner.addObject(nested)
+        sibling = self._add_part_feature(
+            "VisibleSibling", Part.makePlane(8, 8, FreeCAD.Vector(-18, -4, 0))
+        )
+        self.doc.recompute()
+        self.view.setAnimationEnabled(False)
+        self.view.setCameraType("Orthographic")
+        self.view.setNavigationType("Gui::CADNavigationStyle")
+        self.view.viewTop()
+        self.view.fitAll(1.25)
+        self._process_events()
+        rect = self._selection_rect(nested).united(self._selection_rect(sibling))
+
+        for outer_visible, inner_visible in ((True, True), (False, True), (True, False), (True, True)):
+            with self.subTest(outer_visible=outer_visible, inner_visible=inner_visible):
+                outer.ViewObject.Visibility = outer_visible
+                inner.ViewObject.Visibility = inner_visible
+                self.assertTrue(nested.ViewObject.Visibility)
+                self.assertTrue(sibling.ViewObject.Visibility)
+                FreeCADGui.Selection.clearSelection(self.doc.Name)
+                self._process_events()
+                FreeCADGui.runCommand("Part_BoxSelection", 0)
+                self._process_events(10)
+                self._drag_select(rect)
+                selected = {
+                    (item.ObjectName, tuple(item.SubElementNames))
+                    for item in FreeCADGui.Selection.getSelectionEx(self.doc.Name, 1)
+                }
+                expected = {(sibling.Name, ("Face1",))}
+                if outer_visible and inner_visible:
+                    expected.add((nested.Name, ("Face1",)))
+                self.assertEqual(selected, expected)
+
     def test_ctrl_drag_adds_in_supported_styles(self):
         self._ensure_selection_objects()
         for label, style in self.ADDITIVE_DRAG_STYLES:
