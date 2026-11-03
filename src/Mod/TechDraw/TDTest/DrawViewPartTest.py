@@ -81,6 +81,66 @@ class DrawViewPartTest(unittest.TestCase):
         self.assertEqual(lineFormat["visible"], visible)
         self.assertEqual(len(view.GeomFormats), 0)
 
+    def testPythonPartViewRetainsNativeProjectionApi(self):
+        """Python Part Views retain projection methods and native proxy fallback."""
+        class PartViewProxy:
+            def __init__(self):
+                self.executed = []
+                self.changed = []
+
+            def execute(self, obj):
+                self.executed.append(obj.Name)
+                return False  # Run the native DrawViewPart implementation.
+
+            def onChanged(self, obj, prop):
+                self.changed.append((obj.Name, prop))
+
+        document = self.page.Document
+        source = document.Box
+        source.Length, source.Width, source.Height = 20, 30, 10
+        view = document.addObject("TechDraw::DrawViewPartPython", "PythonView")
+        proxy = PartViewProxy()
+        view.Proxy = proxy
+        self.page.addView(view)
+        view.ScaleType = "Custom"
+        view.Scale = 1
+        view.Direction = FreeCAD.Vector(0, 0, 1)
+        view.XDirection = FreeCAD.Vector(1, 0, 0)
+        view.CoarseView = False
+        view.HardHidden = False
+        view.Source = [source]
+        document.recompute()
+
+        # Observe the base projection separately from the feature wrapper's methods.
+        projections = [item for item in self.page.getViews() if item.Name == view.Name]
+        self.assertEqual(len(projections), 1)
+        native_view = projections[0]
+        self.assertTrue(self._waitUntil(native_view.isProjectionReady))
+        self.assertEqual(
+            sorted(round(edge.Length, 7) for edge in native_view.getVisibleEdges()),
+            [20, 20, 30, 30],
+        )
+        self.assertGreater(len(proxy.executed), 0)
+        self.assertIn((view.Name, "Source"), proxy.changed)
+        self.assertTrue(callable(getattr(view, "getVisibleEdges", None)))
+        self.assertTrue(callable(getattr(view, "isProjectionReady", None)))
+        self.assertTrue(view.isProjectionReady())
+        self.assertEqual(
+            sorted(round(edge.Length, 7) for edge in view.getVisibleEdges()),
+            [20, 20, 30, 30],
+        )
+
+        calls = len(proxy.executed)
+        source.Length = 24
+        document.recompute()
+        self.assertTrue(self._waitUntil(view.isProjectionReady))
+        self.assertGreater(len(proxy.executed), calls)
+        self.assertEqual(
+            sorted(round(edge.Length, 7) for edge in view.getVisibleEdges()),
+            [24, 24, 30, 30],
+        )
+        self.assertIs(view.Proxy, proxy)
+        self.assertIn("Up-to-date", view.State)
 
     def testDisplayStyleControlsHardHidden(self):
         """DisplayStyle controls hard hidden edges without changing other HLR options."""

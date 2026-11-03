@@ -87,6 +87,7 @@
 
 
 #include <App/Document.h>
+#include <App/FeaturePythonPyImp.h>
 #include <Base/BoundBox.h>
 #include <Base/Console.h>
 #include <Base/Converter.h>
