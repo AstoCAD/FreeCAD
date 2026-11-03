@@ -430,9 +430,32 @@ class SketchObject(Part2DObject):
 
             The element is linked from the highest object of its path that does not contain
             the sketch (so the sketch does not depend on root), and projected with the
-            placements of both in root. It follows their moves.
+            placements of both in root. The component keeps that design position relative to
+            the one of the sketch: moving either afterwards does not move the projection,
+            until updateExternalContext().
 
             Returns the index of the external reference.
+        """
+        ...
+
+    @constmethod
+    def isExternalContextOutdated(self) -> bool:
+        """
+        Whether the components referenced with addExternalInContext() moved away from their
+        design position, relative to the component of the sketch.
+
+        isExternalContextOutdated() -> bool
+        """
+        ...
+
+    def updateExternalContext(self) -> bool:
+        """
+        Take the current positions of the components referenced with addExternalInContext()
+        as their design positions, and project the references there.
+
+        updateExternalContext() -> bool
+
+            Returns False if the context is not available, e.g. the assembly is not open.
         """
         ...
 

@@ -1030,6 +1030,26 @@ PyObject* SketchObjectPy::addExternalInContext(PyObject* args)
     return Py::new_reference_to(Py::Long(index));
 }
 
+PyObject* SketchObjectPy::isExternalContextOutdated(PyObject* args) const
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    return Py::new_reference_to(Py::Boolean(getSketchObjectPtr()->isExternalContextOutdated()));
+}
+
+PyObject* SketchObjectPy::updateExternalContext(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    PY_TRY
+    {
+        return Py::new_reference_to(Py::Boolean(getSketchObjectPtr()->updateExternalContext()));
+    }
+    PY_CATCH;
+}
+
 PyObject* SketchObjectPy::delExternal(PyObject* args)
 {
     int Index;

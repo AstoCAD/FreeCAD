@@ -2491,6 +2491,12 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
     std::string contextSketchPath;
     const bool hasContext = contextBegin < contextEnd && getExternalContextTransform(contextMat)
         && getExternalContext(contextRoot, contextSketchPath);
+    std::map<const App::DocumentObject*, Base::Placement> designPlacements;
+    if (hasContext) {
+        // A new reference, or one saved before the design positions, takes its current one
+        setExternalContextDesignPlacements(getExternalContextDesignPlacements());
+        designPlacements = getExternalContextDesignPlacements();
+    }
 
     // re-check for any missing geometry element. The code here has a side
     // effect that the linked external geometry will continue to work even if
@@ -2635,6 +2641,16 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
             if (inContext) {
                 // The element as placed in the context root, brought into the sketch's
                 // coordinate system (the root's own placement is left out, it cancels).
+                // The component is put back at its design position: moving it in the
+                // context does not move the projection.
+                Base::Matrix4D mat = contextMat;
+                auto design = designPlacements.find(Obj);
+                Base::Matrix4D linkMat;
+                if (design != designPlacements.end()
+                    && contextRoot->getSubObject(contextLinkPath.c_str(), nullptr, &linkMat, false)) {
+                    linkMat.inverseGauss();
+                    mat = design->second.toMatrix() * linkMat;
+                }
                 auto shape = Part::Feature::getTopoShape(
                     contextRoot,
                     Part::ShapeOption::ResolveLink | Part::ShapeOption::NeedSubElement,
@@ -2645,7 +2661,7 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
                         "Object does not provide geometry usable as external sketch geometry"
                     );
                 }
-                shape.transformShape(contextMat, false, true);
+                shape.transformShape(mat, false, true);
                 refSubShape = shape.getShape();
             }
             else if (auto* datum = freecad_cast<const Part::Datum*>(resolvedObj)) {
@@ -2926,7 +2942,7 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
     reorientConstraintsOnReversedGeometry(reversedGeoIds);
 
     if (hasContext) {
-        lastContextPlacements = getExternalContextPlacements();
+        updateExternalContextOutdated();
     }
 
     // clean up geometry reference
@@ -3229,6 +3245,7 @@ void SketchObject::setExternalLinks(
     const std::vector<long>* types
 )
 {
+    const auto designPlacements = getExternalContextDesignPlacements();
     using Entry = std::pair<App::DocumentObject*, std::string>;
     std::set<Entry> contextEntries;
     std::map<Entry, long> currentContextTypes;
@@ -3315,6 +3332,7 @@ void SketchObject::setExternalLinks(
             ExternalContextTypes.setValues(contextTypes);
         }
     }
+    setExternalContextDesignPlacements(designPlacements);
     updateExternalContextDependencies();
     if (ExternalContextGeometry.getSize() == 0 && ExternalContext.getValue()) {
         ExternalContext.setValue(nullptr);
@@ -3375,25 +3393,109 @@ bool SketchObject::getExternalContextLinkPath(const App::DocumentObject* link, s
     return false;
 }
 
-std::vector<Base::Matrix4D> SketchObject::getExternalContextPlacements() const
+bool SketchObject::getExternalContextLinkPlacement(
+    const App::DocumentObject* link,
+    Base::Matrix4D& mat
+) const
 {
-    std::vector<Base::Matrix4D> placements;
     App::DocumentObject* root = nullptr;
     std::string sketchPath;
-    Base::Matrix4D mat;
-    if (!getExternalContext(root, sketchPath) || !getExternalContextTransform(mat)) {
+    std::string path;
+    Base::Matrix4D contextMat;
+    Base::Matrix4D linkMat;
+    if (!getExternalContext(root, sketchPath) || !getExternalContextTransform(contextMat)
+        || !getExternalContextLinkPath(link, path)
+        || !root->getSubObject(path.c_str(), nullptr, &linkMat, false)) {
+        return false;
+    }
+    mat = contextMat * linkMat;
+    return true;
+}
+
+std::map<const App::DocumentObject*, Base::Placement>
+SketchObject::getExternalContextDesignPlacements() const
+{
+    std::map<const App::DocumentObject*, Base::Placement> placements;
+    const auto& links = ExternalContextGeometry.getSubListValues();
+    const auto& values = ExternalContextPlacements.getValues();
+    if (links.size() != values.size()) {
         return placements;
     }
-    placements.push_back(mat);
-    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
-        std::string path;
-        Base::Matrix4D linkMat;
-        if (getExternalContextLinkPath(link.getValue(), path)) {
-            root->getSubObject(path.c_str(), nullptr, &linkMat, false);
+    auto value = values.begin();
+    for (const auto& link : links) {
+        if (link.getValue()) {
+            placements[link.getValue()] = *value;
         }
-        placements.push_back(linkMat);
+        ++value;
     }
     return placements;
+}
+
+void SketchObject::setExternalContextDesignPlacements(
+    const std::map<const App::DocumentObject*, Base::Placement>& known
+)
+{
+    std::vector<Base::Placement> placements;
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        auto it = known.find(link.getValue());
+        if (it != known.end()) {
+            placements.push_back(it->second);
+            continue;
+        }
+        Base::Matrix4D mat;
+        if (!getExternalContextLinkPlacement(link.getValue(), mat)) {
+            return;  // taken on a rebuild in the context
+        }
+        placements.emplace_back(mat);
+    }
+    if (placements != ExternalContextPlacements.getValues()) {
+        ExternalContextPlacements.setValues(placements);
+    }
+}
+
+bool SketchObject::isExternalContextOutdated() const
+{
+    auto design = getExternalContextDesignPlacements();
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        auto it = design.find(link.getValue());
+        Base::Matrix4D mat;
+        if (it == design.end() || !getExternalContextLinkPlacement(link.getValue(), mat)) {
+            continue;  // not available: nothing to compare
+        }
+        if (!it->second.isSame(Base::Placement(mat), Precision::Confusion())) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void SketchObject::updateExternalContextOutdated()
+{
+    bool outdated = isExternalContextOutdated();
+    if (outdated != contextOutdated) {
+        contextOutdated = outdated;
+        signalExternalContextOutdatedChanged();
+    }
+}
+
+bool SketchObject::updateExternalContext()
+{
+    Base::Matrix4D mat;
+    if (ExternalContextGeometry.getSize() == 0 || !getExternalContextTransform(mat)) {
+        return false;
+    }
+    std::map<const App::DocumentObject*, Base::Placement> current;
+    for (const auto& link : ExternalContextGeometry.getSubListValues()) {
+        if (!getExternalContextLinkPlacement(link.getValue(), mat)) {
+            return false;
+        }
+        current[link.getValue()] = Base::Placement(mat);
+    }
+    setExternalContextDesignPlacements(current);
+    rebuildExternalGeometry();
+    solve();
+    touch();
+    return true;
 }
 
 App::DocumentObject* SketchObject::getExternalContextOwner(App::DocumentObject* link,
@@ -3429,25 +3531,13 @@ void SketchObject::updateExternalContextDependencies()
 
 void SketchObject::slotContextRecomputed(const App::DocumentObject& obj)
 {
-    if (&obj != ExternalContext.getValue() || ExternalContextGeometry.getSize() == 0
-        || isRestoring() || testStatus(App::ObjectStatus::Recompute2)
-        || (getDocument() && getDocument()->isPerformingTransaction())) {
+    if (&obj != ExternalContext.getValue() || isRestoring()) {
         return;
     }
-    // The references go through the assembly without depending on it: moving a component in
-    // it (the one of the sketch or a referenced one) is followed here.
-    auto placements = getExternalContextPlacements();
-    if (placements.empty() || placements == lastContextPlacements) {
-        return;
-    }
-    try {
-        rebuildExternalGeometry();
-        solve();
-        touch();
-    }
-    catch (Base::Exception& e) {
-        e.reportException();
-    }
+    // The references go through the assembly without depending on it. Moving a component in
+    // it (the one of the sketch or a referenced one) does not move the projections: it is
+    // only noticed here, until updateExternalContext().
+    updateExternalContextOutdated();
 }
 
 int SketchObject::addExternalInContext(
@@ -3541,6 +3631,8 @@ int SketchObject::addExternalInContext(
         originalSets.emplace_back(contextLink.getValue(), contextLink.getSubValues());
     }
     const auto originalTypes = ExternalContextTypes.getValues();
+    const auto originalPlacements = ExternalContextPlacements.getValues();
+    const auto designPlacements = getExternalContextDesignPlacements();
     App::DocumentObject* originalRoot = ExternalContext.getValue();
     const auto originalPaths = ExternalContext.getSubValues();
 
@@ -3577,6 +3669,8 @@ int SketchObject::addExternalInContext(
         updateGeometryRefs();
     }
     syncTypes();
+    // A component referenced for the first time takes its current position as design one
+    setExternalContextDesignPlacements(designPlacements);
     updateExternalContextDependencies();
 
     try {
@@ -3589,6 +3683,7 @@ int SketchObject::addExternalInContext(
         ExternalContextGeometry.setSubListValues(originalSets);
         updateGeometryRefs();
         ExternalContextTypes.setValues(originalTypes);
+        ExternalContextPlacements.setValues(originalPlacements);
         updateExternalContextDependencies();
         if (originalRoot) {
             ExternalContext.setValue(originalRoot, originalPaths);

@@ -238,6 +238,13 @@ SketchObject::SketchObject() : geoLastId(0)
                       "Sketch",
                       (App::PropertyType)(App::Prop_ReadOnly | App::Prop_Hidden),
                       "Objects owning the external context geometry");
+    // Output: taking the design positions on a rebuild must not touch the sketch again
+    ADD_PROPERTY_TYPE(ExternalContextPlacements,
+                      (std::vector<Base::Placement>()),
+                      "Sketch",
+                      (App::PropertyType)(App::Prop_Hidden | App::Prop_Output),
+                      "Design position of each component of the external context geometry,\n"
+                      "relative to the component of the sketch");
     // The references go through the assembly, see ExternalContextDependencies
     ExternalContextGeometry.setScope(App::LinkScope::Hidden);
     ADD_PROPERTY_TYPE(FullyConstrained,
@@ -1361,16 +1368,19 @@ void SketchObject::onPlacementChanged()
 
 void SketchObject::onExternalContextChanged()
 {
-    // Follow the moves of the components in the context, see slotContextRecomputed()
-    lastContextPlacements.clear();
+    // Notice the moves of the components in the context, see slotContextRecomputed()
     auto* root = ExternalContext.getValue();
     if (!root || !root->getDocument()) {
         connContextRecomputed.disconnect();
-        return;
     }
-    connContextRecomputed = root->getDocument()->signalRecomputedObject.connect(
-        [this](const App::DocumentObject& obj) { slotContextRecomputed(obj); }
-    );
+    else {
+        connContextRecomputed = root->getDocument()->signalRecomputedObject.connect(
+            [this](const App::DocumentObject& obj) { slotContextRecomputed(obj); }
+        );
+    }
+    if (!isRestoring()) {
+        updateExternalContextOutdated();
+    }
 }
 
 void SketchObject::onExpressionEngineChanged()

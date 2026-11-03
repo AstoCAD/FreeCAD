@@ -55,10 +55,16 @@ class TestSketchExternalContext(unittest.TestCase):
         asmDoc.recompute()
         return asm, sketch, link1, link2, box
 
-    def _expected(self, asm, sketch, globalPoint):
-        # sketch-local coordinates of a point given in the assembly (without its placement)
+    def _sketchPlacement(self, asm):
+        # placement of the sketch in the assembly (without the assembly's own placement)
         mat = asm.getSubObject("Link1.Body1.Sketch.", retType=2, transform=False)[1]
-        local = App.Placement(mat).inverse().multVec(globalPoint)
+        return App.Placement(mat)
+
+    def _expected(self, asm, sketch, globalPoint, sketchPlacement=None):
+        # sketch-local coordinates of a point given in the assembly (without its placement)
+        if sketchPlacement is None:
+            sketchPlacement = self._sketchPlacement(asm)
+        local = sketchPlacement.inverse().multVec(globalPoint)
         return App.Vector(local.x, local.y, 0)
 
     def _checkPoint(self, sketch, expected):
@@ -86,16 +92,40 @@ class TestSketchExternalContext(unittest.TestCase):
 
         vertex = box.Shape.Vertex2.Point
         self._checkPoint(sketch, self._expected(asm, sketch, vertex + link2.Placement.Base))
+        self.assertEqual(len(sketch.ExternalContextPlacements), 1)
+        self.assertFalse(sketch.isExternalContextOutdated())
 
-        # the other component moves: the sketch depends on it
+        # moving the components keeps the design position of the projection
+        designSketch = self._sketchPlacement(asm)
+        designBase = App.Vector(link2.Placement.Base)
+        designExpected = self._expected(asm, sketch, vertex + designBase)
         link2.Placement.Base = App.Vector(7, 0, 60)
         doc.recompute()
-        self._checkPoint(sketch, self._expected(asm, sketch, vertex + link2.Placement.Base))
-
-        # the component of the sketch moves: followed through the context
+        self._checkPoint(sketch, designExpected)
+        self.assertTrue(sketch.isExternalContextOutdated())
         link1.Placement.Base = App.Vector(3, 80, 0)
         doc.recompute()
         doc.recompute()
+        self._checkPoint(sketch, designExpected)
+        self.assertNotIn("Invalid", sketch.State)
+
+        # a change of the shape of the other component is still followed, at the design position
+        box.Height = 25
+        doc.recompute()
+        vertex = box.Shape.Vertex2.Point
+        self._checkPoint(sketch, self._expected(asm, sketch, vertex + designBase, designSketch))
+
+        # until the positions are updated
+        self.assertTrue(sketch.updateExternalContext())
+        doc.recompute()
+        self.assertFalse(sketch.isExternalContextOutdated())
+        self._checkPoint(sketch, self._expected(asm, sketch, vertex + link2.Placement.Base))
+
+        # moving both together changes nothing
+        link1.Placement.Base += App.Vector(0, 0, 9)
+        link2.Placement.Base += App.Vector(0, 0, 9)
+        doc.recompute()
+        self.assertFalse(sketch.isExternalContextOutdated())
         self._checkPoint(sketch, self._expected(asm, sketch, vertex + link2.Placement.Base))
 
         # the projection is a normal external geometry of the sketch
@@ -174,6 +204,52 @@ class TestSketchExternalContext(unittest.TestCase):
         self.assertEqual(len(sketch.ExternalContextGeometry), 1)
         self.assertIsNotNone(_projectedPoint(sketch))
 
+    def test_design_positions_undo_and_references(self):
+        doc = self._newDoc("CtxDesign")
+        doc.UndoMode = 1
+        asm, sketch, link1, link2, box = self._build(doc, doc)
+        sketch.addExternalInContext(asm, "Link1.Body1.Sketch.", "Link2.Body2.Box.Vertex2")
+        doc.recompute()
+        design = sketch.ExternalContextPlacements
+        designExpected = self._expected(
+            asm, sketch, box.Shape.Vertex2.Point + link2.Placement.Base
+        )
+
+        link2.Placement.Base = App.Vector(-20, 5, 40)
+        doc.recompute()
+        # a second element of a component already referenced shares its design position
+        sketch.addExternalInContext(asm, "Link1.Body1.Sketch.", "Link2.Body2.Box.Vertex1")
+        doc.recompute()
+        self.assertEqual(sketch.ExternalContextPlacements, design)
+        self.assertTrue(sketch.isExternalContextOutdated())
+
+        doc.openTransaction("Update context")
+        sketch.updateExternalContext()
+        doc.commitTransaction()
+        doc.recompute()
+        self.assertFalse(sketch.isExternalContextOutdated())
+        doc.undo()
+        doc.recompute()
+        self.assertEqual(sketch.ExternalContextPlacements, design)
+        self.assertTrue(sketch.isExternalContextOutdated())
+        self._checkPoint(sketch, designExpected)
+
+        # a sketch saved before the design positions takes the current ones
+        sketch.ExternalContextPlacements = []
+        sketch.touch()
+        doc.recompute()
+        self.assertEqual(len(sketch.ExternalContextPlacements), 1)
+        self.assertFalse(sketch.isExternalContextOutdated())
+
+        # removing all the references removes the design positions
+        sketch.delExternal(1)
+        sketch.delExternal(0)
+        doc.recompute()
+        self.assertEqual(sketch.ExternalContextGeometry, [])
+        self.assertEqual(sketch.ExternalContextPlacements, [])
+        self.assertFalse(sketch.isExternalContextOutdated())
+        self.assertFalse(sketch.updateExternalContext())
+
     def test_rejected_references(self):
         doc = self._newDoc("CtxReject")
         asm, sketch, link1, link2, box = self._build(doc, doc)
@@ -219,6 +295,24 @@ class TestSketchExternalContext(unittest.TestCase):
         partDoc.recompute()
         self.assertNotIn("Invalid", sketch.State)
         self.assertEqual(sketch.ExternalContext[0], asm)
+        self._checkPoint(sketch, expected)
+
+        # the design position is saved with the part
+        link2 = asmDoc.getObject("Link2")
+        link2.Placement.Base = App.Vector(11, 0, 30)
+        asmDoc.recompute()
+        partDoc.recompute()
+        self.assertTrue(sketch.isExternalContextOutdated())
+        self._checkPoint(sketch, expected)
+        partDoc.save()
+        asmDoc.save()
+        App.closeDocument(asmDoc.Name)
+        App.closeDocument(partDoc.Name)
+        partDoc = App.openDocument(partPath)
+        asmDoc = App.openDocument(asmPath)
+        sketch = partDoc.getObject("Sketch")
+        partDoc.recompute()
+        self.assertTrue(sketch.isExternalContextOutdated())
         self._checkPoint(sketch, expected)
 
 

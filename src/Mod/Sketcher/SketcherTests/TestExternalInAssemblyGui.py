@@ -141,9 +141,34 @@ class TestExternalInAssemblyGui(SketcherGuiTestCase):
         self.assertTrue(self.sketch.isValid(), self.sketch.State)
         self.checkProjectedAt(edge)
 
-        # the projection follows the other component when the assembly moves it
+        # moving the other component keeps the projection at its design position
+        update = Gui.Command.get("Sketcher_UpdateExternalContext")
+        self.flush_gui(50)
+        self.assertFalse(update.isActive())
+        def projectedPoints():
+            points = []
+            for geo in self.sketch.ExternalGeo[2:]:
+                if hasattr(geo, "StartPoint"):
+                    points += [geo.StartPoint, geo.EndPoint]
+                else:
+                    points.append(V(geo.X, geo.Y, geo.Z))
+            return points
+
+        design = projectedPoints()
         self.link2.Placement = P(V(30, 80, 0), R())
         self.recomputeAll()
+        moved = projectedPoints()
+        self.assertEqual(len(moved), len(design))
+        for p, q in zip(moved, design):
+            self.assertLess((p - q).Length, 1e-6)
+        self.assertTrue(self.sketch.isExternalContextOutdated())
+
+        # until the positions are updated
+        self.flush_gui(50)
+        self.assertTrue(update.isActive())
+        Gui.runCommand("Sketcher_UpdateExternalContext")
+        self.recomputeAll()
+        self.assertFalse(self.sketch.isExternalContextOutdated())
         self.checkProjectedAt(edge)
 
         # one undoable step. Closing the edit may record its own "Sketch recompute"
@@ -153,8 +178,12 @@ class TestExternalInAssemblyGui(SketcherGuiTestCase):
         self.flush_gui(50)
         names = doc.UndoNames
         self.assertIn("Add external geometry", names)
+        self.assertIn("Update context positions", names)
         steps = names.index("Add external geometry")
-        self.assertTrue(all(n == "Sketch recompute" for n in names[:steps]), names)
+        self.assertTrue(
+            all(n in ("Sketch recompute", "Update context positions") for n in names[:steps]),
+            names,
+        )
         for _ in range(steps):
             doc.undo()
         self.assertEqual(len(self.sketch.ExternalContextGeometry), 1)

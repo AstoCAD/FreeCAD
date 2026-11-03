@@ -161,6 +161,11 @@ public:
     App::PropertyIntegerList ExternalContextTypes;
     /// The objects owning the geometry of ExternalContextGeometry, which the sketch depends on
     App::PropertyXLinkList ExternalContextDependencies;
+    /// Design position of each link of ExternalContextGeometry, in its order: where the
+    /// component was relative to the sketch's own component when it was referenced. Moving
+    /// the components in the context afterwards does not move the projections, until
+    /// updateExternalContext().
+    App::PropertyPlacementList ExternalContextPlacements;
     App::PropertyLinkListHidden Exports;
     PropertyLayerGeometryList ExternalGeo;
     App::PropertyBool FullyConstrained;
@@ -330,6 +335,12 @@ public:
     );
     /// The context the sketch is placed in for ExternalContextGeometry, if it resolves.
     bool getExternalContext(App::DocumentObject*& root, std::string& sketchPath) const;
+    /// Whether the components referenced in the context moved away from their design
+    /// position, relative to the sketch's own component
+    bool isExternalContextOutdated() const;
+    /// Takes the current positions in the context as the design positions and projects
+    /// the references there. False if the context does not resolve.
+    bool updateExternalContext();
     /** delete external
      *  ExtGeoId >= 0 with 0 corresponding to the first user defined
      *  external geometry
@@ -1090,6 +1101,8 @@ public:
     fastsignals::signal<void()> signalSolverUpdate;
     fastsignals::signal<void()> signalElementsChanged;
     fastsignals::signal<void(Constraint*)> signalConstraintAdded;
+    /// Signaled when isExternalContextOutdated() changes
+    fastsignals::signal<void()> signalExternalContextOutdatedChanged;
 
     Part::TopoShape buildInternals(const Part::TopoShape& edges) const;
 
@@ -1345,8 +1358,22 @@ private:
     bool getExternalContextTransform(Base::Matrix4D& mat) const;
     /// Path in the context root of a link of ExternalContextGeometry, e.g. "Link2."
     bool getExternalContextLinkPath(const App::DocumentObject* link, std::string& path) const;
-    /// Placements in the context of the sketch and of the components it references
-    std::vector<Base::Matrix4D> getExternalContextPlacements() const;
+    /// Current position of a link of ExternalContextGeometry relative to the sketch's own
+    /// component, i.e. the transformation of its shapes into the coordinate system of the
+    /// sketch's Placement. False if the context does not resolve.
+    bool getExternalContextLinkPlacement(
+        const App::DocumentObject* link,
+        Base::Matrix4D& mat
+    ) const;
+    /// ExternalContextPlacements by link, empty if it does not match the links
+    std::map<const App::DocumentObject*, Base::Placement> getExternalContextDesignPlacements() const;
+    /// Writes ExternalContextPlacements in the order of the links: the known ones are kept,
+    /// the others take their current position. Nothing is written if one is not available.
+    void setExternalContextDesignPlacements(
+        const std::map<const App::DocumentObject*, Base::Placement>& known
+    );
+    void updateExternalContextOutdated();
+    bool contextOutdated = false;
     /// Sets ExternalContextDependencies from ExternalContextGeometry
     void updateExternalContextDependencies();
     /// The object owning the geometry of a reference of ExternalContextGeometry
@@ -1354,7 +1381,6 @@ private:
                                                         const std::string& sub);
     void slotContextRecomputed(const App::DocumentObject& obj);
     fastsignals::scoped_connection connContextRecomputed;
-    std::vector<Base::Matrix4D> lastContextPlacements;
 
     // mapping from ExternalGeo[*].Id to index of ExternalGeo
     std::map<long, int> externalGeoMap;
