@@ -70,8 +70,18 @@ public:
     }
 
 private Q_SLOTS:
+    void test_ExpressionDialogUsesExpressionWidgetLocale_data()  // NOLINT
+    {
+        QTest::addColumn<QString>("input");
+        QTest::addColumn<double>("expected");
+        QTest::newRow("grouped-millimetres") << QStringLiteral("12,345.67 mm") << 12345.67;
+        QTest::newRow("compact-imperial-addition") << QStringLiteral("-1\"+.025\"") << -24.765;
+    }
+
     void test_ExpressionDialogUsesExpressionWidgetLocale()  // NOLINT
     {
+        QFETCH(QString, input);
+        QFETCH(double, expected);
         tests::ScopedLocaleEnvironment localeState {
             {.qtLocale = "da_DK", .formattingLocale = "de_DE", .icuLocale = "fr_FR"}
         };
@@ -86,7 +96,7 @@ private Q_SLOTS:
             return;
         }
         editor->setLocale(QLocale(QStringLiteral("en_US")));
-        editor->setPlainText(QStringLiteral("12,345.67 mm"));
+        editor->setPlainText(input);
 
         const auto expression = dialog.getExpression();
         QVERIFY(expression != nullptr);
@@ -99,7 +109,7 @@ private Q_SLOTS:
         if (!number) {
             return;
         }
-        QCOMPARE(number->getQuantity().getValue(), 12345.67);
+        QCOMPARE(number->getQuantity().getValue(), expected);
     }
 
     void test_UnitsCalculatorUsesItsInputWidgetLocale()  // NOLINT

@@ -3933,7 +3933,8 @@ bool startsExpressionNumber(
         if (previous > 0) {
             const char preceding = input[previous - 1];
             if (std::isalnum(static_cast<unsigned char>(preceding)) || preceding == ')'
-                || preceding == ']') {
+                || preceding == ']'
+                || (sign == "+" && (preceding == '\'' || preceding == '"'))) {
                 return false;
             }
             // A UTF-8 localized digit may end with a non-ASCII continuation byte, which is not
