@@ -732,17 +732,23 @@ int SketchObject::setVisibility(std::vector<int> constrIds, bool isVisible)
         return -1;
 
     std::vector<Constraint*> newVals(vals);
-
+    bool changed = false;
     for (auto cid : constrIds) {
-        // clone the changed Constraint
-        if (vals[cid]->isVisible != isVisible) {
-            Constraint* constNew = vals[cid]->clone();
+        if (newVals[cid]->isVisible != isVisible) {
+            Constraint* constNew = newVals[cid]->clone();
             constNew->isVisible = isVisible;
             newVals[cid] = constNew;
+            changed = true;
         }
     }
 
-    this->Constraints.setValues(std::move(newVals));
+    if (changed) {
+        this->Constraints.setValues(std::move(newVals));
+    }
+    else if (this->Constraints.isNotifyEnabled()) {
+        // Retain managed validation without reporting a property write.
+        onConstraintsChanged();
+    }
 
     // Solver didn't actually update, but we need this to inform view provider
     // to redraw
@@ -761,15 +767,16 @@ int SketchObject::setVisibility(int ConstrId, bool isVisible)
     if (ConstrId < 0 || ConstrId >= int(vals.size()))
         return -1;
 
-    // copy the list
-    std::vector<Constraint*> newVals(vals);
-
-    // clone the changed Constraint
-    Constraint* constNew = vals[ConstrId]->clone();
-    constNew->isVisible = isVisible;
-    newVals[ConstrId] = constNew;
-
-    this->Constraints.setValues(std::move(newVals));
+    if (vals[ConstrId]->isVisible != isVisible) {
+        std::vector<Constraint*> newVals(vals);
+        Constraint* constNew = vals[ConstrId]->clone();
+        constNew->isVisible = isVisible;
+        newVals[ConstrId] = constNew;
+        this->Constraints.setValues(std::move(newVals));
+    }
+    else if (this->Constraints.isNotifyEnabled()) {
+        onConstraintsChanged();
+    }
 
     // Solver didn't actually update, but we need this to inform view provider
     // to redraw
