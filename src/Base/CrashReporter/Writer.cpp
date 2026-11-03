@@ -47,6 +47,7 @@
 #include <fstream>
 #include <string>
 #include <string_view>
+#include <thread>
 
 
 #include <Base/Version.h>
@@ -377,7 +378,10 @@ void Writer::prewarm()
     // handler).
 
 # ifdef FC_CRASHREPORTER_WINDOWS
-    [[maybe_unused]] auto trace = cpptrace::generate_object_trace();
+    // Initializing dbghelp takes a noticeable part of the startup time. The Windows handler is not
+    // a signal handler and can do it itself if needed, so warm it up without blocking the startup.
+    // cpptrace serializes its dbghelp calls, so a crash meanwhile just waits for the warm-up.
+    std::thread([] { [[maybe_unused]] auto trace = cpptrace::generate_object_trace(); }).detach();
 # else
     cpptrace::frame_ptr buffer[MaxFrames];
     auto frameCount = cpptrace::safe_generate_raw_trace(buffer, MaxFrames, 0);
