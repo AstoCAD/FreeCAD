@@ -988,6 +988,169 @@ class TestSketcherSolver(unittest.TestCase):
         self.assertEqual(sketch.ConstraintCount, 0)
         self.assertVectorAlmostEqual(sketch.Geometry[mirrored[0]].StartPoint, vec(-2, 1))
 
+    def testAddCopyReturnsCopiedGeometryIds(self):
+        displacement = vec(20, 30)
+        for name, count, selected, clone in (
+            ("Single", 1, [0], False),
+            ("Multiple", 2, [0, 1], False),
+            ("Subset", 2, [1], False),
+            ("All", 2, [], False),
+            ("Clone", 2, [0, 1], True),
+        ):
+            with self.subTest(case=name):
+                sketch = self.Doc.addObject("Sketcher::SketchObject", "Copy" + name)
+                segments = [(vec(1, 2), vec(11, 2)), (vec(15, 4), vec(15, 9))][:count]
+                for index, (start, end) in enumerate(segments):
+                    sketch.addGeometry(Part.LineSegment(start, end), False)
+                    kind = "Horizontal" if index == 0 else "Vertical"
+                    sketch.addConstraint(Sketcher.Constraint(kind, index))
+                self.Doc.recompute()
+                self.assertSuccessfulSolve(sketch)
+                constraints_before = [
+                    (c.Type, c.First, c.Value, c.Name, c.Driving) for c in sketch.Constraints
+                ]
+                copied_sources = selected or list(range(count))
+                expected_ids = tuple(range(count, count + len(copied_sources)))
+
+                copied = sketch.addCopy(selected, displacement, clone)
+                self.Doc.recompute()
+                self.assertSuccessfulSolve(sketch)
+
+                self.assertEqual(sketch.GeometryCount, count + len(copied_sources) + 1)
+                self.assertEqual(sketch.ConstraintCount, count + len(copied_sources) + 4)
+                self.assertEqual(
+                    [(c.Type, c.First, c.Value, c.Name, c.Driving)
+                     for c in sketch.Constraints[:count]],
+                    constraints_before,
+                )
+                for index, (start, end) in enumerate(segments):
+                    self.assertVectorAlmostEqual(sketch.Geometry[index].StartPoint, start)
+                    self.assertVectorAlmostEqual(sketch.Geometry[index].EndPoint, end)
+                    self.assertFalse(sketch.getConstruction(index))
+                for index, original in zip(expected_ids, copied_sources):
+                    start, end = segments[original]
+                    self.assertVectorAlmostEqual(
+                        sketch.Geometry[index].StartPoint, start + displacement
+                    )
+                    self.assertVectorAlmostEqual(
+                        sketch.Geometry[index].EndPoint, end + displacement
+                    )
+                    self.assertFalse(sketch.getConstruction(index))
+                self.assertTrue(sketch.getConstruction(sketch.GeometryCount - 1))
+
+                self.assertEqual(copied, expected_ids)
+                for index, original in zip(copied, copied_sources):
+                    self.assertFalse(sketch.getConstruction(index))
+                    self.assertVectorAlmostEqual(
+                        sketch.Geometry[index].StartPoint, segments[original][0] + displacement
+                    )
+                    self.assertVectorAlmostEqual(
+                        sketch.Geometry[index].EndPoint, segments[original][1] + displacement
+                    )
+
+    def testAddCopyFailureLeavesSketchUnchanged(self):
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "FailedCopy")
+        rejected = (IndexError, TypeError, ValueError)
+        with self.assertRaises(rejected):
+            sketch.addCopy([], vec(20, 30))
+        self.assertEqual(sketch.GeometryCount, 0)
+        self.assertEqual(sketch.ConstraintCount, 0)
+
+        sketch.addGeometry(Part.LineSegment(vec(1, 2), vec(11, 2)), False)
+        sketch.addConstraint(Sketcher.Constraint("Horizontal", 0))
+        self.Doc.recompute()
+        for selected in ([1], [0, 1]):
+            with self.subTest(selection=selected):
+                with self.assertRaises(rejected):
+                    sketch.addCopy(selected, vec(20, 30))
+                self.assertEqual(sketch.GeometryCount, 1)
+                self.assertEqual(sketch.ConstraintCount, 1)
+                self.assertVectorAlmostEqual(sketch.Geometry[0].StartPoint, vec(1, 2))
+                self.assertVectorAlmostEqual(sketch.Geometry[0].EndPoint, vec(11, 2))
+                self.assertFalse(sketch.getConstruction(0))
+                self.assertEqual((sketch.Constraints[0].Type, sketch.Constraints[0].First),
+                                 ("Horizontal", 0))
+                self.assertSuccessfulSolve(sketch)
+
+    def testCopyAndSymmetryReturnIdsExcludeFilteredInternalGeometry(self):
+        for operation in ("Copy", "Symmetry"):
+            with self.subTest(operation=operation):
+                sketch = self.Doc.addObject("Sketcher::SketchObject", operation + "FilteredAxis")
+                ellipse = sketch.addGeometry(Part.Ellipse(vec(30, 20), 6, 3), False)
+                sketch.exposeInternalGeometry(ellipse)
+                self.Doc.recompute()
+                self.assertSuccessfulSolve(sketch)
+                axes = [
+                    c.First for c in sketch.Constraints
+                    if c.Type == "InternalAlignment" and c.Second == ellipse
+                    and isinstance(sketch.Geometry[c.First], Part.LineSegment)
+                ]
+                self.assertEqual(len(set(axes)), 2)
+                self.assertTrue(all(sketch.getConstruction(index) for index in axes))
+                line = sketch.addGeometry(Part.LineSegment(vec(2, 3), vec(7, 8)), False)
+                selected = [line, axes[0]]
+                self.assertNotIn(ellipse, selected)
+                self.Doc.recompute()
+                self.assertSuccessfulSolve(sketch)
+
+                originals = list(sketch.Geometry)
+                construction = [sketch.getConstruction(i) for i in range(len(originals))]
+
+                def constraints():
+                    return [
+                        (repr(c), c.Type, c.First, c.FirstPos, c.Second, c.SecondPos,
+                         c.Third, c.ThirdPos, c.Value, c.Name, c.Driving, c.IsActive,
+                         c.InVirtualSpace)
+                        for c in sketch.Constraints
+                    ]
+
+                constraints_before = constraints()
+                copied_id = len(originals)
+                if operation == "Copy":
+                    returned = sketch.addCopy(selected, vec(20, 30))
+                    expected_start, expected_end = vec(22, 33), vec(27, 38)
+                    expected_geometry_count = copied_id + 2  # Copy plus displacement helper.
+                    expected_constraint_count = len(constraints_before) + 4
+                else:
+                    # Reflect about HAxis without creating persistent symmetry constraints.
+                    returned = sketch.addSymmetric(selected, -1, 0, False)
+                    expected_start, expected_end = vec(2, -3), vec(7, -8)
+                    expected_geometry_count = copied_id + 1
+                    expected_constraint_count = len(constraints_before)
+                self.Doc.recompute()
+                self.assertSuccessfulSolve(sketch)
+
+                self.assertEqual(sketch.GeometryCount, expected_geometry_count)
+                self.assertEqual(sketch.ConstraintCount, expected_constraint_count)
+                self.assertEqual(constraints()[:len(constraints_before)], constraints_before)
+                for index, original in enumerate(originals):
+                    actual = sketch.Geometry[index]
+                    self.assertIsInstance(actual, type(original))
+                    actual_vertices = actual.toShape().Vertexes
+                    original_vertices = original.toShape().Vertexes
+                    self.assertEqual(len(actual_vertices), len(original_vertices))
+                    for actual_vertex, original_vertex in zip(actual_vertices, original_vertices):
+                        self.assertVectorAlmostEqual(actual_vertex.Point, original_vertex.Point)
+                    if isinstance(original, Part.Ellipse):
+                        self.assertVectorAlmostEqual(actual.Center, original.Center)
+                        self.assertVectorAlmostEqual(actual.Axis, original.Axis)
+                        self.assertAlmostEqual(actual.MajorRadius, original.MajorRadius)
+                        self.assertAlmostEqual(actual.MinorRadius, original.MinorRadius)
+                    self.assertEqual(sketch.getConstruction(index), construction[index])
+                actual_copy = sketch.Geometry[copied_id]
+                self.assertIsInstance(actual_copy, Part.LineSegment)
+                self.assertVectorAlmostEqual(actual_copy.StartPoint, expected_start)
+                self.assertVectorAlmostEqual(actual_copy.EndPoint, expected_end)
+                self.assertFalse(sketch.getConstruction(copied_id))
+                if operation == "Copy":
+                    helper = sketch.Geometry[copied_id + 1]
+                    self.assertIsInstance(helper, Part.LineSegment)
+                    self.assertTrue(sketch.getConstruction(copied_id + 1))
+                    self.assertVectorAlmostEqual(helper.StartPoint, originals[line].StartPoint)
+                    self.assertVectorAlmostEqual(helper.EndPoint, expected_start)
+
+                self.assertEqual(returned, (copied_id,))
+
     def testCopyKeepsThreeGeometryConstraints(self):
         # addCopy inverted the lookup of the third geometry: a constraint whose three
         # geometries were all copied was dropped, while one whose third geometry was not
