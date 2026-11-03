@@ -343,7 +343,7 @@ class TestPartDesignAllEdgesPreviewGui(unittest.TestCase):
     def test_valid_to_missing_edges_fillet_refreshes_preview_style(self):
         self._backward("Fillet")
 
-    def test_all_edges_chamfer_edits_after_selected_edge_disappears(self):
+    def _all_edges_edits_after_selected_edge_disappears(self, kind):
         import Part
         from uuid import uuid4
 
@@ -351,7 +351,7 @@ class TestPartDesignAllEdgesPreviewGui(unittest.TestCase):
         if not preferences.GetBool("EnableGizmos", True):
             self.skipTest("Requires the ordinary enabled-gizmo path")
 
-        document = App.newDocument("ChamferMissingEdge_" + uuid4().hex[:12])
+        document = App.newDocument(kind + "MissingEdge_" + uuid4().hex[:12])
         self.document_name, self.document_uid = document.Name, str(document.Uid)
         gui_document = Gui.getDocument(document.Name)
         body = document.addObject("PartDesign::Body", "Body")
@@ -388,13 +388,13 @@ class TestPartDesignAllEdgesPreviewGui(unittest.TestCase):
                 candidates.append(("Edge" + str(index), ends))
         self.assertEqual(len(candidates), 1, "The Pad has one real upper diagonal edge")
         edge_name, diagonal = candidates[0]
-        feature = body.newObject("PartDesign::Chamfer", "Chamfer")
+        feature = body.newObject("PartDesign::" + kind, kind)
         feature.Base = (pad, [edge_name])
-        feature.Size = 0.5
+        setattr(feature, "Size" if kind == "Chamfer" else "Radius", 0.5)
         feature.UseAllEdges = True
         document.recompute()
         fx = {"doc": document, "body": body, "box": pad,
-              "feature": feature, "kind": "Chamfer"}
+              "feature": feature, "kind": kind}
         self.assertTrue(self._valid({"model": self._model(fx)}))
         gui_document.activeView().setActiveObject("pdbody", body)
 
@@ -407,7 +407,7 @@ class TestPartDesignAllEdgesPreviewGui(unittest.TestCase):
             self.assertEqual(gui_document.getInEdit().Object, feature)
             task = Gui.Control.activeTaskDialog(gui_document)
             self.assertIsNotNone(task)
-            checkbox, _size = self._widgets("Chamfer")
+            checkbox, _size = self._widgets(kind)
             self.assertTrue(checkbox.isChecked())
             task.reject()
             self._pump()
@@ -435,3 +435,9 @@ class TestPartDesignAllEdgesPreviewGui(unittest.TestCase):
         self.assertEqual(len(feature.Base[1]), 1)
         self.assertTrue(feature.Base[1][0].startswith("?"))
         open_and_reject()
+
+    def test_all_edges_chamfer_edits_after_selected_edge_disappears(self):
+        self._all_edges_edits_after_selected_edge_disappears("Chamfer")
+
+    def test_all_edges_fillet_edits_after_selected_edge_disappears(self):
+        self._all_edges_edits_after_selected_edge_disappears("Fillet")
