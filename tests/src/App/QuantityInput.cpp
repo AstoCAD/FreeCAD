@@ -580,6 +580,40 @@ TEST(QuantityInput, PositiveSignsAndCompactAdditionRemainExpressionSyntax)
     }
 }
 
+TEST(QuantityInput, PreservesAdditionAfterUnitQuotes)
+{
+    tests::initApplication();
+    ScopedExpressionOwner owner;
+    const auto path = owner.path();
+    const Base::NumericLocaleContext deDe {"de_DE", ",", ".", "+", "-", 3, 3, "0"};
+    const QuantityInputUnit inch {Base::Unit::Length, "in"};
+    QuantityConstraints constraints;
+    constraints.requiredUnit = Base::Unit::Length;
+
+    for (const auto& [input, locale, expected] :
+         {std::tuple {"-1\" + .025\"", &enUs, -24.765},
+          std::tuple {"-1in+.025\"", &enUs, -24.765},
+          std::tuple {"1'2,5\"", &deDe, 368.3},
+          std::tuple {"-1\"+.025\"", &enUs, -24.765},
+          std::tuple {"-1'+2\"", &enUs, -254.0}}) {
+        SCOPED_TRACE(input);
+        const auto result = interpretQuantityInput(
+            input,
+            QuantityInputGrammar::Expression,
+            path,
+            inch,
+            *locale,
+            InputPhase::Commit,
+            constraints
+        );
+        ASSERT_EQ(result.status, InputStatus::Acceptable);
+        ASSERT_TRUE(result.quantity);
+        ASSERT_TRUE(result.expression);
+        EXPECT_DOUBLE_EQ(result.quantity->getValue(), expected);
+        EXPECT_EQ(result.quantity->getUnit(), Base::Unit::Length);
+    }
+}
+
 TEST(QuantityInput, DefaultUnitAppliesToBareAdditiveTerms)
 {
     tests::initApplication();
