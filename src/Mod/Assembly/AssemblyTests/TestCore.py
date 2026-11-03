@@ -838,6 +838,45 @@ class TestCore(AssemblyTestBase):
             with self.subTest(part=part.Name):
                 self.assertTrue(part.Placement.isSame(placement, 1e-6))
 
+    def test_slider_limits_preserve_precision_in_asmt(self):
+        ground = self.assembly.newObject("Part::Box", "Ground")
+        moving = self.assembly.newObject("Part::Box", "Moving")
+        moving.Placement.Base = App.Vector(0, 0, 5)
+        self.doc.recompute()
+
+        grounding = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+        JointObject.GroundedJoint(grounding, ground)
+        slider = self.jointgroup.newObject("App::FeaturePython", "Slider")
+        JointObject.Joint(slider, JointObject.JointTypes.index("Slider"))
+        slider.Detach1 = slider.Detach2 = True
+        slider.Reference1 = (ground, [""])
+        slider.Reference2 = (moving, [""])
+        self.doc.recompute()
+
+        minimum, maximum = 2.3e-7, 9.8765432
+        slider.LengthMin, slider.LengthMax = minimum, maximum
+        slider.EnableLengthMin = slider.EnableLengthMax = True
+        self.assertEqual((slider.LengthMin.Value, slider.LengthMax.Value), (minimum, maximum))
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "SliderLimits.asmt"
+            self.assembly.exportAsASMT(str(path))
+            lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
+
+        starts = [index for index, line in enumerate(lines) if line == "TranslationLimit"]
+        self.assertEqual(len(starts), 2)
+        exported = {}
+        for start, end in zip(starts, starts[1:] + [len(lines)]):
+            record = lines[start + 1 : end]
+            name = record[record.index("Name") + 1]
+            exported[name] = float(record[record.index("Limit") + 1])
+
+        for suffix, value in (("Min", minimum), ("Max", maximum)):
+            with self.subTest(limit=suffix):
+                self.assertEqual(exported[slider.FullName + "-LimitLen" + suffix], value)
+
+        self.assertEqual(self.assembly.solve(), 0)
+
     def test_rack_pinion_with_slider_offset(self):
         """Rack and pinion joint whose rack slider has a yaw offset, see
         github.com/freecad/freecad/issues/17563"""
