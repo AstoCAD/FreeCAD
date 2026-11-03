@@ -513,14 +513,18 @@ void PagePrinter::saveSVG(ViewProviderPage* vpPage, const std::string& file)
 void PagePrinter::saveDXF(ViewProviderPage* vpPage, const std::string& inFileName)
 {
     TechDraw::DrawPage* page = vpPage->getDrawPage();
-    std::string PageName = page->getNameInDocument();
 
     auto filespec = DU::cleanFilespecBackslash(inFileName);
     filespec = Base::Tools::escapeEncodeFilename(filespec);
     Gui::Command::doCommand(Gui::Command::Doc, "import TechDraw");
+
+    // Keep active-document exports relative when recording macros.
+    const auto pageCmd = page->getDocument() == App::GetApplication().getActiveDocument()
+        ? std::string("App.activeDocument().") + page->getNameInDocument()
+        : Gui::Command::getObjectCmd(page);
     Gui::Command::doCommand(Gui::Command::Doc,
-                            "TechDraw.writeDXFPage(App.activeDocument().%s, u\"%s\")",
-                            PageName.c_str(),
+                            "TechDraw.writeDXFPage(%s, u\"%s\")",
+                            pageCmd.c_str(),
                             filespec.c_str());
 }
 
