@@ -125,6 +125,31 @@ class TestRubberbandSelection(unittest.TestCase):
                 self._drag_select(self._selection_rect(self.left_box))
                 self.assertEqual(self._selected_names(), {self.left_box.Name})
 
+    def test_reverse_drag_skips_objects_without_geometry(self):
+        self._ensure_selection_objects()
+        parameters = self.doc.addObject("App::VarSet", "Parameters")
+        self.doc.recompute()
+        self.view.setNavigationType("Gui::CADNavigationStyle")
+        self._refresh_view()
+        self.assertTrue(parameters.ViewObject.Visibility)
+
+        left = self._object_rect(self.left_box)
+        right = self._object_rect(self.right_box)
+        gap = QtCore.QRect(
+            QtCore.QPoint(left.right() + 4, min(left.top(), right.top())),
+            QtCore.QPoint(right.left() - 4, max(left.bottom(), right.bottom())),
+        )
+        self.assertGreater(gap.width(), QtGui.QApplication.startDragDistance())
+
+        with self.subTest(region="empty gap"):
+            self._drag_path(gap.topRight(), gap.bottomLeft())
+            self.assertEqual(self._selected_names(), set())
+
+        with self.subTest(region="left box"):
+            rect = self._selection_rect(self.left_box)
+            self._drag_path(rect.topRight(), rect.bottomLeft())
+            self.assertEqual(self._selected_names(), {self.left_box.Name})
+
     def test_part_box_selection_skips_faces_in_hidden_parts(self):
         if Part is None:
             self.skipTest("Part module is unavailable")
