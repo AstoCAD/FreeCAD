@@ -858,24 +858,59 @@ class TestCore(AssemblyTestBase):
         slider.EnableLengthMin = slider.EnableLengthMax = True
         self.assertEqual((slider.LengthMin.Value, slider.LengthMax.Value), (minimum, maximum))
 
+        exported = self._exported_asmt_limits("TranslationLimit")
+        for suffix, value in (("Min", minimum), ("Max", maximum)):
+            with self.subTest(limit=suffix):
+                self.assertEqual(float(exported[slider.FullName + "-LimitLen" + suffix]), value)
+
+        self.assertEqual(self.assembly.solve(), 0)
+
+    def test_revolute_limits_preserve_precision_in_asmt(self):
+        ground = self.assembly.newObject("Part::Box", "Ground")
+        moving = self.assembly.newObject("Part::Box", "Moving")
+        moving.Placement.Base = App.Vector(0, 0, 20)
+        self.doc.recompute()
+
+        grounding = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+        JointObject.GroundedJoint(grounding, ground)
+        revolute = self.jointgroup.newObject("App::FeaturePython", "Revolute")
+        JointObject.Joint(revolute, JointObject.JointTypes.index("Revolute"))
+        revolute.Detach1 = revolute.Detach2 = True
+        revolute.Reference1 = (ground, [""])
+        revolute.Reference2 = (moving, [""])
+        # Coincident joint frames place the initial angle inside the limits.
+        revolute.Placement1.Base = App.Vector(0, 0, 20)
+
+        minimum, maximum = -2.3e-7, 45.1234567
+        revolute.AngleMin, revolute.AngleMax = minimum, maximum
+        revolute.EnableAngleMin = revolute.EnableAngleMax = True
+        self.doc.recompute()
+        self.assertEqual((revolute.AngleMin.Value, revolute.AngleMax.Value), (minimum, maximum))
+
+        exported = self._exported_asmt_limits("RotationLimit")
+        radians = "*pi/180.0"
+        for suffix, value in (("Min", minimum), ("Max", maximum)):
+            with self.subTest(limit=suffix):
+                expression = exported[revolute.FullName + "-LimitRot" + suffix]
+                self.assertTrue(expression.endswith(radians), expression)
+                self.assertEqual(float(expression.removesuffix(radians)), value)
+
+        self.assertEqual(self.assembly.solve(), 0)
+
+    def _exported_asmt_limits(self, record_type):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "SliderLimits.asmt"
+            path = Path(directory) / "JointLimits.asmt"
             self.assembly.exportAsASMT(str(path))
             lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
 
-        starts = [index for index, line in enumerate(lines) if line == "TranslationLimit"]
+        starts = [index for index, line in enumerate(lines) if line == record_type]
         self.assertEqual(len(starts), 2)
         exported = {}
         for start, end in zip(starts, starts[1:] + [len(lines)]):
             record = lines[start + 1 : end]
             name = record[record.index("Name") + 1]
-            exported[name] = float(record[record.index("Limit") + 1])
-
-        for suffix, value in (("Min", minimum), ("Max", maximum)):
-            with self.subTest(limit=suffix):
-                self.assertEqual(exported[slider.FullName + "-LimitLen" + suffix], value)
-
-        self.assertEqual(self.assembly.solve(), 0)
+            exported[name] = record[record.index("Limit") + 1]
+        return exported
 
     def test_rack_pinion_with_slider_offset(self):
         """Rack and pinion joint whose rack slider has a yaw offset, see

@@ -2316,7 +2316,7 @@ AssemblyObject::makeMbdJoint(App::DocumentObject* joint, bool dynamics)
                     limit->setMarkerI(fullMarkerNameI);
                     limit->setMarkerJ(fullMarkerNameJ);
                     limit->settype("=>");
-                    limit->setlimit(std::to_string(minAngle) + "*pi/180.0");
+                    limit->setlimit(Base::StringUtils::formatDouble(minAngle) + "*pi/180.0");
                     limit->settol("1.0e-9");
                     configureCompliance(
                         limit,
@@ -2333,7 +2333,7 @@ AssemblyObject::makeMbdJoint(App::DocumentObject* joint, bool dynamics)
                     limit2->setMarkerI(fullMarkerNameI);
                     limit2->setMarkerJ(fullMarkerNameJ);
                     limit2->settype("=<");
-                    limit2->setlimit(std::to_string(maxAngle) + "*pi/180.0");
+                    limit2->setlimit(Base::StringUtils::formatDouble(maxAngle) + "*pi/180.0");
                     limit2->settol("1.0e-9");
                     configureCompliance(
                         limit2,
