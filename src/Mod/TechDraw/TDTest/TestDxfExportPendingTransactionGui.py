@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""Regression tests for pending edits during toolbar DXF export.
+"""Regression tests for pending edits during DXF export.
 
 The real save dialog writes only to an explicitly selected disposable profile.
 Normal GUI sessions skip these profile-dependent tests.
@@ -396,14 +396,11 @@ class TestDxfExportPendingTransactionGui(unittest.TestCase):
         self.assertEqual(self.doc.UndoNames, ["Unrelated pending edit"])
         return original
 
-    def _pending_export(self, basename, toolbar=False, cancel=False):
+    def _pending_export(self, basename, export_page, *, cancel=False):
         path = self._path(basename)
         original = self._pending()
         before = self._snapshot()
-        operation = lambda: (
-            self._toolbar(path, cancel) if toolbar else TechDraw.writeDXFPage(self.page, str(path))
-        )
-        self._observe(operation)
+        self._observe(lambda: export_page(path))
         if not cancel:
             self._file_valid(path)
         after = self._snapshot()
@@ -430,13 +427,25 @@ class TestDxfExportPendingTransactionGui(unittest.TestCase):
         self.assertEqual(self._snapshot(), before)
 
     def test_toolbar_cancel_preserves_pending_edit_control(self):
-        self._pending_export("cancel-control.dxf", toolbar=True, cancel=True)
+        self._pending_export(
+            "cancel-control.dxf", lambda path: self._toolbar(path, cancel=True), cancel=True
+        )
 
     def test_direct_api_export_preserves_pending_edit_control(self):
-        self._pending_export("api-pending-control.dxf")
+        self._pending_export(
+            "api-pending-control.dxf", lambda path: TechDraw.writeDXFPage(self.page, str(path))
+        )
 
     def test_toolbar_export_preserves_pending_edit_target(self):
-        self._pending_export("toolbar-pending-target.dxf", toolbar=True)
+        self._pending_export("toolbar-pending-target.dxf", self._toolbar)
+
+    def test_gui_api_export_preserves_pending_edit_target(self):
+        import TechDrawGui
+
+        self.assertEqual(App.ActiveDocument.Name, self.page.Document.Name)
+        self._pending_export(
+            "gui-api-pending-target.dxf", lambda path: TechDrawGui.export([self.page], str(path))
+        )
 
     def _cleanup(self):
         Gui.Selection.clearSelection()
