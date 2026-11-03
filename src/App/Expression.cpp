@@ -3981,7 +3981,8 @@ bool startsExpressionNumber(
         if (previous > 0) {
             const char preceding = input[previous - 1];
             if (std::isalnum(static_cast<unsigned char>(preceding)) || preceding == ')'
-                || preceding == ']') {
+                || preceding == ']'
+                || (sign == "+" && (preceding == '\'' || preceding == '"'))) {
                 return false;
             }
 
