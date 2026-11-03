@@ -27,6 +27,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 
+#include <Base/Exception.h>
 #include <Base/Interpreter.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
@@ -415,7 +416,14 @@ void TaskChamferParameters::setGizmoPositions()
     }
 
     PartDesign::TopoShape baseShape = chamfer->getBaseTopoShape(true);
-    auto shapes = chamfer->getContinuousEdges(baseShape);
+    std::vector<PartDesign::TopoShape> shapes;
+    try {
+        shapes = chamfer->getContinuousEdges(baseShape);
+    }
+    catch (const Base::CADKernelError&) {
+        gizmoContainer->visible = false;
+        return;
+    }
 
     if (shapes.size() == 0) {
         gizmoContainer->visible = false;
