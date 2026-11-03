@@ -36,6 +36,7 @@ from SketcherTests.TestSnellsLawCommandGui import TestSnellsLawCommandGui
 from SketcherTests.TestToolWidgetTabGui import TestToolWidgetTabGui
 from SketcherTests.TestEditDatumConflictGui import TestEditDatumConflictGui
 from SketcherTests.TestMoveGeometryRedrawGui import TestMoveGeometryRedrawGui
+from SketcherTests.TestDragReleaseGui import TestDragReleaseGui
 from SketcherTests.TestOffsetConstraintGui import TestOffsetConstraintGui
 from SketcherTests.TestFilletCurveVertexGui import TestFilletCurveVertexGui
 from SketcherTests.TestTextToolLastFontGui import TestTextToolLastFontGui
@@ -78,6 +79,7 @@ from SketcherTests.TestExternalInAssemblyGui import TestExternalInAssemblyGui
     and TestToolWidgetTabGui
     and TestEditDatumConflictGui
     and TestMoveGeometryRedrawGui
+    and TestDragReleaseGui
     and TestOffsetConstraintGui
     and TestFilletCurveVertexGui
     and TestTextToolLastFontGui

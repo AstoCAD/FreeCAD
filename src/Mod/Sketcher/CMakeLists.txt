@@ -79,6 +79,7 @@ if(BUILD_GUI)
           SketcherTests/TestToolWidgetTabGui.py
           SketcherTests/TestEditDatumConflictGui.py
           SketcherTests/TestMoveGeometryRedrawGui.py
+          SketcherTests/TestDragReleaseGui.py
           SketcherTests/TestOffsetConstraintGui.py
           SketcherTests/TestFilletCurveVertexGui.py
           SketcherTests/TestTextToolLastFontGui.py
