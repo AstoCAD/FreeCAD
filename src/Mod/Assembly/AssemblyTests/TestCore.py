@@ -813,6 +813,31 @@ class TestCore(AssemblyTestBase):
 
         self.assertTrue(box.Placement.isSame(box2.Placement, 1e-6), "'{}'".format(operation))
 
+    def test_grounded_rigid_group_preserves_member_placements_on_solve(self):
+        representative = self.assembly.newObject("Part::Box", "ARepresentative")
+        grounded = self.assembly.newObject("Part::Box", "ZGrounded")
+        representative.Placement.Base = App.Vector(10, 3, 2)
+        grounded.Placement.Base = App.Vector(32, 7, 5)
+        self.doc.recompute()
+
+        ground = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+        JointObject.GroundedJoint(ground, grounded)
+        group = self.jointgroup.newObject("App::FeaturePython", "RigidGroupJoint")
+        # The solver chooses the representative by internal name, independent of member order.
+        JointObject.RigidGroupJoint(group, [grounded, representative])
+        self.doc.recompute()
+
+        self.assertLess(representative.Name, grounded.Name)
+        self.assertEqual(ground.ObjectToGround, grounded)
+        self.assertNotIn("ReadOnly", representative.getPropertyStatus("Placement"))
+        self.assertFalse(group.Suppressed)
+        before = [(part, App.Placement(part.Placement)) for part in (representative, grounded)]
+
+        self.assertEqual(self.assembly.solve(), 0)
+        for part, placement in before:
+            with self.subTest(part=part.Name):
+                self.assertTrue(part.Placement.isSame(placement, 1e-6))
+
     def test_rack_pinion_with_slider_offset(self):
         """Rack and pinion joint whose rack slider has a yaw offset, see
         github.com/freecad/freecad/issues/17563"""
