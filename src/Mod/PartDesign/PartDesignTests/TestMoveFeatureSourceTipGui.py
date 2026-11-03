@@ -26,16 +26,18 @@ class TestMoveFeatureSourceTipGui(unittest.TestCase):
             if self.previous_workbench:
                 Gui.activateWorkbench(self.previous_workbench)
 
-    def runEstablishedPadWorkflow(self):
+    def runEstablishedPadWorkflow(self, selection_names=None):
         import TestPartDesignGui
 
         workflow = TestPartDesignGui.PartDesignGuiTestCases("testMoveSingleFeature")
         workflow.setUp()
         self.doc = workflow.Doc
         self.doc.UndoMode = 1
-        # This invokes the unchanged repository test's actual command, ordinary
-        # target-body modal acceptance, and all its attachment/membership oracles.
-        workflow.testMoveSingleFeature()
+        if selection_names is None:
+            workflow.testMoveSingleFeature()
+        else:
+            Gui.Selection.clearSelection(self.doc.Name)
+            workflow.movePadToBody(selection_names)
         return workflow.BodySource, workflow.BodyTarget, workflow.Sketch, workflow.Pad
 
     def assertSourceTipCleared(self, source, moved):
@@ -71,6 +73,39 @@ class TestMoveFeatureSourceTipGui(unittest.TestCase):
         self.assertAlmostEqual(target.Shape.Volume, 4000)
         with self.subTest(stage="redone"):
             self.assertSourceTipCleared(source, [sketch, pad])
+
+    def checkMoveWithSelectedProfile(self, selection_names):
+        source, target, sketch, pad = self.runEstablishedPadWorkflow(selection_names)
+
+        def assertMoved():
+            self.assertEqual(source.Group, [])
+            self.assertEqual(target.Group, [sketch, pad])
+            self.assertEqual(target.Tip, pad)
+            self.assertEqual(pad.Profile[0], sketch)
+            self.assertIn(sketch.AttachmentSupport[0][0], target.Origin.OriginFeatures)
+            self.assertTrue(target.Shape.isValid())
+            self.assertAlmostEqual(target.Shape.Volume, 4000)
+            self.assertSourceTipCleared(source, [sketch, pad])
+
+        with self.subTest(stage="accepted"):
+            assertMoved()
+        self.doc.undo()
+        self.doc.recompute()
+        self.assertEqual(source.Group, [sketch, pad])
+        self.assertEqual(source.Tip, pad)
+        self.assertEqual(target.Group, [])
+        self.assertIsNone(target.Tip)
+        self.assertIn(sketch.AttachmentSupport[0][0], source.Origin.OriginFeatures)
+        self.doc.redo()
+        self.doc.recompute()
+        with self.subTest(stage="redone"):
+            assertMoved()
+
+    def testMovePadThenSelectedProfile(self):
+        self.checkMoveWithSelectedProfile(("Pad", "Sketch"))
+
+    def testMoveSelectedProfileThenPad(self):
+        self.checkMoveWithSelectedProfile(("Sketch", "Pad"))
 
     def runPrimitiveCommand(self, accept):
         self.doc = App.newDocument("MovePrimitive14516")
