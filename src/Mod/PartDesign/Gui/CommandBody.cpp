@@ -978,12 +978,16 @@ void CmdPartDesignMoveFeature::activated(int iMsg)
 
     openCommand(QT_TRANSLATE_NOOP("Command", "Move an object"));
 
+    // A selected object can also be a dependency of another selected object.
+    std::set<App::DocumentObject*> written {features.back()};
     std::stringstream stream;
     stream << "features_ = [" << getObjectCmd(features.back());
     features.pop_back();
 
     for (auto feat : features) {
-        stream << ", " << getObjectCmd(feat);
+        if (written.insert(feat).second) {
+            stream << ", " << getObjectCmd(feat);
+        }
     }
 
     stream << "]";
