@@ -4292,6 +4292,20 @@ void View3DInventorViewer::setCameraType(SoType type)
 
 bool View3DInventorViewer::setCamera(const char* pCamera)
 {
+    // A camera is a single node without children, but Coin's parser recurses for every
+    // nested node. Refuse deeply nested input (e.g. crafted camera settings in a project
+    // file) before parsing it, instead of overflowing the stack.
+    const int maxNesting = 64;
+    int nesting = 0;
+    for (const char* pos = pCamera; *pos; ++pos) {
+        if (*pos == '{' && ++nesting > maxNesting) {
+            throw Base::RuntimeError("Camera settings failed to read");
+        }
+        if (*pos == '}' && nesting > 0) {
+            --nesting;
+        }
+    }
+
     SoInput in;
     in.setBuffer(pCamera, std::strlen(pCamera));
 
