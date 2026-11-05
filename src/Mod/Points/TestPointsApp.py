@@ -98,3 +98,16 @@ class PointsLoadTest(unittest.TestCase):
             self.assertNotIn("Access violation", str(cm.exception))
         finally:
             FreeCAD.closeDocument(doc.Name)
+
+
+class PointsSegmentTest(unittest.TestCase):
+    def testFromSegmentHugeIndex(self):
+        """An index beyond the C long range is skipped like other invalid indices"""
+        # It returned a result with an OverflowError still set (SystemError).
+        kernel = Points.Points()
+        kernel.addPoints([FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0)])
+        segment = kernel.fromSegment([1, 2**40, -(2**70), 5, -1, 0])
+        self.assertEqual(segment.CountPoints, 2)
+        self.assertEqual(segment.Points[0], FreeCAD.Vector(1, 0, 0))
+        with self.assertRaises(TypeError):
+            kernel.fromSegment([0, "x"])
