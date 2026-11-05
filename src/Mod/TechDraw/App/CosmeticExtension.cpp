@@ -150,6 +150,10 @@ int CosmeticExtension::add1CVToGV(const std::string& tag)
 /// update the parent view's vertex geometry with all the cosmetic vertices in the list property
 void CosmeticExtension::refreshCVGeoms()
 {
+    if (!getOwner()->getGeometryObject()) {
+        // no geometry yet: the cosmetics are added when the view executes
+        return;
+    }
     std::vector<TechDraw::VertexPtr> gVerts = getOwner()->getVertexGeometry();
     std::vector<TechDraw::VertexPtr> newGVerts;
     for (auto& gv : gVerts) {
@@ -324,6 +328,10 @@ int CosmeticExtension::add1CEToGE(const std::string& tag)
 /// update Edge geometry with current CE's
 void CosmeticExtension::refreshCEGeoms()
 {
+    if (!getOwner()->getGeometryObject()) {
+        // no geometry yet: the cosmetics are added when the view executes
+        return;
+    }
     std::vector<TechDraw::BaseGeomPtr> gEdges = getOwner()->getEdgeGeometry();
     std::vector<TechDraw::BaseGeomPtr> oldGEdges;
     for (auto& ge : gEdges) {
@@ -452,6 +460,10 @@ int CosmeticExtension::add1CLToGE(const std::string& tag)
 //update Edge geometry with current CL's
 void CosmeticExtension::refreshCLGeoms()
 {
+    if (!getOwner()->getGeometryObject()) {
+        // no geometry yet: the cosmetics are added when the view executes
+        return;
+    }
     std::vector<TechDraw::BaseGeomPtr> gEdges = getOwner()->getEdgeGeometry();
     std::vector<TechDraw::BaseGeomPtr> newGEdges;
     for (auto& ge : gEdges) {
