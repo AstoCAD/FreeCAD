@@ -169,6 +169,8 @@ public:
     App::PropertyLinkListHidden Exports;
     PropertyLayerGeometryList ExternalGeo;
     App::PropertyBool FullyConstrained;
+    /// Normal of the sketch plane (the Z axis of Placement), read-only, for expressions
+    App::PropertyVector Normal;
     App::PropertyPrecision ArcFitTolerance;
     Part::PropertyPartShape InternalShape;
     App::PropertyPrecision InternalTolerance;
