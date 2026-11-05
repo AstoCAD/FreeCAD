@@ -485,7 +485,7 @@ void MeshGrid::SearchNearestFromPoint(const Base::Vector3f& pnt, std::set<Elemen
                             indices.insert(_aulGrid[nX][i][j].begin(), _aulGrid[nX][i][j].end());
                         }
                     }
-                    nX++;
+                    nX--;
                 }
                 break;
             }
