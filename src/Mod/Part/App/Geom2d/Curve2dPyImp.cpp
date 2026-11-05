@@ -285,6 +285,10 @@ PyObject* Curve2dPy::toShape(PyObject* args) const
             const TopoDS_Face& face = TopoDS::Face(
                 static_cast<TopoShapeFacePy*>(p)->getTopoShapePtr()->getShape()
             );
+            if (face.IsNull()) {
+                PyErr_SetString(PyExc_ValueError, "Face is null");
+                return nullptr;
+            }
             Handle(Geom2d_Curve) curv = Handle(Geom2d_Curve)::DownCast(getGeometry2dPtr()->handle());
 
             BRepAdaptor_Surface adapt(face);

@@ -323,9 +323,17 @@ PyObject* TopoShapeEdgePy::parameterAt(PyObject* args) const
     try {
         const TopoDS_Shape& v = static_cast<TopoShapePy*>(pnt)->getTopoShapePtr()->getShape();
         auto e = getTopoDSEdge(this);
+        if (v.IsNull()) {
+            PyErr_SetString(PyExc_ValueError, "Vertex is null");
+            return nullptr;
+        }
 
         if (face) {
             const TopoDS_Shape& f = static_cast<TopoShapeFacePy*>(face)->getTopoShapePtr()->getShape();
+            if (f.IsNull()) {
+                PyErr_SetString(PyExc_ValueError, "Face is null");
+                return nullptr;
+            }
             Standard_Real par = BRep_Tool::Parameter(TopoDS::Vertex(v), e, TopoDS::Face(f));
             return PyFloat_FromDouble(par);
         }
@@ -500,7 +508,7 @@ PyObject* TopoShapeEdgePy::derivative3At(PyObject* args) const
 PyObject* TopoShapeEdgePy::discretize(PyObject* args, PyObject* kwds) const
 {
     try {
-        BRepAdaptor_Curve adapt(TopoDS::Edge(getTopoShapePtr()->getShape()));
+        BRepAdaptor_Curve adapt(getTopoDSEdge(this));
         bool uniformAbscissaPoints = false;
         bool uniformAbscissaDistance = false;
         int numPoints = -1;
@@ -731,8 +739,7 @@ PyObject* TopoShapeEdgePy::countNodes(PyObject* args) const
         return nullptr;
     }
 
-    const TopoDS_Shape& shape = this->getTopoShapePtr()->getShape();
-    TopoDS_Edge aEdge = TopoDS::Edge(shape);
+    const TopoDS_Edge& aEdge = getTopoDSEdge(this);
     TopLoc_Location aLoc;
     const Handle(Poly_Polygon3D) & aPoly = BRep_Tool::Polygon3D(aEdge, aLoc);
     int count = 0;
