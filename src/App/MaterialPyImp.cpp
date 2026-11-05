@@ -29,6 +29,19 @@
 
 using namespace App;
 
+namespace
+{
+// PyLong_AsLong() returns -1 with an OverflowError set for ints that do not fit into a long
+float colorComponent(PyObject* item)
+{
+    const long value = PyLong_AsLong(item);
+    if (value == -1 && PyErr_Occurred()) {
+        throw Py::Exception();
+    }
+    return static_cast<float>(value) / 255.0F;
+}
+}  // namespace
+
 Base::Color MaterialPy::toColor(PyObject* value)
 {
     Base::Color cCol;
@@ -62,17 +75,17 @@ Base::Color MaterialPy::toColor(PyObject* value)
             }
         }
         else if (PyLong_Check(item)) {
-            cCol.r = static_cast<float>(PyLong_AsLong(item)) / 255.0F;
+            cCol.r = colorComponent(item);
             item = PyTuple_GetItem(value, 1);
             if (PyLong_Check(item)) {
-                cCol.g = static_cast<float>(PyLong_AsLong(item)) / 255.0F;
+                cCol.g = colorComponent(item);
             }
             else {
                 throw Base::TypeError("Type in tuple must be consistent (integer)");
             }
             item = PyTuple_GetItem(value, 2);
             if (PyLong_Check(item)) {
-                cCol.b = static_cast<float>(PyLong_AsLong(item)) / 255.0F;
+                cCol.b = colorComponent(item);
             }
             else {
                 throw Base::TypeError("Type in tuple must be consistent (integer)");
@@ -80,7 +93,7 @@ Base::Color MaterialPy::toColor(PyObject* value)
             if (PyTuple_Size(value) == 4) {
                 item = PyTuple_GetItem(value, 3);
                 if (PyLong_Check(item)) {
-                    cCol.a = static_cast<float>(PyLong_AsLong(item)) / 255.0F;
+                    cCol.a = colorComponent(item);
                 }
                 else {
                     throw Base::TypeError("Type in tuple must be consistent (integer)");
@@ -92,7 +105,11 @@ Base::Color MaterialPy::toColor(PyObject* value)
         }
     }
     else if (PyLong_Check(value)) {
-        cCol.setPackedValue(PyLong_AsUnsignedLong(value));
+        const unsigned long packed = PyLong_AsUnsignedLong(value);
+        if (packed == static_cast<unsigned long>(-1) && PyErr_Occurred()) {
+            throw Py::Exception();
+        }
+        cCol.setPackedValue(packed);
     }
     else {
         std::string error =
