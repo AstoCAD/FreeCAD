@@ -41,12 +41,15 @@ class View3DInventorViewer;
  * @param[in] picked Selection polygon in viewport coordinates.
  * @param[in] selectElement When true, select subelements instead of whole objects.
  * @param[in] additive When true, merge matches into the existing selection.
+ * @param[in] subtractive When true, remove matches from the existing selection
+ *            instead (takes precedence over @p additive).
  */
 GuiExport void applyBoxSelection(
     View3DInventorViewer* viewer,
     const std::vector<SbVec2s>& picked,
     bool selectElement = false,
-    bool additive = false
+    bool additive = false,
+    bool subtractive = false
 );
 
 }  // namespace Gui
