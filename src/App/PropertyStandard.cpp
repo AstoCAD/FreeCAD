@@ -892,7 +892,11 @@ PyObject* PropertyIntegerList::getPyObject()
 long PropertyIntegerList::getPyValue(PyObject* item) const
 {
     if (PyLong_Check(item)) {
-        return PyLong_AsLong(item);
+        const long convertedValue = PyLong_AsLong(item);
+        if (convertedValue == -1 && PyErr_Occurred()) {
+            throw Py::Exception();
+        }
+        return convertedValue;
     }
     std::string error = std::string("type in list must be int, not ");
     error += item->ob_type->tp_name;
