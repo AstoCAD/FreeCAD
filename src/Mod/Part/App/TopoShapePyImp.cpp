@@ -1966,6 +1966,10 @@ PyObject* TopoShapePy::makeShapeFromMesh(PyObject* args)
             face.I1 = (int)Py::Long(f[0]);
             face.I2 = (int)Py::Long(f[1]);
             face.I3 = (int)Py::Long(f[2]);
+            if (face.I1 >= Points.size() || face.I2 >= Points.size() || face.I3 >= Points.size()) {
+                PyErr_SetString(PyExc_ValueError, "Point index out of range");
+                return nullptr;
+            }
             Facets.push_back(face);
         }
 
