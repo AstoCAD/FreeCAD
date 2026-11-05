@@ -252,6 +252,15 @@ SketchObject::SketchObject() : geoLastId(0)
                       "Sketch",
                       (App::PropertyType)(App::Prop_Output | App::Prop_ReadOnly | App::Prop_Hidden),
                       "Sketch is fully constrained");
+    // Derived from Placement, see onPlacementChanged(): not saved, and setting it must not
+    // touch the sketch
+    ADD_PROPERTY_TYPE(Normal,
+                      (Base::Vector3d(0.0, 0.0, 1.0)),
+                      "Sketch",
+                      (App::PropertyType)(App::Prop_Output | App::Prop_ReadOnly
+                                          | App::Prop_Transient),
+                      "Normal of the sketch plane: the Z axis of its placement.\n"
+                      "Read-only, for use in expressions.");
     ADD_PROPERTY_TYPE(Exports,
                       (nullptr),
                       "Sketch",
@@ -1361,6 +1370,11 @@ void SketchObject::onExternalGeometryChanged()
 
 void SketchObject::onPlacementChanged()
 {
+    Base::Vector3d normal;
+    Placement.getValue().getRotation().multVec(Base::Vector3d(0.0, 0.0, 1.0), normal);
+    if (normal != Normal.getValue()) {
+        Normal.setValue(normal);
+    }
     if (ExternalGeometry.getSize() > 0 || ExternalContextGeometry.getSize() > 0) {
         touch();
     }
