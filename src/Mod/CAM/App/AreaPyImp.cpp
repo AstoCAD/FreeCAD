@@ -556,7 +556,7 @@ else {
 
 std::shared_ptr<Area> restArea = getAreaPtr()->getRestArea(clearedAreas, diameter);
 if (!restArea) {
-    return Py_None;
+    Py_Return;
 }
 auto pyRestArea = Py::asObject(new AreaPy(new Area(*restArea, true)));
 return Py::new_reference_to(pyRestArea);
