@@ -257,6 +257,26 @@ class DraftModification(test_base.DraftTestCaseDoc):
         obj = Draft.join_two_wires(line_1, line_2)
         self.assertTrue(obj, "'{}' failed".format(operation))
 
+    def test_join_closing_same_direction(self):
+        """Join two wires that share both end points and run in the same direction."""
+        a = Vector(0, 0, 0)
+        b = Vector(4, 0, 0)
+        c = Vector(4, 4, 0)
+        d = Vector(0, 4, 0)
+        e = Vector(-2, 2, 0)
+        wire_1 = Draft.make_wire([a, b, c], face=True)
+        wire_2 = Draft.make_wire([a, e, d, c], face=True)
+        self.doc.recompute()
+        self.assertTrue(Draft.join_two_wires(wire_1, wire_2))
+        self.assertTrue(wire_1.Closed)
+        self.assertEqual(len(wire_1.Points), 5)
+        for point, expected in zip(wire_1.Points, [a, b, c, d, e]):
+            self.assertTrue(point.isEqual(expected, 1e-7), f"{point} != {expected}")
+        self.doc.recompute()
+        self.assertTrue(wire_1.Shape.isValid())
+        self.assertEqual(len(wire_1.Shape.Faces), 1)
+        self.assertAlmostEqual(wire_1.Shape.Area, 20.0, places=6)
+
     def test_split(self):
         """Split a Draft Wire into two Draft Wires."""
         operation = "Draft_Split"
