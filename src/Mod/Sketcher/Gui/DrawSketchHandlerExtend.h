@@ -399,7 +399,7 @@ public:
     }
 
 private:
-    int crossProduct(Base::Vector2d& vec1, Base::Vector2d& vec2)
+    double crossProduct(Base::Vector2d& vec1, Base::Vector2d& vec2)
     {
         return vec1.x * vec2.y - vec1.y * vec2.x;
     }
