@@ -357,6 +357,16 @@ PyObject* PyObjectBase::__getattro(PyObject * obj, PyObject *attro)
     return value;
 }
 
+int PyObjectBase::__PyInit(PyObject* self, PyObject* args, PyObject* kwd)
+{
+    // tp_init is called by the Python interpreter: a C++ exception must not unwind
+    // through it. Translate it into a Python exception like the generated method callbacks do.
+    PY_TRY {
+        return static_cast<PyObjectBase*>(self)->PyInit(args, kwd);
+    }
+    _PY_CATCH(return -1)
+}
+
 int PyObjectBase::__setattro(PyObject *obj, PyObject *attro, PyObject *value)
 {
     const char *attr{};

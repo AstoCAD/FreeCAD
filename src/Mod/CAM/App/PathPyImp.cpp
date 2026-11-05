@@ -77,14 +77,7 @@ int PathPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     }
     PyErr_Clear();  // set by PyArg_ParseTuple()
     if (PyArg_ParseTuple(args, "|s", &gcode)) {
-        // tp_init has no exception wrapper: a C++ exception must not escape into Python
-        try {
-            getToolpathPtr()->setFromGCode(gcode);
-        }
-        catch (const Base::Exception& e) {
-            e.setPyException();
-            return -1;
-        }
+        getToolpathPtr()->setFromGCode(gcode);
         return 0;
     }
     PyErr_SetString(PyExc_TypeError, "Argument must be a list of commands or a gcode string");
