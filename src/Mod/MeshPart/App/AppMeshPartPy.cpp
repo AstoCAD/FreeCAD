@@ -213,6 +213,10 @@ private:
             throw Py::Exception();
 
         TopoDS_Shape shape = static_cast<Part::TopoShapePy*>(e)->getTopoShapePtr()->getShape();
+        if (shape.IsNull()) {
+            // the edge is adapted as a curve: a null edge has no geometry
+            throw Py::ValueError("Edge is null");
+        }
         const Mesh::MeshObject* mesh = static_cast<Mesh::MeshPy*>(m)->getMeshObjectPtr();
         MeshCore::MeshKernel kernel(mesh->getKernel());
         kernel.Transform(mesh->getTransform());
