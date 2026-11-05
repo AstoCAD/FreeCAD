@@ -137,6 +137,9 @@ public:
     Properties getProperties(bool base) const;
     Properties getInitedProperties(bool base);
 
+    /// Register how Copy/Paste treats attached objects (see App::CopyPasteHandler)
+    static void registerCopyPasteHandler();
+
 protected:
     void extensionOnChanged(const App::Property* /*prop*/) override;
     virtual bool extensionHandleChangedPropertyName(

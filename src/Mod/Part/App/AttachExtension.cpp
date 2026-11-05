@@ -23,10 +23,14 @@
  ***************************************************************************/
 
 
+#include <algorithm>
+
 #include <Base/Console.h>
 #include <Base/ProgramVersion.h>
+#include <Base/ServiceProvider.h>
 #include <Base/Tools.h>
 
+#include <App/CopyPasteRules.h>
 #include <App/Document.h>
 #include <App/Datums.h>
 #include <App/ObjectIdentifier.h>
@@ -88,6 +92,33 @@ void restoreAttacherEngine(AttachExtension* self)
         self->AttacherEngine.setValue(classToEnum(type));
     }
 }
+
+// An object attached only to copied origin features that were pasted outside any
+// container with an origin is detached: it keeps its placement instead of depending on
+// a stand-alone copy of the origin feature.
+class AttachCopyPasteHandler: public App::CopyPasteHandler
+{
+public:
+    bool detachFromOrphanDatums(
+        App::DocumentObject* obj,
+        const std::vector<App::DocumentObject*>& orphans
+    ) const override
+    {
+        auto ext = obj->getExtensionByType<AttachExtension>(true);
+        if (!ext) {
+            return false;
+        }
+        const auto& support = ext->AttachmentSupport.getValues();
+        if (support.empty() || !std::ranges::all_of(support, [&orphans](auto linked) {
+                return std::ranges::find(orphans, linked) != orphans.end();
+            })) {
+            return false;
+        }
+        ext->MapMode.setValue(mmDeactivated);
+        ext->AttachmentSupport.setValue(nullptr);
+        return true;
+    }
+};
 }  // namespace
 
 EXTENSION_PROPERTY_SOURCE(Part::AttachExtension, App::DocumentObjectExtension)
@@ -865,6 +896,11 @@ AttachEngineException::AttachEngineException(const char* sMessage)
 AttachEngineException::AttachEngineException(const std::string& sMessage)
     : Base::Exception(sMessage)
 {}
+
+void AttachExtension::registerCopyPasteHandler()
+{
+    Base::registerServiceImplementation<App::CopyPasteHandler>(new AttachCopyPasteHandler);
+}
 
 namespace App
 {

@@ -146,6 +146,130 @@ class TestCopyPasteGui(unittest.TestCase):
             sketches[1].AttachmentSupport[0][0], self._origin_feature(self.body1, "XY_Plane")
         )
 
+    def _paste_and_get_new(self, selected=None):
+        before = {o.Name for o in self.doc.Objects}
+        if selected is None:
+            Gui.Selection.clearSelection()
+        else:
+            self._select(selected)
+        self._run("Std_Paste")
+        return [o for o in self.doc.Objects if o.Name not in before]
+
+    def test_sketch_pasted_at_root_is_detached_at_its_global_placement(self):
+        self.body1.Placement = App.Placement(App.Vector(5, 10, 0), App.Rotation(0, 0, 30))
+        self.sketch.AttachmentOffset = App.Placement(App.Vector(1, 2, 3), App.Rotation())
+        self.doc.recompute()
+        expected = self.sketch.getGlobalPlacement()
+
+        self._select(self.sketch)
+        self._run("Std_Copy")
+        new = self._paste_and_get_new()
+        self.assertEqual(len(new), 1)
+        pasted = new[0]
+        self.assertTrue(pasted.isDerivedFrom("Sketcher::SketchObject"))
+        self.assertIsNone(pasted.getParentGeoFeatureGroup())
+        self.assertEqual(pasted.MapMode, "Deactivated")
+        self.assertEqual(len(pasted.AttachmentSupport), 0)
+        self.assertTrue(pasted.Placement.isSame(expected, 1e-7))
+        self.assertEqual(self._orphan_datums(), [])
+        self.doc.recompute()
+        self.assertTrue(pasted.isValid())
+        self.assertTrue(pasted.Placement.isSame(expected, 1e-7))
+
+    def test_preference_restores_the_old_root_paste(self):
+        self._select(self.sketch)
+        self._run("Std_Copy")
+        self.settings.SetBool(PARAM, False)
+        new = self._paste_and_get_new()
+        self.assertEqual(len(new), 2)
+        pasted = [o for o in new if o.isDerivedFrom("Sketcher::SketchObject")][0]
+        self.assertEqual(pasted.MapMode, "FlatFace")
+        self.assertEqual(len(self._orphan_datums()), 1)
+
+    def _make_pad(self, body, name, size=10):
+        sketch = body.newObject("Sketcher::SketchObject", name + "Sketch")
+        sketch.AttachmentSupport = [(self._origin_feature(body, "XY_Plane"), "")]
+        sketch.MapMode = "FlatFace"
+        corners = [
+            App.Vector(0, 0, 0),
+            App.Vector(size, 0, 0),
+            App.Vector(size, size, 0),
+            App.Vector(0, size, 0),
+        ]
+        for i in range(4):
+            sketch.addGeometry(Part.LineSegment(corners[i], corners[(i + 1) % 4]))
+        pad = body.newObject("PartDesign::Pad", name)
+        pad.Profile = sketch
+        pad.Length = size
+        return pad
+
+    def test_sketch_pasted_after_selected_sibling(self):
+        second = self.body1.newObject("Sketcher::SketchObject", "Second")
+        self.doc.recompute()
+        self._select(second)
+        self._run("Std_Copy")
+        new = self._paste_and_get_new(self.sketch)
+        self.assertEqual(len(new), 1)
+        self.assertEqual(self.body1.Group, [self.sketch, new[0], second])
+
+    def test_pad_pasted_after_selected_feature_is_inserted_in_the_chain(self):
+        source = self._make_pad(self.body1, "Source", 5)
+        first = self._make_pad(self.body2, "First")
+        last = self._make_pad(self.body2, "Last", 20)
+        self.doc.recompute()
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(source)
+        Gui.Selection.addSelection(source.Profile[0])
+        self._run("Std_Copy")
+        self.assertEqual(self.dialogs, [])
+
+        new = self._paste_and_get_new(first)
+        pad = [o for o in new if o.isDerivedFrom("PartDesign::Pad")][0]
+        sketch = [o for o in new if o.isDerivedFrom("Sketcher::SketchObject")][0]
+        group = self.body2.Group
+        self.assertEqual(group.index(sketch), group.index(first) + 1)
+        self.assertEqual(group.index(pad), group.index(first) + 2)
+        self.assertEqual(pad.BaseFeature, first)
+        self.assertEqual(last.BaseFeature, pad)
+        self.assertEqual(self.body2.Tip, last)
+        self.doc.recompute()
+        self.assertTrue(pad.isValid())
+        self.assertTrue(last.isValid())
+
+    def _set_active(self, key, obj):
+        Gui.getDocument(self.doc_name).ActiveView.setActiveObject(key, obj)
+
+    def test_nothing_selected_pastes_into_the_active_body(self):
+        self._select(self.sketch)
+        self._run("Std_Copy")
+        self._set_active("pdbody", self.body2)
+        new = self._paste_and_get_new()
+        self.assertEqual(len(new), 1)
+        self.assertIn(new[0], self.body2.Group)
+        self.assertEqual(
+            new[0].AttachmentSupport[0][0], self._origin_feature(self.body2, "XY_Plane")
+        )
+
+    def test_nothing_selected_pastes_into_the_active_part(self):
+        part = self.doc.addObject("App::Part", "Part")
+        self.doc.recompute()
+        self._select(self.sketch)
+        self._run("Std_Copy")
+        self._set_active("part", part)
+        new = self._paste_and_get_new()
+        self.assertEqual(len(new), 1)
+        self.assertIn(new[0], part.Group)
+        self.assertEqual(new[0].AttachmentSupport[0][0], self._origin_feature(part, "XY_Plane"))
+
+    def test_body_pasted_with_an_active_body_goes_to_the_root(self):
+        self._select(self.body1)
+        self._run("Std_Copy")
+        self._set_active("pdbody", self.body2)
+        new = self._paste_and_get_new()
+        bodies = [o for o in new if o.isDerivedFrom("PartDesign::Body")]
+        self.assertEqual(len(bodies), 1)
+        self.assertIsNone(bodies[0].getParentGeoFeatureGroup())
+
     def test_body_copied_without_dialog(self):
         self._select(self.body1)
         self._run("Std_Copy")
@@ -162,12 +286,47 @@ class TestCopyPasteGui(unittest.TestCase):
         self.assertEqual(len(self.dialogs), 1)
 
     def test_unexplained_dependency_still_opens_the_dialog(self):
-        pad = self.body1.newObject("PartDesign::Pad", "Pad")
-        pad.Profile = self.sketch
+        other = self.body1.newObject("Sketcher::SketchObject", "Other")
+        other.AttachmentSupport = [(self.sketch, "")]
+        other.MapMode = "FlatFace"
         self.doc.recompute()
-        self._select(pad)
+        self._select(other)
         self._run("Std_Copy")
         self.assertEqual(len(self.dialogs), 1)
+
+    def test_pad_on_a_face_of_the_previous_feature_still_opens_the_dialog(self):
+        first = self._make_pad(self.body1, "First")
+        second = self._make_pad(self.body1, "Second", 5)
+        second.Profile[0].AttachmentSupport = [(first, "Face6")]
+        self.doc.recompute()
+        self._select(second)
+        self._run("Std_Copy")
+        self.assertEqual(len(self.dialogs), 1)
+
+    def test_pad_copied_with_its_sketch_and_rebased_in_the_target_body(self):
+        first = self._make_pad(self.body1, "First")
+        second = self._make_pad(self.body1, "Second", 5)
+        target = self._make_pad(self.body2, "Target")
+        self.doc.recompute()
+        self._select(second)
+        self._run("Std_Copy")
+        self.assertEqual(self.dialogs, [])
+
+        new = self._paste_and_get_new(self.body2)
+        # The pad and its sketch, not the previous feature of the source body
+        self.assertEqual(len(new), 2)
+        pad = [o for o in new if o.isDerivedFrom("PartDesign::Pad")][0]
+        sketch = [o for o in new if o.isDerivedFrom("Sketcher::SketchObject")][0]
+        self.assertEqual(pad.Profile[0], sketch)
+        self.assertEqual(pad.BaseFeature, target)
+        self.assertEqual(self.body2.Tip, pad)
+        self.assertEqual(sketch.AttachmentSupport[0][0], self._origin_feature(self.body2, "XY_Plane"))
+        self.assertEqual(self._orphan_datums(), [])
+        self.doc.recompute()
+        self.assertTrue(pad.isValid())
+        # The source is untouched
+        self.assertEqual(second.BaseFeature, first)
+        self.assertEqual(self.body1.Tip, second)
 
     def test_preference_restores_the_old_copy(self):
         self.settings.SetBool(PARAM, False)
