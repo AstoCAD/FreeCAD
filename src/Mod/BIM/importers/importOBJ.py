@@ -344,6 +344,13 @@ def peek(index, array):
         return None
 
 
+def resolveIndex(index, verts):
+    "returns the 1-based vertex index; negative OBJ indices are relative to the last vertex read"
+    if index < 0:
+        return len(verts) + 1 + index
+    return index
+
+
 def open(filename):
     "called when freecad wants to open a file"
     docname = os.path.splitext(os.path.basename(filename))[0]
@@ -419,20 +426,21 @@ def insert(filename, docname):
             facets = []
             activeobject = line[2:]
         elif line[:2] == "v ":
-            verts.append([float(i) for i in line[2:].split()])
+            # ignore the optional w or vertex color values after x y z
+            verts.append([float(i) for i in line[2:].split()[:3]])
         elif line[:2] == "f ":
             fa = []
             for i in line[2:].split():
                 if "/" in i:
                     i = i.split("/")[0]
-                fa.append(int(i))
+                fa.append(resolveIndex(int(i), verts))
             facets.append(fa)
         elif line[:2] == "l ":
             edge = []
             for i in line[2:].split():
                 if "/" in i:
                     i = i.split("/")[0]
-                edge.append(int(i))
+                edge.append(resolveIndex(int(i), verts))
             edges.append(edge)
             # combine lines into medges
             l = peek(index, content_array)

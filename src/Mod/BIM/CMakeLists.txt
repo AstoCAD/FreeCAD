@@ -304,6 +304,7 @@ SET(bimtests_SRCS
     bimtests/TestWebGLExportGui.py
     bimtests/TestNativeIfc.py
     bimtests/TestNativeIfcGui.py
+    bimtests/TestArchImporters.py
     bimtests/TestArchImportersGui.py
     bimtests/TestArchBuildingPartGui.py
     bimtests/TestArchStairsGui.py
