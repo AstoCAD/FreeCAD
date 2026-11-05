@@ -276,6 +276,10 @@ class DraftToolBar:
         # A new document becomes the active one without an ActiveDocument signal.
         self.slotActivateDocument(doc)
 
+    def slotDeletedObject(self, obj):
+        """Document observer callback."""
+        WorkingPlane._forget_deleted_object(obj)
+
     # ---------------------------------------------------------------------------
     # General UI setup
     # ---------------------------------------------------------------------------

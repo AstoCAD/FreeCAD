@@ -117,6 +117,7 @@ from drafttests.test_dwg import DraftDWGConverterFallback as DraftTest07b
 # from drafttests.test_airfoildat import DraftAirfoilDAT as DraftTest09
 from drafttests.test_array import DraftArray as DraftTest10
 from drafttests.test_grid_settings import DraftGridSettings as DraftTest11
+from drafttests.test_working_plane import DraftWorkingPlane as DraftTest12
 
 # Use the modules so that code checkers don't complain (flake8)
 True if DraftTest01 else False
@@ -132,3 +133,4 @@ True if DraftTest07b else False
 # True if DraftTest09 else False
 True if DraftTest10 else False
 True if DraftTest11 else False
+True if DraftTest12 else False
