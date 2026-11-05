@@ -56,6 +56,28 @@ class TestArchImporters(TestArchBase.TestArchBase):
         self.assertEqual(by_label["B"].Mesh.CountFacets, 2)
         self.assertEqual(self._points(by_label["B"]), [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 0)])
 
+    def test_obj_export_app_part(self):
+        """Exporting an App::Part exports its contents at their global placement."""
+        from importers import importOBJ
+
+        box = self.document.addObject("Part::Box", "Box")
+        link = self.document.addObject("App::Link", "Link")
+        link.LinkedObject = box
+        link.Placement.Base = FreeCAD.Vector(100, 0, 0)
+        part = self.document.addObject("App::Part", "Part")
+        part.addObjects([box, link])
+        part.Placement.Base = FreeCAD.Vector(0, 0, 1000)
+        self.document.recompute()
+        filename = os.path.join(self.tmpdir, "test.obj")
+        importOBJ.export([part], filename)
+        with open(filename, encoding="utf8") as f:
+            lines = f.read().splitlines()
+        self.assertEqual([l for l in lines if l.startswith("o ")], ["o Box", "o " + link.Label])
+        verts = [tuple(float(c) for c in l.split()[1:]) for l in lines if l.startswith("v ")]
+        self.assertEqual(len(verts), 16)
+        self.assertIn((0.0, 0.0, 1000.0), verts)
+        self.assertIn((110.0, 10.0, 1010.0), verts)
+
     def test_json_export_names_and_groups(self):
         """The JSON exporter writes plain labels and skips objects without geometry."""
         import json

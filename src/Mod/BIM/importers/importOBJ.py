@@ -160,6 +160,20 @@ def getIndices(obj, shape, offsetv, offsetvn):
     return vlist, vnlist, elist, flist
 
 
+def getPartContents(objectslist):
+    "replaces App::Part objects (and Assemblies) in the list by their contents"
+    result = []
+    for obj in objectslist:
+        if obj.isDerivedFrom("App::Part"):
+            children = Draft.get_group_contents(obj.Group, walls=True, addgroups=True)
+            newobjs = getPartContents(children)
+        else:
+            newobjs = [obj]
+        # avoid duplicates, for example if a Part and its children are both in the list
+        result.extend([o for o in newobjs if o not in result])
+    return result
+
+
 def export(exportList, filename, colors=None):
     """export(exportList,filename,colors=None):
     Called when freecad exports a file. exportList is a list
@@ -174,7 +188,7 @@ def export(exportList, filename, colors=None):
     outfile.write("# https://www.freecad.org\n")
     offsetv = 1
     offsetvn = 1
-    objectslist = Draft.get_group_contents(exportList, walls=True, addgroups=True)
+    objectslist = getPartContents(Draft.get_group_contents(exportList, walls=True, addgroups=True))
     objectslist = Arch.pruneIncluded(objectslist, strict=True)
     filenamemtl = filename[:-4] + ".mtl"
     materials = []
