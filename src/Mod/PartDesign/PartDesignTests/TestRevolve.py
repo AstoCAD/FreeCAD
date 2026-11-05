@@ -130,6 +130,40 @@ class TestRevolve(unittest.TestCase):
         for actual, expected in zip(reference_values, direct_values):
             self.assertAlmostEqual(actual, expected)
 
+    def _makeRevolved(self, typeName):
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        box = body.newObject("PartDesign::AdditiveBox", "Box")
+        box.Length = box.Width = box.Height = 10
+        self.Doc.recompute()
+        feature = body.newObject(typeName, "Feature")
+        feature.Profile = (box, ["Face6"])
+        feature.ReferenceAxis = (self.Doc.X_Axis if typeName == "PartDesign::Groove" else self.Doc.Y_Axis, [""])
+        feature.Angle = 180
+        feature.Reversed = True
+        self.Doc.recompute()
+        self.assertIn("Up-to-date", feature.State)
+        return feature
+
+    def testRevolutionNaNAngleFails(self):
+        # NaN passed the angle checks and the revolution never finished
+        revolution = self._makeRevolved("PartDesign::Revolution")
+        revolution.Angle = float("nan")
+        self.Doc.recompute()
+        self.assertIn("Invalid", revolution.State)
+
+    def testGrooveNaNAngleFails(self):
+        groove = self._makeRevolved("PartDesign::Groove")
+        groove.Angle = float("nan")
+        self.Doc.recompute()
+        self.assertIn("Invalid", groove.State)
+
+    def testRevolutionNaNSecondAngleFails(self):
+        revolution = self._makeRevolved("PartDesign::Revolution")
+        revolution.SideType = "Two sides"
+        revolution.Angle2 = float("nan")
+        self.Doc.recompute()
+        self.assertIn("Invalid", revolution.State)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestRevolve")
