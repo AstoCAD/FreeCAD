@@ -342,6 +342,19 @@ class PartTestBSplineSurface(unittest.TestCase):
         bs.buildFromNSections([c1, c2])
         self.assertAlmostEqual(bs.toShape().Area, 1.0)
 
+    def testApproximateDegMinAboveDegMax(self):
+        # GeomAPI_PointsToBSplineSurface never returned for DegMin > DegMax
+        V = Base.Vector
+        grid = [[V(i, j, 0.1 * i * j) for j in range(5)] for i in range(5)]
+        heights = [[0.1 * i * j for j in range(5)] for i in range(5)]
+        bs = Part.BSplineSurface()
+        with self.assertRaises(Part.OCCError):
+            bs.approximate(Points=grid, DegMin=5, DegMax=3, ParamType="Uniform")
+        with self.assertRaises(Part.OCCError):
+            bs.approximate(Points=heights, DegMin=5, DegMax=3, X0=0, dX=1, Y0=0, dY=1)
+        bs.approximate(Points=grid, DegMin=3, DegMax=5, ParamType="Uniform")
+        self.assertLessEqual(bs.UDegree, 5)
+
 
 class PartTestGeomPlate(unittest.TestCase):
     def testConstraintErrorWithBadIndex(self):
