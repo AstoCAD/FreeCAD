@@ -194,6 +194,55 @@ class TestRubberbandSelection(unittest.TestCase):
                     expected.add((nested.Name, ("Face1",)))
                 self.assertEqual(selected, expected)
 
+    def _box_selection_command(self, command, rect, control=False, shift=False):
+        self.view.setNavigationType("Gui::CADNavigationStyle")
+        self._refresh_view()
+        FreeCADGui.runCommand(command, 0)
+        self._process_events(10)
+        self._drag_select(rect, control=control, shift=shift)
+
+    def test_box_selection_command_modifiers(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/31775
+        self._ensure_selection_objects()
+        left_rect = self._selection_rect(self.left_box)
+        both = {self.left_box.Name, self.right_box.Name}
+
+        with self.subTest(modifier="none replaces"):
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(self.doc.Name, self.right_box.Name)
+            self._box_selection_command("Std_BoxSelection", left_rect)
+            self.assertEqual(self._selected_names(), {self.left_box.Name})
+
+        with self.subTest(modifier="ctrl adds"):
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(self.doc.Name, self.right_box.Name)
+            self._box_selection_command("Std_BoxSelection", left_rect, control=True)
+            self.assertEqual(self._selected_names(), both)
+
+        with self.subTest(modifier="shift removes"):
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(self.doc.Name, self.left_box.Name)
+            FreeCADGui.Selection.addSelection(self.doc.Name, self.right_box.Name)
+            self._box_selection_command("Std_BoxSelection", left_rect, shift=True)
+            self.assertEqual(self._selected_names(), {self.right_box.Name})
+
+        with self.subTest(modifier="shift on unselected object does nothing"):
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(self.doc.Name, self.right_box.Name)
+            self._box_selection_command("Std_BoxSelection", left_rect, shift=True)
+            self.assertEqual(self._selected_names(), {self.right_box.Name})
+
+    def test_box_element_selection_command_shift_removes(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/31775
+        self._ensure_selection_objects()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(self.doc.Name, self.left_box.Name, "Face1")
+        FreeCADGui.Selection.addSelection(self.doc.Name, self.right_box.Name, "Face1")
+        self._box_selection_command(
+            "Std_BoxElementSelection", self._selection_rect(self.left_box), shift=True
+        )
+        self.assertEqual(self._selected_names(), {self.right_box.Name})
+
     def test_ctrl_drag_adds_in_supported_styles(self):
         self._ensure_selection_objects()
         for label, style in self.ADDITIVE_DRAG_STYLES:

@@ -2905,7 +2905,14 @@ static void doSelect(void* ud, SoEventCallback* cb)
     cb->setHandled();
 
     const SoEvent* ev = cb->getEvent();
-    applyBoxSelection(viewer, viewer->getPolygon(), selectElement, ev && ev->wasCtrlDown());
+    // Ctrl adds the boxed objects to the selection, Shift removes them from it
+    applyBoxSelection(
+        viewer,
+        viewer->getPolygon(),
+        selectElement,
+        ev && ev->wasCtrlDown(),
+        ev && ev->wasShiftDown()
+    );
 }
 
 void StdBoxSelection::activated(int iMsg)
