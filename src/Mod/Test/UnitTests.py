@@ -266,3 +266,20 @@ class UnitBasicCases(unittest.TestCase):
         self.assertEqual(FreeCAD.Units.Unit("m^3"), FreeCAD.Units.Volume)
         self.assertEqual(FreeCAD.Units.Quantity(1, 3).Unit, FreeCAD.Units.Volume)
         self.assertEqual(FreeCAD.Units.parseQuantity("1 m^3").Value, 1e9)
+
+    def testSetSchemaInvalidArgument(self):
+        # an argument that is not an int returned None with the parse error
+        # still set (SystemError) instead of raising it
+        schema = FreeCAD.Units.getSchema()
+        self.addCleanup(FreeCAD.Units.setSchema, schema)
+        with self.assertRaises(TypeError):
+            FreeCAD.Units.setSchema("0")
+        with self.assertRaises(TypeError):
+            FreeCAD.Units.setSchema()
+        with self.assertRaises(OverflowError):
+            FreeCAD.Units.setSchema(2**70)
+        with self.assertRaises(ValueError):
+            FreeCAD.Units.setSchema(-1)
+        self.assertEqual(FreeCAD.Units.getSchema(), schema)
+        FreeCAD.Units.setSchema(schema)
+        self.assertEqual(FreeCAD.Units.getSchema(), schema)

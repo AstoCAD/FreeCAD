@@ -111,6 +111,9 @@ PyObject* UnitsApi::sSetSchema(PyObject* /*self*/, PyObject* args)
 
         schemas->select(index);
     }
+    else {
+        return nullptr;  // error set by PyArg_ParseTuple()
+    }
     Py_Return;
 }
 
