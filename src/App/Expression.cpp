@@ -2116,7 +2116,9 @@ void FunctionExpression::initialiseObject(const Py::Object *object, const std::v
         for (unsigned i = offset; i < arguments.size(); ++i)
             constructorArguments.setItem(i - offset, arguments[i]->getPyValue());
         Py::Dict kwd;
-        PyObjectBase::__PyInit(object->ptr(), constructorArguments.ptr(), kwd.ptr());
+        if (PyObjectBase::__PyInit(object->ptr(), constructorArguments.ptr(), kwd.ptr()) < 0) {
+            throw Py::Exception();
+        }
     }
 }
 
