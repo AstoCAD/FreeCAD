@@ -738,6 +738,7 @@ MenuItem* StdWorkbench::setupMenuBar() const
             << "Std_TextDocument";
 
     *edit << "Std_Undo" << "Std_Redo" << "Separator" << "Std_Cut" << "Std_Copy"
+          << "Std_CopySpecial"
           << "Std_Paste" << "Std_DuplicateSelection" << "Std_Delete" << "Separator"
           << "Std_Refresh" << "Std_RecomputeAll" << "Std_BoxSelection" << "Std_BoxElementSelection"
           << "Std_SelectAll" << "Separator" << "Std_TransformManip" << "Std_Placement"

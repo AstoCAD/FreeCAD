@@ -68,6 +68,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <App/Application.h>
+#include <App/CopyPasteRules.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <App/DocumentObjectGroup.h>
@@ -2378,7 +2379,56 @@ static QLatin1String _MimeDocObjX("application/x-documentobject-x");
 static QLatin1String _MimeDocObjFile("application/x-documentobject-file");
 static QLatin1String _MimeDocObjXFile("application/x-documentobject-x-file");
 
+// Hidden switch: false restores the former Copy (dependency dialog whenever the copied
+// objects have dependencies) and Paste (into a selected DocumentObjectGroup or the root).
+static bool useCopyPasteRules()
+{
+    return App::GetApplication()
+        .GetParameterGroupByPath("User parameter:BaseApp/Preferences/General")
+        ->GetBool("CopyPasteObjectRules", true);
+}
+
+// Put freshly pasted objects into the selected group, body or part (see App::CopyPasteRules)
+static void addPastedObjectsToContainer(
+    App::Document* doc,
+    const std::vector<App::DocumentObject*>& newObj
+)
+{
+    std::vector<App::DocumentObjectGroup*> grp
+        = Gui::Selection().getObjectsOfType<App::DocumentObjectGroup>();
+    if (grp.size() == 1) {
+        Gui::Document* gui = Application::Instance->getDocument(doc);
+        if (gui) {
+            gui->addRootObjectsToGroup(newObj, grp.front());
+        }
+        return;
+    }
+    if (!useCopyPasteRules()) {
+        return;
+    }
+    std::set<App::DocumentObject*> selected;
+    for (const auto& sel : Gui::Selection().getSelection(doc->getName())) {
+        if (sel.pObject) {
+            selected.insert(sel.pObject);
+        }
+    }
+    if (selected.size() != 1) {
+        return;
+    }
+    try {
+        App::CopyPasteRules::placePastedObjects(newObj, *selected.begin());
+    }
+    catch (const Base::Exception& e) {
+        e.reportException();
+    }
+}
+
 QMimeData* MainWindow::createMimeDataFromSelection() const
+{
+    return createMimeDataFromSelection(!useCopyPasteRules());
+}
+
+QMimeData* MainWindow::createMimeDataFromSelection(bool askDependencies) const
 {
     std::vector<App::DocumentObject*> sel;
     std::set<App::DocumentObject*> objSet;
@@ -2393,13 +2443,19 @@ QMimeData* MainWindow::createMimeDataFromSelection() const
 
     auto all = App::Document::getDependencyList(sel);
     if (all.size() > sel.size()) {
-        DlgObjectSelection dlg(sel, getMainWindow());
-        if (dlg.exec() != QDialog::Accepted) {
-            return nullptr;
+        if (!askDependencies && App::CopyPasteRules::canCopyWithoutAsking(sel)) {
+            // The objects the dialog exports when accepted with its defaults
+            sel = App::Document::getDependencyList(sel, App::Document::DepSort);
         }
-        sel = dlg.getSelections();
-        if (sel.empty()) {
-            return nullptr;
+        else {
+            DlgObjectSelection dlg(sel, getMainWindow());
+            if (dlg.exec() != QDialog::Accepted) {
+                return nullptr;
+            }
+            sel = dlg.getSelections();
+            if (sel.empty()) {
+                return nullptr;
+            }
         }
     }
 
@@ -2579,14 +2635,7 @@ void MainWindow::insertFromMimeData(const QMimeData* mimeData)
         in.rdbuf(&buf);
         MergeDocuments mimeView(doc);
         std::vector<App::DocumentObject*> newObj = mimeView.importObjects(in);
-        std::vector<App::DocumentObjectGroup*> grp
-            = Gui::Selection().getObjectsOfType<App::DocumentObjectGroup>();
-        if (grp.size() == 1) {
-            Gui::Document* gui = Application::Instance->getDocument(doc);
-            if (gui) {
-                gui->addRootObjectsToGroup(newObj, grp.front());
-            }
-        }
+        addPastedObjectsToContainer(doc, newObj);
         doc->commitTransaction();
     }
     else {
@@ -2598,14 +2647,7 @@ void MainWindow::insertFromMimeData(const QMimeData* mimeData)
         MergeDocuments mimeView(doc);
         std::vector<App::DocumentObject*> newObj = mimeView.importObjects(str);
         str.close();
-        std::vector<App::DocumentObjectGroup*> grp
-            = Gui::Selection().getObjectsOfType<App::DocumentObjectGroup>();
-        if (grp.size() == 1) {
-            Gui::Document* gui = Application::Instance->getDocument(doc);
-            if (gui) {
-                gui->addRootObjectsToGroup(newObj, grp.front());
-            }
-        }
+        addPastedObjectsToContainer(doc, newObj);
         doc->commitTransaction();
     }
 }
