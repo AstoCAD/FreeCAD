@@ -520,12 +520,26 @@ protected:
             unsetCursor();
             resetPositionText();
 
+            // Expressions typed in on-view parameters are bound to the constraints created from
+            // them within the command of the tool, so that one undo removes everything.
+            const bool bindExpressions = hasOnViewParameterExpressions();
+            if (bindExpressions) {
+                holdCommandCommit();
+            }
+
             try {
                 executeCommands();
 
                 if (sugConstraints.size() > 0) {
                     beforeCreateAutoConstraints();
+                }
 
+                if (bindExpressions) {
+                    bindOnViewParameterExpressions();
+                    releaseCommandCommit();
+                }
+
+                if (sugConstraints.size() > 0) {
                     generateAutoConstraints();
 
                     createAutoConstraints();
@@ -536,6 +550,15 @@ protected:
                 // message. It is reported both to developer (report view) and user (notifications
                 // area).
                 Base::Console().error("{}", e.what());
+            }
+            catch (...) {
+                if (bindExpressions) {
+                    releaseCommandCommit();
+                }
+                throw;
+            }
+            if (bindExpressions) {
+                releaseCommandCommit();
             }
 
             // Keep the recompute separate so that everything is drawn even if execution fails
@@ -621,6 +644,14 @@ private:
     virtual void beforeCreateAutoConstraints()
     {}
     virtual void createAutoConstraints()
+    {}
+    /// Whether on-view parameters hold expressions to bind (see Gui::EditableDatumLabel).
+    virtual bool hasOnViewParameterExpressions() const
+    {
+        return false;
+    }
+    /// Bind the constraints created from on-view parameters to their expressions.
+    virtual void bindOnViewParameterExpressions()
     {}
 
     void onConstructionMethodChanged() override {};

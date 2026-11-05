@@ -166,6 +166,16 @@ private:
         toolWidgetManager.addConstraints();
     }
 
+    bool hasOnViewParameterExpressions() const override
+    {
+        return toolWidgetManager.hasUserExpressions();
+    }
+
+    void bindOnViewParameterExpressions() override
+    {
+        toolWidgetManager.bindOnViewParameterExpressions();
+    }
+
     void onWidgetChanged() override
     {
         toolWidgetManager.initControls(DSDefaultHandler::toolwidget);
