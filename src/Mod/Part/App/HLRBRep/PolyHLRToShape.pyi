@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from Base.Metadata import export
+from Base.Metadata import export, class_declarations
 from Base.PyObjectBase import PyObjectBase
 from Part.HLRBRep_PolyAlgo import HLRBRep_PolyAlgo
 from Part.TopoShapePy import TopoShape
@@ -16,6 +16,12 @@ from typing import Optional
     Constructor=True,
     Delete=True,
 )
+@class_declarations("""
+private:
+    // HLRBRep_PolyHLRToShape dereferences its algorithm, which is only set by Update()
+    bool hasAlgo {false};
+    bool checkAlgo() const;
+""")
 class PolyHLRToShape(PyObjectBase):
     """
     PolyHLRToShape(algo: HLRBRep_PolyAlgo) -> HLRBRep_PolyHLRToShape
