@@ -719,6 +719,19 @@ class MeshFacetIndexRange(unittest.TestCase):
             MeshPart.wireFromSegment(self.mesh, [12])
         self.assertEqual(len(MeshPart.wireFromSegment(self.mesh, [0, 1])), 1)
 
+    def testFindSectionParametersNullEdge(self):
+        # a null edge was adapted as a curve (access violation)
+        try:
+            import MeshPart
+            import Part
+        except ImportError:
+            self.skipTest("MeshPart not available")
+        with self.assertRaises(ValueError):
+            MeshPart.findSectionParameters(Part.Edge(), self.mesh, FreeCAD.Vector(0, 0, 1))
+        edge = Part.makeLine(FreeCAD.Vector(-1, 0.5, 2), FreeCAD.Vector(2, 0.5, 2))
+        params = MeshPart.findSectionParameters(edge, self.mesh, FreeCAD.Vector(0, 0, -1))
+        self.assertIsInstance(params, list)
+
 
 class MeshSmoothNegativeIteration(unittest.TestCase):
     """A negative iteration count must raise instead of smoothing ~4 billion times"""
