@@ -714,24 +714,29 @@ void DSHCircleController::addConstraints()
         using namespace Sketcher;
 
         auto constraintx0 = [&]() {
+            auto record = recordConstraintsOf(OnViewParameter::First);
             ConstraintToAttachment(
                 GeoElementId(firstCurve, PointPos::mid),
                 GeoElementId::VAxis,
                 x0,
-                handler->sketchgui->getObject()
+                handler->sketchgui->getObject(),
+                hasUserExpression(OnViewParameter::First)
             );
         };
 
         auto constrainty0 = [&]() {
+            auto record = recordConstraintsOf(OnViewParameter::Second);
             ConstraintToAttachment(
                 GeoElementId(firstCurve, PointPos::mid),
                 GeoElementId::HAxis,
                 y0,
-                handler->sketchgui->getObject()
+                handler->sketchgui->getObject(),
+                hasUserExpression(OnViewParameter::Second)
             );
         };
 
         auto constraintradius = [&]() {
+            auto record = recordConstraintsOf(OnViewParameter::Third);
             if (handler->isDiameter) {
                 Gui::cmdAppObjectArgs(
                     handler->sketchgui->getObject(),

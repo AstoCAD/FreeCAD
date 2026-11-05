@@ -81,7 +81,9 @@ public:
 private:
     /// This function decides whether events should be send to the ViewProvider
     /// or to the UI control of DSH.
-    KeyboardEventHandlingMode detectKeyboardEventHandlingMode(QKeyEvent* keyEvent);
+    KeyboardEventHandlingMode detectKeyboardEventHandlingMode(QObject* object, QKeyEvent* keyEvent);
+    /// Whether the field @p object holds an expression being typed (`= expression`).
+    static bool holdsExpression(QObject* object);
 
     /// Viewer responsible for the active document
     Gui::View3DInventorViewer* vpViewer = nullptr;

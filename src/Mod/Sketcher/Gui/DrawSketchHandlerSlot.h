@@ -602,15 +602,33 @@ void DSHSlotController::addConstraints()
         ConstraintToAttachment(GeoElementId(firstCurve, PointPos::mid), GeoElementId::RtPnt, x0, obj);
     };
 
+    const bool x0Expression = hasUserExpression(OnViewParameter::First);
+    const bool y0Expression = hasUserExpression(OnViewParameter::Second);
+
     auto constraintx0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::mid), GeoElementId::VAxis, x0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::First);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, PointPos::mid),
+            GeoElementId::VAxis,
+            x0,
+            obj,
+            x0Expression
+        );
     };
 
     auto constrainty0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::mid), GeoElementId::HAxis, y0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::Second);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, PointPos::mid),
+            GeoElementId::HAxis,
+            y0,
+            obj,
+            y0Expression
+        );
     };
 
     auto constraintLength = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Third);
         Gui::cmdAppObjectArgs(
             obj,
             "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%f)) ",
@@ -623,6 +641,7 @@ void DSHSlotController::addConstraints()
     };
 
     auto constraintAngle = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Fourth);
         ConstraintType lastType = handler->sugConstraints[1].empty()
             ? ConstraintType::None
             : handler->sugConstraints[1].back().Type;
@@ -640,7 +659,7 @@ void DSHSlotController::addConstraints()
 
     if (handler->AutoConstraints.empty()) {  // No valid diagnosis. Every constraint can be added.
 
-        if (x0set && y0set && x0 == 0. && y0 == 0.) {
+        if (x0set && y0set && x0 == 0. && y0 == 0. && !x0Expression && !y0Expression) {
             constraintToOrigin();
         }
         else {
@@ -703,6 +722,7 @@ void DSHSlotController::addConstraints()
 
     // No auto constraint in seekThird.
     if (radiusSet) {
+        auto record = recordConstraintsOf(OnViewParameter::Fifth);
         Gui::cmdAppObjectArgs(
             obj,
             "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ",

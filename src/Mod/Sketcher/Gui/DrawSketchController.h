@@ -25,6 +25,7 @@
 #pragma once
 
 #include <cmath>
+#include <utility>
 
 #include <Base/Console.h>
 #include <Base/Tools2D.h>
@@ -353,6 +354,87 @@ public:
         }
     }
 
+    /** @name User parameters typed in on-view parameters
+     * An on-view parameter accepting `name = expression`, `= expression` or `2*myVar` keeps the
+     * expression (Gui::EditableDatumLabel::hasUserExpression). addConstraints() records which
+     * constraints it creates from such a parameter (recordConstraintsOf) and the handler binds
+     * them after it, inside the command of the tool. */
+    //@{
+    class OnViewParameterConstraints
+    {
+    public:
+        OnViewParameterConstraints(DrawSketchController& controller, unsigned int index)
+            : controller(controller)
+            , index(index)
+            , first(controller.getConstraintCount())
+        {}
+        ~OnViewParameterConstraints()
+        {
+            auto& ranges = controller.onViewParameterConstraintRanges;
+            if (index < ranges.size()) {
+                ranges[index] = {first, controller.getConstraintCount()};
+            }
+        }
+        OnViewParameterConstraints(const OnViewParameterConstraints&) = delete;
+        OnViewParameterConstraints(OnViewParameterConstraints&&) = delete;
+        OnViewParameterConstraints& operator=(const OnViewParameterConstraints&) = delete;
+        OnViewParameterConstraints& operator=(OnViewParameterConstraints&&) = delete;
+
+    private:
+        DrawSketchController& controller;
+        unsigned int index;
+        int first;
+    };
+
+    /// The constraints added until the end of the scope of the returned object come from the
+    /// on-view parameter @p index.
+    [[nodiscard]] OnViewParameterConstraints recordConstraintsOf(unsigned int index)
+    {
+        return OnViewParameterConstraints(*this, index);
+    }
+
+    /// True when the value of on-view parameter @p index comes from an expression; its
+    /// constraint must then be dimensional (not e.g. a point on an axis for zero).
+    bool hasUserExpression(unsigned int index) const
+    {
+        return index < onViewParameters.size() && onViewParameters[index]
+            && onViewParameters[index]->hasUserExpression();
+    }
+
+    bool hasUserExpressions() const
+    {
+        for (unsigned int i = 0; i < onViewParameters.size(); i++) {
+            if (hasUserExpression(i)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// Creates the user parameters and binds the recorded constraints. A value that did not
+    /// produce a constraint creates nothing and is reported.
+    void bindOnViewParameterExpressions()
+    {
+        for (unsigned int i = 0; i < onViewParameters.size(); i++) {
+            if (!hasUserExpression(i)) {
+                continue;
+            }
+            const auto range = i < onViewParameterConstraintRanges.size()
+                ? onViewParameterConstraintRanges[i]
+                : std::pair<int, int>(-1, -1);
+            bindOnViewParameterExpression(
+                handler->getSketchObject(),
+                *onViewParameters[i],
+                range.first,
+                range.second
+            );
+            // Bound once: tools binding at every step (polyline) must not bind it again.
+            onViewParameters[i]->clearUserExpression();
+        }
+        onViewParameterConstraintRanges.assign(onViewParameterConstraintRanges.size(), {-1, -1});
+    }
+    //@}
+
     void finishEditingOnAllOVPs()
     {
         // we call this on a current OnViewParameter when pressed CTRL+ENTER to accept
@@ -655,6 +737,7 @@ protected:
         auto placement = Base::Placement(doc->getEditingTransform());
 
         onViewParameters.clear();
+        onViewParameterConstraintRanges.assign(n, {-1, -1});
 
         for (int i = 0; i < n; i++) {
 
@@ -669,6 +752,8 @@ protected:
                                      )
                                  )
                                  .get();
+
+            parameter->setUserParameterOwner(handler->sketchgui->getObject());
 
             const auto handleParameterValueChanged = [this, parameter, i](double value) {
                 parameter->setActivatedColor();
@@ -896,11 +981,18 @@ private:
     {
         return std::isfinite(onSketchPos.x) && std::isfinite(onSketchPos.y);
     }
+
+    int getConstraintCount()
+    {
+        return handler->getSketchObject()->Constraints.getSize();
+    }
     //@}
 
 private:
     OnViewParameterVisibilityManager ovpVisibilityManager;
     std::unique_ptr<DrawSketchKeyboardManager> keymanager;
+    /// [first, end) of the constraints created from each on-view parameter, see recordConstraintsOf
+    std::vector<std::pair<int, int>> onViewParameterConstraintRanges;
 
     bool firstMoveInit = false;  // true if first mouse movement not yet performed (resets)
 };

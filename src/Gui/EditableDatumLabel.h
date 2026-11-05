@@ -23,9 +23,13 @@
 
 #pragma once
 
+#include <memory>
+#include <string>
+
 #include <QObject>
 #include <QPointer>
 #include <QLabel>
+#include <Base/Unit.h>
 #include <Gui/QuantitySpinBox.h>
 
 #include "SoDatumLabel.h"
@@ -38,6 +42,13 @@ class SoAnnotation;
 class SoSwitch;
 class SoEventCallback;
 class SoPickStyle;
+class QLineEdit;
+
+namespace App
+{
+class DocumentObject;
+class Expression;
+}  // namespace App
 
 namespace Gui
 {
@@ -101,6 +112,29 @@ public:
 
     Function getFunction();
 
+    /** @name User parameters (App/UserParameters.h)
+     * When an owner is set, accepting the input `name = expression`, `= expression` or an
+     * expression that is only valid with names of the owner's document (`2*myVar`) sets the
+     * value of the label and keeps the expression, so that the caller can bind the property it
+     * creates from the value (and create the user parameter `name` on the owner), and '='
+     * typed over the shown value starts an empty expression. Any other input keeps its usual
+     * meaning; without an owner the label behaves as before. */
+    //@{
+    void setUserParameterOwner(App::DocumentObject* owner);
+    /// True when the label was set from such an expression.
+    bool hasUserExpression() const;
+    /// The value of the expression when it was accepted (in internal units).
+    double getUserExpressionValue() const;
+    /// The name of the user parameter to create, empty for `= expression`.
+    const std::string& getUserParameterName() const;
+    /// The expression (parsed on the owner) giving the value of the label.
+    std::shared_ptr<App::Expression> getUserExpression() const;
+    /// The unit of the field when the expression was accepted.
+    const Base::Unit& getUserExpressionUnit() const;
+    /// Forget the expression once it has been bound (tools that bind at every step).
+    void clearUserExpression();
+    //@}
+
     // NOLINTBEGIN
     SoDatumLabel* label;
     bool isSet;  ///< used to differentiate when user has started typing inside the label
@@ -128,6 +162,16 @@ protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    enum class UserInput
+    {
+        NotApplicable,
+        Accepted,
+        Rejected
+    };
+    /// Whether an owner is set (setUserParameterOwner()) and the expressions can name its document.
+    bool acceptsUserExpressions() const;
+    UserInput acceptUserExpressionInput();
+    void setupUserParameterCompleter(QLineEdit* edit);
     bool syncValueFromSpinBox(bool emitParameterUnset = true);
     void handleSpinBoxValueChanged();
     void handleSpinBoxInputCleared();
@@ -154,6 +198,12 @@ private:
 
     Function function;
     double editStartValue;
+
+    App::DocumentObject* userParameterOwner {nullptr};
+    std::string userParameterName;
+    std::shared_ptr<App::Expression> userExpression;
+    Base::Unit userExpressionUnit;
+    double userExpressionValue {0.0};
 };
 
 }  // namespace Gui

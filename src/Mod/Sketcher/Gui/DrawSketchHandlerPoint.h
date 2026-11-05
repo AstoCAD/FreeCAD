@@ -272,7 +272,10 @@ void DSHPointController::addConstraints()
 
     using namespace Sketcher;
 
-    if (x0set && y0set && x0 == 0. && y0 == 0.) {
+    const bool x0Expression = hasUserExpression(OnViewParameter::First);
+    const bool y0Expression = hasUserExpression(OnViewParameter::Second);
+
+    if (x0set && y0set && x0 == 0. && y0 == 0. && !x0Expression && !y0Expression) {
         ConstraintToAttachment(
             GeoElementId(firstCurve, PointPos::start),
             GeoElementId::RtPnt,
@@ -282,20 +285,24 @@ void DSHPointController::addConstraints()
     }
     else {
         if (x0set) {
+            auto record = recordConstraintsOf(OnViewParameter::First);
             ConstraintToAttachment(
                 GeoElementId(firstCurve, PointPos::start),
                 GeoElementId::VAxis,
                 x0,
-                handler->sketchgui->getObject()
+                handler->sketchgui->getObject(),
+                x0Expression
             );
         }
 
         if (y0set) {
+            auto record = recordConstraintsOf(OnViewParameter::Second);
             ConstraintToAttachment(
                 GeoElementId(firstCurve, PointPos::start),
                 GeoElementId::HAxis,
                 y0,
-                handler->sketchgui->getObject()
+                handler->sketchgui->getObject(),
+                y0Expression
             );
         }
     }

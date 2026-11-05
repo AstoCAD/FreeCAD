@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 
+#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QEvent>
 #include <QKeyEvent>
@@ -65,7 +66,6 @@ void DrawSketchKeyboardManager::resetMode()
 
 bool DrawSketchKeyboardManager::eventFilter(QObject* object, QEvent* event)
 {
-    Q_UNUSED(object);
     if (!vpViewer) {
         return false;
     }
@@ -88,7 +88,7 @@ bool DrawSketchKeyboardManager::eventFilter(QObject* object, QEvent* event)
             return false;
         }
 
-        keyMode = detectKeyboardEventHandlingMode(keyEvent);  // determine the handler
+        keyMode = detectKeyboardEventHandlingMode(object, keyEvent);  // determine the handler
 
         if (isMode(KeyboardEventHandlingMode::ViewProvider)) {
             return QApplication::sendEvent(vpViewer, keyEvent);
@@ -100,6 +100,7 @@ bool DrawSketchKeyboardManager::eventFilter(QObject* object, QEvent* event)
 }
 
 DrawSketchKeyboardManager::KeyboardEventHandlingMode DrawSketchKeyboardManager::detectKeyboardEventHandlingMode(
+    QObject* object,
     QKeyEvent* keyEvent
 )
 {
@@ -123,8 +124,25 @@ DrawSketchKeyboardManager::KeyboardEventHandlingMode DrawSketchKeyboardManager::
         if (ch == '-' || ch == '.' || ch == ',') {
             return KeyboardEventHandlingMode::DSHControl;
         }
+        // '=' starts an expression (`= expression`, `= name = expression`), as in the other
+        // FreeCAD input fields. The names typed after it then go to the field like the units
+        // typed after a number, so the tool shortcuts (e.g. M) do not fire while typing.
+        if (ch == '=') {
+            return KeyboardEventHandlingMode::DSHControl;
+        }
+    }
+    // A field still holding an expression (e.g. one refused on Enter) keeps being edited.
+    if (holdsExpression(object)) {
+        return KeyboardEventHandlingMode::DSHControl;
     }
     return keyMode;
+}
+
+bool DrawSketchKeyboardManager::holdsExpression(QObject* object)
+{
+    // A quantity never contains '=': the text is an expression being typed.
+    auto* field = qobject_cast<QAbstractSpinBox*>(object);
+    return field && field->text().contains(QLatin1Char('='));
 }
 
 #include "moc_DrawSketchKeyboardManager.cpp"

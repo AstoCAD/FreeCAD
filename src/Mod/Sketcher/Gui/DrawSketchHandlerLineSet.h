@@ -2148,14 +2148,29 @@ void DSHPolyLineController::addStepConstraints()
         };
 
         auto constraintx0 = [&]() {
-            ConstraintToAttachment(GeoElementId(lastCurve, PointPos::start), GeoElementId::VAxis, x0, obj);
+            auto record = recordConstraintsOf(OnViewParameter::First);
+            ConstraintToAttachment(
+                GeoElementId(lastCurve, PointPos::start),
+                GeoElementId::VAxis,
+                x0,
+                obj,
+                hasUserExpression(OnViewParameter::First)
+            );
         };
 
         auto constrainty0 = [&]() {
-            ConstraintToAttachment(GeoElementId(lastCurve, PointPos::start), GeoElementId::HAxis, y0, obj);
+            auto record = recordConstraintsOf(OnViewParameter::Second);
+            ConstraintToAttachment(
+                GeoElementId(lastCurve, PointPos::start),
+                GeoElementId::HAxis,
+                y0,
+                obj,
+                hasUserExpression(OnViewParameter::Second)
+            );
         };
 
-        if (x0set && y0set && x0 == 0. && y0 == 0.) {
+        if (x0set && y0set && x0 == 0. && y0 == 0. && !hasUserExpression(OnViewParameter::First)
+            && !hasUserExpression(OnViewParameter::Second)) {
             constraintToOrigin();
         }
         else {
@@ -2180,6 +2195,7 @@ void DSHPolyLineController::addStepConstraints()
 
     if (handler->constructionMethod() == ConstructionMethod::Line) {
         if (p3set) {
+            auto record = recordConstraintsOf(OnViewParameter::Third);
             Gui::cmdAppObjectArgs(
                 obj,
                 "addConstraint(Sketcher.Constraint('Distance',%d,%f)) ",
@@ -2189,19 +2205,22 @@ void DSHPolyLineController::addStepConstraints()
         }
 
         if (p4set) {
+            auto record = recordConstraintsOf(OnViewParameter::Fourth);
+            const bool expression = hasUserExpression(OnViewParameter::Fourth);
             if (handler->geoEltIds.size() > 1) {
                 if (!handler->isPreviousArc()) {
                     int prevCurve = handler->geoEltIds[handler->geoEltIds.size() - 2].GeoId;
-                    Constraint2LinesByAngle(prevCurve, lastCurve, Base::toRadians(p4), obj);
+                    Constraint2LinesByAngle(prevCurve, lastCurve, Base::toRadians(p4), obj, expression);
                 }
             }
             else {
-                ConstraintLineByAngle(lastCurve, Base::toRadians(p4), obj);
+                ConstraintLineByAngle(lastCurve, Base::toRadians(p4), obj, expression);
             }
         }
     }
     else {
         if (p3set) {
+            auto record = recordConstraintsOf(OnViewParameter::Third);
             Gui::cmdAppObjectArgs(
                 obj,
                 "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ",
@@ -2211,6 +2230,7 @@ void DSHPolyLineController::addStepConstraints()
         }
 
         if (p4set) {
+            auto record = recordConstraintsOf(OnViewParameter::Fourth);
             Gui::cmdAppObjectArgs(
                 obj,
                 "addConstraint(Sketcher.Constraint('Angle',%d,%f)) ",
@@ -2219,6 +2239,10 @@ void DSHPolyLineController::addStepConstraints()
             );
         }
     }
+
+    // The polyline adds its constraints segment by segment, inside its single command: bind the
+    // expressions typed in the on-view parameters of this segment now.
+    bindOnViewParameterExpressions();
 }
 
 }  // namespace SketcherGui

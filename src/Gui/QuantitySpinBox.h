@@ -157,6 +157,18 @@ public:
     bool isCheckedRangeInExpresion() const;
 
     Base::Quantity valueFromText(const QString& text) const;
+    /**
+     * Interpret @p text with the expression grammar, resolving names from the owner of
+     * @p context, with the units and range of this spin box. Does not change the spin box.
+     * For unbound fields that accept expressions naming document values (Sketcher on-view
+     * parameters). Returns nullptr and sets @p error when the text is not acceptable.
+     */
+    std::shared_ptr<App::Expression> interpretExpression(
+        const QString& text,
+        const App::ObjectIdentifier& context,
+        Base::Quantity& quantity,
+        QString& error
+    ) const;
     QString textFromValue(const Base::Quantity& val) const;
     void stepBy(int steps) override;
     void clear() override;

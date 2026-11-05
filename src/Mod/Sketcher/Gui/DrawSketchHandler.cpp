@@ -1240,15 +1240,40 @@ bool DrawSketchHandler::seekTangentAutoConstraint(
 
 void DrawSketchHandler::openCommand(const std::string& name)
 {
+    if (commandCommitPending) {
+        // A held command is complete before the next one starts.
+        commandCommitPending = false;
+        Gui::Command::commitCommand(currentTransactionID);
+    }
     currentTransactionID = sketchgui->getDocument()->openCommand(name.c_str());
 }
 void DrawSketchHandler::commitCommand()
 {
+    if (commandCommitHeld) {
+        commandCommitPending = true;
+        return;
+    }
     Gui::Command::commitCommand(currentTransactionID);
 }
 void DrawSketchHandler::abortCommand()
 {
+    if (commandCommitPending) {
+        // As after a commit, a command that was committed cannot be aborted.
+        return;
+    }
     Gui::Command::abortCommand(currentTransactionID);
+}
+void DrawSketchHandler::holdCommandCommit()
+{
+    commandCommitHeld = true;
+}
+void DrawSketchHandler::releaseCommandCommit()
+{
+    commandCommitHeld = false;
+    if (commandCommitPending) {
+        commandCommitPending = false;
+        Gui::Command::commitCommand(currentTransactionID);
+    }
 }
 
 int DrawSketchHandler::seekAutoConstraint(

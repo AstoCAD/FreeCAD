@@ -819,24 +819,29 @@ void DSHEllipseController::addConstraints()
             // always goes with firstRadiusSet.
 
             auto constraintx0 = [&]() {
+                auto record = recordConstraintsOf(OnViewParameter::First);
                 ConstraintToAttachment(
                     GeoElementId(firstCurve, PointPos::mid),
                     GeoElementId::VAxis,
                     x0,
-                    handler->sketchgui->getObject()
+                    handler->sketchgui->getObject(),
+                    hasUserExpression(OnViewParameter::First)
                 );
             };
 
             auto constrainty0 = [&]() {
+                auto record = recordConstraintsOf(OnViewParameter::Second);
                 ConstraintToAttachment(
                     GeoElementId(firstCurve, PointPos::mid),
                     GeoElementId::HAxis,
                     y0,
-                    handler->sketchgui->getObject()
+                    handler->sketchgui->getObject(),
+                    hasUserExpression(OnViewParameter::Second)
                 );
             };
 
             auto constraintFirstRadius = [&]() {
+                auto record = recordConstraintsOf(OnViewParameter::Third);
                 Gui::cmdAppObjectArgs(
                     handler->sketchgui->getObject(),
                     "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%f)) ",
@@ -849,6 +854,7 @@ void DSHEllipseController::addConstraints()
             };
 
             auto constraintSecondRadius = [&]() {
+                auto record = recordConstraintsOf(OnViewParameter::Fifth);
                 Gui::cmdAppObjectArgs(
                     handler->sketchgui->getObject(),
                     "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%f)) ",
@@ -861,6 +867,7 @@ void DSHEllipseController::addConstraints()
             };
 
             auto constraintAngle = [&]() {
+                auto record = recordConstraintsOf(OnViewParameter::Fourth);
                 Gui::cmdAppObjectArgs(
                     handler->sketchgui->getObject(),
                     "addConstraint(Sketcher.Constraint('Angle',%d,%f)) ",

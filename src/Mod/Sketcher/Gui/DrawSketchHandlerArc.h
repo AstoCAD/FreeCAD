@@ -880,15 +880,35 @@ void DSHArcController::addConstraints()
         ? PointPos::mid
         : handler->arcPos1;
 
+    const bool x0Expression = hasUserExpression(OnViewParameter::First);
+    const bool y0Expression = hasUserExpression(OnViewParameter::Second);
+    const bool p3Expression = hasUserExpression(OnViewParameter::Third);
+    const bool p4Expression = hasUserExpression(OnViewParameter::Fourth);
+
     auto constraintx0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, pos1), GeoElementId::VAxis, x0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::First);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, pos1),
+            GeoElementId::VAxis,
+            x0,
+            obj,
+            x0Expression
+        );
     };
 
     auto constrainty0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, pos1), GeoElementId::HAxis, y0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::Second);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, pos1),
+            GeoElementId::HAxis,
+            y0,
+            obj,
+            y0Expression
+        );
     };
 
     auto constraintp3radius = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Third);
         Gui::cmdAppObjectArgs(
             obj,
             "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ",
@@ -898,6 +918,7 @@ void DSHArcController::addConstraints()
     };
 
     auto constraintp5angle = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Fifth);
         Gui::cmdAppObjectArgs(
             obj,
             "addConstraint(Sketcher.Constraint('Angle',%d,%f)) ",
@@ -907,16 +928,30 @@ void DSHArcController::addConstraints()
     };
 
     auto constraintp3x = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, handler->arcPos2), GeoElementId::VAxis, p3, obj);
+        auto record = recordConstraintsOf(OnViewParameter::Third);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, handler->arcPos2),
+            GeoElementId::VAxis,
+            p3,
+            obj,
+            p3Expression
+        );
     };
 
     auto constraintp4y = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, handler->arcPos2), GeoElementId::HAxis, p4, obj);
+        auto record = recordConstraintsOf(OnViewParameter::Fourth);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, handler->arcPos2),
+            GeoElementId::HAxis,
+            p4,
+            obj,
+            p4Expression
+        );
     };
 
 
     if (handler->AutoConstraints.empty()) {  // No valid diagnosis. Every constraint can be added.
-        if (x0set && y0set && x0 == 0. && y0 == 0.) {
+        if (x0set && y0set && x0 == 0. && y0 == 0. && !x0Expression && !y0Expression) {
             ConstraintToAttachment(GeoElementId(firstCurve, pos1), GeoElementId::RtPnt, 0., obj);
         }
         else {
@@ -939,7 +974,7 @@ void DSHArcController::addConstraints()
             }
         }
         else {
-            if (p3set && p4set && p3 == 0. && p4 == 0.) {
+            if (p3set && p4set && p3 == 0. && p4 == 0. && !p3Expression && !p4Expression) {
                 ConstraintToAttachment(
                     GeoElementId(firstCurve, handler->arcPos2),
                     GeoElementId::RtPnt,

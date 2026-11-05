@@ -516,24 +516,42 @@ void DSHPolygonController::addConstraints()
     using namespace Sketcher;
 
     auto constraintx0 = [&]() {
-        ConstraintToAttachment(GeoElementId(lastCurve, PointPos::mid), GeoElementId::VAxis, x0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::First);
+        ConstraintToAttachment(
+            GeoElementId(lastCurve, PointPos::mid),
+            GeoElementId::VAxis,
+            x0,
+            obj,
+            hasUserExpression(OnViewParameter::First)
+        );
     };
 
     auto constrainty0 = [&]() {
-        ConstraintToAttachment(GeoElementId(lastCurve, PointPos::mid), GeoElementId::HAxis, y0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::Second);
+        ConstraintToAttachment(
+            GeoElementId(lastCurve, PointPos::mid),
+            GeoElementId::HAxis,
+            y0,
+            obj,
+            hasUserExpression(OnViewParameter::Second)
+        );
     };
 
     auto constraintradius = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Third);
         Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ", lastCurve, radius);
     };
 
     auto constraintAngle = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Fourth);
         int circleGeoId = lastCurve;
         int lastSideGeoId = lastCurve - 1;
+        // an expression needs the angle constraint
+        const bool angleExpression = hasUserExpression(OnViewParameter::Fourth);
 
         using std::numbers::pi;
         // for horizontal/vertical angles add according constraint instead of angle constraint
-        if (fabs(std::remainder(angle, pi)) < Precision::Confusion()) {
+        if (!angleExpression && fabs(std::remainder(angle, pi)) < Precision::Confusion()) {
             Gui::cmdAppObjectArgs(
                 obj,
                 "addConstraint(Sketcher.Constraint('Horizontal',%d,%d,%d,%d)) ",
@@ -543,7 +561,7 @@ void DSHPolygonController::addConstraints()
                 static_cast<int>(PointPos::end)
             );
         }
-        else if (fabs(std::remainder(angle, pi / 2)) < Precision::Confusion()) {
+        else if (!angleExpression && fabs(std::remainder(angle, pi / 2)) < Precision::Confusion()) {
             Gui::cmdAppObjectArgs(
                 obj,
                 "addConstraint(Sketcher.Constraint('Vertical',%d,%d,%d,%d)) ",
