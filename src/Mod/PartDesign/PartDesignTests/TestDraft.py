@@ -79,6 +79,40 @@ class TestDraft(unittest.TestCase):
             self.Doc.recompute()
         self.assertAlmostEqual(self.Draft.Shape.Volume, 1500)
 
+    def testFaceThatCannotBeDraftedIsSkipped(self):
+        # The top face of the box is parallel to the neutral plane, so OCCT
+        # cannot draft it.  It must be skipped and the other faces drafted,
+        # whatever the Reversed setting (it used to fail when not reversed).
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        box = body.newObject("PartDesign::AdditiveBox", "Box")
+        box.Length = 20.0
+        box.Width = 20.0
+        box.Height = 10.0
+        self.Doc.recompute()
+        xyPlane = [f for f in body.Origin.OriginFeatures if f.Role == "XY_Plane"][0]
+
+        def draftVolume(faces, reversed):
+            draft = body.newObject("PartDesign::Draft", "Draft")
+            draft.Base = (box, faces)
+            draft.NeutralPlane = (xyPlane, [""])
+            draft.Angle = 5.0
+            draft.Reversed = reversed
+            self.Doc.recompute()
+            valid = draft.isValid()
+            volume = draft.Shape.Volume if valid else None
+            body.removeObject(draft)
+            self.Doc.removeObject(draft.Name)
+            self.Doc.recompute()
+            return valid, volume
+
+        for reversed in (False, True):
+            valid, expected = draftVolume(["Face1", "Face2"], reversed)
+            self.assertTrue(valid)
+            for faces in (["Face1", "Face2", "Face6"], ["Face6", "Face1", "Face2"]):
+                valid, volume = draftVolume(faces, reversed)
+                self.assertTrue(valid, "faces %s, Reversed %s" % (faces, reversed))
+                self.assertAlmostEqual(volume, expected, places=6)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestDraft")

@@ -323,7 +323,9 @@ App::DocumentObjectExecReturn* Draft::execute()
         std::vector<TopoShape> faces = getFaces(baseShape);
 
         TopoShape shape({}, getDocument()->getStringHasher());
-        shape.makeElementDraft(baseShape, faces, pullDirection, angle, neutralPlane, reversed);
+        // Always retry without the faces that cannot be drafted (the 'retry' argument is
+        // unrelated to the Reversed property, which is already applied to the angle above).
+        shape.makeElementDraft(baseShape, faces, pullDirection, angle, neutralPlane, true);
 
         if (shape.isNull()) {
             return new App::DocumentObjectExecReturn(

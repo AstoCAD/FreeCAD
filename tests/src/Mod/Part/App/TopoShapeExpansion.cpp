@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include "src/App/InitApplication.h"
 #include <App/Application.h>
+#include <Base/Console.h>
 #include <Base/Exception.h>
 #include <Mod/Part/App/TopoShape.h>
 #include "Mod/Part/App/TopoShapeMapper.h"
@@ -1743,6 +1744,66 @@ TEST_F(TopoShapeExpansionTest, makeElementDraftTopoShapes)
     EXPECT_NEAR(getVolume(result.getShape()), 4.3333333333, 1e-06);  // Truncated pyramid
     EXPECT_EQ(result2.getElementMap().size(), 26);
     EXPECT_EQ(result3.getElementMap().size(), 26);
+}
+
+namespace
+{
+class WarningCollector final: public Base::ILogger
+{
+public:
+    void sendLog(
+        const std::string& /*notifiername*/,
+        const std::string& msg,
+        Base::LogStyle level,
+        Base::IntendedRecipient /*recipient*/,
+        Base::ContentType /*content*/
+    ) override
+    {
+        if (level == Base::LogStyle::Warning) {
+            warnings.push_back(msg);
+        }
+    }
+
+    const char* name() override
+    {
+        return "TopoShapeDraftWarningCollector";
+    }
+
+    std::vector<std::string> warnings;
+};
+}  // namespace
+
+TEST_F(TopoShapeExpansionTest, makeElementDraftNamesSkippedFace)
+{
+    // Arrange: the top face of the cube is parallel to the neutral plane and cannot be drafted
+    auto [cube1, cube2] = CreateTwoCubes();
+    boost::ignore_unused(cube2);
+    TopoShape cube1TS {cube1, 1L};
+    std::vector<TopoShape> faces {cube1TS.getSubTopoShape("Face1"), cube1TS.getSubTopoShape("Face6")};
+    const gp_Dir pullDirection {0, 0, 1};
+    double angle {std::numbers::pi * 10 / 8};
+    const gp_Pln plane {};
+    WarningCollector collector;
+    Base::Console().attachObserver(&collector);
+    // Act
+    TopoShape result;
+    try {
+        result = cube1TS.makeElementDraft(faces, pullDirection, angle, plane);
+    }
+    catch (...) {
+        Base::Console().detachObserver(&collector);
+        throw;
+    }
+    Base::Console().detachObserver(&collector);
+    // Assert: the face is skipped, and the warning says which one
+    EXPECT_FALSE(result.isNull());
+    bool named = false;
+    for (const auto& msg : collector.warnings) {
+        if (msg.find("Face6") != std::string::npos) {
+            named = true;
+        }
+    }
+    EXPECT_TRUE(named);
 }
 
 TEST_F(TopoShapeExpansionTest, linearizeEdge)
