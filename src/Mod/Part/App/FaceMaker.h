@@ -175,5 +175,20 @@ protected:
     void Build_Essence() override;
 };
 
+/**
+ * @brief The facemakers that Part features offer as their FaceMakerMode enumeration
+ * (Part::Extrusion, Part::Revolution), and the FaceMakerClass each value selects.
+ * Documents save the values: never remove or reorder them.
+ */
+namespace FaceMakerModes
+{
+/// The enumeration values, nullptr-terminated, as App::PropertyEnumeration::setEnums() takes them.
+PartExport const char** enums();
+/// The facemaker class of an enumeration value, or nullptr when it is not one of them.
+PartExport const char* classOfMode(const char* mode);
+/// The enumeration value of a facemaker class, or nullptr when it is not one of them.
+PartExport const char* modeOfClass(const char* className);
+}  // namespace FaceMakerModes
+
 
 }  // namespace Part

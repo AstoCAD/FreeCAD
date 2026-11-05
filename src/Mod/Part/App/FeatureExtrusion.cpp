@@ -58,48 +58,25 @@ const char* Extrusion::eInnerWireTaperStrings[] = {"Inverted", "SameAsOuter", nu
 
 namespace
 {
-std::vector<std::string> MakerEnums = {"Simple", "Cheese", "Extrusion", "Bullseye", "Unified"};
+// A list of strings, so that documents save it as a custom enumeration
+const std::vector<std::string> MakerEnums = [] {
+    std::vector<std::string> enums;
+    for (const char** mode = FaceMakerModes::enums(); *mode; ++mode) {
+        enums.emplace_back(*mode);
+    }
+    return enums;
+}();
 
 const char* enumToClass(const char* mode)
 {
-    if (MakerEnums.at(0) == mode) {
-        return "Part::FaceMakerSimple";
-    }
-    if (MakerEnums.at(1) == mode) {
-        return "Part::FaceMakerCheese";
-    }
-    if (MakerEnums.at(2) == mode) {
-        return "Part::FaceMakerExtrusion";
-    }
-    if (MakerEnums.at(3) == mode) {
-        return "Part::FaceMakerBullseye";
-    }
-    if (MakerEnums.at(4) == mode) {
-        return "Part::FaceMakerUnified";
-    }
-
-    return "Part::FaceMakerUnified";
+    const char* type = FaceMakerModes::classOfMode(mode);
+    return type ? type : "Part::FaceMakerUnified";
 }
 
 const char* classToEnum(const char* type)
 {
-    if (strcmp(type, "Part::FaceMakerSimple") == 0) {
-        return MakerEnums.at(0).c_str();
-    }
-    if (strcmp(type, "Part::FaceMakerCheese") == 0) {
-        return MakerEnums.at(1).c_str();
-    }
-    if (strcmp(type, "Part::FaceMakerExtrusion") == 0) {
-        return MakerEnums.at(2).c_str();
-    }
-    if (strcmp(type, "Part::FaceMakerBullseye") == 0) {
-        return MakerEnums.at(3).c_str();
-    }
-    if (strcmp(type, "Part::FaceMakerUnified") == 0) {
-        return MakerEnums.at(4).c_str();
-    }
-
-    return MakerEnums.at(4).c_str();
+    const char* mode = FaceMakerModes::modeOfClass(type);
+    return mode ? mode : MakerEnums.at(4).c_str();
 }
 
 void restoreFaceMakerMode(Extrusion* self)

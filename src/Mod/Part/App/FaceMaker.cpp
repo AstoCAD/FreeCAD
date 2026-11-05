@@ -30,6 +30,7 @@
 #include <QtGlobal>
 
 
+#include <cstring>
 #include <memory>
 
 #include "FaceMaker.h"
@@ -346,4 +347,42 @@ void Part::FaceMakerSimple::Build_Essence()
     for (TopoDS_Wire& w : myWires) {
         this->myShapesToReturn.push_back(BRepBuilderAPI_MakeFace(w).Shape());
     }
+}
+
+namespace
+{
+const char* faceMakerModes[] = {"Simple", "Cheese", "Extrusion", "Bullseye", "Unified", nullptr};
+const char* faceMakerClasses[] = {
+    "Part::FaceMakerSimple",
+    "Part::FaceMakerCheese",
+    "Part::FaceMakerExtrusion",
+    "Part::FaceMakerBullseye",
+    "Part::FaceMakerUnified",
+    nullptr,
+};
+}  // namespace
+
+const char** Part::FaceMakerModes::enums()
+{
+    return faceMakerModes;
+}
+
+const char* Part::FaceMakerModes::classOfMode(const char* mode)
+{
+    for (int i = 0; mode && faceMakerModes[i]; ++i) {
+        if (std::strcmp(mode, faceMakerModes[i]) == 0) {
+            return faceMakerClasses[i];
+        }
+    }
+    return nullptr;
+}
+
+const char* Part::FaceMakerModes::modeOfClass(const char* className)
+{
+    for (int i = 0; className && faceMakerClasses[i]; ++i) {
+        if (std::strcmp(className, faceMakerClasses[i]) == 0) {
+            return faceMakerModes[i];
+        }
+    }
+    return nullptr;
 }
