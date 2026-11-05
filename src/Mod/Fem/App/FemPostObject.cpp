@@ -168,6 +168,9 @@ std::string vtkWriterExtension(const vtkSmartPointer<vtkDataObject>& dataObject)
 void FemPostObject::writeVTK(const char* filename) const
 {
     const vtkSmartPointer<vtkDataObject>& data = Data.getValue();
+    if (!data) {
+        throw Base::ValueError("No data to write");
+    }
 
     // set appropriate filename extension
     std::string name(filename);
