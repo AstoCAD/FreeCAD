@@ -222,6 +222,11 @@ PyObject* HLRBRep_PolyAlgoPy::nextHide(PyObject* args)
         return nullptr;
     }
 
+    // stepping past the last edge advances an exhausted list iterator
+    if (!getHLRBRep_PolyAlgoPtr()->MoreHide()) {
+        PyErr_SetString(PyExc_RuntimeError, "No more hidden edges: check moreHide() first");
+        return nullptr;
+    }
     getHLRBRep_PolyAlgoPtr()->NextHide();
     Py_Return;
 }
@@ -252,6 +257,11 @@ PyObject* HLRBRep_PolyAlgoPy::nextShow(PyObject* args)
         return nullptr;
     }
 
+    // stepping past the last edge advances an exhausted list iterator
+    if (!getHLRBRep_PolyAlgoPtr()->MoreShow()) {
+        PyErr_SetString(PyExc_RuntimeError, "No more visible edges: check moreShow() first");
+        return nullptr;
+    }
     getHLRBRep_PolyAlgoPtr()->NextShow();
     Py_Return;
 }

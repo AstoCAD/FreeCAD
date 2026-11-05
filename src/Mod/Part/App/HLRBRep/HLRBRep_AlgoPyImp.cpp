@@ -29,6 +29,7 @@
 #include <gp_Ax2.hxx>
 #include <gp_Pnt.hxx>
 #include <HLRAlgo_Projector.hxx>
+#include <HLRBRep_Data.hxx>
 
 #include <boost/math/special_functions/fpclassify.hpp>
 
@@ -276,6 +277,11 @@ PyObject* HLRBRep_AlgoPy::initEdgeStatus(PyObject* args)
         return nullptr;
     }
 
+    // InitEdgeStatus() dereferences the data structure, which only exists after update()
+    if (getHLRBRep_AlgoPtr()->DataStructure().IsNull()) {
+        PyErr_SetString(PyExc_RuntimeError, "No data structure: add a shape and call update()");
+        return nullptr;
+    }
     getHLRBRep_AlgoPtr()->InitEdgeStatus();
     Py_Return;
 }
