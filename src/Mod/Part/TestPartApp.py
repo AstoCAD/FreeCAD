@@ -1828,6 +1828,19 @@ class PartShapeContentTests(unittest.TestCase):
         self.assertIn("Volume", self._content(mixed))
 
 
+class PartShapeFromMeshTests(unittest.TestCase):
+    def testFacetWithInvalidPointIndexRaises(self):
+        v = Base.Vector
+        points = [v(0, 0, 0), v(1, 0, 0), v(0, 1, 0)]
+        for facet in ((0, 1, 3), (0, 5, 1), (-1, 0, 1)):
+            with self.subTest(facet=facet):
+                with self.assertRaises(ValueError):
+                    Part.Shape().makeShapeFromMesh((points, [facet]), 0.1)
+        shape = Part.Shape()
+        shape.makeShapeFromMesh((points, [(0, 1, 2)]), 0.1, False)
+        self.assertEqual(len(shape.Faces), 1)
+
+
 class PartConstructorExceptionTests(unittest.TestCase):
     """A C++ exception thrown while constructing a Python object must become a Python
     exception instead of terminating the application."""

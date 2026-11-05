@@ -3703,6 +3703,11 @@ void TopoShape::setFaces(
         return Edges[key];
     };
     for (const auto& it : Topo) {
+        // Facets with an invalid point index are skipped (see below), and must not
+        // access Vertexes out of range here
+        if (it.I1 >= ctPoints || it.I2 >= ctPoints || it.I3 >= ctPoints) {
+            continue;
+        }
         CreateEdge(it.I1, it.I2);
         CreateEdge(it.I2, it.I3);
         CreateEdge(it.I3, it.I1);
