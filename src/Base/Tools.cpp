@@ -190,10 +190,17 @@ std::string Base::Tools::escapedUnicodeToUtf8(const std::string& s)
     PyObject* unicode
         = PyUnicode_DecodeUnicodeEscape(s.c_str(), static_cast<Py_ssize_t>(s.size()), "strict");
     if (!unicode) {
+        PyErr_Clear();
         return string;
     }
     if (PyUnicode_Check(unicode)) {
-        string = PyUnicode_AsUTF8(unicode);
+        // a lone surrogate escape (e.g. \ud800) decodes but has no UTF-8 form
+        if (const char* utf8 = PyUnicode_AsUTF8(unicode)) {
+            string = utf8;
+        }
+        else {
+            PyErr_Clear();
+        }
     }
     Py_DECREF(unicode);
     return string;
