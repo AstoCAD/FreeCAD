@@ -50,3 +50,17 @@ class TestApproxSurface(unittest.TestCase):
         self.assertEqual(surface.NbVPoles, 6)
         point = surface.value(0.5, 0.5)
         self.assertTrue(0.0 <= point.x <= 7.0)
+
+
+class TestApproxCurve(unittest.TestCase):
+    def test_min_degree_above_max_degree_is_rejected(self):
+        # GeomAPI_PointsToBSpline never returned for MinDegree > MaxDegree
+        points = [(float(i), float(i * i) * 0.1, 0.0) for i in range(10)]
+        with self.assertRaises(RuntimeError):
+            ReverseEngineering.approxCurve(Points=points, MinDegree=8, MaxDegree=2)
+        with self.assertRaises(RuntimeError):
+            ReverseEngineering.approxCurve(
+                Points=points, ParametrizationType="Uniform", MinDegree=5, MaxDegree=4
+            )
+        curve = ReverseEngineering.approxCurve(Points=points, MinDegree=3, MaxDegree=8)
+        self.assertGreaterEqual(curve.Degree, 3)
