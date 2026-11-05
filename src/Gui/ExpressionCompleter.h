@@ -89,6 +89,10 @@ public:
 
     void setNoProperty(bool enabled = true);
 
+    /// Offer the user parameters of the document by their bare name (default). Disable it for
+    /// inputs that do not resolve bare user parameter names (App::UserParameters).
+    void setUserParameters(bool enabled = true);
+
 public Q_SLOTS:
     void slotUpdate(const QString& prefix, int pos);
 
@@ -105,6 +109,7 @@ private:
     App::ExpressionTokenizer tokenizer;
     bool noProperty;
     bool checkInList;
+    bool userParameters = true;
 };
 
 class GuiExport ExpressionLineEdit: public QLineEdit
@@ -123,6 +128,8 @@ public:
     bool completerActive() const;
     void hideCompleter();
     void setNoProperty(bool enabled = true);
+    /// See ExpressionCompleter::setUserParameters().
+    void setUserParameters(bool enabled = true);
     void setExactMatch(bool enabled = true);
     ExpressionCompleter* getCompleter(void);
 Q_SIGNALS:
@@ -144,6 +151,7 @@ private:
     bool exactMatch;
     bool checkInList;
     char checkPrefix;
+    bool userParameters = true;
 };
 
 class GuiExport ExpressionTextEdit: public QPlainTextEdit

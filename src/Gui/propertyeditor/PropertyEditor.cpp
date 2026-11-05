@@ -38,6 +38,7 @@
 
 #include <App/Application.h>
 #include <App/Document.h>
+#include <App/UserParameters.h>
 #include <Base/Console.h>
 #include <Base/Tools.h>
 #include <Gui/Command.h>
@@ -1375,7 +1376,13 @@ void PropertyEditor::contextMenuEvent(QContextMenuEvent*)
 
             std::string newName = res.toUtf8().constData();
             try {
-                prop->getContainer()->renameDynamicProperty(prop, newName.c_str());
+                if (App::UserParameters::isUserParameter(prop)) {
+                    // Keeps user parameter names unique in the document.
+                    App::UserParameters::rename(prop, newName);
+                }
+                else {
+                    prop->getContainer()->renameDynamicProperty(prop, newName.c_str());
+                }
             }
             catch (Base::Exception& e) {
                 App::GetApplication().abortTransaction(tid);

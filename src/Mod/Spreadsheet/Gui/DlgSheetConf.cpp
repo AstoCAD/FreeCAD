@@ -65,6 +65,9 @@ DlgSheetConf::DlgSheetConf(Sheet* sheet, Range range, QWidget* parent)
         &DlgSheetConf::onOrientationChanged
     );
 
+    // Names an enumeration property (a bare new name creates it on the sheet): a user parameter
+    // is never an enumeration, and resolving the bare name would change that meaning.
+    ui->lineEditProp->setUserParameters(false);
     ui->lineEditProp->setDocumentObject(sheet, false);
 
     connect(ui->btnDiscard, &QPushButton::clicked, this, &DlgSheetConf::onDiscard);

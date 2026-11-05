@@ -35,6 +35,7 @@
 #include <App/DocumentObject.h>
 #include <App/ExpressionParser.h>
 #include <App/ExpressionTokenizer.h>
+#include <App/UserParameters.h>
 #include <App/VarSet.h>
 #include <Base/Console.h>
 #include <Base/Tools.h>
@@ -85,12 +86,28 @@ DlgExpressionInput::DlgExpressionInput(
     connect(discardBtn, &QPushButton::clicked, this, &DlgExpressionInput::setDiscarded);
 
     if (expression) {
-        ui->expression->setPlainText(QString::fromStdString(expression->toString()));
+        // References to user parameters are stored qualified (Holder.name) but typed and shown
+        // by their name; the text is qualified again when it is parsed.
+        ui->expression->setPlainText(QString::fromStdString(
+            UserParameters::toDisplayString(path.getDocumentObject(), *expression)
+        ));
     }
     else {
         QVariant text = parent->property("text");
         if (text.canConvert<QString>()) {
-            ui->expression->setPlainText(text.toString());
+            // Typing `myVar` then `=` in a bound field opens this dialog: when the field holds a
+            // name that a new user parameter could take, continue the assignment `myVar = `.
+            const QString typed = text.toString().trimmed();
+            const DocumentObject* owner = path.getDocumentObject();
+            if (!typed.isEmpty()
+                && UserParameters::checkName(owner->getDocument(), typed.toStdString(), owner)
+                    == UserParameters::NameStatus::Available) {
+                ui->expression->setPlainText(typed + QStringLiteral(" = "));
+                ui->expression->moveCursor(QTextCursor::End);
+            }
+            else {
+                ui->expression->setPlainText(text.toString());
+            }
         }
     }
 
@@ -327,8 +344,14 @@ QPoint DlgExpressionInput::expressionPosition() const
 bool DlgExpressionInput::checkCyclicDependencyVarSet(const QString& text)
 {
     const auto formatting = ::Gui::numericLocaleContextFor(ui->expression->locale());
+    std::string source = text.toUtf8().constData();
+    std::string name;
+    std::string rhs;
+    if (UserParameters::splitAssignment(source, name, rhs)) {
+        source = rhs;
+    }
     std::shared_ptr<Expression> expr(
-        ExpressionParser::parseUserInput(path.getDocumentObject(), text.toUtf8().constData(), formatting)
+        ExpressionParser::parseUserInput(path.getDocumentObject(), source.c_str(), formatting)
     );
 
     if (expr) {
@@ -355,11 +378,30 @@ void DlgExpressionInput::checkExpression(const QString& text)
 {
     // now handle expression
     const auto formatting = ::Gui::numericLocaleContextFor(ui->expression->locale());
+    DocumentObject* owner = path.getDocumentObject();
+    userParameterName.clear();
+
+    // `name = expression` creates the user parameter `name` on the owner (see accept()). A single
+    // '=' is not expression syntax, so this does not change the meaning of any expression.
+    std::string source = text.toUtf8().constData();
+    std::string name;
+    std::string rhs;
+    if (UserParameters::splitAssignment(source, name, rhs)) {
+        const auto status = UserParameters::checkName(owner->getDocument(), name, owner);
+        if (status != UserParameters::NameStatus::Available) {
+            throw Base::NameError(UserParameters::nameStatusMessage(status, name));
+        }
+        source = rhs;
+    }
+
     std::shared_ptr<Expression> expr(
-        ExpressionParser::parseUserInput(path.getDocumentObject(), text.toUtf8().constData(), formatting)
+        ExpressionParser::parseUserInput(owner, source.c_str(), formatting)
     );
 
     if (expr) {
+        // A bare name that does not resolve otherwise may be a user parameter of another object.
+        UserParameters::qualifyReferences(owner, *expr);
+
         std::string error = path.getDocumentObject()->ExpressionEngine.validateExpression(path, expr);
 
         if (!error.empty()) {
@@ -413,6 +455,14 @@ void DlgExpressionInput::checkExpression(const QString& text)
                 numberRange.throwIfOutOfRange(value);
                 message = msg.toStdString();
             }
+        }
+
+        if (!name.empty()) {
+            if (!n) {
+                THROWMT(Base::TypeError, QT_TRANSLATE_NOOP("Exceptions", "A user parameter needs a numeric value"));
+            }
+            userParameterName = name;
+            message = name + " = " + message;
         }
 
         setMsgText();
@@ -683,10 +733,54 @@ void DlgExpressionInput::acceptWithVarSet()
     storePreferences(nameDoc.toStdString(), nameVarSet.toStdString(), group);
 }
 
+void DlgExpressionInput::acceptUserParameter()
+{
+    // `name = expression`: create the parameter on the owner of the edited property, then bind
+    // the edited property to it, both in one transaction (one undo step). The caller binds
+    // `expression` again after the dialog is accepted, which then changes nothing
+    // (PropertyExpressionEngine::setValue ignores the same expression).
+    DocumentObject* owner = path.getDocumentObject();
+    App::Document* doc = owner->getDocument();
+    const bool ownTransaction = doc->getBookedTransactionID() == 0;
+    if (ownTransaction) {
+        doc->openTransaction(QT_TRANSLATE_NOOP("Command", "Create user parameter"));
+    }
+    bool created = false;
+    try {
+        UserParameters::createParameter(owner, userParameterName, expression, impliedUnit);
+        created = true;
+        std::shared_ptr<Expression> binding(ExpressionParser::parse(owner, userParameterName.c_str()));
+        const std::string error = owner->ExpressionEngine.validateExpression(path, binding);
+        if (!error.empty()) {
+            throw Base::RuntimeError(error);
+        }
+        owner->setExpression(path, binding);
+        expression = binding;
+    }
+    catch (...) {
+        if (ownTransaction) {
+            doc->abortTransaction();
+        }
+        // Not recorded when no transaction could be opened, and the transaction of a task
+        // dialog stays open: do not leave an unused parameter behind.
+        if (created && owner->getDynamicPropertyByName(userParameterName.c_str())) {
+            owner->removeDynamicProperty(userParameterName.c_str());
+        }
+        throw;
+    }
+    if (ownTransaction) {
+        doc->commitTransaction();
+    }
+}
+
 void DlgExpressionInput::accept()
 {
     try {
-        if (varSetsVisible) {
+        if (!userParameterName.empty()) {
+            // An assignment takes precedence over "Store in VarSet".
+            acceptUserParameter();
+        }
+        else if (varSetsVisible) {
             if (needReportOnVarSet()) {
                 return;
             }

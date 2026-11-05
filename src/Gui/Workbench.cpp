@@ -731,7 +731,7 @@ MenuItem* StdWorkbench::setupMenuBar() const
     create->setCommand("Create");
     *create << "Std_Part"
             << "Std_Group"
-            << "Std_VarSet"
+            << "Std_ParametersGroup"
             << "Std_AnnotationLabel"
             << "Std_LinkActions"
             << "Separator"
@@ -872,7 +872,7 @@ ToolBarItem* StdWorkbench::setupToolBars() const
     file->setCommand("File");
     *file << "Std_NewGroup" << "Std_OpenGroup" << "Std_SaveGroup"
           << "Separator" << "Std_Undo" << "Std_Redo" << "Std_Refresh"
-          << "Separator" << "Std_Group" << "Std_VarSet" << "Std_TextDocument"
+          << "Separator" << "Std_Group" << "Std_ParametersGroup" << "Std_TextDocument"
           << "Separator" << "Std_Measure" << "Std_MassProperties" << "Std_ToolsGroup";
 
     // Workbench switcher

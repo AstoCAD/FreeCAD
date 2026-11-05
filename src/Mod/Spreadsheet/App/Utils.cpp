@@ -25,6 +25,11 @@
 
 #include <sstream>
 
+#include <App/Document.h>
+#include <App/ExpressionParser.h>
+#include <App/ObjectIdentifier.h>
+#include <App/UserParameters.h>
+#include <Base/Exception.h>
 
 #include "Sheet.h"
 #include "Utils.h"
@@ -237,4 +242,67 @@ std::string Spreadsheet::unquote(const std::string& input)
     }
 
     return output;
+}
+
+namespace
+{
+
+/// Finds the bare identifiers that name a cell (address or alias, even of an empty cell, which
+/// does not resolve) and also a user parameter.
+class CellNamedParameterFinder: public App::ExpressionVisitor
+{
+public:
+    explicit CellNamedParameterFinder(Spreadsheet::Sheet* sheet)
+        : sheet(sheet)
+    {}
+
+    void visit(App::Expression& expr) override
+    {
+        auto* var = freecad_cast<App::VariableExpression*>(&expr);
+        if (!var) {
+            return;
+        }
+        const App::ObjectIdentifier path = var->getPath();
+        const auto& components = path.getComponents();
+        if (path.hasDocumentObjectName() || path.isLocalProperty() || components.empty()
+            || !components[0].isSimple()) {
+            return;
+        }
+        const std::string& name = components[0].getName();
+        const bool cellName = App::UserParameters::isCellAddressName(name)
+            || !sheet->getAddressFromAlias(name).empty();
+        if (cellName && App::UserParameters::findParameter(sheet->getDocument(), name)) {
+            found = true;
+        }
+    }
+
+    Spreadsheet::Sheet* sheet;
+    bool found {false};
+};
+
+}  // namespace
+
+bool Spreadsheet::qualifyUserParameters(Sheet* sheet, std::string& content)
+{
+    if (!sheet || !sheet->getDocument() || content.size() < 2 || content[0] != '=') {
+        return false;
+    }
+    App::ExpressionPtr expr;
+    try {
+        expr = App::ExpressionParser::parse(sheet, content.c_str() + 1);
+    }
+    catch (const Base::Exception&) {
+        // Kept as typed: the cell shows the parse error as before.
+        return false;
+    }
+    if (!expr) {
+        return false;
+    }
+    CellNamedParameterFinder finder(sheet);
+    expr->visit(finder);
+    if (finder.found || App::UserParameters::qualifyReferences(sheet, *expr) == 0) {
+        return false;
+    }
+    content = "=" + expr->toString();
+    return true;
 }

@@ -134,6 +134,8 @@ SheetView::SheetView(Gui::Document* pcDocument, App::DocumentObject* docObj, QWi
 
     // Set document object to create auto completer
     ui->cellContent->setDocumentObject(sheet);
+    // An alias is a new name, not an expression: don't offer user parameters there.
+    ui->cellAlias->setUserParameters(false);
     ui->cellAlias->setDocumentObject(sheet);
 
     ui->cellContent->setPrefix('=');

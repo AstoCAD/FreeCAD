@@ -114,6 +114,9 @@ struct AppExport QuantityInputResult
     std::optional<Base::Quantity> quantity;
     /// Parsed expression retained for expression-capable consumers.
     std::shared_ptr<Expression> expression;
+    /// Number of bare identifiers of the expression resolved as user parameters of other objects
+    /// (see App/UserParameters.h). Such input is only valid thanks to that lookup.
+    int userParameterReferences {0};
     std::optional<InputDiagnostic> diagnostic;
 };
 

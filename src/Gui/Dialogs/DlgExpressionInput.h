@@ -123,6 +123,7 @@ private:
     void updateVarSetInfo(bool checkExpr = true);
     void createBindingVarSet(App::Property* propVarSet, App::DocumentObject* varSet);
     void acceptWithVarSet();
+    void acceptUserParameter();
     bool isPropertyNameValid(
         const QString& nameProp,
         const App::DocumentObject* obj,
@@ -149,6 +150,8 @@ private:
     NumberRange numberRange;
 
     std::string message;
+    /// Name of the user parameter to create on accept, for input `name = expression`.
+    std::string userParameterName;
 
     bool varSetsVisible;
     QPushButton* okBtn = nullptr;

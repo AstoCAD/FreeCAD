@@ -488,6 +488,8 @@ SET(Dialog_CPP_SRCS
     TaskElementColors.cpp
     Dialogs/DlgObjectSelection.cpp
     Dialogs/DlgAddProperty.cpp
+    Dialogs/DlgDocumentParameters.cpp
+    Dialogs/DocumentParameters.cpp
     VectorListEditor.cpp
 )
 
@@ -533,6 +535,8 @@ SET(Dialog_HPP_SRCS
     TaskElementColors.h
     Dialogs/DlgObjectSelection.h
     Dialogs/DlgAddProperty.h
+    Dialogs/DlgDocumentParameters.h
+    Dialogs/DocumentParameters.h
     VectorListEditor.h
 )
 
@@ -547,6 +551,7 @@ SET(Dialog_SRCS
     Dialogs/DlgAuthorization.ui
     Dialogs/DlgInputDialog.ui
     Dialogs/DlgAddProperty.ui
+    Dialogs/DlgDocumentParameters.ui
     Dialogs/DlgDocumentObject.ui
     Dialogs/DlgLocationAngle.ui
     Dialogs/DlgLocationPos.ui

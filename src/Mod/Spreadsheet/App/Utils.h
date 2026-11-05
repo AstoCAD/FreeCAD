@@ -45,4 +45,19 @@ SpreadsheetExport void createRectangles(
 SpreadsheetExport std::string quote(const std::string& input);
 SpreadsheetExport std::string unquote(const std::string& input);
 
+class Sheet;
+
+/**
+ * Resolve the user parameters (App::UserParameters) that the cell content @p content, as typed
+ * by the user into @p sheet, refers to by their bare name: `=2*myVar` becomes
+ * `=2 * Holder.myVar`.
+ *
+ * Only identifiers that do not resolve today are changed (see
+ * App::UserParameters::qualifyReferences): cells, aliases and the sheet's properties keep their
+ * meaning. Nothing is changed (returns false) for content that is not a formula or does not
+ * parse, and when a user parameter is named like a cell address or alias used in the formula
+ * (`=B5` keeps referring to the cell B5, even when it is empty).
+ */
+SpreadsheetExport bool qualifyUserParameters(Sheet* sheet, std::string& content);
+
 }  // namespace Spreadsheet
