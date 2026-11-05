@@ -189,6 +189,7 @@ SET(TDTest_SRCS
     TDTest/DrawCosmeticRemoveUndoTest.py
     TDTest/DrawEdgeWalkerNullEdgeTest.py
     TDTest/DrawNearestFractionTest.py
+    TDTest/DrawMakeCanonicalPointTest.py
     TDTest/DrawViewSectionCycleTest.py
     TDTest/DrawLeaderParentLoopTest.py
     TDTest/SketchAnnotationsTest.py

@@ -43,6 +43,7 @@ from TDTest.DrawCosmeticRefreshNoGeometryTest import DrawCosmeticRefreshNoGeomet
 from TDTest.DrawCosmeticRemoveUndoTest import DrawCosmeticRemoveUndoTest  # noqa: F401
 from TDTest.DrawEdgeWalkerNullEdgeTest import DrawEdgeWalkerNullEdgeTest  # noqa: F401
 from TDTest.DrawNearestFractionTest import DrawNearestFractionTest  # noqa: F401
+from TDTest.DrawMakeCanonicalPointTest import DrawMakeCanonicalPointTest  # noqa: F401
 from TDTest.DrawViewSectionCycleTest import DrawViewSectionCycleTest  # noqa: F401
 from TDTest.DrawLeaderParentLoopTest import DrawLeaderParentLoopTest  # noqa: F401
 from TDTest.DrawViewDetailConsoleTest import DrawViewDetailConsoleTest  # noqa: F401
