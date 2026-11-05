@@ -205,7 +205,13 @@ PyObject* PointsPy::fromSegment(PyObject* args) const
         pts->reserve(list.size());
         int numPoints = static_cast<int>(points->size());
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-            long index = static_cast<long>(Py::Long(*it));
+            Py::Long pyIndex(*it);
+            long index = PyLong_AsLong(pyIndex.ptr());
+            if (index == -1 && PyErr_Occurred()) {
+                // beyond the C long range: out of range like any other invalid index
+                PyErr_Clear();
+                continue;
+            }
             if (index >= 0 && index < numPoints) {
                 pts->push_back(points->getPoint(index));
             }
