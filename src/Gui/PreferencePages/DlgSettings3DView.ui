@@ -630,6 +630,189 @@ Set to 0 to redraw as fast as the graphics driver allows.</string>
           </property>
          </widget>
         </item>
+        <item row="7" column="0">
+         <widget class="QLabel" name="renderQualityLabel">
+          <property name="text">
+           <string>Rendering quality</string>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1">
+         <widget class="Gui::PrefComboBox" name="comboRenderQuality">
+          <property name="minimumSize">
+           <size>
+            <width>120</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>'Classic' is the traditional OpenGL lighting.
+'Enhanced' shades the faces of shapes and meshes with a physically based
+looking lighting and a soft environment light. Edges, points, text and
+selection colors are not changed. It needs OpenGL 2.0 with GLSL 1.20 and falls
+back to 'Classic' automatically when the graphics driver cannot run it.
+The environment variable FC_RENDER_CLASSIC=1 always forces 'Classic'.</string>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>RenderQuality</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+          <item>
+           <property name="text">
+            <string>Classic</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Enhanced</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="8" column="0">
+         <widget class="QLabel" name="renderEnvironmentLabel">
+          <property name="text">
+           <string>Environment lighting</string>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="1">
+         <widget class="Gui::PrefComboBox" name="comboRenderEnvironment">
+          <property name="minimumSize">
+           <size>
+            <width>120</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Soft environment light used by the 'Enhanced' rendering quality.
+It follows the camera, like the headlight.</string>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>RenderEnvironment</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+          <item>
+           <property name="text">
+            <string>Studio</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Neutral</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Interior</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="9" column="0" colspan="2">
+         <widget class="Gui::PrefCheckBox" name="CheckBox_RenderShadows">
+          <property name="toolTip">
+           <string>Soft shadows cast by a fixed light above the model ('Enhanced' rendering quality only).
+The shadows stay in place while the view is rotated. They need framebuffer objects and depth
+textures, and are switched off automatically when the graphics driver cannot provide them.</string>
+          </property>
+          <property name="text">
+           <string>Shadows</string>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>RenderShadows</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="0" colspan="2">
+         <widget class="Gui::PrefCheckBox" name="CheckBox_RenderFxaa">
+          <property name="toolTip">
+           <string>Smooth jagged edges with FXAA ('Enhanced' rendering quality only).
+It is used when multisample anti-aliasing is off; with multisampling on, the
+hardware anti-aliasing is kept unchanged.</string>
+          </property>
+          <property name="text">
+           <string>Smooth edges (FXAA) when multisampling is off</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>RenderFxaa</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="11" column="0">
+         <widget class="QLabel" name="renderSupersamplingLabel">
+          <property name="text">
+           <string>Image export supersampling</string>
+          </property>
+         </widget>
+        </item>
+        <item row="11" column="1">
+         <widget class="Gui::PrefSpinBox" name="SpinBox_RenderExportSupersampling">
+          <property name="toolTip">
+           <string>'Enhanced' rendering quality only: saved images are rendered this many times
+larger and filtered down, for smoother edges. Lines and markers get thinner by the same factor.</string>
+          </property>
+          <property name="suffix">
+           <string notr="true"> x</string>
+          </property>
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>4</number>
+          </property>
+          <property name="value">
+           <number>1</number>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>RenderExportSupersampling</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="12" column="0" colspan="2">
+         <widget class="Gui::PrefCheckBox" name="CheckBox_RenderAmbientOcclusion">
+          <property name="toolTip">
+           <string>Darken creases, corners and contact areas of faces with screen-space ambient
+occlusion ('Enhanced' rendering quality only). It is computed when the view stops
+moving, and left out while rotating, panning or zooming.</string>
+          </property>
+          <property name="text">
+           <string>Ambient occlusion</string>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>RenderAmbientOcclusion</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="13" column="0" colspan="2">
+         <widget class="QLabel" name="renderQualityStatus">
+          <property name="text">
+           <string notr="true"/>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
      </layout>

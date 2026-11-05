@@ -61,6 +61,7 @@
 #include <Inventor/C/glue/gl.h>
 
 #include <Gui/GLBuffer.h>
+#include <Gui/Render/FaceShading.h>
 #include <Gui/SoFCInteractiveElement.h>
 #include <Gui/Selection/SoFCSelectionAction.h>
 
@@ -527,6 +528,7 @@ void SoFCIndexedFaceSet::GLRender(SoGLRenderAction* action)
         if (render.matchMaterial(state)) {
             SoMaterialBundle mb(action);
             mb.sendFirst();
+            Gui::Render::FaceShadingScope shading(action);
             render.renderFacesGLArray(action);
         }
         else {
@@ -548,6 +550,8 @@ void SoFCIndexedFaceSet::drawFaces(SoGLRenderAction* action)
 
     unsigned int num = this->coordIndex.getNum() / 4;
     if (!mode || num <= this->renderTriangleLimit) {
+        // Faces only: the point cloud drawn while navigating big meshes stays Classic.
+        Gui::Render::FaceShadingScope shading(action);
 #ifdef RENDER_GLARRAYS
         SoMaterialBindingElement::Binding matbind = SoMaterialBindingElement::get(state);
 

@@ -1,0 +1,10 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/shaders/render">
+        <file>fc_face_shading.vert</file>
+        <file>fc_face_shading.frag</file>
+        <file>fc_fullscreen.vert</file>
+        <file>fc_fxaa.frag</file>
+        <file>fc_ssao.frag</file>
+    </qresource>
+</RCC>
