@@ -83,6 +83,7 @@ if(BUILD_GUI)
           SketcherTests/TestTextToolLastFontGui.py
           SketcherTests/TestAutoConstraintRedundancyGui.py
           SketcherTests/TestExternalInAssemblyGui.py
+          SketcherTests/TestSplitContinuousModeGui.py
     )
 endif(BUILD_GUI)
 
