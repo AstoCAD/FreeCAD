@@ -24,6 +24,9 @@
 
 #pragma once
 
+#include <functional>
+
+#include <fastsignals/signal.h>
 #include <gp_Pnt.hxx>
 #include <TopAbs_ShapeEnum.hxx>
 
@@ -145,8 +148,14 @@ protected:
     TopoDS_Shape getValidShape(App::DocumentObject* obj, const char* subName) const;
 
 private:
+    // References3D has no container, so the document does not break its links:
+    // drop the references to objects that are deleted
+    void removeReferences(const std::function<bool(const App::DocumentObject*)>& isGone);
+
     MeasureType measureType;
     Py::SmartPtr PythonObject;
+    fastsignals::scoped_connection connDeletedObject;
+    fastsignals::scoped_connection connDeleteDocument;
 };
 
 
