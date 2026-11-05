@@ -69,7 +69,8 @@ int MaterialPy::PyInit(PyObject* /*args*/, PyObject* /*kwd*/)
 Py::String MaterialPy::getLibraryName() const
 {
     auto library = getMaterialPtr()->getLibrary();
-    if (library->isLocal()) {
+    // a material that was never saved or loaded has no library
+    if (library && library->isLocal()) {
         auto materialLibrary =
             std::dynamic_pointer_cast<Materials::MaterialLibraryLocal>(library);
         return {materialLibrary ? materialLibrary->getName().toStdString() : ""};
@@ -80,7 +81,7 @@ Py::String MaterialPy::getLibraryName() const
 Py::String MaterialPy::getLibraryRoot() const
 {
     auto library = getMaterialPtr()->getLibrary();
-    if (library->isLocal()) {
+    if (library && library->isLocal()) {
         auto materialLibrary =
             std::dynamic_pointer_cast<Materials::MaterialLibraryLocal>(library);
         return {materialLibrary ? materialLibrary->getDirectoryPath().toStdString() : ""};
@@ -91,7 +92,7 @@ Py::String MaterialPy::getLibraryRoot() const
 Py::Object MaterialPy::getLibraryIcon() const
 {
     auto library = getMaterialPtr()->getLibrary();
-    if (library->isLocal()) {
+    if (library && library->isLocal()) {
         auto materialLibrary =
             std::dynamic_pointer_cast<Materials::MaterialLibraryLocal>(library);
         if (!materialLibrary) {
