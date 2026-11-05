@@ -1946,3 +1946,31 @@ class PartHLRBRepStateTests(unittest.TestCase):
         tool.update(algo)
         self.assertIsInstance(tool.vCompound(), Part.Shape)
         self.assertIsInstance(Part.HLRBRep.PolyHLRToShape(algo).hCompound(self.box), Part.Shape)
+
+
+class PartGeometryCreateInstanceTests(unittest.TestCase):
+    """Some geometry types have no OCCT object when default-constructed; wrapping
+    one for Python copied the null handle (access violation)."""
+
+    def testNullGeometryTypesRaise(self):
+        for name in (
+            "Part::GeomTrimmedCurve",
+            "Part::GeomOffsetCurve",
+            "Part::GeomOffsetSurface",
+            "Part::GeomPlateSurface",
+            "Part::GeomTrimmedSurface",
+            "Part::GeomSurfaceOfRevolution",
+            "Part::GeomSurfaceOfExtrusion",
+        ):
+            with self.subTest(name):
+                with self.assertRaises(ValueError):
+                    Base.TypeId.fromName(name).createInstance()
+
+    def testDefaultGeometryTypesStillWork(self):
+        circle = Base.TypeId.fromName("Part::GeomCircle").createInstance()
+        self.assertIsInstance(circle, Part.Circle)
+        line = Base.TypeId.fromName("Part::GeomLineSegment").createInstance()
+        self.assertIsInstance(line, Part.LineSegment)
+        self.assertIsInstance(str(line), str)
+        plane = Base.TypeId.fromName("Part::GeomPlane").createInstance()
+        self.assertIsInstance(plane, Part.Plane)

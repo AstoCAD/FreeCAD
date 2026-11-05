@@ -2453,6 +2453,9 @@ GeomTrimmedCurve::~GeomTrimmedCurve() = default;
 
 void GeomTrimmedCurve::setHandle(const Handle(Geom_TrimmedCurve) & c)
 {
+    if (c.IsNull()) {
+        throw Base::ValueError("GeomTrimmedCurve: null curve");
+    }
     this->myCurve = Handle(Geom_TrimmedCurve)::DownCast(c->Copy());
 }
 
@@ -4952,6 +4955,9 @@ double GeomOffsetCurve::getOffset() const
 
 void GeomOffsetCurve::setHandle(const Handle(Geom_OffsetCurve) & c)
 {
+    if (c.IsNull()) {
+        throw Base::ValueError("GeomOffsetCurve: null curve");
+    }
     this->myCurve = Handle(Geom_OffsetCurve)::DownCast(c->Copy());
 }
 
@@ -5950,6 +5956,9 @@ GeomOffsetSurface::~GeomOffsetSurface() = default;
 
 void GeomOffsetSurface::setHandle(const Handle(Geom_OffsetSurface) & s)
 {
+    if (s.IsNull()) {
+        throw Base::ValueError("GeomOffsetSurface: null surface");
+    }
     mySurface = Handle(Geom_OffsetSurface)::DownCast(s->Copy());
 }
 
@@ -6039,6 +6048,9 @@ GeomPlateSurface::~GeomPlateSurface() = default;
 
 void GeomPlateSurface::setHandle(const Handle(GeomPlate_Surface) & s)
 {
+    if (s.IsNull()) {
+        throw Base::ValueError("GeomPlateSurface: null surface");
+    }
     mySurface = Handle(GeomPlate_Surface)::DownCast(s->Copy());
 }
 
@@ -6096,6 +6108,9 @@ GeomTrimmedSurface::~GeomTrimmedSurface() = default;
 
 void GeomTrimmedSurface::setHandle(const Handle(Geom_RectangularTrimmedSurface) & s)
 {
+    if (s.IsNull()) {
+        throw Base::ValueError("GeomTrimmedSurface: null surface");
+    }
     mySurface = Handle(Geom_RectangularTrimmedSurface)::DownCast(s->Copy());
 }
 
@@ -6220,6 +6235,9 @@ GeomSurfaceOfRevolution::~GeomSurfaceOfRevolution() = default;
 
 void GeomSurfaceOfRevolution::setHandle(const Handle(Geom_SurfaceOfRevolution) & c)
 {
+    if (c.IsNull()) {
+        throw Base::ValueError("GeomSurfaceOfRevolution: null surface");
+    }
     mySurface = Handle(Geom_SurfaceOfRevolution)::DownCast(c->Copy());
 }
 
@@ -6276,6 +6294,9 @@ GeomSurfaceOfExtrusion::~GeomSurfaceOfExtrusion() = default;
 
 void GeomSurfaceOfExtrusion::setHandle(const Handle(Geom_SurfaceOfLinearExtrusion) & c)
 {
+    if (c.IsNull()) {
+        throw Base::ValueError("GeomSurfaceOfExtrusion: null surface");
+    }
     mySurface = Handle(Geom_SurfaceOfLinearExtrusion)::DownCast(c->Copy());
 }
 

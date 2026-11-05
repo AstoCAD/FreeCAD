@@ -186,7 +186,15 @@ void deallocPyObject(PyObject* py)
 
 PyObject* createPyObject(BaseClass* base)
 {
-    PyObject* py = base->getPyObject();
+    PyObject* py {};
+    try {
+        py = base->getPyObject();
+    }
+    catch (...) {
+        // e.g. a default-constructed object that cannot be wrapped
+        delete base;
+        throw;
+    }
 
     if (PyObject_TypeCheck(py, &PyObjectBase::Type)) {
         // if the Python wrapper is a sub-class of PyObjectBase then
