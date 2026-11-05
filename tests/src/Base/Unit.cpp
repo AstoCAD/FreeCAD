@@ -1,6 +1,7 @@
 #include "Base/Unit.h"
 #include <gtest/gtest.h>
 #include <Base/Exception.h>
+#include <limits>
 
 // NOLINTBEGIN
 using namespace Base;
@@ -119,6 +120,29 @@ TEST(Unit, one_root)
 TEST(Unit, TestPow3div2)
 {
     EXPECT_THROW([[maybe_unused]] auto res = Unit::Volume.pow(3.0 / 2.0), UnitsMismatchError);
+}
+
+TEST(Unit, pow_out_of_range_throws)
+{
+    // the exponents used to be cast to int8_t unchecked: Length.pow(256) gave One
+    EXPECT_THROW([[maybe_unused]] auto res = Unit::Length.pow(200), OverflowError);
+    EXPECT_THROW([[maybe_unused]] auto res = Unit::Length.pow(256), OverflowError);
+    EXPECT_THROW([[maybe_unused]] auto res = Unit::Length.pow(-200), UnderflowError);
+    EXPECT_THROW([[maybe_unused]] auto res = Unit::Length.pow(8), OverflowError);
+    EXPECT_THROW(
+        [[maybe_unused]] auto res = Unit::Length.pow(std::numeric_limits<double>::infinity()),
+        OverflowError
+    );
+    EXPECT_THROW(
+        [[maybe_unused]] auto res = Unit::Length.pow(std::numeric_limits<double>::quiet_NaN()),
+        UnitsMismatchError
+    );
+    EXPECT_EQ(Unit::Length.pow(7), Unit(7));
+    EXPECT_EQ(Unit::Length.pow(-8), Unit(-8));
+    // zero exponents stay zero for any power
+    EXPECT_EQ(Unit::One.pow(std::numeric_limits<double>::infinity()), Unit::One);
+    EXPECT_EQ(Unit::One.pow(std::numeric_limits<double>::quiet_NaN()), Unit::One);
+    EXPECT_EQ(Unit::One.pow(1000), Unit::One);
 }
 
 TEST(Unit, overflow)
