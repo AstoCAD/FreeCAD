@@ -40,6 +40,20 @@ using namespace Part;
 
 App::PropertyFloatConstraint::Constraints Revolution::angleRangeU = {-360.0, 360.0, 1.0};
 
+namespace
+{
+// Returns the FaceMakerMode value matching a FaceMakerClass value, or nullptr if the class is not
+// one of the listed ones. Old documents store an empty class, which makeElementFace() treats as
+// Part::FaceMakerBullseye.
+const char* faceMakerModeOfClass(const char* className)
+{
+    if (!className || !*className) {
+        className = "Part::FaceMakerBullseye";
+    }
+    return FaceMakerModes::modeOfClass(className);
+}
+}  // namespace
+
 PROPERTY_SOURCE(Part::Revolution, Part::Feature)
 
 Revolution::Revolution()
@@ -87,9 +101,19 @@ Revolution::Revolution()
         FaceMakerClass,
         (""),
         "Revolve",
-        App::Prop_None,
+        (App::PropertyType)(App::Prop_ReadOnly | App::Prop_Hidden),
         "Facemaker to use if Solid is true."
     );  // default for old documents. For default for new objects, refer to setupObject().
+    ADD_PROPERTY_TYPE(
+        FaceMakerMode,
+        (0L),
+        "Revolve",
+        App::Prop_None,
+        "Facemaker to use if Solid is true."
+    );
+    FaceMakerMode.setEnums(FaceMakerModes::enums());
+    // Bullseye matches the empty FaceMakerClass of old documents.
+    FaceMakerMode.setValue(faceMakerModeOfClass(FaceMakerClass.getValue()));
 }
 
 short Revolution::mustExecute() const
@@ -109,8 +133,34 @@ void Revolution::onChanged(const App::Property* prop)
             Base.setReadOnly(AxisLink.getValue() != nullptr);
             Axis.setReadOnly(AxisLink.getValue() != nullptr);
         }
+        else if (prop == &FaceMakerMode) {
+            const char* className = FaceMakerMode.isValid()
+                ? FaceMakerModes::classOfMode(FaceMakerMode.getValueAsString())
+                : nullptr;
+            const char* classMode = faceMakerModeOfClass(FaceMakerClass.getValue());
+            if (className && !(classMode && FaceMakerMode.isValue(classMode))) {
+                FaceMakerClass.setValue(className);
+            }
+        }
+        else if (prop == &FaceMakerClass) {
+            // keep the mode in sync when a script sets the class directly
+            const char* mode = faceMakerModeOfClass(FaceMakerClass.getValue());
+            if (mode && !FaceMakerMode.isValue(mode)) {
+                FaceMakerMode.setValue(mode);
+            }
+        }
     }
     Part::Feature::onChanged(prop);
+}
+
+void Revolution::onDocumentRestored()
+{
+    Part::Feature::onDocumentRestored();
+    // documents saved before FaceMakerMode existed only have FaceMakerClass
+    const char* mode = faceMakerModeOfClass(FaceMakerClass.getValue());
+    if (mode && !FaceMakerMode.isValue(mode)) {
+        FaceMakerMode.setValue(mode);
+    }
 }
 
 bool Revolution::fetchAxisLink(
@@ -240,4 +290,5 @@ void Part::Revolution::setupObject()
 {
     Part::Feature::setupObject();
     this->FaceMakerClass.setValue("Part::FaceMakerUnified");  // default for newly created features
+    this->FaceMakerMode.setValue("Unified");
 }

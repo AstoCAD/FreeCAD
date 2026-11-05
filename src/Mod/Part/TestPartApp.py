@@ -1431,6 +1431,94 @@ class PartExtrusionTests(unittest.TestCase):
         FreeCAD.closeDocument("PartExtrusionTest")
 
 
+class PartRevolutionFaceMakerModeTests(unittest.TestCase):
+    """Issue #26357: Part::Revolution has a FaceMakerMode enumeration, like
+    Part::Extrusion, kept in sync with the hidden FaceMakerClass."""
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("PartRevolutionTest")
+
+    def tearDown(self):
+        FreeCAD.closeDocument("PartRevolutionTest")
+
+    def _make_revolution(self):
+        def square(x0, x1, z0, z1):
+            return Part.makePolygon(
+                [
+                    Base.Vector(x0, 0, z0),
+                    Base.Vector(x1, 0, z0),
+                    Base.Vector(x1, 0, z1),
+                    Base.Vector(x0, 0, z1),
+                    Base.Vector(x0, 0, z0),
+                ]
+            )
+
+        profile = self.Doc.addObject("Part::Feature", "Profile")
+        profile.Shape = Part.Compound([square(5, 15, 0, 10), square(8, 12, 3, 7)])
+        revolution = self.Doc.addObject("Part::Revolution", "Revolve")
+        revolution.Source = profile
+        revolution.Solid = True
+        return revolution
+
+    def testDefaults(self):
+        revolution = self._make_revolution()
+        self.assertEqual(revolution.FaceMakerMode, "Unified")
+        self.assertEqual(revolution.FaceMakerClass, "Part::FaceMakerUnified")
+        self.assertIn("Hidden", revolution.getEditorMode("FaceMakerClass"))
+        self.assertNotIn("Hidden", revolution.getEditorMode("FaceMakerMode"))
+
+    def testSameModesAsExtrusion(self):
+        revolution = self._make_revolution()
+        extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
+        self.assertEqual(
+            revolution.getEnumerationsOfProperty("FaceMakerMode"),
+            extrusion.getEnumerationsOfProperty("FaceMakerMode"),
+        )
+        for mode in revolution.getEnumerationsOfProperty("FaceMakerMode"):
+            revolution.FaceMakerMode = mode
+            extrusion.FaceMakerMode = mode
+            self.assertEqual(revolution.FaceMakerClass, extrusion.FaceMakerClass)
+
+    def testModeAndClassStayInSync(self):
+        revolution = self._make_revolution()
+        revolution.FaceMakerMode = "Cheese"
+        self.assertEqual(revolution.FaceMakerClass, "Part::FaceMakerCheese")
+        revolution.FaceMakerClass = "Part::FaceMakerSimple"
+        self.assertEqual(revolution.FaceMakerMode, "Simple")
+        # an empty class (old documents) means Bullseye and is kept as is
+        revolution.FaceMakerClass = ""
+        self.assertEqual(revolution.FaceMakerMode, "Bullseye")
+        self.assertEqual(revolution.FaceMakerClass, "")
+
+    def testModeDrivesTheFaceMaker(self):
+        revolution = self._make_revolution()
+        revolution.FaceMakerMode = "Bullseye"
+        self.Doc.recompute()
+        self.assertTrue(revolution.Shape.isValid())
+        # Pappus: the inner square is a hole, centroid at x = 10
+        self.assertAlmostEqual(revolution.Shape.Volume, 2 * math.pi * 10 * (100 - 16), places=3)
+
+    def testModeIsRestoredFromClass(self):
+        import os
+        import tempfile
+
+        revolution = self._make_revolution()
+        revolution.FaceMakerMode = "Cheese"
+        path = os.path.join(tempfile.mkdtemp(), "revolution_facemaker.FCStd")
+        self.Doc.saveAs(path)
+        FreeCAD.closeDocument(self.Doc.Name)
+        try:
+            self.Doc = FreeCAD.openDocument(path)
+            revolution = self.Doc.getObject("Revolve")
+            self.assertEqual(revolution.FaceMakerMode, "Cheese")
+            self.assertEqual(revolution.FaceMakerClass, "Part::FaceMakerCheese")
+        finally:
+            FreeCAD.closeDocument(self.Doc.Name)
+            self.Doc = FreeCAD.newDocument("PartRevolutionTest")
+            os.remove(path)
+            os.rmdir(os.path.dirname(path))
+
+
 class PartOffset2DBSplineTests(unittest.TestCase):
     """Regression test for issue #17708: a face made from the 2D offset of a
     B-spline wire must be valid."""
