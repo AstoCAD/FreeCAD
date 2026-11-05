@@ -417,5 +417,17 @@ class DraftCreation(test_base.DraftTestCaseDoc):
 
         self.assertEqual(clean_edges, eof_edges, "'{}' failed".format(operation))
 
+    def test_hatch_without_faces(self):
+        """A hatch whose base has no faces must recompute without errors."""
+        wire = Draft.make_wire([Vector(0, 0, 0), Vector(50, 0, 0), Vector(50, 30, 0)])
+        self.doc.recompute()
+
+        patfile = App.getResourceDir() + "Mod/TechDraw/PAT/FCPAT.pat"
+        obj = Draft.make_hatch(wire, patfile, "Horizontal5", scale=1, rotation=0)
+        self.doc.recompute()
+
+        self.assertNotIn("Invalid", obj.State)
+        self.assertTrue(obj.Shape.isNull())
+
 
 ## @}
