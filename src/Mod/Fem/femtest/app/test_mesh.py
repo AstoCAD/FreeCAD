@@ -212,6 +212,29 @@ class TestMeshCommon(unittest.TestCase):
         self.assertEqual(sorted(mesh.getNodesBySolid(solid)), [1, 2, 3, 4, 5])
 
     # ********************************************************************************************
+    def test_add_element_list_node_count_overrun(self):
+        # node counts asking for more nodes than given read past the node list and crashed
+        mesh = Fem.FemMesh()
+        for i, p in enumerate([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)], 1):
+            mesh.addNode(*p, i)
+        with self.assertRaises(ValueError):
+            mesh.addEdgeList([1, 2], [3])
+        with self.assertRaises(ValueError):
+            mesh.addEdgeList([1, 2, 3], [2, 2])
+        with self.assertRaises(ValueError):
+            mesh.addFaceList([1, 2], [3])
+        with self.assertRaises(ValueError):
+            mesh.addFaceList([], [3, 3])
+        with self.assertRaises(ValueError):
+            mesh.addVolumeList([1, 2, 3], [4])
+        with self.assertRaises(ValueError):
+            mesh.addVolumeList([1, 2, 3, 4], [-1])
+        # matching counts still work
+        self.assertEqual(len(mesh.addEdgeList([1, 2, 2, 3], [2, 2])), 2)
+        self.assertEqual(len(mesh.addFaceList([1, 2, 3], [3])), 1)
+        self.assertEqual(len(mesh.addVolumeList([1, 2, 3, 4], [4])), 1)
+
+    # ********************************************************************************************
     def test_unv_non_ascii_path(self):
         # https://github.com/FreeCAD/FreeCAD/issues/29274
         # UNV files (also used to save a mesh in the document through a temporary file)
