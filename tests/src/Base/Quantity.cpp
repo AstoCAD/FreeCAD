@@ -263,6 +263,25 @@ TEST(BaseQuantity, TestPow)
     EXPECT_THROW(q1.pow(q2), UnitsMismatchError);
 }
 
+TEST(BaseQuantity, TestPowQuantityExponentOutOfRange)
+{
+    // the exponent used to be cast to signed char unchecked: 1 mm ** 256 gave One
+    Quantity mm {1.0, Unit::Length};
+    EXPECT_THROW(mm.pow(Quantity {200.0}), Base::OverflowError);
+    EXPECT_THROW(mm.pow(Quantity {256.0}), Base::OverflowError);
+    EXPECT_THROW(mm.pow(Quantity {1e300}), Base::OverflowError);
+    EXPECT_THROW(mm.pow(Quantity {-200.0}), Base::UnderflowError);
+    // in range exponents are unchanged
+    EXPECT_EQ(mm.pow(Quantity {7.0}).getUnit(), Unit(7));
+    EXPECT_EQ(mm.pow(Quantity {-8.0}).getUnit(), Unit(-8));
+    // the unit takes the exact exponent, as with a double exponent (it was truncated)
+    EXPECT_THROW(mm.pow(Quantity {2.5}), UnitsMismatchError);
+    EXPECT_THROW(mm.pow(Quantity {-0.5}), UnitsMismatchError);
+    EXPECT_EQ(Quantity(4.0, Unit::Area).pow(Quantity {0.5}), Quantity(2.0, Unit::Length));
+    // dimensionless bases take any exponent
+    EXPECT_EQ(Quantity {2.0}.pow(Quantity {1000.0}).getUnit(), Unit::One);
+}
+
 class BaseQuantityLoc: public ::testing::Test
 {
 protected:
