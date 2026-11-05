@@ -501,7 +501,9 @@ def can_expand(obj, ifcfile=None):
 
     if not ifcfile:
         ifcfile = get_ifcfile(obj)
-    children = get_children(obj, ifcfile, expand=True)
+    # use the same children as create_children() in expandChildren(), otherwise
+    # a single child without representation is replaced by its own decomposition
+    children = get_children(obj, ifcfile)
     group = [o.StepId for o in obj.Group if hasattr(o, "StepId")]
     for child in children:
         if child.id() not in group:
