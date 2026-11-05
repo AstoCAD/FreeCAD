@@ -274,3 +274,27 @@ class TestArchIfc(TestArchBase.TestArchBase):
         )
         self.assertEqual([e.Name for e in ifcfile.by_type("IfcBuilding")], ["Building"])
         self.assertIn("IfcBuilding", [getattr(o, "IfcClass", None) for o in self.document.Objects])
+
+    def test_can_expand_site_with_expanded_building(self):
+        """A site whose only child (the building) is already loaded cannot be expanded.
+        https://github.com/FreeCAD/FreeCAD/issues/21913"""
+        import Arch
+        from nativeifc import ifc_status
+        from nativeifc import ifc_tools
+
+        wall = Arch.makeWall(None, 2000, 200, 3000)
+        level = Arch.makeFloor([wall])
+        building = Arch.makeBuilding([level])
+        Arch.makeSite([building])
+        self.document.recompute()
+
+        ifc_status.lock_document()
+        ifcfile = self.document.Proxy.ifcfile
+        objs = {getattr(o, "IfcClass", None): o for o in self.document.Objects}
+        site = objs["IfcSite"]
+        building = objs["IfcBuilding"]
+        self.assertIn(building, site.Group)
+        self.assertFalse(ifc_tools.can_expand(site, ifcfile))
+        # the building's storey is not loaded yet
+        self.assertNotIn("IfcBuildingStorey", objs)
+        self.assertTrue(ifc_tools.can_expand(building, ifcfile))
