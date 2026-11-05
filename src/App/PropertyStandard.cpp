@@ -71,6 +71,16 @@ std::string utf8FromPyUnicode(PyObject* value)
     }
     return str;
 }
+
+// PyLong_AsLong() returns -1 with an OverflowError set for ints that do not fit into a long
+long checkedPyLongAsLong(PyObject* value)
+{
+    const long result = PyLong_AsLong(value);
+    if (result == -1 && PyErr_Occurred()) {
+        throw Py::Exception();
+    }
+    return result;
+}
 }  // namespace
 
 
@@ -892,7 +902,7 @@ PyObject* PropertyIntegerList::getPyObject()
 long PropertyIntegerList::getPyValue(PyObject* item) const
 {
     if (PyLong_Check(item)) {
-        return PyLong_AsLong(item);
+        return checkedPyLongAsLong(item);
     }
     std::string error = std::string("type in list must be int, not ");
     error += item->ob_type->tp_name;
@@ -1094,13 +1104,13 @@ void PropertyIntegerSet::setPyObject(PyObject* value)
                 error += item.ptr()->ob_type->tp_name;
                 throw Base::TypeError(error);
             }
-            values.insert(PyLong_AsLong(item.ptr()));
+            values.insert(checkedPyLongAsLong(item.ptr()));
         }
 
         setValues(values);
     }
     else if (PyLong_Check(value)) {
-        setValue(PyLong_AsLong(value));
+        setValue(checkedPyLongAsLong(value));
     }
     else {
         std::string error = std::string("type must be int or list of int, not ");
@@ -1540,7 +1550,11 @@ double PropertyFloatList::getPyValue(PyObject* item) const
         return PyFloat_AsDouble(item);
     }
     if (PyLong_Check(item)) {
-        return static_cast<double>(PyLong_AsLong(item));
+        const double value = PyLong_AsDouble(item);
+        if (value == -1.0 && PyErr_Occurred()) {
+            throw Py::Exception();
+        }
+        return value;
     }
     std::string error = std::string("type in list must be float, not ");
     error += item->ob_type->tp_name;
@@ -2503,7 +2517,7 @@ bool PropertyBoolList::getPyValue(PyObject* item) const
         return Base::asBoolean(item);
     }
     if (PyLong_Check(item)) {
-        return (PyLong_AsLong(item) ? true : false);
+        return (checkedPyLongAsLong(item) ? true : false);
     }
     std::string error = std::string("type in list must be bool or int, not ");
     error += item->ob_type->tp_name;
@@ -2657,17 +2671,17 @@ void PropertyColor::setPyObject(PyObject* value)
             }
         }
         else if (PyLong_Check(item)) {
-            cCol.r = PyLong_AsLong(item) / 255.0;
+            cCol.r = checkedPyLongAsLong(item) / 255.0;
             item = PyTuple_GetItem(value, 1);
             if (PyLong_Check(item)) {
-                cCol.g = PyLong_AsLong(item) / 255.0;
+                cCol.g = checkedPyLongAsLong(item) / 255.0;
             }
             else {
                 throw Base::TypeError("Type in tuple must be consistent (integer)");
             }
             item = PyTuple_GetItem(value, 2);
             if (PyLong_Check(item)) {
-                cCol.b = PyLong_AsLong(item) / 255.0;
+                cCol.b = checkedPyLongAsLong(item) / 255.0;
             }
             else {
                 throw Base::TypeError("Type in tuple must be consistent (integer)");
@@ -2675,7 +2689,7 @@ void PropertyColor::setPyObject(PyObject* value)
             if (PyTuple_Size(value) == 4) {
                 item = PyTuple_GetItem(value, 3);
                 if (PyLong_Check(item)) {
-                    cCol.a = PyLong_AsLong(item) / 255.0;
+                    cCol.a = checkedPyLongAsLong(item) / 255.0;
                 }
                 else {
                     throw Base::TypeError("Type in tuple must be consistent (integer)");
@@ -2687,7 +2701,11 @@ void PropertyColor::setPyObject(PyObject* value)
         }
     }
     else if (PyLong_Check(value)) {
-        cCol.setPackedValue(PyLong_AsUnsignedLong(value));
+        const unsigned long packed = PyLong_AsUnsignedLong(value);
+        if (packed == static_cast<unsigned long>(-1) && PyErr_Occurred()) {
+            throw Py::Exception();
+        }
+        cCol.setPackedValue(packed);
     }
     else {
         std::string error =
