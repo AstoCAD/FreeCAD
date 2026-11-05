@@ -1747,3 +1747,37 @@ class PartShapeContentTests(unittest.TestCase):
         # A compound that is not made of solids only keeps its volume
         mixed = Part.Compound([Part.makeBox(1, 1, 1), Part.makePlane(1, 1, Base.Vector(5, 0, 0))])
         self.assertIn("Volume", self._content(mixed))
+
+
+class PartConstructorExceptionTests(unittest.TestCase):
+    """A C++ exception thrown while constructing a Python object must become a Python
+    exception instead of terminating the application."""
+
+    def testInvalidArgumentsRaise(self):
+        V = Base.Vector
+        cases = [
+            ("Circle with null normal", lambda: Part.Circle(V(0, 0, 0), V(0, 0, 0), 1)),
+            ("Plane with null normal", lambda: Part.Plane(V(0, 0, 0), V(0, 0, 0))),
+            ("Solid from null shape", lambda: Part.Solid(Part.Shape())),
+            ("Solid from null shell", lambda: Part.Solid(Part.Shell())),
+            (
+                "RectangularTrimmedSurface with empty range",
+                lambda: Part.RectangularTrimmedSurface(Part.Plane(), 0, 0, 0, 0),
+            ),
+            (
+                "RectangularTrimmedSurface beyond the period",
+                lambda: Part.RectangularTrimmedSurface(Part.Sphere(), 0, 10, 0, 10),
+            ),
+        ]
+        for name, make in cases:
+            with self.subTest(name):
+                with self.assertRaises(Exception):
+                    make()
+
+    def testValidArgumentsStillWork(self):
+        V = Base.Vector
+        self.assertAlmostEqual(Part.Circle(V(0, 0, 0), V(0, 0, 1), 2).Radius, 2)
+        self.assertEqual(Part.Plane(V(0, 0, 0), V(0, 0, 1)).Axis, V(0, 0, 1))
+        self.assertAlmostEqual(Part.Solid(Part.makeBox(1, 1, 1).Shells[0]).Volume, 1)
+        surf = Part.RectangularTrimmedSurface(Part.Plane(), 0, 1, 0, 2)
+        self.assertAlmostEqual(surf.toShape().Area, 2)
