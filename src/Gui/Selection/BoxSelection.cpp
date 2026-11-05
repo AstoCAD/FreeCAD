@@ -268,7 +268,8 @@ void Gui::applyBoxSelection(
     View3DInventorViewer* viewer,
     const std::vector<SbVec2s>& picked,
     bool selectElement,
-    bool additive
+    bool additive,
+    bool subtractive
 )
 {
     if (!viewer || picked.size() < 2) {
@@ -321,7 +322,7 @@ void Gui::applyBoxSelection(
         return;
     }
 
-    if (!additive) {
+    if (!additive && !subtractive) {
         Gui::Selection().clearSelection(doc->getName());
     }
 
@@ -342,7 +343,12 @@ void Gui::applyBoxSelection(
 
         Base::Matrix4D mat;
         for (auto& sub : getBoxSelection(vp, selectionMode, selectElement, proj, polygon, mat)) {
-            Gui::Selection().addSelection(doc->getName(), obj->getNameInDocument(), sub.c_str());
+            if (subtractive) {
+                Gui::Selection().rmvSelection(doc->getName(), obj->getNameInDocument(), sub.c_str());
+            }
+            else {
+                Gui::Selection().addSelection(doc->getName(), obj->getNameInDocument(), sub.c_str());
+            }
         }
     }
 }
