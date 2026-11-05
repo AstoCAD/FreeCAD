@@ -293,14 +293,17 @@ PyObject* PropertyContainerPy::setPropertyStatus(PyObject* args)
             status.set(it->second, value);
         }
         else if (item.isNumeric()) {
-            int v = Py::Long(item);
+            long v = Py::Long(item);
+            if (v == -1 && PyErr_Occurred()) {
+                return nullptr;
+            }
+            if (v == 0 || v > 31 || v < -31) {
+                PyErr_Format(PyExc_ValueError, "Status value out of range '%ld'", v);
+                return nullptr;
+            }
             if (v < 0) {
                 value = false;
                 v = -v;
-            }
-            if (v == 0 || v > 31) {
-                PyErr_Format(PyExc_ValueError, "Status value out of range '%d'", v);
-                return nullptr;
             }
             status.set(v, value);
         }
