@@ -72,5 +72,56 @@ class TestMeasurementMissingElement(unittest.TestCase):
             measurement.radius()
 
 
+class TestMeasurementDeletedObject(unittest.TestCase):
+    """The references of a Measurement are dropped when their object is deleted.
+
+    The link property of Measurement has no container, so nothing cleared it:
+    measuring after closing the document read the destroyed object.
+    """
+
+    def setUp(self):
+        previous = App.activeDocument()
+        self.previous_document = previous.Name if previous else None
+        self.doc = App.newDocument("MeasurementDeletedObject")
+        self.box = self.doc.addObject("Part::Box", "Box")
+        self.doc.recompute()
+
+    def tearDown(self):
+        for name in ("MeasurementDeletedObject", "MeasurementDeletedObject2"):
+            if name in App.listDocuments():
+                App.closeDocument(name)
+        if self.previous_document in App.listDocuments():
+            App.setActiveDocument(self.previous_document)
+
+    def testCloseDocument(self):
+        measurement = Measure.Measurement()
+        measurement.addReference3D(self.box.Name, "Face1")
+        self.assertAlmostEqual(measurement.area(), 100.0)
+        App.closeDocument(self.doc.Name)
+        self.assertEqual(measurement.area(), 0.0)
+        self.assertFalse(measurement.has3DReferences())
+
+    def testRemoveObject(self):
+        other = self.doc.addObject("Part::Box", "Other")
+        self.doc.recompute()
+        measurement = Measure.Measurement()
+        measurement.addReference3D(self.box.Name, "Face1")
+        measurement.addReference3D(other.Name, "Face2")
+        self.doc.removeObject(self.box.Name)
+        self.assertTrue(measurement.has3DReferences())
+        self.assertAlmostEqual(measurement.area(), 100.0)
+        self.doc.removeObject(other.Name)
+        self.assertFalse(measurement.has3DReferences())
+
+    def testCloseOtherDocument(self):
+        doc2 = App.newDocument("MeasurementDeletedObject2")
+        box2 = doc2.addObject("Part::Box", "Box2")
+        doc2.recompute()
+        measurement = Measure.Measurement()
+        measurement.addReference3D(box2.Name, "Face1")
+        App.closeDocument(doc2.Name)
+        self.assertFalse(measurement.has3DReferences())
+
+
 if __name__ == "__main__":
     unittest.main()
