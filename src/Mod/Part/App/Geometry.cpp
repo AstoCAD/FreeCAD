@@ -1914,6 +1914,10 @@ void GeomBSplineCurve::approximate(
             coords(index++) = gp_Pnt(it.x, it.y, it.z);
         }
 
+        if (minDegree > maxDegree) {
+            // GeomAPI_PointsToBSpline does not return for this
+            throw Standard_Failure("Minimum degree must not be greater than maximum degree");
+        }
         GeomAPI_PointsToBSpline fit(coords, minDegree, maxDegree, continuity, tol3d);
         const Handle(Geom_BSplineCurve) & spline = fit.Curve();
         if (!spline.IsNull()) {
@@ -1944,6 +1948,10 @@ void GeomBSplineCurve::approximate(
             coords(index++) = gp_Pnt(it.x, it.y, it.z);
         }
 
+        if (minDegree > maxDegree) {
+            // GeomAPI_PointsToBSpline does not return for this
+            throw Standard_Failure("Minimum degree must not be greater than maximum degree");
+        }
         GeomAPI_PointsToBSpline fit(coords, parType, minDegree, maxDegree, continuity, tol3d);
         const Handle(Geom_BSplineCurve) & spline = fit.Curve();
         if (!spline.IsNull()) {

@@ -1346,6 +1346,13 @@ PyObject* BSplineSurfacePy::approximate(PyObject* args, PyObject* kwds)
             useParam = Standard_False;
         }
 
+        const bool smoothing = !(weight1 == 0) || !(weight2 == 0) || !(weight3 == 0);
+        const bool usesDegMin = (!(dX == 0) && !(dY == 0)) || useParam || !smoothing;
+        if (usesDegMin && degMin > degMax) {
+            // GeomAPI_PointsToBSplineSurface does not return for DegMin > DegMax
+            throw Standard_Failure("DegMin must be lower or equal to DegMax");
+        }
+
         GeomAPI_PointsToBSplineSurface surInterpolation;
         if (!(dX == 0) && !(dY == 0)) {
             // dX and dY are not null : we use the zPoints method
