@@ -145,7 +145,7 @@ AttachExtension::AttachExtension()
         (0.0),
         "Attachment",
         App::Prop_None,
-        "Sets point of curve to map the sketch to. 0..1 = start..end"
+        "Sets the point on the curve to attach the object to. 0..1 = start..end"
     );
 
     EXTENSION_ADD_PROPERTY_TYPE(
