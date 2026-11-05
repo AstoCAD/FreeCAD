@@ -1117,10 +1117,13 @@ void ObjectIdentifier::getDep(Dependencies& deps,
                 result.resolvedDocumentObject->getCanonicalPropertyName(
                         result.propertyName.c_str()
                 );
-            deps[result.resolvedDocumentObject].insert(
-                canonicalPropertyName.empty() ? result.propertyName
-                : canonicalPropertyName
-            );
+            auto& names = deps[result.resolvedDocumentObject];
+            if (!canonicalPropertyName.empty()) {
+                names.insert(canonicalPropertyName);
+            }
+            // Keep the name as written too: a spreadsheet alias can later move to another
+            // cell, and the cells referring to it are then found by the alias name.
+            names.insert(result.propertyName);
         }
         return;
     }
