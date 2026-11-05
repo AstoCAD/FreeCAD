@@ -1165,6 +1165,14 @@ class PartAttachNestedLCS(unittest.TestCase):
         onAxis = attached([(part, "{}.{}.".format(lcs.Name, axis.Name))])
         self.assertTrue(onAxis.isSame(onLine, 1e-7), "{} != {}".format(onAxis, onLine))
 
+    def testMapPathParameterTooltipIsNotSketchSpecific(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/21534
+        # Any object can be attached, not only sketches.
+        box = self.Doc.addObject("Part::Box", "Box")
+        doc = box.getDocumentationOfProperty("MapPathParameter")
+        self.assertNotIn("sketch", doc.lower())
+        self.assertIn("curve", doc)
+
     def tearDown(self):
         FreeCAD.closeDocument(self.Doc.Name)
 
