@@ -189,6 +189,45 @@ TEST(BaseQuantity, TestSub)
     EXPECT_EQ(q1 -= q1, Quantity(0, Unit::Length));
 }
 
+TEST(BaseQuantity, TestAddSubMismatchMessageNamesUnits)
+{
+    // https://github.com/FreeCAD/FreeCAD/issues/17850
+    const Quantity length {1.0, Unit::Length};
+    const Quantity area {1.0, Unit::Area};
+    const Quantity number {1.0};
+    auto messageOf = [](auto&& operation) -> std::string {
+        try {
+            operation();
+        }
+        catch (const UnitsMismatchError& e) {
+            return e.what();
+        }
+        return {};
+    };
+    EXPECT_EQ(
+        messageOf([&] { return length + number; }),
+        "Quantity::operator +(): Unit mismatch in plus operation (left: mm, right: unitless)"
+    );
+    EXPECT_EQ(
+        messageOf([&] { return length - area; }),
+        "Quantity::operator -(): Unit mismatch in minus operation (left: mm, right: mm^2)"
+    );
+    EXPECT_EQ(
+        messageOf([&] {
+            Quantity q {number};
+            return q += length;
+        }),
+        "Quantity::operator +=(): Unit mismatch in plus operation (left: unitless, right: mm)"
+    );
+    EXPECT_EQ(
+        messageOf([&] {
+            Quantity q {area};
+            return q -= length;
+        }),
+        "Quantity::operator -=(): Unit mismatch in minus operation (left: mm^2, right: mm)"
+    );
+}
+
 TEST(BaseQuantity, TestNeg)
 {
     const Quantity q1 {1.0, Unit::Length};

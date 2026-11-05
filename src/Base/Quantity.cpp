@@ -208,10 +208,24 @@ Quantity Quantity::pow(double exp) const
     return Quantity(std::pow(myValue, exp), myUnit.pow(exp));
 }
 
+// Name both operands' units, so that e.g. "Length + 3" tells the user that 3 has no unit
+static std::string unitMismatchMessage(const char* what, const Base::Unit& left, const Base::Unit& right)
+{
+    auto unitName = [](const Base::Unit& unit) {
+        std::string name = unit.getString();
+        return name.empty() ? std::string("unitless") : name;
+    };
+    return std::format("{} (left: {}, right: {})", what, unitName(left), unitName(right));
+}
+
 Quantity Quantity::operator+(const Quantity& other) const
 {
     if (myUnit != other.myUnit) {
-        throw Base::UnitsMismatchError("Quantity::operator +(): Unit mismatch in plus operation");
+        throw Base::UnitsMismatchError(unitMismatchMessage(
+            "Quantity::operator +(): Unit mismatch in plus operation",
+            myUnit,
+            other.myUnit
+        ));
     }
 
     return Quantity(myValue + other.myValue, myUnit);
@@ -220,7 +234,11 @@ Quantity Quantity::operator+(const Quantity& other) const
 Quantity& Quantity::operator+=(const Quantity& other)
 {
     if (myUnit != other.myUnit) {
-        throw Base::UnitsMismatchError("Quantity::operator +=(): Unit mismatch in plus operation");
+        throw Base::UnitsMismatchError(unitMismatchMessage(
+            "Quantity::operator +=(): Unit mismatch in plus operation",
+            myUnit,
+            other.myUnit
+        ));
     }
 
     myValue += other.myValue;
@@ -231,7 +249,11 @@ Quantity& Quantity::operator+=(const Quantity& other)
 Quantity Quantity::operator-(const Quantity& other) const
 {
     if (myUnit != other.myUnit) {
-        throw Base::UnitsMismatchError("Quantity::operator -(): Unit mismatch in minus operation");
+        throw Base::UnitsMismatchError(unitMismatchMessage(
+            "Quantity::operator -(): Unit mismatch in minus operation",
+            myUnit,
+            other.myUnit
+        ));
     }
 
     return Quantity(myValue - other.myValue, myUnit);
@@ -240,7 +262,11 @@ Quantity Quantity::operator-(const Quantity& other) const
 Quantity& Quantity::operator-=(const Quantity& other)
 {
     if (myUnit != other.myUnit) {
-        throw Base::UnitsMismatchError("Quantity::operator -=(): Unit mismatch in minus operation");
+        throw Base::UnitsMismatchError(unitMismatchMessage(
+            "Quantity::operator -=(): Unit mismatch in minus operation",
+            myUnit,
+            other.myUnit
+        ));
     }
 
     myValue -= other.myValue;
