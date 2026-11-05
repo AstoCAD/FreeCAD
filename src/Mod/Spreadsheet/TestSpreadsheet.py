@@ -719,6 +719,21 @@ class SpreadsheetCases(unittest.TestCase):
     def tearDown(self):
         FreeCAD.closeDocument(self.doc.Name)
 
+    def testExportQuotesFieldWithQuoteChar(self):
+        """A text cell containing the quote character survives a CSV export/import."""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", 'say "hi"')
+        sheet.set("B1", "a,b")
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "quote.csv")
+            self.assertTrue(sheet.exportFile(path, ",", '"', "\\"))
+            other = self.doc.addObject("Spreadsheet::Sheet", "Imported")
+            self.assertTrue(other.importFile(path, ",", '"', "\\"))
+        self.doc.recompute()
+        self.assertEqual(other.get("A1"), 'say "hi"')
+        self.assertEqual(other.get("B1"), "a,b")
+
     def testNumericLiteralIsStableAcrossSaveRestore(self):
         """Numeric literals retain their value and type across save and restore."""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")

@@ -360,7 +360,8 @@ bool Sheet::exportToFile(const std::string& filename, char delimiter, char quote
 
         std::string str = field.str();
 
-        if (quoteChar && str.find_first_of(std::string(quoteChar, delimiter)) != std::string::npos) {
+        if (quoteChar
+            && str.find_first_of(std::string {quoteChar, delimiter}) != std::string::npos) {
             writeEscaped(str, quoteChar, escapeChar, file);
         }
         else {
