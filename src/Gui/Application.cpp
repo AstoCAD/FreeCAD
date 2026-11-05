@@ -102,6 +102,7 @@
 #include "MDIViewWithCamera.h"
 #include "LayerWidgetPy.h"
 #include "Placement.h"
+#include "Render/RenderSettings.h"
 #include "SoFCDB.h"
 #include "Selection.h"
 #include "SelectionFilterPy.h"
@@ -2478,6 +2479,8 @@ void Application::initOpenInventor()
     SoDB::init();
     SIM::Coin3D::Quarter::Quarter::init();
     SoFCDB::init();
+    // Offscreen captures can run before the first 3D view (and its View3DSettings) exists.
+    Render::RenderSettings::loadFromParameters();
 }
 
 void Application::runInitGuiScript()

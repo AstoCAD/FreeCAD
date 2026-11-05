@@ -738,6 +738,8 @@ private:
     unsigned long previousAxisLetterColor = 0;
     bool vboEnabled;
     bool naviCubeEnabled;
+    // Enhanced quality: a redraw is scheduled to catch up a postponed shadow / AO map update.
+    bool prepassRedrawScheduled = false;
 
     // Screen-only viewer decorations such as the navicube are rendered only
     // when the active render intent allows them.

@@ -32,6 +32,7 @@
 #include <Base/Parameter.h>
 #include <Base/Tools.h>
 #include <Gui/Multisample.h>
+#include <Gui/Render/RenderSettings.h>
 #include <Gui/View3DInventorViewer.h>
 #include <Gui/ViewParams.h>
 
@@ -49,6 +50,32 @@ DlgSettings3DViewImp::DlgSettings3DViewImp(QWidget* parent)
 {
     ui->setupUi(this);
     addAntiAliasing();
+    connect(
+        ui->comboRenderQuality,
+        qOverload<int>(&QComboBox::currentIndexChanged),
+        this,
+        &DlgSettings3DViewImp::updateEnhancedOptions
+    );
+    updateEnhancedOptions();
+}
+
+// The environment, shadow, FXAA, supersampling and ambient occlusion options only apply to the
+// 'Enhanced' quality: show them only when it is selected.
+void DlgSettings3DViewImp::updateEnhancedOptions()
+{
+    constexpr int enhancedIndex = 1;  // Classic, Enhanced (RenderSettings::Quality)
+    const bool enhanced = ui->comboRenderQuality->currentIndex() == enhancedIndex;
+    for (QWidget* widget : std::initializer_list<QWidget*> {
+             ui->renderEnvironmentLabel,
+             ui->comboRenderEnvironment,
+             ui->CheckBox_RenderShadows,
+             ui->CheckBox_RenderFxaa,
+             ui->renderSupersamplingLabel,
+             ui->SpinBox_RenderExportSupersampling,
+             ui->CheckBox_RenderAmbientOcclusion,
+         }) {
+        widget->setVisible(enhanced);
+    }
 }
 
 DlgSettings3DViewImp::~DlgSettings3DViewImp() = default;
@@ -60,6 +87,12 @@ void DlgSettings3DViewImp::saveSettings()
     saveMarkerSize();
 
     ui->comboTransparentRender->onSave();
+    ui->comboRenderQuality->onSave();
+    ui->comboRenderEnvironment->onSave();
+    ui->CheckBox_RenderShadows->onSave();
+    ui->CheckBox_RenderFxaa->onSave();
+    ui->CheckBox_RenderAmbientOcclusion->onSave();
+    ui->SpinBox_RenderExportSupersampling->onSave();
     ui->CheckBox_CornerCoordSystem->onSave();
     ui->SpinBox_CornerCoordSystemSize->onSave();
     ui->CheckBox_ShowAxisCross->onSave();
@@ -94,9 +127,21 @@ void DlgSettings3DViewImp::loadSettings()
     ui->radioPerspective->onRestore();
     ui->radioOrthographic->onRestore();
     ui->comboTransparentRender->onRestore();
+    ui->comboRenderQuality->onRestore();
+    ui->comboRenderEnvironment->onRestore();
+    ui->CheckBox_RenderShadows->onRestore();
+    ui->CheckBox_RenderFxaa->onRestore();
+    ui->CheckBox_RenderAmbientOcclusion->onRestore();
+    ui->SpinBox_RenderExportSupersampling->onRestore();
+    updateEnhancedOptions();
     ui->xAxisColor->onRestore();
     ui->yAxisColor->onRestore();
     ui->zAxisColor->onRestore();
+
+    // Say why Enhanced is not in use although it is selected (environment override, GPU).
+    const std::string status = Render::RenderSettings::statusText();
+    ui->renderQualityStatus->setText(QString::fromStdString(status));
+    ui->renderQualityStatus->setVisible(!status.empty());
 
     loadAntiAliasing();
     loadRenderCache();

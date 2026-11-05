@@ -53,6 +53,7 @@ public:
 
 private Q_SLOTS:
     void onAliasingChanged(int);
+    void updateEnhancedOptions();
 
 protected:
     void changeEvent(QEvent* e) override;
