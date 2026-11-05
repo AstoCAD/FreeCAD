@@ -484,13 +484,14 @@ def findElementClosestVertex(ref, mousePos):
         return ""
 
     obj = getObject(ref)
+    shape, obj_plc = getElementOwnerShape(ref, obj)
 
     # We need mousePos to be in the same lcs as obj
     plc = App.Placement()
     plc.Base = mousePos
     global_plc = getGlobalPlacement(ref)
     plc = global_plc.inverse() * plc  # We make it relative to obj Origin
-    plc = obj.Placement * plc  # Make plc in the same lcs as obj
+    plc = obj_plc * plc  # Make plc in the same lcs as obj
     mousePos = plc.Base
 
     elt_type, elt_index = extract_type_and_number(element_name)
@@ -499,7 +500,7 @@ def findElementClosestVertex(ref, mousePos):
         return element_name
 
     elif elt_type == "Edge":
-        edge = obj.Shape.getElement(element_name)
+        edge = shape.getElement(element_name)
         curve = edge.Curve
         if curve.TypeId == "Part::GeomCircle":
             # For centers, as they are not shape vertexes, we return the element name.
@@ -521,12 +522,12 @@ def findElementClosestVertex(ref, mousePos):
 
         vertexes = edge.Vertexes
 
-        vertex_name = findVertexNameInObject(vertexes[closest_vertex_index], obj)
+        vertex_name = findVertexNameInObject(vertexes[closest_vertex_index], obj, shape)
 
         return vertex_name
 
     elif elt_type == "Face":
-        face = obj.Shape.getElement(element_name)
+        face = shape.getElement(element_name)
         surface = face.Surface
         _type = surface.TypeId
         if _type == "Part::GeomSphere" or _type == "Part::GeomTorus":
@@ -545,7 +546,7 @@ def findElementClosestVertex(ref, mousePos):
 
             elif _type == "Part::GeomCylinder" and curve.TypeId == "Part::GeomBSplineCurve":
                 # handle special case of 2 cylinder intersecting.
-                for j, facej in enumerate(obj.Shape.Faces):
+                for j, facej in enumerate(shape.Faces):
                     surfacej = facej.Surface
                     if (elt_index - 1) != j and surfacej.TypeId == "Part::GeomCylinder":
                         for edgej in facej.Edges:
@@ -594,7 +595,7 @@ def findElementClosestVertex(ref, mousePos):
             # If center of gravity then we have no vertex name to set so we put element name
             return element_name
 
-        vertex_name = findVertexNameInObject(face.Vertexes[closest_vertex_index], obj)
+        vertex_name = findVertexNameInObject(face.Vertexes[closest_vertex_index], obj, shape)
 
         return vertex_name
 
@@ -621,12 +622,14 @@ def findClosestPointToMousePos(candidates_points, mousePos):
     return closest_point_index, point_min_length
 
 
-def findVertexNameInObject(vertex, obj):
-    for i, _ in enumerate(obj.Shape.Vertexes):
+def findVertexNameInObject(vertex, obj, shape=None):
+    if shape is None:
+        shape = obj.Shape
+    for i, _ in enumerate(shape.Vertexes):
         vertexName = "Vertex" + str(i + 1)
 
         if (
-            obj.Shape.getElement(vertexName).Point == vertex.Point
+            shape.getElement(vertexName).Point == vertex.Point
         ):  # Don't use the vtx param from enumerate's 2nd output to avoid hasher warning
             return vertexName
     return ""
@@ -914,8 +917,9 @@ def getCenterOfBoundingBox(objs, refs):
     return center
 
 
-def findCylindersIntersection(obj, surface, edge, elt_index):
-    for j, facej in enumerate(obj.Shape.Faces):
+def findCylindersIntersection(shape, surface, edge, elt_index):
+    """shape is the shape that holds the selected face Face<elt_index>, surface and edge."""
+    for j, facej in enumerate(shape.Faces):
         surfacej = facej.Surface
         if (elt_index - 1) == j or surfacej.TypeId != "Part::GeomCylinder":
             continue
@@ -1030,6 +1034,24 @@ So here we want to find a placement that corresponds to a local coordinate syste
 """
 
 
+def getElementOwnerShape(ref, obj):
+    """Return the shape that holds the elements of ref and the placement, in the
+    coordinates of that shape, of the frame resolved by getGlobalPlacement(ref).
+
+    This is (obj.Shape, obj.Placement), except for generated link arrays: the array is
+    the moving part, but its Shape is the compound of all its elements, while
+    getGlobalPlacement(ref) resolves the referenced element and the sub-object of the
+    linked object (e.g. the body of an arrayed sub-assembly)."""
+    if isLinkArray(obj):
+        names = [ref[0].Name] + ref[1][0].split(".")
+        if obj.Name in names:
+            sub = ".".join(names[names.index(obj.Name) + 1 :])
+            prefix = sub[: sub.rfind(".") + 1]
+            if prefix:
+                return Part.getShape(obj, prefix), obj.getPlacementOf(sub)
+    return getattr(obj, "Shape", None), obj.Placement
+
+
 def findPlacement(ref, ignoreVertex=False):
     if not isRefValid(ref, 2):
         return App.Placement()
@@ -1052,6 +1074,7 @@ def findPlacement(ref, ignoreVertex=False):
         return App.Placement()
 
     plc = App.Placement()
+    shape, obj_plc = getElementOwnerShape(ref, obj)
 
     elt_type, elt_index = extract_type_and_number(elt)
     vtx_type, _ = extract_type_and_number(vtx)
@@ -1059,12 +1082,12 @@ def findPlacement(ref, ignoreVertex=False):
     isLine = False
 
     if elt_type == "Vertex":
-        vertex = get_element(obj.Shape, elt)
+        vertex = get_element(shape, elt)
         if vertex is None:
             return App.Placement()
         plc.Base = (vertex.X, vertex.Y, vertex.Z)
     elif elt_type == "Edge":
-        edge = get_element(obj.Shape, elt)
+        edge = get_element(shape, elt)
         if edge is None:
             return App.Placement()
 
@@ -1081,7 +1104,7 @@ def findPlacement(ref, ignoreVertex=False):
                 line_middle = (edge_points[0] + edge_points[1]) * 0.5
                 plc.Base = line_middle
         else:
-            vertex = get_element(obj.Shape, vtx)
+            vertex = get_element(shape, vtx)
             if vertex is None:
                 return App.Placement()
 
@@ -1098,7 +1121,7 @@ def findPlacement(ref, ignoreVertex=False):
             plane = Part.Plane(plane_origin, plane_normal)
             plc.Rotation = App.Rotation(plane.Rotation)
     elif elt_type == "Face":
-        face = get_element(obj.Shape, elt)
+        face = get_element(shape, elt)
         if face is None:
             return App.Placement()
 
@@ -1132,10 +1155,10 @@ def findPlacement(ref, ignoreVertex=False):
                 surface.TypeId == "Part::GeomCylinder" and curve.TypeId == "Part::GeomBSplineCurve"
             ):
                 # handle special case of 2 cylinder intersecting.
-                plc.Base = findCylindersIntersection(obj, surface, edge, elt_index)
+                plc.Base = findCylindersIntersection(shape, surface, edge, elt_index)
 
         else:
-            vertex = get_element(obj.Shape, vtx)
+            vertex = get_element(shape, vtx)
             if vertex is None:
                 return App.Placement()
 
@@ -1150,7 +1173,7 @@ def findPlacement(ref, ignoreVertex=False):
         plc = obj.Base.Placement.inverse() * plc
 
     # change plc to be relative to the object placement.
-    plc = obj.Placement.inverse() * plc
+    plc = obj_plc.inverse() * plc
 
     # post-process of plc for some special cases
     if elt_type == "Vertex":

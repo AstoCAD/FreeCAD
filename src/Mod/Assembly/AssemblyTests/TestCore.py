@@ -633,6 +633,76 @@ class TestCore(AssemblyTestBase):
         self.assertEqual(local_joint.Reference1, (local_array, ["1." + sub]))
         self.assertIsNotNone(local_array.getSubObject("1." + sub))
 
+    def test_generated_array_of_part_joint_placement(self):
+        """Issue #34121: a joint on an element of a generated array of a part (or sub-assembly)
+        was offset by the placement of the selected object inside the part."""
+        part = self.doc.addObject("App::Part", "ArraySourcePart")
+        box = part.newObject("Part::Box", "ArraySourceBox")
+        box.Placement.Base = App.Vector(200, 0, 0)
+        array = self.assembly.newObject("Part::LinkArrayLinear", "Array")
+        array.LinkedObject = part
+        array.Occurrences = 3
+        for show in (False, True):
+            array.ShowElement = show
+            self.doc.recompute()
+            prefix = "Array.1.ArraySourceBox."
+            face = self.assembly.getSubObject(prefix + "Face6")
+            vertex = self.assembly.getSubObject(prefix + "Vertex7")
+            for vtx, expected in (("Face6", face.CenterOfGravity), ("Vertex7", vertex.Point)):
+                ref = [self.assembly, [prefix + "Face6", prefix + vtx]]
+                plc = UtilsAssembly.getJcsGlobalPlc(UtilsAssembly.findPlacement(ref), ref)
+                self.assertLess(
+                    (plc.Base - expected).Length, 1e-6, f"ShowElement={show} {vtx}: {plc.Base}"
+                )
+
+            ref = [self.assembly, [prefix + "Face6"]]
+            closest = UtilsAssembly.findElementClosestVertex(ref, vertex.Point)
+            self.assertEqual(closest, "Vertex7", f"ShowElement={show}")
+
+    def test_generated_array_crossing_cylinders_joint_placement(self):
+        """The intersection of two crossing cylinders on an element of a generated array
+        was searched in the shape of the whole array instead of the element."""
+        big = Part.makeCylinder(5, 40, App.Vector(0, 0, -20))
+        small = Part.makeCylinder(3, 40, App.Vector(-20, 0, 5), App.Vector(1, 0, 0))
+        source = self.doc.addObject("Part::Feature", "Crossing")
+        source.Shape = big.fuse(small)
+        source.Placement.Base = App.Vector(0, 30, 0)
+        array = self.assembly.newObject("Part::LinkArrayLinear", "Array")
+        array.LinkedObject = source
+        array.Occurrences = 3
+        self.doc.recompute()
+
+        # The faces of both cylinders, and the edge of the big one shared with the small one.
+        faces = source.Shape.Faces
+
+        def cylinder_face(radius):
+            return next(
+                i
+                for i, face in enumerate(faces)
+                if face.Surface.TypeId == "Part::GeomCylinder"
+                and abs(face.Surface.Radius - radius) < 1e-6
+            )
+
+        face_index, small_index = cylinder_face(5), cylinder_face(3)
+        edge_index = next(
+            k
+            for k, edge in enumerate(faces[face_index].Edges)
+            if edge.Curve.TypeId == "Part::GeomBSplineCurve"
+        )
+        for element in ("0", "1", "2"):
+            prefix = f"Array.{element}."
+            ref = [self.assembly, [f"{prefix}Face{face_index + 1}", f"{prefix}Edge{edge_index + 1}"]]
+            plc = UtilsAssembly.getJcsGlobalPlc(UtilsAssembly.findPlacement(ref), ref)
+            # The joint origin is where the axes of both cylinders cross.
+            axes = []
+            for index in (face_index, small_index):
+                surface = self.assembly.getSubObject(f"{prefix}Face{index + 1}").Surface
+                axes.append(Part.Line(surface.Center, surface.Center + surface.Axis))
+            crossing = axes[0].intersect(axes[1], 1e-7)
+            self.assertTrue(crossing)
+            expected = App.Vector(crossing[0].X, crossing[0].Y, crossing[0].Z)
+            self.assertLess((plc.Base - expected).Length, 1e-6, f"element {element}: {plc.Base}")
+
     def test_create_assembly(self):
         """Create an assembly."""
         operation = "Create Assembly Object"
