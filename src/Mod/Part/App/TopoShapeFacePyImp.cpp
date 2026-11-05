@@ -420,8 +420,12 @@ PyObject* TopoShapeFacePy::addWire(PyObject* args)
     }
 
     BRep_Builder aBuilder;
-    TopoDS_Face face = TopoDS::Face(getTopoShapePtr()->getShape());
+    TopoDS_Face face = getTopoDSFace(this);
     const TopoDS_Shape& shape = static_cast<TopoShapeWirePy*>(wire)->getTopoShapePtr()->getShape();
+    if (shape.IsNull()) {
+        PyErr_SetString(PyExc_ValueError, "Wire is null");
+        return nullptr;
+    }
     aBuilder.Add(face, shape);
     getTopoShapePtr()->setShape(face);
     Py_Return;
@@ -735,8 +739,7 @@ PyObject* TopoShapeFacePy::countNodes(PyObject* args) const
         return nullptr;
     }
 
-    const TopoDS_Shape& shape = this->getTopoShapePtr()->getShape();
-    TopoDS_Face aFace = TopoDS::Face(shape);
+    const TopoDS_Face& aFace = getTopoDSFace(this);
     TopLoc_Location aLoc;
     const Handle(Poly_Triangulation) & aTriangulation = BRep_Tool::Triangulation(aFace, aLoc);
     int count = 0;
@@ -753,8 +756,7 @@ PyObject* TopoShapeFacePy::countTriangles(PyObject* args) const
         return nullptr;
     }
 
-    const TopoDS_Shape& shape = this->getTopoShapePtr()->getShape();
-    TopoDS_Face aFace = TopoDS::Face(shape);
+    const TopoDS_Face& aFace = getTopoDSFace(this);
     TopLoc_Location aLoc;
     const Handle(Poly_Triangulation) & aTriangulation = BRep_Tool::Triangulation(aFace, aLoc);
     int count = 0;
@@ -813,7 +815,7 @@ PyObject* TopoShapeFacePy::cutHoles(PyObject* args)
                 if (PyObject_TypeCheck(item, &(Part::TopoShapePy::Type))) {
                     const TopoDS_Shape& sh
                         = static_cast<Part::TopoShapePy*>(item)->getTopoShapePtr()->getShape();
-                    if (sh.ShapeType() == TopAbs_WIRE) {
+                    if (!sh.IsNull() && sh.ShapeType() == TopAbs_WIRE) {
                         wires.push_back(TopoDS::Wire(sh));
                     }
                     else {
