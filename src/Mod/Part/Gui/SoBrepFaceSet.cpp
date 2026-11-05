@@ -51,6 +51,7 @@
 #include <Gui/Selection/SoFCSelectionAction.h>
 #include <Gui/Selection/SoFCUnifiedSelection.h>
 #include <Gui/Inventor/So3DAnnotation.h>
+#include <Gui/Render/FaceShading.h>
 
 #include "SoBrepFaceSet.h"
 #include "ViewProviderExt.h"
@@ -126,6 +127,19 @@ static void renderOverlayFaces(
     }
 
     auto state = action->getState();
+    // Enhanced quality: the overlay keeps the transparency of the shape (first non-zero value, as
+    // the Classic colour remap does), so a selected face of a transparent part stays transparent.
+    float transparency = 0.0f;
+    if (Gui::Render::useUnlitSelectionOverlays()) {
+        auto* lazy = SoLazyElement::getInstance(state);
+        const float* trans = lazy->getTransparencyPointer();
+        for (int i = 0; trans && i < lazy->getNumTransparencies(); ++i) {
+            if (trans[i] != 0.0f) {
+                transparency = trans[i];
+                break;
+            }
+        }
+    }
     state->push();
 
     SoLazyElement::setLightModel(state, SoLazyElement::BASE_COLOR);
@@ -144,8 +158,8 @@ static void renderOverlayFaces(
     }
 
     SoLazyElement::setEmissive(state, &color);
-    const uint32_t packed = color.getPackedValue(0.0f);
-    SoLazyElement::setPacked(state, faceSet, 1, &packed, false);
+    const uint32_t packed = color.getPackedValue(transparency);
+    SoLazyElement::setPacked(state, faceSet, 1, &packed, transparency != 0.0f);
 
     faceSet->coordIndex.setNum(static_cast<int32_t>(coordIndex.size()));
     faceSet->coordIndex.setValues(0, static_cast<int32_t>(coordIndex.size()), coordIndex.data());
@@ -704,14 +718,28 @@ void SoBrepFaceSet::GLRender(SoGLRenderAction* action)
             Gui::SoDelayedAnnotationsElement::addDelayedPath(state, currentPath->copy(), 100);
             return;
         }
-        inherited::GLRender(action);
+        {
+            Gui::Render::FaceShadingScope shading(action);
+            inherited::GLRender(action);
+        }
         renderHighlight(action, ctx);
         return;
     }
 
+    // With the enhanced shading (shapes the shader takes), sub-element selection and preselection
+    // are not mixed into the shaded faces: they are drawn by the unlit overlay passes below at the
+    // exact colours. Whole-object selection and preselection tint the shaded faces instead (they
+    // keep their relief and transparency). Shapes the shader leaves alone keep the Classic remap.
+    const bool unlitOverlays = Gui::Render::useUnlitSelectionOverlays()
+        && Gui::Render::isFaceShadingEligible(action);
+    const bool wholeObject = unlitOverlays && ctx && (ctx->isSelectAll() || ctx->isHighlightAll());
+    // Like the Classic remap: a selected object stays in the selection colour while hovered.
+    const SbColor tint = wholeObject ? (ctx->isSelectAll() ? ctx->selectionColor : ctx->highlightColor)
+                                     : SbColor(0.0f, 0.0f, 0.0f);
+
     SoMaterialBundle mb(action);
     mb.sendFirst();
-    const bool pushed = overrideMaterialBinding(action, ctx, ctx2);
+    const bool pushed = overrideMaterialBinding(action, unlitOverlays ? SelContextPtr() : ctx, ctx2);
     if (!this->shouldGLRender(action)) {
         if (pushed) {
             state->pop();
@@ -719,12 +747,32 @@ void SoBrepFaceSet::GLRender(SoGLRenderAction* action)
         return;
     }
 
-    inherited::GLRender(action);
+    bool tinted = false;
+    {
+        Gui::Render::FaceShadingScope shading(action, wholeObject ? &tint : nullptr);
+        inherited::GLRender(action);
+        tinted = wholeObject && shading.isActive();
+    }
     if (pushed) {
         state->pop();
     }
 
-    if (!pushed) {
+    if (tinted) {
+        // A preselected face of a selected object is still drawn at the exact colour.
+        if (ctx->isSelectAll() && ctx->highlightIndex >= 0 && ctx->highlightIndex < partIndex.getNum()) {
+            renderHighlight(action, ctx);
+        }
+        if (!pushed && ctx2 && !hasSecondaryColors && !ctx2->selectionIndex.empty()) {
+            renderSelection(action, ctx2);
+        }
+    }
+    else if (pushed && unlitOverlays && ctx) {
+        if (!ctx->selectionIndex.empty()) {
+            renderSelection(action, ctx);
+        }
+        renderHighlight(action, ctx);
+    }
+    else if (!pushed) {
         // If overrideMaterialBinding() cannot express the current material
         // binding through Coin state, render selection and highlight with
         // explicit overlay passes instead.

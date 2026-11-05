@@ -56,6 +56,8 @@ private:
     ParameterGrp::handle hLightSourcesGrp;
 
     std::vector<View3DInventorViewer*> _viewers;
+    /// Render::RenderSettings::visibleState() last applied to the viewers of this observer.
+    unsigned renderState = 0;
 };
 
 class NaviCubeSettings

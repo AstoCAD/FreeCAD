@@ -135,6 +135,11 @@
 #include "MainWindow.h"
 #include "Multisample.h"
 #include "NaviCube.h"
+#include "Render/RenderSettings.h"
+#include "Render/AmbientOcclusion.h"
+#include "Render/PassUtilities.h"
+#include "Render/PostProcess.h"
+#include "Render/ShadowPass.h"
 #include "Navigation/NavigationStyle.h"
 #include "Navigation/GestureNavigationStyle.h"
 #include "Navigation/SiemensNXNavigationStyle.h"
@@ -163,6 +168,10 @@
 #include <Inventor/nodes/SoRotation.h>
 #include <Inventor/nodes/SoTransformSeparator.h>
 #include <Inventor/So3DAnnotation.h>
+
+#ifndef GL_MAX_RENDERBUFFER_SIZE
+# define GL_MAX_RENDERBUFFER_SIZE 0x84E8
+#endif
 
 
 FC_LOG_LEVEL_INIT("3DViewer", true, true)
@@ -2488,6 +2497,23 @@ void View3DInventorViewer::savePicture(
     }
 
     auto self = const_cast<View3DInventorViewer*>(this);  // NOLINT
+    // Enhanced quality: the framebuffer path is the one that runs the shadow, ambient occlusion
+    // and FXAA passes like the screen does, so prefer it; keep the selected method as fallback
+    // (for example when the view's GL widget cannot be made current).
+    if (!useFramebufferObject && !useGrabFramebuffer && Render::RenderSettings::isEnhancedActive()) {
+        RenderImageOptions options;
+        options.width = width;
+        options.height = height;
+        options.samples = sample;
+        options.background = bg;
+        options.intent = intent;
+        QImage enhanced = self->renderToImage(options);
+        if (!enhanced.isNull()) {
+            img = enhanced;
+            return;
+        }
+    }
+
     if (useFramebufferObject) {
         RenderImageOptions options;
         options.width = width;
@@ -2607,6 +2633,9 @@ void View3DInventorViewer::savePicture(
                     SbColor(float(bgColor.redF()), float(bgColor.greenF()), float(bgColor.blueF()))
                 );
             }
+            // Coin makes its own GL context current, Qt's current context is stale meanwhile:
+            // the Enhanced passes would use objects of another context, render Classic instead.
+            const Render::ScopedClassicRendering classic;
             if (!renderer.render(root)) {
                 throw Base::RuntimeError("Offscreen rendering failed");
             }
@@ -3054,15 +3083,15 @@ QImage View3DInventorViewer::renderToImage(const RenderImageOptions& options)
 {
     const SbViewportRegion vp = this->getSoRenderManager()->getViewportRegion();
     const SbVec2s size = vp.getViewportSizePixels();
-    const int width = options.width > 0 ? options.width : size[0];
-    const int height = options.height > 0 ? options.height : size[1];
+    const int outputWidth = options.width > 0 ? options.width : size[0];
+    const int outputHeight = options.height > 0 ? options.height : size[1];
 
-    if (width <= 0 || height <= 0) {
+    if (outputWidth <= 0 || outputHeight <= 0) {
         Base::Console().warning("renderToImage failed because the viewport is empty\n");
         return {};
     }
 
-    const int samples = options.samples >= 0 ? options.samples : getNumSamples();
+    int samples = options.samples >= 0 ? options.samples : getNumSamples();
     QImage img;
     ScopedRenderIntent scopedIntent(*this, options.intent);
 
@@ -3075,8 +3104,25 @@ QImage View3DInventorViewer::renderToImage(const RenderImageOptions& options)
         return {};
     }
 
+    // Enhanced quality: optional supersampling, render larger and filter down at the end.
+    // Line widths and markers are in pixels and come out thinner by the same factor.
+    int supersampling = Render::RenderSettings::isEnhancedActive()
+        ? Render::RenderSettings::exportSupersampling()
+        : 1;
+    if (supersampling > 1) {
+        GLint maxRenderbufferSize = 0;
+        GLint maxTextureSize = 0;
+        glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxRenderbufferSize);
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+        supersampling = Render::fitExportSupersampling(
+            supersampling,
+            outputWidth,
+            outputHeight,
+            std::min(int(maxRenderbufferSize), int(maxTextureSize))
+        );
+    }
+
     QOpenGLFramebufferObjectFormat fboFormat;
-    fboFormat.setSamples(samples);
     fboFormat.setAttachment(QOpenGLFramebufferObject::Depth);
     // With enabled alpha a transparent background is supported but
     // at the same time breaks semi-transparent models. A workaround
@@ -3089,7 +3135,35 @@ QImage View3DInventorViewer::renderToImage(const RenderImageOptions& options)
         perPixelAlpha ? static_cast<GLenum>(GL_RGBA8) : getInternalTextureFormat()
     );
 
-    QOpenGLFramebufferObject fbo(width, height, fboFormat);
+    std::unique_ptr<QOpenGLFramebufferObject> fboHolder;
+    if (supersampling > 1) {
+        // Supersampling already anti-aliases: multisampling on top would multiply the memory.
+        fboFormat.setSamples(0);
+        fboHolder = std::make_unique<QOpenGLFramebufferObject>(
+            outputWidth * supersampling,
+            outputHeight * supersampling,
+            fboFormat
+        );
+        if (!fboHolder->isValid()) {
+            Base::Console().warning(
+                "renderToImage: no {}x{} framebuffer for supersampling, rendering at the output size\n",
+                outputWidth * supersampling,
+                outputHeight * supersampling
+            );
+            fboHolder.reset();
+            supersampling = 1;
+        }
+    }
+    const int width = outputWidth * supersampling;
+    const int height = outputHeight * supersampling;
+    if (!fboHolder) {
+        fboFormat.setSamples(samples);
+        fboHolder = std::make_unique<QOpenGLFramebufferObject>(width, height, fboFormat);
+    }
+    else {
+        samples = 0;
+    }
+    QOpenGLFramebufferObject& fbo = *fboHolder;
     if (!fbo.isValid()) {
         Base::Console().warning(
             "renderToImage failed to create a {}x{} framebuffer with {} samples\n",
@@ -3099,6 +3173,12 @@ QImage View3DInventorViewer::renderToImage(const RenderImageOptions& options)
         );
         return {};
     }
+    auto downsample = [=](const QImage& image) {
+        if (supersampling <= 1 || image.isNull()) {
+            return image;
+        }
+        return image.scaled(outputWidth, outputHeight, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    };
 
     constexpr const int maxAlpha = 255;
     QColor opaqueBackground = options.background;
@@ -3136,7 +3216,7 @@ QImage View3DInventorViewer::renderToImage(const RenderImageOptions& options)
 
     if (perPixelAlpha) {
         // The framebuffer already carries per-pixel alpha, so neither post-pass applies.
-        return img;
+        return downsample(img);
     }
 
     if (keyOutBackground) {
@@ -3163,7 +3243,7 @@ QImage View3DInventorViewer::renderToImage(const RenderImageOptions& options)
         img = image;
     }
 
-    return img;
+    return downsample(img);
 }
 
 QImage View3DInventorViewer::renderSceneToImage(
@@ -3214,6 +3294,18 @@ SoSeparator* View3DInventorViewer::buildCaptureRoot(
     // center and the viewer's own camera out of the capture.
     auto root = new SoSeparator;
 
+    // Enhanced quality with shadows only: render the shadow map of the captured scene first.
+    if (Render::RenderSettings::shadowsActive()) {
+        root->addChild(Render::createShadowPass(options.scene ? options.scene : viewer->pcViewProviderRoot));
+    }
+    // ... and its ambient occlusion (the pass renders its own scene: camera plus content).
+    if (Render::RenderSettings::ambientOcclusionActive()) {
+        auto aoScene = new SoSeparator;
+        aoScene->addChild(options.camera ? options.camera : viewer->getSoRenderManager()->getCamera());
+        aoScene->addChild(options.scene ? options.scene : viewer->pcViewProviderRoot);
+        root->addChild(Render::createAmbientOcclusionPass(aoScene));
+    }
+
     if (options.includeViewerLighting) {
         if (viewer) {
             root->addChild(viewer->getHeadlight());
@@ -3229,6 +3321,10 @@ SoSeparator* View3DInventorViewer::buildCaptureRoot(
 
     root->addChild(options.camera ? options.camera : viewer->getSoRenderManager()->getCamera());
     root->addChild(options.scene ? options.scene : viewer->pcViewProviderRoot);
+    // Enhanced quality: FXAA of the captured scene, like on screen (single-sampled targets only).
+    if (Render::RenderSettings::fxaaActive()) {
+        root->addChild(Render::createPostProcess());
+    }
 
     return root;
 }
@@ -3277,6 +3373,17 @@ bool View3DInventorViewer::renderToFramebuffer(
     // while creating a new render action has it set to GL_LEQUAL. So, in order to get
     // the exact same result set it explicitly to GL_LESS.
     glDepthFunc(GL_LESS);
+    if (!options.camera && !options.scene && Render::RenderSettings::shadowsActive()) {
+        // Same shadows as on screen (buildCaptureRoot() adds its own pass for the branch below).
+        const CoinPtr<Render::SoFCShadowPass> shadowPass(Render::createShadowPass(pcViewProviderRoot));
+        gl.apply(shadowPass);
+    }
+    if (!options.camera && !options.scene && Render::RenderSettings::ambientOcclusionActive()) {
+        const CoinPtr<Render::SoFCAmbientOcclusionPass> aoPass(
+            Render::createAmbientOcclusionPass(this->getSoRenderManager()->getSceneGraph())
+        );
+        gl.apply(aoPass);
+    }
     if (options.camera || options.scene) {
         const CoinPtr<SoSeparator> captureRoot(buildCaptureRoot(options, this));
         gl.apply(captureRoot);
@@ -3293,6 +3400,11 @@ bool View3DInventorViewer::renderToFramebuffer(
         return true;
     }
     renderDelayedAnnotations(&gl);
+    if (!options.camera) {
+        // Enhanced only; before the foreground and decorations. A capture root (camera given)
+        // has its own FXAA pass already.
+        Render::applyFxaa();
+    }
     gl.apply(this->foregroundroot);
     if (shouldRenderDecorations(currentRenderIntent())) {
         gl.apply(this->decorationroot);
@@ -3461,9 +3573,38 @@ void View3DInventorViewer::renderGLActionScene(const QColor& backgroundColor, So
     }
 
     try {
+        // Enhanced quality with shadows only: refresh the shadow map (kept while the scene is
+        // unchanged; while navigating, nodes that follow the camera do not re-render it).
+        const bool navigating = getInteractiveCount() > 0 || isAnimating();
+        if (Render::RenderSettings::shadowsActive()) {
+            const CoinPtr<Render::SoFCShadowPass> shadowPass(Render::createShadowPass(pcViewProviderRoot));
+            shadowPass->setPostponeUpdates(true, navigating);
+            glra->apply(shadowPass);
+        }
+        // Ambient occlusion needs a depth prepass for every new camera position: skip it while
+        // navigating (faces then render without it) and refresh it once the interaction ends.
+        if (Render::RenderSettings::ambientOcclusionActive() && !navigating) {
+            const CoinPtr<Render::SoFCAmbientOcclusionPass> aoPass(
+                Render::createAmbientOcclusionPass(getSoRenderManager()->getSceneGraph())
+            );
+            aoPass->setPostponeUpdates(true);
+            glra->apply(aoPass);
+        }
+        // A postponed map is caught up by a later redraw (the end of an interaction redraws anyway).
+        if (Render::Detail::takePostponedMapUpdate() && getInteractiveCount() == 0
+            && !prepassRedrawScheduled) {
+            prepassRedrawScheduled = true;
+            constexpr int delay = int(Render::Detail::minimumMapUpdateInterval * 1000.0) + 20;
+            QTimer::singleShot(delay, this, [this]() {
+                prepassRedrawScheduled = false;
+                redraw();
+            });
+        }
+
         // Render normal scenegraph.
         inherited::actualRedraw();
         renderDelayedAnnotations(glra);
+        Render::applyFxaa();  // Enhanced only; before the foreground and decorations
     }
     catch (const Base::MemoryException&) {
         this->recoverFromRenderMemoryException();
