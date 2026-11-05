@@ -32,6 +32,34 @@
 
 using namespace Sketcher;
 
+namespace
+{
+// Py::Long's int conversion leaves an OverflowError pending and returns garbage
+int toInt(const Py::Long& arg)
+{
+    const long value = PyLong_AsLong(arg.ptr());
+    if (value == -1 && PyErr_Occurred()) {
+        throw Py::Exception();
+    }
+    if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max()) {
+        throw Py::OverflowError("Python int too large to convert to C int");
+    }
+    return static_cast<int>(value);
+}
+
+void setPointPos(Sketcher::PointPos& pos, const Py::Long& arg)
+{
+    const int value = toInt(arg);
+    if (value < static_cast<int>(Sketcher::PointPos::none)
+        || value > static_cast<int>(Sketcher::PointPos::mid)) {
+        std::stringstream str;
+        str << "Invalid PointPos parameter: " << value;
+        throw Py::TypeError(str.str());
+    }
+    pos = static_cast<Sketcher::PointPos>(value);
+}
+}  // namespace
+
 PyObject* ConstraintPy::PyMake(struct _typeobject*, PyObject*, PyObject*)  // Python wrapper
 {
     // create a new instance of ConstraintPy and the Twin object
@@ -1166,7 +1194,7 @@ Py::Long ConstraintPy::getFirst() const
 
 void ConstraintPy::setFirst(Py::Long arg)
 {
-    this->getConstraintPtr()->First = arg;
+    this->getConstraintPtr()->First = toInt(arg);
 }
 
 Py::Long ConstraintPy::getFirstPos() const
@@ -1176,18 +1204,7 @@ Py::Long ConstraintPy::getFirstPos() const
 
 void ConstraintPy::setFirstPos(Py::Long arg)
 {
-    int pos = arg;
-
-    if (pos >= static_cast<int>(Sketcher::PointPos::none)
-        && pos <= static_cast<int>(Sketcher::PointPos::mid)) {
-        this->getConstraintPtr()->FirstPos = static_cast<Sketcher::PointPos>(pos);
-    }
-    else {
-        std::stringstream str;
-        str << "Invalid PointPos parameter: " << arg << std::endl;
-
-        PyErr_SetString(PyExc_TypeError, str.str().c_str());
-    }
+    setPointPos(this->getConstraintPtr()->FirstPos, arg);
 }
 
 Py::Long ConstraintPy::getSecond() const
@@ -1197,7 +1214,7 @@ Py::Long ConstraintPy::getSecond() const
 
 void ConstraintPy::setSecond(Py::Long arg)
 {
-    this->getConstraintPtr()->Second = arg;
+    this->getConstraintPtr()->Second = toInt(arg);
 }
 
 Py::Long ConstraintPy::getSecondPos() const
@@ -1207,18 +1224,7 @@ Py::Long ConstraintPy::getSecondPos() const
 
 void ConstraintPy::setSecondPos(Py::Long arg)
 {
-    int pos = arg;
-
-    if (pos >= static_cast<int>(Sketcher::PointPos::none)
-        && pos <= static_cast<int>(Sketcher::PointPos::mid)) {
-        this->getConstraintPtr()->SecondPos = static_cast<Sketcher::PointPos>(pos);
-    }
-    else {
-        std::stringstream str;
-        str << "Invalid PointPos parameter: " << arg << std::endl;
-
-        PyErr_SetString(PyExc_TypeError, str.str().c_str());
-    }
+    setPointPos(this->getConstraintPtr()->SecondPos, arg);
 }
 
 Py::Long ConstraintPy::getThird() const
@@ -1228,7 +1234,7 @@ Py::Long ConstraintPy::getThird() const
 
 void ConstraintPy::setThird(Py::Long arg)
 {
-    this->getConstraintPtr()->Third = arg;
+    this->getConstraintPtr()->Third = toInt(arg);
 }
 
 Py::Long ConstraintPy::getThirdPos() const
@@ -1238,18 +1244,7 @@ Py::Long ConstraintPy::getThirdPos() const
 
 void ConstraintPy::setThirdPos(Py::Long arg)
 {
-    int pos = arg;
-
-    if (pos >= static_cast<int>(Sketcher::PointPos::none)
-        && pos <= static_cast<int>(Sketcher::PointPos::mid)) {
-        this->getConstraintPtr()->ThirdPos = static_cast<Sketcher::PointPos>(pos);
-    }
-    else {
-        std::stringstream str;
-        str << "Invalid PointPos parameter: " << arg << std::endl;
-
-        PyErr_SetString(PyExc_TypeError, str.str().c_str());
-    }
+    setPointPos(this->getConstraintPtr()->ThirdPos, arg);
 }
 
 Py::String ConstraintPy::getName() const
