@@ -719,6 +719,55 @@ class SpreadsheetCases(unittest.TestCase):
     def tearDown(self):
         FreeCAD.closeDocument(self.doc.Name)
 
+    def testGetRange(self):
+        """Sheet.get(from, to) returns every cell of the range, in either order and with aliases."""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "1")
+        sheet.set("A2", "2")
+        sheet.set("B1", "3")
+        sheet.set("B2", "4")
+        sheet.setAlias("B2", "last")
+        self.doc.recompute()
+        self.assertEqual(sheet.get("A1", "A2"), (1, 2))
+        self.assertEqual(sheet.get("A2", "A1"), (1, 2))
+        self.assertEqual(sheet.get("A1", "last"), (1, 2, 3, 4))
+        self.assertEqual(sheet.get("A1"), 1)
+
+    def testGetRangeWithEmptyCells(self):
+        """Sheet.get(from, to) gives None for the empty cells of the range."""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "1")
+        sheet.set("B2", "4")
+        sheet.setBackground("A2", (1.0, 0.0, 0.0))  # formatted, but empty
+        self.doc.recompute()
+        self.assertEqual(sheet.get("A1", "B2"), (1, None, None, 4))
+        self.assertEqual(sheet.get("C1", "C2"), (None, None))
+        # A cell with contents that has no value yet is still an error
+        sheet.set("C2", "5")
+        with self.assertRaises(ValueError):
+            sheet.get("C1", "C2")
+
+    def testRecomputeCellsRange(self):
+        """Sheet.recomputeCells(from, to) recomputes every cell of the range."""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        self.doc.recompute()
+        sheet.set("A1", "=1 + 1")
+        sheet.set("B2", "=2 + 2")
+        sheet.recomputeCells("A1", "B2")
+        self.assertEqual(sheet.get("A1"), 2)
+        self.assertEqual(sheet.get("B2"), 4)
+
+    def testRecomputeCellsRangeString(self):
+        """Sheet.recomputeCells/touchCells still accept a single "A1:B2" range."""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        self.doc.recompute()
+        sheet.set("A1", "=1 + 1")
+        sheet.set("B2", "=2 + 2")
+        sheet.touchCells("A1:B2")
+        sheet.recomputeCells("A1:B2")
+        self.assertEqual(sheet.get("A1"), 2)
+        self.assertEqual(sheet.get("B2"), 4)
+
     def testExportQuotesFieldWithQuoteChar(self):
         """A text cell containing the quote character survives a CSV export/import."""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")

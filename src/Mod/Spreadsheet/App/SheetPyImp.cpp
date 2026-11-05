@@ -114,12 +114,18 @@ PyObject* SheetPy::get(PyObject* args)
             if (a2.empty()) {
                 a2 = address2;
             }
-            Range range(a1.c_str(), a2.c_str());
+            Range range(CellAddress(a1), CellAddress(a2), true);
             Py::Tuple tuple(range.size());
             int i = 0;
             do {
                 App::Property* prop = getSheetPtr()->getPropertyByName(range.address().c_str());
                 if (!prop) {
+                    // A range may have gaps: an empty cell gives None
+                    const Cell* cell = getSheetPtr()->getCell(*range);
+                    if (!cell || !cell->getExpression()) {
+                        tuple.setItem(i++, Py::None());
+                        continue;
+                    }
                     PyErr_Format(
                         PyExc_ValueError,
                         "Invalid address '%s' in range %s:%s",
@@ -1104,7 +1110,10 @@ PyObject* SheetPy::touchCells(PyObject* args)
                 a2 = address2;
             }
         }
-        getSheetPtr()->touchCells(Range(a1.c_str(), a2.c_str()));
+        // A single argument may also be a range such as "A1:B2"
+        getSheetPtr()->touchCells(
+            address2 ? Range(CellAddress(a1), CellAddress(a2), true) : Range(a1.c_str(), true)
+        );
         Py_Return;
     }
     PY_CATCH;
@@ -1136,7 +1145,10 @@ PyObject* SheetPy::recomputeCells(PyObject* args)
                 a2 = address2;
             }
         }
-        getSheetPtr()->recomputeCells(Range(a1.c_str(), a2.c_str()));
+        // A single argument may also be a range such as "A1:B2"
+        getSheetPtr()->recomputeCells(
+            address2 ? Range(CellAddress(a1), CellAddress(a2), true) : Range(a1.c_str(), true)
+        );
         Py_Return;
     }
     PY_CATCH;
