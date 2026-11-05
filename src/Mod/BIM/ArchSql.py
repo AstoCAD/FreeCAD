@@ -1515,7 +1515,10 @@ class BooleanComparison:
             return False
 
         def like_to_regex(pattern):
-            s = str(pattern).replace("%", ".*").replace("_", ".")
+            # Only % and _ are wildcards, all other characters match literally.
+            s = "".join(
+                ".*" if c == "%" else "." if c == "_" else re.escape(c) for c in str(pattern)
+            )
             return s
 
         ops = {
