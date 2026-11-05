@@ -2038,6 +2038,11 @@ PyObject* MeshPy::smooth(PyObject* args, PyObject* kwds) const
         )) {
         return nullptr;
     }
+    if (iter < 0) {
+        // Smooth() takes an unsigned count: -1 would run ~4 billion iterations
+        PyErr_SetString(PyExc_ValueError, "Iteration must not be negative");
+        return nullptr;
+    }
 
     PY_TRY
     {
