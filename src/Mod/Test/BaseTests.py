@@ -65,6 +65,18 @@ class ConsoleTestCase(unittest.TestCase):
                     FreeCAD.Console.PrintWarning(*args)
         FreeCAD.Console.PrintMessage("Notifier", "   Printing message\n")
 
+    def testPrintNonStringArguments(self):
+        # the result of str() of a non-str argument was released before the
+        # message was sent (use after free, access violation for large texts)
+        class Big:
+            def __str__(self):
+                return "   " + "x" * 4000000 + "\n"
+
+        FreeCAD.Console.PrintLog(Big())
+        FreeCAD.Console.PrintLog(Big(), "   Printing Log\n")
+        FreeCAD.Console.PrintLog("Notifier", Big())
+        FreeCAD.Console.PrintLog(1, 2)
+
     def testSynchronPrintFromThread(self):
         # http://python-kurs.eu/threads.php
         try:
