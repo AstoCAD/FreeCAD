@@ -54,6 +54,17 @@ class ConsoleTestCase(unittest.TestCase):
         FreeCAD.Console.PrintWarning("   Printing warning\n")
         FreeCAD.Console.PrintLog("   Printing Log\n")
 
+    def testPrintUnencodableString(self):
+        # a string that cannot be converted to UTF-8 left a pending error
+        # (SystemError) as message and crashed as notifier
+        for args in (("\ud800",), ("\ud800", "   Printing message\n")):
+            with self.subTest(args=ascii(args)):
+                with self.assertRaises(UnicodeEncodeError):
+                    FreeCAD.Console.PrintMessage(*args)
+                with self.assertRaises(UnicodeEncodeError):
+                    FreeCAD.Console.PrintWarning(*args)
+        FreeCAD.Console.PrintMessage("Notifier", "   Printing message\n")
+
     def testSynchronPrintFromThread(self):
         # http://python-kurs.eu/threads.php
         try:

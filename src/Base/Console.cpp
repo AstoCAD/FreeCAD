@@ -415,6 +415,9 @@ PyObject* FC_PYCONSOLE_MSG(std::function<void(const char*, const char*)> func, P
             notifierStr = retrieveString(notifier);
         }
         PY_CATCH
+        if (!notifierStr) {
+            return nullptr;  // Python error set by retrieveString()
+        }
     }
 
     PY_TRY
@@ -422,6 +425,9 @@ PyObject* FC_PYCONSOLE_MSG(std::function<void(const char*, const char*)> func, P
 
         if (const char* string = retrieveString(output)) {
             func(notifierStr, string); /*process message*/
+        }
+        else {
+            return nullptr;  // Python error set by retrieveString()
         }
     }
     PY_CATCH
