@@ -211,6 +211,7 @@ SET(Document_CPP_SRCS
     Link.cpp
     LinkBaseExtensionPyImp.cpp
     VarSet.cpp
+    UserParameters.cpp
     License.h
 )
 
@@ -261,6 +262,7 @@ SET(Document_HPP_SRCS
     CopyPasteRules.h
     TextDocument.h
     VarSet.h
+    UserParameters.h
     Link.h
 )
 SET(Document_SRCS

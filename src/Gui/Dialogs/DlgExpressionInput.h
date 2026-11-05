@@ -94,6 +94,17 @@ public:
 
     QPoint expressionPosition() const;
 
+    /**
+     * Continue the assignment of a new user parameter, for a caller that knows the user typed
+     * @p name in its field to name one (a quantity field in which `=` is pressed after a name).
+     *
+     * When @p name is a name that a new user parameter of the edited object can take, the input
+     * becomes `name = ` and show() leaves the cursor after it, for the value to be typed.
+     * Otherwise nothing changes and false is returned. To be called before show(), for a
+     * property that has no expression (the input would replace the text of the expression).
+     */
+    bool continueAssignment(const QString& name);
+
 public Q_SLOTS:
     void show();
     void accept() override;
@@ -123,6 +134,7 @@ private:
     void updateVarSetInfo(bool checkExpr = true);
     void createBindingVarSet(App::Property* propVarSet, App::DocumentObject* varSet);
     void acceptWithVarSet();
+    void acceptUserParameter();
     bool isPropertyNameValid(
         const QString& nameProp,
         const App::DocumentObject* obj,
@@ -149,6 +161,10 @@ private:
     NumberRange numberRange;
 
     std::string message;
+    /// Name of the user parameter to create on accept, for input `name = expression`.
+    std::string userParameterName;
+    /// continueAssignment() prefilled `name = `: show() does not select the input.
+    bool assignmentContinued = false;
 
     bool varSetsVisible;
     QPushButton* okBtn = nullptr;

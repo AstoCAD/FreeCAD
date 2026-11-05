@@ -35,6 +35,7 @@
 #include <Gui/Command.h>
 #include <Mod/Spreadsheet/App/Sheet.h>
 #include <Mod/Spreadsheet/App/SheetParameter.h>
+#include <Mod/Spreadsheet/App/Utils.h>
 
 #include "SheetModel.h"
 #include "App/Range.h"
@@ -625,7 +626,10 @@ void SheetModel::setCellData(QModelIndex index, QString str)
         // characters, let's take a shortcut and bypass the command
         // interface for now.
 
-        sheet->setContent(address, str.toUtf8().constData());
+        // A user parameter typed by its bare name (`=2*myVar`) is stored qualified.
+        std::string content = str.toUtf8().constData();
+        Spreadsheet::qualifyUserParameters(sheet, content);
+        sheet->setContent(address, content.c_str());
         sheet->getDocument()->commitTransaction();
         Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
     }

@@ -25,6 +25,10 @@
 
 #include <sstream>
 
+#include <App/Document.h>
+#include <App/ExpressionParser.h>
+#include <App/UserParameters.h>
+#include <Base/Exception.h>
 
 #include "Sheet.h"
 #include "Utils.h"
@@ -237,4 +241,33 @@ std::string Spreadsheet::unquote(const std::string& input)
     }
 
     return output;
+}
+
+bool Spreadsheet::qualifyUserParameters(Sheet* sheet, std::string& content)
+{
+    if (!sheet || !sheet->getDocument() || content.size() < 2 || content[0] != '=') {
+        return false;
+    }
+    App::ExpressionPtr expr;
+    try {
+        expr = App::ExpressionParser::parse(sheet, content.c_str() + 1);
+    }
+    catch (const Base::Exception&) {
+        // Kept as typed: the cell shows the parse error as before.
+        return false;
+    }
+    if (!expr) {
+        return false;
+    }
+    // An address or an alias names its cell even while the cell is empty, when it does not
+    // resolve as a property of the sheet: a user parameter of the same name does not take it over.
+    const auto namesCell = [sheet](const std::string& name) {
+        return App::UserParameters::isCellAddressName(name)
+            || !sheet->getAddressFromAlias(name).empty();
+    };
+    if (App::UserParameters::qualifyReferences(sheet, *expr, namesCell) == 0) {
+        return false;
+    }
+    content = "=" + expr->toString();
+    return true;
 }

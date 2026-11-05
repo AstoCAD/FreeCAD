@@ -92,6 +92,9 @@ DlgBindSheet::DlgBindSheet(Sheet* sheet, const std::vector<Range>& ranges, QWidg
     ui->lineEditFromStart->setText(QString::fromLatin1(range.from().toString().c_str()));
     ui->lineEditFromEnd->setText(QString::fromLatin1(range.to().toString().c_str()));
 
+    // The targets are cell ranges of another sheet, never a user parameter.
+    ui->lineEditToStart->setUserParameters(false);
+    ui->lineEditToEnd->setUserParameters(false);
     ui->lineEditToStart->setDocumentObject(sheet, false);
     ui->lineEditToStart->setPrefix('=');
     ui->lineEditToEnd->setDocumentObject(sheet, false);
