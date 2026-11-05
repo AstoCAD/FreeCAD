@@ -40,6 +40,7 @@
 #include <Mod/TechDraw/App/DrawView.h>
 #include <Mod/TechDraw/App/LineGroup.h>
 #include <Mod/TechDraw/App/DrawUtil.h>
+#include <Mod/TechDraw/App/Preferences.h>
 
 #include "TaskLeaderLine.h"
 #include "ui_TaskLeaderLine.h"
@@ -243,6 +244,12 @@ void TaskLeaderLine::setUiPrimary()
     ui->dsbWeight->setValue(TechDraw::LineGroup::getDefaultWidth("Graphic"));
 
     ui->cpLineColor->setColor(PreferencesGui::leaderColor().asValue<QColor>());
+
+    // same defaults as the DrawLeaderLine properties
+    ui->cbAutoHorizontal->setChecked(
+        TechDraw::Preferences::getPreferenceGroup("LeaderLine")->GetBool("AutoHorizontal", true));
+    ui->cbScalable->setChecked(false);
+    ui->cbRotatesWithParent->setChecked(true);
 }
 
 //switch widgets related to ViewProvider on/off
@@ -269,6 +276,10 @@ void TaskLeaderLine::setUiEdit()
         DrawGuiUtil::loadArrowBox(ui->cboxEndSym);
         ui->cboxEndSym->setCurrentIndex(m_lineFeat->EndSymbol.getValue());
         connect(ui->cboxEndSym, qOverload<int>(&QComboBox::currentIndexChanged), this, &TaskLeaderLine::onEndSymbolChanged);
+
+        ui->cbAutoHorizontal->setChecked(m_lineFeat->AutoHorizontal.getValue());
+        ui->cbScalable->setChecked(m_lineFeat->Scalable.getValue());
+        ui->cbRotatesWithParent->setChecked(m_lineFeat->RotatesWithParent.getValue());
 
         ui->pbTracker->setText(tr("Edit Points"));
         if (m_vpp->getMDIViewPage()) {
@@ -365,6 +376,8 @@ void TaskLeaderLine::createLeaderFeature(std::vector<Base::Vector3d> sceneDeltas
 
     if (obj->isDerivedFrom<TechDraw::DrawLeaderLine>()) {
         m_lineFeat = static_cast<TechDraw::DrawLeaderLine*>(obj);
+        // before the picked points are converted, as Scalable changes their canonical form
+        applyOptions();
         auto forMath{m_attachPoint};
         if (baseRotation != 0) {
             forMath = DU::invertY(forMath);
@@ -432,6 +445,7 @@ void TaskLeaderLine::updateLeaderFeature()
     int tid = Gui::Command::openActiveDocumentCommand(QT_TRANSLATE_NOOP("Command", "Edit Leader"));
     //waypoints & x, y are updated by QGILeaderLine (for edits only!)
     commonFeatureUpdate();
+    applyOptions();
     Base::Color ac;
     ac.setValue<QColor>(ui->cpLineColor->color());
     m_lineVP->Color.setValue(ac);
@@ -453,6 +467,19 @@ void TaskLeaderLine::commonFeatureUpdate()
     int end   = ui->cboxEndSym->currentIndex();
     m_lineFeat->StartSymbol.setValue(start);
     m_lineFeat->EndSymbol.setValue(end);
+}
+
+//! copy the option check boxes to the leader properties (only the changed ones)
+void TaskLeaderLine::applyOptions()
+{
+    auto apply = [](App::PropertyBool& property, bool value) {
+        if (property.getValue() != value) {
+            property.setValue(value);
+        }
+    };
+    apply(m_lineFeat->AutoHorizontal, ui->cbAutoHorizontal->isChecked());
+    apply(m_lineFeat->Scalable, ui->cbScalable->isChecked());
+    apply(m_lineFeat->RotatesWithParent, ui->cbRotatesWithParent->isChecked());
 }
 
 void TaskLeaderLine::removeFeature()
