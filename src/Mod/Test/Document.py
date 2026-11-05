@@ -3754,6 +3754,59 @@ class DocumentPathCases(unittest.TestCase):
         self.assertIsNotNone(node)
         self.assertEqual(node.attrib["file"], "Source.FCStd")
 
+    def test_link_to_saved_document_is_stored_relative_to_owner(self):
+        # A link is saved relative to its owner, so that the files can be moved together.
+        source_file = self.directory / "Source.FCStd"
+        owner_file = self.directory / "Owner.FCStd"
+        source = FreeCAD.newDocument("RelativeLinkSource")
+        target = source.addObject("App::FeaturePython", "Target")
+        source.saveAs(str(source_file))
+        owner = FreeCAD.newDocument("RelativeLinkOwner")
+        owner.saveAs(str(owner_file))
+        owner.addObject("App::Link", "SavedLink").LinkedObject = target
+        owner.save()
+
+        with zipfile.ZipFile(owner_file) as archive:
+            xml = ET.fromstring(archive.read("Document.xml"))
+        node = xml.find(
+            ".//ObjectData/Object[@name='SavedLink']/Properties/"
+            "Property[@name='LinkedObject']/XLink"
+        )
+        self.assertIsNotNone(node)
+        self.assertEqual(node.attrib["file"], "Source.FCStd")
+
+    def test_link_follows_owner_saved_as_to_another_directory(self):
+        # Save As of the owner to another directory must store the path relative to the new
+        # location, otherwise the link is broken when the file is opened again.
+        source_file = self.directory / "Source.FCStd"
+        owner_file = self.directory / "Owner.FCStd"
+        moved_file = self.directory / "other" / "sub" / "Owner.FCStd"
+        moved_file.parent.mkdir(parents=True)
+        source = FreeCAD.newDocument("MovedOwnerLinkSource")
+        source.addObject("App::FeaturePython", "Target")
+        source.saveAs(str(source_file))
+        owner = FreeCAD.newDocument("MovedOwnerLinkOwner")
+        owner.saveAs(str(owner_file))
+        owner.addObject("App::Link", "SavedLink").LinkedObject = source.Target
+        owner.save()
+        owner.saveAs(str(moved_file))
+
+        with zipfile.ZipFile(moved_file) as archive:
+            xml = ET.fromstring(archive.read("Document.xml"))
+        node = xml.find(
+            ".//ObjectData/Object[@name='SavedLink']/Properties/"
+            "Property[@name='LinkedObject']/XLink"
+        )
+        self.assertIsNotNone(node)
+        self.assertEqual(node.attrib["file"], "../../Source.FCStd")
+
+        FreeCAD.closeDocument(owner.Name)
+        FreeCAD.closeDocument(source.Name)
+        reopened = FreeCAD.openDocument(str(moved_file))
+        restored = reopened.SavedLink.LinkedObject
+        self.assertIsNotNone(restored)
+        self.assertEqual(restored.Name, "Target")
+
 
 class DocumentXLinkStampCases(unittest.TestCase):
     """External links must notice a linked document saved after them."""
