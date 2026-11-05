@@ -455,6 +455,47 @@ class Document(PropertyContainer):
         """
         ...
 
+    def getUserParameters(self) -> list[tuple[DocumentObject, str]]:
+        """
+        Return the user parameters of the document as (object, property name) pairs.
+
+        User parameters are the properties of the group 'UserParameters'.
+        """
+        ...
+
+    def findUserParameter(self, name: str, /) -> tuple[DocumentObject, str] | None:
+        """
+        Return the (object, property name) of the user parameter 'name', or None
+        if there is none or if the name is not unique.
+        """
+        ...
+
+    def checkUserParameterName(
+        self, name: str, owner: DocumentObject | None = None, /
+    ) -> str:
+        """
+        Return an empty string if a user parameter 'name' can be created
+        (on 'owner' if given), otherwise the reason why not.
+        """
+        ...
+
+    def addUserParameter(self, owner: DocumentObject, name: str, value: str, /) -> str:
+        """
+        Create the user parameter 'name' on 'owner' and return its name.
+
+        'value' is an expression parsed with 'owner' as owner, e.g. '23 mm' or
+        '2 * otherParameter'. A literal is assigned as value, other expressions
+        are bound to the new property.
+        """
+        ...
+
+    def renameUserParameter(self, owner: DocumentObject, name: str, newName: str, /) -> None:
+        """
+        Rename the user parameter 'name' of 'owner' and update the expressions
+        of the document that refer to it.
+        """
+        ...
+
     def getLinksTo(
         self,
         obj: DocumentObject | None = None,

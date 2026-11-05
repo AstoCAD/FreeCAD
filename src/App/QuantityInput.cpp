@@ -9,6 +9,7 @@
 #include <App/Expression.h>
 #include <App/ExpressionParser.h>
 #include <App/ObjectIdentifier.h>
+#include <App/UserParameters.h>
 #include <Base/Exception.h>
 #include <Base/NumericFormatting.h>
 #include <Base/NumericInput.h>
@@ -405,12 +406,17 @@ App::QuantityInputResult App::interpretQuantityInput(
 
     Base::Quantity quantity;
     std::shared_ptr<Expression> parsedExpression;
+    int userParameterReferences = 0;
     try {
         if (grammar == QuantityInputGrammar::Expression) {
             const auto* owner = path.getOwner() ? path.getDocumentObject() : nullptr;
             const std::string inputString(input);
             auto parsed = App::ExpressionParser::parseUserInput(owner, inputString.c_str(), locale);
             parsedExpression = std::shared_ptr<Expression>(std::move(parsed));
+            if (owner) {
+                // Fallback only: identifiers that resolve the usual way are left untouched.
+                userParameterReferences = UserParameters::qualifyReferences(owner, *parsedExpression);
+            }
             if (!owner) {
                 parsedExpression = std::shared_ptr<Expression>(
                     rewriteOwnerlessQuantityExpression(*parsedExpression, owner).release()
@@ -479,5 +485,6 @@ App::QuantityInputResult App::interpretQuantityInput(
     result.status = InputStatus::Acceptable;
     result.quantity = quantity;
     result.expression = std::move(parsedExpression);
+    result.userParameterReferences = userParameterReferences;
     return result;
 }

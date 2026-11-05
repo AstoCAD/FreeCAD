@@ -38,6 +38,7 @@
 #include <App/DocumentObject.h>
 #include <App/ExpressionParser.h>
 #include <App/QuantityInput.h>
+#include <App/UserParameters.h>
 #include <Base/Exception.h>
 #include <Base/NumericFormatting.h>
 #include <Base/NumericInput.h>
@@ -137,6 +138,9 @@ public:
     double maximum;
     double minimum;
     double singleStep;
+    bool committingUserParameter {false};
+    /// The formula dialog is open: it edits the input, so leaving the field must not commit it.
+    bool formulaDialogOpen {false};
     QuantitySpinBox* q_ptr;
     std::unique_ptr<Base::UnitsSchema> scheme;
     Q_DECLARE_PUBLIC(QuantitySpinBox)
@@ -445,7 +449,18 @@ void QuantitySpinBox::validateInput()
 {
     Q_D(QuantitySpinBox);
 
+    if (d->committingUserParameter) {
+        // Called back by setExpression() while commitUserParameterInput() binds the field: the
+        // text is still the input (`myVar = 23 mm`), which is not a quantity. Parsing it would
+        // show an error right after the parameter was created; the commit shows the bound value.
+        return;
+    }
     const QString text = lineEdit()->text();
+    // Checked before the early return: keyboard tracking may already have committed the value
+    // of `2*myVar` while typing, but committing the edit binds it as an expression.
+    if (commitUserParameterInput(text)) {
+        return;
+    }
     if (d->validInput && !d->pendingEmit && !text.isEmpty() && text == d->validStr) {
         return;
     }
@@ -487,6 +502,106 @@ void QuantitySpinBox::validateInput()
     QToolTip::showText(lineEdit()->mapToGlobal(QPoint(0, lineEdit()->height())), message, lineEdit());
     d->lastRejectedText = text;
     Q_EMIT inputRejected(message, errorStartUtf16, errorLengthUtf16);
+}
+
+// User parameters (App/UserParameters.h), bound fields only:
+// - `myVar = 23 mm` creates the user parameter `myVar` on the owner of the bound property and
+//   binds the property to it;
+// - an input that is only valid because it names a user parameter of another object (`2*myVar`)
+//   is bound as an expression instead of being reduced to its value.
+// Any other input returns false and keeps its existing handling.
+bool QuantitySpinBox::commitUserParameterInput(const QString& text)
+{
+    Q_D(QuantitySpinBox);
+    if (d->committingUserParameter || !isBound() || hasExpression()) {
+        return false;
+    }
+
+    std::string name;
+    std::string rhs;
+    const bool assignment = App::UserParameters::splitAssignment(text.toUtf8().toStdString(), name, rhs);
+    const App::ObjectIdentifier& path = getPath();
+    const auto result = d->interpretInput(
+        assignment ? QString::fromStdString(rhs) : text,
+        path,
+        App::QuantityInputGrammar::Expression,
+        App::InputPhase::Commit
+    );
+    if (!assignment && result.userParameterReferences == 0) {
+        return false;
+    }
+    if (d->formulaDialogOpen) {
+        // Showing the formula dialog (`=` typed after `myVar` or `2*myVar`) takes the focus. The
+        // dialog continues this input; binding it here would survive Cancel of the dialog.
+        return true;
+    }
+
+    const auto reject = [this, d](const QString& message) {
+        d->pendingEmit = false;
+        d->validInput = false;
+        lineEdit()->setProperty("numericInputInvalid", true);
+        lineEdit()->setToolTip(message);
+        QToolTip::showText(lineEdit()->mapToGlobal(QPoint(0, lineEdit()->height())), message, lineEdit());
+        d->lastRejectedText = lineEdit()->text();
+        Q_EMIT inputRejected(message, 0, static_cast<int>(lineEdit()->text().size()));
+    };
+
+    if (result.status != App::InputStatus::Acceptable || !result.expression) {
+        if (!assignment) {
+            return false;
+        }
+        reject(
+            result.diagnostic ? Gui::numericInputDiagnosticText(result.diagnostic->kind)
+                              : tr("Invalid expression")
+        );
+        return true;
+    }
+
+    App::DocumentObject* owner = path.getDocumentObject();
+    App::Document* doc = owner->getDocument();
+    QScopedValueRollback<bool> guard(d->committingUserParameter, true);
+    const bool ownTransaction = doc->getBookedTransactionID() == 0;
+    if (ownTransaction) {
+        doc->openTransaction(
+            assignment ? QT_TRANSLATE_NOOP("Command", "Create user parameter")
+                       : QT_TRANSLATE_NOOP("Command", "Set expression")
+        );
+    }
+    bool created = false;
+    try {
+        std::shared_ptr<App::Expression> binding = result.expression;
+        if (assignment) {
+            App::UserParameters::createParameter(owner, name, result.expression, d->unit);
+            created = true;
+            binding = App::ExpressionParser::parse(owner, name.c_str());
+        }
+        const std::string error = owner->ExpressionEngine.validateExpression(path, binding);
+        if (!error.empty()) {
+            throw Base::RuntimeError(error);
+        }
+        // Same binding as accepting the formula dialog, without ExpressionSpinBox::setExpression,
+        // which reports a failure as an invalid icon only: a failure must undo the creation.
+        ExpressionBinding::setExpression(binding);
+    }
+    catch (const Base::Exception& e) {
+        if (ownTransaction) {
+            doc->abortTransaction();
+        }
+        // Not recorded when no transaction could be opened (locked, or a transaction in
+        // progress), and the booked transaction of a task dialog stays open.
+        if (created && owner->getDynamicPropertyByName(name.c_str())) {
+            owner->removeDynamicProperty(name.c_str());
+        }
+        reject(QString::fromUtf8(e.what()));
+        return true;
+    }
+    if (ownTransaction) {
+        doc->commitTransaction();
+    }
+    // Show the bound value and the expression icon.
+    evaluateExpression();
+    updateExpression();
+    return true;
 }
 
 Base::Quantity QuantitySpinBox::value() const
@@ -713,12 +828,15 @@ void QuantitySpinBox::openFormulaDialog()
 
     Q_EMIT showFormulaDialog(true);
 
-    Q_D(const QuantitySpinBox);
+    Q_D(QuantitySpinBox);
     auto box = new Gui::Dialog::DlgExpressionInput(getPath(), getExpression(), d->unit, this);
     if (d->checkRangeInExpression) {
         box->setRange(d->minimum, d->maximum);
     }
+    // Until the dialog is finished (the focus moves to it asynchronously).
+    d->formulaDialogOpen = true;
     QObject::connect(box, &Gui::Dialog::DlgExpressionInput::finished, [this, box]() {
+        d_func()->formulaDialogOpen = false;
         if (box->result() == QDialog::Accepted) {
             setExpression(box->getExpression());
         }

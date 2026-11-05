@@ -27,6 +27,7 @@
 #include <fastsignals/connection.h>
 #include <QAbstractItemView>
 #include <QContextMenuEvent>
+#include <QCoreApplication>
 #include <QLineEdit>
 #include <QMenu>
 #include <QTextBlock>
@@ -40,6 +41,9 @@
 #include <App/ExpressionParser.h>
 #include <App/ObjectIdentifier.h>
 #include <App/Property.h>
+#include <App/PropertyStandard.h>
+#include <App/PropertyUnits.h>
+#include <App/UserParameters.h>
 #include <Gui/Application.h>
 #include <Gui/MainWindow.h>
 #include <Base/Tools.h>
@@ -90,6 +94,12 @@ public:
         invalidate();
     }
 
+    void setUserParameters(bool enabled)
+    {
+        offerUserParameters = enabled;
+        invalidate();
+    }
+
     void setDocumentObject(const App::DocumentObject* obj, bool checkInList)
     {
         this->checkInList = checkInList;
@@ -133,13 +143,15 @@ public:
     // 64-bit system, the index is 32bit.
     //
     // The "virtual" items are organized as a tree. The root items are special,
-    // which consists of three types in the following order,
+    // which consists of four types in the following order,
     //
     // * Document, even index contains item using document's name, while
     //   odd index with quoted document label.
     // * Objects of the current document, even index with object's internal
     //   name, and odd index with quoted object label.
     // * Properties of the current object.
+    // * Leaf items: the user parameters that the current object can refer to by
+    //   their bare name (see getUserParameters()).
     //
     // Document item contains object item as child, and object item contains
     // property item.
@@ -299,17 +311,34 @@ public:
         if (dirty || !index.isValid()) {
             return {};
         }
-        if (role != Qt::EditRole && role != Qt::DisplayRole && role != Qt::UserRole) {
+        if (role != Qt::EditRole && role != Qt::DisplayRole && role != Qt::UserRole
+            && role != Qt::ToolTipRole) {
             return {};
         }
         if (fuzzyMode) {
             if (index.row() >= fuzzyMatches.size()) {
                 return {};
             }
-            return fuzzyMatches.at(index.row()).completion;
+            const Match& match = fuzzyMatches.at(index.row());
+            if (role == Qt::ToolTipRole) {
+                return match.toolTip.isEmpty() ? QVariant() : QVariant(match.toolTip);
+            }
+            if (role == Qt::DisplayRole && !match.display.isEmpty()) {
+                return match.display;
+            }
+            return match.completion;
+        }
+        Info info = getInfo(index);
+        if (const UserParameterItem* param = userParameterAt(info, index.row())) {
+            if (role == Qt::ToolTipRole) {
+                return param->toolTip;
+            }
+            return role == Qt::DisplayRole ? param->display : param->name;
+        }
+        if (role == Qt::ToolTipRole) {
+            return {};
         }
         QVariant variant;
-        Info info = getInfo(index);
         _data(info, index.row(), &variant, nullptr, role == Qt::UserRole);
         FC_TRACE(
             info.doc << "," << info.obj << "," << info.prop << "," << info.contextualHierarchy
@@ -401,6 +430,123 @@ public:
             );
         }
         return this->namedPropsCache[obj];
+    }
+
+    // A user parameter offered by its bare name (see App::UserParameters).
+    struct UserParameterItem
+    {
+        QString name;     // inserted text
+        QString display;  // "name (Holder.name = value)"
+        QString toolTip;
+    };
+
+    static QString userParameterValueText(const App::Property* prop)
+    {
+        if (const auto* quantity = freecad_cast<const App::PropertyQuantity*>(prop)) {
+            return QString::fromStdString(quantity->getQuantityValue().getUserString());
+        }
+        if (const auto* number = freecad_cast<const App::PropertyFloat*>(prop)) {
+            return QString::fromStdString(Base::Quantity(number->getValue()).getUserString());
+        }
+        if (const auto* integer = freecad_cast<const App::PropertyInteger*>(prop)) {
+            return QString::number(integer->getValue());
+        }
+        return {};
+    }
+
+    // The user parameters of the current document that the current object can refer to by
+    // their bare name: typing the name there resolves to that very parameter, with the same
+    // rule as the input-time resolution (App::UserParameters::qualifyReferences). The current
+    // object's own parameters are already listed among its properties, and the holders that
+    // depend on the current object are skipped as the objects of the in-list are.
+    const std::vector<UserParameterItem>& getUserParameters() const
+    {
+        if (userParametersCached) {
+            return userParameters;
+        }
+        userParameters.clear();
+        if (dirty || noProperty || !offerUserParameters) {
+            return userParameters;
+        }
+        userParametersCached = true;
+        auto doc = App::GetApplication().getDocument(currentDoc.c_str());
+        auto owner = doc ? doc->getObject(currentObj.c_str()) : nullptr;
+        if (!owner) {
+            return userParameters;
+        }
+        for (App::Property* prop : App::UserParameters::getParameters(doc)) {
+            auto holder = freecad_cast<App::DocumentObject*>(prop->getContainer());
+            if (!holder || holder == owner || inList.contains(holder) || !prop->getName()) {
+                continue;
+            }
+            const std::string name = prop->getName();
+            try {
+                App::ObjectIdentifier path(owner);
+                path << App::ObjectIdentifier::SimpleComponent(name);
+                App::VariableExpression var(owner, path);
+                if (App::UserParameters::qualifyReferences(owner, var) != 1
+                    || var.getPath().getProperty() != prop) {
+                    continue;
+                }
+            }
+            catch (const Base::Exception&) {
+                continue;
+            }
+
+            UserParameterItem item;
+            item.name = QString::fromStdString(name);
+            const QString qualified = QString::fromLatin1(holder->getNameInDocument())
+                + QLatin1Char('.') + item.name;
+            const QString value = userParameterValueText(prop);
+            item.display = item.name + QStringLiteral(" (") + qualified;
+            if (!value.isEmpty()) {
+                item.display += QStringLiteral(" = ") + value;
+            }
+            item.display += QLatin1Char(')');
+            item.toolTip = QCoreApplication::translate(
+                               "Gui::ExpressionCompleter",
+                               "User parameter %1 of %2"
+                           )
+                               .arg(qualified, QString::fromUtf8(holder->Label.getValue()));
+            if (!value.isEmpty()) {
+                item.toolTip += QLatin1Char('\n')
+                    + QCoreApplication::translate("Gui::ExpressionCompleter", "Value: %1").arg(value);
+            }
+            const auto info = holder->getExpression(App::ObjectIdentifier(*prop));
+            if (info.expression) {
+                item.toolTip += QLatin1Char('\n')
+                    + QCoreApplication::translate("Gui::ExpressionCompleter", "Expression: %1")
+                          .arg(QString::fromStdString(info.expression->toString()));
+            }
+            userParameters.push_back(std::move(item));
+        }
+        return userParameters;
+    }
+
+    // The user parameter shown at @p row of the root, after the documents, the objects of the
+    // current document and the properties of the current object; nullptr for other items.
+    const UserParameterItem* userParameterAt(const Info& info, int row) const
+    {
+        if (info.doc >= 0) {
+            return nullptr;
+        }
+        const auto& params = getUserParameters();
+        if (params.empty()) {
+            return nullptr;
+        }
+        auto doc = App::GetApplication().getDocument(currentDoc.c_str());
+        auto owner = doc ? doc->getObject(currentObj.c_str()) : nullptr;
+        if (!owner) {
+            return nullptr;
+        }
+        const int first = static_cast<int>(App::GetApplication().getDocuments().size() * 2)
+            + static_cast<int>(doc->getObjects().size() * 2)
+            + static_cast<int>(getCachedPropertyNamedList(owner).size());
+        const int idx = row - first;
+        if (idx < 0 || idx >= static_cast<int>(params.size())) {
+            return nullptr;
+        }
+        return &params[idx];
     }
 
     // The completion tree structure created takes into account the current document and object
@@ -501,6 +647,10 @@ public:
                 // note that if we're dealing with a valid DOC node (row>0, ROOT_info)
                 // objSize and propSize will be zero because of the early exit above
                 *count = docSize + objSize + propSize;
+                // the user parameters of the document follow, see userParameterAt()
+                if (idx < 0) {
+                    *count += static_cast<int>(getUserParameters().size());
+                }
             }
             if (idx >= 0 && v) {
                 // we're asking for this child's data, and IT's NOT THE ROOT
@@ -915,7 +1065,9 @@ public:
             Match match {
                 useLabel ? candidate.labelCompletion : candidate.completion,
                 score,
-                candidate.priority
+                candidate.priority,
+                candidate.display,
+                candidate.toolTip
             };
             if (matches.size() < maxFuzzyCompletions) {
                 matches.push_back(match);
@@ -962,7 +1114,8 @@ private:
     {
         Other,
         UserProperty,
-        CurrentObjectProperty
+        CurrentObjectProperty,
+        UserParameter  // bare user parameter names first (FreeCAD issue #21442)
     };
 
     struct Match
@@ -970,6 +1123,8 @@ private:
         QString completion;
         int score = 0;
         MatchPriority priority = MatchPriority::Other;
+        QString display;  // shown instead of the completion when set
+        QString toolTip;
     };
 
     struct Candidate
@@ -979,6 +1134,8 @@ private:
         QString labelCompletion;
         QString labelSearchText;
         MatchPriority priority = MatchPriority::Other;
+        QString display;
+        QString toolTip;
     };
 
     void invalidate()
@@ -994,6 +1151,8 @@ private:
         contextProperty = nullptr;
         contextPaths.clear();
         inList.clear();
+        userParameters.clear();
+        userParametersCached = false;
         fuzzyCandidates.clear();
         fuzzyCandidatesInitialized = false;
         fuzzyMatches.clear();
@@ -1037,6 +1196,15 @@ private:
                                                                : docPrefix + objectName + u'.';
                 collectPropertyCandidates(propertyPrefix, obj, !isCurrentObject);
             }
+        }
+        for (const auto& param : getUserParameters()) {
+            Candidate candidate;
+            candidate.completion = param.name;
+            candidate.searchText = param.name.toLower();
+            candidate.priority = MatchPriority::UserParameter;
+            candidate.display = param.display;
+            candidate.toolTip = param.toolTip;
+            fuzzyCandidates.push_back(candidate);
         }
         fuzzyCandidatesInitialized = true;
     }
@@ -1098,6 +1266,8 @@ private:
 
     mutable std::map<DocumentObject*, std::vector<std::pair<const char*, App::Property*>>> namedPropsCache;
     std::set<App::DocumentObject*> inList;
+    mutable std::vector<UserParameterItem> userParameters;
+    mutable bool userParametersCached = false;
     std::string currentDoc;
     std::string currentObj;
     QList<Candidate> fuzzyCandidates;
@@ -1107,6 +1277,7 @@ private:
     const App::Property* contextProperty = nullptr;
     std::vector<App::ObjectIdentifier> contextPaths;
     bool noProperty;
+    bool offerUserParameters = true;
     bool checkInList = true;
     bool dirty = true;
     bool fuzzyCandidatesInitialized = false;
@@ -1144,6 +1315,7 @@ void ExpressionCompleter::init()
     }
 
     auto m = new ExpressionCompleterModel(this, noProperty);
+    m->setUserParameters(userParameters);
     m->setDocumentObject(currentObj.getObject(), checkInList);
     setModel(m);
 }
@@ -1168,6 +1340,14 @@ void ExpressionCompleter::setNoProperty(bool enabled)
     noProperty = enabled;
     if (auto m = model()) {
         static_cast<ExpressionCompleterModel*>(m)->setNoProperty(enabled);
+    }
+}
+
+void ExpressionCompleter::setUserParameters(bool enabled)
+{
+    userParameters = enabled;
+    if (auto m = model()) {
+        static_cast<ExpressionCompleterModel*>(m)->setUserParameters(enabled);
     }
 }
 
@@ -1453,6 +1633,7 @@ void ExpressionLineEdit::setDocumentObject(const App::DocumentObject* currentDoc
     }
     if (currentDocObj) {
         completer = new ExpressionCompleter(currentDocObj, this, noProperty, checkInList);
+        completer->setUserParameters(userParameters);
         completer->setWidget(this);
         completer->setCaseSensitivity(Qt::CaseInsensitive);
         if (!exactMatch) {
@@ -1479,6 +1660,14 @@ void ExpressionLineEdit::setNoProperty(bool enabled)
     noProperty = enabled;
     if (completer) {
         completer->setNoProperty(enabled);
+    }
+}
+
+void ExpressionLineEdit::setUserParameters(bool enabled)
+{
+    userParameters = enabled;
+    if (completer) {
+        completer->setUserParameters(enabled);
     }
 }
 

@@ -8,6 +8,7 @@ add_executable(Gui_tests_run
         Assistant.cpp
         Camera.cpp
         ColorScaleOverlayTest.cpp
+        DocumentParameters.cpp
         FileDialog.cpp
         StyleParameters/DiagnosticsCapture.h
         StyleParameters/ValueMatchers.h
@@ -36,6 +37,7 @@ add_executable(Gui_tests_run
 setup_qt_test(ObjectSelection)
 setup_qt_test(TranslatorLocale)
 setup_qt_test(InputField)
+setup_qt_test(ExpressionCompleter)
 setup_qt_test(QuantitySpinBox)
 setup_qt_test(SceneImageRenderer OPENGL)
 setup_qt_test(NumericLocaleConsumers)
