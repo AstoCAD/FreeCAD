@@ -808,6 +808,34 @@ class MeshReadTruncatedOff(unittest.TestCase):
         self.assertEqual(mesh.CountFacets, 1)
 
 
+class MeshReadObjEscapedNames(unittest.TestCase):
+    """Reading an OBJ file whose names hold a lone surrogate escape must not crash"""
+
+    def _read(self, name):
+        with tempfile.TemporaryDirectory() as tmpDir:
+            fileName = os.path.join(tmpDir, "escaped_names.obj")
+            with open(fileName, "w") as f:
+                f.write("v 0 0 0\nv 1 0 0\nv 0 1 0\ng {}\nf 1 2 3\n".format(name))
+            return Mesh.Mesh(fileName)
+
+    def testLoneSurrogateGroupName(self):
+        # The unescaped name has no UTF-8 form: a null pointer was copied
+        mesh = self._read("\\ud800")
+        self.assertEqual(mesh.CountPoints, 3)
+        self.assertEqual(mesh.CountFacets, 1)
+
+    def testInvalidEscapeGroupName(self):
+        # The decoding error was left pending: SystemError from Mesh.Mesh()
+        mesh = self._read("\\x")
+        self.assertEqual(mesh.CountPoints, 3)
+        self.assertEqual(mesh.CountFacets, 1)
+
+    def testEscapedGroupName(self):
+        mesh = self._read("\\u00e9")
+        self.assertEqual(mesh.CountPoints, 3)
+        self.assertEqual(mesh.CountFacets, 1)
+
+
 class MeshPartLoftOnCurve(unittest.TestCase):
     def testDegeneratedEdge(self):
         # A sphere has degenerated edges (no 3D curve) at its poles.
