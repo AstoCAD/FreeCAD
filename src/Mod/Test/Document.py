@@ -790,6 +790,25 @@ class DocumentBasicCases(unittest.TestCase):
         self.assertFalse(hasattr(obj, "NoSuchAttribute"))
         self.assertEqual(getattr(FreeCAD.Vector(1, 2, 3), "y"), 2)
 
+    def testPropertyStatusOutOfRangeNumber(self):
+        # a number that does not fit a C long became -1 (clear status bit 1,
+        # Immutable) and the call returned with an OverflowError still set
+        obj = self.Doc.addObject("App::FeaturePython", "StatusNumbers")
+        obj.addProperty("App::PropertyFloat", "Flags")
+        obj.setPropertyStatus("Flags", "Immutable")
+        before = obj.getPropertyStatus("Flags")
+        self.assertIn("Immutable", before)
+        for value in (2**70, -(2**70), 2**40 + 1, 2**63, -(2**63), 32, -32, 0):
+            with self.subTest(value=value):
+                with self.assertRaises((OverflowError, ValueError)):
+                    obj.setPropertyStatus("Flags", value)
+                self.assertEqual(obj.getPropertyStatus("Flags"), before)
+            obj.setPropertyStatus("Flags", "Immutable")
+        obj.setPropertyStatus("Flags", -1)
+        self.assertNotIn("Immutable", obj.getPropertyStatus("Flags"))
+        obj.setPropertyStatus("Flags", [1])
+        self.assertIn("Immutable", obj.getPropertyStatus("Flags"))
+
     def testLinksLinkingEachOther(self):
         # Two links linking each other: setting the second link's LinkedObject rebuilt
         # its label from the other link, which rebuilt its own label in turn, and so
