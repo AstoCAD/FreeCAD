@@ -456,7 +456,10 @@ std::string PythonConverter::process(const Sketcher::Constraint* constraint, Geo
             res = "Block', " + id1;
             break;
         case Sketcher::Tangent:
-            if (firstIsEdge) {
+            if (!thirdUndef && firstIsEdge && secondIsEdge) {
+                res = "TangentViaPoint', " + id1 + ", " + id2 + ", " + id3 + ", " + pos3;
+            }
+            else if (firstIsEdge) {
                 res = "Tangent', " + id1 + ", " + id2;
             }
             else if (secondIsEdge) {
@@ -470,7 +473,14 @@ std::string PythonConverter::process(const Sketcher::Constraint* constraint, Geo
             res = "Parallel', " + id1 + ", " + id2;
             break;
         case Sketcher::Perpendicular:
-            if (firstIsEdge) {
+            if (!thirdUndef && firstIsEdge && secondIsEdge) {
+                res = "PerpendicularViaPoint', " + id1 + ", " + id2 + ", " + id3 + ", " + pos3;
+            }
+            else if (!thirdUndef && !firstIsEdge && !secondIsEdge) {
+                // point point line perpendicularity
+                res = "Perpendicular', " + id1pos1 + ", " + id2pos2 + ", " + id3;
+            }
+            else if (firstIsEdge) {
                 res = "Perpendicular', " + id1 + ", " + id2;
             }
             else if (secondIsEdge) {
