@@ -809,6 +809,44 @@ class DocumentBasicCases(unittest.TestCase):
         obj.setPropertyStatus("Flags", [1])
         self.assertIn("Immutable", obj.getPropertyStatus("Flags"))
 
+    def testPropertyOutOfRangeIntegerItems(self):
+        # ints that do not fit a C long (or a negative packed colour) were stored
+        # as garbage and the call returned with an OverflowError still set
+        obj = self.Doc.addObject("App::FeaturePython", "RangeNumbers")
+        obj.addProperty("App::PropertyColor", "Color")
+        obj.addProperty("App::PropertyColorList", "Colors")
+        obj.addProperty("App::PropertyIntegerSet", "Set")
+        obj.addProperty("App::PropertyBoolList", "Bools")
+        obj.addProperty("App::PropertyFloatList", "Floats")
+        obj.Color = (255, 0, 0)
+        before = obj.Color
+        for value in ((2**70, 0, 0), (0, 0, 2**70), (0, 0, 0, -(2**70)), -1, 2**70):
+            with self.subTest(value=value):
+                with self.assertRaises(OverflowError):
+                    obj.Color = value
+                self.assertEqual(obj.Color, before)
+        with self.assertRaises(OverflowError):
+            obj.Colors = [(0, 0, 0), (2**70, 0, 0)]
+        with self.assertRaises(OverflowError):
+            obj.Set = [1, 2**70]
+        with self.assertRaises(OverflowError):
+            obj.Set = 2**70
+        with self.assertRaises(OverflowError):
+            obj.Bools = [2**70]
+        with self.assertRaises(OverflowError):
+            obj.Floats = [10**400]
+        # in range values are unchanged
+        obj.Color = (0, 255, 0)
+        self.assertEqual(obj.Color[:3], (0.0, 1.0, 0.0))
+        obj.Color = 0x0000FFFF
+        self.assertEqual(obj.Color[:3], (0.0, 0.0, 1.0))
+        obj.Set = [3, 1]
+        self.assertEqual(set(obj.Set), {1, 3})
+        obj.Bools = [0, 2]
+        self.assertEqual(obj.Bools, (False, True))
+        obj.Floats = [2, 10**12]
+        self.assertEqual(obj.Floats, [2.0, 1e12])
+
     def testLinksLinkingEachOther(self):
         # Two links linking each other: setting the second link's LinkedObject rebuilt
         # its label from the other link, which rebuilt its own label in turn, and so
