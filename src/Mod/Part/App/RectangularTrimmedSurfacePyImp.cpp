@@ -22,6 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
+#include <initializer_list>
+
 #include <Geom_RectangularTrimmedSurface.hxx>
 
 
@@ -34,6 +37,21 @@
 
 
 using namespace Part;
+
+namespace
+{
+// Geom_RectangularTrimmedSurface does not handle NaN trim parameters (the process crashes)
+bool hasNaN(std::initializer_list<double> values)
+{
+    for (double value : values) {
+        if (std::isnan(value)) {
+            PyErr_SetString(PyExc_ValueError, "Trim parameters must not be NaN");
+            return true;
+        }
+    }
+    return false;
+}
+}  // namespace
 
 // returns a string which represents the object e.g. when printed in python
 std::string RectangularTrimmedSurfacePy::representation() const
@@ -67,6 +85,9 @@ int RectangularTrimmedSurfacePy::PyInit(PyObject* args, PyObject* /*kwd*/)
             &PyBool_Type,
             &vsense
         )) {
+        if (hasNaN({u1, u2, v1, v2})) {
+            return -1;
+        }
         getGeomTrimmedSurfacePtr()->setHandle(new Geom_RectangularTrimmedSurface(
             Handle(Geom_Surface)::DownCast(
                 static_cast<GeometrySurfacePy*>(surf)->getGeomSurfacePtr()->handle()
@@ -96,6 +117,9 @@ int RectangularTrimmedSurfacePy::PyInit(PyObject* args, PyObject* /*kwd*/)
             &PyBool_Type,
             &sense
         )) {
+        if (hasNaN({param1, param2})) {
+            return -1;
+        }
         Standard_Boolean UTrim = Base::asBoolean(utrim);
         Standard_Boolean Sense = Base::asBoolean(sense);
         getGeomTrimmedSurfacePtr()->setHandle(new Geom_RectangularTrimmedSurface(
@@ -118,6 +142,9 @@ PyObject* RectangularTrimmedSurfacePy::setTrim(PyObject* args)
 {
     double u1, u2, v1, v2;
     if (!PyArg_ParseTuple(args, "dddd", &u1, &u2, &v1, &v2)) {
+        return nullptr;
+    }
+    if (hasNaN({u1, u2, v1, v2})) {
         return nullptr;
     }
 
