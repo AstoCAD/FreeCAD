@@ -834,6 +834,10 @@ std::shared_ptr<Area> Area::getRestArea(std::vector<std::shared_ptr<Area>> clear
     // See the comment at the start of getClearedArea() -- the calculations/buffer specified here
     // must match that computation
     build();
+    if (!myArea) {
+        // an area of a solid with SectionCount builds sections only
+        throw Base::ValueError("area has no planar area");
+    }
     AreaParams params = myParams;
     const double buffer = myParams.Accuracy * 3;
     params.Accuracy = myParams.Accuracy * .7 / 4;  // 2.3 already encoded in gcode; 4 * .7/4 = 3 total
@@ -844,6 +848,10 @@ std::shared_ptr<Area> Area::getRestArea(std::vector<std::shared_ptr<Area>> clear
     Area clearedAreasInPlane(&params);
     clearedAreasInPlane.myArea.reset(new CArea());
     for (std::shared_ptr<Area> clearedArea : clearedAreas) {
+        clearedArea->build();
+        if (!clearedArea->myArea) {
+            throw Base::ValueError("cleared area has no planar area");
+        }
         gp_Trsf trsf = clearedArea->myTrsf;
         trsf.Invert();
         trsf.SetTranslationPart(
