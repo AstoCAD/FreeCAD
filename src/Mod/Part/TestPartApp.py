@@ -1813,6 +1813,20 @@ class PartShapeContentTests(unittest.TestCase):
         self.assertIn("Volume", self._content(mixed))
 
 
+class PartTrimmedSurfaceNaNTests(unittest.TestCase):
+    def testNaNTrimParametersRaise(self):
+        nan = float("nan")
+        with self.assertRaises(ValueError):
+            Part.RectangularTrimmedSurface(Part.Plane(), nan, 1, 0, 1)
+        with self.assertRaises(ValueError):
+            Part.RectangularTrimmedSurface(Part.Plane(), nan, 1, True)
+        surf = Part.RectangularTrimmedSurface(Part.Plane(), 0, 1, 0, 1)
+        with self.assertRaises(ValueError):
+            surf.setTrim(nan, nan, nan, nan)
+        surf.setTrim(0, 2, 0, 3)
+        self.assertAlmostEqual(surf.toShape().Area, 6)
+
+
 class PartShapeFromMeshTests(unittest.TestCase):
     def testFacetWithInvalidPointIndexRaises(self):
         v = Base.Vector
