@@ -1641,6 +1641,12 @@ CDxfRead::Layer* ImpExpDxfRead::MakeLayer(const std::string& name, ColorIndex_t 
             // TODO: Pass the appropriate draw_style (from "Solid" "Dashed" "Dotted" "DashDot")
             // This needs an ObjectDrawStyleName analogous to ObjectColor but at the
             // ImpExpDxfGui level.
+            // Draft.make_layer() uses App.activeDocument(), so temporarily activate the
+            // target document to ensure the layer is created in the right place.
+            App::Document* prevActive = App::GetApplication().getActiveDocument();
+            if (prevActive != document) {
+                App::GetApplication().setActiveDocument(document);
+            }
             layer =
                 // NOLINTNEXTLINE(readability/nolint)
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
@@ -1658,6 +1664,9 @@ CDxfRead::Layer* ImpExpDxfRead::MakeLayer(const std::string& name, ColorIndex_t 
                     2.0,
                     "Solid"
                 );
+            if (prevActive != document) {
+                App::GetApplication().setActiveDocument(prevActive);
+            }
         }
         auto result = new Layer(name, color, std::move(lineType), layer);
         if (result->DraftLayerView != Py_None) {
