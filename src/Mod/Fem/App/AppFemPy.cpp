@@ -312,12 +312,12 @@ private:
         }
         std::string EncodedName = std::string(fileName);
         PyMem_Free(fileName);
-        std::string resName = std::string(objName);
+        std::string resName = objName ? std::string(objName) : std::string();
         PyMem_Free(objName);
 
         if (resName.length()) {
             App::Document* pcDoc = App::GetApplication().getActiveDocument();
-            App::DocumentObject* obj = pcDoc->getObject(resName.c_str());
+            App::DocumentObject* obj = pcDoc ? pcDoc->getObject(resName.c_str()) : nullptr;
             FemVTKTools::readResult(EncodedName.c_str(), obj);
         }
         else {
