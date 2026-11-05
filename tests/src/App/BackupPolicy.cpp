@@ -67,6 +67,11 @@ protected:
         _policy.setDateFormat(fmt);
     }
 
+    void setBackupDirectory(const std::string& dir)
+    {
+        _policy.setBackupDirectory(dir);
+    }
+
     // Create a named temporary file: returns the full path to the new file. Deleted by the TearDown
     // method at the end of the test.
     std::filesystem::path createTempFile(const std::string& filename)
@@ -553,4 +558,118 @@ TEST_F(BackupPolicyTest, TimestampFormatFileAlreadyExistsMultipleTimes)
             getTempPath() / ("target." + filenameFromDateFormatString("%Y-%m-%d") + "-4.FCBak")
         )
     );
+}
+
+// Backup directory (https://github.com/FreeCAD/FreeCAD/issues/6697)
+
+TEST_F(BackupPolicyTest, EmptyBackupDirectoryKeepsBackupNextToDocument)
+{
+    // Arrange
+    setPolicyTerms(App::BackupPolicy::Policy::Standard, 1, false, "%Y-%m-%d_%H-%M-%S");
+    setBackupDirectory("");
+    auto source = createTempFile("source.fcstd");
+    auto target = createTempFile("target.fcstd");
+
+    // Act
+    apply(source.string(), target.string());
+
+    // Assert
+    EXPECT_TRUE(std::filesystem::exists(target.string() + "1"));
+    EXPECT_TRUE(std::filesystem::exists(target));
+    EXPECT_FALSE(std::filesystem::exists(source));
+}
+
+TEST_F(BackupPolicyTest, StandardWithRelativeBackupDirectory)
+{
+    // Arrange
+    setPolicyTerms(App::BackupPolicy::Policy::Standard, 1, false, "%Y-%m-%d_%H-%M-%S");
+    setBackupDirectory("FCBak");
+    auto source = createTempFile("source.fcstd");
+    auto target = createTempFile("target.fcstd");
+
+    // Act
+    apply(source.string(), target.string());
+
+    // Assert
+    EXPECT_TRUE(std::filesystem::exists(getTempPath() / "FCBak" / "target.fcstd1"));
+    EXPECT_FALSE(std::filesystem::exists(target.string() + "1"));
+    EXPECT_TRUE(std::filesystem::exists(target));
+    EXPECT_FALSE(std::filesystem::exists(source));
+}
+
+TEST_F(BackupPolicyTest, StandardWithBackupDirectoryReusesItsBackups)
+{
+    // Arrange
+    setPolicyTerms(App::BackupPolicy::Policy::Standard, 1, false, "%Y-%m-%d_%H-%M-%S");
+    setBackupDirectory("FCBak/");
+    auto source = createTempFile("source.fcstd");
+    auto target = createTempFile("target.fcstd");
+    auto besideDocument = createTempFile("target.fcstd1");
+    ASSERT_TRUE(std::filesystem::create_directory(getTempPath() / "FCBak"));
+    auto oldBackup = getTempPath() / "FCBak" / "target.fcstd1";
+    std::ofstream(oldBackup) << "Old backup";
+
+    // Act
+    apply(source.string(), target.string());
+
+    // Assert: the backup in the backup directory is replaced, the one next to the document is
+    // left alone
+    EXPECT_TRUE(std::filesystem::exists(oldBackup));
+    EXPECT_FALSE(std::filesystem::exists(getTempPath() / "FCBak" / "target.fcstd2"));
+    EXPECT_TRUE(std::filesystem::exists(besideDocument));
+    EXPECT_TRUE(std::filesystem::exists(target));
+}
+
+TEST_F(BackupPolicyTest, TimestampWithAbsoluteBackupDirectory)
+{
+    // Arrange
+    setPolicyTerms(App::BackupPolicy::Policy::TimeStamp, 1, true, "%Y-%m-%d");
+    auto backupDir = getTempPath() / "backups" / "nested";
+    setBackupDirectory(backupDir.string());
+    auto source = createTempFile("source.fcstd");
+    auto target = createTempFile("target.fcstd");
+
+    // Act
+    apply(source.string(), target.string());
+
+    // Assert
+    auto expected = "target." + filenameFromDateFormatString("%Y-%m-%d") + ".FCBak";
+    EXPECT_TRUE(std::filesystem::exists(backupDir / expected));
+    EXPECT_FALSE(std::filesystem::exists(getTempPath() / expected));
+    EXPECT_TRUE(std::filesystem::exists(target));
+    EXPECT_FALSE(std::filesystem::exists(source));
+}
+
+TEST_F(BackupPolicyTest, TimestampNumberedWithBackupDirectory)
+{
+    // Arrange
+    setPolicyTerms(App::BackupPolicy::Policy::TimeStamp, 1, false, "%Y-%m-%d");
+    setBackupDirectory("FCBak");
+    auto source = createTempFile("source.fcstd");
+    auto target = createTempFile("target.fcstd");
+
+    // Act
+    apply(source.string(), target.string());
+
+    // Assert
+    EXPECT_TRUE(std::filesystem::exists(getTempPath() / "FCBak" / "target.fcstd1"));
+    EXPECT_FALSE(std::filesystem::exists(target.string() + "1"));
+    EXPECT_TRUE(std::filesystem::exists(target));
+}
+
+TEST_F(BackupPolicyTest, BackupDirectoryThatIsAFileFallsBackToDocumentDirectory)
+{
+    // Arrange
+    setPolicyTerms(App::BackupPolicy::Policy::Standard, 1, false, "%Y-%m-%d_%H-%M-%S");
+    createTempFile("FCBak");  // a file, not a directory
+    setBackupDirectory("FCBak");
+    auto source = createTempFile("source.fcstd");
+    auto target = createTempFile("target.fcstd");
+
+    // Act
+    apply(source.string(), target.string());
+
+    // Assert
+    EXPECT_TRUE(std::filesystem::exists(target.string() + "1"));
+    EXPECT_TRUE(std::filesystem::exists(target));
 }
