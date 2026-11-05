@@ -79,6 +79,21 @@ FC_LOG_LEVEL_INIT("PartDesign", true, true);
 
 using namespace PartDesign;
 
+namespace
+{
+// Error text for a profile whose shape is empty. A sketch that holds only construction
+// geometry has an empty shape, which is an easy mistake to make, so say so for sketches.
+std::string emptyProfileMessage(const App::DocumentObject* profile)
+{
+    const Base::Type sketchType = Base::Type::fromName("Sketcher::SketchObject");
+    if (profile && !sketchType.isBad() && profile->getTypeId().isDerivedFrom(sketchType)) {
+        return std::string("Linked sketch '") + profile->Label.getValue()
+            + "' has no geometry to use: construction geometry is ignored";
+    }
+    return "Linked shape object is empty";
+}
+}  // namespace
+
 double PartDesign::normalizeAngleRadians(double angle)
 {
     constexpr double fullRotation = 2.0 * std::numbers::pi;
@@ -289,7 +304,7 @@ TopoShape ProfileBased::getTopoShapeVerifiedFace(
             if (silent) {
                 return shape;
             }
-            throw Base::CADKernelError("Linked shape object is empty");
+            throw Base::CADKernelError(emptyProfileMessage(obj));
         }
         TopoShape openshape;
         if (!shape.hasSubShape(TopAbs_FACE)) {
@@ -505,7 +520,7 @@ TopoShape ProfileBased::getProfileShape(Part::ShapeOptions subShapeOptions) cons
         shape = TopoShape(shape.Tag).makeElementCompound(shapes);
     }
     if (shape.isNull()) {
-        throw Part::NullShapeException("Linked shape object is empty");
+        throw Part::NullShapeException(emptyProfileMessage(profile));
     }
     return shape;
 }
