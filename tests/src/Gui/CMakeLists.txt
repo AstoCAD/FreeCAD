@@ -39,6 +39,7 @@ setup_qt_test(InputField)
 setup_qt_test(QuantitySpinBox)
 setup_qt_test(SceneImageRenderer OPENGL)
 setup_qt_test(NumericLocaleConsumers)
+setup_qt_test(TaskBox)
 
 target_link_libraries(Gui_tests_run PRIVATE
     GTest::gmock_main
