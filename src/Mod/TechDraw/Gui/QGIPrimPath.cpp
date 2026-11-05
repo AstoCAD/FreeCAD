@@ -24,6 +24,7 @@
 
 # include <cassert>
 
+# include <QApplication>
 # include <QGraphicsScene>
 # include <QGraphicsSceneHoverEvent>
 # include <QPainter>
@@ -257,8 +258,22 @@ void QGIPrimPath::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
         multiselectActivated = false;
     }
 
+    // QGraphicsItem only toggles a Ctrl+click selection when the release scene position
+    // equals the press position exactly. A pen or touch device rarely releases at the same
+    // spot, so treat a release within the drag distance as a click. Movable items keep
+    // Qt's rule, because for them any movement is a drag.
+    QPointF originalScenePos = event->scenePos();
+    if ((event->button() == Qt::LeftButton)
+        && (event->modifiers() & Qt::ControlModifier)
+        && !(flags() & QGraphicsItem::ItemIsMovable)
+        && (event->screenPos() - event->buttonDownScreenPos(Qt::LeftButton)).manhattanLength()
+            < QApplication::startDragDistance()) {
+        event->setScenePos(event->buttonDownScenePos(Qt::LeftButton));
+    }
+
     QGraphicsPathItem::mouseReleaseEvent(event);
 
+    event->setScenePos(originalScenePos);
     event->setModifiers(originalModifiers);
 }
 
