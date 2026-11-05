@@ -286,6 +286,18 @@ class DraftModification(test_base.DraftTestCaseDoc):
         obj = Draft.join_two_wires(line_1, line_2)
         self.assertTrue(obj, "'{}' failed".format(operation))
 
+    def test_scale_filter_move_base(self):
+        """Scale filtering of an object with MoveBase must hand over its Wire base."""
+        base = Draft.make_wire([Vector(0, 0, 0), Vector(2, 0, 0), Vector(2, 2, 0)])
+        obj = self.doc.addObject("Part::FeaturePython", "MoveBaseObject")
+        obj.addProperty("App::PropertyLink", "Base", "Test")
+        obj.addProperty("App::PropertyBool", "MoveBase", "Test")
+        obj.Base = base
+        obj.MoveBase = True
+        self.doc.recompute()
+        self.assertEqual(utils._modifiers_filter_objects([obj], False, scale=True), [base])
+        self.assertEqual(utils._modifiers_filter_objects([obj], False, scale=False), [base])
+
     def test_join_closing_same_direction(self):
         """Join two wires that share both end points and run in the same direction."""
         a = Vector(0, 0, 0)
