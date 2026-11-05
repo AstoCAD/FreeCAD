@@ -110,6 +110,10 @@ int FeaturePythonPyT<FeaturePyT>::__setattro(PyObject *obj, PyObject *attro, PyO
 {
     const char *attr;
     attr = PyUnicode_AsUTF8(attro);
+    if (!attr) {
+        // The name cannot be encoded as UTF-8 (e.g. "\ud800"); PyUnicode_AsUTF8 set the error
+        return -1;
+    }
     // This overwrites PyObjectBase::__setattr because this actively disallows one to delete an attribute
     //
 

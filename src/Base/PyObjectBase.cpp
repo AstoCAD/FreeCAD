@@ -291,6 +291,10 @@ PyObject* PyObjectBase::__getattro(PyObject * obj, PyObject *attro)
 {
     const char *attr{};
     attr = PyUnicode_AsUTF8(attro);
+    if (!attr) {
+        // The name cannot be encoded as UTF-8 (e.g. "\ud800"); PyUnicode_AsUTF8 set the error
+        return nullptr;
+    }
 
     // For the __class__ attribute get it directly as with
     // ExtensionContainerPy::getCustomAttributes we may get
@@ -357,6 +361,10 @@ int PyObjectBase::__setattro(PyObject *obj, PyObject *attro, PyObject *value)
 {
     const char *attr{};
     attr = PyUnicode_AsUTF8(attro);
+    if (!attr) {
+        // The name cannot be encoded as UTF-8 (e.g. "\ud800"); PyUnicode_AsUTF8 set the error
+        return -1;
+    }
 
     //Hint: In general we don't allow one to delete attributes (i.e. value=0). However, if we want to allow
     //we must check then in _setattr() of all subclasses whether value is 0.
