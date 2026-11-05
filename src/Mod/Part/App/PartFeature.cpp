@@ -1235,6 +1235,14 @@ static TopoShape _getTopoShape(
                     doGetShape = true;
                 }
             }
+            if (!doGetShape && link->getShowElementValue()) {
+                // An element may link to its own copy (LinkCopyOnChange), in
+                // which case the shared base shape does not represent it.
+                auto subLink = subObj->getExtensionByType<App::LinkBaseExtension>(true);
+                if (subLink && subLink->getTrueLinkedObject(false) != linked) {
+                    doGetShape = true;
+                }
+            }
             if (doGetShape) {
                 shape = _getTopoShape(
                     owner,
