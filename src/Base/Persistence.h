@@ -151,7 +151,10 @@ public:
     /// Replaces all characters with '_' that are not allowed in XML
     static std::string validateXMLString(const std::string& str);
 
+    /// Check a zlib compression level: -1 (zlib's default) or 0 (none) to 9 (best)
+    static bool isValidCompressionLevel(int compression);
     // dump the binary persistence data into into the stream
+    // throws Base::ValueError if the compression level is not valid
     void dumpToStream(std::ostream& stream, int compression);
 
     // restore the binary persistence data from a stream. Must have the format used by dumpToStream

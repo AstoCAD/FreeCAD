@@ -64,6 +64,10 @@ PyObject* PersistencePy::dumpContent(PyObject* args, PyObject* kwds) const
     if (!Wrapped_ParseTupleAndKeywords(args, kwds, "|i", kwds_def, &compression)) {
         return nullptr;
     }
+    if (!Persistence::isValidCompressionLevel(compression)) {
+        PyErr_SetString(PyExc_ValueError, "Compression must be -1 or between 0 and 9");
+        return nullptr;
+    }
 
     // setup the stream. the in flag is needed to make "read" work
     std::stringstream stream(
