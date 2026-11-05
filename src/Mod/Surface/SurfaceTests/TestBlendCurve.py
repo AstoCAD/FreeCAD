@@ -75,3 +75,28 @@ class TestBlendCurve(unittest.TestCase):
         self.assertAlmostCoincide(d1[0], d2[0])
         self.assertAlmostCoincide(d1[1], d2[1])
         self.assertAlmostCoincide(d1[2], d2[2])
+
+    def test_invalid_arguments_raise(self):
+        # each of these used to crash with an access violation
+        import Part
+
+        with self.assertRaises(TypeError):
+            Surface.BlendPoint(Part.Edge(), 0.0, 1)
+        with self.assertRaises(TypeError):
+            Surface.BlendPoint(Part.makeBox(1, 1, 1), 0.0, 1)
+        b1 = Surface.BlendPoint([vec(0, 0, 0)])
+        b2 = Surface.BlendPoint([vec(1, 0, 0)])
+        with self.assertRaises(ValueError):
+            b1.setvectors([])
+        self.assertEqual(len(b1.Vectors), 1)
+        bc = Surface.BlendCurve(b1, b2)
+        for index in (-1, 2, 5):
+            with self.subTest(index=index):
+                with self.assertRaises(IndexError):
+                    bc.setSize(index, 1.0, True)
+        bc.setSize(1, 1.0, True)
+        # too many constraints for a bezier curve: compute() fails
+        many = Surface.BlendPoint([vec(i, 0, 0) for i in range(20)])
+        with self.assertRaises(RuntimeError):
+            Surface.BlendCurve(many, many).compute()
+        self.assertEqual(Surface.BlendCurve(b1, b2).compute().NbPoles, 2)

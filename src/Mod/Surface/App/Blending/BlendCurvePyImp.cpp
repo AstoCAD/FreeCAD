@@ -77,6 +77,13 @@ PyObject* BlendCurvePy::compute(PyObject* args)
 
     BlendCurve* bc = getBlendCurvePtr();
     Handle(Geom_BezierCurve) gc = bc->compute();
+    if (gc.IsNull()) {
+        // compute() sets the error when the curve cannot be built
+        if (!PyErr_Occurred()) {
+            PyErr_SetString(Base::PyExc_FC_CADKernelError, "Failed to compute bezier curve");
+        }
+        return nullptr;
+    }
     return new Part::BezierCurvePy(new Part::GeomBezierCurve(gc));
 }
 
@@ -86,6 +93,10 @@ PyObject* BlendCurvePy::setSize(PyObject* args)
     double size;
     PyObject* relative = Py_True;
     if (!PyArg_ParseTuple(args, "idO!", &i, &size, &PyBool_Type, &relative)) {
+        return nullptr;
+    }
+    if (i < 0 || i >= static_cast<int>(getBlendCurvePtr()->blendPoints.size())) {
+        PyErr_SetString(PyExc_IndexError, "Blend point index out of range");
         return nullptr;
     }
     try {
