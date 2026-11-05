@@ -382,22 +382,24 @@ PyObject* FC_PYCONSOLE_MSG(std::function<void(const char*, const char*)> func, P
 
     auto notifierStr = "";
 
-    auto retrieveString = [](PyObject* pystr) {
-        PyObject* unicode = nullptr;
+    // The returned buffer belongs to the str object, so the result of str() of a
+    // non-str argument is kept alive in 'holder' until the message has been sent.
+    Py::Object notifierHolder;
+    Py::Object outputHolder;
 
+    auto retrieveString = [](PyObject* pystr, Py::Object& holder) {
         const char* outstr = nullptr;
 
         if (PyUnicode_Check(pystr)) {
             outstr = PyUnicode_AsUTF8(pystr);
         }
         else {
-            unicode = PyObject_Str(pystr);
+            PyObject* unicode = PyObject_Str(pystr);
             if (unicode) {
+                holder = Py::asObject(unicode);
                 outstr = PyUnicode_AsUTF8(unicode);
             }
         }
-
-        Py_XDECREF(unicode);
 
         return outstr;
     };
@@ -412,7 +414,7 @@ PyObject* FC_PYCONSOLE_MSG(std::function<void(const char*, const char*)> func, P
     else {  // retrieve notifier
         PY_TRY
         {
-            notifierStr = retrieveString(notifier);
+            notifierStr = retrieveString(notifier, notifierHolder);
         }
         PY_CATCH
         if (!notifierStr) {
@@ -423,7 +425,7 @@ PyObject* FC_PYCONSOLE_MSG(std::function<void(const char*, const char*)> func, P
     PY_TRY
     {
 
-        if (const char* string = retrieveString(output)) {
+        if (const char* string = retrieveString(output, outputHolder)) {
             func(notifierStr, string); /*process message*/
         }
         else {
