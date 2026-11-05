@@ -286,6 +286,19 @@ class DraftModification(test_base.DraftTestCaseDoc):
         obj = Draft.join_two_wires(line_1, line_2)
         self.assertTrue(obj, "'{}' failed".format(operation))
 
+    def test_fuse_coplanar(self):
+        """Fuse two overlapping coplanar faces into a valid Draft Wire."""
+        rect_1 = Draft.make_rectangle(2, 2, face=True)
+        rect_2 = Draft.make_rectangle(
+            2, 2, placement=App.Placement(Vector(1, 1, 0), App.Rotation()), face=True
+        )
+        self.doc.recompute()
+        obj = Draft.fuse(rect_1, rect_2)
+        self.doc.recompute()
+        self.assertEqual(utils.get_type(obj), "Wire")
+        self.assertNotIn("Invalid", obj.State)
+        self.assertAlmostEqual(obj.Shape.Area, 7.0, places=6)
+
     def test_print_shape_and_compare_objects(self):
         """print_shape and compare_objects print without errors."""
         line_1 = Draft.make_line(Vector(0, 0, 0), Vector(1, 0, 0))
