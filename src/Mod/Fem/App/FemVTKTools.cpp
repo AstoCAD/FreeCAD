@@ -911,6 +911,11 @@ App::DocumentObject* FemVTKTools::readResult(const char* filename, App::Document
     }
     else {
         Base::Console().error("file name extension is not supported\n");
+        return nullptr;
+    }
+    if (!ds.Get()) {
+        Base::Console().error("Failed to load file {}\n", filename);
+        return nullptr;
     }
 
     App::Document* pcDoc = App::GetApplication().getActiveDocument();
@@ -979,10 +984,16 @@ void FemVTKTools::writeResult(const char* filename, const App::DocumentObject* r
 
     // mesh
     vtkSmartPointer<vtkUnstructuredGrid> grid = vtkSmartPointer<vtkUnstructuredGrid>::New();
-    App::DocumentObject* mesh
-        = static_cast<App::PropertyLink*>(res->getPropertyByName("Mesh"))->getValue();
-    const FemMesh& fmesh
-        = static_cast<PropertyFemMesh*>(mesh->getPropertyByName("FemMesh"))->getValue();
+    if (!res->isDerivedFrom<FemResultObject>()) {
+        Base::Console().error("Object is not a FEM result object, nothing written\n");
+        return;
+    }
+    App::DocumentObject* mesh = static_cast<const FemResultObject*>(res)->Mesh.getValue();
+    if (!mesh || !mesh->isDerivedFrom<FemMeshObject>()) {
+        Base::Console().error("Result object does not link to a FEM mesh, nothing written\n");
+        return;
+    }
+    const FemMesh& fmesh = static_cast<FemMeshObject*>(mesh)->FemMesh.getValue();
     FemVTKTools::exportVTKMesh(&fmesh, grid);
 
     Base::Console().log(
