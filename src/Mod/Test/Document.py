@@ -847,6 +847,21 @@ class DocumentBasicCases(unittest.TestCase):
         obj.Floats = [2, 10**12]
         self.assertEqual(obj.Floats, [2.0, 1e12])
 
+    def testMaterialColorOutOfRangeInteger(self):
+        # App.Material colours: same unchecked int conversion as PropertyColor
+        mat = FreeCAD.Material()
+        mat.DiffuseColor = (255, 0, 0)
+        before = mat.DiffuseColor
+        for value in ((2**70, 0, 0), (0, 0, 0, 2**70), -1, 2**70):
+            with self.subTest(value=value):
+                with self.assertRaises(OverflowError):
+                    mat.DiffuseColor = value
+                self.assertEqual(mat.DiffuseColor, before)
+        with self.assertRaises(OverflowError):
+            FreeCAD.Material(AmbientColor=(2**70, 0, 0))
+        mat.SpecularColor = (0, 255, 0)
+        self.assertEqual(mat.SpecularColor[:3], (0.0, 1.0, 0.0))
+
     def testLinksLinkingEachOther(self):
         # Two links linking each other: setting the second link's LinkedObject rebuilt
         # its label from the other link, which rebuilt its own label in turn, and so
