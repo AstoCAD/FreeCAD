@@ -363,3 +363,35 @@ class DxfImportLayerTest(unittest.TestCase):
         layers = [o for o in self.target.Objects if o.Label == "MyLayer"]
         self.assertEqual(len(layers), 1)
         self.assertEqual(len(layers[0].Group), 1)
+
+
+class DxfExportDegenerateEdgeTest(unittest.TestCase):
+    """An OCCT exception while exporting a degenerate shape must not terminate the application"""
+
+    def setUp(self):
+        self.fileName = os.path.join(tempfile.gettempdir(), "ImportDxfExportDegenerateEdgeTest.dxf")
+        self.doc = App.newDocument()
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+        if os.path.exists(self.fileName):
+            os.remove(self.fileName)
+
+    def testTinyLine(self):
+        import Part
+
+        feature = self.doc.addObject("Part::Feature", "TinyLine")
+        # Shorter than the precision: OCCT builds an edge without a usable curve
+        feature.Shape = Part.makeLine(App.Vector(0, 0, 0), App.Vector(1e-8, 0, 0))
+        self.doc.recompute()
+        for version in (12, 14):
+            for polyline in (False, True):
+                with self.subTest(version=version, polyline=polyline):
+                    try:
+                        Import.writeDXFObject([feature], self.fileName, version, polyline)
+                    except Exception:
+                        pass  # an error is fine, a crash is not
+                    try:
+                        Import.writeDXFShape([feature.Shape], self.fileName, version, polyline)
+                    except Exception:
+                        pass
