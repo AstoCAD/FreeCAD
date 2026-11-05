@@ -231,3 +231,47 @@ class TestResult(unittest.TestCase):
         self.assertEqual(len(pipelines), 1)
         frames = pipelines[0].getEnumerationsOfProperty("Frame")
         self.assertEqual(len(frames), 2, f"unexpected frames: {frames}")
+
+    # ********************************************************************************************
+    def test_vtk_result_read_write_bad_input(self):
+        # Fem.readResult(file) without an object name, a file VTK could not read and
+        # Fem.writeResult with an object without a FEM mesh crashed
+        if "BUILD_FEM_VTK" not in FreeCAD.__cmake__:
+            self.skipTest("FEM was built without VTK")
+        import os
+        import Fem
+
+        tmp = testtools.get_fem_test_tmp_dir("result_vtk_bad_input")
+
+        # writing: objects without a FEM mesh write nothing
+        out = join(tmp, "nothing.vtu")
+        Fem.writeResult(out, self.document.addObject("Fem::FemResultObject", "NoMesh"))
+        Fem.writeResult(out, self.document.addObject("App::FeaturePython", "Other"))
+        self.assertFalse(os.path.exists(out))
+
+        # a result with a mesh is written and read back with the one argument form
+        mesh = Fem.FemMesh()
+        for i, p in enumerate([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)], 1):
+            mesh.addNode(*p, i)
+        mesh.addVolume([1, 2, 3, 4], 1)
+        mesh_obj = self.document.addObject("Fem::FemMeshObject", "Mesh")
+        mesh_obj.FemMesh = mesh
+        result = self.document.addObject("Fem::FemResultObject", "Result")
+        result.Mesh = mesh_obj
+        good = join(tmp, "result.vtu")
+        Fem.writeResult(good, result)
+        self.assertTrue(os.path.exists(good))
+        Fem.readResult(good)
+        read_mesh = self.document.getObject("ResultMesh")
+        self.assertIsNotNone(read_mesh)
+        self.assertEqual(read_mesh.FemMesh.NodeCount, 4)
+        self.document.removeObject(read_mesh.Name)
+
+        # reading files VTK can't read creates nothing
+        bad = join(tmp, "bad.vtk")
+        with open(bad, "w") as f:
+            f.write("hello\n")
+        Fem.readResult(bad)
+        Fem.readResult(bad, "NoSuchObject")
+        Fem.readResult(join(tmp, "bad.xyz"), "NoSuchObject")
+        self.assertIsNone(self.document.getObject("ResultMesh"))
