@@ -40,6 +40,7 @@
 #include "Selection.h"
 
 #include <Gui/TaskView/TaskNewObject.h>
+#include <Gui/Dialogs/DlgDocumentParameters.h>
 
 using namespace Gui;
 
@@ -377,6 +378,82 @@ bool StdCmdVarSet::isActive()
     return hasActiveDocument();
 }
 
+//===========================================================================
+// Std_Parameters
+//===========================================================================
+DEF_STD_CMD_A(StdCmdParameters)
+
+StdCmdParameters::StdCmdParameters()
+    : Command("Std_Parameters")
+{
+    sGroup = "Structure";
+    sMenuText = QT_TR_NOOP("Parameters…");
+    sToolTipText = QT_TR_NOOP(
+        "Opens the parameters of the active document: the user parameters, the variable sets "
+        "and, optionally, the model parameters, to edit, rename, add or delete them"
+    );
+    sWhatsThis = "Std_Parameters";
+    sStatusTip = sToolTipText;
+    sPixmap = "VarSet";
+}
+
+namespace
+{
+// Every action of the Parameters dialog is its own transaction, booked on the active document.
+// Booking it while a task dialog holds a transaction of that document (editing or creating a
+// Pad, ...) would commit the task's changes and leave its further changes outside any
+// transaction, so that Cancel can no longer revert them. The dialog is application-modal, so
+// nothing else books a transaction while it is open.
+bool parametersWouldBreakTaskTransaction(const App::Document* doc)
+{
+    return doc && Gui::Control().activeDialog() && doc->getBookedTransactionID() != 0;
+}
+}  // namespace
+
+void StdCmdParameters::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    Gui::Document* docGui = Application::Instance->activeDocument();
+    if (docGui && !parametersWouldBreakTaskTransaction(App::GetApplication().getActiveDocument())) {
+        Dialog::DlgDocumentParameters::showFor(docGui->getDocument());
+    }
+}
+
+bool StdCmdParameters::isActive()
+{
+    return hasActiveDocument()
+        && !parametersWouldBreakTaskTransaction(App::GetApplication().getActiveDocument());
+}
+
+//===========================================================================
+// Std_ParametersGroup
+//===========================================================================
+class StdCmdParametersGroup: public Gui::GroupCommand
+{
+public:
+    StdCmdParametersGroup()
+        : GroupCommand("Std_ParametersGroup")
+    {
+        sGroup = "Structure";
+        sMenuText = QT_TR_NOOP("Parameters");
+        sToolTipText = QT_TR_NOOP("Opens the parameters of the active document or creates a variable set");
+        sWhatsThis = "Std_ParametersGroup";
+        sStatusTip = sToolTipText;
+        sPixmap = "VarSet";
+
+        setCheckable(false);
+        setRememberLast(false);
+
+        addCommand("Std_Parameters");
+        addCommand("Std_VarSet");
+    }
+
+    const char* className() const override
+    {
+        return "StdCmdParametersGroup";
+    }
+};
+
 namespace Gui
 {
 
@@ -390,6 +467,9 @@ void CreateStructureCommands()
     rcCmdMgr.addCommand(new StdCmdNewGroup());
     rcCmdMgr.addCommand(new StdCmdGroup());
     rcCmdMgr.addCommand(new StdCmdVarSet());
+    rcCmdMgr.addCommand(new StdCmdParameters());
+    // after the commands it groups
+    rcCmdMgr.addCommand(new StdCmdParametersGroup());
 }
 
 }  // namespace Gui

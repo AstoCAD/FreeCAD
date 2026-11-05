@@ -205,6 +205,7 @@ private:
     };
 
     void validateInput() override;
+    bool commitUserParameterInput(const QString& text);
     void commitQuantity(Base::Quantity quantity, TextPolicy textPolicy, bool notify);
     void updateText(const Base::Quantity&);
     void updateEdit(const QString& text);

@@ -29,10 +29,13 @@ SET(Test_SRCS
     TestFloatConstraintQuantityIntegerConversion.py
     TestHelpFallback.py
     TestProjectUtility.py
+    TestUserParameters.py
     TestGui.py
     TestGroupVisibilityRestoreGui.py
     TestAddPropertyGui.py
+    TestDocumentParametersGui.py
     TestExpressionVarSetGui.py
+    TestUserParametersGui.py
     TestPropertyEditorGui.py
     TestPropertyEditorCancelGui.py
     TestPropertyViewDocumentActivationGui.py
