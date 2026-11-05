@@ -5012,7 +5012,13 @@ TopoShape& TopoShape::makeElementDraft(
                 //       http://forum.freecad.org/viewtopic.php?f=10&t=3209&start=10#p25341 The
                 //       only solution is to discard mkDraft and start over without the current face
                 // mkDraft.Remove(face);
-                FC_ERR("Failed to add some face for drafting, skip");
+                const int faceIndex = shape.findShape(it->getShape());
+                if (faceIndex > 0) {
+                    FC_WARN("Failed to add Face" << faceIndex << " for drafting, skip");
+                }
+                else {
+                    FC_WARN("Failed to add some face for drafting, skip");
+                }
                 done = false;
                 faces.erase(it);
                 break;
