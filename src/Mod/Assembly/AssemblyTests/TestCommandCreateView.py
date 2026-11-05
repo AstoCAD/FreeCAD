@@ -503,3 +503,83 @@ class TestCommandCreateView(unittest.TestCase):
             self.assertEqual(box.Placement.Base, App.Vector(100, 0, 0))
         finally:
             App.closeDocument(doc.Name)
+
+    def test_exploded_shape_moves_parts_inside_sub_assemblies(self):
+        """A move of a part inside a sub-assembly shows in the exploded shape used by
+        TechDraw, see github.com/freecad/freecad/issues/30738"""
+        doc = App.newDocument("ExplodedSubAssembly")
+        try:
+            assembly = doc.addObject("Assembly::AssemblyObject", "Assembly")
+            sub = assembly.newObject("Assembly::AssemblyObject", "Sub")
+            sub.Placement.Base = App.Vector(0, 0, 50)
+            box = sub.newObject("Part::Box", "Box")
+            other = sub.newObject("Part::Box", "Other")
+            other.Placement.Base = App.Vector(0, 30, 0)
+            top = assembly.newObject("Part::Box", "Top")
+            top.Placement.Base = App.Vector(0, -30, 0)
+            doc.recompute()
+
+            move = _Move("Normal", App.Placement(App.Vector(100, 0, 0), App.Rotation()))
+            move.References = (box, ["Face1"])
+            viewObj = SimpleNamespace(InList=[assembly], Group=[move])
+
+            proxy = CommandCreateView.ExplodedView.__new__(CommandCreateView.ExplodedView)
+            _placements, lines = proxy._calculateExplodedPlacements(viewObj)
+            self.assertEqual(len(lines), 1)
+            start, end = lines[0]
+            self.assertAlmostEqual((start - App.Vector(5, 5, 55)).Length, 0, msg=str(lines))
+            self.assertAlmostEqual((end - App.Vector(105, 5, 55)).Length, 0, msg=str(lines))
+
+            shape = proxy.getExplodedShape(viewObj)
+            boxes = sorted(
+                (
+                    (s.BoundBox.XMin, s.BoundBox.YMin, s.BoundBox.ZMin)
+                    for s in shape.SubShapes
+                    if s.Solids
+                ),
+            )
+            expected = [(0, -30, 0), (0, 30, 50), (100, 0, 50)]
+            self.assertEqual(len(boxes), len(expected), msg=str(boxes))
+            for corner, expectedCorner in zip(boxes, expected):
+                self.assertAlmostEqual(
+                    (App.Vector(*corner) - App.Vector(*expectedCorner)).Length,
+                    0,
+                    msg=str(boxes),
+                )
+            # The document is not modified.
+            self.assertEqual(box.Placement.Base, App.Vector(0, 0, 0))
+        finally:
+            App.closeDocument(doc.Name)
+
+    def test_exploded_shape_line_follows_previously_moved_sub_assembly(self):
+        """The line of a part moved inside a sub-assembly starts where the sub-assembly
+        was moved by a previous step, like the exploded shape and the 3D view."""
+        doc = App.newDocument("ExplodedMovedSubAssembly")
+        try:
+            assembly = doc.addObject("Assembly::AssemblyObject", "Assembly")
+            sub = assembly.newObject("Assembly::AssemblyObject", "Sub")
+            sub.Placement.Base = App.Vector(0, 0, 50)
+            box = sub.newObject("Part::Box", "Box")
+            doc.recompute()
+
+            moveSub = _Move("Normal", App.Placement(App.Vector(100, 0, 0), App.Rotation()))
+            moveSub.References = (assembly, ["Sub."])
+            moveBox = _Move("Normal", App.Placement(App.Vector(0, 40, 0), App.Rotation()))
+            moveBox.References = (box, ["Face1"])
+            viewObj = SimpleNamespace(InList=[assembly], Group=[moveSub, moveBox])
+
+            proxy = CommandCreateView.ExplodedView.__new__(CommandCreateView.ExplodedView)
+            _placements, lines = proxy._calculateExplodedPlacements(viewObj)
+            self.assertEqual(len(lines), 2, msg=str(lines))
+            start, end = lines[1]
+            self.assertAlmostEqual((start - App.Vector(105, 5, 55)).Length, 0, msg=str(lines))
+            self.assertAlmostEqual((end - App.Vector(105, 45, 55)).Length, 0, msg=str(lines))
+
+            shape = proxy.getExplodedShape(viewObj)
+            solids = [s for s in shape.SubShapes if s.Solids]
+            self.assertEqual(len(solids), 1, msg=str(solids))
+            self.assertAlmostEqual(
+                (solids[0].BoundBox.Center - end).Length, 0, msg=str(solids[0].BoundBox)
+            )
+        finally:
+            App.closeDocument(doc.Name)
