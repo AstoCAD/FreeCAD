@@ -68,6 +68,10 @@ def join_two_wires(wire1, wire2):
         DraftVecUtils.equals(wire1AbsPoints[0], wire2AbsPoints[0])
         and DraftVecUtils.equals(wire1AbsPoints[-1], wire2AbsPoints[-1])
     ):
+        if not DraftVecUtils.equals(wire1AbsPoints[-1], wire2AbsPoints[0]):
+            # Both wires run in the same direction: wire2 must be traversed
+            # backwards to continue from the end of wire1.
+            wire2AbsPoints = list(reversed(wire2AbsPoints))
         wire2AbsPoints.pop()
         wire1.Closed = True
     elif DraftVecUtils.equals(wire1AbsPoints[0], wire2AbsPoints[0]):
