@@ -82,6 +82,7 @@ SET(Draft_tests
     drafttests/test_tray_gui.py
     drafttests/test_oca.py
     drafttests/test_pivy.py
+    drafttests/test_scale_edit_gui.py
     drafttests/test_selection_tools_gui.py
     drafttests/test_svg.py
     drafttests/README.md
