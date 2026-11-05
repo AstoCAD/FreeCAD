@@ -62,15 +62,18 @@ Py::String ModelPy::getLibraryName() const
 Py::String ModelPy::getLibraryRoot() const
 {
     auto library = getModelPtr()->getLibrary();
-    if (!library->isLocal()) {
+    if (!library || !library->isLocal()) {
         return "";
     }
-    return Py::String(library ? library->getDirectoryPath().toStdString() : "");
+    return Py::String(library->getDirectoryPath().toStdString());
 }
 
 Py::Object ModelPy::getLibraryIcon() const
 {
     auto library = getModelPtr()->getLibrary();
+    if (!library) {
+        return Py::Bytes();
+    }
     return Py::Bytes(library->getIcon().data(), library->getIcon().size());
 }
 
