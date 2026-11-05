@@ -148,6 +148,9 @@ void ActionGroup::processShow()
         myHeader->setFold(true);
         setFixedHeight(m_fullHeight + myHeader->height() + separatorHeight);
         setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        // Release the height used by the animation, so that the group follows its contents
+        // again, as before it was folded.
+        setMinimumHeight(0);
         setMaximumHeight(QWIDGETSIZE_MAX);
         return;
     }
