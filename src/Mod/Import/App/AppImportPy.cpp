@@ -654,6 +654,9 @@ private:
             PyMem_Free(fname);
             App::DocumentObject* obj
                 = static_cast<App::DocumentObjectPy*>(docObj)->getDocumentObjectPtr();
+            if (!obj->isDerivedFrom<Part::Feature>()) {
+                throw Py::TypeError("expected a Part::Feature");
+            }
             Base::Console().message("Imp:writeDXFObject - docObj: {}\n", obj->getNameInDocument());
 
             if ((versionParm == 12) || (versionParm == 14)) {
