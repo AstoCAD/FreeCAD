@@ -245,6 +245,7 @@ SET(TDTest_SRCS
     TDTest/TestDimensionLabelSnapGui.py
     TDTest/DrawTaskUndoGuiTest.py
     TDTest/DrawSectionTabOrderGuiTest.py
+    TDTest/DrawLeaderOptionsGuiTest.py
     TDTest/DrawCtrlClickJitterGuiTest.py
     TDTest/DrawCompositeHitShapeGuiTest.py
     TDTest/DrawLineDecorRejectGuiTest.py
