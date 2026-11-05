@@ -1247,6 +1247,30 @@ Base::Quantity QuantitySpinBox::valueFromText(const QString& text) const
     return result.quantity.value_or(Base::Quantity());
 }
 
+std::shared_ptr<App::Expression> QuantitySpinBox::interpretExpression(
+    const QString& text,
+    const App::ObjectIdentifier& context,
+    Base::Quantity& quantity,
+    QString& error
+) const
+{
+    Q_D(const QuantitySpinBox);
+
+    const auto result = d->interpretInput(
+        text,
+        context,
+        App::QuantityInputGrammar::Expression,
+        App::InputPhase::Commit
+    );
+    if (result.status != App::InputStatus::Acceptable || !result.expression || !result.quantity) {
+        error = result.diagnostic ? Gui::numericInputDiagnosticText(result.diagnostic->kind)
+                                  : tr("Invalid expression");
+        return nullptr;
+    }
+    quantity = *result.quantity;
+    return result.expression;
+}
+
 QValidator::State QuantitySpinBox::validate(QString& text, int& pos) const
 {
     Q_D(const QuantitySpinBox);

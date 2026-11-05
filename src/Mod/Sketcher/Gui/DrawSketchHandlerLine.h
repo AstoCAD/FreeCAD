@@ -712,15 +712,30 @@ void DSHLineController::addConstraints()
     };
 
     auto constraintx0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::start), GeoElementId::VAxis, x0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::First);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, PointPos::start),
+            GeoElementId::VAxis,
+            x0,
+            obj,
+            hasUserExpression(OnViewParameter::First)
+        );
     };
 
     auto constrainty0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::start), GeoElementId::HAxis, y0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::Second);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, PointPos::start),
+            GeoElementId::HAxis,
+            y0,
+            obj,
+            hasUserExpression(OnViewParameter::Second)
+        );
     };
 
     auto constraintp3DistanceX = [&]() {
-        if (fabs(p3) < Precision::Confusion()) {
+        auto record = recordConstraintsOf(OnViewParameter::Third);
+        if (fabs(p3) < Precision::Confusion() && !hasUserExpression(OnViewParameter::Third)) {
             Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('Vertical',%d)) ", firstCurve);
         }
         else {
@@ -738,6 +753,7 @@ void DSHLineController::addConstraints()
     };
 
     auto constraintp3length = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Third);
         Gui::cmdAppObjectArgs(
             obj,
             "addConstraint(Sketcher.Constraint('Distance',%d,%f)) ",
@@ -747,11 +763,19 @@ void DSHLineController::addConstraints()
     };
 
     auto constraintp3x = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::end), GeoElementId::VAxis, p3, obj);
+        auto record = recordConstraintsOf(OnViewParameter::Third);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, PointPos::end),
+            GeoElementId::VAxis,
+            p3,
+            obj,
+            hasUserExpression(OnViewParameter::Third)
+        );
     };
 
     auto constraintp4DistanceY = [&]() {
-        if (fabs(p4) < Precision::Confusion()) {
+        auto record = recordConstraintsOf(OnViewParameter::Fourth);
+        if (fabs(p4) < Precision::Confusion() && !hasUserExpression(OnViewParameter::Fourth)) {
             Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('Horizontal',%d)) ", firstCurve);
         }
         else {
@@ -769,16 +793,30 @@ void DSHLineController::addConstraints()
     };
 
     auto constraintp4angle = [&]() {
-        ConstraintLineByAngle(firstCurve, Base::toRadians(p4), obj);
+        auto record = recordConstraintsOf(OnViewParameter::Fourth);
+        ConstraintLineByAngle(
+            firstCurve,
+            Base::toRadians(p4),
+            obj,
+            hasUserExpression(OnViewParameter::Fourth)
+        );
     };
 
     auto constraintp4y = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::end), GeoElementId::HAxis, p4, obj);
+        auto record = recordConstraintsOf(OnViewParameter::Fourth);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, PointPos::end),
+            GeoElementId::HAxis,
+            p4,
+            obj,
+            hasUserExpression(OnViewParameter::Fourth)
+        );
     };
 
     if (handler->AutoConstraints.empty()) {  // No valid diagnosis. Every constraint can be added.
 
-        if (x0set && y0set && x0 == 0. && y0 == 0.) {
+        if (x0set && y0set && x0 == 0. && y0 == 0. && !hasUserExpression(OnViewParameter::First)
+            && !hasUserExpression(OnViewParameter::Second)) {
             constraintToOrigin();
         }
         else {

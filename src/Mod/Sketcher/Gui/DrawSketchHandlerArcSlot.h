@@ -892,15 +892,33 @@ void DSHArcSlotController::addConstraints()
     auto arcAngleSet = onViewParameters[OnViewParameter::Fifth]->isSet;
     auto slotRadiusSet = onViewParameters[OnViewParameter::Sixth]->isSet;
 
+    const bool x0Expression = hasUserExpression(OnViewParameter::First);
+    const bool y0Expression = hasUserExpression(OnViewParameter::Second);
+
     auto constraintx0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::mid), GeoElementId::VAxis, x0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::First);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, PointPos::mid),
+            GeoElementId::VAxis,
+            x0,
+            obj,
+            x0Expression
+        );
     };
 
     auto constrainty0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::mid), GeoElementId::HAxis, y0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::Second);
+        ConstraintToAttachment(
+            GeoElementId(firstCurve, PointPos::mid),
+            GeoElementId::HAxis,
+            y0,
+            obj,
+            y0Expression
+        );
     };
 
     auto constraintRadius = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Third);
         if (handler->constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot) {
             Gui::cmdAppObjectArgs(
                 obj,
@@ -923,6 +941,7 @@ void DSHArcSlotController::addConstraints()
     };
 
     auto constraintArcAngle = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Fifth);
         Gui::cmdAppObjectArgs(
             obj,
             "addConstraint(Sketcher.Constraint('Angle',%d,%f)) ",
@@ -932,6 +951,7 @@ void DSHArcSlotController::addConstraints()
     };
 
     auto constraintSlotRadius = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Sixth);
         if (handler->constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot) {
             Gui::cmdAppObjectArgs(
                 obj,
@@ -951,7 +971,7 @@ void DSHArcSlotController::addConstraints()
     };
 
     if (handler->AutoConstraints.empty()) {  // No valid diagnosis. Every constraint can be added.
-        if (x0set && y0set && x0 == 0. && y0 == 0.) {
+        if (x0set && y0set && x0 == 0. && y0 == 0. && !x0Expression && !y0Expression) {
             ConstraintToAttachment(GeoElementId(firstCurve, PointPos::mid), GeoElementId::RtPnt, 0., obj);
         }
         else {

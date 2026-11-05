@@ -29,8 +29,14 @@
 #include <QLocale>
 #include <QRegularExpression>
 
+#include <algorithm>
+
 #include <App/Application.h>
+#include <App/Expression.h>
+#include <App/ExpressionParser.h>
+#include <App/ObjectIdentifier.h>
 #include <App/Transactions.h>
+#include <App/UserParameters.h>
 #include <Base/Quantity.h>
 #include <Base/Interpreter.h>
 #include <Base/UnitsApi.h>
@@ -38,6 +44,7 @@
 #include <Gui/CommandT.h>
 #include <Gui/Document.h>
 #include <Gui/DockWindowManager.h>
+#include <Gui/EditableDatumLabel.h>
 #include <Gui/Selection/Selection.h>
 #include <Gui/Notifications.h>
 #include <Mod/Sketcher/App/GeometryFacade.h>
@@ -772,10 +779,15 @@ void SketcherGui::ConstraintToAttachment(
     Sketcher::GeoElementId element,
     Sketcher::GeoElementId attachment,
     double distance,
-    App::DocumentObject* obj
+    App::DocumentObject* obj,
+    bool forceDimensional
 )
 {
-    if (distance == 0.) {
+    // A forced zero distance to an axis stays a distance (the origin has no such constraint).
+    if (distance == 0.
+        && !(forceDimensional
+             && (attachment == Sketcher::GeoElementId::VAxis
+                 || attachment == Sketcher::GeoElementId::HAxis))) {
 
         if (attachment.isCurve()) {
             Gui::cmdAppObjectArgs(
@@ -819,14 +831,19 @@ void SketcherGui::ConstraintToAttachment(
     }
 }
 
-void SketcherGui::ConstraintLineByAngle(int geoId, double angle, App::DocumentObject* obj)
+void SketcherGui::ConstraintLineByAngle(
+    int geoId,
+    double angle,
+    App::DocumentObject* obj,
+    bool forceDimensional
+)
 {
     using std::numbers::pi;
 
-    if (fabs(std::remainder(angle, pi)) < Precision::Confusion()) {
+    if (!forceDimensional && fabs(std::remainder(angle, pi)) < Precision::Confusion()) {
         Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('Horizontal',%d)) ", geoId);
     }
-    else if (fabs(std::remainder(angle, pi / 2)) < Precision::Confusion()) {
+    else if (!forceDimensional && fabs(std::remainder(angle, pi / 2)) < Precision::Confusion()) {
         Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('Vertical',%d)) ", geoId);
     }
     else {
@@ -840,13 +857,122 @@ void SketcherGui::ConstraintLineByAngle(int geoId, double angle, App::DocumentOb
     }
 }
 
-void SketcherGui::Constraint2LinesByAngle(int geoId1, int geoId2, double angle, App::DocumentObject* obj)
+bool SketcherGui::bindOnViewParameterExpression(
+    Sketcher::SketchObject* sketch,
+    const Gui::EditableDatumLabel& label,
+    int firstConstraint,
+    int endConstraint
+)
+{
+    const std::string& name = label.getUserParameterName();
+    const auto expression = label.getUserExpression();
+    if (!sketch || !expression) {
+        return false;
+    }
+
+    const auto warn = [&](const QString& reason) {
+        const QString what = name.empty()
+            ? QObject::tr("The expression '%1' was used as a plain value: %2")
+                  .arg(QString::fromStdString(expression->toString()), reason)
+            : QObject::tr("The user parameter '%1' was not created: %2")
+                  .arg(QString::fromStdString(name), reason);
+        Gui::TranslatedUserWarning(sketch, QObject::tr("On-view parameter"), what);
+        return false;
+    };
+
+    // The tool may add several constraints for one on-view parameter (e.g. a point on an axis
+    // first); the value is carried by the last dimensional one.
+    const auto& constraints = sketch->Constraints.getValues();
+    const int end = std::min(endConstraint, static_cast<int>(constraints.size()));
+    int index = -1;
+    for (int i = end - 1; i >= std::max(firstConstraint, 0); --i) {
+        if (constraints[i]->isDimensional() && constraints[i]->isDriving) {
+            index = i;
+            break;
+        }
+    }
+    if (index < 0) {
+        return warn(QObject::tr("no dimensional constraint was created from this value."));
+    }
+
+    // Tools store some values as absolute values with the points swapped; anything else (e.g. a
+    // value converted or adjusted by the tool) cannot be bound safely.
+    // Compare in the stored unit (rad for angles, mm otherwise): the tools write the datums with
+    // Gui::cmdAppObjectArgs("%f"), i.e. rounded to 6 decimals in that unit (30 deg is stored as
+    // 0.523599 rad). The tolerance is therefore absolute and at least that formatting step, and
+    // relative for large values. The binding then sets the exact value of the expression.
+    const Sketcher::Constraint* constraint = constraints[index];
+    const double datum = constraint->getValue();
+    const double value = constraint->Type == Sketcher::Angle
+        ? Base::toRadians(label.getUserExpressionValue())
+        : label.getUserExpressionValue();
+    constexpr double formattingStep = 1e-6;
+    const double tolerance = std::max(formattingStep, Precision::Confusion() * std::fabs(value));
+    bool negate = false;
+    if (std::fabs(datum - value) > tolerance) {
+        if (std::fabs(datum + value) > tolerance) {
+            return warn(QObject::tr("the created constraint does not hold this value."));
+        }
+        negate = true;
+    }
+
+    const App::ObjectIdentifier path = sketch->Constraints.createPath(index);
+    bool created = false;
+    try {
+        std::shared_ptr<App::Expression> binding = expression;
+        if (!name.empty()) {
+            App::UserParameters::createParameter(
+                sketch,
+                name,
+                expression,
+                label.getUserExpressionUnit()
+            );
+            created = true;
+            binding = App::ExpressionParser::parse(sketch, name.c_str());
+        }
+        if (negate) {
+            binding = App::ExpressionParser::parse(
+                sketch,
+                ("-(" + binding->toString() + ")").c_str()
+            );
+        }
+        const std::string error = sketch->ExpressionEngine.validateExpression(path, binding);
+        if (!error.empty()) {
+            throw Base::RuntimeError(error);
+        }
+        sketch->setExpression(path, binding);
+    }
+    catch (const Base::Exception& e) {
+        if (created) {
+            sketch->removeDynamicProperty(name.c_str());
+        }
+        return warn(QString::fromUtf8(e.what()));
+    }
+    return true;
+}
+
+void SketcherGui::Constraint2LinesByAngle(
+    int geoId1,
+    int geoId2,
+    double angle,
+    App::DocumentObject* obj,
+    bool forceDimensional
+)
 {
     using std::numbers::pi;
     double angleModPi = std::fmod(angle, pi);
     double angleModHalfPi = std::fmod(angle, pi / 2);
 
-    if (fabs(angleModPi) < Precision::Confusion()) {
+    if (forceDimensional) {
+        Gui::cmdAppObjectArgs(
+            obj,
+            "addConstraint(Sketcher.Constraint('Angle',%d, 2, %d, 1, %f)) ",
+            geoId1,
+            geoId2,
+            angle
+        );
+    }
+    else if (fabs(angleModPi) < Precision::Confusion()) {
         Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('Parallel',%d,%d)) ", geoId1, geoId2);
     }
     else if (fabs(angleModHalfPi) < Precision::Confusion()) {

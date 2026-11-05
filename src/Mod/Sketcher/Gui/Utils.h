@@ -47,6 +47,7 @@ namespace Gui
 {
 class DocumentObject;
 class Document;
+class EditableDatumLabel;
 }  // namespace Gui
 
 namespace Part
@@ -221,11 +222,42 @@ void ConstraintToAttachment(
     Sketcher::GeoElementId element,
     Sketcher::GeoElementId attachment,
     double distance,
-    App::DocumentObject* obj
+    App::DocumentObject* obj,
+    bool forceDimensional = false
 );
 
-void ConstraintLineByAngle(int geoId, double angle, App::DocumentObject* obj);
-void Constraint2LinesByAngle(int geoId1, int geoId2, double angle, App::DocumentObject* obj);
+/// @p forceDimensional: always an Angle constraint, never Horizontal/Vertical (an on-view
+/// parameter typed as an expression needs a dimensional constraint to bind).
+void ConstraintLineByAngle(
+    int geoId,
+    double angle,
+    App::DocumentObject* obj,
+    bool forceDimensional = false
+);
+
+/**
+ * Bind the constraint created from the on-view parameter @p label to the expression typed in it.
+ *
+ * The constraint is the last dimensional one in [@p firstConstraint, @p endConstraint) whose value
+ * is the value of @p label (or its opposite, then the binding is negated). The user parameter
+ * named in the label is created on @p sketch first. When no such constraint exists or binding
+ * fails, nothing is created and a warning says that the parameter was not created.
+ * Returns true on success.
+ */
+bool bindOnViewParameterExpression(
+    Sketcher::SketchObject* sketch,
+    const Gui::EditableDatumLabel& label,
+    int firstConstraint,
+    int endConstraint
+);
+/// @p forceDimensional: always an Angle constraint, never Parallel/Perpendicular.
+void Constraint2LinesByAngle(
+    int geoId1,
+    int geoId2,
+    double angle,
+    App::DocumentObject* obj,
+    bool forceDimensional = false
+);
 
 // convenience functions for cursor coordinates
 bool hideUnits();
