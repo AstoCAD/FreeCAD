@@ -15,12 +15,19 @@
 #include <QTimer>
 
 #include <QFocusEvent>
+#include <QImage>
+#include <QPainter>
 #include <QPointer>
+#include <QStyleOptionViewItem>
 #include <QTest>
+
+#include <algorithm>
 
 #include <App/Application.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
+#include <App/Expression.h>
+#include <App/ObjectIdentifier.h>
 #include <App/PropertyStandard.h>
 #include <App/PropertyFile.h>
 #include <src/App/InitApplication.h>
@@ -117,6 +124,7 @@ public:
         Gui::PropertyEditor::PropertyIntegerItem::init();
         Gui::PropertyEditor::PropertyVectorItem::init();
         Gui::PropertyEditor::PropertyFileItem::init();
+        Gui::PropertyEditor::PropertyBoolItem::init();
     }
 
 private Q_SLOTS:
@@ -673,6 +681,56 @@ private Q_SLOTS:
         }
 
         application.closeDocument(documentName.c_str());
+    }
+
+    /// Regression test for https://github.com/FreeCAD/FreeCAD/issues/34104
+    /// The Yes/No label of a boolean property bound to an expression must use the
+    /// expression (link) color like every other property value.
+    void boolLabelUsesExpressionColor()
+    {
+        TestDocument fixture;
+        auto* object = fixture.object;
+        auto* source = static_cast<App::PropertyBool*>(
+            object->addDynamicProperty("App::PropertyBool", "Source", "Values")
+        );
+        auto* flag = object->addDynamicProperty("App::PropertyBool", "Flag", "Values");
+        source->setValue(true);
+        object->setExpression(App::ObjectIdentifier(*flag), App::Expression::parse(object, "Source"));
+
+        const QPalette savedPalette = QApplication::palette();
+        auto restorePalette = qScopeGuard([&] { QApplication::setPalette(savedPalette); });
+        QPalette palette = savedPalette;
+        palette.setColor(QPalette::Link, QColor(255, 0, 0));
+        QApplication::setPalette(palette);
+
+        Gui::PropertyEditor::PropertyEditor view;
+        view.buildUp({{"Flag", {flag}}});
+        const auto index = view.model()->index(0, 1, view.model()->index(0, 0));
+        QVERIFY(index.isValid());
+        QCOMPARE(index.data(Qt::ForegroundRole).value<QColor>(), QColor(255, 0, 0));
+
+        QImage image(200, 24, QImage::Format_ARGB32);
+        image.fill(Qt::white);
+        {
+            QPainter painter(&image);
+            QStyleOptionViewItem option;
+            option.initFrom(view.viewport());
+            option.rect = image.rect();
+            option.widget = view.viewport();
+            view.itemDelegate()->paint(&painter, option, index);
+        }
+
+        bool hasLinkColoredPixel = false;
+        for (int y = 0; y < image.height() && !hasLinkColoredPixel; ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor pixel = image.pixelColor(x, y);
+                if (pixel.red() - std::max(pixel.green(), pixel.blue()) > 100) {
+                    hasLinkColoredPixel = true;
+                    break;
+                }
+            }
+        }
+        QVERIFY(hasLinkColoredPixel);
     }
 };
 

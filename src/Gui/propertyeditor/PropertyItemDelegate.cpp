@@ -195,8 +195,15 @@ void PropertyItemDelegate::paint(
             option.rect.right() - (checkboxOption.rect.right() + spacing),
             checkboxOption.rect.height()
         );
+        // Honor the item's foreground (e.g. the link color of a property bound to an
+        // expression) like QItemDelegate::paint does for the other items, see
+        // https://github.com/FreeCAD/FreeCAD/issues/34104
+        QVariant foreground = index.data(Qt::ForegroundRole);
         if (readonly) {
             painter->setPen(palette.color(QPalette::Disabled, QPalette::Text));
+        }
+        else if (foreground.canConvert<QColor>()) {
+            painter->setPen(foreground.value<QColor>());
         }
         else {
             painter->setPen(palette.color(QPalette::Text));
