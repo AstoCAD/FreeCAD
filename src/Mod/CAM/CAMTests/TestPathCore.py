@@ -181,6 +181,17 @@ G0 Z0.500000
         p.setFromGCode(lines)
         self.assertEqual(p.toGCode(), output)
 
+    def test11(self):
+        """Test that Path.Path(gcode) raises on badly formatted gcode (#31015)"""
+        for gcode in ("G1 X", "GG", "(a) Mill side)", "G81 X1; RetractMode:'G98'"):
+            with self.subTest(gcode=gcode):
+                # same exception as Path.setFromGCode(), not a C++ exception escaping
+                with self.assertRaises(FreeCAD.Base.BadFormatError):
+                    Path.Path().setFromGCode(gcode)
+                with self.assertRaises(FreeCAD.Base.BadFormatError):
+                    Path.Path(gcode)
+        self.assertEqual(Path.Path("G1 X1").toGCode(), "G1 X1.000000\n")
+
     def test50(self):
         """Test Path.Length calculation"""
         commands = []
