@@ -325,6 +325,15 @@ bool Sheet::exportToFile(const std::string& filename, char delimiter, char quote
     auto usedCells = cells.getNonEmptyCells();
     auto i = usedCells.begin();
 
+    // Every row starts at the leftmost used column, so that rows keep their column layout
+    int firstCol = -1;
+    for (const auto& address : usedCells) {
+        if (firstCol == -1 || address.col() < firstCol) {
+            firstCol = address.col();
+        }
+    }
+    prevCol = firstCol;
+
     while (i != usedCells.end()) {
         Property* prop = getProperty(*i);
 
@@ -332,7 +341,7 @@ bool Sheet::exportToFile(const std::string& filename, char delimiter, char quote
             for (int j = prevRow; j < i->row(); ++j) {
                 file << std::endl;
             }
-            prevCol = usedCells.begin()->col();
+            prevCol = firstCol;
         }
         if (prevCol != -1 && i->col() != prevCol) {
             for (int j = prevCol; j < i->col(); ++j) {
