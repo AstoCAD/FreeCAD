@@ -58,6 +58,18 @@ class MaterialTestCases(unittest.TestCase):
         self.assertIn("MaterialLibraries", dir(self.MaterialManager))
         self.assertIn("Materials", dir(self.MaterialManager))
 
+    def testNoLibrary(self):
+        """ A material or model without a library has empty library attributes """
+        # these dereferenced a null library ("Unknown exception", a crash on Linux)
+        material = Materials.Material()
+        self.assertEqual(material.LibraryName, "")
+        self.assertEqual(material.LibraryRoot, "")
+        self.assertEqual(material.LibraryIcon, b"")
+        model = Materials.Model()
+        self.assertEqual(model.LibraryName, "")
+        self.assertEqual(model.LibraryRoot, "")
+        self.assertEqual(model.LibraryIcon, b"")
+
     def getQuantity(self, value):
         quantity = parseQuantity(value)
         quantity.Format = { "NumberFormat" : "g",
