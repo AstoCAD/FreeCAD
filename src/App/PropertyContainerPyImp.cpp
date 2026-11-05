@@ -526,6 +526,10 @@ PyObject* PropertyContainerPy::dumpPropertyContent(PyObject* args, PyObject* kwd
                                              &compression)) {
         return nullptr;
     }
+    if (!Base::Persistence::isValidCompressionLevel(compression)) {
+        PyErr_SetString(PyExc_ValueError, "Compression must be -1 or between 0 and 9");
+        return nullptr;
+    }
 
     Property* prop = getPropertyContainerPtr()->getPropertyByName(property);
     if (!prop) {
