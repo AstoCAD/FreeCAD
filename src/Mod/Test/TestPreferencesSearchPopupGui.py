@@ -62,6 +62,58 @@ class TestPreferencesSearchPopupGui(unittest.TestCase):
             if dialog is not None:
                 dialog.reject()
 
+    def inspectDuplicates(self):
+        dialog = QtWidgets.QApplication.activeModalWidget()
+        try:
+            page = None
+            for widget in dialog.findChildren(QtWidgets.QWidget):
+                if widget.metaObject().className() == "Gui::Dialog::DlgSettingsWorkbenchesImp":
+                    page = widget
+                    break
+            if page is None:
+                self.errors.append("workbenches preference page not found")
+                return
+            # every workbench row has an "Auto-load" check box
+            texts = [box.text() for box in page.findChildren(QtWidgets.QCheckBox) if box.text()]
+            repeated = [text for text in set(texts) if texts.count(text) > 1]
+            if not repeated:
+                self.errors.append("no repeated check box text on the workbenches page")
+                return
+            text = max(repeated, key=texts.count)
+            search = dialog.findChild(QtWidgets.QLineEdit, "searchBox")
+            if search is None:
+                self.errors.append("search box not found")
+                return
+            search.setFocus()
+            search.setText(text)
+            if not self.waitFor(lambda: self.visiblePopup(dialog) is not None):
+                self.errors.append("search results popup not shown")
+                return
+            popup = self.visiblePopup(dialog)
+            pathRole = int(QtCore.Qt.UserRole) + 10
+            textRole = int(QtCore.Qt.UserRole) + 11
+            entries = []
+            for row in range(popup.count()):
+                item = popup.item(row)
+                entries.append((item.data(pathRole), item.data(textRole)))
+            self.results["text"] = text
+            self.results["entries"] = entries
+        except Exception as e:
+            self.errors.append(repr(e))
+        finally:
+            if dialog is not None:
+                dialog.reject()
+
+    def testNoDuplicateResults(self):
+        """Issue #34133: widgets of one page that show the same text must be
+        listed only once in the search results."""
+        QtCore.QTimer.singleShot(500, self.inspectDuplicates)
+        Gui.showPreferences()
+        self.assertEqual(self.errors, [])
+        entries = self.results["entries"]
+        self.assertIn(self.results["text"], [entry[1] for entry in entries])
+        self.assertEqual(len(entries), len(set(entries)), entries)
+
     def testPopupFollowsMovedDialog(self):
         QtCore.QTimer.singleShot(500, self.inspect)
         Gui.showPreferences()
