@@ -617,6 +617,7 @@ PyMOD_INIT_FUNC(Part)
     Base::registerServiceImplementation<App::CenterOfMassProvider>(new PartCenterOfMass);
     Base::registerServiceImplementation<App::CustomAttributeProvider>(new ShapeAttributeProvider);
     Base::registerServiceImplementation<App::PseudoShapeProvider>(new PartPseudoShapeProvider);
+    Part::AttachExtension::registerCopyPasteHandler();
 
     Handle(OCCTMessagePrinter) printer = new OCCTMessagePrinter();
     printer->SetTraceLevel(Message_Trace);
