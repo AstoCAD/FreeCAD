@@ -259,6 +259,70 @@ class UnitBasicCases(unittest.TestCase):
         with self.assertRaises(OverflowError):
             one + 10**400
 
+    def testPowerUnitExponentOutOfRangeRaises(self):
+        # Unit::pow cast the new exponents to int8 unchecked: 1 mm ** 256 gave a
+        # dimensionless result, 1 mm ** 200 an underflow
+        mm = FreeCAD.Units.Quantity("1 mm")
+        for exp in (8, 200, 256, 2**40, 1e300, float("inf")):
+            with self.subTest(exp=exp):
+                with self.assertRaises(OverflowError):
+                    mm**exp
+        for exp in (-9, -200, -256):
+            with self.subTest(exp=exp):
+                with self.assertRaises(ArithmeticError):
+                    mm**exp
+        # in range and dimensionless powers are unchanged
+        self.assertEqual((mm**7).Unit, FreeCAD.Units.Unit(7))
+        self.assertEqual((mm**-8).Unit, FreeCAD.Units.Unit(-8))
+        self.assertEqual((FreeCAD.Units.Quantity(2.0) ** 1000).Unit, FreeCAD.Units.Unit())
+        self.assertEqual(
+            (FreeCAD.Units.Quantity(2.0) ** float("inf")).Value, float("inf")
+        )
+
+    def testPowerQuantityExponentOutOfRangeRaises(self):
+        # Quantity::pow(Quantity) cast the exponent to signed char unchecked:
+        # 1 mm ** Quantity(256) gave a dimensionless result
+        mm = FreeCAD.Units.Quantity("1 mm")
+        for exp in (200, 256, 1e300):
+            with self.subTest(exp=exp):
+                with self.assertRaises(OverflowError):
+                    mm ** FreeCAD.Units.Quantity(exp)
+        with self.assertRaises(ArithmeticError):
+            mm ** FreeCAD.Units.Quantity(-200)
+        # in range exponents are unchanged
+        self.assertEqual((mm ** FreeCAD.Units.Quantity(7)).Unit, FreeCAD.Units.Unit(7))
+        self.assertEqual(
+            (FreeCAD.Units.Quantity(2.0) ** FreeCAD.Units.Quantity(1000)).Unit,
+            FreeCAD.Units.Unit(),
+        )
+
+    def testPowerQuantityExponentIsExact(self):
+        # A Quantity exponent was truncated for the unit, unlike a float exponent:
+        # (4 mm^2) ** Quantity(0.5) gave 2 with no unit, 1 mm ** Quantity(2.5) mm^2,
+        # "1 mm^1.5" 1 mm, and the expression "(4 mm^2) ^ Half" 2
+        q = FreeCAD.Units.Quantity
+        root = q("4 mm^2") ** q(0.5)
+        self.assertEqual((root.Value, root.Unit), (2.0, FreeCAD.Units.Length))
+        for base, exp in (("1 mm", 2.5), ("1 mm", -0.5), ("1 mm^3", 0.5)):
+            with self.subTest(base=base, exp=exp):
+                with self.assertRaises(ArithmeticError):
+                    q(base) ** q(exp)
+                with self.assertRaises(ArithmeticError):
+                    q(base) ** exp
+        for text in ("1 mm^1.5", "1 mm^(1/2)"):
+            with self.subTest(text=text):
+                with self.assertRaises(ArithmeticError):
+                    q(text)
+        self.assertEqual(q("1 m^2").Unit, FreeCAD.Units.Area)
+        self.assertEqual(q("8 mm^3") ** q(1 / 3), q("2 mm"))
+        doc = FreeCAD.newDocument("QuantityPower")
+        self.addCleanup(FreeCAD.closeDocument, doc.Name)
+        obj = doc.addObject("App::FeaturePython", "Obj")
+        obj.addProperty("App::PropertyQuantity", "Half").Half = q(0.5)
+        self.assertEqual(obj.evalExpression("(4 mm^2) ^ Half"), q("2 mm"))
+        with self.assertRaises(ArithmeticError):
+            obj.evalExpression("(1 mm) ^ Half")
+
     def testUnitExponentOutOfRangeRaises(self):
         # The C++ OverflowError/UnderflowError used to escape from these
         # constructors and abort the interpreter.
