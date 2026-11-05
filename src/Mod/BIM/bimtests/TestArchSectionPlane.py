@@ -280,3 +280,25 @@ class TestArchSectionPlane(TestArchBase.TestArchBase):
         # box1 overlaps none of the others when seen from above
         self.assertEqual(sorted_face_count([box1, box2, box3]), 3)
         self.assertEqual(sorted_face_count([box1, box2]), 2)
+
+    def testCutVolumeClipWhenPlaneCutsNothing(self):
+        """Clip and Depth still apply when the section plane cuts nothing.
+
+        Regression test for https://github.com/FreeCAD/FreeCAD/issues/29752
+        """
+        import Part
+
+        box = Part.makeBox(10, 10, 10)
+        above = Part.makePlane(4, 4, App.Vector(3, 3, 20))
+        below = Part.makePlane(4, 4, App.Vector(3, 3, -20))
+
+        self.assertEqual(Arch.getCutVolume(above, [box]), (None, None, None))
+
+        cutvolume = Arch.getCutVolume(above, [box], clip=True)[1]
+        self.assertAlmostEqual(box.cut(cutvolume).Volume, 160)
+
+        cutvolume = Arch.getCutVolume(below, [box], clip=True)[1]
+        self.assertAlmostEqual(box.cut(cutvolume).Volume, 0)
+
+        cutvolume = Arch.getCutVolume(above, [box], depth=15)[1]
+        self.assertAlmostEqual(box.cut(cutvolume).Volume, 500)
