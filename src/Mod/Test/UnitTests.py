@@ -186,6 +186,33 @@ class UnitBasicCases(unittest.TestCase):
         self.assertEqual(length.Value, 1000)
         self.assertEqual(length.Unit, FreeCAD.Units.Length)
 
+    def testUnitMismatchMessageNamesUnits(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/17850
+        length = FreeCAD.Units.Quantity("5 mm")
+        number = FreeCAD.Units.Quantity(3)
+        with self.assertRaises(Exception) as ctx:
+            length + number
+        self.assertIn("Unit mismatch in plus operation", str(ctx.exception))
+        self.assertIn("(left: mm, right: unitless)", str(ctx.exception))
+        with self.assertRaises(Exception) as ctx:
+            number - FreeCAD.Units.Quantity("2 s")
+        self.assertIn("Unit mismatch in minus operation", str(ctx.exception))
+        self.assertIn("(left: unitless, right: s)", str(ctx.exception))
+
+    def testExpressionUnitMismatchMessageNamesUnits(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/17850
+        doc = FreeCAD.newDocument("UnitMismatchMessage")
+        try:
+            varset = doc.addObject("App::VarSet", "VarSet")
+            varset.addProperty("App::PropertyLength", "Length")
+            varset.Length = 5
+            with self.assertRaises(Exception) as ctx:
+                varset.evalExpression("Length + 3")
+            self.assertIn("(left: mm, right: unitless)", str(ctx.exception))
+            self.assertEqual(varset.evalExpression("Length + 3 mm"), FreeCAD.Units.Quantity("8 mm"))
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
     def testToString(self):
         value = FreeCAD.Units.toNumber(1023, "g", 2)
         self.assertEqual(float(value), 1000)
