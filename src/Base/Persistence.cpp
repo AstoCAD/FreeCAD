@@ -198,6 +198,12 @@ std::string Persistence::validateXMLString(const std::string& str)
 
 void Persistence::dumpToStream(std::ostream& stream, int compression)
 {
+    // zlib rejects any level other than Z_DEFAULT_COMPRESSION or [0, 9]: the deflate stream then
+    // stays uninitialized and closing the writer aborts the process, so clamp like Document does.
+    if (compression != Z_DEFAULT_COMPRESSION) {
+        compression = std::clamp<int>(compression, Z_NO_COMPRESSION, Z_BEST_COMPRESSION);
+    }
+
     // we need to close the zipstream to get a good result, the only way to do this is to delete the
     // ZipWriter. Hence the scope...
     {

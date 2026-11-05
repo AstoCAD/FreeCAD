@@ -1451,6 +1451,19 @@ class DocumentSaveRestoreCases(unittest.TestCase):
         self.assertEqual(self.Doc.Label_1.Vector, Doc.Label_1.Vector)
         FreeCAD.closeDocument("DumpTest")
 
+    def testPersistenceContentDumpInvalidCompression(self):
+        # a compression level that zlib rejects used to abort the whole process
+        self.Doc.Label_1.Vector = (1, 2, 3)
+        self.Doc.Label_1.Distance = 12
+        for level in (10, 1000000, -2):
+            dump = self.Doc.Label_1.dumpContent(level)
+            self.Doc.Label_3.restoreContent(dump)
+            self.assertEqual(self.Doc.Label_1.Distance, self.Doc.Label_3.Distance)
+
+            dump = self.Doc.Label_1.dumpPropertyContent("Vector", Compression=level)
+            self.Doc.Label_2.restorePropertyContent("Vector", dump)
+            self.assertEqual(self.Doc.Label_1.Vector, self.Doc.Label_2.Vector)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("SaveRestoreTests")

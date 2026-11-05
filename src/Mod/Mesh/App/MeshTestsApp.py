@@ -884,6 +884,30 @@ class MeshModuleExport(unittest.TestCase):
             Mesh.export([self.mesh], name, tolerance=0.1, exportAmfCompressed=False)
 
 
+class MeshDumpContent(unittest.TestCase):
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("MeshDumpContentTest")
+        self.mesh = self.doc.addObject("Mesh::Feature", "Box")
+        self.mesh.Mesh = Mesh.createBox(1.0, 1.0, 1.0)
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def testDumpContentInvalidCompression(self):
+        # A compression level that zlib rejects used to abort the whole process
+        # when the mesh data file was written.
+        for level in (3, 10, 1000000, -2):
+            copy = self.doc.addObject("Mesh::Feature", "Copy")
+            copy.restoreContent(self.mesh.dumpContent(level))
+            self.assertEqual(copy.Mesh.CountFacets, self.mesh.Mesh.CountFacets)
+            self.assertEqual(copy.Mesh.CountPoints, self.mesh.Mesh.CountPoints)
+            self.doc.removeObject(copy.Name)
+
+    def testMeshObjectDumpContentInvalidCompression(self):
+        for level in (3, 10, 1000000, -2):
+            self.assertIsInstance(self.mesh.Mesh.dumpContent(level), bytearray)
+
+
 class MeshProperty(unittest.TestCase):
     def setUp(self):
         self.doc = FreeCAD.newDocument("MeshTest")
