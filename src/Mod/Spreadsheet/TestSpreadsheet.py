@@ -734,6 +734,24 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(other.get("A1"), 'say "hi"')
         self.assertEqual(other.get("B1"), "a,b")
 
+    def testExportKeepsColumnsOfRowsLeftOfFirstCell(self):
+        """CSV export keeps the column layout when a later row starts left of the first cell."""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("B1", "x")
+        sheet.set("C1", "z")
+        sheet.set("A2", "y")
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "columns.csv")
+            self.assertTrue(sheet.exportFile(path, ",", '"', "\\"))
+            other = self.doc.addObject("Spreadsheet::Sheet", "Imported")
+            self.assertTrue(other.importFile(path, ",", '"', "\\"))
+        self.doc.recompute()
+        self.assertEqual(sorted(other.getNonEmptyCells()), ["A2", "B1", "C1"])
+        self.assertEqual(other.get("B1"), "x")
+        self.assertEqual(other.get("C1"), "z")
+        self.assertEqual(other.get("A2"), "y")
+
     def testNumericLiteralIsStableAcrossSaveRestore(self):
         """Numeric literals retain their value and type across save and restore."""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
