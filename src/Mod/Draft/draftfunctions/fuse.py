@@ -61,6 +61,7 @@ def fuse(object1, object2):
             holes = True
     if geo_faces.is_coplanar(object1.Shape.fuse(object2.Shape).Faces) and not holes:
         obj = App.ActiveDocument.addObject("Part::FeaturePython", "Fusion")
+        obj.addExtension("Part::AttachExtensionPython")
         Wire(obj)
         if App.GuiUp:
             ViewProviderWire(obj.ViewObject)
