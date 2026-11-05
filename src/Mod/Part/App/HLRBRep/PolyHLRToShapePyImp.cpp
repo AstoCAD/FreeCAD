@@ -49,9 +49,19 @@ int PolyHLRToShapePy::PyInit(PyObject* args, PyObject* /*kwds*/)
     if (algo) {
         HLRBRep_PolyAlgoPy* py = static_cast<HLRBRep_PolyAlgoPy*>(algo);
         getHLRBRep_PolyHLRToShapePtr()->Update(py->handle());
+        hasAlgo = true;
     }
 
     return 0;
+}
+
+bool PolyHLRToShapePy::checkAlgo() const
+{
+    if (!hasAlgo) {
+        PyErr_SetString(PyExc_RuntimeError, "No algorithm: call update(algo) first");
+        return false;
+    }
+    return true;
 }
 
 // returns a string which represents the object e.g. when printed in python
@@ -69,6 +79,7 @@ PyObject* PolyHLRToShapePy::update(PyObject* args)
 
     HLRBRep_PolyAlgoPy* py = static_cast<HLRBRep_PolyAlgoPy*>(algo);
     getHLRBRep_PolyHLRToShapePtr()->Update(py->handle());
+    hasAlgo = true;
     Py_Return;
 }
 
@@ -98,6 +109,9 @@ PyObject* PolyHLRToShapePy::vCompound(PyObject* args)
     if (!PyArg_ParseTuple(args, "|O!", &Part::TopoShapePy::Type, &shape)) {
         return nullptr;
     }
+    if (!checkAlgo()) {
+        return nullptr;
+    }
 
     if (shape) {
         TopoDS_Shape input = static_cast<TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
@@ -114,6 +128,9 @@ PyObject* PolyHLRToShapePy::Rg1LineVCompound(PyObject* args)
 {
     PyObject* shape = nullptr;
     if (!PyArg_ParseTuple(args, "|O!", &Part::TopoShapePy::Type, &shape)) {
+        return nullptr;
+    }
+    if (!checkAlgo()) {
         return nullptr;
     }
 
@@ -134,6 +151,9 @@ PyObject* PolyHLRToShapePy::RgNLineVCompound(PyObject* args)
     if (!PyArg_ParseTuple(args, "|O!", &Part::TopoShapePy::Type, &shape)) {
         return nullptr;
     }
+    if (!checkAlgo()) {
+        return nullptr;
+    }
 
     if (shape) {
         TopoDS_Shape input = static_cast<TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
@@ -150,6 +170,9 @@ PyObject* PolyHLRToShapePy::outLineVCompound(PyObject* args)
 {
     PyObject* shape = nullptr;
     if (!PyArg_ParseTuple(args, "|O!", &Part::TopoShapePy::Type, &shape)) {
+        return nullptr;
+    }
+    if (!checkAlgo()) {
         return nullptr;
     }
 
@@ -170,6 +193,9 @@ PyObject* PolyHLRToShapePy::hCompound(PyObject* args)
     if (!PyArg_ParseTuple(args, "|O!", &Part::TopoShapePy::Type, &shape)) {
         return nullptr;
     }
+    if (!checkAlgo()) {
+        return nullptr;
+    }
 
     if (shape) {
         TopoDS_Shape input = static_cast<TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
@@ -186,6 +212,9 @@ PyObject* PolyHLRToShapePy::Rg1LineHCompound(PyObject* args)
 {
     PyObject* shape = nullptr;
     if (!PyArg_ParseTuple(args, "|O!", &Part::TopoShapePy::Type, &shape)) {
+        return nullptr;
+    }
+    if (!checkAlgo()) {
         return nullptr;
     }
 
@@ -206,6 +235,9 @@ PyObject* PolyHLRToShapePy::RgNLineHCompound(PyObject* args)
     if (!PyArg_ParseTuple(args, "|O!", &Part::TopoShapePy::Type, &shape)) {
         return nullptr;
     }
+    if (!checkAlgo()) {
+        return nullptr;
+    }
 
     if (shape) {
         TopoDS_Shape input = static_cast<TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
@@ -222,6 +254,9 @@ PyObject* PolyHLRToShapePy::outLineHCompound(PyObject* args)
 {
     PyObject* shape = nullptr;
     if (!PyArg_ParseTuple(args, "|O!", &Part::TopoShapePy::Type, &shape)) {
+        return nullptr;
+    }
+    if (!checkAlgo()) {
         return nullptr;
     }
 

@@ -1921,3 +1921,77 @@ class PartConstructorExceptionTests(unittest.TestCase):
         self.assertAlmostEqual(Part.Solid(Part.makeBox(1, 1, 1).Shells[0]).Volume, 1)
         surf = Part.RectangularTrimmedSurface(Part.Plane(), 0, 1, 0, 2)
         self.assertAlmostEqual(surf.toShape().Area, 2)
+
+
+class PartHLRBRepStateTests(unittest.TestCase):
+    """HLRBRep methods called in the wrong state used to dereference null or
+    exhausted OCCT data (access violation)."""
+
+    def setUp(self):
+        self.box = Part.makeBox(1, 1, 1)
+
+    def testAlgoInitEdgeStatusNeedsUpdate(self):
+        algo = Part.HLRBRep.Algo()
+        with self.assertRaises(RuntimeError):
+            algo.initEdgeStatus()
+        algo.add(self.box)
+        with self.assertRaises(RuntimeError):
+            algo.initEdgeStatus()
+        algo.update()
+        algo.initEdgeStatus()
+        algo.hide()
+        self.assertEqual(algo.nbShapes(), 1)
+        algo.remove(1)
+        with self.assertRaises(RuntimeError):
+            algo.initEdgeStatus()
+
+    def testPolyAlgoNextPastTheEnd(self):
+        algo = Part.HLRBRep.PolyAlgo()
+        algo.load(self.box)
+        algo.update()
+        count = 0
+        algo.initHide()
+        while algo.moreHide():
+            algo.nextHide()
+            count += 1
+        with self.assertRaises(RuntimeError):
+            algo.nextHide()
+        algo.initShow()
+        while algo.moreShow():
+            algo.nextShow()
+        with self.assertRaises(RuntimeError):
+            algo.nextShow()
+        # the iteration can be restarted
+        algo.initHide()
+        again = 0
+        while algo.moreHide():
+            algo.nextHide()
+            again += 1
+        self.assertEqual(again, count)
+
+    def testPolyHLRToShapeNeedsAlgo(self):
+        for name in (
+            "vCompound",
+            "Rg1LineVCompound",
+            "RgNLineVCompound",
+            "outLineVCompound",
+            "hCompound",
+            "Rg1LineHCompound",
+            "RgNLineHCompound",
+            "outLineHCompound",
+        ):
+            with self.subTest(name):
+                tool = Part.HLRBRep.PolyHLRToShape()
+                with self.assertRaises(RuntimeError):
+                    getattr(tool, name)()
+                tool.show()
+                tool.hide()
+                with self.assertRaises(RuntimeError):
+                    getattr(tool, name)(self.box)
+        algo = Part.HLRBRep.PolyAlgo()
+        algo.load(self.box)
+        algo.update()
+        tool = Part.HLRBRep.PolyHLRToShape()
+        tool.update(algo)
+        self.assertIsInstance(tool.vCompound(), Part.Shape)
+        self.assertIsInstance(Part.HLRBRep.PolyHLRToShape(algo).hCompound(self.box), Part.Shape)
