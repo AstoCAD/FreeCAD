@@ -331,6 +331,17 @@ class PartTestBSplineSurface(unittest.TestCase):
         self.assertAlmostEqual(bs.bounds()[1], 1.0)
         self.assertAlmostEqual(bs.bounds()[3], 1.0)
 
+    def testBuildFromNSectionsNeedsTwoCurves(self):
+        bs = Part.BSplineSurface()
+        with self.assertRaises(ValueError):
+            bs.buildFromNSections([])
+        with self.assertRaises(ValueError):
+            bs.buildFromNSections([Part.BSplineCurve()])
+        c1 = Part.LineSegment(Base.Vector(0, 0, 0), Base.Vector(1, 0, 0))
+        c2 = Part.LineSegment(Base.Vector(0, 1, 0), Base.Vector(1, 1, 0))
+        bs.buildFromNSections([c1, c2])
+        self.assertAlmostEqual(bs.toShape().Area, 1.0)
+
 
 class PartTestNormals(unittest.TestCase):
     def setUp(self):
