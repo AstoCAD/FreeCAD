@@ -41,6 +41,10 @@
 #include <TopExp_Explorer.hxx>
 
 
+#include <algorithm>
+
+#include <App/Application.h>
+#include <App/Document.h>
 #include <Base/Console.h>
 #include <Base/Exception.h>
 #include <Base/Tools.h>
@@ -62,9 +66,51 @@ Measurement::Measurement()
 {
     measureType = MeasureType::Invalid;
     References3D.setScope(App::LinkScope::Global);
+
+    // signalDeletedObject comes before an object is destroyed, signalDeleteDocument before
+    // a document destroys its objects
+    connDeletedObject = App::GetApplication().signalDeletedObject.connect(
+        [this](const App::DocumentObject& obj) {
+            removeReferences([&obj](const App::DocumentObject* ref) { return ref == &obj; });
+        }
+    );
+    connDeleteDocument = App::GetApplication().signalDeleteDocument.connect(
+        [this](const App::Document& doc) {
+            removeReferences([&doc](const App::DocumentObject* ref) {
+                return ref && ref->getDocument() == &doc;
+            });
+        }
+    );
 }
 
 Measurement::~Measurement() = default;
+
+void Measurement::removeReferences(const std::function<bool(const App::DocumentObject*)>& isGone)
+{
+    const std::vector<App::DocumentObject*>& objects = References3D.getValues();
+    if (std::none_of(objects.begin(), objects.end(), isGone)) {
+        return;
+    }
+    const std::vector<std::string>& subElements = References3D.getSubValues();
+    std::vector<App::DocumentObject*> keptObjects;
+    std::vector<std::string> keptSubElements;
+    for (std::size_t i = 0; i < objects.size(); ++i) {
+        if (!isGone(objects[i])) {
+            keptObjects.push_back(objects[i]);
+            keptSubElements.push_back(i < subElements.size() ? subElements[i] : std::string());
+        }
+    }
+    References3D.setValues(keptObjects, keptSubElements);
+    measureType = MeasureType::Invalid;
+    if (!keptObjects.empty()) {
+        try {
+            measureType = findType();
+        }
+        catch (...) {
+            // called from a deletion signal: never throw into the document
+        }
+    }
+}
 
 void Measurement::clear()
 {
