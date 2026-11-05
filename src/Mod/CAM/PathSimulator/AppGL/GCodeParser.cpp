@@ -27,6 +27,7 @@
 
 #include "GCodeParser.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <string>
@@ -46,6 +47,7 @@ void GCodeParser::Clear()
     Operations.clear();
     lastState = {};
     lastTool = -1;
+    mHasR = false;
 }
 
 bool GCodeParser::Parse(const char* filename)
@@ -171,7 +173,8 @@ bool GCodeParser::ParseLine(const char* ptr)
     newState.tool = lastState.tool;
 
     newState.retract_mode = lastState.retract_mode;
-    newState.retract_z = lastState.retract_z;
+    // a drill cycle's R plane holds for the cycle's next holes
+    newState.r = lastState.r;
 
     // G0 / G1 are modal
     newState.rapid = lastState.rapid;
@@ -203,13 +206,13 @@ bool GCodeParser::ParseLine(const char* ptr)
                 ) {
                     newState.cmd = eDril;
                     newState.rapid = false;
-                    newState.retract_z = lastState.z;
                 }
                 else if (cmd == 98 || cmd == 99) {
                     newState.retract_mode = cmd;
                 }
                 else if (cmd == 80) {
                     newState.retract_mode = 0;
+                    mHasR = false;
                 }
                 break;
 
@@ -246,6 +249,7 @@ bool GCodeParser::ParseLine(const char* ptr)
 
             case 'R':
                 newState.r = token.fval;
+                mHasR = true;
                 break;
         }
     }
@@ -256,29 +260,42 @@ bool GCodeParser::ParseLine(const char* ptr)
 
 bool GCodeParser::AddLine(const char* ptr)
 {
+    const float fromX = lastState.x;
+    const float fromY = lastState.y;
+    const float fromZ = lastState.z;
     bool res = ParseLine(ptr);
     if (res) {
         if (lastState.cmd == eDril) {
-            // split to several motions
+            // Split into moves as a control runs the cycle: up to R if below it, across to the
+            // hole, down to R, down to the depth, and out to R under G99, else to where it started
+            // or R, whichever is higher. Without an R word the cycle runs from where it started.
             lastState.cmd = eMoveLiner;
-            float rPlane;
-            if (lastState.retract_mode == 99) {
-                rPlane = lastState.r;
+            const float rPlane = mHasR ? lastState.r : fromZ;
+            const float depth = lastState.z;
+            const float holeX = lastState.x;
+            const float holeY = lastState.y;
+            const float out = lastState.retract_mode == 99 ? rPlane : std::max(fromZ, rPlane);
+            // the positioning moves and the retract are rapid, only the move to the depth feeds
+            auto push = [this](float x, float y, float z, bool rapid) {
+                lastState.x = x;
+                lastState.y = y;
+                lastState.z = z;
+                lastState.rapid = rapid;
+                Operations.push_back(lastState);
+            };
+            float z = fromZ;
+            if (z < rPlane) {
+                z = rPlane;
+                push(fromX, fromY, z, true);
             }
-            else {
-                rPlane = lastState.retract_z;
+            if (holeX != fromX || holeY != fromY) {
+                push(holeX, holeY, z, true);
             }
-            float finalDepth = lastState.z;
-            // rapid to the retract plane, feed to the depth, rapid back
-            lastState.z = rPlane;
-            lastState.rapid = true;
-            Operations.push_back(lastState);
-            lastState.z = finalDepth;
-            lastState.rapid = false;
-            Operations.push_back(lastState);
-            lastState.z = rPlane;
-            lastState.rapid = true;
-            Operations.push_back(lastState);
+            if (z != rPlane) {
+                push(holeX, holeY, rPlane, true);
+            }
+            push(holeX, holeY, depth, false);
+            push(holeX, holeY, out, true);
             lastState.cmd = eDril;
             lastState.rapid = false;
         }
