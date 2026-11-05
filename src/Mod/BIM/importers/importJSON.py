@@ -47,7 +47,11 @@ def export(exportList, filename):
     data = {
         "version": "0.0.1",
         "description": "Mesh data exported from FreeCAD",
-        "objects": [getObjectData(obj) for obj in exportList],
+        "objects": [
+            getObjectData(obj)
+            for obj in exportList
+            if obj.isDerivedFrom("Part::Feature") or obj.isDerivedFrom("Mesh::Feature")
+        ],
     }
 
     # Write file
@@ -60,7 +64,7 @@ def export(exportList, filename):
 
 
 def getObjectData(obj):
-    result = {"name": str(obj.Label.encode("utf8"))}
+    result = {"name": obj.Label}
     if hasattr(obj, "Description"):
         result["description"] = str(obj.Description)
 
