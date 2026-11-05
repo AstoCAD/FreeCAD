@@ -318,6 +318,18 @@ class TestDraftGeomUtils(test_base.DraftTestCaseNoDoc):
         self.assertIsNotNone(face)
         self.assertTrue(face.extrude(Vector(0.0, 0.0, 3000.0)).isValid())
 
+    def test_get_spline_normal(self):
+        """get_spline_normal returns the normal of a planar spline, None for a straight one."""
+        curve = Part.BSplineCurve()
+        curve.interpolate([Vector(0, 0, 0), Vector(5, 5, 0), Vector(10, 0, 0)])
+        normal = DraftGeomUtils.get_spline_normal(curve.toShape())
+        self.assertIsNotNone(normal)
+        self.assertAlmostEqual(abs(normal.z), 1.0, places=6)
+
+        straight = Part.BSplineCurve()
+        straight.interpolate([Vector(0, 0, 0), Vector(5, 0, 0), Vector(10, 0, 0)])
+        self.assertIsNone(DraftGeomUtils.get_spline_normal(straight.toShape()))
+
 
 # suite = unittest.defaultTestLoader.loadTestsFromTestCase(TestDraftGeomUtils)
 # unittest.TextTestRunner().run(suite)
