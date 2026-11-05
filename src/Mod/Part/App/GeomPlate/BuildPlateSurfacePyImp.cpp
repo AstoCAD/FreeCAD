@@ -42,6 +42,27 @@
 
 using namespace Part;
 
+namespace
+{
+// G0Error(Index) etc. evaluate the computed surface against the curve constraint Index
+// and dereference the surface and the constraint without checking them: the surface must
+// have been computed, and Index must name one of its curve constraints (OCCT does not
+// check the range in every version)
+bool checkSurfaceComputed(GeomPlate_BuildPlateSurface* plate, int index)
+{
+    if (!plate->IsDone()) {
+        PyErr_SetString(PyExc_RuntimeError, "Surface is not computed");
+        return false;
+    }
+    auto curves = plate->Curves2d();
+    if (curves.IsNull() || index > curves->Length()) {
+        PyErr_SetString(PyExc_RuntimeError, "Curve constraint index out of range");
+        return false;
+    }
+    return true;
+}
+}  // namespace
+
 /*!
  * \brief BuildPlateSurfacePy::PyMake
  * \code
@@ -512,6 +533,9 @@ PyObject* BuildPlateSurfacePy::G0Error(PyObject* args) const
     }
 
     try {
+        if (index >= 1 && !checkSurfaceComputed(getGeomPlate_BuildPlateSurfacePtr(), index)) {
+            return nullptr;
+        }
         Standard_Real v = index < 1 ? getGeomPlate_BuildPlateSurfacePtr()->G0Error()
                                     : getGeomPlate_BuildPlateSurfacePtr()->G0Error(index);
         return PyFloat_FromDouble(v);
@@ -530,6 +554,9 @@ PyObject* BuildPlateSurfacePy::G1Error(PyObject* args) const
     }
 
     try {
+        if (index >= 1 && !checkSurfaceComputed(getGeomPlate_BuildPlateSurfacePtr(), index)) {
+            return nullptr;
+        }
         Standard_Real v = index < 1 ? getGeomPlate_BuildPlateSurfacePtr()->G1Error()
                                     : getGeomPlate_BuildPlateSurfacePtr()->G1Error(index);
         return PyFloat_FromDouble(v);
@@ -548,6 +575,9 @@ PyObject* BuildPlateSurfacePy::G2Error(PyObject* args) const
     }
 
     try {
+        if (index >= 1 && !checkSurfaceComputed(getGeomPlate_BuildPlateSurfacePtr(), index)) {
+            return nullptr;
+        }
         Standard_Real v = index < 1 ? getGeomPlate_BuildPlateSurfacePtr()->G2Error()
                                     : getGeomPlate_BuildPlateSurfacePtr()->G2Error(index);
         return PyFloat_FromDouble(v);
