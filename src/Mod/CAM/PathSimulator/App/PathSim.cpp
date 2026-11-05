@@ -23,6 +23,8 @@
  ***************************************************************************/
 
 
+#include <Base/Exception.h>
+
 #include "PathSim.h"
 
 
@@ -61,6 +63,10 @@ Base::Placement* PathSim::ApplyCommand(Base::Placement* pos, Command* cmd)
     Point3D fromPos(*pos);
     Point3D toPos(*pos);
     toPos.UpdateCmd(*cmd);
+    if (m_tool && !m_stock
+        && (cmd->Name == "G0" || cmd->Name == "G1" || cmd->Name == "G2" || cmd->Name == "G3")) {
+        throw Base::RuntimeError("Path Simulation: BeginSimulation must be called before cutting");
+    }
     if (m_tool) {
         if (cmd->Name == "G0" || cmd->Name == "G1") {
             m_stock->ApplyLinearTool(fromPos, toPos, *m_tool);
