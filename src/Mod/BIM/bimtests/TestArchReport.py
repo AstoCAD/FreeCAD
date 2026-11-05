@@ -261,6 +261,18 @@ class TestArchReport(TestArchBase.TestArchBase):
                 _, rows = Arch.select(f"SELECT Label FROM document WHERE Label LIKE '{pattern}'")
                 self.assertCountEqual([row[0] for row in rows], expected)
 
+    def test_where_in_with_unhashable_property_values(self):
+        """IN does not fail on objects whose property is a list or a dict."""
+        material = Arch.makeMaterial(name="Unit Test Brick")
+        self.wall_ext.Material = material
+        self.doc.recompute()
+        # The material object has a 'Material' property that is a dict, walls have list
+        # properties such as 'Additions'.
+        _, rows = Arch.select("SELECT Label FROM document WHERE Material IN ('Unit Test Brick')")
+        self.assertEqual([row[0] for row in rows], [self.wall_ext.Label])
+        _, rows = Arch.select("SELECT Label FROM document WHERE Additions IN ('x')")
+        self.assertEqual(rows, [])
+
     def test_where_boolean_and(self):
         query = 'SELECT * FROM document WHERE IfcType = "Wall" AND Label LIKE "%Exterior%"'
         _, results_labels = self._run_query_for_objects(query)
