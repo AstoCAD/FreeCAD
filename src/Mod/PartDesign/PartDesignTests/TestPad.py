@@ -569,6 +569,19 @@ class TestPad(unittest.TestCase):
         self.Doc.recompute()
         self.assertIn("Invalid", pocket.State)
 
+    def testConstructionOnlySketchMessage(self):
+        # A sketch holding only construction geometry has no shape; the error must say why
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        sketch = body.newObject("Sketcher::SketchObject", "ConstructionSketch")
+        sketch.addGeometry(Part.Circle(Base.Vector(0, 0, 0), Base.Vector(0, 0, 1), 5), True)
+        self.Doc.recompute()
+        pad = body.newObject("PartDesign::Pad", "Pad")
+        pad.Profile = sketch
+        pad.Length = 5
+        self.Doc.recompute()
+        self.assertIn("Invalid", pad.State)
+        self.assertIn("construction geometry", pad.getStatusString())
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestPad")

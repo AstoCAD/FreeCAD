@@ -712,6 +712,13 @@ class TestHole(unittest.TestCase):
                 self.Hole.ThreadSize = size_index
                 self._helperNotCorrectMessage(self.Hole.ThreadSize, designation)
 
+    def testConstructionOnlySketchMessage(self):
+        # A sketch holding only construction geometry has no shape; the error must say why
+        self.HoleSketch.setConstruction(0, True)
+        self.Doc.recompute()
+        self.assertIn("Invalid", self.Hole.State)
+        self.assertIn("construction geometry", self.Hole.getStatusString())
+
     def _helperNotCorrectMessage(self, value, comparison):
         self.assertEqual(
             value,
