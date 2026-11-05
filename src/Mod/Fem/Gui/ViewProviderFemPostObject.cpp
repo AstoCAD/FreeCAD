@@ -239,6 +239,8 @@ ViewProviderFemPostObject::ViewProviderFemPostObject()
     m_colorStyle->ref();
     m_colorRoot->addChild(m_colorStyle);
     m_colorBar = new Gui::SoFCColorBar;
+    // result legends show 3 decimals until the user changes it in the color bar dialog
+    m_colorBar->setRange(-0.5F, 0.5F, 3);
     m_colorBar->Attach(this);
     Gui::SoFCColorBarNotifier::instance().attach(m_colorBar);
     m_colorBar->ref();
@@ -675,7 +677,8 @@ void ViewProviderFemPostObject::setRangeOfColorBar(float min, float max)
                 max = minF;
             }
         }
-        m_colorBar->setRange(min, max);
+        // keep the number of decimals the user chose in the color bar dialog
+        m_colorBar->setRange(min, max, m_colorBar->getColorScale().precision());
     }
     catch (const Base::ValueError& e) {
         e.reportException();
