@@ -257,6 +257,17 @@ class DraftModification(test_base.DraftTestCaseDoc):
         obj = Draft.join_two_wires(line_1, line_2)
         self.assertTrue(obj, "'{}' failed".format(operation))
 
+    def test_print_shape_and_compare_objects(self):
+        """print_shape and compare_objects print without errors."""
+        line_1 = Draft.make_line(Vector(0, 0, 0), Vector(1, 0, 0))
+        line_2 = Draft.make_line(Vector(0, 1, 0), Vector(1, 1, 0))
+        rect = Draft.make_rectangle(2, 1, face=True)
+        self.doc.recompute()
+        Draft.print_shape(rect.Shape)
+        Draft.print_shape(line_1.Shape)
+        Draft.compare_objects(line_1, line_2)
+        Draft.compare_objects(line_1, rect)
+
     def test_scale_filter_move_base(self):
         """Scale filtering of an object with MoveBase must hand over its Wire base."""
         base = Draft.make_wire([Vector(0, 0, 0), Vector(2, 0, 0), Vector(2, 2, 0)])
