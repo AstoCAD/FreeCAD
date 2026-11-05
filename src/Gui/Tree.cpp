@@ -7042,9 +7042,11 @@ int DocumentObjectItem::getSubName(std::ostringstream& str, App::DocumentObject*
         return NotGroup;
     }
     int ret = parent->getSubName(str, topParent);
+    bool insidePartGroup = false;
     if (ret != SuperGroup) {
         int group = parent->isGroup();
         if (group == NotGroup) {
+            insidePartGroup = (ret == PartGroup);
             if (ret != PartGroup) {
                 // Handle this situation,
                 //
@@ -7075,6 +7077,25 @@ int DocumentObjectItem::getSubName(std::ostringstream& str, App::DocumentObject*
     }
     else if (!obj->redirectSubName(str, topParent, object()->getObject())) {
         str << obj->getNameInDocument() << '.';
+    }
+
+    // A non-group object inside a geo feature group may claim children that are not
+    // part of that group, e.g. the objects of a Draft Layer (hidden Group link) whose
+    // layer container is inside a Std_Part. The group cannot resolve such a path, so
+    // treat the child like a top level object, see
+    // https://github.com/FreeCAD/FreeCAD/issues/19374
+    if (insidePartGroup && topParent) {
+        auto child = object()->getObject();
+        if (child && child->isAttachedToDocument()) {
+            std::string sub = str.str();
+            sub += child->getNameInDocument();
+            sub += '.';
+            if (topParent->getSubObject(sub.c_str()) != child) {
+                topParent = nullptr;
+                str.str("");
+                return NotGroup;
+            }
+        }
     }
     return ret;
 }
