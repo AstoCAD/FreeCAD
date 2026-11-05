@@ -2059,6 +2059,9 @@ TopoDS_Shape TopoShape::makePipeShell(
     mkPipeShell.SetTransitionMode(transMode);
     TopTools_ListIteratorOfListOfShape it;
     for (it.Initialize(profiles); it.More(); it.Next()) {
+        if (it.Value().IsNull()) {
+            throw Standard_Failure("Cannot sweep an empty profile");
+        }
         mkPipeShell.Add(TopoDS_Shape(it.Value()));
     }
 

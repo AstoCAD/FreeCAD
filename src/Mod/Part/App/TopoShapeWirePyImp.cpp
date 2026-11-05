@@ -443,6 +443,10 @@ PyObject* TopoShapeWirePy::approximate(PyObject* args, PyObject* kwds) const
     ) {
         return nullptr;
     }
+    if (getTopoShapePtr()->getShape().IsNull()) {
+        PyErr_SetString(PyExc_ValueError, "Wire is null");
+        return nullptr;
+    }
     try {
         BRepAdaptor_CompCurve adapt(TopoDS::Wire(getTopoShapePtr()->getShape()));
         auto hcurve = adapt.Trim(adapt.FirstParameter(), adapt.LastParameter(), tol2d);

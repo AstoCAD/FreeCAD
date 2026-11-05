@@ -1299,6 +1299,28 @@ class EmptyEdge(unittest.TestCase):
             edge = Part.Edge()
             edge.LastParameter
 
+    def testCountNodes(self):
+        with self.assertRaises(ValueError):
+            edge = Part.Edge()
+            edge.countNodes()
+
+    def testDiscretize(self):
+        with self.assertRaises(ValueError):
+            edge = Part.Edge()
+            edge.discretize()
+        with self.assertRaises(ValueError):
+            edge.discretize(5)
+
+    def testParameterAtNullVertex(self):
+        edge = Part.makeBox(1, 1, 1).Edges[0]
+        with self.assertRaises(ValueError):
+            edge.parameterAt(Part.Vertex())
+
+    def testParameterAtNullFace(self):
+        edge = Part.makeBox(1, 1, 1).Edges[0]
+        with self.assertRaises(ValueError):
+            edge.parameterAt(edge.Vertexes[0], Part.Face())
+
 
 class EmptyFace(unittest.TestCase):
     def testMakeOffset(self):
@@ -1362,6 +1384,63 @@ class EmptyFace(unittest.TestCase):
         with self.assertRaises(ValueError):
             face = Part.Face()
             face.ParameterRange
+
+    def testCountNodes(self):
+        with self.assertRaises(ValueError):
+            face = Part.Face()
+            face.countNodes()
+
+    def testCountTriangles(self):
+        with self.assertRaises(ValueError):
+            face = Part.Face()
+            face.countTriangles()
+
+    def testCutHolesWithNullWire(self):
+        face = Part.makeBox(1, 1, 1).Faces[0]
+        with self.assertRaises(Part.OCCError):
+            face.cutHoles([Part.Wire()])
+
+    def testAddNullWire(self):
+        face = Part.makeBox(1, 1, 1).Faces[0]
+        with self.assertRaises(ValueError):
+            face.addWire(Part.Wire())
+
+
+class NullShapeArguments(unittest.TestCase):
+    """Null shapes passed to (or used as) Part API arguments must raise, not crash."""
+
+    def testWireApproximate(self):
+        with self.assertRaises(ValueError):
+            Part.Wire().approximate()
+
+    def testMakePipeShellWithNullProfile(self):
+        spine = Part.makeBox(1, 1, 1).Wires[0]
+        with self.assertRaises(Part.OCCError):
+            spine.makePipeShell([Part.Shape()])
+
+    def testSortEdgesWithNullShape(self):
+        for func in (Part.getSortedClusters, Part.__sortEdges__, Part.sortEdges):
+            with self.subTest(func.__name__):
+                with self.assertRaises(TypeError):
+                    func([Part.Shape()])
+
+    def testMakeShellWithNullShape(self):
+        with self.assertRaises(ValueError):
+            Part.makeShell([Part.Shape()])
+        with self.assertRaises(ValueError):
+            Part.Shell([Part.makeBox(1, 1, 1).Faces[0], Part.Face()])
+
+    def testCurve2dToShapeOnNullFace(self):
+        with self.assertRaises(ValueError):
+            Part.Geom2d.Line2d().toShape(Part.Face(), 0, 1)
+
+    def testValidArgumentsStillWork(self):
+        box = Part.makeBox(1, 1, 1)
+        self.assertEqual(len(Part.__sortEdges__(box.Faces[0].Edges)), 4)
+        self.assertEqual(len(Part.makeShell(box.Faces[:2]).Faces), 2)
+        edge = Part.makeLine(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(2, 0, 0))
+        self.assertAlmostEqual(edge.parameterAt(edge.Vertexes[1]), 2)
+        self.assertIsInstance(Part.Wire(edge).approximate(), Part.BSplineCurve)
 
 
 class PartExtrusionTests(unittest.TestCase):
