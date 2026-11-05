@@ -1283,6 +1283,26 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(box.ExpressionEngine[0][1], "Spreadsheet.alias1")
         self.assertEqual(box2.ExpressionEngine[0][1], "<<Params>>.alias1")
 
+    def testNonUtf8StringArguments(self):
+        """Strings that cannot be encoded as UTF-8 raise instead of crashing"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Calc")
+        bad = "\ud800"
+        with self.assertRaises(UnicodeEncodeError):
+            sheet.setAlias("A1", bad)
+        with self.assertRaises(UnicodeEncodeError):
+            sheet.setStyle("A1", bad)
+        with self.assertRaises(UnicodeEncodeError):
+            sheet.setStyle("A1", {bad})
+        with self.assertRaises(UnicodeEncodeError):
+            sheet.setAlignment("A1", bad)
+        with self.assertRaises(UnicodeEncodeError):
+            sheet.setAlignment("A1", {bad})
+        sheet.setAlias("A1", "Good")
+        sheet.setStyle("A1", "bold|italic")
+        sheet.setAlignment("A1", {"left"})
+        self.assertEqual(sheet.getAlias("A1"), "Good")
+        self.assertEqual(sheet.getStyle("A1"), {"bold", "italic"})
+
     def testAlias(self):
         """Playing with aliases"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Calc")

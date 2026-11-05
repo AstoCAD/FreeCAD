@@ -365,7 +365,12 @@ PyObject* SheetPy::setStyle(PyObject* args)
 
             // check on the key:
             if (PyUnicode_Check(item)) {
-                style.insert(PyUnicode_AsUTF8(item));
+                const char* name = PyUnicode_AsUTF8(item);
+                if (!name) {
+                    Py_DECREF(copy);
+                    return nullptr;  // not encodable as UTF-8
+                }
+                style.insert(name);
             }
             else {
                 std::string error = std::string("type of the set need to be a string, not ")
@@ -381,7 +386,11 @@ PyObject* SheetPy::setStyle(PyObject* args)
         using namespace boost;
 
         escaped_list_separator<char> e('\0', '|', '\0');
-        std::string line = PyUnicode_AsUTF8(value);
+        const char* utf8 = PyUnicode_AsUTF8(value);
+        if (!utf8) {
+            return nullptr;  // not encodable as UTF-8
+        }
+        std::string line = utf8;
         tokenizer<escaped_list_separator<char>> tok(line, e);
 
         for (tokenizer<escaped_list_separator<char>>::iterator i = tok.begin(); i != tok.end(); ++i) {
@@ -549,7 +558,11 @@ PyObject* SheetPy::setAlias(PyObject* args)
     try {
         address = stringToAddress(strAddress);
         Base::PyTypeCheck(&value, &PyUnicode_Type, "String or None expected");
-        getSheetPtr()->setAlias(address, value ? PyUnicode_AsUTF8(value) : "");
+        const char* alias = value ? PyUnicode_AsUTF8(value) : "";
+        if (!alias) {
+            return nullptr;  // not encodable as UTF-8
+        }
+        getSheetPtr()->setAlias(address, alias);
         Py_Return;
     }
     catch (const Base::Exception& e) {
@@ -657,7 +670,12 @@ PyObject* SheetPy::setAlignment(PyObject* args)
             PyObject* item = PySet_Pop(copy);
 
             if (PyUnicode_Check(item)) {
-                alignment = Cell::decodeAlignment(PyUnicode_AsUTF8(item), alignment);
+                const char* name = PyUnicode_AsUTF8(item);
+                if (!name) {
+                    Py_DECREF(copy);
+                    return nullptr;  // not encodable as UTF-8
+                }
+                alignment = Cell::decodeAlignment(name, alignment);
             }
             else {
                 std::string error = std::string("type of the key need to be a string, not")
@@ -675,7 +693,11 @@ PyObject* SheetPy::setAlignment(PyObject* args)
         using namespace boost;
 
         escaped_list_separator<char> e('\0', '|', '\0');
-        std::string line = PyUnicode_AsUTF8(value);
+        const char* utf8 = PyUnicode_AsUTF8(value);
+        if (!utf8) {
+            return nullptr;  // not encodable as UTF-8
+        }
+        std::string line = utf8;
         tokenizer<escaped_list_separator<char>> tok(line, e);
 
         for (tokenizer<escaped_list_separator<char>>::iterator i = tok.begin(); i != tok.end(); ++i) {
