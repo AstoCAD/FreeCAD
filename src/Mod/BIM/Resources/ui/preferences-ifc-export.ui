@@ -194,6 +194,26 @@ Note: The serializer is still an experimental feature!</string>
        </widget>
       </item>
       <item>
+       <widget class="Gui::PrefCheckBox" name="checkBoxExcludeHidden">
+        <property name="toolTip">
+         <string>Objects that are hidden in the 3D view will not be exported.
+Groups and containers, and the objects selected for export, are always exported.</string>
+        </property>
+        <property name="text">
+         <string>Exclude hidden objects</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+        <property name="prefEntry" stdset="0">
+         <cstring>IfcExportExcludeHidden</cstring>
+        </property>
+        <property name="prefPath" stdset="0">
+         <cstring>Mod/Arch</cstring>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="Gui::PrefCheckBox" name="checkBox_13">
         <property name="toolTip">
          <string>All FreeCAD object properties will be stored inside the exported objects,
