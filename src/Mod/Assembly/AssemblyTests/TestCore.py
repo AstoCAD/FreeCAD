@@ -384,6 +384,36 @@ class TestCore(AssemblyTestBase):
         self.assertEqual(int(float(bom.get("B3"))), 1)
         self.assertNotIn("Invalid", bom.State)
 
+    def test_bom_keeps_custom_data_of_mirrored_row(self):
+        """Custom column text typed on a mirrored row must survive a BOM refresh."""
+        source = self.doc.addObject("Part::Box", "ComponentSource")
+        source.Label = "Component"
+        regular = self.assembly.newObject("App::Link", "Regular")
+        regular.LinkedObject = source
+        mirrored = self.assembly.newObject("App::Link", "Mirrored")
+        mirrored.LinkedObject = source
+        mirrored.Scale = -1
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Name", "Quantity", "Notes"]
+        self.doc.recompute()
+
+        suffix = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Assembly").GetString(
+            "BomMirroredSuffix", " (mirrored)"
+        )
+        rows = {bom.get("A2"): "2", bom.get("A3"): "3"}
+        self.assertEqual(set(rows), {source.Label, source.Label + suffix})
+        bom.set("C" + rows[source.Label], "regular note")
+        bom.set("C" + rows[source.Label + suffix], "mirrored note")
+        bom.touch()
+        self.doc.recompute()
+
+        notes = {bom.get("A2"): bom.get("C2"), bom.get("A3"): bom.get("C3")}
+        self.assertEqual(
+            notes,
+            {source.Label: "regular note", source.Label + suffix: "mirrored note"},
+        )
+        self.assertNotIn("Invalid", bom.State)
+
     def _check_bom_scale_vector_grouping(self, scale, mirrored, previous_scalar=None):
         source = self.doc.addObject("Part::Box", "VectorScaleComponent")
         source.Label = "Vector scale component"

@@ -303,22 +303,24 @@ void BomObject::addObjectToBom(
 {
     obj_list.push_back(obj);
     obj_mirrored_list.push_back(isMirrored);
+
+    std::string name = obj->Label.getValue();
+    // Distinctly label mirrored parts so they are identifiable in the BOM
+    if (isMirrored) {
+        if (auto* linkedObj = obj->getLinkedObject()) {
+            // We add a suffix only if the label is the same.
+            if (name == linkedObj->Label.getValue()) {
+                name += mirroredSuffix;
+            }
+        }
+    }
+
     size_t col = 0;
     for (auto& columnName : columnsNames.getValues()) {
         if (columnName == "Index") {
             setCell(App::CellAddress(row, col), (std::string("'") + index).c_str());
         }
         else if (columnName == "Name") {
-            std::string name = obj->Label.getValue();
-            // Distinctly label mirrored parts so they are identifiable in the BOM
-            if (isMirrored) {
-                if (auto* linkedObj = obj->getLinkedObject()) {
-                    // We add a suffix only if the label is the same.
-                    if (name == linkedObj->Label.getValue()) {
-                        name += mirroredSuffix;
-                    }
-                }
-            }
             setCell(App::CellAddress(row, col), name.c_str());
         }
         else if (columnName == "File Name") {
@@ -338,9 +340,9 @@ void BomObject::addObjectToBom(
             }
         }
         else {
-            // load custom data if any.
+            // load custom data if any. It was saved under the text of the Name column.
             for (auto& el : dataElements) {
-                if (el.objName == obj->Label.getValue() && el.columnName == columnName) {
+                if (el.objName == name && el.columnName == columnName) {
                     setCell(App::CellAddress(row, col), el.value.c_str());
                     break;
                 }
