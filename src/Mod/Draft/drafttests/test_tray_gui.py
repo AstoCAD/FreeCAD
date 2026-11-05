@@ -35,6 +35,7 @@ import unittest
 
 import FreeCAD as App
 import FreeCADGui as Gui
+from draftutils.translate import translate
 
 
 class DraftGuiTray(unittest.TestCase):
@@ -75,6 +76,27 @@ class DraftGuiTray(unittest.TestCase):
         App.closeDocument(doc2.Name)
         Gui.updateGui()
         self.assertTrue(self.tray.isEnabled())
+
+    def test_working_plane_label_dropped_when_object_deleted(self):
+        """https://github.com/FreeCAD/FreeCAD/issues/18958"""
+        import WorkingPlane
+
+        doc = App.newDocument("DraftGuiTrayWP")
+        Gui.updateGui()
+        obj = doc.addObject("App::FeaturePython", "Proxy")
+        obj.addProperty("App::PropertyPlacement", "Placement")
+        obj.Label = "MyProxy"
+        doc.recompute()
+        wp = WorkingPlane.get_working_plane(update=False)
+        wp.align_to_obj_placement(obj)
+        Gui.updateGui()
+        self.assertEqual(Gui.draftToolBar.wplabel.text(), "MyProxy")
+
+        doc.removeObject(obj.Name)
+        Gui.updateGui()
+        custom = translate("draft", "Custom")
+        self.assertEqual(wp.label, custom)
+        self.assertEqual(Gui.draftToolBar.wplabel.text(), custom)
 
 
 ## @}
