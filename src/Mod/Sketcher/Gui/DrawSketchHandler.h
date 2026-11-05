@@ -443,6 +443,11 @@ protected:
     void commitCommand();
     void abortCommand();
 
+    /// While held, commitCommand() is delayed until releaseCommandCommit(), so that further
+    /// changes join the command of the tool (one undo step).
+    void holdCommandCommit();
+    void releaseCommandCommit();
+
 protected:
     /**
      * Returns constraints icons scaled to width.
@@ -455,6 +460,9 @@ protected:
     int currentTransactionID {0};
 
 private:
+    bool commandCommitHeld {false};
+    bool commandCommitPending {false};
+
     LineExtensionAutoConstraintHint lineExtensionAutoConstraintHint;
     TangentAutoConstraintHint tangentAutoConstraintHint;
     int parallelPerpendicularRefGeoId {Sketcher::GeoEnum::GeoUndef};
