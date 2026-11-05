@@ -151,6 +151,10 @@ Part::Ellipse* createEllipsePrimitive(const TopoDS_Edge& edge, App::Document* do
 
         // Set angles for arcs, converting from radians (OCC) to degrees (PropertyAngle)
         BRep_Tool::Range(edge, first, last);
+        // The angles are limited to [0, 360]: an arc across angle 0 has Angle2 < Angle1
+        if (last > 2.0 * std::numbers::pi + Precision::Angular()) {
+            last -= 2.0 * std::numbers::pi;
+        }
         p->Angle1.setValue(Base::toDegrees(first));
         p->Angle2.setValue(Base::toDegrees(last));
     }
@@ -1233,8 +1237,8 @@ void ImpExpDxfRead::OnReadEllipse(
     double major_radius,
     double minor_radius,
     double rotation,
-    double /*start_angle*/,
-    double /*end_angle*/,
+    double start_angle,
+    double end_angle,
     bool dir
 )
 // NOLINTEND(bugprone-easily-swappable-parameters)
@@ -1255,7 +1259,31 @@ void ImpExpDxfRead::OnReadEllipse(
         return;
     }
 
-    TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(ellipse).Edge();
+    // The start and end parameters delimit an elliptical arc; 0 and 2*pi (or equal values)
+    // describe a full ellipse. Our own exporter writes 6.28318 for 2*pi.
+    // The center and the major axis are in world coordinates, but the parameters run
+    // counter-clockwise around the extrusion direction (210). For an ellipse extruded along -Z
+    // (e.g. mirrored geometry) the arc from start to end is therefore the counter-clockwise arc
+    // from -end to -start around +Z. The third column of the OCS transform is that direction.
+    if (OCSOrientationTransform[2][2] < 0.0) {
+        const double mirroredStart = -end_angle;
+        end_angle = -start_angle;
+        start_angle = mirroredStart;
+    }
+    constexpr double twoPi = 2.0 * std::numbers::pi;
+    constexpr double angularTol = 1e-5;
+    double first = std::fmod(start_angle, twoPi);
+    if (first < 0.0) {
+        first += twoPi;
+    }
+    double span = std::fmod(end_angle - start_angle, twoPi);
+    if (span < 0.0) {
+        span += twoPi;
+    }
+    bool fullEllipse = span < angularTol || span > twoPi - angularTol;
+
+    TopoDS_Edge edge = fullEllipse ? BRepBuilderAPI_MakeEdge(ellipse).Edge()
+                                   : BRepBuilderAPI_MakeEdge(ellipse, first, first + span).Edge();
     GeometryBuilder builder(edge);  // Pass the shape to the builder
 
     switch (m_importMode) {
