@@ -172,6 +172,15 @@ public:
                 );
 
                 abortCommand();
+                return true;
+            }
+
+            // Like the other tools, stay active only in continuous creation mode
+            ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+                "User parameter:BaseApp/Preferences/Mod/Sketcher"
+            );
+            if (!hGrp->GetBool("ContinuousCreationMode", true)) {
+                sketchgui->purgeHandler();  // no code after this line, Handler gets deleted
             }
         }
         else {

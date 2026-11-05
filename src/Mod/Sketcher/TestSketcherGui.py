@@ -40,6 +40,7 @@ from SketcherTests.TestFilletCurveVertexGui import TestFilletCurveVertexGui
 from SketcherTests.TestTextToolLastFontGui import TestTextToolLastFontGui
 from SketcherTests.TestAutoConstraintRedundancyGui import TestAutoConstraintRedundancyGui
 from SketcherTests.TestExternalInAssemblyGui import TestExternalInAssemblyGui
+from SketcherTests.TestSplitContinuousModeGui import TestSplitContinuousModeGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -81,5 +82,6 @@ from SketcherTests.TestExternalInAssemblyGui import TestExternalInAssemblyGui
     and TestTextToolLastFontGui
     and TestAutoConstraintRedundancyGui
     and TestExternalInAssemblyGui
+    and TestSplitContinuousModeGui
     else False
 )
