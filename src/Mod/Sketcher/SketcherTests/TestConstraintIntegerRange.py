@@ -97,3 +97,33 @@ class TestConstraintElementIntegerRange(unittest.TestCase):
                 with self.subTest(kind=kind, elements=elements):
                     constraint = self._construct(kind, elements)
                     self.assertEqual((constraint.First, constraint.FirstPos), tuple(elements))
+
+
+class TestConstraintElementAttributeRange(unittest.TestCase):
+    """The First/Second/Third(Pos) setters returned success with a Python error
+    still set (SystemError) for out-of-range values."""
+
+    def test_geometry_index_setters_reject_out_of_int_range(self):
+        constraint = Sketcher.Constraint("Coincident", 0, 1, 1, 1)
+        for name in ("First", "Second", "Third"):
+            for value in (2**31, -(2**31) - 1, -(10**10), 2**100):
+                with self.subTest(name=name, value=value):
+                    with self.assertRaises(OverflowError):
+                        setattr(constraint, name, value)
+        for name in ("First", "Second", "Third"):
+            for value in (-(2**31), -2000, 0, 2**31 - 1):
+                with self.subTest(name=name, value=value):
+                    setattr(constraint, name, value)
+                    self.assertEqual(getattr(constraint, name), value)
+
+    def test_position_setters_reject_invalid_values(self):
+        constraint = Sketcher.Constraint("Coincident", 0, 1, 1, 1)
+        for name in ("FirstPos", "SecondPos", "ThirdPos"):
+            for value in (-1, 4, 2**31, -(10**10), 2**100):
+                with self.subTest(name=name, value=value):
+                    with self.assertRaises((TypeError, OverflowError)):
+                        setattr(constraint, name, value)
+            for value in (0, 1, 2, 3):
+                with self.subTest(name=name, value=value):
+                    setattr(constraint, name, value)
+                    self.assertEqual(getattr(constraint, name), value)
