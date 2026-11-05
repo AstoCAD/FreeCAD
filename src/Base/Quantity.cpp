@@ -197,9 +197,12 @@ Quantity Quantity::pow(const Quantity& other) const
         throw Base::UnitsMismatchError("Quantity::pow(): exponent must not have a unit");
     }
 
+    // The unit takes the exponent truncated towards zero, as the former cast to
+    // signed char did. Unit::pow range-checks it: the cast was undefined behaviour
+    // (and wrapped) for exponents beyond the signed char range.
     return Quantity(
         std::pow(myValue, other.myValue),
-        myUnit.pow(static_cast<signed char>(other.myValue))
+        myUnit.pow(std::trunc(other.myValue))
     );
 }
 

@@ -212,9 +212,21 @@ Unit Unit::root(const uint8_t num) const
 Unit Unit::pow(const double exp) const
 {
     auto apply = [&](const auto val) {
+        if (val == 0) {
+            // a missing base unit stays missing, whatever the exponent (even inf or nan)
+            return val;
+        }
         const auto num {val * exp};
-        if (std::fabs(std::round(num) - num) >= std::numeric_limits<double>::epsilon()) {
+        if (std::isnan(num)
+            || std::fabs(std::round(num) - num) >= std::numeric_limits<double>::epsilon()) {
             throw UnitsMismatchError("pow() of unit not possible");
+        }
+        // check before the cast: an out-of-range value does not fit into int8_t
+        if (num >= unitExponentLimit) {
+            throw OverflowError("Unit exponent overflow");
+        }
+        if (num < -unitExponentLimit) {
+            throw UnderflowError("Unit exponent underflow");
         }
 
         return static_cast<decltype(val)>(val * exp);

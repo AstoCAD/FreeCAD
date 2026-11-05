@@ -259,6 +259,44 @@ class UnitBasicCases(unittest.TestCase):
         with self.assertRaises(OverflowError):
             one + 10**400
 
+    def testPowerUnitExponentOutOfRangeRaises(self):
+        # Unit::pow cast the new exponents to int8 unchecked: 1 mm ** 256 gave a
+        # dimensionless result, 1 mm ** 200 an underflow
+        mm = FreeCAD.Units.Quantity("1 mm")
+        for exp in (8, 200, 256, 2**40, 1e300, float("inf")):
+            with self.subTest(exp=exp):
+                with self.assertRaises(OverflowError):
+                    mm**exp
+        for exp in (-9, -200, -256):
+            with self.subTest(exp=exp):
+                with self.assertRaises(ArithmeticError):
+                    mm**exp
+        # in range and dimensionless powers are unchanged
+        self.assertEqual((mm**7).Unit, FreeCAD.Units.Unit(7))
+        self.assertEqual((mm**-8).Unit, FreeCAD.Units.Unit(-8))
+        self.assertEqual((FreeCAD.Units.Quantity(2.0) ** 1000).Unit, FreeCAD.Units.Unit())
+        self.assertEqual(
+            (FreeCAD.Units.Quantity(2.0) ** float("inf")).Value, float("inf")
+        )
+
+    def testPowerQuantityExponentOutOfRangeRaises(self):
+        # Quantity::pow(Quantity) cast the exponent to signed char unchecked:
+        # 1 mm ** Quantity(256) gave a dimensionless result
+        mm = FreeCAD.Units.Quantity("1 mm")
+        for exp in (200, 256, 1e300):
+            with self.subTest(exp=exp):
+                with self.assertRaises(OverflowError):
+                    mm ** FreeCAD.Units.Quantity(exp)
+        with self.assertRaises(ArithmeticError):
+            mm ** FreeCAD.Units.Quantity(-200)
+        # in range exponents are unchanged; the unit takes the truncated exponent
+        self.assertEqual((mm ** FreeCAD.Units.Quantity(7)).Unit, FreeCAD.Units.Unit(7))
+        self.assertEqual((mm ** FreeCAD.Units.Quantity(2.5)).Unit, FreeCAD.Units.Unit(2))
+        self.assertEqual(
+            (FreeCAD.Units.Quantity(2.0) ** FreeCAD.Units.Quantity(1000)).Unit,
+            FreeCAD.Units.Unit(),
+        )
+
     def testUnitExponentOutOfRangeRaises(self):
         # The C++ OverflowError/UnderflowError used to escape from these
         # constructors and abort the interpreter.
