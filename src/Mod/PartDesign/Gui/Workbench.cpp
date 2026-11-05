@@ -354,6 +354,25 @@ void Workbench::activated()
         "PartDesign_Body"
     ));
 
+    // Python 2D objects, e.g. Draft ShapeString (sketches are covered above)
+    const char* Python2DObject[] = {
+        "PartDesign_Pad",
+        "PartDesign_Pocket",
+        "PartDesign_Revolution",
+        "PartDesign_Groove",
+        "PartDesign_AdditiveLoft",
+        "PartDesign_SubtractiveLoft",
+        "PartDesign_AdditivePipe",
+        "PartDesign_SubtractivePipe",
+        nullptr
+    };
+    Watcher.push_back(new Gui::TaskView::TaskWatcherCommands(
+        "SELECT Part::Part2DObjectPython COUNT 1",
+        Python2DObject,
+        "Modeling tools",
+        "PartDesign_Body"
+    ));
+
     const char* Transformed[] = {
         "PartDesign_Mirrored",
         "PartDesign_LinearPattern",
