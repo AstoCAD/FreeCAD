@@ -837,7 +837,8 @@ PyObject* SketchObjectPy::renameConstraint(PyObject* args)
     std::string Name = utf8Name;
     PyMem_Free(utf8Name);
 
-    if (Index < 0 || this->getSketchObjectPtr()->Constraints.getSize() <= Index) {
+    if (Index < 0
+        || static_cast<int>(this->getSketchObjectPtr()->Constraints.getValues().size()) <= Index) {
         std::stringstream str;
         str << "Not able to rename a constraint with the given index: " << Index;
         PyErr_SetString(PyExc_IndexError, str.str().c_str());

@@ -2907,12 +2907,14 @@ int SketchObject::autoRemoveRedundants(DeleteOptions options)
 
 int SketchObject::renameConstraint(int GeoId, std::string name)
 {
-    if (GeoId < 0 || GeoId >= Constraints.getSize()) {
+    // getValues() is empty (and operator[] returns null) while the constraint list is invalid
+    const std::vector<Constraint*>& vals = Constraints.getValues();
+    if (GeoId < 0 || GeoId >= int(vals.size())) {
         return -1;
     }
 
     // only change the constraint item if the names are different
-    const Constraint* item = Constraints[GeoId];
+    const Constraint* item = vals[GeoId];
 
     if (item->Name != name) {
         // no need to check input data validity as this is an sketchobject managed operation.
