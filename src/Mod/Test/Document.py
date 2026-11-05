@@ -2746,6 +2746,35 @@ class DocumentExpressionCases(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             obj.setExpression(".Placement.Base.y", ".Placement.Base.x + 10mm")
 
+    def testConstructorFunctionsWithInvalidArguments(self):
+        # vector(), placement(), matrix() and create() ignored a failing
+        # constructor and returned the default object with a Python error
+        # still pending (a SystemError, or a stray TypeError later on)
+        obj = self.Doc.addObject("App::FeaturePython", "Python")
+        for expression in (
+            "vector(1; 2; <<a>>)",
+            "placement(<<x>>)",
+            "matrix(<<a>>)",
+            "create(<<vector>>; 1; <<a>>)",
+        ):
+            with self.subTest(expression=expression):
+                with self.assertRaises(Exception) as context:
+                    obj.evalExpression(expression)
+                self.assertNotIsInstance(context.exception, SystemError)
+        self.assertEqual(obj.evalExpression("vector(1; 2; 3)"), FreeCAD.Vector(1, 2, 3))
+        self.assertEqual(
+            obj.evalExpression("create(<<vector>>; 1; 2; 3)"), FreeCAD.Vector(1, 2, 3)
+        )
+        self.assertTrue(
+            obj.evalExpression("placement(vector(1; 2; 3); rotation(vector(0; 0; 1); 90))").isSame(
+                FreeCAD.Placement(FreeCAD.Vector(1, 2, 3), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 90))
+            )
+        )
+        self.assertEqual(
+            obj.evalExpression("matrix(1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15; 16)"),
+            FreeCAD.Matrix(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16),
+        )
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument(self.Doc.Name)
