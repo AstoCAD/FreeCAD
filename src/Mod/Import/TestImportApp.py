@@ -227,3 +227,46 @@ class DxfImportOcsTest(unittest.TestCase):
         box = self._import(entity)
         self.assertAlmostEqual(box.XMin, -2.0, places=6)
         self.assertAlmostEqual(box.XMax, -1.0, places=6)
+
+
+class DxfImportLayerTest(unittest.TestCase):
+    """Layers must be created in the target document, even if it is not the active one"""
+
+    def setUp(self):
+        self.fileName = os.path.join(tempfile.gettempdir(), "ImportDxfImportLayerTest.dxf")
+        self.paramPath = "User parameter:BaseApp/Preferences/Mod/Import/TestDxfImportLayer"
+        param = App.ParamGet(self.paramPath)
+        param.SetInt("DxfImportMode", 2)  # individual shapes
+        param.SetBool("dxfUseDraftVisGroups", True)
+        param.SetBool("dxfGetOriginalColors", False)
+        param.SetFloat("dxfScaling", 1.0)
+        self.prevActive = App.ActiveDocument
+        self.target = App.newDocument()
+        self.other = App.newDocument()
+
+    def tearDown(self):
+        App.closeDocument(self.other.Name)
+        App.closeDocument(self.target.Name)
+        if self.prevActive is not None:
+            App.setActiveDocument(self.prevActive.Name)
+        App.ParamGet("User parameter:BaseApp/Preferences/Mod/Import").RemGroup(
+            "TestDxfImportLayer"
+        )
+        if os.path.exists(self.fileName):
+            os.remove(self.fileName)
+
+    def testLayerIsCreatedInTargetDocument(self):
+        records = ["0", "SECTION", "2", "ENTITIES",
+                   "0", "LINE", "8", "MyLayer",
+                   "10", "0.0", "20", "0.0", "30", "0.0",
+                   "11", "1.0", "21", "0.0", "31", "0.0",
+                   "0", "ENDSEC", "0", "EOF"]  # fmt: skip
+        with open(self.fileName, "w", encoding="utf-8") as f:
+            f.write("\n".join(records) + "\n")
+        App.setActiveDocument(self.other.Name)
+        Import.readDXF(self.fileName, self.target.Name, True, self.paramPath)
+        self.assertEqual(App.ActiveDocument.Name, self.other.Name)
+        self.assertEqual(len(self.other.Objects), 0)
+        layers = [o for o in self.target.Objects if o.Label == "MyLayer"]
+        self.assertEqual(len(layers), 1)
+        self.assertEqual(len(layers[0].Group), 1)
