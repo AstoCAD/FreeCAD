@@ -285,7 +285,25 @@ MaterialLibraryLocal::saveMaterial(const std::shared_ptr<Material>& material,
                                    bool saveAsCopy,
                                    bool saveInherited)
 {
+    if (isReadOnly()) {
+        throw InvalidLibrary("Unable to save into the read-only library '"
+                             + getName().toStdString() + "'");
+    }
+
     QString filePath = getLocalPath(path);
+
+    // The file must stay inside the library, e.g. no "../" leading out of it
+    QString root = QDir::cleanPath(getDirectoryPath());
+    if (!root.endsWith(QLatin1Char('/'))) {
+        // a drive root such as "D:/" already ends with the separator
+        root += QLatin1Char('/');
+    }
+    if (!QDir::cleanPath(filePath).startsWith(root, caseSensitivity())) {
+        throw InvalidMaterial("Unable to save '" + path.toStdString()
+                              + "': the path is outside the library '"
+                              + getName().toStdString() + "'");
+    }
+
     QFile file(filePath);
 
     QFileInfo info(file);
