@@ -50,6 +50,7 @@ public:
     App::PropertyBool Symmetric;  // like "Midplane" in PartDesign
     App::PropertyBool Solid;
     App::PropertyString FaceMakerClass;
+    App::PropertyEnumeration FaceMakerMode;
 
     /** @name methods override feature */
     //@{
@@ -90,6 +91,7 @@ private:
 
 protected:
     void setupObject() override;
+    void onDocumentRestored() override;
 };
 
 }  // namespace Part
