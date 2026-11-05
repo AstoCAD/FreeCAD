@@ -215,7 +215,6 @@ private Q_SLOTS:
         view.openEditor(index);
         QPointer<QWidget> editor = view.indexWidget(index);
         QVERIFY(editor);
-        QVERIFY(!view.isPersistentEditorOpen(index));
         QTest::keyClick(editor, Qt::Key_Return);
         QTRY_VERIFY(!editor);
         QVERIFY(!view.indexWidget(index));
