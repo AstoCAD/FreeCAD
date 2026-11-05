@@ -23,7 +23,10 @@ class Sheet(DocumentObject):
         """Set data into a cell"""
 
     def get(self, address: str, address_to: str | None = ..., /) -> Any:
-        """Get evaluated cell contents"""
+        """Get evaluated cell contents
+
+        With address_to, returns a tuple with the values of the cells of the
+        range, None for the empty ones."""
 
     def getContents(self, address: str, /) -> str:
         """Get cell contents"""
