@@ -663,6 +663,22 @@ class MeshFacetIndexRange(unittest.TestCase):
         self.mesh.removeFacets([0, 11])
         self.assertEqual(self.mesh.CountFacets, 10)
 
+    def testAddFacetsWithPoints(self):
+        # indices refer to the 8 existing points followed by the new one
+        for facet in ((0, 0, -1), (0, 1, 9), (2**40, 0, 1)):
+            with self.subTest(facet=facet):
+                with self.assertRaises(IndexError):
+                    self.mesh.addFacets(([Base.Vector(5, 5, 5)], [facet]))
+        self.assertEqual(self.mesh.CountFacets, 12)
+        self.assertEqual(self.mesh.CountPoints, 8)
+        # the constructor uses the same code path
+        with self.assertRaises(IndexError):
+            Mesh.Mesh(([Base.Vector()], [(-1, 0, 0)]))
+        mesh = Mesh.Mesh()
+        points = [Base.Vector(0, 0, 0), Base.Vector(1, 0, 0), Base.Vector(0, 1, 0)]
+        mesh.addFacets((points, [(0, 1, 2)]))
+        self.assertEqual(mesh.CountFacets, 1)
+
     def testCollapseFacets(self):
         with self.assertRaises(IndexError):
             self.mesh.collapseFacets([12])
