@@ -4220,8 +4220,24 @@ void PropertyXLink::Save(Base::Writer& writer) const
         writer.Stream() << writer.ind() << "<XLink name=\"" << _pcLink->getExportName();
     }
     else {
-        const char* path = getDocumentPath();
+        // Save the path relative to the owner document, so that the files can
+        // be moved together. filePath is relative to where the owner was when
+        // the link was resolved (see DocInfo::get()), which a Save As to
+        // another directory makes stale, so compute it again from the
+        // absolute path of the linked document.
+        const char* path = filePath.c_str();
         std::string _path;
+        if (!exporting && docInfo && !filePath.empty()) {
+            try {
+                _path = DocInfo::getDocPath(docInfo->getFullPath().toUtf8().constData(),
+                                            owner->getDocument(),
+                                            true);
+                path = _path.c_str();
+            }
+            catch (const Base::Exception&) {
+                // owner not saved yet: keep filePath
+            }
+        }
         if (exporting) {
             // Here means we are exporting the owner but not exporting the
             // linked object.  Try to use absolute file path for easy transition
