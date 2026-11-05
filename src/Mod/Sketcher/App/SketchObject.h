@@ -480,10 +480,12 @@ public:
     /// toggle the driving status of this constraint
     int toggleDriving(int ConstrId)
     {
-        if (ConstrId < 0 || ConstrId >= Constraints.getSize()) {
+        // getValues() is empty while the constraint list is invalid, unlike getSize()
+        const std::vector<Constraint*>& vals = Constraints.getValues();
+        if (ConstrId < 0 || ConstrId >= int(vals.size())) {
             return -1;
         }
-        return setDriving(ConstrId, !Constraints.getValues()[ConstrId]->isDriving);
+        return setDriving(ConstrId, !vals[ConstrId]->isDriving);
     }
 
     /// set the driving status of this constraint and solve

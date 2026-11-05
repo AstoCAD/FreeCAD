@@ -31,6 +31,7 @@ from SketcherTests.TestSketchValidateCoincidents import TestSketchValidateCoinci
 from SketcherTests.TestSketchCarbonCopyReverseMapping import TestSketchCarbonCopyReverseMapping
 from SketcherTests.TestPerpendicularArcProjection import TestPerpendicularArcProjection
 from SketcherTests.TestPerpendicularPointPointLine import TestPerpendicularPointPointLine
+from SketcherTests.TestSketchInvalidConstraintList import TestSketchInvalidConstraintList
 from SketcherTests.TestSketchInternalFaces import TestSketchInternalFaces
 from SketcherTests.TestSketcherEllipse import TestSketcherEllipse
 from SketcherTests.TestSketchLayers import TestSketchLayers
@@ -65,6 +66,7 @@ __all__ = [
     "TestSketchCarbonCopyReverseMapping",
     "TestPerpendicularArcProjection",
     "TestPerpendicularPointPointLine",
+    "TestSketchInvalidConstraintList",
     "TestSketchInternalFaces",
     "TestSketcherEllipse",
     "TestSketchGroups",
