@@ -2994,6 +2994,16 @@ void DSHRectangleController::addConstraints()
         thicknessSet = onViewParameters[OnViewParameter::Eighth]->isSet;
     }
 
+    // on-view parameters giving each value, for user parameters (recordConstraintsOf)
+    const bool threePointMethod = handler->constructionMethod() == ConstructionMethod::ThreePoints
+        || handler->constructionMethod() == ConstructionMethod::CenterAnd3Points;
+    const OnViewParameter widthParameter = threePointMethod ? OnViewParameter::Fifth
+                                                            : OnViewParameter::Fourth;
+    const OnViewParameter radiusParameter = threePointMethod ? OnViewParameter::Seventh
+                                                             : OnViewParameter::Fifth;
+    const OnViewParameter thicknessParameter = threePointMethod ? OnViewParameter::Eighth
+                                                                : OnViewParameter::Sixth;
+
     using namespace Sketcher;
 
     int firstPointId = firstCurve;
@@ -3008,14 +3018,29 @@ void DSHRectangleController::addConstraints()
     }
 
     auto constraintx0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstPointId, PointPos::start), GeoElementId::VAxis, x0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::First);
+        ConstraintToAttachment(
+            GeoElementId(firstPointId, PointPos::start),
+            GeoElementId::VAxis,
+            x0,
+            obj,
+            hasUserExpression(OnViewParameter::First)
+        );
     };
 
     auto constrainty0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstPointId, PointPos::start), GeoElementId::HAxis, y0, obj);
+        auto record = recordConstraintsOf(OnViewParameter::Second);
+        ConstraintToAttachment(
+            GeoElementId(firstPointId, PointPos::start),
+            GeoElementId::HAxis,
+            y0,
+            obj,
+            hasUserExpression(OnViewParameter::Second)
+        );
     };
 
     auto constraintlength = [&]() {
+        auto record = recordConstraintsOf(OnViewParameter::Third);
         int curveId = reverse ? firstCurve : firstCurve + 1;
 
         Gui::cmdAppObjectArgs(
@@ -3030,6 +3055,7 @@ void DSHRectangleController::addConstraints()
     };
 
     auto constraintwidth = [&]() {
+        auto record = recordConstraintsOf(widthParameter);
         int curveId = reverse ? firstCurve + 1 : firstCurve;
 
         Gui::cmdAppObjectArgs(
@@ -3117,9 +3143,12 @@ void DSHRectangleController::addConstraints()
 
     if (handler->constructionMethod() == ConstructionMethod::ThreePoints) {
         if (angleSet) {
+            // Not forced dimensional: the shape constraints depend on horizontal/vertical sides.
+            auto record = recordConstraintsOf(OnViewParameter::Fourth);
             ConstraintLineByAngle(firstCurve, angle, obj);
         }
         if (innerAngleSet) {
+            auto record = recordConstraintsOf(OnViewParameter::Sixth);
             if (fabs(fmod(fabs(innerAngle), pi) - pi / 2) > Precision::Confusion()) {
                 // At odd multiples of 90 degrees, a perpendicular constraint was already created.
                 Gui::cmdAppObjectArgs(
@@ -3136,22 +3165,27 @@ void DSHRectangleController::addConstraints()
     }
     else if (handler->constructionMethod() == ConstructionMethod::CenterAnd3Points) {
         if (corner1xSet) {
+            auto record = recordConstraintsOf(OnViewParameter::Third);
             ConstraintToAttachment(
                 GeoElementId(firstCurve, PointPos::start),
                 GeoElementId::VAxis,
                 corner1x,
-                obj
+                obj,
+                hasUserExpression(OnViewParameter::Third)
             );
         }
         if (corner1ySet) {
+            auto record = recordConstraintsOf(OnViewParameter::Fourth);
             ConstraintToAttachment(
                 GeoElementId(firstCurve, PointPos::start),
                 GeoElementId::HAxis,
                 corner1y,
-                obj
+                obj,
+                hasUserExpression(OnViewParameter::Fourth)
             );
         }
         if (innerAngleSet) {
+            auto record = recordConstraintsOf(OnViewParameter::Sixth);
             if (fabs(fmod(fabs(innerAngle), pi) - pi / 2) > Precision::Confusion()) {
                 // At odd multiples of 90 degrees, a perpendicular constraint was already created.
                 Gui::cmdAppObjectArgs(
@@ -3168,6 +3202,7 @@ void DSHRectangleController::addConstraints()
     }
 
     if (radiusSet && radius > Precision::Confusion()) {
+        auto record = recordConstraintsOf(radiusParameter);
         Gui::cmdAppObjectArgs(
             obj,
             "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ",
@@ -3180,6 +3215,7 @@ void DSHRectangleController::addConstraints()
     // in the case where negative thickness = radius, the inner rectangle has its corner
     // constrained to the mid of the arcs of the outer rectangle. So thickness would be redundant
     if (thicknessSet && !negThicknessEqualRadius) {
+        auto record = recordConstraintsOf(thicknessParameter);
         Gui::cmdAppObjectArgs(
             obj,
             "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%f)) ",

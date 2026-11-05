@@ -33,22 +33,33 @@
 #include <Inventor/SoPickedPoint.h>
 #include <Inventor/SoPath.h>
 
+#include <algorithm>
+
 #include <QEvent>
 #include <QFontMetrics>
 #include <QKeyEvent>
 #include <QPixmap>
+#include <QRegularExpression>
 #include <QLabel>
 #include <QLineEdit>
 #include <QHBoxLayout>
 #include <QString>
 #include <QTimer>
+#include <QToolTip>
 
+#include <App/Document.h>
+#include <App/DocumentObject.h>
+#include <App/Expression.h>
+#include <App/ObjectIdentifier.h>
+#include <App/UserParameters.h>
+#include <Base/Quantity.h>
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/View3DInventor.h>
 #include <Gui/View3DInventorViewer.h>
 
 #include "EditableDatumLabel.h"
+#include "ExpressionCompleter.h"
 #include "Base/Console.h"
 #include "Gui/QuantitySpinBox.h"
 
@@ -206,6 +217,7 @@ void EditableDatumLabel::startEdit(double val, QObject* eventFilteringObj, bool 
 
     // Reset locked state when starting to edit
     this->resetLockedState();
+    clearUserExpression();
 
     QWidget* mdi = viewer->parentWidget();
 
@@ -270,7 +282,159 @@ void EditableDatumLabel::startEdit(double val, QObject* eventFilteringObj, bool 
     connect(spinBox, &QuantitySpinBox::inputCleared, this, &EditableDatumLabel::handleSpinBoxInputCleared);
     if (auto* edit = spinBox->findChild<QLineEdit*>()) {
         connect(edit, &QLineEdit::textChanged, this, [this, edit]() { this->updateGeometry(edit); });
+        // A new input replaces an accepted user parameter expression.
+        connect(edit, &QLineEdit::textEdited, this, [this]() { clearUserExpression(); });
+        setupUserParameterCompleter(edit);
     }
+}
+
+// Names typed in the field (`= height`, `2*height`, `w = height/2`) are completed like in the
+// formula dialog: user parameters by their bare name, objects and properties by their path.
+void EditableDatumLabel::setupUserParameterCompleter(QLineEdit* edit)
+{
+    if (!userParameterOwner || !userParameterOwner->isAttachedToDocument()) {
+        return;
+    }
+    auto* completer = new ExpressionCompleter(userParameterOwner, spinBox);
+    completer->setWidget(edit);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    if (!ExpressionParameter::instance()->isExactMatch()) {
+        completer->setFilterMode(Qt::MatchContains);
+    }
+    connect(edit, &QLineEdit::textEdited, completer, [completer, edit](const QString& text) {
+        // Numbers and units keep their usual input; complete only once a name is being typed.
+        const bool name = std::any_of(text.begin(), text.end(), [](QChar c) {
+            return c.isLetter() || c == QLatin1Char('_');
+        });
+        if (name) {
+            completer->slotUpdate(text, edit->cursorPosition());
+        }
+        else if (completer->popup()) {
+            completer->popup()->hide();
+        }
+    });
+    const auto complete = [completer, edit](const QString& completion) {
+        int start = 0;
+        int end = 0;
+        completer->getPrefixRange(start, end);
+        const QString before = edit->text().left(start) + completion;
+        const QString after = edit->text().mid(end);
+        edit->setText(before + after);
+        edit->setCursorPosition(static_cast<int>(before.size()));
+        completer->updatePrefixEnd(static_cast<int>(before.size()));
+    };
+    connect(completer, qOverload<const QString&>(&QCompleter::activated), edit, complete);
+}
+
+void EditableDatumLabel::setUserParameterOwner(App::DocumentObject* owner)
+{
+    userParameterOwner = owner;
+}
+
+bool EditableDatumLabel::hasUserExpression() const
+{
+    return isSet && userExpression;
+}
+
+double EditableDatumLabel::getUserExpressionValue() const
+{
+    return userExpressionValue;
+}
+
+const std::string& EditableDatumLabel::getUserParameterName() const
+{
+    return userParameterName;
+}
+
+std::shared_ptr<App::Expression> EditableDatumLabel::getUserExpression() const
+{
+    return userExpression;
+}
+
+const Base::Unit& EditableDatumLabel::getUserExpressionUnit() const
+{
+    return userExpressionUnit;
+}
+
+void EditableDatumLabel::clearUserExpression()
+{
+    userParameterName.clear();
+    userExpression.reset();
+    userExpressionUnit = Base::Unit();
+    userExpressionValue = 0.0;
+}
+
+// Accepts `name = expression`, `= expression` and expressions that are only valid with the names
+// of the owner's document (`2*myVar`). Values and expressions valid without the document are left
+// to the usual handling (NotApplicable), so their meaning does not change.
+EditableDatumLabel::UserInput EditableDatumLabel::acceptUserExpressionInput()
+{
+    if (!userParameterOwner || !spinBox || !userParameterOwner->isAttachedToDocument()) {
+        return UserInput::NotApplicable;
+    }
+
+    std::string input = spinBox->text().trimmed().toUtf8().toStdString();
+    bool explicitExpression = false;
+    if (input.size() > 1 && input[0] == '=' && input[1] != '=') {
+        explicitExpression = true;
+        input = QString::fromStdString(input.substr(1)).trimmed().toUtf8().toStdString();
+    }
+
+    std::string name;
+    std::string rhs;
+    const bool assignment = App::UserParameters::splitAssignment(input, name, rhs);
+    if (!assignment && !explicitExpression && spinBox->hasValidInput()) {
+        return UserInput::NotApplicable;
+    }
+
+    const auto reject = [this](const QString& message) {
+        QToolTip::showText(spinBox->mapToGlobal(QPoint(0, spinBox->height())), message, spinBox);
+        return UserInput::Rejected;
+    };
+
+    Base::Quantity quantity;
+    QString error;
+    const auto expression = spinBox->interpretExpression(
+        QString::fromStdString(assignment ? rhs : input),
+        App::ObjectIdentifier(userParameterOwner->Label),
+        quantity,
+        error
+    );
+    if (!expression) {
+        if (!assignment && !explicitExpression) {
+            return UserInput::NotApplicable;
+        }
+        return reject(error);
+    }
+
+    if (assignment) {
+        const auto status = App::UserParameters::checkName(
+            userParameterOwner->getDocument(),
+            name,
+            userParameterOwner
+        );
+        if (status != App::UserParameters::NameStatus::Available) {
+            return reject(
+                QString::fromStdString(App::UserParameters::nameStatusMessage(status, name))
+            );
+        }
+    }
+
+    const Base::Unit unit = spinBox->unit();
+    {
+        QSignalBlocker blocker(spinBox);
+        spinBox->setValue(quantity);
+    }
+
+    clearUserExpression();
+    // `= 30 mm` is a plain value.
+    if (assignment || !expression->getIdentifiers().empty()) {
+        userParameterName = assignment ? name : std::string();
+        userExpression = expression;
+        userExpressionUnit = unit;
+        userExpressionValue = spinBox->rawValue();
+    }
+    return UserInput::Accepted;
 }
 
 bool EditableDatumLabel::syncValueFromSpinBox(bool emitParameterUnset)
@@ -321,11 +485,39 @@ bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
 {
     if (event->type() == QEvent::KeyPress) {
         auto* keyEvent = static_cast<QKeyEvent*>(event);
+        // `= expression`: '=' typed over the shown value and unit starts an empty expression,
+        // so that the unit does not end up behind the names ("= height mm").
+        if (keyEvent->text() == QLatin1String("=") && qobject_cast<QAbstractSpinBox*>(watched)
+            && spinBox) {
+            if (auto* edit = spinBox->findChild<QLineEdit*>()) {
+                QString rest = edit->text();
+                if (edit->hasSelectedText()) {
+                    rest.remove(edit->selectionStart(), edit->selectedText().size());
+                }
+                // Only a number and/or the unit the field shows: nothing typed that the
+                // expression would need. Anything else ("h", "height") is a name being typed
+                // and is kept, even when it is also a unit symbol (h = hour).
+                const QString shown = QString::fromStdString(spinBox->value().getUserString());
+                static const QRegularExpression lastDigit(QStringLiteral(R"(\d)"));
+                const QString unit = shown.mid(shown.lastIndexOf(lastDigit) + 1).trimmed();
+                QString remaining = rest.trimmed();
+                if (!unit.isEmpty() && remaining.endsWith(unit)) {
+                    remaining.chop(unit.size());
+                }
+                static const QRegularExpression number(QStringLiteral(R"(^[-+]?[\d.,\s]*$)"));
+                if (number.match(remaining).hasMatch()) {
+                    edit->setText(QStringLiteral("="));
+                    clearUserExpression();
+                    return true;
+                }
+            }
+        }
         if (keyEvent->key() == Qt::Key_Escape) {
             if (qobject_cast<QAbstractSpinBox*>(watched)) {
                 this->value = this->editStartValue;
                 this->isSet = false;
                 this->hasFinishedEditing = false;
+                this->clearUserExpression();
                 this->setLockedAppearance(false);
                 this->setSpinboxValue(this->editStartValue);
                 this->stopEdit();
@@ -337,9 +529,16 @@ bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
             || keyEvent->key() == Qt::Key_Tab) {
 
             if (qobject_cast<QAbstractSpinBox*>(watched)) {
+                // a user parameter input is accepted as a typed value
+                const UserInput userInput = acceptUserExpressionInput();
+                if (userInput == UserInput::Rejected) {
+                    return true;
+                }
+                const bool userValue = userInput == UserInput::Accepted;
+
                 // if tab has been pressed and user did not type anything previously,
                 // then just cycle but don't lock anything, otherwise we lock the label
-                if (keyEvent->key() == Qt::Key_Tab && !this->isSet) {
+                if (keyEvent->key() == Qt::Key_Tab && !this->isSet && !userValue) {
                     if (!this->spinBox->hasValidInput()) {
                         syncValueFromSpinBox();
                         return true;
@@ -349,6 +548,9 @@ bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
 
                 // for ctrl + enter we accept values as they are
                 if (keyEvent->modifiers() & Qt::ControlModifier) {
+                    if (userValue) {
+                        syncValueFromSpinBox();
+                    }
                     Q_EMIT this->finishEditingOnAllOVPs();
                     return true;
                 }

@@ -123,6 +123,11 @@ DrawSketchKeyboardManager::KeyboardEventHandlingMode DrawSketchKeyboardManager::
         if (ch == '-' || ch == '.' || ch == ',') {
             return KeyboardEventHandlingMode::DSHControl;
         }
+        // `= expression` and `name = expression` (user parameters): letters and expression
+        // characters go to the field too, so the tool shortcuts do not fire while typing.
+        if (ch == '=' || ch == '_' || ch.isLetter() || QStringLiteral("+*/^()").contains(ch)) {
+            return KeyboardEventHandlingMode::DSHControl;
+        }
     }
     return keyMode;
 }
