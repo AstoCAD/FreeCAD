@@ -777,6 +777,19 @@ class DocumentBasicCases(unittest.TestCase):
         with self.assertRaises(UnicodeError):
             FreeCAD.setLogLevel("Document", bad)
 
+    def testUnencodableAttributeNames(self):
+        # getattr()/setattr() with a name that cannot be converted to UTF-8 passed
+        # the nullptr from PyUnicode_AsUTF8() on as the attribute name (crash).
+        bad = "\ud800"
+        obj = self.Doc.addObject("App::FeaturePython", "AttrNames")
+        for target in (obj, self.Doc, FreeCAD.Vector(1, 2, 3), FreeCAD.Placement()):
+            with self.assertRaises(UnicodeError, msg=type(target).__name__):
+                getattr(target, bad)
+            with self.assertRaises(UnicodeError, msg=type(target).__name__):
+                setattr(target, bad, 1)
+        self.assertFalse(hasattr(obj, "NoSuchAttribute"))
+        self.assertEqual(getattr(FreeCAD.Vector(1, 2, 3), "y"), 2)
+
     def testLinksLinkingEachOther(self):
         # Two links linking each other: setting the second link's LinkedObject rebuilt
         # its label from the other link, which rebuilt its own label in turn, and so
