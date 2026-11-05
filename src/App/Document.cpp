@@ -2115,8 +2115,13 @@ bool Document::saveToFile(const char* filename) const
             GetApplication()
                 .GetParameterGroupByPath("User parameter:BaseApp/Preferences/Document")
                 ->GetASCII("SaveBackupDateFormat", "%Y%m%d-%H%M%S");
+        std::string backupDirectory =
+            GetApplication()
+                .GetParameterGroupByPath("User parameter:BaseApp/Preferences/Document")
+                ->GetASCII("BackupDirectory", "");
 
         BackupPolicy backupPolicy;
+        backupPolicy.setBackupDirectory(backupDirectory);
         if (useFCBakExtension) {
             backupPolicy.setPolicy(BackupPolicy::TimeStamp);
             backupPolicy.useBackupExtension(useFCBakExtension);

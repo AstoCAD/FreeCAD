@@ -1437,6 +1437,59 @@ class DocumentSaveRestoreCases(unittest.TestCase):
         FreeCAD.closeDocument("SaveRestoreTests")
 
 
+class DocumentBackupDirectoryCases(unittest.TestCase):
+    """The Document/BackupDirectory preference stores backup files in a directory.
+    https://github.com/FreeCAD/FreeCAD/issues/6697"""
+
+    PARAMS = (
+        ("Bool", "BackupPolicy", True),
+        ("Bool", "CreateBackupFiles", True),
+        ("Int", "CountBackupFiles", 1),
+        ("Bool", "UseFCBakExtension", False),
+    )
+
+    def setUp(self):
+        self.grp = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document")
+        self.saved = []
+        for kind, name, value in self.PARAMS + (("String", "BackupDirectory", ""),):
+            stored = name in getattr(self.grp, "Get" + kind + "s")()
+            old = getattr(self.grp, "Get" + kind)(name)
+            self.saved.append((kind, name, stored, old))
+        for kind, name, value in self.PARAMS:
+            getattr(self.grp, "Set" + kind)(name, value)
+        self.dir = tempfile.mkdtemp(prefix="fc_backup_dir_")
+        self.path = os.path.join(self.dir, "BackupDirectory.FCStd")
+        self.doc = FreeCAD.newDocument("BackupDirectoryTests")
+
+    def tearDown(self):
+        import shutil
+
+        FreeCAD.closeDocument(self.doc.Name)
+        shutil.rmtree(self.dir, ignore_errors=True)
+        for kind, name, stored, old in self.saved:
+            if stored:
+                getattr(self.grp, "Set" + kind)(name, old)
+            else:
+                getattr(self.grp, "Rem" + kind)(name)
+
+    def _save_twice(self):
+        self.doc.saveAs(self.path)
+        self.doc.addObject("App::FeatureTest", "Feature")
+        self.doc.save()
+
+    def testBackupNextToDocumentByDefault(self):
+        self.grp.RemString("BackupDirectory")
+        self._save_twice()
+        self.assertTrue(os.path.exists(self.path + "1"))
+
+    def testBackupInRelativeDirectory(self):
+        self.grp.SetString("BackupDirectory", "bak")
+        self._save_twice()
+        self.assertTrue(os.path.exists(os.path.join(self.dir, "bak", "BackupDirectory.FCStd1")))
+        self.assertFalse(os.path.exists(self.path + "1"))
+        self.assertTrue(os.path.exists(self.path))
+
+
 class DocumentRecoveryCases(unittest.TestCase):
     def setUp(self):
         self.Doc = FreeCAD.newDocument("RecoveryTests")
