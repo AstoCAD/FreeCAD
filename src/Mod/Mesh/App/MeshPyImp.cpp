@@ -805,12 +805,19 @@ PyObject* MeshPy::addFacets(PyObject* args)
 
         Py::List list_f(tuple.getItem(1));
         MeshCore::MeshFacetArray faces;
+        // the indices refer to the existing points followed by the new ones
+        const long countPoints = static_cast<long>(getMeshObjectPtr()->countPoints() + vertices.size());
         for (Py::List::iterator it = list_f.begin(); it != list_f.end(); ++it) {
             Py::Tuple f(*it);
             MeshCore::MeshFacet face;
-            face._aulPoints[0] = static_cast<long>(Py::Long(f.getItem(0)));
-            face._aulPoints[1] = static_cast<long>(Py::Long(f.getItem(1)));
-            face._aulPoints[2] = static_cast<long>(Py::Long(f.getItem(2)));
+            for (int i = 0; i < 3; i++) {
+                long index = static_cast<long>(Py::Long(f.getItem(i)));
+                if (index < 0 || index >= countPoints) {
+                    PyErr_SetString(PyExc_IndexError, "Point index out of range");
+                    return nullptr;
+                }
+                face._aulPoints[i] = index;
+            }
             faces.push_back(face);
         }
 
