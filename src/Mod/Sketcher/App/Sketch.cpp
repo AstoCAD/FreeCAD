@@ -3162,7 +3162,7 @@ int Sketch::addPerpendicularConstraint(int geoId1, PointPos pos1, int geoId2, Po
         && pointId2 < int(Points.size()) && Geoms[geoId3].type == Line) {
         GCS::Point& p1 = Points[pointId1];
         GCS::Point& p2 = Points[pointId2];
-        GCS::Line& l = Lines[geoId3];
+        GCS::Line& l = Lines[Geoms[geoId3].index];
         int tag = ++ConstraintsCounter;
         GCSsys.addConstraintPerpendicular(p1, p2, l, tag);
         return ConstraintsCounter;
