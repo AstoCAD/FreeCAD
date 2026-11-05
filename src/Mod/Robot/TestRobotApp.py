@@ -70,3 +70,34 @@ class TestRobotTrajectory(unittest.TestCase):
     def test_delete_last_unchanged(self):
         trac = Robot.Trajectory([_waypoint(i) for i in range(5)])
         self.assertEqual(len(trac.deleteLast(0).Waypoints), 4)
+
+
+class TestRobotAttributeErrors(unittest.TestCase):
+    """Errors raised by attribute setters used to surface as 'Unknown exception'."""
+
+    def test_unreachable_tcp_raises_runtime_error(self):
+        nan = float("nan")
+        for placement in (
+            App.Placement(App.Vector(nan, 0, 0), App.Rotation()),
+            App.Placement(App.Vector(1e9, 0, 0), App.Rotation()),
+        ):
+            with self.subTest(placement=placement):
+                robot = Robot.Robot6Axis()
+                tcp = robot.Tcp
+                with self.assertRaisesRegex(RuntimeError, "Can not reach Point"):
+                    robot.Tcp = placement
+                self.assertTrue(robot.Tcp.isSame(tcp, 1e-9))
+
+    def test_reachable_tcp_unchanged(self):
+        robot = Robot.Robot6Axis()
+        target = robot.Tcp
+        target.Base = target.Base + App.Vector(-100, 0, 0)
+        robot.Tcp = target
+        self.assertTrue(robot.Tcp.isSame(target, 1e-3))
+
+    def test_unknown_waypoint_type_raises_type_error(self):
+        waypoint = _waypoint(0)
+        with self.assertRaisesRegex(TypeError, "Unknown waypoint type"):
+            waypoint.Type = "Bogus"
+        waypoint.Type = "PTP"
+        self.assertEqual(waypoint.Type, "PTP")
