@@ -97,6 +97,7 @@ SET(Test_SRCS
     TestTreeLayerInPartSelectionGui.py
     TestLinkGroupToolTipsGui.py
     TestImagePlaneDraggerGui.py
+    TestCameraSettingsNestingGui.py
 )
 
 SET(TestData_SRCS
