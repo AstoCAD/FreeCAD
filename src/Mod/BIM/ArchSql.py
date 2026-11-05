@@ -1544,7 +1544,11 @@ class InComparison:
     def evaluate(self, obj):
         property_value = self.reference_extractor.get_value(obj)
         # The check is a simple Python 'in' against the pre-calculated set
-        return property_value in self.values_set
+        try:
+            return property_value in self.values_set
+        except TypeError:
+            # Unhashable values (e.g. list or dict properties) cannot equal a literal value.
+            return False
 
 
 class ArithmeticOperation:
