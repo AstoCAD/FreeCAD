@@ -1347,6 +1347,7 @@ class PlaneGui(PlaneBase):
         self._view = None
         self._stored = {}
         self._history = {}
+        self._sources = {}
 
     def copy(self):
         """Return a new plane that is a copy of the present object."""
@@ -1571,8 +1572,34 @@ class PlaneGui(PlaneBase):
             self.icon = ":/icons/Std_Placement.svg"
         self.label = self._get_label(obj.Label)
         self.tip = self._get_tip(obj.Label)
+        if getattr(obj, "Document", None) is not None:
+            # Remember the label and icon, to drop them if the object is deleted
+            self._sources[(obj.Document.Name, obj.Name)] = (obj.Label, self.icon)
         self._update_all(_hist_add)
         return True
+
+    def _forget_object(self, obj):
+        """Stop naming the WP after an object that is being deleted.
+
+        The WP itself is not changed. If its label (or the label of a state
+        in its history) still refers to the object, it becomes "Custom".
+        """
+        source = self._sources.pop((obj.Document.Name, obj.Name), None)
+        if source is None:
+            return
+        label, icon = source
+        custom = translate("draft", "Custom")
+        states = [self.__dict__]
+        if self._stored:
+            states.append(self._stored)
+        if self._history:
+            states += self._history["data_list"]
+        for state in states:
+            if state["icon"] == icon and state["label"].rstrip("*") == label:
+                state["icon"] = ":/icons/Draft_SelectPlane.svg"
+                state["label"] = custom + state["label"][len(label) :]
+                state["tip"] = state["tip"].replace(label, custom, 1)
+        self._update_gui()
 
     def align_to_wp_proxy(self, obj, offset=0, place=None, _hist_add=True):
         """Align the WP to a WPProxy with an optional offset.
@@ -1957,6 +1984,16 @@ def get_working_plane(update=True):
             FreeCAD.draft_working_planes[1].append(wp)
 
     return wp
+
+
+def _forget_deleted_object(obj):
+    """Stop naming the working planes after a deleted object.
+
+    Called by the Draft document observer.
+    """
+    if hasattr(FreeCAD, "draft_working_planes"):
+        for wp in FreeCAD.draft_working_planes[1]:
+            wp._forget_object(obj)
 
 
 # View observer code to update the Draft Tray:

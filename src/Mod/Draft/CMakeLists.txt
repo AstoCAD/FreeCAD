@@ -85,6 +85,7 @@ SET(Draft_tests
     drafttests/test_scale_edit_gui.py
     drafttests/test_selection_tools_gui.py
     drafttests/test_svg.py
+    drafttests/test_working_plane.py
     drafttests/README.md
     drafttests/Issue24314.dxf
 )
