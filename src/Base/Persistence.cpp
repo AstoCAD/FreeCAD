@@ -196,8 +196,20 @@ std::string Persistence::validateXMLString(const std::string& str)
     return out;
 }
 
+bool Persistence::isValidCompressionLevel(int compression)
+{
+    return compression == Z_DEFAULT_COMPRESSION
+        || (compression >= Z_NO_COMPRESSION && compression <= Z_BEST_COMPRESSION);
+}
+
 void Persistence::dumpToStream(std::ostream& stream, int compression)
 {
+    // zlib rejects any other level: the deflate stream then stays uninitialized and closing
+    // the writer aborts the process
+    if (!isValidCompressionLevel(compression)) {
+        throw Base::ValueError("Compression level must be -1 or between 0 and 9");
+    }
+
     // we need to close the zipstream to get a good result, the only way to do this is to delete the
     // ZipWriter. Hence the scope...
     {
