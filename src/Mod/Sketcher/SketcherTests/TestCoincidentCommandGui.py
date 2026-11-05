@@ -339,3 +339,35 @@ class TestCoincidentCommandGui(SketcherGuiTestCase):
         self.assertEqual(len(sketch.Constraints), constraint_count)
         self.assertNotEqual(self.constraint_signature(sketch), constraints_before)
         self.assertNotEqual(sketch.solve(), 0, "The original redundancy should remain.")
+
+    def test_redundant_coincident_is_added(self):
+        """A coincident that only makes other constraints redundant is added, not rejected:
+        the user or AutoRemoveRedundants deals with the redundancy (#34008)."""
+        self.set_boolean_preference_for_test(
+            "User parameter:BaseApp/Preferences/Mod/Sketcher",
+            "AutoRemoveRedundants",
+            False,
+        )
+        sketch = self.doc.addObject("Sketcher::SketchObject", "RedundantCoincidentSketch")
+        sketch.addGeometry(
+            Part.LineSegment(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(10, 0, 0)),
+            False,
+        )
+        sketch.addGeometry(
+            Part.LineSegment(FreeCAD.Vector(10, 5, 0), FreeCAD.Vector(20, 5, 0)),
+            False,
+        )
+        # Both points already have the same X, so a coincident makes one of these redundant.
+        sketch.addConstraint(Sketcher.Constraint("DistanceX", 0, 2, 10.0))
+        sketch.addConstraint(Sketcher.Constraint("DistanceX", 1, 1, 10.0))
+        self.assertEqual(sketch.solve(), 0)
+        constraint_count = len(sketch.Constraints)
+
+        warnings = self.apply_coincident_command_capturing_warning(sketch, "Vertex2", "Vertex3")
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(len(sketch.Constraints), constraint_count + 1)
+        self.assertEqual(sketch.Constraints[-1].Type, "Coincident")
+        sketch.solve()
+        self.assertTrue(sketch.RedundantConstraints, "The redundancy is left to the user.")
+        self.assertFalse(sketch.ConflictingConstraints)
