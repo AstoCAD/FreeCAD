@@ -85,6 +85,7 @@ if(BUILD_GUI)
         PartDesignTests/TestDraftOtherUnicodeReferencesGui.py
         PartDesignTests/TestMoveFeatureSourceTipGui.py
         PartDesignTests/TestDuplicateEmptySelectionGui.py
+        PartDesignTests/TestCopyPasteGui.py
         PartDesignTests/TestShapeBinderHighlightGui.py
         PartDesignTests/TestBooleanUnicodeNamesGui.py
         PartDesignTests/TestBooleanBoundingBoxGui.py

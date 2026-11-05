@@ -1375,6 +1375,38 @@ bool StdCmdCopy::isActive()
 }
 
 //===========================================================================
+// Std_CopySpecial
+//===========================================================================
+DEF_STD_CMD_A(StdCmdCopySpecial)
+
+StdCmdCopySpecial::StdCmdCopySpecial()
+    : Command("Std_CopySpecial")
+{
+    sGroup = "Edit";
+    sMenuText = QT_TR_NOOP("Copy S&pecial…");
+    sToolTipText = QT_TR_NOOP(
+        "Copies the selected objects to the clipboard, choosing which dependencies to copy"
+    );
+    sWhatsThis = "Std_CopySpecial";
+    sStatusTip = sToolTipText;
+    sPixmap = "edit-copy";
+}
+
+void StdCmdCopySpecial::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    QMimeData* mimeData = getMainWindow()->createMimeDataFromSelection(true);
+    if (mimeData) {
+        QApplication::clipboard()->setMimeData(mimeData);
+    }
+}
+
+bool StdCmdCopySpecial::isActive()
+{
+    return Selection().hasSelection();
+}
+
+//===========================================================================
 // Std_Paste
 //===========================================================================
 DEF_STD_CMD_A(StdCmdPaste)
@@ -2752,6 +2784,7 @@ void CreateDocCommands()
     rcCmdMgr.addCommand(new StdCmdQuit());
     rcCmdMgr.addCommand(new StdCmdCut());
     rcCmdMgr.addCommand(new StdCmdCopy());
+    rcCmdMgr.addCommand(new StdCmdCopySpecial());
     rcCmdMgr.addCommand(new StdCmdPaste());
     rcCmdMgr.addCommand(new StdCmdDuplicateSelection());
     rcCmdMgr.addCommand(new StdCmdSelectAll());
