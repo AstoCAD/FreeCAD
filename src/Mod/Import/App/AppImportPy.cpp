@@ -58,6 +58,7 @@
 #include <Mod/Part/App/Interface.h>
 #include <Mod/Part/App/OCAF/ImportExportSettings.h>
 #include <Mod/Part/App/PartFeaturePy.h>
+#include <Mod/Part/App/PyException.h>
 #include <Mod/Part/App/TopoShapePy.h>
 #include <Mod/Part/App/encodeFilename.h>
 
@@ -117,6 +118,28 @@ public:
     ~Module() override = default;
 
 private:
+    // Turn C++ exceptions that the methods don't handle themselves (e.g. an OCCT
+    // Standard_Failure while exporting a shape) into Python exceptions
+    Py::Object invoke_method_varargs(void* method_def, const Py::Tuple& args) override
+    {
+        return Part::pyWrapCppExceptions(
+            [&]() { return Py::ExtensionModule<Module>::invoke_method_varargs(method_def, args); },
+            nullptr,
+            true
+        );
+    }
+
+    Py::Object invoke_method_keyword(void* method_def, const Py::Tuple& args, const Py::Dict& keywords) override
+    {
+        return Part::pyWrapCppExceptions(
+            [&]() {
+                return Py::ExtensionModule<Module>::invoke_method_keyword(method_def, args, keywords);
+            },
+            nullptr,
+            true
+        );
+    }
+
     Py::Object importer(const Py::Tuple& args, const Py::Dict& kwds)
     {
         char* Name = nullptr;
