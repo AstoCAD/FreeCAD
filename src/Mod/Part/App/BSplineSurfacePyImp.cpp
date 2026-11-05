@@ -1705,6 +1705,10 @@ PyObject* BSplineSurfacePy::buildFromNSections(PyObject* args)
                 curveSeq.Append(Handle(Geom_Curve)::DownCast(geom->handle()));
             }
         }
+        if (curveSeq.Length() < 2) {
+            PyErr_SetString(PyExc_ValueError, "At least two curves are required");
+            return nullptr;
+        }
 
         GeomFill_NSections fillOp(curveSeq);
         if (Base::asBoolean(refSurf)) {
@@ -1716,6 +1720,10 @@ PyObject* BSplineSurfacePy::buildFromNSections(PyObject* args)
         fillOp.ComputeSurface();
 
         Handle(Geom_BSplineSurface) aSurf = fillOp.BSplineSurface();
+        if (aSurf.IsNull()) {
+            PyErr_SetString(PartExceptionOCCError, "Failed to create surface from sections");
+            return nullptr;
+        }
         this->getGeomBSplineSurfacePtr()->setHandle(aSurf);
         Py_Return;
     }
