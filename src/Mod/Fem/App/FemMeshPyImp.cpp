@@ -863,6 +863,10 @@ PyObject* FemMeshPy::addEdgeList(PyObject* args)
     int np = 0;
     for (Py::List::iterator it = npList.begin(); it != npList.end(); ++it, nodeIt += np) {
         np = Py::Long(*it);
+        if (np < 0 || np > std::distance(nodeIt, nodes.end())) {
+            PyErr_SetString(PyExc_ValueError, "Node counts exceed the number of given nodes");
+            return nullptr;
+        }
         std::vector<const SMDS_MeshNode*> nodesElem(nodeIt, nodeIt + np);
         switch (np) {
             case 2:
@@ -917,6 +921,10 @@ PyObject* FemMeshPy::addFaceList(PyObject* args)
     int np = 0;
     for (Py::List::iterator it = npList.begin(); it != npList.end(); ++it, nodeIt += np) {
         np = Py::Long(*it);
+        if (np < 0 || np > std::distance(nodeIt, nodes.end())) {
+            PyErr_SetString(PyExc_ValueError, "Node counts exceed the number of given nodes");
+            return nullptr;
+        }
         std::vector<const SMDS_MeshNode*> nodesElem(nodeIt, nodeIt + np);
         switch (np) {
             case 3:
@@ -993,6 +1001,10 @@ PyObject* FemMeshPy::addVolumeList(PyObject* args)
     int np = 0;
     for (Py::List::iterator it = npList.begin(); it != npList.end(); ++it, nodeIt += np) {
         np = Py::Long(*it);
+        if (np < 0 || np > std::distance(nodeIt, nodes.end())) {
+            PyErr_SetString(PyExc_ValueError, "Node counts exceed the number of given nodes");
+            return nullptr;
+        }
         std::vector<const SMDS_MeshNode*> nodesElem(nodeIt, nodeIt + np);
         switch (np) {
             case 4:
