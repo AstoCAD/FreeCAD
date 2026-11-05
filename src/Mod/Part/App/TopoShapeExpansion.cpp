@@ -6166,6 +6166,9 @@ TopoShape& TopoShape::makeElementBoolean(
         TopoDS_Shell shell;
         builder.MakeShell(shell);
         for (auto& s : shapes) {
+            if (s.isNull()) {
+                FC_THROWM(NullShapeException, "Null input shape");
+            }
             builder.Add(shell, s.getShape());
         }
         setShape(shell);
