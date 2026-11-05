@@ -281,6 +281,46 @@ You can pick further points to get line segments.</string>
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="gbOptions">
+     <property name="title">
+      <string>Options</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <widget class="QCheckBox" name="cbAutoHorizontal">
+        <property name="toolTip">
+         <string>Forces last line segment to be horizontal</string>
+        </property>
+        <property name="text">
+         <string>Auto horizontal</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="cbScalable">
+        <property name="toolTip">
+         <string>Scale line with the base view</string>
+        </property>
+        <property name="text">
+         <string>Scale with base view</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="cbRotatesWithParent">
+        <property name="toolTip">
+         <string>If checked, the leader rotates around the base view.
+If unchecked, only the first segment of the leader changes with the base view rotation.</string>
+        </property>
+        <property name="text">
+         <string>Rotate with base view</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Orientation::Vertical</enum>

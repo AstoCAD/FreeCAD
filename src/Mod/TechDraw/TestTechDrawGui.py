@@ -75,6 +75,7 @@ from TDTest.TestInsertSymbolStackTopGui import TestInsertSymbolStackTopGui  # no
 from TDTest.TestDimensionLabelSnapGui import TestDimensionLabelSnapGui  # noqa: F401
 from TDTest.DrawTaskUndoGuiTest import DrawTaskUndoGuiTest  # noqa: F401
 from TDTest.DrawSectionTabOrderGuiTest import DrawSectionTabOrderGuiTest  # noqa: F401
+from TDTest.DrawLeaderOptionsGuiTest import DrawLeaderOptionsGuiTest  # noqa: F401
 from TDTest.DrawCtrlClickJitterGuiTest import DrawCtrlClickJitterGuiTest  # noqa: F401
 from TDTest.DrawCompositeHitShapeGuiTest import DrawCompositeHitShapeGuiTest  # noqa: F401
 from TDTest.DrawLineDecorRejectGuiTest import DrawLineDecorRejectGuiTest  # noqa: F401
