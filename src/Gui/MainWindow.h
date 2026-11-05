@@ -211,6 +211,11 @@ public:
     //@{
     /** Create mime data from selected objects */
     QMimeData* createMimeDataFromSelection() const;
+    /** Create mime data from selected objects. If \a askDependencies is true the
+     * dependency dialog opens whenever the objects have dependencies ("Copy special"),
+     * otherwise only when App::CopyPasteRules cannot explain them.
+     */
+    QMimeData* createMimeDataFromSelection(bool askDependencies) const;
     /** Check if mime data contains object data */
     bool canInsertFromMimeData(const QMimeData* source) const;
     /** Insert the objects into the active document. If no document exists
