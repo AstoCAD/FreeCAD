@@ -704,6 +704,20 @@ class MeshFacetIndexRange(unittest.TestCase):
         self.assertEqual(len(MeshPart.wireFromSegment(self.mesh, [0, 1])), 1)
 
 
+class MeshSmoothNegativeIteration(unittest.TestCase):
+    """A negative iteration count must raise instead of smoothing ~4 billion times"""
+
+    def testNegativeIteration(self):
+        mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        for method in ("Laplace", "Taubin", "PlaneFit", "MedianFilter"):
+            with self.subTest(method=method):
+                with self.assertRaises(ValueError):
+                    mesh.smooth(Method=method, Iteration=-1)
+        mesh.smooth(Iteration=0)
+        mesh.smooth(Iteration=2)
+        self.assertEqual(mesh.CountFacets, 12)
+
+
 class MeshHugeCoordinates(unittest.TestCase):
     """A facet with a huge coordinate must not be put outside the facet grid"""
 
