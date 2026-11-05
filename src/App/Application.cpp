@@ -660,7 +660,13 @@ Document* Application::newDocument(const char * proposedName, const char * propo
     setActiveDocumentNoSignal(doc);
     signalNewDocument(*doc, CreateFlags.createView);
 
+    // Setting an unchanged value does not notify. Announce the label anyway, so that observers
+    // (e.g. Gui::Document) finish initializing a document whose label equals the default.
+    const bool labelUnchanged = label == doc->Label.getValue();
     doc->Label.setValue(label);
+    if (labelUnchanged) {
+        signalRelabelDocument(*doc);
+    }
 
     // set the old document active again if the new is temporary
     if (CreateFlags.temporary && oldActiveDoc) {

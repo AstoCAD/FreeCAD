@@ -2973,6 +2973,23 @@ class DocumentObserverCases(unittest.TestCase):
         self.assertEqual(self.Obs.parameter2.pop(), self.Doc1.FileName)
         FreeCAD.closeDocument(self.Doc1.Name)
 
+    def testDefaultLabelIsAnnounced(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/14862
+        # A new document whose label equals the default label ("Unnamed") must be announced
+        # like any other, otherwise the GUI never marks it modified on document property changes.
+        self.Doc1 = FreeCAD.newDocument("ObserverDefaultLabel", "Unnamed")
+        try:
+            self.assertEqual(self.Doc1.Label, "Unnamed")
+            self.assertIn("DocRelabled", self.Obs.signal)
+            self.assertIs(self.Obs.parameter[self.Obs.signal.index("DocRelabled")], self.Doc1)
+            if FreeCAD.GuiUp:
+                guiDoc = FreeCAD.Gui.getDocument(self.Doc1.Name)
+                guiDoc.Modified = False
+                self.Doc1.Comment = "Issue 14862"
+                self.assertTrue(guiDoc.Modified)
+        finally:
+            FreeCAD.closeDocument(self.Doc1.Name)
+
     def testDocument(self):
         # in case another document already exists then the tests cannot
         # be done reliably
