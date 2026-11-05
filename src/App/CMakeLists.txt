@@ -207,6 +207,7 @@ SET(Document_CPP_SRCS
     VRMLObject.cpp
     MaterialObject.cpp
     MergeDocuments.cpp
+    CopyPasteRules.cpp
     TextDocument.cpp
     Link.cpp
     LinkBaseExtensionPyImp.cpp
@@ -258,6 +259,7 @@ SET(Document_HPP_SRCS
     VRMLObject.h
     MaterialObject.h
     MergeDocuments.h
+    CopyPasteRules.h
     TextDocument.h
     VarSet.h
     Link.h
