@@ -205,6 +205,9 @@ vtkSmartPointer<vtkDataObject> FemPostPipeline::readPVD(const Base::FileInfo& fi
     for (auto v : values) {
         Base::FileInfo fi(dir + "/" + v.second);
         auto data = dataObjectFromFile(fi);
+        if (!data) {
+            throw Base::FileException("File could not be read", fi);
+        }
         auto time = vtkSmartPointer<vtkFloatArray>::New();
         time->SetName("TimeValue");
         time->InsertNextValue(v.first);
@@ -271,6 +274,9 @@ void FemPostPipeline::read(
         }
 
         auto data = dataObjectFromFile(File);
+        if (!data) {
+            throw Base::FileException("File could not be read", File);
+        }
         data->GetFieldData()->AddArray(TimeValue);
         data->GetFieldData()->AddArray(TimeInfo);
 
@@ -659,7 +665,8 @@ void FemPostPipeline::load(
     auto multiblock = vtkSmartPointer<vtkMultiBlockDataSet>::New();
     for (ulong i = 0; i < res.size(); i++) {
 
-        if (!res[i]->Mesh.getValue()->isDerivedFrom<FemMeshObject>()) {
+        auto meshObj = res[i]->Mesh.getValue();
+        if (!meshObj || !meshObj->isDerivedFrom<FemMeshObject>()) {
             throw Base::ValueError("Result mesh object is not derived from Fem::FemMeshObject");
         }
 

@@ -67,6 +67,40 @@ class TestPostGroups(unittest.TestCase):
         self.assertIn(clip, branch.Group)
         self.assertIn(other, branch.Group)
 
+    def test_write_vtk_without_data(self):
+        # writeVTK of a post object that holds no data yet (a new pipeline) crashed
+        import os
+        import tempfile
+
+        pipeline = self.document.addObject("Fem::FemPostPipeline", "Pipeline")
+        self.document.recompute()
+        path = os.path.join(tempfile.gettempdir(), "fem_post_write_without_data.vtu")
+        with self.assertRaises(ValueError):
+            pipeline.writeVTK(path)
+        self.assertFalse(os.path.exists(path))
+
+    def test_multistep_without_data(self):
+        # a multistep pipeline from a file VTK can't read or from results without a mesh crashed
+        import os
+        import tempfile
+
+        pipeline = self.document.addObject("Fem::FemPostPipeline", "Pipeline")
+        bad = os.path.join(tempfile.gettempdir(), "fem_post_multistep_unreadable.vtk")
+        with open(bad, "w") as f:
+            f.write("not a vtk file\n")
+        try:
+            with self.assertRaisesRegex(OSError, "could not be read"):
+                pipeline.read([bad, bad], [1.0, 2.0], FreeCAD.Units.Unit(), "Time")
+        finally:
+            os.remove(bad)
+
+        results = [
+            self.document.addObject("Fem::FemResultObject", "Result1"),
+            self.document.addObject("Fem::FemResultObject", "Result2"),
+        ]
+        with self.assertRaisesRegex(ValueError, "Result mesh object"):
+            pipeline.load(results, [1.0, 2.0], FreeCAD.Units.Unit(), "Time")
+
     def test_group_cannot_contain_itself(self):
         # A pipeline or branch filter holding itself (directly or through another group)
         # used to crash: a branch on recompute (VTK pipeline loop), a pipeline on reopen
