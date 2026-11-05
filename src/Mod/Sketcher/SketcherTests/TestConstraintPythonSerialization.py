@@ -191,3 +191,73 @@ class TestConstraintPythonRoundTripCompatibility(unittest.TestCase):
         self.assertFalse(source.getActive(0))
         self.assertFalse(source.getDriving(0))
         self._replay(source)
+
+
+class TestConstraintPythonThirdElementRoundTrip(unittest.TestCase):
+    """Tangent/Perpendicular forms with a third element keep it in the Python commands."""
+
+    def setUp(self):
+        self.doc = App.newDocument("ConstraintThirdElementRoundTrip")
+        self.addCleanup(App.closeDocument, self.doc.Name)
+
+    @staticmethod
+    def _elements(constraint):
+        c = constraint
+        return (c.Type, c.First, c.FirstPos, c.Second, c.SecondPos, c.Third, c.ThirdPos)
+
+    def _replay(self, geometries, constraint):
+        source = self.doc.addObject("Sketcher::SketchObject", "Source")
+        source.addGeometry(geometries, False)
+        source.addConstraint(constraint)
+        self.doc.recompute()
+        self.assertEqual(source.solve(), 0, "Source geometry/constraint must solve")
+        expected = self._elements(source.Constraints[0])
+
+        commands = tuple(source.toPythonCommands())
+        target = self.doc.addObject("Sketcher::SketchObject", "Target")
+        scope = {"App": App, "Part": Part, "Sketcher": Sketcher, "ActiveSketch": target}
+        for command in commands:
+            exec(command, scope)
+        self.doc.recompute()
+        self.assertEqual(target.ConstraintCount, 1)
+        self.assertEqual(
+            self._elements(target.Constraints[0]), expected, "commands=" + repr(commands)
+        )
+        self.assertEqual(target.solve(), 0)
+
+    def test_tangent_via_point(self):
+        self._replay(
+            [Part.Circle(App.Vector(0, 0, 0), App.Vector(0, 0, 1), 5),
+             Part.Circle(App.Vector(10, 0, 0), App.Vector(0, 0, 1), 5),
+             Part.Point(App.Vector(5, 0, 0))],
+            Sketcher.Constraint("TangentViaPoint", 0, 1, 2, 1),
+        )
+
+    def test_perpendicular_via_point(self):
+        self._replay(
+            [Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
+             Part.Circle(App.Vector(5, 0, 0), App.Vector(0, 0, 1), 3),
+             Part.Point(App.Vector(8, 0, 0))],
+            Sketcher.Constraint("PerpendicularViaPoint", 0, 1, 2, 1),
+        )
+
+    def test_perpendicular_point_point_line(self):
+        self._replay(
+            [Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
+             Part.LineSegment(App.Vector(3, -2, 0), App.Vector(3, 4, 0))],
+            Sketcher.Constraint("Perpendicular", 1, 1, 1, 2, 0),
+        )
+
+    def test_tangent_endpoint_to_endpoint_control(self):
+        self._replay(
+            [Part.LineSegment(App.Vector(-10, 5, 0), App.Vector(0, 5, 0)),
+             Part.ArcOfCircle(Part.Circle(App.Vector(0, 0, 0), App.Vector(0, 0, 1), 5), 0, 1.5707963267948966)],
+            Sketcher.Constraint("Tangent", 0, 2, 1, 2),
+        )
+
+    def test_perpendicular_edges_control(self):
+        self._replay(
+            [Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
+             Part.LineSegment(App.Vector(3, -2, 0), App.Vector(3, 4, 0))],
+            Sketcher.Constraint("Perpendicular", 0, 1),
+        )
