@@ -192,6 +192,29 @@ G0 Z0.500000
                     Path.Path(gcode)
         self.assertEqual(Path.Path("G1 X1").toGCode(), "G1 X1.000000\n")
 
+    def test12(self):
+        """Test Path.Area.getRestArea with cleared areas that were not built yet"""
+        import Part
+
+        area = Path.Area()
+        area.add(Part.makePlane(10, 10))
+        built = Path.Area()
+        built.add(Part.makePlane(5, 10))
+        built.getShape()
+        unbuilt = Path.Area()
+        unbuilt.add(Part.makePlane(5, 10))
+
+        # an area that was never built used to crash, it gives the same rest area as a built one
+        expected = area.getRestArea([built], 1.0)
+        self.assertIsNotNone(expected)
+        rest = area.getRestArea([unbuilt], 1.0)
+        self.assertIsNotNone(rest)
+        self.assertGreater(expected.getShape().Length, 0)
+        self.assertRoughly(rest.getShape().Length, expected.getShape().Length, 1e-6)
+        # an empty cleared area raises like any other use of an empty area
+        with self.assertRaises(ValueError):
+            area.getRestArea([Path.Area()], 1.0)
+
     def test50(self):
         """Test Path.Length calculation"""
         commands = []

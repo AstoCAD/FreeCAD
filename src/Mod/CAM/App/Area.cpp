@@ -844,6 +844,10 @@ std::shared_ptr<Area> Area::getRestArea(std::vector<std::shared_ptr<Area>> clear
     Area clearedAreasInPlane(&params);
     clearedAreasInPlane.myArea.reset(new CArea());
     for (std::shared_ptr<Area> clearedArea : clearedAreas) {
+        clearedArea->build();
+        if (!clearedArea->myArea) {
+            throw Base::ValueError("cleared area has no planar area");
+        }
         gp_Trsf trsf = clearedArea->myTrsf;
         trsf.Invert();
         trsf.SetTranslationPart(
