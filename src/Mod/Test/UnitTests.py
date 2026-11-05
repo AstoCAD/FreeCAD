@@ -246,6 +246,19 @@ class UnitBasicCases(unittest.TestCase):
     def testIssue6735(self):
         FreeCAD.Units.Quantity("1400.0 N/mm^2")
 
+    def testHugeIntegerOperand(self):
+        # Integers that do not fit into a C long used to leave an OverflowError
+        # pending while returning a result (SystemError)
+        huge = 2**70
+        one = FreeCAD.Units.Quantity(1.0)
+        self.assertEqual((one + huge).Value, float(huge))
+        self.assertEqual((huge * one).Value, float(huge))
+        self.assertEqual((FreeCAD.Units.Quantity(5.0) % huge).Value, 5.0)
+        self.assertEqual((one**huge).Value, 1.0)
+        self.assertEqual((FreeCAD.Units.Quantity(2.0) ** 3).Value, 8.0)
+        with self.assertRaises(OverflowError):
+            one + 10**400
+
     def testUnitExponentOutOfRangeRaises(self):
         # The C++ OverflowError/UnderflowError used to escape from these
         # constructors and abort the interpreter.
