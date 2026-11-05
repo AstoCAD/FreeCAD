@@ -154,7 +154,8 @@ void Robot6AxisPy::setTcp(Py::Object value)
     }
     else if (PyObject_TypeCheck(*value, &(Base::PlacementPy::Type))) {
         if (!getRobot6AxisPtr()->setTo(*static_cast<Base::PlacementPy*>(*value)->getPlacementPtr())) {
-            throw Base::RuntimeError("Can not reach Point");
+            // attribute setters only translate Py::Exception, a Base one ends as "Unknown exception"
+            throw Py::RuntimeError("Can not reach Point");
         }
     }
     else {
