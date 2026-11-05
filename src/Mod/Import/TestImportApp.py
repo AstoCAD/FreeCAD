@@ -20,6 +20,7 @@
 #                                                                         *
 # **************************************************************************
 
+import math
 import os
 import re
 import tempfile
@@ -227,6 +228,98 @@ class DxfImportOcsTest(unittest.TestCase):
         box = self._import(entity)
         self.assertAlmostEqual(box.XMin, -2.0, places=6)
         self.assertAlmostEqual(box.XMax, -1.0, places=6)
+
+
+class DxfImportEllipseTest(unittest.TestCase):
+    """The start and end parameters of a DXF ELLIPSE must be kept"""
+
+    def setUp(self):
+        self.fileName = os.path.join(tempfile.gettempdir(), "ImportDxfImportEllipseTest.dxf")
+        self.paramPath = "User parameter:BaseApp/Preferences/Mod/Import/TestDxfImportEllipse"
+        param = App.ParamGet(self.paramPath)
+        param.SetInt("DxfImportMode", 2)  # individual shapes
+        param.SetBool("dxfUseDraftVisGroups", False)
+        param.SetBool("dxfGetOriginalColors", False)
+        param.SetFloat("dxfScaling", 1.0)
+        self.doc = App.newDocument()
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+        App.ParamGet("User parameter:BaseApp/Preferences/Mod/Import").RemGroup(
+            "TestDxfImportEllipse"
+        )
+        if os.path.exists(self.fileName):
+            os.remove(self.fileName)
+
+    def _import(self, start, end, normalZ=1.0):
+        # ellipse centered at (1, 2), major axis 5 along +Y, minor radius 2
+        records = ["0", "SECTION", "2", "ENTITIES",
+                   "0", "ELLIPSE", "8", "0",
+                   "10", "1.0", "20", "2.0", "30", "0.0",
+                   "11", "0.0", "21", "5.0", "31", "0.0",
+                   "210", "0.0", "220", "0.0", "230", str(normalZ),
+                   "40", "0.4", "41", str(start), "42", str(end),
+                   "0", "ENDSEC", "0", "EOF"]  # fmt: skip
+        with open(self.fileName, "w", encoding="utf-8") as f:
+            f.write("\n".join(records) + "\n")
+        Import.readDXF(self.fileName, self.doc.Name, True, self.paramPath)
+        edges = [e for o in self.doc.Objects if hasattr(o, "Shape") for e in o.Shape.Edges]
+        self.assertEqual(len(edges), 1)
+        return edges[0]
+
+    @staticmethod
+    def _point(t, normalZ=1.0):
+        # DXF ellipse parameter t, counter-clockwise from the major axis around the
+        # extrusion direction: center + cos(t) * major + sin(t) * ratio * (normal x major)
+        return App.Vector(1.0 - normalZ * 2.0 * math.sin(t), 2.0 + 5.0 * math.cos(t), 0.0)
+
+    def _assertEnds(self, edge, start, end, normalZ=1.0):
+        ends = [edge.valueAt(edge.FirstParameter), edge.valueAt(edge.LastParameter)]
+        for t in (start, end):
+            self.assertTrue(
+                any(p.distanceToPoint(self._point(t, normalZ)) < 1e-6 for p in ends),
+                "no arc end at parameter {}".format(t),
+            )
+
+    def testEllipticalArc(self):
+        import Part
+
+        edge = self._import(0.3, 2.0)
+        self.assertFalse(edge.isClosed())
+        expected = Part.ArcOfEllipse(Part.Ellipse(App.Vector(), 5, 2), 0.3, 2.0).toShape()
+        self.assertAlmostEqual(edge.Length, expected.Length, places=6)
+        self._assertEnds(edge, 0.3, 2.0)
+
+    def testEllipticalArcAcrossStartOfParameterRange(self):
+        import Part
+
+        edge = self._import(5.0, 1.0)
+        self.assertFalse(edge.isClosed())
+        expected = Part.ArcOfEllipse(
+            Part.Ellipse(App.Vector(), 5, 2), 5.0, 1.0 + 2 * math.pi
+        ).toShape()
+        self.assertAlmostEqual(edge.Length, expected.Length, places=6)
+        self._assertEnds(edge, 5.0, 1.0)
+
+    def testEllipticalArcExtrudedDownwards(self):
+        # an extrusion direction of -Z (mirrored geometry) reverses the parameter direction
+        import Part
+
+        edge = self._import(0.3, 2.0, normalZ=-1.0)
+        self.assertFalse(edge.isClosed())
+        expected = Part.ArcOfEllipse(Part.Ellipse(App.Vector(), 5, 2), 0.3, 2.0).toShape()
+        self.assertAlmostEqual(edge.Length, expected.Length, places=6)
+        self._assertEnds(edge, 0.3, 2.0, normalZ=-1.0)
+        # the arc goes through its own middle, not through the mirrored one
+        middle = Part.Vertex(self._point(1.15, normalZ=-1.0))
+        self.assertLess(edge.distToShape(middle)[0], 1e-6)
+
+    def testFullEllipse(self):
+        for end in (2 * math.pi, 6.28318):
+            for o in self.doc.Objects:
+                self.doc.removeObject(o.Name)
+            edge = self._import(0.0, end)
+            self.assertTrue(edge.isClosed())
 
 
 class DxfImportLayerTest(unittest.TestCase):
