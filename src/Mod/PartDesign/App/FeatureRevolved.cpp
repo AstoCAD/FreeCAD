@@ -240,6 +240,13 @@ App::DocumentObjectExecReturn* Revolved::tryExecuteRevolved(Part::RevolMode revo
     }
 
     // Validate parameters
+    // NaN passes the range checks below and the angle constraints, and hangs the revolution
+    if (std::isnan(Angle.getValue()) || std::isnan(Angle2.getValue())) {
+        return new App::DocumentObjectExecReturn(
+            QT_TRANSLATE_NOOP("Exception", "Angle must be a finite number")
+        );
+    }
+
     double angleDeg = Angle.getValue();
     if (std::fabs(angleDeg) > maxDegree) {
         return new App::DocumentObjectExecReturn(
