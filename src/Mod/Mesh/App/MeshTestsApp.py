@@ -734,6 +734,26 @@ class MeshSmoothNegativeIteration(unittest.TestCase):
         self.assertEqual(mesh.CountFacets, 12)
 
 
+class MeshRegularGeomsNegativeSampling(unittest.TestCase):
+    """A negative sampling count or edge length must fail instead of looping forever"""
+
+    def testNegativeSampling(self):
+        cases = {
+            "sphere": lambda: Mesh.createSphere(1, -1),
+            "ellipsoid": lambda: Mesh.createEllipsoid(1, 1, -1),
+            "torus": lambda: Mesh.createTorus(2, 1, -1),
+            "cylinder": lambda: Mesh.createCylinder(1, 1, 1, 0.5, -1),
+            "cone": lambda: Mesh.createCone(1, 0.5, 1, 1, 0.5, -1),
+            "cone edge length": lambda: Mesh.createCone(1, 0.5, 1, 1, -0.5, 10),
+        }
+        for name, make in cases.items():
+            with self.subTest(name):
+                with self.assertRaises(RuntimeError):
+                    make()
+        self.assertGreater(Mesh.createSphere(1, 10).CountFacets, 0)
+        self.assertGreater(Mesh.createCone(1, 0.5, 1, 1, 0.5, 10).CountFacets, 0)
+
+
 class MeshHugeCoordinates(unittest.TestCase):
     """A facet with a huge coordinate must not be put outside the facet grid"""
 

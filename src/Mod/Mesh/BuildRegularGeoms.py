@@ -17,6 +17,12 @@ Sample code for creating a mesh:
 import math
 
 
+def _checkCount(count):
+    # A count below 1 makes the sampling loops below run backwards forever
+    if count < 1:
+        raise ValueError("Sampling count must be at least 1")
+
+
 def Sphere(radius, count):
     """Creates a sphere with a given radius.
 
@@ -27,6 +33,7 @@ def Sphere(radius, count):
 
 
 def Ellipsoid(lenX, lenY, count):
+    _checkCount(count)
     polyline = []
     step = math.pi / count
     i = 0.0
@@ -44,6 +51,10 @@ def Cylinder(radius, len, closed, edgelen, count):
 
 
 def Cone(radius1, radius2, len, closed, edgelen, count):
+    _checkCount(count)
+    if edgelen < 0:
+        # a negative edge length makes the loops below run forever
+        raise ValueError("Edge length must not be negative")
     polyline = []
     if closed:
         try:
@@ -83,6 +94,7 @@ def Cone(radius1, radius2, len, closed, edgelen, count):
 
 
 def Toroid(radius1, radius2, count):
+    _checkCount(count)
     polyline = []
 
     step = math.pi * 2.0 / count
@@ -102,6 +114,7 @@ def RotationBody(polyline, count):
     Parameter: polyline: list of tuple of 2 floats (2d vector)
 
     """
+    _checkCount(count)
     facets = []
 
     step = math.pi * 2.0 / count
