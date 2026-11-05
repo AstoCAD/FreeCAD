@@ -162,6 +162,24 @@ def _prepare_export_list_skipping_std_groups(initial_export_list, preferences_di
     return final_objects_for_processing
 
 
+def _remove_hidden_objects(objects, export_list):
+    """Returns the objects without the hidden ones (Visibility False).
+
+    Containers (objects with a group extension: groups, App::Part, Site, Building,
+    BuildingPart...) are kept, as their visibility only reflects their children, and
+    so are the objects passed explicitly to the exporter.
+    """
+    if not isinstance(export_list, list):
+        export_list = [export_list]
+    return [
+        obj
+        for obj in objects
+        if getattr(obj, "Visibility", True)
+        or obj.hasExtension("App::GroupExtension")
+        or obj in export_list
+    ]
+
+
 def getPreferences():
     """Retrieve the IFC preferences available in import and export."""
 
@@ -213,6 +231,7 @@ def getPreferences():
         "EXPORT_MODEL": ["arch", "struct", "hybrid"][params.get_param_arch("ifcExportModel")],
         "GROUPS_AS_ASSEMBLIES": params.get_param_arch("IfcGroupsAsAssemblies"),
         "IGNORE_STD_GROUPS": not params.get_param_arch("IfcExportStdGroups"),
+        "EXCLUDE_HIDDEN": bool(params.get_param_arch("IfcExportExcludeHidden")),
     }
 
     # get ifcopenshell version
@@ -341,6 +360,9 @@ def export(exportList, filename, colors=None, preferences=None):
         objectslist = _prepare_export_list_skipping_std_groups(exportList, preferences)
     else:
         objectslist = Draft.get_group_contents(exportList, walls=True, addgroups=True)
+
+    if preferences.get("EXCLUDE_HIDDEN", False):
+        objectslist = _remove_hidden_objects(objectslist, exportList)
 
     # separate 2D and special objects. Special objects provide their own IFC export method
 
@@ -585,6 +607,8 @@ def export(exportList, filename, colors=None, preferences=None):
             # an App::Part also contains the base objects of its children:
             # do not export those as separate products
             group = Arch.pruneIncluded(group, strict=True, silent=True)
+            if preferences.get("EXCLUDE_HIDDEN", False):
+                group = _remove_hidden_objects(group, exportList)
             for subobj in group:
                 if subobj.Name in products:
                     subproduct = products[subobj.Name]

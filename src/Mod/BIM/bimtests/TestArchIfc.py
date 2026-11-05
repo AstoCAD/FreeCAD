@@ -170,6 +170,90 @@ class TestArchIfc(TestArchBase.TestArchBase):
         names = sorted(e.Name for e in elements)
         self.assertEqual(names, [equipment.Label])
 
+    def _export_hidden_objects_model(self, exclude_hidden):
+        """Exports a site with visible and hidden boxes, directly in a level and in an App::Part.
+        Returns the sorted names of the exported elements."""
+        import Arch
+        from importers import exportIFC
+
+        def box(name, x, visible):
+            obj = self.document.addObject("Part::Box", name)
+            obj.Placement.Base = FreeCAD.Vector(x, 0, 0)
+            obj.Visibility = visible
+            return obj
+
+        part = self.document.addObject("App::Part", "Part")
+        part.addObject(box("PartVisible", 0, True))
+        part.addObject(box("PartHidden", 100, False))
+        level = Arch.makeFloor(
+            [part, box("LevelVisible", 200, True), box("LevelHidden", 300, False)]
+        )
+        site = Arch.makeSite([Arch.makeBuilding([level])])
+        self.document.recompute()
+
+        preferences = exportIFC.getPreferences()
+        preferences["EXCLUDE_HIDDEN"] = exclude_hidden
+        path = os.path.join(tempfile.mkdtemp(), "hidden_objects.ifc")
+        exportIFC.export([site], path, preferences=preferences)
+        ifcfile = ifcopenshell.open(path)
+        return sorted(e.Name for e in ifcfile.by_type("IfcElement"))
+
+    def test_export_hidden_objects_by_default(self):
+        """Hidden objects are exported unless the option asks otherwise.
+        https://github.com/FreeCAD/FreeCAD/issues/16293"""
+        self.assertEqual(
+            self._export_hidden_objects_model(False),
+            ["LevelHidden", "LevelVisible", "Part", "PartHidden", "PartVisible"],
+        )
+
+    def test_export_exclude_hidden_objects(self):
+        """With the "Exclude hidden objects" option, hidden objects are not exported.
+        https://github.com/FreeCAD/FreeCAD/issues/16293"""
+        self.assertEqual(
+            self._export_hidden_objects_model(True),
+            ["LevelVisible", "Part", "PartVisible"],
+        )
+
+    def test_remove_hidden_objects_keeps_containers_and_selection(self):
+        """Hidden containers and explicitly exported hidden objects are kept.
+        https://github.com/FreeCAD/FreeCAD/issues/16293"""
+        from importers import exportIFC
+
+        group = self.document.addObject("App::DocumentObjectGroup", "EmptyGroup")
+        group.Visibility = False
+        hidden = self.document.addObject("Part::Box", "Hidden")
+        hidden.Visibility = False
+        selected = self.document.addObject("Part::Box", "Selected")
+        selected.Visibility = False
+        visible = self.document.addObject("Part::Box", "Visible")
+        objects = [group, hidden, selected, visible]
+        self.assertEqual(
+            exportIFC._remove_hidden_objects(objects, [selected]), [group, selected, visible]
+        )
+        self.assertEqual(
+            exportIFC._remove_hidden_objects(objects, selected), [group, selected, visible]
+        )
+
+    def test_export_exclude_hidden_preference(self):
+        """The EXCLUDE_HIDDEN export preference follows Mod/Arch/IfcExportExcludeHidden,
+        which is off by default. https://github.com/FreeCAD/FreeCAD/issues/16293"""
+        from importers import exportIFC
+
+        group = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Arch")
+        stored = group.GetBools()
+        old = group.GetBool("IfcExportExcludeHidden", False)
+        try:
+            if "IfcExportExcludeHidden" in stored:
+                group.RemBool("IfcExportExcludeHidden")
+            self.assertFalse(exportIFC.getPreferences()["EXCLUDE_HIDDEN"])
+            group.SetBool("IfcExportExcludeHidden", True)
+            self.assertTrue(exportIFC.getPreferences()["EXCLUDE_HIDDEN"])
+        finally:
+            if "IfcExportExcludeHidden" in stored:
+                group.SetBool("IfcExportExcludeHidden", old)
+            else:
+                group.RemBool("IfcExportExcludeHidden")
+
     def test_export_nested_compound_placement(self):
         """Nested Part_Compounds are exported at their own placement.
         https://github.com/FreeCAD/FreeCAD/issues/9324"""
