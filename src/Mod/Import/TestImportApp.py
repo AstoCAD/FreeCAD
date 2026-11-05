@@ -152,6 +152,12 @@ class DxfSketchExportTest(unittest.TestCase):
         Import.writeDXFObject([feature], self.fileName)
         self.assertIn((3.0, 4.0), self._points())
 
+    def testSingleNonShapeObjectIsRejected(self):
+        """Passing a single object without a shape must raise, not crash"""
+        group = self.doc.addObject("App::DocumentObjectGroup", "Group")
+        with self.assertRaises(TypeError):
+            Import.writeDXFObject(group, self.fileName)
+
 
 class DxfImportOcsTest(unittest.TestCase):
     """2D entities of a DXF file are given in their Object Coordinate System (#17046)"""
