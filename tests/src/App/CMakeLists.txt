@@ -29,6 +29,7 @@ add_executable(App_tests_run
         Property.cpp
         PropertyExpressionEngine.cpp
         StringHasher.cpp
+        UserParameters.cpp
         VarSet.cpp
         VRMLObject.cpp
 )
