@@ -491,6 +491,10 @@ void MaterialLoader::dereference(
             return;
         }
 
+        // Mark the material before visiting its parents. A card that inherits from itself or
+        // from one of its descendants would otherwise recurse until the stack overflows.
+        material->markDereferenced();
+
         // Ensure the parent has been dereferenced
         dereference(materialMap, parent);
 
