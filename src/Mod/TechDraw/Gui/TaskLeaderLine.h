@@ -88,6 +88,7 @@ protected:
     void createLeaderFeature(std::vector<Base::Vector3d> sceneDeltas);
     void updateLeaderFeature();
     void commonFeatureUpdate();
+    void applyOptions();
     void removeFeature();
 
     void setUiPrimary();
