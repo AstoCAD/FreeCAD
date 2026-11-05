@@ -55,3 +55,20 @@ class TestArchImporters(TestArchBase.TestArchBase):
         self.assertEqual(by_label["A"].Mesh.CountFacets, 1)
         self.assertEqual(by_label["B"].Mesh.CountFacets, 2)
         self.assertEqual(self._points(by_label["B"]), [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 0)])
+
+    def test_json_export_names_and_groups(self):
+        """The JSON exporter writes plain labels and skips objects without geometry."""
+        import json
+        from importers import importJSON
+
+        box = self.document.addObject("Part::Box", "Box")
+        box.Label = "Box é"
+        group = self.document.addObject("App::DocumentObjectGroup", "Group")
+        self.document.recompute()
+        filename = os.path.join(self.tmpdir, "test.json")
+        importJSON.export([box, group], filename)
+        with open(filename, encoding="utf8") as f:
+            data = json.load(f)
+        self.assertEqual([o["name"] for o in data["objects"]], ["Box é"])
+        self.assertTrue(data["objects"][0]["vertices"])
+        self.assertTrue(data["objects"][0]["facets"])
