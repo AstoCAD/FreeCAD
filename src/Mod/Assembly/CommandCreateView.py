@@ -208,12 +208,18 @@ class ExplodedView:
                 # changes from previous steps.
                 current_placement = calculated_placements.get(obj.Name, obj.Placement)
 
+                # Placements of parts inside a sub-assembly are relative to it.
+                parent_placement = self._containerPlacementInAssembly(
+                    assembly, obj, calculated_placements
+                )
+
                 # The part's shape is still at its un-exploded placement, so apply the
                 # moves of the previous steps to its BBox.Center to start the line
                 # where the previous one ended.
-                start_pos = (current_placement * obj.Placement.inverse()).multVec(
+                local_start_pos = (current_placement * obj.Placement.inverse()).multVec(
                     obj.Shape.BoundBox.Center
                 )
+                start_pos = parent_placement.multVec(local_start_pos)
 
                 if move.MoveType == "Radial":
                     obj_com, obj_size = UtilsAssembly.getComAndSize(obj)
@@ -231,10 +237,47 @@ class ExplodedView:
                 # from its current_placement to its new_placement...
                 delta_transform = new_placement * current_placement.inverse()
                 # ...and apply that same transformation to the start_pos.
-                end_pos = delta_transform.multVec(start_pos)
+                end_pos = parent_placement.multVec(delta_transform.multVec(local_start_pos))
                 line_positions.append([start_pos, end_pos])
 
         return final_placements, line_positions
+
+    def _containerPlacementInAssembly(self, assembly, obj, placements=None):
+        """Placement of the sub-assemblies or parts holding obj, relative to the assembly.
+        Identity for objects directly in the assembly or not nested in it.
+        placements maps object names to the placements to use instead of the document
+        ones, e.g. containers already moved by previous steps."""
+        placement = App.Placement()
+        parent = obj.getParentGeoFeatureGroup()
+        while parent is not None and parent != assembly:
+            parent_placement = (placements or {}).get(parent.Name, parent.Placement)
+            placement = parent_placement * placement
+            parent = parent.getParentGeoFeatureGroup()
+        if parent is None:
+            return App.Placement()
+        return placement
+
+    def _explodedShapeParts(self, group, final_placements, parent_placement=None):
+        """Visible parts of group, as (part, placement of its container in the assembly).
+        Sub-assemblies and parts holding a moved object are replaced by their own parts,
+        so that the moves inside them show in the exploded shape."""
+        if parent_placement is None:
+            parent_placement = App.Placement()
+
+        parts = []
+        for part in UtilsAssembly.getMovablePartsWithin(group, True):
+            if not (hasattr(part, "Visibility") and part.Visibility):
+                continue
+            if part.isDerivedFrom("App::Part") and any(
+                part.hasObject(moved, True) for moved in final_placements
+            ):
+                placement = final_placements.get(part, part.Placement)
+                parts.extend(
+                    self._explodedShapeParts(part, final_placements, parent_placement * placement)
+                )
+            else:
+                parts.append((part, parent_placement))
+        return parts
 
     def getExplodedShape(self, viewObj):
         """
@@ -247,12 +290,9 @@ class ExplodedView:
 
         # We need to include ALL parts of the assembly, not just the moved ones.
         assembly = self.getAssembly(viewObj)
-        all_parts = UtilsAssembly.getMovablePartsWithin(assembly, True)
-        visible_parts = [
-            part for part in all_parts if hasattr(part, "Visibility") and part.Visibility
-        ]
+        visible_parts = self._explodedShapeParts(assembly, final_placements)
 
-        for part in visible_parts:
+        for part, parent_placement in visible_parts:
             # Get the shape. It's crucial to use .copy()
             shape_copy = part.Shape.copy()
 
@@ -260,7 +300,7 @@ class ExplodedView:
             # Otherwise, use its current placement from the document.
             final_plc = final_placements.get(part, part.Placement)
 
-            shape_copy.Placement = final_plc
+            shape_copy.Placement = parent_placement * final_plc
             exploded_shapes.append(shape_copy)
 
         # Add shapes for the explosion lines
