@@ -404,6 +404,7 @@ qt_create_resource_file_prefix(${FreeCAD_TR_QRC} ${QM_SRCS})
 set(Gui_RES_SRCS
     Icons/resource.qrc
     Language/translation.qrc
+    Render/Shaders/Shaders.qrc
     ${FreeCAD_TR_QRC}
 )
 
@@ -1116,6 +1117,36 @@ SET(Inventor_SRCS
 )
 SOURCE_GROUP("View3D\\Inventor" FILES ${Inventor_SRCS})
 
+# Optional enhanced rendering (Preferences > Display > 3D View > Rendering quality)
+SET(Render_SRCS
+    Render/AmbientOcclusion.cpp
+    Render/AmbientOcclusion.h
+    Render/FaceShading.cpp
+    Render/FaceShading.h
+    Render/PassUtilities.cpp
+    Render/PassUtilities.h
+    Render/RenderCapabilities.cpp
+    Render/RenderCapabilities.h
+    Render/RenderSettings.cpp
+    Render/RenderSettings.h
+    Render/ShaderLibrary.cpp
+    Render/ShaderLibrary.h
+    Render/ShadingModel.cpp
+    Render/ShadingModel.h
+    Render/ShadowMath.cpp
+    Render/ShadowMath.h
+    Render/ShadowPass.cpp
+    Render/ShadowPass.h
+    Render/Shaders/fc_face_shading.vert
+    Render/Shaders/fc_face_shading.frag
+    Render/Shaders/fc_fullscreen.vert
+    Render/Shaders/fc_fxaa.frag
+    Render/Shaders/fc_ssao.frag
+    Render/PostProcess.cpp
+    Render/PostProcess.h
+)
+SOURCE_GROUP("View3D\\Render" FILES ${Render_SRCS})
+
 # The widget sources
 SET(Widget_CPP_SRCS
     ComboLinks.cpp
@@ -1413,6 +1444,7 @@ SET(FreeCADGui_SRCS
     ${Editor_SRCS}
     ${Help_SRCS}
     ${Inventor_CPP_SRCS}
+    ${Render_SRCS}
     ${Language_SRCS}
     ${Propertyeditor_SRCS}
     ${Task_View_SRCS}

@@ -32,6 +32,7 @@
 
 #include "NaviCube.h"
 #include "Navigation/NavigationStyle.h"
+#include "Render/RenderSettings.h"
 #include "Selection/SelectionColors.h"
 #include "SoFCSelectionAction.h"
 #include "View3DSettings.h"
@@ -45,6 +46,7 @@ View3DSettings::View3DSettings(ParameterGrp::handle hGrp, View3DInventorViewer* 
     : hGrp(hGrp)
     , hLightSourcesGrp(hGrp->GetGroup("LightSources"))
     , _viewers {view}
+    , renderState(Render::RenderSettings::visibleState())
 {
     hGrp->Attach(this);
     hLightSourcesGrp->Attach(this);
@@ -54,6 +56,7 @@ View3DSettings::View3DSettings(ParameterGrp::handle hGrp, const std::vector<View
     : hGrp(hGrp)
     , hLightSourcesGrp(hGrp->GetGroup("LightSources"))
     , _viewers(view)
+    , renderState(Render::RenderSettings::visibleState())
 {
     hGrp->Attach(this);
     hLightSourcesGrp->Attach(this);
@@ -95,6 +98,12 @@ void View3DSettings::applySettings()
     OnChange(*hGrp, "AxisZColor");
     OnChange(*hGrp, "UseVBO");
     OnChange(*hGrp, "RenderCache");
+    OnChange(*hGrp, "RenderQuality");
+    OnChange(*hGrp, "RenderEnvironment");
+    OnChange(*hGrp, "RenderShadows");
+    OnChange(*hGrp, "RenderFxaa");
+    OnChange(*hGrp, "RenderAmbientOcclusion");
+    OnChange(*hGrp, "RenderExportSupersampling");
     OnChange(*hGrp, "MaxFrameRate");
     OnChange(*hGrp, "Orthographic");
     OnChange(*hGrp, "NavigationStyle");
@@ -432,6 +441,42 @@ void View3DSettings::OnChange(ParameterGrp::SubjectType& rCaller, ParameterGrp::
         if (!ignoreRenderCache) {
             for (auto _viewer : _viewers) {
                 _viewer->setRenderCache(rGrp.GetInt("RenderCache", 0));
+            }
+        }
+    }
+    else if (strcmp(Reason, "RenderQuality") == 0 || strcmp(Reason, "RenderEnvironment") == 0
+             || strcmp(Reason, "RenderShadows") == 0 || strcmp(Reason, "RenderFxaa") == 0
+             || strcmp(Reason, "RenderExportSupersampling") == 0
+             || strcmp(Reason, "RenderAmbientOcclusion") == 0) {
+        Render::RenderSettings::setRequestedQuality(Render::qualityFromParameter(
+            rGrp.GetInt(Render::RenderSettings::qualityKey, Render::parameterFromQuality(Render::defaultQuality))
+        ));
+        Render::RenderSettings::setEnvironmentPreset(Render::environmentFromParameter(rGrp.GetInt(
+            Render::RenderSettings::environmentKey,
+            static_cast<long>(Render::defaultEnvironmentPreset)
+        )));
+        Render::RenderSettings::setShadowsEnabled(rGrp.GetBool(Render::RenderSettings::shadowsKey, false));
+        Render::RenderSettings::setFxaaEnabled(rGrp.GetBool(Render::RenderSettings::fxaaKey, true));
+        Render::RenderSettings::setAmbientOcclusionEnabled(
+            rGrp.GetBool(Render::RenderSettings::ambientOcclusionKey, false)
+        );
+        Render::RenderSettings::setExportSupersampling(
+            int(rGrp.GetInt(Render::RenderSettings::exportSupersamplingKey, 1))
+        );
+        // The settings are process wide, but every observer owns other viewers, so each observer
+        // compares with what it applied last. Nothing happens unless the views show something
+        // else (Classic ignores every Enhanced option, and rewriting equal values changes nothing).
+        // Render caches built with the previous quality must not be replayed: they are dropped
+        // only when the effective quality changes, which happens once for a batch of keys.
+        const unsigned state = Render::RenderSettings::visibleState();
+        if (state != renderState) {
+            const bool qualityChanged = ((state ^ renderState) & Render::visibleStateEnhancedBit) != 0;
+            renderState = state;
+            for (auto _viewer : _viewers) {
+                if (qualityChanged) {
+                    Render::invalidateRenderCaches(_viewer->getSceneGraph());
+                }
+                _viewer->redraw();
             }
         }
     }
