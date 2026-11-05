@@ -31,6 +31,8 @@ import FreeCAD
 import Materials
 
 import os
+import shutil
+import tempfile
 
 parseQuantity = FreeCAD.Units.parseQuantity
 
@@ -166,3 +168,86 @@ class MaterialCreationTestCases(unittest.TestCase):
         self.assertIn(uuid, self.MaterialManager.Materials)
         self.assertIsNotNone(self.MaterialManager.getMaterialByPath("Example/Frakenstein.FCMat", "User"))
         self.assertIsNotNone(self.MaterialManager.getMaterial(uuid))
+
+
+class MaterialSaveTestCases(unittest.TestCase):
+    """
+    Saving into temporary libraries: a writable custom one and a read-only module one
+    """
+
+    ReadOnlyLibrary = "MaterialSaveTestReadOnly"
+
+    def setUp(self):
+        self.MaterialManager = Materials.MaterialManager()
+
+        param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Material/Resources")
+        self.customDir = param.GetString("CustomMaterialsDir", "")
+        self.useBuiltInDir = param.GetBool("UseBuiltInMaterials", True)
+        self.useWorkbenchDir = param.GetBool("UseMaterialsFromWorkbenches", True)
+        self.useUserDir = param.GetBool("UseMaterialsFromConfigDir", True)
+        self.useCustomDir = param.GetBool("UseMaterialsFromCustomDir", False)
+        paramExternal = FreeCAD.ParamGet(
+            "User parameter:BaseApp/Preferences/Mod/Material/ExternalInterface"
+        )
+        self.useExternal = paramExternal.GetBool("UseExternal", False)
+
+        self.testDir = tempfile.mkdtemp(prefix="fc_material_save_")
+        self.libDir = os.path.join(self.testDir, "lib")
+        self.readOnlyDir = os.path.join(self.testDir, "readonly")
+        os.mkdir(self.libDir)
+        os.mkdir(self.readOnlyDir)
+
+        param.SetString("CustomMaterialsDir", self.libDir)
+        param.SetBool("UseBuiltInMaterials", False)
+        param.SetBool("UseMaterialsFromWorkbenches", True)
+        param.SetBool("UseMaterialsFromConfigDir", False)
+        param.SetBool("UseMaterialsFromCustomDir", True)
+        paramExternal.SetBool("UseExternal", False)
+        module = FreeCAD.ParamGet(
+            "User parameter:BaseApp/Preferences/Mod/Material/Resources/Modules/"
+            + self.ReadOnlyLibrary
+        )
+        module.SetString("ModuleDir", self.readOnlyDir)
+        module.SetBool("ModuleReadOnly", True)
+
+        self.MaterialManager.refresh()
+
+    def tearDown(self):
+        param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Material/Resources")
+        param.SetString("CustomMaterialsDir", self.customDir)
+        param.SetBool("UseBuiltInMaterials", self.useBuiltInDir)
+        param.SetBool("UseMaterialsFromWorkbenches", self.useWorkbenchDir)
+        param.SetBool("UseMaterialsFromConfigDir", self.useUserDir)
+        param.SetBool("UseMaterialsFromCustomDir", self.useCustomDir)
+        FreeCAD.ParamGet(
+            "User parameter:BaseApp/Preferences/Mod/Material/Resources/Modules"
+        ).RemGroup(self.ReadOnlyLibrary)
+        FreeCAD.ParamGet(
+            "User parameter:BaseApp/Preferences/Mod/Material/ExternalInterface"
+        ).SetBool("UseExternal", self.useExternal)
+
+        self.MaterialManager.refresh()
+        shutil.rmtree(self.testDir, ignore_errors=True)
+
+    def testSaveOutsideLibraryRaises(self):
+        """A path leading out of the library root must not be written"""
+        for path in ("../Escape.FCMat", "sub/../../Escape.FCMat", "./../lib/../Escape.FCMat"):
+            with self.subTest(path=path):
+                with self.assertRaises(FreeCAD.Base.FreeCADError):
+                    self.MaterialManager.save("Custom", Materials.Material(), path)
+                self.assertFalse(os.path.exists(os.path.join(self.testDir, "Escape.FCMat")))
+
+    def testSaveInsideLibrary(self):
+        """Paths that stay inside the library after normalization are saved as before"""
+        self.MaterialManager.save("Custom", Materials.Material(), "Example/Saved.FCMat")
+        self.assertTrue(os.path.isfile(os.path.join(self.libDir, "Example", "Saved.FCMat")))
+        self.MaterialManager.save("Custom", Materials.Material(), "sub/../Inside.FCMat")
+        self.assertTrue(os.path.isfile(os.path.join(self.libDir, "Inside.FCMat")))
+        self.MaterialManager.save("Custom", Materials.Material(), "/Custom/Prefixed.FCMat")
+        self.assertTrue(os.path.isfile(os.path.join(self.libDir, "Prefixed.FCMat")))
+
+    def testSaveIntoReadOnlyLibraryRaises(self):
+        """A read-only library (as the System one) does not accept saves"""
+        with self.assertRaises(FreeCAD.Base.FreeCADError):
+            self.MaterialManager.save(self.ReadOnlyLibrary, Materials.Material(), "Saved.FCMat")
+        self.assertEqual(os.listdir(self.readOnlyDir), [])

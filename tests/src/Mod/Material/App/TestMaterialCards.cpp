@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 
 #include <QDir>
+#include <QFileInfo>
 #include <QMetaType>
 #include <QString>
 
@@ -192,6 +193,39 @@ TEST_F(TestMaterialCards, TestColumns)
     auto array3d = testMaterial->getPhysicalProperty(QStringLiteral("TestArray3D"))->getMaterialValue();
     EXPECT_TRUE(array3d);
     EXPECT_EQ(dynamic_cast<Materials::Array3D &>(*array3d).columns(), 2);
+}
+
+TEST_F(TestMaterialCards, TestSaveRejectsInvalidTargets)
+{
+    auto material = std::make_shared<Materials::Material>();
+    QString libPath = QString::fromStdString(_tempDir.string());
+
+    // a path leading out of the library root
+    EXPECT_THROW(_materialManager->saveMaterial(_library,
+                      material,
+                      QStringLiteral("../Escape.FCMat"),
+                      false, false, false),
+                 Materials::InvalidMaterial);
+    EXPECT_FALSE(QFileInfo::exists(libPath + QStringLiteral("/../Escape.FCMat")));
+
+    // a read-only library
+    auto readOnly = std::make_shared<Materials::MaterialLibraryLocal>(QStringLiteral("ReadOnly"),
+                        libPath,
+                        QStringLiteral(":/icons/preferences-general.svg"),
+                        true);
+    EXPECT_THROW(_materialManager->saveMaterial(readOnly,
+                      material,
+                      QStringLiteral("ReadOnly.FCMat"),
+                      false, false, false),
+                 Materials::InvalidLibrary);
+    EXPECT_FALSE(QFileInfo::exists(libPath + QStringLiteral("/ReadOnly.FCMat")));
+
+    // a path that stays inside the library is saved
+    _materialManager->saveMaterial(_library,
+                      material,
+                      QStringLiteral("sub/../Inside.FCMat"),
+                      false, false, false);
+    EXPECT_TRUE(QFileInfo::exists(libPath + QStringLiteral("/Inside.FCMat")));
 }
 
 // clang-format on
