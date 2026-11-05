@@ -666,7 +666,10 @@ PyObject* RotationPy::number_power_handler(PyObject* self, PyObject* other, PyOb
     }
 
     Rotation a = static_cast<RotationPy*>(self)->value();
-    long b = Py::Long(other);
+    long b = PyLong_AsLong(other);
+    if (b == -1 && PyErr_Occurred()) {
+        return nullptr;  // OverflowError
+    }
 
     Vector3d axis;
     double rfAngle {};

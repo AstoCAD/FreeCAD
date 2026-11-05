@@ -597,6 +597,16 @@ class MatrixTestCase(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             mat**-1
 
+    def testPowerHugeExponent(self):
+        # An exponent that does not fit into a C long used to leave an
+        # OverflowError pending while returning a result (SystemError)
+        with self.assertRaises(OverflowError):
+            FreeCAD.Matrix() ** (2**70)
+        with self.assertRaises(OverflowError):
+            FreeCAD.Rotation() ** (2**70)
+        rot = FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 10)
+        self.assertAlmostEqual((rot**3).Angle, math.radians(30))
+
     def testScale(self):
         self.mat.scale(1.0, 2.0, 3.0)
         self.assertEqual(self.mat.determinant(), 6.0)

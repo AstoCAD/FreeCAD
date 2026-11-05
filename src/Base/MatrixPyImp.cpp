@@ -214,7 +214,10 @@ PyObject* MatrixPy::number_power_handler(PyObject* self, PyObject* other, PyObje
 
     Matrix4D a = static_cast<MatrixPy*>(self)->value();
 
-    long b = Py::Long(other);
+    long b = PyLong_AsLong(other);
+    if (b == -1 && PyErr_Occurred()) {
+        return nullptr;  // OverflowError
+    }
     if (b == 0) {
         return new MatrixPy(Matrix4D());
     }
