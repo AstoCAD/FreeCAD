@@ -206,10 +206,12 @@ class ScaleTaskPanelEdit(ScaleTaskPanel):
         self.obj_x, self.obj_y, self.obj_z = self.obj.Scale
         self.form.setWindowTitle(translate("Draft", "Edit Scale"))
         self.form.setWindowIcon(QtGui.QIcon(":/icons/Draft_Clone.svg"))
+        # Set the lock first: if it is still checked (ScaleUniform parameter)
+        # while the factors are set, setValue copies each factor to the others.
+        self.lock.setChecked(self.obj_x == self.obj_y == self.obj_z)
         self.xValue.setValue(self.obj_x)
         self.yValue.setValue(self.obj_y)
         self.zValue.setValue(self.obj_z)
-        self.lock.setChecked(self.obj_x == self.obj_y == self.obj_z)
 
     def setValue(self, val=None):
         """Set the value of the scale factors."""
