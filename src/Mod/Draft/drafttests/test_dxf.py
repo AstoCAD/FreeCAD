@@ -138,6 +138,31 @@ class DraftDXF(test_base.DraftTestCaseDoc):
                 hGrp.SetBool("dxfUseLegacyImporter", wasUseLegacyImporter)
                 hGrp.SetInt("DxfImportMode", wasImportMode)
 
+    def test_legacy_draw_invalid_ellipse(self):
+        """The legacy importer reports an invalid ellipse instead of raising."""
+        from unittest import mock
+
+        class Ellipse:
+            loc = (0, 0, 0)
+            start_angle = 0.0
+            end_angle = 1.0
+            major = (1, 0, 0)
+            ratio = 2.0  # minor radius larger than major radius: invalid
+            extrusion = (0, 0, 1)
+
+        bad = []
+        with mock.patch.multiple(
+            importDXF,
+            create=True,
+            resolvedScale=1,
+            dxfCreateDraft=False,
+            dxfCreateSketch=False,
+            badobjects=bad,
+        ):
+            ellipse = Ellipse()
+            self.assertIsNone(importDXF.drawEllipse(ellipse))
+        self.assertEqual(bad, [ellipse])
+
     def test_export_dxf(self):
         """Create some figures and export them to a DXF file."""
         operation = "importDXF.export"
