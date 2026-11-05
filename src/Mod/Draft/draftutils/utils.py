@@ -43,7 +43,7 @@ import PySide.QtCore as QtCore
 
 import FreeCAD as App
 from draftutils import params
-from draftutils.messages import _wrn, _err, _log
+from draftutils.messages import _msg, _wrn, _err, _log
 from draftutils.translate import translate
 from builtins import open
 
