@@ -44,9 +44,14 @@ public:
     void setNumberOfFiles(const int count);
     void useBackupExtension(const bool on);
     void setDateFormat(const std::string& fmt);
+    /// Directory where the backup files are stored. Empty (the default): next to the document.
+    /// A relative path is relative to the directory of the document.
+    void setBackupDirectory(const std::string& dir);
     void apply(const std::string& sourcename, const std::string& targetname);
 
 private:
+    std::string getBackupDirectory(const Base::FileInfo& target) const;
+    std::string getBackupPrefix(const Base::FileInfo& target, const std::string& backupDir) const;
     void applyStandard(const std::string& sourcename, const std::string& targetname) const;
     void applyTimeStamp(const std::string& sourcename, const std::string& targetname);
     static bool fileComparisonByDate(const Base::FileInfo& i, const Base::FileInfo& j);
@@ -63,5 +68,6 @@ private:
     int numberOfFiles {1};
     bool useFCBakExtension {true};
     std::string saveBackupDateFormat {"%Y%m%d-%H%M%S"};
+    std::string backupDirectory;
 };
 }  // namespace App

@@ -53,6 +53,49 @@ void BackupPolicy::setDateFormat(const std::string& fmt)
 {
     saveBackupDateFormat = fmt;
 }
+void BackupPolicy::setBackupDirectory(const std::string& dir)
+{
+    backupDirectory = dir;
+}
+
+//! The directory that holds the backups of the target file: its own directory unless a backup
+//! directory is set. A relative backup directory is relative to the directory of the target. The
+//! backup directory is created when missing; if that fails, the directory of the target is used.
+std::string BackupPolicy::getBackupDirectory(const Base::FileInfo& target) const
+{
+    std::string documentDir = target.dirPath();
+    if (backupDirectory.empty()) {
+        return documentDir;
+    }
+
+    Base::FileInfo dir(backupDirectory);
+    if (!Base::FileInfo::stringToPath(backupDirectory).is_absolute()) {
+        dir.setFile(documentDir + "/" + backupDirectory);
+    }
+    std::string dirPath = dir.filePath();
+    while (dirPath.size() > 1 && dirPath.back() == '/') {
+        dirPath.pop_back();
+    }
+    dir.setFile(dirPath);
+    if (!dir.createDirectories() || !dir.isDir()) {
+        Base::Console().warning("Cannot create the backup directory {}, the backup is saved next "
+                                "to the document\n",
+                                dirPath);
+        return documentDir;
+    }
+    return dirPath;
+}
+
+//! The path of the backups of the target file, without the backup suffix.
+std::string BackupPolicy::getBackupPrefix(const Base::FileInfo& target,
+                                          const std::string& backupDir) const
+{
+    if (backupDirectory.empty()) {
+        return target.filePath();
+    }
+    return backupDir + "/" + target.fileName();
+}
+
 void BackupPolicy::apply(const std::string& sourcename, const std::string& targetname)
 {
     switch (policy) {
@@ -72,7 +115,8 @@ void BackupPolicy::applyStandard(const std::string& sourcename, const std::strin
         if (numberOfFiles > 0) {
             int nSuff = 0;
             std::string fn = fi.fileName();
-            Base::FileInfo di(fi.dirPath());
+            const std::string backupDir = getBackupDirectory(fi);
+            Base::FileInfo di(backupDir);
             std::vector<Base::FileInfo> backup;
             std::vector<Base::FileInfo> files = di.getDirectoryContent();
             for (const Base::FileInfo& it : files) {
@@ -106,11 +150,12 @@ void BackupPolicy::applyStandard(const std::string& sourcename, const std::strin
             else {
                 // create a new backup file
                 std::stringstream str;
-                str << fi.filePath() << (nSuff + 1);
+                str << getBackupPrefix(fi, backupDir) << (nSuff + 1);
                 fn = str.str();
             }
 
-            if (!fi.renameFile(fn.c_str())) {
+            if (!fi.renameFile(fn.c_str())
+                && (backupDirectory.empty() || !fi.copyTo(fn.c_str()))) {
                 Base::Console().warning("Cannot rename project file to backup file\n");
             }
         }
@@ -145,12 +190,17 @@ void BackupPolicy::applyTimeStamp(const std::string& sourcename, const std::stri
     bool backupManagementError = false;  // Note error and report at the end
     if (fi.exists()) {
         if (numberOfFiles > 0) {
+            const std::string backupDir = getBackupDirectory(fi);
+            const std::string backupPrefix = getBackupPrefix(fi, backupDir);
+            if (!backupDirectory.empty()) {
+                bn = backupDir + "/" + pbn;
+            }
             // replace . by - in format to avoid . between base name and extension
             boost::replace_all(saveBackupDateFormat, ".", "-");
             {
                 // Remove all extra backups
                 std::string filename = fi.fileName();
-                Base::FileInfo di(fi.dirPath());
+                Base::FileInfo di(backupDir);
                 std::vector<Base::FileInfo> backup;
                 std::vector<Base::FileInfo> files = di.getDirectoryContent();
                 for (const Base::FileInfo& it : files) {
@@ -290,7 +340,7 @@ void BackupPolicy::applyTimeStamp(const std::string& sourcename, const std::stri
                     while (ext2 < numberOfFiles + 10) {
                         // linux just replace the file if exists, and then the existence is to
                         // be tested before rename
-                        if (renameFileNoErase(fi, fi.filePath() + std::to_string(ext2))) {
+                        if (renameFileNoErase(fi, backupPrefix + std::to_string(ext2))) {
                             break;
                         }
                         ext2++;
@@ -369,7 +419,11 @@ bool BackupPolicy::renameFileNoErase(Base::FileInfo fi, const std::string& newNa
     // linux just replaces the file if it exists, so the existence is to be tested before rename
     const Base::FileInfo nf(newName);
     if (!nf.exists()) {
-        return fi.renameFile(newName.c_str());
+        if (fi.renameFile(newName.c_str())) {
+            return true;
+        }
+        // a backup directory may be on another drive, where a file cannot be renamed to
+        return !backupDirectory.empty() && fi.copyTo(newName.c_str());
     }
     return false;
 }

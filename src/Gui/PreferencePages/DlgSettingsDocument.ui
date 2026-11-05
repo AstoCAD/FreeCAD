@@ -584,6 +584,35 @@ get date suffix according to the specified format</string>
         </property>
        </widget>
       </item>
+      <item row="11" column="0">
+       <layout class="QHBoxLayout" name="horizontalLayoutBackupDirectory">
+        <item>
+         <widget class="QLabel" name="labelBackupDirectory">
+          <property name="text">
+           <string>Backup directory</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="Gui::PrefFileChooser" name="prefBackupDirectory">
+          <property name="toolTip">
+           <string>Directory where the backup files are stored.
+A relative path is relative to the document location.
+Leave empty to store the backup files next to the document.</string>
+          </property>
+          <property name="mode">
+           <enum>Gui::FileChooser::Directory</enum>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>BackupDirectory</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>Document</cstring>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
      </layout>
     </widget>
    </item>
@@ -788,9 +817,35 @@ You can also use the form: John Doe &lt;john@doe.com&gt;</string>
    <extends>QLineEdit</extends>
    <header>Gui/PrefWidgets.h</header>
   </customwidget>
+  <customwidget>
+   <class>Gui::FileChooser</class>
+   <extends>QWidget</extends>
+   <header>Gui/FileDialog.h</header>
+  </customwidget>
+  <customwidget>
+   <class>Gui::PrefFileChooser</class>
+   <extends>Gui::FileChooser</extends>
+   <header>Gui/PrefWidgets.h</header>
+  </customwidget>
  </customwidgets>
  <resources/>
  <connections>
+  <connection>
+   <sender>prefSaveBackupFiles</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>prefBackupDirectory</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>150</x>
+     <y>525</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>584</x>
+     <y>620</y>
+    </hint>
+   </hints>
+  </connection>
   <connection>
    <sender>prefSaveBackupFiles</sender>
    <signal>toggled(bool)</signal>

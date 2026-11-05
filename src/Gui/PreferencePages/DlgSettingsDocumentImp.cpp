@@ -145,6 +145,7 @@ void DlgSettingsDocumentImp::saveSettings()
     ui->prefCountBackupFiles->onSave();
     ui->prefSaveBackupExtension->onSave();
     ui->prefSaveBackupDateFormat->onSave();
+    ui->prefBackupDirectory->onSave();
     ui->prefDisableVersionCheckOnSave->onSave();
     ui->prefDuplicateLabel->onSave();
     ui->prefPartialLoading->onSave();
@@ -181,6 +182,7 @@ void DlgSettingsDocumentImp::loadSettings()
     ui->prefCountBackupFiles->onRestore();
     ui->prefSaveBackupExtension->onRestore();
     ui->prefSaveBackupDateFormat->onRestore();
+    ui->prefBackupDirectory->onRestore();
     ui->prefDisableVersionCheckOnSave->onRestore();
     ui->prefDuplicateLabel->onRestore();
     ui->prefPartialLoading->onRestore();
