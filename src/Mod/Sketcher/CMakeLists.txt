@@ -27,6 +27,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketchCarbonCopyReverseMapping.FCStd
     SketcherTests/TestPerpendicularArcProjection.py
     SketcherTests/TestPerpendicularArcProjection.FCStd
+    SketcherTests/TestPerpendicularPointPointLine.py
     SketcherTests/TestSketchInternalFaces.py
     SketcherTests/TestSketcherEllipse.py
     SketcherTests/TestSketchGroups.py
