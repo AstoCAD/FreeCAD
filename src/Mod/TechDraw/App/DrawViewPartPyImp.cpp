@@ -987,6 +987,10 @@ PyObject* DrawViewPartPy::decorateLine(PyObject *args)
     int edgeIndex = DrawUtil::getIndexFromName(std::string(selName));
 
     TechDraw::BaseGeomPtr geom = dvp->getGeomByIndex(edgeIndex);
+    if (!geom) {
+        PyErr_Format(PyExc_ValueError, "DVPPI::decorateLine - edge %s not found", selName);
+        return nullptr;
+    }
     if (geom->getCosmetic()) {
         if (geom->source() == SourceType::COSMETICEDGE) {
             TechDraw::CosmeticEdge *ce = dvp->getCosmeticEdgeBySelection(selName);
