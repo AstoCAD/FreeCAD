@@ -46,6 +46,7 @@ from SketcherTests.TestConstraintScalarDispatch import (
 from SketcherTests.TestConstraintPythonSerialization import (
     TestConstraintValuePythonRoundTrip,
     TestConstraintPythonRoundTripCompatibility,
+    TestConstraintPythonThirdElementRoundTrip,
 )
 from SketcherTests.TestSketchBlocks import TestSketchBlocks
 from SketcherTests.TestRemoveAxesAlignment import TestRemoveAxesAlignment
@@ -75,6 +76,7 @@ __all__ = [
     "TestConstraintScalarDispatchCompatibility",
     "TestConstraintValuePythonRoundTrip",
     "TestConstraintPythonRoundTripCompatibility",
+    "TestConstraintPythonThirdElementRoundTrip",
     "TestSketchAnnotations",
     "TestSketchLayers",
     "TestSketchBlocks",
