@@ -218,3 +218,37 @@ class TestPropertyIntegerOverflow(unittest.TestCase):
             self.assertEqual(restored.Variables.Minimum, _long_min)
             self.assertTrue(restored.Variables.isValid())
             App.closeDocument(restored.Name)
+
+
+class TestPropertyIntegerListOverflow(unittest.TestCase):
+    """An overflowing list item stored the -1 error sentinel with a pending error."""
+
+    def setUp(self):
+        self.doc = App.newDocument("IntegerListOverflow_" + uuid4().hex[:10])
+        self.addCleanup(App.closeDocument, self.doc.Name)
+        self.obj = self.doc.addObject("App::VarSet", "Variables")
+        self.obj.addProperty("App::PropertyIntegerList", "Values", "Values")
+        self.obj.Values = [1, 2, 3]
+        self.doc.recompute()
+        self.assertFalse(self.doc.isTouched())
+
+    def _assign(self, value):
+        try:
+            self.obj.Values = value
+            _checked_error_boundary()
+        except BaseException as error:
+            return error
+        return None
+
+    def test_overflowing_items_are_rejected(self):
+        for value in ([_long_max + 1], [4, _long_min - 1], [10**400], 10**400):
+            with self.subTest(value=type(value).__name__):
+                self.assertIsInstance(self._assign(value), OverflowError)
+                self.assertEqual(self.obj.Values, [1, 2, 3])
+                self.assertFalse(self.doc.isTouched())
+
+    def test_native_long_limits_control(self):
+        self.assertIsNone(self._assign([_long_min, -1, 0, _long_max]))
+        self.assertEqual(self.obj.Values, [_long_min, -1, 0, _long_max])
+        self.assertIsNone(self._assign(7))
+        self.assertEqual(self.obj.Values, [7])
