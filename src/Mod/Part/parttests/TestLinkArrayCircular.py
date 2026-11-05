@@ -169,3 +169,26 @@ class TestLinkArrayCircular(unittest.TestCase):
                     for prop, reference in properties.items():
                         self.assertEqual(getattr(array, prop), reference)
                     self.assertEqual(list(array.PlacementList), placements[name])
+
+    def testCopyOnChangeElementKeepsItsShape(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/34109
+        source = self.doc.addObject("Part::Box", "CopyOnChangeSource")
+        source.setPropertyStatus("Length", "CopyOnChange")
+        for kind in ("Part::LinkArrayPolar", "App::Link"):
+            with self.subTest(kind=kind):
+                array = self.doc.addObject(kind, "CopyOnChangeArray")
+                if kind == "App::Link":
+                    array.ElementCount = 3
+                array.LinkedObject = source
+                array.ShowElement = True
+                self.doc.recompute()
+                element = array.ElementList[1]
+                element.LinkCopyOnChange = "Owned"
+                self.doc.recompute()
+                element.Length = 40
+                self.doc.recompute()
+                self.assertAlmostEqual(Part.getShape(array, "1.").Volume, 4000)
+                volumes = [solid.Volume for solid in Part.getShape(array).Solids]
+                self.assertEqual(len(volumes), len(array.ElementList))
+                for index, volume in enumerate(volumes):
+                    self.assertAlmostEqual(volume, 4000 if index == 1 else 1000)
