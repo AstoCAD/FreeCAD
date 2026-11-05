@@ -343,6 +343,29 @@ class PartTestBSplineSurface(unittest.TestCase):
         self.assertAlmostEqual(bs.toShape().Area, 1.0)
 
 
+class PartTestGeomPlate(unittest.TestCase):
+    def testConstraintErrorWithBadIndex(self):
+        plate = Part.GeomPlate.BuildPlateSurface()
+        for func in (plate.G0Error, plate.G1Error, plate.G2Error):
+            with self.subTest(func.__name__):
+                # Nothing computed yet
+                with self.assertRaises(RuntimeError):
+                    func(1)
+        v = Base.Vector
+        points = [v(0, 0, 0), v(10, 0, 0), v(10, 10, 3), v(0, 10, 0)]
+        for i in range(4):
+            line = Part.LineSegment(points[i], points[(i + 1) % 4])
+            plate.add(Part.GeomPlate.CurveConstraint(line))
+        plate.add(Part.GeomPlate.PointConstraint(v(5, 5, 5)))
+        plate.perform()
+        self.assertTrue(plate.isDone())
+        self.assertGreaterEqual(plate.G0Error(), 0.0)
+        for func in (plate.G0Error, plate.G1Error, plate.G2Error):
+            with self.subTest(func.__name__):
+                with self.assertRaises(RuntimeError):
+                    func(100)
+
+
 class PartTestNormals(unittest.TestCase):
     def setUp(self):
         self.face = Part.makePlane(1, 1)
