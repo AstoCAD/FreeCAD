@@ -23,11 +23,15 @@
  ***************************************************************************/
 
 
+#include <algorithm>
+
+#include <App/CopyPasteRules.h>
 #include <App/Document.h>
 #include <App/GeoFeature.h>
 #include <App/VarSet.h>
 #include <App/Origin.h>
 #include <Base/Placement.h>
+#include <Base/ServiceProvider.h>
 
 #include "Body.h"
 #include "BodyPy.h"
@@ -656,4 +660,91 @@ bool Body::isSolid()
         }
     }
     return false;
+}
+
+namespace
+{
+class BodyCopyPasteHandler: public App::CopyPasteHandler
+{
+public:
+    // Paste right after a selected feature: insert into the feature chain
+    bool insertObject(
+        App::DocumentObject* container,
+        App::DocumentObject* obj,
+        App::DocumentObject* after
+    ) const override
+    {
+        auto body = freecad_cast<Body*>(container);
+        if (!body || !Body::isAllowed(obj) || !std::ranges::count(body->Group.getValues(), after)) {
+            return false;
+        }
+        App::DocumentObject* oldTip = body->Tip.getValue();
+        // Reroutes the BaseFeature of obj and of the next solid feature
+        body->insertObject(obj, after, /*after = */ true);
+        if (!Body::isSolidFeature(obj)) {
+            return true;
+        }
+        if (body->getPrevSolidFeature(obj) == oldTip) {
+            // Right after the Tip: the new Tip, as with Body::addObject()
+            body->Tip.setValue(obj);
+            if (obj->Visibility.getValue()) {
+                for (auto feature : body->Group.getValues()) {
+                    if (feature != obj && feature->Visibility.getValue()
+                        && feature->isDerivedFrom<PartDesign::Feature>()) {
+                        feature->Visibility.setValue(false);
+                    }
+                }
+            }
+        }
+        else {
+            // Before the Tip: only the Tip is shown
+            obj->Visibility.setValue(false);
+        }
+        return true;
+    }
+
+    // A feature built on a sketch is copied with its sketch
+    std::vector<App::DocumentObject*> getCopiedWith(const App::DocumentObject* obj) const override
+    {
+        auto feature = freecad_cast<const ProfileBased*>(obj);
+        auto profile = feature ? feature->Profile.getValue() : nullptr;
+        if (profile && profile->isDerivedFrom<Part::Part2DObject>()) {
+            return {profile};
+        }
+        return {};
+    }
+
+    // The previous feature is not copied: pasted into a body, the feature is rebased on
+    // the feature before it there (Body::insertObject())
+    std::vector<std::string> getRebuiltLinks(const App::DocumentObject* obj) const override
+    {
+        if (obj->isDerivedFrom<ProfileBased>() && Body::isSolidFeature(obj)) {
+            return {"BaseFeature"};
+        }
+        return {};
+    }
+
+    // Links to a body or a previous feature that the paste could not re-create, e.g. a
+    // feature pasted outside a body, or a link resolved by name to another body
+    void finishPastedObject(App::DocumentObject* obj) const override
+    {
+        auto feature = freecad_cast<ProfileBased*>(obj);
+        if (!feature || getRebuiltLinks(feature).empty()) {
+            return;
+        }
+        Body* body = Body::findBodyOf(feature);
+        App::DocumentObject* base = feature->BaseFeature.getValue();
+        if (base && Body::findBodyOf(base) != body) {
+            feature->BaseFeature.setValue(nullptr);
+        }
+        if (feature->_Body.getValue() != body) {
+            feature->_Body.setValue(body);
+        }
+    }
+};
+}  // namespace
+
+void Body::registerCopyPasteHandler()
+{
+    Base::registerServiceImplementation<App::CopyPasteHandler>(new BodyCopyPasteHandler);
 }

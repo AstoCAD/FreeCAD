@@ -108,6 +108,33 @@ TEST_F(CopyPasteRulesTest, pastedNextToSelectedChildGoesIntoItsGroup)
     EXPECT_TRUE(_group->hasObject(pasted.front()));
 }
 
+TEST_F(CopyPasteRulesTest, pastedObjectsAreInsertedAfterSelectedChild)
+{
+    auto last = _doc->addObject<App::FeatureTest>("Last");
+    _group->addObject(last);
+    auto a = _doc->addObject<App::FeatureTest>("A");
+    auto b = _doc->addObject<App::FeatureTest>("B");
+    auto pasted = _doc->copyObject({a, b}, false, true);
+    ASSERT_EQ(pasted.size(), 2u);
+
+    EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, _child), _group);
+    const std::vector<App::DocumentObject*> expected {_child, pasted[0], pasted[1], last};
+    EXPECT_EQ(_group->Group.getValues(), expected);
+}
+
+TEST_F(CopyPasteRulesTest, pastedOnSelectedGroupIsAppended)
+{
+    auto last = _doc->addObject<App::FeatureTest>("Last");
+    _group->addObject(last);
+    auto other = _doc->addObject<App::FeatureTest>("Other");
+    auto pasted = _doc->copyObject({other}, false, true);
+    ASSERT_EQ(pasted.size(), 1u);
+
+    EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, _group), _group);
+    const std::vector<App::DocumentObject*> expected {_child, last, pasted[0]};
+    EXPECT_EQ(_group->Group.getValues(), expected);
+}
+
 TEST_F(CopyPasteRulesTest, pastedOnRootObjectStaysAtRoot)
 {
     auto other = _doc->addObject<App::FeatureTest>("Other");

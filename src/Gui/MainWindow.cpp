@@ -64,6 +64,8 @@
 #endif
 
 #include <algorithm>
+#include <map>
+#include <optional>
 #include <vector>
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -72,6 +74,7 @@
 #include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <App/DocumentObjectGroup.h>
+#include <App/GeoFeature.h>
 #include <App/ImagePlane.h>
 #include <App/SafeMode.h>
 #include <Base/ConsoleObserver.h>
@@ -89,6 +92,7 @@
 #include <customtitlebarkit/MenuIntegration.h>
 
 #include "MainWindow.h"
+#include "ActiveObjectList.h"
 #include "Action.h"
 #include "Assistant.h"
 #include "BitmapFactory.h"
@@ -2388,10 +2392,92 @@ static bool useCopyPasteRules()
         ->GetBool("CopyPasteObjectRules", true);
 }
 
+// The global placements of the objects of the last Copy, so that Paste can keep them
+// (see App::CopyPasteRules::finishPastedObjects). Valid while the clipboard holds that copy.
+struct CopiedPlacements
+{
+    QString format;
+    QByteArray data;
+    std::vector<std::string> types;
+    std::vector<std::optional<Base::Placement>> placements;
+};
+
+static CopiedPlacements& lastCopiedPlacements()
+{
+    static CopiedPlacements copied;
+    return copied;
+}
+
+static void rememberCopiedPlacements(
+    const QString& format,
+    const QByteArray& data,
+    const std::vector<App::DocumentObject*>& objs
+)
+{
+    CopiedPlacements copied {format, data, {}, {}};
+    for (auto obj : objs) {
+        copied.types.emplace_back(obj->getTypeId().getName());
+        if (obj->isDerivedFrom<App::GeoFeature>()) {
+            copied.placements.emplace_back(App::GeoFeature::getGlobalPlacement(obj));
+        }
+        else {
+            copied.placements.emplace_back();
+        }
+    }
+    lastCopiedPlacements() = std::move(copied);
+}
+
+// The source placements of freshly pasted objects, if they come from the last Copy.
+// Pasted objects are imported in the order they were exported.
+static std::map<const App::DocumentObject*, Base::Placement> getCopiedPlacements(
+    const QString& format,
+    const QByteArray& data,
+    const std::vector<App::DocumentObject*>& newObj
+)
+{
+    std::map<const App::DocumentObject*, Base::Placement> res;
+    const auto& copied = lastCopiedPlacements();
+    if (copied.format != format || copied.data != data || copied.types.size() != newObj.size()) {
+        return res;
+    }
+    for (std::size_t i = 0; i < newObj.size(); ++i) {
+        if (!newObj[i] || copied.types[i] != newObj[i]->getTypeId().getName()) {
+            return {};
+        }
+        if (copied.placements[i]) {
+            res[newObj[i]] = *copied.placements[i];
+        }
+    }
+    return res;
+}
+
+// With nothing selected: the active body, else the active part, if it can take the
+// pasted objects (or one of its parent containers can); else nullptr (document root)
+static App::DocumentObject* getActivePasteTarget(
+    App::Document* doc,
+    const std::vector<App::DocumentObject*>& newObj
+)
+{
+    Gui::Document* gui = Application::Instance->getDocument(doc);
+    MDIView* view = gui ? gui->getActiveView() : nullptr;
+    if (!view) {
+        return nullptr;
+    }
+    for (const char* key : {PDBODYKEY, PARTKEY}) {
+        auto obj = view->getActiveObject<App::DocumentObject*>(key);
+        if (obj && obj->getDocument() == doc
+            && App::CopyPasteRules::findPasteContainer(newObj, obj)) {
+            return obj;
+        }
+    }
+    return nullptr;
+}
+
 // Put freshly pasted objects into the selected group, body or part (see App::CopyPasteRules)
 static void addPastedObjectsToContainer(
     App::Document* doc,
-    const std::vector<App::DocumentObject*>& newObj
+    const std::vector<App::DocumentObject*>& newObj,
+    const std::map<const App::DocumentObject*, Base::Placement>& sourcePlacements
 )
 {
     std::vector<App::DocumentObjectGroup*> grp
@@ -2400,6 +2486,14 @@ static void addPastedObjectsToContainer(
         Gui::Document* gui = Application::Instance->getDocument(doc);
         if (gui) {
             gui->addRootObjectsToGroup(newObj, grp.front());
+        }
+        if (useCopyPasteRules()) {
+            try {
+                App::CopyPasteRules::finishPastedObjects(newObj, sourcePlacements);
+            }
+            catch (const Base::Exception& e) {
+                e.reportException();
+            }
         }
         return;
     }
@@ -2412,11 +2506,15 @@ static void addPastedObjectsToContainer(
             selected.insert(sel.pObject);
         }
     }
-    if (selected.size() != 1) {
-        return;
-    }
     try {
-        App::CopyPasteRules::placePastedObjects(newObj, *selected.begin());
+        App::DocumentObject* target = nullptr;
+        if (selected.size() == 1) {
+            target = *selected.begin();
+        }
+        else if (selected.empty()) {
+            target = getActivePasteTarget(doc, newObj);
+        }
+        App::CopyPasteRules::placePastedObjects(newObj, target, sourcePlacements);
     }
     catch (const Base::Exception& e) {
         e.reportException();
@@ -2444,8 +2542,7 @@ QMimeData* MainWindow::createMimeDataFromSelection(bool askDependencies) const
     auto all = App::Document::getDependencyList(sel);
     if (all.size() > sel.size()) {
         if (!askDependencies && App::CopyPasteRules::canCopyWithoutAsking(sel)) {
-            // The objects the dialog exports when accepted with its defaults
-            sel = App::Document::getDependencyList(sel, App::Document::DepSort);
+            sel = App::CopyPasteRules::getObjectsToCopy(sel);
         }
         else {
             DlgObjectSelection dlg(sel, getMainWindow());
@@ -2515,6 +2612,10 @@ QMimeData* MainWindow::createMimeDataFromSelection(bool askDependencies) const
         // store the path name as a custom property and
         // delete this file when closing the application
         const_cast<MainWindow*>(this)->setProperty("x-documentobject-file", res);
+    }
+
+    if (useCopyPasteRules()) {
+        rememberCopiedPlacements(mime, res, sel);
     }
 
     auto mimeData = new QMimeData();
@@ -2635,7 +2736,7 @@ void MainWindow::insertFromMimeData(const QMimeData* mimeData)
         in.rdbuf(&buf);
         MergeDocuments mimeView(doc);
         std::vector<App::DocumentObject*> newObj = mimeView.importObjects(in);
-        addPastedObjectsToContainer(doc, newObj);
+        addPastedObjectsToContainer(doc, newObj, getCopiedPlacements(format, res, newObj));
         doc->commitTransaction();
     }
     else {
@@ -2647,7 +2748,7 @@ void MainWindow::insertFromMimeData(const QMimeData* mimeData)
         MergeDocuments mimeView(doc);
         std::vector<App::DocumentObject*> newObj = mimeView.importObjects(str);
         str.close();
-        addPastedObjectsToContainer(doc, newObj);
+        addPastedObjectsToContainer(doc, newObj, getCopiedPlacements(format, res, newObj));
         doc->commitTransaction();
     }
 }

@@ -176,6 +176,7 @@ PyMOD_INIT_FUNC(_PartDesign)
     PartDesign::FeatureBase                 ::init();
 
     PartDesign::Measure ::initialize();
+    PartDesign::Body::registerCopyPasteHandler();
     // clang-format on
 
     PyMOD_Return(mod);

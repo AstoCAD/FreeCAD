@@ -20,20 +20,25 @@
  ******************************************************************************/
 
 #include <algorithm>
+#include <iterator>
+#include <list>
 #include <memory>
 #include <set>
 
 #include <Base/Exception.h>
+#include <Base/ServiceProvider.h>
 
 #include "CopyPasteRules.h"
 #include "Datums.h"
 #include "Document.h"
 #include "DocumentObject.h"
 #include "DocumentObjectGroup.h"
+#include "GeoFeature.h"
 #include "GeoFeatureGroupExtension.h"
 #include "GroupExtension.h"
 #include "Origin.h"
 #include "OriginGroupExtension.h"
+#include "Part.h"
 #include "PropertyLinks.h"
 
 using namespace App;
@@ -130,6 +135,146 @@ std::set<const DocumentObject*> relinkOrphanDatums(const std::vector<DocumentObj
     return removed;
 }
 
+std::list<CopyPasteHandler*> getHandlers()
+{
+    return Base::provideServiceImplementations<CopyPasteHandler>();
+}
+
+// True if an object other than a group that merely contains obj links to obj
+bool hasUsers(const DocumentObject* obj)
+{
+    auto inList = obj->getInList();
+    return std::any_of(inList.begin(), inList.end(), [obj](const DocumentObject* user) {
+        auto grp = user->getExtensionByType<GroupExtension>(true);
+        if (!grp) {
+            return true;
+        }
+        const auto& children = grp->Group.getValues();
+        return std::find(children.begin(), children.end(), obj) == children.end();
+    });
+}
+
+// Detach the pasted objects that are outside any geometry group and attached to orphan
+// datums only, give them their source placement, and remove the orphans they used if
+// nothing else uses them. Adds the removed objects to removed.
+void detachFromOrphanDatums(const std::vector<DocumentObject*>& pasted,
+                            const std::map<const DocumentObject*, Base::Placement>& placements,
+                            std::set<const DocumentObject*>& removed)
+{
+    // Only the orphans created by this paste: never touch existing objects
+    std::vector<DocumentObject*> pastedOrphans;
+    for (auto obj : pasted) {
+        if (removed.count(obj) == 0 && CopyPasteRules::isOrphanDatum(obj)) {
+            pastedOrphans.push_back(obj);
+        }
+    }
+    if (pastedOrphans.empty()) {
+        return;
+    }
+
+    std::vector<DocumentObject*> released;
+    for (auto obj : pasted) {
+        if (removed.count(obj) != 0 || !obj->isAttachedToDocument()
+            || CopyPasteRules::isOrphanDatum(obj)
+            || GeoFeatureGroupExtension::getGroupOfObject(obj)) {
+            continue;
+        }
+        std::vector<DocumentObject*> orphans;
+        for (auto dep : obj->getOutList()) {
+            if (std::find(pastedOrphans.begin(), pastedOrphans.end(), dep) != pastedOrphans.end()) {
+                orphans.push_back(dep);
+            }
+        }
+        if (orphans.empty()) {
+            continue;
+        }
+        for (const auto& handler : getHandlers()) {
+            if (!handler->detachFromOrphanDatums(obj, pastedOrphans)) {
+                continue;
+            }
+            auto it = placements.find(obj);
+            auto geo = freecad_cast<GeoFeature*>(obj);
+            if (geo && it != placements.end()) {
+                geo->Placement.setValue(it->second);
+            }
+            released.insert(released.end(), orphans.begin(), orphans.end());
+            break;
+        }
+    }
+
+    for (auto orphan : released) {
+        if (removed.count(orphan) == 0 && orphan->isAttachedToDocument() && !hasUsers(orphan)) {
+            removed.insert(orphan);
+            orphan->getDocument()->removeObject(orphan->getNameInDocument());
+        }
+    }
+}
+
+// The child of container that is or contains selected, or nullptr
+DocumentObject* getInsertionPoint(const DocumentObject* container,
+                                  const GroupExtension* grp,
+                                  const DocumentObject* selected)
+{
+    const auto& children = grp->Group.getValues();
+    std::set<const DocumentObject*> visited;
+    for (auto obj = selected; obj && obj != container && visited.insert(obj).second;
+         obj = CopyPasteRules::getParentContainer(obj)) {
+        if (std::find(children.begin(), children.end(), obj) != children.end()) {
+            return const_cast<DocumentObject*>(obj);  // NOLINT
+        }
+    }
+    return nullptr;
+}
+
+// Insert obj into container right after its child after. Returns false if the container
+// does not support it.
+bool insertAfter(DocumentObject* container,
+                 GroupExtension* grp,
+                 DocumentObject* obj,
+                 DocumentObject* after)
+{
+    for (auto handler : getHandlers()) {
+        if (handler->insertObject(container, obj, after)) {
+            return true;
+        }
+    }
+    // In plain groups and parts the order of the children is only presentational
+    if (container->getTypeId() != DocumentObjectGroup::getClassTypeId()
+        && container->getTypeId() != Part::getClassTypeId()) {
+        return false;
+    }
+    grp->addObject(obj);
+    auto children = grp->Group.getValues();
+    auto it = std::find(children.begin(), children.end(), obj);
+    if (it == children.end()) {
+        return false;
+    }
+    children.erase(it);
+    auto pos = std::find(children.begin(), children.end(), after);
+    if (pos == children.end()) {
+        return false;
+    }
+    children.insert(pos + 1, obj);
+    grp->Group.setValues(children);
+    return true;
+}
+
+void finish(const std::vector<DocumentObject*>& pasted,
+            const std::map<const DocumentObject*, Base::Placement>& placements,
+            std::set<const DocumentObject*>& removed)
+{
+    detachFromOrphanDatums(pasted, placements, removed);
+
+    for (auto obj : pasted) {
+        if (removed.count(obj) != 0 || !obj->isAttachedToDocument()) {
+            continue;
+        }
+        for (auto handler : getHandlers()) {
+            handler->finishPastedObject(obj);
+        }
+    }
+}
+
 }  // namespace
 
 std::vector<DocumentObject*> CopyPasteRules::getOwnedObjects(const DocumentObject* obj)
@@ -179,14 +324,65 @@ bool CopyPasteRules::canCopyWithoutAsking(const std::vector<DocumentObject*>& ob
         for (auto child : getOwnedObjects(obj)) {
             stack.push_back(child);
         }
+        for (auto handler : getHandlers()) {
+            for (auto child : handler->getCopiedWith(obj)) {
+                stack.push_back(child);
+            }
+        }
     }
 
-    for (auto dep : Document::getDependencyList(objs)) {
+    for (auto dep : getObjectsToCopy(objs)) {
         if (owned.count(dep) == 0 && !isOriginFeature(dep)) {
             return false;
         }
     }
     return true;
+}
+
+std::vector<DocumentObject*>
+CopyPasteRules::getObjectsToCopy(const std::vector<DocumentObject*>& objs)
+{
+    auto all = Document::getDependencyList(objs, Document::DepSort);
+
+    // Follow the out-lists like getDependencyList(), except the rebuilt links
+    bool cut = false;
+    std::set<const DocumentObject*> reached;
+    std::vector<DocumentObject*> stack(objs.begin(), objs.end());
+    while (!stack.empty()) {
+        auto obj = stack.back();
+        stack.pop_back();
+        if (!obj || !obj->isAttachedToDocument() || !reached.insert(obj).second) {
+            continue;
+        }
+        std::vector<std::string> rebuilt;
+        for (auto handler : getHandlers()) {
+            auto names = handler->getRebuiltLinks(obj);
+            rebuilt.insert(rebuilt.end(), names.begin(), names.end());
+        }
+        if (rebuilt.empty()) {
+            const auto& outList = obj->getOutList();
+            stack.insert(stack.end(), outList.begin(), outList.end());
+            continue;
+        }
+        for (const auto& edge : obj->getOutListProp(0)) {
+            if (std::find(rebuilt.begin(), rebuilt.end(), edge.fromProp) != rebuilt.end()) {
+                cut = true;
+            }
+            else {
+                stack.push_back(edge.toObj);
+            }
+        }
+    }
+    if (!cut) {
+        return all;
+    }
+
+    // Same order as getDependencyList(): dependencies first
+    std::vector<DocumentObject*> res;
+    std::copy_if(all.begin(), all.end(), std::back_inserter(res), [&reached](auto obj) {
+        return reached.count(obj) != 0;
+    });
+    return res;
 }
 
 std::vector<DocumentObject*>
@@ -270,36 +466,49 @@ DocumentObject* CopyPasteRules::findPasteContainer(const std::vector<DocumentObj
     return nullptr;
 }
 
-DocumentObject* CopyPasteRules::placePastedObjects(const std::vector<DocumentObject*>& pasted,
-                                                   const DocumentObject* selected)
+DocumentObject* CopyPasteRules::placePastedObjects(
+    const std::vector<DocumentObject*>& pasted,
+    const DocumentObject* selected,
+    const std::map<const DocumentObject*, Base::Placement>& sourcePlacements)
 {
-    auto container = findPasteContainer(pasted, selected);
-    if (!container) {
-        return nullptr;
-    }
-    auto grp = container->getExtensionByType<GroupExtension>(true);
-    if (!grp) {
-        return nullptr;
-    }
-
-    // Computed before removing anything: removed objects must not be dereferenced.
-    auto roots = getRootObjects(pasted);
-
     std::set<const DocumentObject*> removed;
-    if (auto originGroup = getOriginGroupOf(container)) {
-        removed = relinkOrphanDatums(pasted, originGroup);
-    }
+    auto container = findPasteContainer(pasted, selected);
+    auto grp = container ? container->getExtensionByType<GroupExtension>(true) : nullptr;
+    if (grp) {
+        // Computed before removing anything: removed objects must not be dereferenced.
+        auto roots = getRootObjects(pasted);
 
-    for (auto obj : roots) {
-        if (removed.count(obj) != 0 || !obj->isAttachedToDocument() || grp->hasObject(obj)) {
-            continue;
+        if (auto originGroup = getOriginGroupOf(container)) {
+            removed = relinkOrphanDatums(pasted, originGroup);
         }
-        try {
-            grp->addObject(obj);
-        }
-        catch (const Base::Exception& e) {
-            e.reportException();
+
+        // Selecting the container itself appends, as before
+        auto after = getInsertionPoint(container, grp, selected);
+        for (auto obj : roots) {
+            if (removed.count(obj) != 0 || !obj->isAttachedToDocument() || grp->hasObject(obj)) {
+                continue;
+            }
+            try {
+                if (after && insertAfter(container, grp, obj, after)) {
+                    after = obj;  // keep the pasted objects in their order
+                }
+                else if (!grp->hasObject(obj)) {
+                    grp->addObject(obj);
+                }
+            }
+            catch (const Base::Exception& e) {
+                e.reportException();
+            }
         }
     }
-    return container;
+    finish(pasted, sourcePlacements, removed);
+    return grp ? container : nullptr;
+}
+
+void CopyPasteRules::finishPastedObjects(
+    const std::vector<DocumentObject*>& pasted,
+    const std::map<const DocumentObject*, Base::Placement>& sourcePlacements)
+{
+    std::set<const DocumentObject*> removed;
+    finish(pasted, sourcePlacements, removed);
 }

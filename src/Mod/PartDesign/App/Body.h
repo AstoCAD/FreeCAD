@@ -148,6 +148,9 @@ public:
     // a body is solid if it has features that are solid according to member isSolidFeature.
     bool isSolid();
 
+    /// Register how Copy/Paste treats bodies and their features (see App::CopyPasteHandler)
+    static void registerCopyPasteHandler();
+
 protected:
     void onSettingDocument() override;
 
