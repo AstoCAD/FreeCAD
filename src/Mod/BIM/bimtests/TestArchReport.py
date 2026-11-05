@@ -240,6 +240,27 @@ class TestArchReport(TestArchBase.TestArchBase):
         self.assertEqual(len(results_labels), 1)
         self.assertEqual(results_labels[0], self.wall_ext.Label)
 
+    def test_where_like_special_characters(self):
+        """Characters other than % and _ in a LIKE pattern match literally."""
+        wall_paren = Arch.makeWall(length=100, name="Unit Test Wall (1)")
+        wall_plain = Arch.makeWall(length=100, name="Unit Test Wall 1")
+        wall_plus = Arch.makeWall(length=100, name="Unit Test Wall+A")
+        wall_x = Arch.makeWall(length=100, name="Unit Test WallXA")
+        self.doc.recompute()
+        cases = {
+            "Unit Test Wall 1": [wall_plain.Label],
+            "Unit Test Wall (1)%": [wall_paren.Label],
+            "Unit Test Wall+A": [wall_plus.Label],
+            "Unit Test Wall.A": [],
+            "Unit Test Wall_A": [wall_plus.Label, wall_x.Label],
+            "Unit Test %(%": [wall_paren.Label],
+            "Unit Test Wall [%": [],
+        }
+        for pattern, expected in cases.items():
+            with self.subTest(pattern=pattern):
+                _, rows = Arch.select(f"SELECT Label FROM document WHERE Label LIKE '{pattern}'")
+                self.assertCountEqual([row[0] for row in rows], expected)
+
     def test_where_boolean_and(self):
         query = 'SELECT * FROM document WHERE IfcType = "Wall" AND Label LIKE "%Exterior%"'
         _, results_labels = self._run_query_for_objects(query)
