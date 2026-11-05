@@ -93,6 +93,10 @@ int BlendPointPy::PyInit(PyObject* args, PyObject*)
         try {
             gp_Pnt Pt;
             TopoDS_Shape shape = static_cast<Part::TopoShapePy*>(pcObj)->getTopoShapePtr()->getShape();
+            if (shape.IsNull() || shape.ShapeType() != TopAbs_EDGE) {
+                PyErr_SetString(PyExc_TypeError, "BlendPoint: an edge is required");
+                return -1;
+            }
             const TopoDS_Edge& e = TopoDS::Edge(shape);
             BRepAdaptor_Curve adapt(e);
             if (param < adapt.FirstParameter() || param > adapt.LastParameter()) {
@@ -186,6 +190,11 @@ PyObject* BlendPointPy::setvectors(PyObject* args)
         Py::Vector v(*it);
         Base::Vector3d pole = v.toVector();
         vecs.emplace_back(pole);
+    }
+    // the first vector is the point itself: BlendCurve and setSize() rely on it
+    if (vecs.empty()) {
+        PyErr_SetString(PyExc_ValueError, "At least one vector (the point) is required");
+        return nullptr;
     }
 
     BlendPoint* bp = getBlendPointPtr();
