@@ -2206,7 +2206,7 @@ class _Stairs(ArchComponent.Component):
         # setup h, hstep (flight height, riser height) : check riserHeightEnforce
         if riserHeightEnforce and riserHeightEnforce != "Auto":
             h = riserHeightEnforce * numOfSteps
-            hstep = riserHeight
+            hstep = riserHeightEnforce
             obj.RiserHeight = hstep
 
         # if obj.RiserHeightEnforce == 0:
