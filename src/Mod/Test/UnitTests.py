@@ -236,6 +236,17 @@ class UnitBasicCases(unittest.TestCase):
         value = FreeCAD.Units.toNumber(q, "f", 2)
         self.assertEqual(float(value), 1023)
 
+        # Omitted decimals default to -1 (the user's number of decimals) as documented,
+        # not to 0 decimals
+        self.assertEqual(
+            FreeCAD.Units.toNumber(1.23456789), FreeCAD.Units.toNumber(1.23456789, "g", -1)
+        )
+        self.assertEqual(
+            FreeCAD.Units.toNumber(1.23456789, "f"), FreeCAD.Units.toNumber(1.23456789, "f", -1)
+        )
+        q = FreeCAD.Units.Quantity("1.23456789 mm")
+        self.assertEqual(FreeCAD.Units.toNumber(q), FreeCAD.Units.toNumber(q, "g", -1))
+
         with self.assertRaises(TypeError):
             FreeCAD.Units.toNumber("1023", "g", 2)
         with self.assertRaises(ValueError):
