@@ -84,25 +84,10 @@ PyObject* DrawPagePy::getViews(PyObject* args)
     DrawPage* page = getDrawPagePtr();
     std::vector<App::DocumentObject*> allViews = page->getViews();
 
+    // use the objects' own wrappers: a separate wrapper is not invalidated when its view is deleted
     Py::List ret;
     for (auto v: allViews) {
-        auto dvp = freecad_cast<DrawViewPart*>(v);
-        if (dvp && DrawView::isProjGroupItem(dvp)) {
-            TechDraw::DrawProjGroupItem* dpgi = static_cast<TechDraw::DrawProjGroupItem*>(v);
-            ret.append(Py::asObject(new TechDraw::DrawProjGroupItemPy(dpgi)));
-        }
-        else if (v->isDerivedFrom<TechDraw::DrawViewPart>()) {
-            TechDraw::DrawViewPart* dvp = static_cast<TechDraw::DrawViewPart*>(v);
-            ret.append(Py::asObject(new TechDraw::DrawViewPartPy(dvp)));
-        }
-        else if (v->isDerivedFrom<TechDraw::DrawViewAnnotation>()) {
-            TechDraw::DrawViewAnnotation* dva = static_cast<TechDraw::DrawViewAnnotation*>(v);
-            ret.append(Py::asObject(new TechDraw::DrawViewAnnotationPy(dva)));
-        }
-        else {
-            TechDraw::DrawView* dv = static_cast<TechDraw::DrawView*>(v);
-            ret.append(Py::asObject(new TechDraw::DrawViewPy(dv)));
-        }
+        ret.append(Py::asObject(v->getPyObject()));
     }
 
     return Py::new_reference_to(ret);
@@ -119,23 +104,7 @@ PyObject* DrawPagePy::getAllViews(PyObject* args)
 
     Py::List ret;
     for (auto v: allViews) {
-        auto dvp = freecad_cast<DrawViewPart*>(v);
-        if (dvp && DrawView::isProjGroupItem(dvp)) {
-            TechDraw::DrawProjGroupItem* dpgi = static_cast<TechDraw::DrawProjGroupItem*>(v);
-            ret.append(Py::asObject(new TechDraw::DrawProjGroupItemPy(dpgi)));
-        }
-        else if (v->isDerivedFrom<TechDraw::DrawViewPart>()) {
-            TechDraw::DrawViewPart* dvp = static_cast<TechDraw::DrawViewPart*>(v);
-            ret.append(Py::asObject(new TechDraw::DrawViewPartPy(dvp)));
-        }
-        else if (v->isDerivedFrom<TechDraw::DrawViewAnnotation>()) {
-            TechDraw::DrawViewAnnotation* dva = static_cast<TechDraw::DrawViewAnnotation*>(v);
-            ret.append(Py::asObject(new TechDraw::DrawViewAnnotationPy(dva)));
-        }
-        else {
-            TechDraw::DrawView* dv = static_cast<TechDraw::DrawView*>(v);
-            ret.append(Py::asObject(new TechDraw::DrawViewPy(dv)));
-        }
+        ret.append(Py::asObject(v->getPyObject()));
     }
 
     return Py::new_reference_to(ret);
