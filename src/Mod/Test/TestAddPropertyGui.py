@@ -2,6 +2,7 @@
 
 """Regression coverage for values committed by the Add Property dialog."""
 
+import ast
 import unittest
 
 import FreeCAD as App
@@ -102,6 +103,73 @@ class TestAddPropertyGui(unittest.TestCase):
         self.widget(QtWidgets.QSpinBox, "editor").setValue(37)
         self.addProperty()
         self.assertEqual(self.varset.Count, 37)
+
+    def testRecordedCommandHasFinalGroupAndToolTip(self):
+        # The macro command was built when the name was typed, so a group or a tooltip
+        # entered afterwards was missing from it, and a quote in the tooltip broke it
+        console = Gui.getMainWindow().findChild(QtWidgets.QPlainTextEdit, "Python console")
+        if console is None:
+            self.skipTest("The Python console is hidden")
+        macro = App.ParamGet("User parameter:BaseApp/Preferences/Macro")
+        previous = None
+        if "ScriptToPyConsole" in macro.GetBools():
+            previous = macro.GetBool("ScriptToPyConsole")
+        macro.SetBool("ScriptToPyConsole", True)
+        try:
+            self.prepareProperty("App::PropertyString", "Remark")
+            self.widget(QtWidgets.QComboBox, "comboBoxGroup").setCurrentText("AuditNotes")
+            self.widget(QtWidgets.QLineEdit, "lineEditToolTip").setText("Bob's \"remark\"")
+            Gui.updateGui()
+            self.typeString("Recorded")
+            self.addProperty()
+        finally:
+            if previous is None:
+                macro.RemBool("ScriptToPyConsole")
+            else:
+                macro.SetBool("ScriptToPyConsole", previous)
+        self.assertEqual(self.varset.getGroupOfProperty("Remark"), "AuditNotes")
+        self.assertEqual(self.varset.getDocumentationOfProperty("Remark"), "Bob's \"remark\"")
+
+        lines = [
+            line.split(">>> ", 1)[-1]
+            for line in console.toPlainText().splitlines()
+            if ".addProperty('App::PropertyString', 'Remark'" in line
+        ]
+        self.assertTrue(lines, "The added property was not recorded")
+        call = ast.parse(lines[-1]).body[0].value
+        args = [ast.literal_eval(arg) for arg in call.args]
+        self.assertEqual(args, ["App::PropertyString", "Remark", "AuditNotes", "Bob's \"remark\""])
+
+    def testRecordedCommandForTypeWithoutEditor(self):
+        # A type without a property editor item has no propertyItem in the dialog:
+        # its addProperty line must still be recorded
+        console = Gui.getMainWindow().findChild(QtWidgets.QPlainTextEdit, "Python console")
+        if console is None:
+            self.skipTest("The Python console is hidden")
+        macro = App.ParamGet("User parameter:BaseApp/Preferences/Macro")
+        previous = None
+        if "ScriptToPyConsole" in macro.GetBools():
+            previous = macro.GetBool("ScriptToPyConsole")
+        macro.SetBool("ScriptToPyConsole", True)
+        try:
+            self.prepareProperty("App::PropertyIntPairList", "Pairs")
+            self.assertIn("Pairs", self.varset.PropertiesList)
+            self.addProperty()
+        finally:
+            if previous is None:
+                macro.RemBool("ScriptToPyConsole")
+            else:
+                macro.SetBool("ScriptToPyConsole", previous)
+        lines = [
+            line.split(">>> ", 1)[-1]
+            for line in console.toPlainText().splitlines()
+            if ".addProperty('App::PropertyIntPairList', 'Pairs'" in line
+        ]
+        self.assertTrue(lines, "The added property was not recorded")
+        call = ast.parse(lines[-1]).body[0].value
+        args = [ast.literal_eval(arg) for arg in call.args]
+        self.assertEqual(args[:2], ["App::PropertyIntPairList", "Pairs"])
+        self.assertEqual(args[2], self.varset.getGroupOfProperty("Pairs"))
 
     def testStringExpressionSurvivesAdd(self):
         self.prepareProperty("App::PropertyString", "ExpressionWords")
