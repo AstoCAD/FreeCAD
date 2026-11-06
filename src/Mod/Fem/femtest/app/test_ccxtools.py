@@ -101,6 +101,42 @@ class TestCcxTools(unittest.TestCase):
         self.assertEqual(tool.model_file, "")
 
     # ********************************************************************************************
+    def test_prerequisites_density(self):
+        # the input file writer needs the density for a centrifugal load and for a transient
+        # thermomechanical analysis, the prerequisites must report a material without it
+        from femexamples.ccx_cantilever_faceload import setup
+        import ObjectsFem
+
+        setup(self.document, "ccxtools")
+        solver = self.document.CalculiXCcxTools
+
+        def density_message():
+            fea = ccxtools.FemToolsCcx(self.document.Analysis, solver, test_mode=True)
+            fea.update_objects()
+            return "No Density defined" in fea.check_prerequisites()
+
+        self.assertFalse(density_message())
+
+        centrif = ObjectsFem.makeConstraintCentrif(self.document)
+        centrif.RotationAxis = [(self.document.Box, "Edge1")]
+        self.document.Analysis.addObject(centrif)
+        self.assertTrue(density_message())
+        self.document.removeObject(centrif.Name)
+        self.assertFalse(density_message())
+
+        mat_obj = self.document.FemMaterial
+        mat = mat_obj.Material
+        mat["ThermalConductivity"] = "43 W/m/K"
+        mat["ThermalExpansionCoefficient"] = "12 um/m/K"
+        mat["SpecificHeat"] = "590 J/kg/K"
+        mat_obj.Material = mat
+        solver.AnalysisType = "thermomech"
+        solver.ThermoMechSteadyState = True
+        self.assertFalse(density_message())
+        solver.ThermoMechSteadyState = False
+        self.assertTrue(density_message())
+
+    # ********************************************************************************************
     def test_box_frequency(self):
         # set up
         from femexamples.boxanalysis_frequency import setup
