@@ -506,9 +506,10 @@ class _Space(ArchComponent.Component):
         self.face = self.getFootprint(obj)
         if self.face:
             if not notouch:
-                if hasattr(obj, "PerimeterLength"):
-                    if self.face.OuterWire.Length != obj.PerimeterLength.Value:
-                        obj.PerimeterLength = self.face.OuterWire.Length
+                if hasattr(obj, "PerimeterLength") and len(self.face.Faces) == 1:
+                    perimeter = self.face.Faces[0].OuterWire.Length
+                    if perimeter != obj.PerimeterLength.Value:
+                        obj.PerimeterLength = perimeter
             return self.face.Area
         else:
             return 0
@@ -527,14 +528,20 @@ class _Space(ArchComponent.Component):
             sh = obj.Shape.copy()
             cutplane, v1, v2 = ArchCommands.getCutVolume(pl, sh)
             e = sh.section(cutplane)
-            e = Part.__sortEdges__(e.Edges)
-            w = Part.Wire(e)
+            # one wire per closed loop of the section, so that holes (columns...) are kept
+            wires = [Part.Wire(c) for c in Part.getSortedClusters(e.Edges)]
             dv = FreeCAD.Vector(
                 obj.Shape.CenterOfMass.x, obj.Shape.CenterOfMass.y, obj.Shape.BoundBox.ZMin
             )
             dv = dv.sub(obj.Shape.CenterOfMass)
-            w.translate(dv)
-            return Part.Face(w)
+            for w in wires:
+                w.translate(dv)
+            face = Part.makeFace(wires, "Part::FaceMakerBullseye")
+            if not face.Faces:
+                return None
+            if len(face.Faces) == 1:
+                return face.Faces[0]
+            return face
         except Part.OCCError:
             return None
 
