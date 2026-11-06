@@ -44,6 +44,16 @@ class TestApproxSurface(unittest.TestCase):
             self.assertEqual(surface.NbUPoles, 6)
             self.assertEqual(surface.NbVPoles, 6)
 
+    def test_vectors_and_lists(self):
+        # Only tuples were accepted: a list of App.Vector (e.g. Points.Points().Points)
+        # raised "Error creating object of type Py::Tuple".
+        vectors = list(_grid(6).Points)
+        for data in (vectors, [list(point) for point in vectors]):
+            surface = ReverseEngineering.approxSurface(data)
+            self.assertEqual(surface.NbUPoles, 6)
+        with self.assertRaises(TypeError):
+            ReverseEngineering.approxSurface([1] * 36)
+
     def test_larger_grid(self):
         surface = ReverseEngineering.approxSurface(_grid(8))
         self.assertEqual(surface.NbUPoles, 6)
@@ -64,3 +74,9 @@ class TestApproxCurve(unittest.TestCase):
             )
         curve = ReverseEngineering.approxCurve(Points=points, MinDegree=3, MaxDegree=8)
         self.assertGreaterEqual(curve.Degree, 3)
+
+    def test_vectors(self):
+        points = [App.Vector(float(i), float(i * i) * 0.1, 0.0) for i in range(10)]
+        curve = ReverseEngineering.approxCurve(Points=points)
+        self.assertAlmostEqual(curve.StartPoint.distanceToPoint(points[0]), 0.0, 3)
+        self.assertAlmostEqual(curve.EndPoint.distanceToPoint(points[-1]), 0.0, 3)
