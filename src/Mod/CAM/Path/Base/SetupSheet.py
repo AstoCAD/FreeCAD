@@ -81,7 +81,14 @@ def _traverseTemplateAttributes(attrs, codec):
             coded[key] = _traverseTemplateAttributes(value, codec)
         elif type(value) == list:
             Path.Log.debug(f"{key} is a list")
-            coded[key] = [_traverseTemplateAttributes(attr, codec) for attr in value]
+            coded[key] = [
+                (
+                    _traverseTemplateAttributes(attr, codec)
+                    if type(attr) == dict
+                    else codec(attr) if isinstance(attr, str) else attr
+                )
+                for attr in value
+            ]
         elif isinstance(value, str):
             Path.Log.debug(f"{key} is a string")
             coded[key] = codec(value)
