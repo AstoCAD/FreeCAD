@@ -1194,7 +1194,10 @@ ObjectIdentifier ObjectIdentifier::parse(const DocumentObject* docObj, const std
     std::unique_ptr<Expression> expr(ExpressionParser::parse(docObj, str.c_str()));
     VariableExpression* v = freecad_cast<VariableExpression*>(expr.get());
 
-    if (v) {
+    // An index that is not a literal (e.g. FL[-1] or FL[i + 1]) is kept as an expression
+    // component, which is not part of the path: returning the path would silently drop it
+    // and address the whole property instead.
+    if (v && !v->hasComponent()) {
         return v->getPath();
     }
     FC_THROWM(Base::RuntimeError, "Invalid property specification.");
