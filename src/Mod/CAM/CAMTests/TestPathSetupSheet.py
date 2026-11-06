@@ -295,6 +295,26 @@ class TestPathSetupSheet(PathTestBase):
         # pick one
         self.assertEqual(dec["01"][0]["11"], "SetupSheet001.y")
 
+    def test14(self):
+        """Verify template attributes encoding/decoding of lists of plain values."""
+        ss = PathSetupSheet.Create().Proxy
+
+        # e.g. a job's post processor overrides: {"selected_fixtures": ["G54", "G55"]}
+        attrs = {
+            "00": {"01": ["G54", "SetupSheet.y"], "02": [1, 2.5, True]},
+            "03": [],
+            "04": [["SetupSheet.z", 1]],
+        }
+
+        encoded = ss.encodeTemplateAttributes(attrs)
+        self.assertEqual(encoded["00"]["01"], ["G54", "${SetupSheet}.y"])
+        self.assertEqual(encoded["00"]["02"], [1, 2.5, True])
+        self.assertEqual(encoded["03"], [])
+        self.assertEqual(encoded["04"], [["${SetupSheet}.z", 1]])
+
+        decoded = ss.decodeTemplateAttributes(encoded)
+        self.assertEqual(decoded, attrs)
+
     def test20(self):
         """Verify SetupSheet template op attributes roundtrip."""
 

@@ -81,13 +81,30 @@ def _traverseTemplateAttributes(attrs, codec):
             coded[key] = _traverseTemplateAttributes(value, codec)
         elif type(value) == list:
             Path.Log.debug(f"{key} is a list")
-            coded[key] = [_traverseTemplateAttributes(attr, codec) for attr in value]
+            coded[key] = _traverseTemplateList(value, codec)
         elif isinstance(value, str):
             Path.Log.debug(f"{key} is a string")
             coded[key] = codec(value)
         else:
             Path.Log.debug(f"{key} is {type(value)}")
             coded[key] = value
+    return coded
+
+
+def _traverseTemplateList(values, codec):
+    """Code the items of a template list the way _traverseTemplateAttributes codes the values
+    of a dict: lists of tool controllers or fixtures hold dicts, post processor overrides can
+    hold plain values."""
+    coded = []
+    for value in values:
+        if type(value) == dict:
+            coded.append(_traverseTemplateAttributes(value, codec))
+        elif type(value) == list:
+            coded.append(_traverseTemplateList(value, codec))
+        elif isinstance(value, str):
+            coded.append(codec(value))
+        else:
+            coded.append(value)
     return coded
 
 
