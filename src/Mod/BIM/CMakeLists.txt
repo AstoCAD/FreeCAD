@@ -319,6 +319,7 @@ SET(bimtests_SRCS
     bimtests/TestBimSetupGui.py
     bimtests/TestBimTDViewGui.py
     bimtests/TestArchReferenceGui.py
+    bimtests/TestBimPreferencesGui.py
 )
 
 set(bimtests_FIXTURES

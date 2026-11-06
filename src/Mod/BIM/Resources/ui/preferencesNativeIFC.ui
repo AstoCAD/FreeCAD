@@ -105,6 +105,9 @@
         <property name="text">
          <string>Switch to BIM workbench after import</string>
         </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
         <property name="prefEntry" stdset="0">
          <cstring>SwitchWB</cstring>
         </property>
