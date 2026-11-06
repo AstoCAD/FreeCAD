@@ -208,6 +208,51 @@ class TestArchIfc(TestArchBase.TestArchBase):
         names = sorted(e.Name for e in elements)
         self.assertEqual(names, [equipment.Label])
 
+    def _export_extrusion(self, name, as_space=False, **props):
+        """Exports a Part::Extrusion of a 1000 x 500 rectangle along Dir (0, 0, 3000), alone
+        or as the base of a space. Returns the IfcExtrudedAreaSolid items of the file."""
+        import Arch
+        import Draft
+        from importers import exportIFC
+
+        rect = Draft.make_rectangle(1000, 500)
+        ext = self.document.addObject("Part::Extrusion", name)
+        ext.Base = rect
+        ext.DirMode = "Custom"
+        ext.Dir = FreeCAD.Vector(0, 0, 3000)
+        ext.Solid = True
+        for prop, value in props.items():
+            setattr(ext, prop, value)
+        obj = Arch.makeSpace(ext) if as_space else ext
+        self.document.recompute()
+        path = os.path.join(tempfile.mkdtemp(), name + ".ifc")
+        exportIFC.export([obj], path)
+        return ifcopenshell.open(path).by_type("IfcExtrudedAreaSolid")
+
+    def test_export_extrusion_length_from_dir(self):
+        """A Part::Extrusion with a zero LengthFwd (Draft.extrude, BIM_ExtrudeFace) extrudes
+        by its Dir vector, also when it is the base of a BIM object.
+        https://github.com/FreeCAD/FreeCAD/issues/33414"""
+        for as_space in (False, True):
+            with self.subTest(as_space=as_space):
+                name = "Space" if as_space else "Extrusion"
+                solids = self._export_extrusion(name, as_space)
+                self.assertEqual(len(solids), 1)
+                self.assertAlmostEqual(solids[0].Depth, 3.0, places=6)
+
+                solids = self._export_extrusion(name + "Reversed", as_space, Reversed=True)
+                self.assertEqual(len(solids), 1)
+                self.assertAlmostEqual(solids[0].Depth, 3.0, places=6)
+                # the direction is local to the profile placement, not rotated for an XY profile
+                axis = solids[0].Position.Axis
+                if axis is not None:
+                    self.assertAlmostEqual(axis.DirectionRatios[2], 1.0, places=6)
+                self.assertLess(solids[0].ExtrudedDirection.DirectionRatios[2], 0)
+
+                # extruded to both sides: not a single extruded solid, exported as brep
+                solids = self._export_extrusion(name + "Symmetric", as_space, Symmetric=True)
+                self.assertEqual(len(solids), 0)
+
     def _export_hidden_objects_model(self, exclude_hidden):
         """Exports a site with visible and hidden boxes, directly in a level and in an App::Part.
         Returns the sorted names of the exported elements."""

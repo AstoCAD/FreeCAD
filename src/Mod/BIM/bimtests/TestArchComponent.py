@@ -925,3 +925,80 @@ class TestArchComponent(TestArchBase.TestArchBase):
         self.assertAlmostEqual(
             wall.Shape.Volume, initial_volume, 3, "Wall volume should be restored"
         )
+
+    def _make_part_extrusion(self, name, direction, **props):
+        """A Part::Extrusion of a 1000 x 500 Draft rectangle with the given properties."""
+        rect = Draft.make_rectangle(1000, 500)
+        ext = self.document.addObject("Part::Extrusion", name)
+        ext.Base = rect
+        ext.DirMode = "Custom"
+        ext.Dir = direction
+        ext.Solid = True
+        for prop, value in props.items():
+            setattr(ext, prop, value)
+        return ext
+
+    def test_extrusion_data_of_part_extrusion(self):
+        """The extrusion data of a component based on a Part::Extrusion must rebuild the
+        extrusion's own shape. A zero LengthFwd means "extrude by the Dir vector", as written
+        by Draft.extrude and BIM_ExtrudeFace.
+        https://github.com/FreeCAD/FreeCAD/issues/33414"""
+        cases = {
+            "DirLength": (App.Vector(0, 0, 3000), {}),
+            "LengthFwd": (App.Vector(0, 0, 1), {"LengthFwd": 50}),
+            "Tilted": (App.Vector(0, 300, 400), {}),
+            "Reversed": (App.Vector(0, 0, 3000), {"Reversed": True}),
+        }
+        for name, (direction, props) in cases.items():
+            with self.subTest(case=name):
+                ext = self._make_part_extrusion(name, direction, **props)
+                structure = Arch.makeStructure(ext)
+                self.document.recompute()
+                data = ArchComponent.Component.getExtrusionData(structure.Proxy, structure)
+                self.assertIsNotNone(data)
+                face, vector, placement = data
+                face = face.copy()
+                face.Placement = placement.multiply(face.Placement)
+                solid = face.extrude(placement.Rotation.multVec(vector))
+                self.assertAlmostEqual(solid.Volume, ext.Shape.Volume, places=3)
+                self.assertTrue(solid.BoundBox.isInside(ext.Shape.BoundBox.Center))
+                self.assertAlmostEqual(
+                    solid.BoundBox.DiagonalLength, ext.Shape.BoundBox.DiagonalLength, places=3
+                )
+                self.assertAlmostEqual(structure.ComputedLength.Value, vector.Length, places=3)
+                self.assertAlmostEqual(
+                    abs(placement.Rotation.multVec(vector).z), ext.Shape.Volume / face.Area, places=3
+                )
+
+        # a face and a vector cannot describe extrusions to both sides or tapered ones
+        cases = {
+            "LengthRev": (App.Vector(0, 0, 1), {"LengthFwd": 50, "LengthRev": 20}),
+            "Symmetric": (App.Vector(0, 0, 3000), {"Symmetric": True}),
+            "Taper": (App.Vector(0, 0, 1), {"LengthFwd": 50, "TaperAngle": 5}),
+        }
+        for name, (direction, props) in cases.items():
+            with self.subTest(case=name):
+                ext = self._make_part_extrusion(name, direction, **props)
+                structure = Arch.makeStructure(ext)
+                self.document.recompute()
+                self.assertIsNone(
+                    ArchComponent.Component.getExtrusionData(structure.Proxy, structure)
+                )
+                # the structure still takes the extrusion's shape
+                self.assertAlmostEqual(structure.Shape.Volume, ext.Shape.Volume, places=3)
+
+    def test_extrusion_data_of_part_extrusions_in_multifuse(self):
+        """The extrusion vectors of the Part::Extrusion objects of a fused base follow the
+        Dir vector when LengthFwd is zero.
+        https://github.com/FreeCAD/FreeCAD/issues/33414"""
+        ext1 = self._make_part_extrusion("Ext1", App.Vector(0, 0, 3000))
+        ext2 = self._make_part_extrusion("Ext2", App.Vector(0, 0, 1), LengthFwd=50)
+        ext2.Placement.Base = App.Vector(2000, 0, 0)
+        fusion = self.document.addObject("Part::MultiFuse", "Fusion")
+        fusion.Shapes = [ext1, ext2]
+        structure = Arch.makeStructure(fusion)
+        self.document.recompute()
+        data = ArchComponent.Component.getExtrusionData(structure.Proxy, structure)
+        self.assertIsNotNone(data)
+        lengths = sorted(round(v.Length, 6) for v in data[1])
+        self.assertEqual(lengths, [50, 3000])
