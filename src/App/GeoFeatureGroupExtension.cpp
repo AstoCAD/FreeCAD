@@ -168,6 +168,12 @@ GeoFeatureGroupExtension::addObjects(std::vector<App::DocumentObject*> objects)
         links.push_back(object);
 
         for (auto obj : links) {
+            // a group cannot contain itself. Skip it before it is taken out of its current group:
+            // extensionOnChanged() would refuse it only after that.
+            if (isCyclicMember(obj)) {
+                continue;
+            }
+
             // only one geofeaturegroup per object.
             auto* group = App::GeoFeatureGroupExtension::getGroupOfObject(obj);
             if (group && group != getExtendedObject()) {
@@ -225,8 +231,18 @@ void GeoFeatureGroupExtension::extensionOnChanged(const Property* p)
             && !owner->getDocument()->isPerformingTransaction()) {
 
             bool error = false;
+            bool cycle = false;
             auto corrected = Group.getValues();
             for (auto obj : Group.getValues()) {
+
+                // a group cannot contain itself (checked like in GroupExtension, which is skipped
+                // below). Not while importing: the sub-groups may not be restored yet.
+                if (!owner->isRestoring() && isNewCyclicMember(obj)) {
+                    cycle = true;
+                    corrected.erase(std::remove(corrected.begin(), corrected.end(), obj),
+                                    corrected.end());
+                    continue;
+                }
 
                 // we have already set the obj into the group, so in a case of multiple groups
                 // getGroupOfObject would return anyone of it and hence it is possible that we miss
@@ -246,10 +262,12 @@ void GeoFeatureGroupExtension::extensionOnChanged(const Property* p)
             }
 
             // if an error was found we need to correct the values and inform the user
-            if (error) {
+            if (error || cycle) {
                 Base::ObjectStatusLocker<Property::Status, Property> guard(Property::User3, &Group);
                 Group.setValues(corrected);
-                throw Base::RuntimeError("Object can only be in a single GeoFeatureGroup");
+                throw Base::RuntimeError(cycle
+                                             ? "A group cannot contain itself or a group holding it"
+                                             : "Object can only be in a single GeoFeatureGroup");
             }
         }
 
