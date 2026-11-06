@@ -944,19 +944,8 @@ pointPair DrawViewDimension::getPointsTwoCircles(const TopoDS_Edge& edge0, const
     gp_Pnt point1 = circle1.Location();
     gp_Pnt shift1 = alignmentDir.XYZ() * circle1.Radius();
 
-    gp_Ax3 projectionCS3{projectionCS};
-    gp_Ax3 OXYZ;
-    gp_Trsf xToProjectionCS;
-    xToProjectionCS.SetTransformation(OXYZ, projectionCS3);
-
-    gp_Pnt center0Local = point0;
-    gp_Pnt center1Local = point1;
-    if (is3d) {
-        center0Local = point0.Transformed(xToProjectionCS);
-        center1Local = point1.Transformed(xToProjectionCS);
-    }
-
-    gp_Dir centerDir = center1Local.XYZ() - center0Local.XYZ();
+    // alignmentDir and the centers are in the same (model or paper) coordinates
+    gp_Dir centerDir = point1.XYZ() - point0.XYZ();
     double dot = centerDir.Dot(alignmentDir);
 
     if (dot == 0) {
