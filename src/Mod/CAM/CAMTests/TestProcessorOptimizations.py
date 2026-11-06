@@ -265,6 +265,26 @@ class TestCollapseG0(unittest.TestCase):
             _pathcommand_eq(new_commands, expected), f"\nExpected\n{expected}\nSaw:\n{new_commands}"
         )
 
+    def test_both_with_feed(self):
+        """G0's that both carry an F collapse only when the F's match."""
+        gcode = [
+            "G1 X0 Y0 Z0",  # establish
+            "G0 X0 Y0 Z5 F1000",
+            "G0 X0 Y0 Z10 F1000",
+        ]
+        new_commands = list(collapse_g0([Path.Command(g) for g in gcode]))
+        expected = [Path.Command(x) for x in ["G1 X0 Y0 Z0", "G0 X0 Y0 Z10 F1000"]]
+        self.assertTrue(
+            _pathcommand_eq(new_commands, expected), f"\nExpected\n{expected}\nSaw:\n{new_commands}"
+        )
+
+        gcode[2] = "G0 X0 Y0 Z10 F2000"
+        new_commands = list(collapse_g0([Path.Command(g) for g in gcode]))
+        expected = [Path.Command(x) for x in gcode]
+        self.assertTrue(
+            _pathcommand_eq(new_commands, expected), f"\nExpected\n{expected}\nSaw:\n{new_commands}"
+        )
+
     def test_same_annotations(self):
         gcode = [
             "G0 X0 Y0 Z0",  # not start of chain, establishes XYZ
