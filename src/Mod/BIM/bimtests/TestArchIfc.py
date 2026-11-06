@@ -341,6 +341,30 @@ class TestArchIfc(TestArchBase.TestArchBase):
         self.assertAlmostEqual(circle.Radius, 2.0, places=6)
         self.assertAlmostEqual(arc.Shape.Curve.Radius, 2000, places=6)
 
+    def test_export_closed_wire_curve_is_closed(self):
+        """The polyline curve of a closed wire ends at its first point, otherwise
+        the closing segment is lost (e.g. in 2D annotations and closed profiles)."""
+        import Arch
+        import Draft
+        from importers import exportIFC
+
+        rect = Draft.make_rectangle(1000, 500)
+        site = Arch.makeSite([Arch.makeBuilding([Arch.makeFloor([rect])])])
+        self.document.recompute()
+
+        preferences = exportIFC.getPreferences()
+        preferences["EXPORT_2D"] = True
+        path = os.path.join(tempfile.mkdtemp(), "closed_wire.ifc")
+        exportIFC.export([site], path, preferences=preferences)
+        ifcfile = ifcopenshell.open(path)
+        curves = ifcfile.by_type("IfcIndexedPolyCurve")
+        self.assertEqual(len(curves), 1)
+        coords = curves[0].Points.CoordList
+        self.assertEqual(len(coords), 5)
+        self.assertEqual(coords[0], coords[-1])
+        corners = sorted(set((round(c[0], 6), round(c[1], 6)) for c in coords))
+        self.assertEqual(corners, [(0.0, 0.0), (0.0, 0.5), (1.0, 0.0), (1.0, 0.5)])
+
     def test_legacy_import_multicore(self):
         """The legacy (non-native) IFC importer must work with IfcOpenShell 0.8.
         https://github.com/FreeCAD/FreeCAD/issues/33854"""

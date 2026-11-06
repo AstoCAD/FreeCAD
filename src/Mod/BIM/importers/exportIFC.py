@@ -1882,9 +1882,12 @@ def createCurve(ifcfile, wire, scaling=1.0):
     for e in wire.Edges:
         if isinstance(e.Curve, Part.Circle):
             return createCurveWithArcs(ifcfile, wire, scaling)
-    verts = [v.Point for v in wire.Vertexes]
+    verts = [v.Point for v in wire.OrderedVertexes]
     if scaling != 1:
         verts = [v.multiply(scaling) for v in verts]
+    if wire.isClosed():
+        # an IfcIndexedPolyCurve is only closed if it ends at its first point
+        verts.append(verts[0])
     verts = tuple([tuple(v) for v in verts])
     pts = ifcfile.createIfcCartesianPointList3D(verts)
     idc = ifcfile.createIfcIndexedPolyCurve(pts, None, None)
