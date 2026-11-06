@@ -2046,6 +2046,12 @@ class PartCompoundFilterTests(unittest.TestCase):
             boxes.append(box)
         self.base = self.Doc.addObject("Part::Feature", "Base")
         self.base.Shape = Part.makeCompound(boxes)
+class PartPrismNaNTests(unittest.TestCase):
+    """NaN passed the height and angle checks of Prism and Cylinder; the prism built
+    along the NaN vector crashed FreeCAD (segmentation fault) when it was used."""
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("PartPrismNaN")
 
     def tearDown(self):
         FreeCAD.closeDocument(self.Doc.Name)
@@ -2071,3 +2077,29 @@ class PartCompoundFilterTests(unittest.TestCase):
         self.assertEqual(self._filter("1:3", True), [0, 6, 8])
         self.assertEqual(self._filter("::2", True), [2, 6])
         self.assertEqual(self._filter("4;0:2", True), [4, 6])
+    def testNaNHeightOrAngleFails(self):
+        nan = float("nan")
+        for typeName, prop in (
+            ("Part::Prism", "Height"),
+            ("Part::Prism", "FirstAngle"),
+            ("Part::Prism", "SecondAngle"),
+            ("Part::Cylinder", "FirstAngle"),
+            ("Part::Cylinder", "SecondAngle"),
+        ):
+            with self.subTest(type=typeName, prop=prop):
+                feature = self.Doc.addObject(typeName, "Feature")
+                setattr(feature, prop, nan)
+                self.Doc.recompute()
+                # checking the NaN prism crashed (segmentation fault)
+                self.assertTrue(feature.Shape.isNull() or not feature.Shape.isValid())
+                self.assertIn("Invalid", feature.State)
+                self.Doc.removeObject(feature.Name)
+
+    def testFiniteAnglesStillWork(self):
+        prism = self.Doc.addObject("Part::Prism", "Prism")
+        prism.FirstAngle = 10
+        prism.SecondAngle = -10
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", prism.State)
+        self.assertTrue(prism.Shape.isValid())
+        self.assertGreater(prism.Shape.Volume, 0)
