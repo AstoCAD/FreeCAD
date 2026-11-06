@@ -153,10 +153,21 @@ jobs:
           ccachebindir: ${{ env.ccachebindir }}
 
       - name: Get Libpack
-        if: "!inputs.skipBuild"
+        if: "!inputs.skipBuild && (vars.ASTOCAD_LIBPACK_URL == '' || vars.ASTOCAD_LIBPACK_NAME == '')"
         uses: ./.github/workflows/actions/windows/getLibpack
         with:
           libpackdir: ${{ env.libpackdir }}
+
+      # Opt-in: a LibPack whose OCCT is the AstoCAD OCCT fork (AstoCAD/OCCT, exceptions on). Set both
+      # repository variables to use it: the URL of the 7z and its top folder's name, which also keys
+      # the LibPack cache. With either unset, the step above takes the default LibPack.
+      - name: Get Libpack (OCCT fork)
+        if: "!inputs.skipBuild && vars.ASTOCAD_LIBPACK_URL != '' && vars.ASTOCAD_LIBPACK_NAME != ''"
+        uses: ./.github/workflows/actions/windows/getLibpack
+        with:
+          libpackdir: ${{ env.libpackdir }}
+          libpackdownloadurl: ${{ vars.ASTOCAD_LIBPACK_URL }}
+          libpackname: ${{ vars.ASTOCAD_LIBPACK_NAME }}
 
       - name: Restore compiler cache
         id: cache-restore
