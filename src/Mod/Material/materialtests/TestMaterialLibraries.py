@@ -35,7 +35,9 @@ import tempfile
 import unittest
 
 import FreeCAD
+import Materials
 
+UUIDCard = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e10"
 UUIDModel = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e01"
 UUIDMissingModel = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0eff"
 
@@ -114,3 +116,80 @@ class ModelLibraryTestCases(unittest.TestCase):
     def testModelWithMissingParent(self):
         """A model inheriting from a model that is not installed is loaded, without a crash"""
         self.assertEqual(self.loadModels({"MissingParent.yml": MODEL_MISSING_PARENT}), "loaded True")
+
+
+class MaterialLibraryTestCases(unittest.TestCase):
+    """
+    Refreshing the material libraries after cards or libraries changed
+    """
+
+    ModuleLibrary = "MaterialLibraryTestModule"
+
+    def setUp(self):
+        self.MaterialManager = Materials.MaterialManager()
+
+        param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Material/Resources")
+        self.customDir = param.GetString("CustomMaterialsDir", "")
+        self.useBuiltInDir = param.GetBool("UseBuiltInMaterials", True)
+        self.useWorkbenchDir = param.GetBool("UseMaterialsFromWorkbenches", True)
+        self.useUserDir = param.GetBool("UseMaterialsFromConfigDir", True)
+        self.useCustomDir = param.GetBool("UseMaterialsFromCustomDir", False)
+        paramExternal = FreeCAD.ParamGet(
+            "User parameter:BaseApp/Preferences/Mod/Material/ExternalInterface"
+        )
+        self.useExternal = paramExternal.GetBool("UseExternal", False)
+
+        # The card lives in the custom library; a second (empty) library stays loaded
+        self.testDir = tempfile.mkdtemp(prefix="fc_material_libraries_")
+        customDir = os.path.join(self.testDir, "custom")
+        moduleDir = os.path.join(self.testDir, "module")
+        os.mkdir(customDir)
+        os.mkdir(moduleDir)
+        param.SetString("CustomMaterialsDir", customDir)
+        param.SetBool("UseBuiltInMaterials", False)
+        param.SetBool("UseMaterialsFromWorkbenches", True)
+        param.SetBool("UseMaterialsFromConfigDir", False)
+        param.SetBool("UseMaterialsFromCustomDir", True)
+        paramExternal.SetBool("UseExternal", False)
+        module = FreeCAD.ParamGet(
+            "User parameter:BaseApp/Preferences/Mod/Material/Resources/Modules/"
+            + self.ModuleLibrary
+        )
+        module.SetString("ModuleDir", moduleDir)
+
+        self.cardPath = os.path.join(customDir, "Card.FCMat")
+        with open(self.cardPath, "w", encoding="utf-8") as f:
+            f.write('---\nGeneral:\n  UUID: "{}"\n  Name: "Card"\n'.format(UUIDCard))
+        self.MaterialManager.refresh()
+
+    def tearDown(self):
+        param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Material/Resources")
+        param.SetString("CustomMaterialsDir", self.customDir)
+        param.SetBool("UseBuiltInMaterials", self.useBuiltInDir)
+        param.SetBool("UseMaterialsFromWorkbenches", self.useWorkbenchDir)
+        param.SetBool("UseMaterialsFromConfigDir", self.useUserDir)
+        param.SetBool("UseMaterialsFromCustomDir", self.useCustomDir)
+        FreeCAD.ParamGet(
+            "User parameter:BaseApp/Preferences/Mod/Material/Resources/Modules"
+        ).RemGroup(self.ModuleLibrary)
+        FreeCAD.ParamGet(
+            "User parameter:BaseApp/Preferences/Mod/Material/ExternalInterface"
+        ).SetBool("UseExternal", self.useExternal)
+
+        self.MaterialManager.refresh()
+        shutil.rmtree(self.testDir, ignore_errors=True)
+
+    def testRefreshDropsDeletedCard(self):
+        """A card deleted from the disk is gone after a refresh"""
+        self.assertIn(UUIDCard, self.MaterialManager.Materials)
+        os.remove(self.cardPath)
+        self.MaterialManager.refresh()
+        self.assertFalse(UUIDCard in self.MaterialManager.Materials)
+
+    def testRefreshDropsCardsOfDisabledLibrary(self):
+        """The cards of a library that is no longer used are gone after a refresh"""
+        self.assertIn(UUIDCard, self.MaterialManager.Materials)
+        param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Material/Resources")
+        param.SetBool("UseMaterialsFromCustomDir", False)
+        self.MaterialManager.refresh()
+        self.assertFalse(UUIDCard in self.MaterialManager.Materials)
