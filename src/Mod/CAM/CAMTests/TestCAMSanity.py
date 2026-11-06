@@ -21,6 +21,7 @@
 # *                                                                         *
 # ***************************************************************************
 
+from datetime import datetime
 import FreeCAD
 from Path.Main.Sanity import Sanity
 from Path.Main.Sanity.ImageBuilder import DummyImageBuilder
@@ -242,6 +243,25 @@ class TestCAMSanity(PathTestBase):
         self.assertIn("Note", data)
         self.assertIn("squawkType", data)
         self.assertIn("squawkIcon", data)
+
+    def test121_squawk_date_is_call_time(self):
+        """A squawk is dated when it is raised, not when the module was imported."""
+        with patch(
+            "Path.Main.Sanity.ImageBuilder.ImageBuilderFactory.get_image_builder"
+        ) as mock_factory:
+            dummy_builder = DummyImageBuilder(self.temp_file.name)
+            mock_factory.return_value = dummy_builder
+            S = Sanity.CAMSanity(self.job, output_file=self.temp_file.name)
+        now = datetime(2001, 2, 3, 4, 5, 6)
+        with patch.object(Sanity, "datetime") as mock_datetime:
+            mock_datetime.now.return_value = now
+            data = S.squawk("CAMSanity", "Test Message")
+        self.assertEqual(data["Date"], now.strftime("%c"))
+
+        # an explicit date is kept
+        then = datetime(1999, 12, 31, 23, 59, 58)
+        data = S.squawk("CAMSanity", "Test Message", date=then)
+        self.assertEqual(data["Date"], then.strftime("%c"))
 
     def test130(self):
         """Test tool data"""
