@@ -59,7 +59,7 @@ PyObject* DrawProjGroupPy::addProjection(PyObject* args)
         return nullptr;
     }
 
-    return new DrawProjGroupItemPy(newProj);
+    return newProj->getPyObject();
 }
 
 PyObject* DrawProjGroupPy::removeProjection(PyObject* args)
@@ -100,7 +100,7 @@ PyObject* DrawProjGroupPy::getItemByLabel(PyObject* args)
         return nullptr;
     }
 
-    return new DrawProjGroupItemPy(newProj);
+    return newProj->getPyObject();
 }
 
 PyObject* DrawProjGroupPy::getXYPosition(PyObject* args)
