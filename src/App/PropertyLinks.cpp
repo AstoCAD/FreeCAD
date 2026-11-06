@@ -5973,6 +5973,12 @@ void PropertyXLinkContainer::aboutToSetChildValue(App::Property& prop)
             _onBreakLink(xlink->getValue());
             onRemoveDep(obj);
         }
+        // The linked document is going away (closed or reloaded) and hasSetValue() does not
+        // update the dependencies of a detached link. Forget the property dependencies on
+        // that object too, they become dangling and feed the out-list of the owner.
+        std::erase_if(_PropDeps, [obj](const auto& dep) {
+            return dep.first.second == obj;
+        });
     }
 }
 
