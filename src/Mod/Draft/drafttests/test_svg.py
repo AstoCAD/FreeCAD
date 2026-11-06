@@ -150,6 +150,45 @@ class DraftSVGImportRegression(test_base.DraftTestCaseDoc):
                     importSVG.getsize("2.54cm", mode), importSVG.getsize("1in", mode), places=9
                 )
 
+    def test_getsize_units_consistent_with_dpi(self):
+        """pt and pc are absolute (1/72 and 1/6 in); em and ex follow the dpi in every mode."""
+        for dpi in ("90.0", "96.0"):
+            for mode in ("css" + dpi, "mm" + dpi):
+                with self.subTest(mode=mode):
+                    one_inch = importSVG.getsize("1in", mode)
+                    self.assertAlmostEqual(importSVG.getsize("72pt", mode), one_inch, places=9)
+                    self.assertAlmostEqual(importSVG.getsize("6pc", mode), one_inch, places=9)
+            px_to_mm = 25.4 / float(dpi)
+            for unit in ("em", "ex", "pt", "pc"):
+                with self.subTest(dpi=dpi, unit=unit):
+                    self.assertAlmostEqual(
+                        importSVG.getsize("1" + unit, "mm" + dpi),
+                        importSVG.getsize("1" + unit, "css" + dpi) * px_to_mm,
+                        places=9,
+                    )
+
+    def test_read_svg_width_in_points_at_90_dpi(self):
+        """A 72pt wide document (1 inch) must import 25.4 mm wide, also at 90 dpi."""
+        svg = (
+            '<?xml version="1.0"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" '
+            'xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" '
+            'inkscape:version="0.91 r13725" sodipodi:docname="pt.svg" '
+            'width="72pt" height="72pt" viewBox="0 0 72 72">'
+            '<rect id="r" x="0" y="0" width="72" height="36" '
+            'style="fill:none;stroke:#000000"/></svg>\n'
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "points.svg")
+            with open(in_file, "w", encoding="utf-8") as svg_file:
+                svg_file.write(svg)
+            importSVG.insert(in_file, self.doc.Name)
+        shapes = [o.Shape for o in self.doc.Objects if hasattr(o, "Shape") and not o.Shape.isNull()]
+        self.assertEqual(len(shapes), 1)
+        self.assertAlmostEqual(shapes[0].BoundBox.XLength, 25.4, places=3)
+        self.assertAlmostEqual(shapes[0].BoundBox.YLength, 12.7, places=3)
+
     def test_read_svg_transform_list_with_matrix_and_skew(self):
         """matrix/skewX/skewY in a transform list must be applied in SVG order."""
         transforms = {
