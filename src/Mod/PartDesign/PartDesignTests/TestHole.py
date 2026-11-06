@@ -274,6 +274,18 @@ class TestHole(unittest.TestCase):
             self.Hole.ThreadType = "ISOMetricFineProfile"
             self.assertEqual(self.Hole.ThreadSize, size)
 
+    def testIso4762WasherCounterboreDepth(self):
+        """ISO 4762 + 7089 counterbores are the ISO 4762 depth plus the washer thickness"""
+        washer = {"M14x2.0": 2.5, "M16x2.0": 3.0, "M18x2.5": 3.0}
+        self.Hole.ThreadType = "ISOMetricProfile"
+        for size, thickness in washer.items():
+            self.Hole.HoleCutType = "ISO 4762"
+            self.Hole.ThreadSize = size
+            depth = self.Hole.HoleCutDepth.Value
+            self.Hole.HoleCutType = "ISO 4762 + 7089"
+            self.assertFalse(self.Hole.HoleCutCustomValues, msg=size)
+            self.assertAlmostEqual(self.Hole.HoleCutDepth.Value, depth + thickness, msg=size)
+
     def testThreadEnums(self):
         """Test thread enums for correct order"""
         # Due to the savefile use of indexes and not strings
