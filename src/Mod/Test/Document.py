@@ -783,6 +783,23 @@ class DocumentBasicCases(unittest.TestCase):
         self.assertEqual(obj.getEnumerationsOfProperty("Choice"), ["p", "q", "r"])
         self.assertEqual(obj.Choice, "r")
 
+    def testExpressionPathWithComputedIndex(self):
+        # A non-literal index such as [-1] is not part of an expression path; it was
+        # dropped, so the expression was bound to the whole list and replaced it.
+        obj = self.Doc.addObject("App::FeaturePython", "ListHolder")
+        obj.addProperty("App::PropertyFloatList", "Values")
+        obj.Values = [1.0, 2.0, 3.0]
+        for path in (".Values[-1]", ".Values[1 + 1]"):
+            with self.assertRaises(RuntimeError, msg=path):
+                obj.setExpression(path, "7")
+            with self.assertRaises(RuntimeError, msg=path):
+                obj.clearExpression(path)
+        self.assertEqual(obj.ExpressionEngine, [])
+        self.Doc.recompute()
+        self.assertEqual(obj.Values, [1.0, 2.0, 3.0])
+        # the same index still works inside an expression
+        self.assertEqual(obj.evalExpression("Values[-1]"), 3.0)
+
     def testUnencodableStringArguments(self):
         # Same as testUnencodableStringPropertyValues for method arguments.
         bad = "\ud800"
