@@ -117,3 +117,29 @@ class TestNavigationPreferenceReloadGui(unittest.TestCase):
                 group.SetString("FontString", old)
             else:
                 group.RemString("FontString")
+
+    def testFontNameKeepsNonLatin1Characters(self):
+        """The font name is stored as UTF-8 (it was stored as Latin-1: '?' for other characters)."""
+        families = [
+            family
+            for family in QtGui.QFontDatabase.families()
+            if any(ord(character) > 255 for character in family)
+        ]
+        if not families:
+            self.skipTest("No installed font family name outside Latin-1")
+        font = families[0]
+        group = App.ParamGet("User parameter:BaseApp/Preferences/NaviCube")
+        had = "FontString" in group.GetStrings()
+        old = group.GetString("FontString")
+        try:
+            group.SetString("FontString", font)
+            QtCore.QTimer.singleShot(500, self.inspectFont)
+            Gui.showPreferences("Display")
+            self.assertEqual(self.errors, [])
+            self.assertEqual(self.results["loaded"][1], font)
+            self.assertEqual(group.GetString("FontString"), font)
+        finally:
+            if had:
+                group.SetString("FontString", old)
+            else:
+                group.RemString("FontString")
