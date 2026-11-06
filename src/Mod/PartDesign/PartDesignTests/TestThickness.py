@@ -243,6 +243,61 @@ class TestThickness(unittest.TestCase):
         self.assertTrue(thickness.Shape.isValid())
         self.assertEqual(len(thickness.Shape.Solids), 1)
 
+    def testThicknessNeverStoresInvalidSolid(self):
+        """A thick solid that OCC returns broken must make the feature fail.
+
+        Which of these cases OCC handles depends on its version (stock 8.0
+        returns invalid solids for the filleted box and the filleted-hole
+        plate), so check the contract: either a valid solid or an error.
+        """
+        box = Part.makeBox(20, 20, 10)
+        filletedBox = box.makeFillet(2, box.Edges)
+        plate = Part.makeBox(40, 40, 10)
+        for i in range(4):
+            for j in range(4):
+                plate = plate.cut(
+                    Part.makeCylinder(2, 20, FreeCAD.Vector(5 + 10 * i, 5 + 10 * j, -5))
+                )
+        plate = plate.makeFillet(
+            0.5,
+            [
+                edge
+                for edge in plate.Edges
+                if isinstance(edge.Curve, Part.Circle) and edge.BoundBox.ZMin > 9.99
+            ],
+        )
+        cases = [
+            ("FilletedBoxIn", filletedBox, 0.5, True),
+            ("FilletedBoxOut", filletedBox, 0.5, False),
+            ("FilletedPlate", plate, 1.0, True),
+        ]
+        for name, shape, value, reversed in cases:
+            with self.subTest(name):
+                top = [
+                    "Face" + str(index)
+                    for index, face in enumerate(shape.Faces, 1)
+                    if isinstance(face.Surface, Part.Plane) and face.BoundBox.ZMin > 9.99
+                ]
+                body = self.Doc.addObject("PartDesign::Body", "Body" + name)
+                base = self.Doc.addObject("PartDesign::Feature", "Base" + name)
+                body.addObject(base)
+                base.Shape = shape
+                thickness = self.Doc.addObject("PartDesign::Thickness", "Thickness" + name)
+                body.addObject(thickness)
+                thickness.Base = (base, top)
+                thickness.Value = value
+                thickness.Reversed = reversed
+                self.Doc.recompute()
+                if thickness.isValid():
+                    self.assertTrue(thickness.Shape.isValid())
+                    self.assertGreater(thickness.Shape.Volume, 0.0)
+                else:
+                    status = thickness.getStatusString()
+                    self.assertTrue(
+                        "invalid solid" in status or "Failed to make thick solid" in status,
+                        status,
+                    )
+
     def tearDown(self):
         FreeCAD.closeDocument("PartDesignTestThickness")
 

@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
 #include <memory>
 #include <BRepAdaptor_CompCurve.hxx>
 #include <BRepAdaptor_Curve.hxx>
@@ -452,10 +453,16 @@ App::DocumentObjectExecReturn* Thickness::execute()
     short mode = (short)Mode.getValue();
     short join = (short)Join.getValue();
 
-    this->Shape.setValue(
-        TopoShape(0, getDocument()->getStringHasher())
-            .makeElementThickSolid(base, shapes, thickness, tol, inter, self, mode, static_cast<JoinType>(join))
-    );
+    TopoShape result(0, getDocument()->getStringHasher());
+    result.makeElementThickSolid(base, shapes, thickness, tol, inter, self, mode, static_cast<JoinType>(join));
+    // OCC can report success yet return a broken thick solid (for instance an
+    // inside-out one with negative volume). Refuse to store it. A thickness
+    // within tolerance returns the source unchanged, which is not checked.
+    if (std::abs(thickness) > 2 * tol
+        && (result.isNull() || !result.countSubShapes(TopAbs_SOLID) || !result.isValid())) {
+        return new App::DocumentObjectExecReturn("Thickness operation produced an invalid solid");
+    }
+    this->Shape.setValue(result);
     return Part::Feature::execute();
 }
 
