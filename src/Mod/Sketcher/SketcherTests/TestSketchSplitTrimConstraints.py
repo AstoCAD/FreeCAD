@@ -28,11 +28,12 @@ class TestSketchSplitTrimConstraints(unittest.TestCase):
 
     def _points(self):
         result = []
-        for geo in self.sketch.Geometry:
+        for geoId, geo in enumerate(self.sketch.Geometry):
             if isinstance(geo, Part.Point):
                 result.append(V(geo.X, geo.Y, geo.Z))
             elif hasattr(geo, "StartPoint"):
-                result.extend((geo.StartPoint, geo.EndPoint))
+                # the end points as the sketch reads them (CCW arcs)
+                result.extend((self.sketch.getPoint(geoId, 1), self.sketch.getPoint(geoId, 2)))
             else:
                 result.append(geo.value(geo.FirstParameter))
         return result
@@ -228,9 +229,10 @@ class TestSketchSplitTrimConstraints(unittest.TestCase):
         self.assertEqual(self.sketch.RedundantConstraints, [])
         self.assertEqual(self.sketch.PartiallyRedundantConstraints, [])
 
-    def _splitArc(self, arc, splitParameter):
+    def _splitArc(self, arc, splitParameter, recompute=True):
         self.sketch.addGeometry(arc)  # 0
-        self.doc.recompute()
+        if recompute:
+            self.doc.recompute()
         start = self.sketch.getPoint(0, 1)
         end = self.sketch.getPoint(0, 2)
         cut = arc.value(splitParameter)
@@ -260,3 +262,25 @@ class TestSketchSplitTrimConstraints(unittest.TestCase):
         # control
         arc = Part.ArcOfCircle(Part.Circle(V(1, 2, 0), V(0, 0, 1), 5), 0.3, 2.5)
         self._splitArc(arc, 1.2)
+
+    def _clockwiseArcOfHyperbola(self):
+        arc = Part.ArcOfHyperbola(Part.Hyperbola(V(0, 0, 0), 5, 2), -1.0, 1.2)
+        arc.mirror(V(0, 0, 0), V(1, 0, 0))
+        self.assertLess(arc.Axis.z, 0)
+        return arc
+
+    def _clockwiseArcOfParabola(self):
+        arc = Part.ArcOfParabola(Part.Parabola(V(0, 1, 0), V(0, 0, 0), V(0, 0, 1)), -2, 3)
+        arc.mirror(V(0, 0, 0), V(1, 0, 0))
+        self.assertLess(arc.Axis.z, 0)
+        return arc
+
+    # A solve turns a clockwise arc of hyperbola or parabola counter-clockwise: these split it
+    # as it was added.
+    def testSplitClockwiseArcOfHyperbola(self):
+        arc = self._clockwiseArcOfHyperbola()
+        self._splitArc(arc, (arc.FirstParameter + 2 * arc.LastParameter) / 3, recompute=False)
+
+    def testSplitClockwiseArcOfParabola(self):
+        arc = self._clockwiseArcOfParabola()
+        self._splitArc(arc, (arc.FirstParameter + 2 * arc.LastParameter) / 3, recompute=False)

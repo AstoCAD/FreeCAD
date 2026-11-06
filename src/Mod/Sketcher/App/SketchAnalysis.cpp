@@ -213,11 +213,11 @@ struct PointConstraints
         VertexIds id;
         id.GeoId = index;
         id.PosId = Sketcher::PointPos::start;
-        id.v = segm->getStartPoint();
+        id.v = segm->getStartPoint(/*emulateCCWXY=*/true);
         vertexIds.push_back(id);
         id.GeoId = index;
         id.PosId = Sketcher::PointPos::end;
-        id.v = segm->getEndPoint();
+        id.v = segm->getEndPoint(/*emulateCCWXY=*/true);
         vertexIds.push_back(id);
     }
 
@@ -226,11 +226,11 @@ struct PointConstraints
         VertexIds id;
         id.GeoId = index;
         id.PosId = Sketcher::PointPos::start;
-        id.v = segm->getStartPoint();
+        id.v = segm->getStartPoint(/*emulateCCWXY=*/true);
         vertexIds.push_back(id);
         id.GeoId = index;
         id.PosId = Sketcher::PointPos::end;
-        id.v = segm->getEndPoint();
+        id.v = segm->getEndPoint(/*emulateCCWXY=*/true);
         vertexIds.push_back(id);
     }
 
