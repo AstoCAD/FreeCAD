@@ -98,6 +98,7 @@ FreeCAD.__unit_test__ += [
     "GuiDocument",
     "TestGroupVisibilityRestoreGui",
     "TestTextDocumentOpenGui",
+    "TestTextDocumentFontNameGui",
     "TestInactiveDocumentUnitsGui",
     "TestAddPropertyGui",
     "TestDocumentParametersGui",

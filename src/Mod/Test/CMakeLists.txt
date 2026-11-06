@@ -12,6 +12,7 @@ SET(Test_SRCS
     Document.py
     GuiDocument.py
     TestTextDocumentOpenGui.py
+    TestTextDocumentFontNameGui.py
     TestInactiveDocumentUnitsGui.py
     Metadata.py
     StringHasher.py
