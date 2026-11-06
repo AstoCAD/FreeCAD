@@ -1789,6 +1789,42 @@ G1 X20.000 Y10.000 F6000.000
             self.assertNotIn("Y", second_commands[0], "Y should be suppressed (unchanged)")
             self.assertNotIn("Z", second_commands[0], "Z should be suppressed (unchanged)")
 
+    def test128a_no_rapid_feed_with_duplicates_suppressed(self):
+        """
+        "Output F parameter for G0" holds when duplicate parameters are
+        suppressed too (issue 34162: "G0 Z5.000 F0" on a Fanuc).
+
+        Expected:
+            G0 X10.000 Y10.000 Z5.000      (no F, rapid F output is off)
+            Z3.000                         (no F)
+            G1 X20.000 F...                (the cutting feed is kept)
+        """
+        machine = self._create_machine(
+            parameters=False, line_numbers=False, comments_enabled=False, output_header=False
+        )
+        machine.processing.filter_inefficient_moves = False
+
+        with self._modify_operation_path(
+            [
+                Path.Command("G0", {"X": 10.0, "Y": 10.0, "Z": 5.0, "F": 0.0}),
+                Path.Command("G0", {"Z": 3.0, "F": 600.0}),
+                Path.Command("G1", {"X": 20.0, "F": 100.0}),
+            ]
+        ):
+            gcode = self._get_first_section_gcode(self._run_export2(machine))
+            lines = [
+                l.strip() for l in gcode.split("\n") if l.strip() and not l.strip().startswith("(")
+            ]
+
+            rapids = [l for l in lines if l.startswith("G0 ") or "Z3.000" in l]
+            self.assertTrue(any("X10.000" in l for l in rapids), lines)
+            self.assertTrue(any("Z3.000" in l for l in rapids), lines)
+            for line in rapids:
+                self.assertNotIn("F", line, lines)
+            cuts = [l for l in lines if l.startswith("G1 ") and "X20" in l]
+            self.assertEqual(1, len(cuts), lines)
+            self.assertIn("F", cuts[0], lines)
+
     def test129_duplicate_commands_suppressed(self):
         """
         Test that duplicate G-code commands are suppressed when duplicates.commands=False.

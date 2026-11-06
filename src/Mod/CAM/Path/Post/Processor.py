@@ -3797,6 +3797,13 @@ class PostProcessor:
             if parameter in params:
                 # Check if we should suppress duplicate parameters
                 current_value = params[parameter]
+                # Whether a G0 gets an F does not depend on duplicate suppression.
+                if (
+                    parameter == "F"
+                    and command_name in Constants.GCODE_MOVE_RAPID
+                    and (not self.values["F_FOR_RAPID_MOVES"] or current_value == 0.0)
+                ):
+                    continue  # no F for G0, or the F is 0.0 which should be skipped too
                 if not self.values["OUTPUT_DOUBLES"]:
                     # Suppress parameters that haven't changed
                     if (
@@ -3804,12 +3811,6 @@ class PostProcessor:
                         and self.machine_state.previous[parameter] == current_value
                     ):
                         continue  # Skip this parameter
-                elif (
-                    parameter == "F"
-                    and command_name in Constants.GCODE_MOVE_RAPID
-                    and (not self.values["F_FOR_RAPID_MOVES"] or current_value == 0.0)
-                ):
-                    continue  # no F for G0, or the F is 0.0 which should be skipped too
 
                 formatted_value = self.format_parameter(parameter, current_value, command_name)
                 command_line.append(f"{parameter}{formatted_value}")
