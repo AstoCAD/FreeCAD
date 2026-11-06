@@ -476,8 +476,18 @@ class ArchReference:
             t = translate("Arch", "NativeIFC not available - unable to process IFC files")
             FreeCAD.Console.PrintError(t + "\n")
             return None
-        if not getattr(self, "ifcfile", None):
+        # Open the file again if another file is asked for or if it changed on disk
+        mtime = os.path.getmtime(filename)
+        if (
+            not getattr(self, "ifcfile", None)
+            or getattr(self, "ifcfilename", None) != filename
+            or getattr(self, "ifcmtime", None) != mtime
+        ):
             self.ifcfile = ifcopenshell.open(filename)
+            self.ifcfilename = filename
+            self.ifcmtime = mtime
+            # The shape cache of ifc_generator belongs to the previous file
+            self.ifccache = None
         return self.ifcfile
 
     def getColors(self, obj):
