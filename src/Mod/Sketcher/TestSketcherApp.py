@@ -64,6 +64,7 @@ from SketcherTests.TestSketchNormal import TestSketchNormal
 from SketcherTests.TestSketchSplitTrimConstraints import TestSketchSplitTrimConstraints
 from SketcherTests.TestSketchSymmetricCopy import TestSketchSymmetricCopy
 from SketcherTests.TestSketchMoveUndo import TestSketchMoveUndo
+from SketcherTests.TestSketchExtendUndo import TestSketchExtendUndo
 
 # Path and PartDesign tests use these functions that used to live here
 # but moved to SketcherTests/TestSketcherSolver.py
@@ -106,6 +107,7 @@ __all__ = [
     "TestSketchSplitTrimConstraints",
     "TestSketchSymmetricCopy",
     "TestSketchMoveUndo",
+    "TestSketchExtendUndo",
     "CreateCircleSketch",
     "CreateRectangleSketch",
     "CreateSlotPlateSet",
