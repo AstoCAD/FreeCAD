@@ -539,6 +539,9 @@ def edgeForCmd(cmd, startPoint):
         else:
             cw = False
         angle = diffAngle(getAngle(A), getAngle(B), "CW" if cw else "CCW")
+        if isRoughly(angle, 0):
+            # start and end coincide in XY: one full turn, as for the planar circle above
+            angle = 2 * math.pi
         height = endPoint.z - startPoint.z
         pitch = height * math.fabs(2 * math.pi / angle)
         if angle > 0:
