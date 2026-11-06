@@ -1279,7 +1279,7 @@ arcPoints DrawViewDimension::arcPointsFromEdge(const TopoDS_Edge& occEdge)
             if (adaptCircle.GetType() != GeomAbs_Circle) {
                 throw Base::RuntimeError("failed to get circle from B-spline");
             }
-            gp_Circ circle = adapt.Circle();
+            gp_Circ circle = adaptCircle.Circle();
             // TODO: same code as above. reuse opportunity.
             pts.center = Base::convertTo<Base::Vector3d>(circle.Location());
             pts.radius = circle.Radius();
