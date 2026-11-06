@@ -77,10 +77,7 @@ App::DocumentObjectExecReturn* Chamfer::execute()
                 fullErrMsg.append("Missing edge link: ");
                 fullErrMsg.append(ref);
                 fullErrMsg.append("\n");
-
-                auto removeIt = std::remove(edges.begin(), edges.end(), info);
-                edges.erase(removeIt, edges.end());
-
+                // 'edges' is only stored when no link is missing, so nothing is removed here
                 continue;
             }
             // Toponaming project March 2024:  Replaced this code because it wouldn't work:
@@ -89,13 +86,20 @@ App::DocumentObjectExecReturn* Chamfer::execute()
             //                edge = baseTopoShape.getSubShape(ref.c_str());
             //            }catch(...){}
             auto id = Data::IndexedName(Data::oldElementName(ref.c_str()).c_str()).getIndex();
+            if (id < 1 || id > mapOfEdges.Extent()) {
+                return new App::DocumentObjectExecReturn("Invalid edge link: " + ref);
+            }
             const TopoDS_Edge& edge = TopoDS::Edge(mapOfEdges.FindKey(id));
             if (edge.IsNull()) {
                 return new App::DocumentObjectExecReturn("Invalid edge link");
             }
             double radius1 = info.radius1;
             double radius2 = info.radius2;
-            const TopoDS_Face& face = TopoDS::Face(mapEdgeFace.FindFromKey(edge).First());
+            const TopTools_ListOfShape& adjacentFaces = mapEdgeFace.FindFromKey(edge);
+            if (adjacentFaces.IsEmpty()) {
+                return new App::DocumentObjectExecReturn("Edge has no adjacent face: " + ref);
+            }
+            const TopoDS_Face& face = TopoDS::Face(adjacentFaces.First());
             mkChamfer.Add(radius1, radius2, TopoDS::Edge(edge), face);
         }
 
