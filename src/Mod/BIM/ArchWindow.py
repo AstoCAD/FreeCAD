@@ -864,11 +864,11 @@ class _Window(ArchComponent.Component):
                 if obj.HoleWire <= len(base.Shape.Wires):
                     f = base.Shape.Wires[obj.HoleWire - 1]
         if not f:
-            if orig and hasattr(orig, "HoleDepth"):
+            if orig and hasattr(orig, "HoleWire"):
                 # check original's HoleWire
                 if orig.HoleWire > 0:
                     if orig.HoleWire <= len(base.Shape.Wires):
-                        f = base.Shape.Wires[obj.HoleWire - 1]
+                        f = base.Shape.Wires[orig.HoleWire - 1]
         if not f:
             # finding biggest wire in the base shape
             max_length = 0
