@@ -710,6 +710,7 @@ void AssemblyLink::synchronizeJoints()
         copyPropertyIfDifferent<App::PropertyBool>(joint, lJoint, "Suppressed");
         copyPropertyIfDifferent<App::PropertyFloat>(joint, lJoint, "Distance");
         copyPropertyIfDifferent<App::PropertyFloat>(joint, lJoint, "Distance2");
+        copyPropertyIfDifferent<App::PropertyFloat>(joint, lJoint, "Angle");
         copyPropertyIfDifferent<App::PropertyEnumeration>(joint, lJoint, "JointType");
         copyPropertyIfDifferent<App::PropertyPlacement>(joint, lJoint, "Offset1");
         copyPropertyIfDifferent<App::PropertyPlacement>(joint, lJoint, "Offset2");
