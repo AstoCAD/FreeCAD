@@ -65,11 +65,12 @@ class Centroid(PostProcessor):
             elif prop["name"] == "preamble":
                 prop["default"] = "G53 G00 G17"
             elif prop["name"] == "postamble":
-                prop["default"] = "M99"
+                # Spindle off, spindle retracted (M25), tool length offset
+                # cancelled: the end of the program, as TOOLRETURN is below.
+                # Not the tool_return block, which follows every tool change.
+                prop["default"] = "M5\nM25\nG49 H0\nM99"
             elif prop["name"] == "safetyblock":
                 prop["default"] = "G90 G80 G40 G49"
-            elif prop["name"] == "tool_return":
-                prop["default"] = "M5\nM25\nG49 H0"
 
         return common_props
 
