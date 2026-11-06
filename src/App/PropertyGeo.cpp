@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 #include <cmath>
+#include <optional>
 
 #include <Base/MatrixPy.h>
 #include <Base/PlacementPy.h>
@@ -91,14 +92,45 @@ PyObject* PropertyVector::getPyObject()
     return new Base::VectorPy(_cVec);
 }
 
-void PropertyVector::setPyObject(PyObject* value)
+namespace
+{
+/// The number an expression assigns to a component of a property, if it assigns a number
+std::optional<double> numberFromAny(const boost::any& value)
+{
+    if (value.type() == typeid(Base::Quantity)) {
+        return boost::any_cast<Base::Quantity>(value).getValue();
+    }
+    if (value.type() == typeid(double)) {
+        return boost::any_cast<double>(value);
+    }
+    if (value.type() == typeid(int)) {
+        return boost::any_cast<int>(value);
+    }
+    if (value.type() == typeid(unsigned int)) {
+        return boost::any_cast<unsigned int>(value);
+    }
+    if (value.type() == typeid(short)) {
+        return boost::any_cast<short>(value);
+    }
+    if (value.type() == typeid(unsigned short)) {
+        return boost::any_cast<unsigned short>(value);
+    }
+    if (value.type() == typeid(long)) {
+        return boost::any_cast<long>(value);
+    }
+    if (value.type() == typeid(unsigned long)) {
+        return boost::any_cast<unsigned long>(value);
+    }
+    return std::nullopt;
+}
+
+Base::Vector3d vectorFromPy(PyObject* value)
 {
     if (PyObject_TypeCheck(value, &(Base::VectorPy::Type))) {
         Base::VectorPy* pcObject = static_cast<Base::VectorPy*>(value);
-        Base::Vector3d* val = pcObject->getVectorPtr();
-        setValue(*val);
+        return *pcObject->getVectorPtr();
     }
-    else if (PyTuple_Check(value) && PyTuple_Size(value) == 3) {
+    if (PyTuple_Check(value) && PyTuple_Size(value) == 3) {
         PyObject* item {};
         Base::Vector3d cVec;
         // x
@@ -134,13 +166,29 @@ void PropertyVector::setPyObject(PyObject* value)
         else {
             throw Base::TypeError("Not allowed type used in tuple (float expected)...");
         }
-        setValue(cVec);
+        return cVec;
     }
-    else {
-        std::string error = std::string("type must be 'Vector' or tuple of three floats, not ");
-        error += value->ob_type->tp_name;
-        throw Base::TypeError(error);
+    std::string error = std::string("type must be 'Vector' or tuple of three floats, not ");
+    error += value->ob_type->tp_name;
+    throw Base::TypeError(error);
+}
+}  // namespace
+
+void PropertyVector::setPyObject(PyObject* value)
+{
+    Base::Vector3d vec = vectorFromPy(value);
+    checkNotNaN(vec);
+    setValue(vec);
+}
+
+void PropertyVector::setPathValue(const ObjectIdentifier& path, const boost::any& value)
+{
+    // A component (e.g. '.x') is set on a Python copy of the vector that is then assigned
+    // back; an error raised by that assignment is swallowed, so check the number here.
+    if (auto number = numberFromAny(value)) {
+        checkNotNaN(*number);
     }
+    Property::setPathValue(path, value);
 }
 
 void PropertyVector::Save(Base::Writer& writer) const
@@ -305,9 +353,9 @@ PyObject* PropertyVectorList::getPyObject()
 
 Base::Vector3d PropertyVectorList::getPyValue(PyObject* item) const
 {
-    PropertyVector val;
-    val.setPyObject(item);
-    return val.getValue();
+    Base::Vector3d vec = vectorFromPy(item);
+    checkNotNaN(vec);
+    return vec;
 }
 
 void PropertyVectorList::Save(Base::Writer& writer) const
@@ -429,6 +477,7 @@ void PropertyMatrix::setPyObject(PyObject* value)
 {
     if (PyObject_TypeCheck(value, &(Base::MatrixPy::Type))) {
         Base::MatrixPy* pcObject = static_cast<Base::MatrixPy*>(value);
+        checkNotNaN(pcObject->value());
         setValue(pcObject->value());
     }
     else if (PyTuple_Check(value) && PyTuple_Size(value) == 16) {
@@ -455,6 +504,7 @@ void PropertyMatrix::setPyObject(PyObject* value)
             }
         }
 
+        checkNotNaN(cMatrix);
         setValue(cMatrix);
     }
     else {
@@ -462,6 +512,15 @@ void PropertyMatrix::setPyObject(PyObject* value)
         error += value->ob_type->tp_name;
         throw Base::TypeError(error);
     }
+}
+
+void PropertyMatrix::setPathValue(const ObjectIdentifier& path, const boost::any& value)
+{
+    // see PropertyVector::setPathValue()
+    if (auto number = numberFromAny(value)) {
+        checkNotNaN(*number);
+    }
+    Property::setPathValue(path, value);
 }
 
 void PropertyMatrix::Save(Base::Writer& writer) const
@@ -603,36 +662,10 @@ namespace
 {
 double toDouble(const boost::any& value)
 {
-    double avalue {};
-
-    if (value.type() == typeid(Base::Quantity)) {
-        avalue = boost::any_cast<Base::Quantity>(value).getValue();
+    if (auto number = numberFromAny(value)) {
+        return *number;
     }
-    else if (value.type() == typeid(double)) {
-        avalue = boost::any_cast<double>(value);
-    }
-    else if (value.type() == typeid(int)) {
-        avalue = boost::any_cast<int>(value);
-    }
-    else if (value.type() == typeid(unsigned int)) {
-        avalue = boost::any_cast<unsigned int>(value);
-    }
-    else if (value.type() == typeid(short)) {
-        avalue = boost::any_cast<short>(value);
-    }
-    else if (value.type() == typeid(unsigned short)) {
-        avalue = boost::any_cast<unsigned short>(value);
-    }
-    else if (value.type() == typeid(long)) {
-        avalue = boost::any_cast<long>(value);
-    }
-    else if (value.type() == typeid(unsigned long)) {
-        avalue = boost::any_cast<unsigned long>(value);
-    }
-    else {
-        throw std::bad_cast();
-    }
-    return avalue;
+    throw std::bad_cast();
 }
 }  // namespace
 
@@ -647,6 +680,7 @@ void PropertyPlacement::setPathValue(const ObjectIdentifier& path, const boost::
         axis[index] = coord;
         rot.setValue(axis, angle);
         Base::Placement plm(base, rot);
+        checkNotNaN(plm);
         setValue(plm);
     };
 
@@ -677,8 +711,14 @@ void PropertyPlacement::setPathValue(const ObjectIdentifier& path, const boost::
         }
         rot.setYawPitchRoll(yaw, pitch, roll);
         Base::Placement plm(base, rot);
+        checkNotNaN(plm);
         setValue(plm);
     };
+
+    // see PropertyVector::setPathValue()
+    if (auto number = numberFromAny(value)) {
+        checkNotNaN(*number);
+    }
 
     std::string subpath = path.getSubPathStr();
     if (subpath == ".Rotation.Angle") {
@@ -828,23 +868,31 @@ PyObject* PropertyPlacement::getPyObject()
     return new Base::PlacementPy(new Base::Placement(_cPos));
 }
 
-void PropertyPlacement::setPyObject(PyObject* value)
+namespace
+{
+Base::Placement placementFromPy(PyObject* value)
 {
     if (PyObject_TypeCheck(value, &(Base::MatrixPy::Type))) {
         Base::MatrixPy* pcObject = static_cast<Base::MatrixPy*>(value);
         Base::Matrix4D mat = pcObject->value();
         Base::Placement p;
         p.fromMatrix(mat);
-        setValue(p);
+        return p;
     }
-    else if (PyObject_TypeCheck(value, &(Base::PlacementPy::Type))) {
-        setValue(*static_cast<Base::PlacementPy*>(value)->getPlacementPtr());
+    if (PyObject_TypeCheck(value, &(Base::PlacementPy::Type))) {
+        return *static_cast<Base::PlacementPy*>(value)->getPlacementPtr();
     }
-    else {
-        std::string error = std::string("type must be 'Matrix' or 'Placement', not ");
-        error += value->ob_type->tp_name;
-        throw Base::TypeError(error);
-    }
+    std::string error = std::string("type must be 'Matrix' or 'Placement', not ");
+    error += value->ob_type->tp_name;
+    throw Base::TypeError(error);
+}
+}  // namespace
+
+void PropertyPlacement::setPyObject(PyObject* value)
+{
+    Base::Placement plm = placementFromPy(value);
+    checkNotNaN(plm);
+    setValue(plm);
 }
 
 void PropertyPlacement::Save(Base::Writer& writer) const
@@ -944,9 +992,9 @@ PyObject* PropertyPlacementList::getPyObject()
 
 Base::Placement PropertyPlacementList::getPyValue(PyObject* item) const
 {
-    PropertyPlacement val;
-    val.setPyObject(item);
-    return val.getValue();
+    Base::Placement plm = placementFromPy(item);
+    checkNotNaN(plm);
+    return plm;
 }
 
 void PropertyPlacementList::Save(Base::Writer& writer) const
@@ -1141,8 +1189,15 @@ void PropertyRotation::setPathValue(const ObjectIdentifier& path, const boost::a
         _rot.getRawValue(axis, angle);
 
         axis[index] = coord;
-        setValue(Base::Rotation {axis, angle});
+        Base::Rotation rot {axis, angle};
+        checkNotNaN(rot);
+        setValue(rot);
     };
+
+    // see PropertyVector::setPathValue()
+    if (auto number = numberFromAny(value)) {
+        checkNotNaN(*number);
+    }
 
     std::string subpath = path.getSubPathStr();
     if (subpath == ".Angle") {
@@ -1234,12 +1289,17 @@ void PropertyRotation::setPyObject(PyObject* value)
     if (PyObject_TypeCheck(value, &(Base::MatrixPy::Type))) {
         Base::MatrixPy* object = static_cast<Base::MatrixPy*>(value);
         Base::Matrix4D mat = object->value();
+        // check the matrix itself: the conversion to a rotation can hide a NaN entry
+        checkNotNaN(mat);
         Base::Rotation p;
         p.setValue(mat);
+        checkNotNaN(p);
         setValue(p);
     }
     else if (PyObject_TypeCheck(value, &(Base::RotationPy::Type))) {
-        setValue(*static_cast<Base::RotationPy*>(value)->getRotationPtr());
+        const Base::Rotation& rot = *static_cast<Base::RotationPy*>(value)->getRotationPtr();
+        checkNotNaN(rot);
+        setValue(rot);
     }
     else {
         std::string error = std::string("type must be 'Matrix' or 'Rotation', not ");

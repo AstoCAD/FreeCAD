@@ -629,10 +629,6 @@ public:
     }
 
 protected:
-    /// Throws Base::ValueError for NaN. Values entering from Python or an expression are
-    /// checked; setValue() and Restore() are not, so files holding NaN still load.
-    void checkNotNaN(double value) const;
-
     double _dValue;
 };
 

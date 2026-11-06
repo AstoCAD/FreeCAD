@@ -23,7 +23,6 @@
  ***************************************************************************/
 
 #include <algorithm>
-#include <cmath>
 #include <set>
 #include <limits>
 #include <memory>
@@ -1246,15 +1245,6 @@ void PropertyFloat::setValue(double lValue)
 double PropertyFloat::getValue() const
 {
     return _dValue;
-}
-
-void PropertyFloat::checkNotNaN(double value) const
-{
-    // NaN passes every range check (all comparisons are false), so consumers that
-    // validate their parameters cannot catch it, and OCC crashes or hangs on it.
-    if (std::isnan(value)) {
-        throw Base::ValueError("Invalid value 'nan' for property " + getFullName());
-    }
 }
 
 PyObject* PropertyFloat::getPyObject()
