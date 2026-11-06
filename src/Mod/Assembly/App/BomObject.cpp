@@ -341,7 +341,9 @@ void BomObject::addObjectToBom(
             setCell(App::CellAddress(row, col), (std::string("'") + index).c_str());
         }
         else if (columnName == "Name") {
-            setCell(App::CellAddress(row, col), name.c_str());
+            // Like the index, a label is text: do not let the cell parse it as a
+            // number, quantity or formula ("007", "1/2", "=A1"). getText() strips the quote.
+            setCell(App::CellAddress(row, col), (std::string("'") + name).c_str());
         }
         else if (columnName == "File Name") {
             setCell(App::CellAddress(row, col), obj->getDocument()->getFileName());
