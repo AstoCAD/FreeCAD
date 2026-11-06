@@ -28,6 +28,7 @@ import math
 import warnings
 from FreeCAD import Units
 from FreeCAD import Base
+from TestPropertyFloatNaN import restoreValueAsFromFile
 
 App = FreeCAD
 
@@ -1669,7 +1670,11 @@ class PartExtrusionTests(unittest.TestCase):
             with self.subTest(prop=prop, value=value):
                 extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
                 extrusion.Base = base_feature
-                setattr(extrusion, prop, value)
+                if isinstance(value, float) and math.isnan(value):
+                    # assigning NaN raises: it can only come from a file
+                    restoreValueAsFromFile(extrusion, prop, value)
+                else:
+                    setattr(extrusion, prop, value)
                 self.Doc.recompute()
                 self.assertIn("Invalid", extrusion.State)
                 self.Doc.removeObject(extrusion.Name)
@@ -2246,7 +2251,8 @@ class PartPrismNaNTests(unittest.TestCase):
         ):
             with self.subTest(type=typeName, prop=prop):
                 feature = self.Doc.addObject(typeName, "Feature")
-                setattr(feature, prop, nan)
+                # assigning NaN raises: it can only come from a file
+                restoreValueAsFromFile(feature, prop, nan)
                 self.Doc.recompute()
                 # checking the NaN prism crashed (segmentation fault)
                 self.assertTrue(feature.Shape.isNull() or not feature.Shape.isValid())

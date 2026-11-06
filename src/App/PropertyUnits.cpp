@@ -91,6 +91,7 @@ Base::Quantity PropertyQuantity::createQuantityFromPy(PyObject* value)
         throw Base::TypeError(error);
     }
 
+    checkNotNaN(quant.getValue());
     return quant;
 }
 
@@ -125,6 +126,7 @@ void PropertyQuantity::setPyObject(PyObject* value)
 void PropertyQuantity::setPathValue(const ObjectIdentifier& /*path*/, const boost::any& value)
 {
     auto q = App::anyToQuantity(value);
+    checkNotNaN(q.getValue());
     aboutToSetValue();
     if (!q.isDimensionless()) {
         _Unit = q.getUnit();

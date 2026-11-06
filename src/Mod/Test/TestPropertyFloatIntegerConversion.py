@@ -139,14 +139,14 @@ class TestPropertyFloatIntegerBoundary(unittest.TestCase):
         self.assertEqual(self.obj.Value, 12.5)
 
     def test_nonfinite_float_and_signed_zero_controls(self):
-        for value in (float("inf"), float("-inf"), float("nan"), -0.0):
+        for value in (float("inf"), float("-inf"), -0.0):
             with self.subTest(value=repr(value)):
                 self.assertIsNone(self._assign(self.obj, value))
-                if math.isnan(value):
-                    self.assertTrue(math.isnan(self.obj.Value))
-                else:
-                    self.assertEqual(self.obj.Value, value)
-                    self.assertEqual(math.copysign(1, self.obj.Value), math.copysign(1, value))
+                self.assertEqual(self.obj.Value, value)
+                self.assertEqual(math.copysign(1, self.obj.Value), math.copysign(1, value))
+        # NaN is rejected (TestPropertyFloatNaN) and leaves the value alone
+        self.assertIsInstance(self._assign(self.obj, float("nan")), ValueError)
+        self.assertEqual(self.obj.Value, -0.0)
 
     def test_failed_integer_conversion_does_not_notify_observers(self):
         observer = ValueChangeObserver(self.obj)
