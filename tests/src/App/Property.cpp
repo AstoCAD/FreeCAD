@@ -35,8 +35,10 @@
 #include <App/Document.h>
 #include <App/Expression.h>
 #include <App/ObjectIdentifier.h>
+#include <App/PropertyGeo.h>
 #include <App/PropertyLinks.h>
 #include <App/PropertyStandard.h>
+#include <App/PropertyUnits.h>
 #include <App/VarSet.h>
 
 #include <src/App/InitApplication.h>
@@ -284,6 +286,53 @@ TEST_F(RenameProperty, updateExpressionDifferentContainer)
     EXPECT_EQ(varSet->getDynamicPropertyByName("Variable"), nullptr);
     EXPECT_EQ(varSet->getDynamicPropertyByName("NewName"), prop);
     EXPECT_EQ(prop2->getValue(), value);
+
+    // Tear down
+    doc->removeObject(varSet2->getNameInDocument());
+}
+
+// Tests whether references below a renamed property ('VarSet.Pos.Base.x') are updated
+TEST_F(RenameProperty, updateSubPathReferences)
+{
+    // Arrange
+    auto* placement = freecad_cast<App::PropertyPlacement*>(
+        varSet->addDynamicProperty("App::PropertyPlacement", "Pos", "Variables")
+    );
+    placement->setValue(Base::Placement(Base::Vector3d(3, 4, 5), Base::Rotation()));
+    auto* own = freecad_cast<App::PropertyLength*>(
+        varSet->addDynamicProperty("App::PropertyLength", "Own", "Variables")
+    );
+    auto* varSet2 = freecad_cast<App::VarSet*>(doc->addObject("App::VarSet", "VarSet2"));
+    auto* other = freecad_cast<App::PropertyLength*>(
+        varSet2->addDynamicProperty("App::PropertyLength", "Other", "Variables")
+    );
+    std::shared_ptr<App::Expression> ownExpr(App::Expression::parse(varSet, "Pos.Base.y"));
+    varSet->setExpression(App::ObjectIdentifier(*own), ownExpr);
+    std::shared_ptr<App::Expression> otherExpr(
+        App::Expression::parse(varSet2, "VarSet.Pos.Base.x")
+    );
+    varSet2->setExpression(App::ObjectIdentifier(*other), otherExpr);
+    varSet->ExpressionEngine.execute();
+    varSet2->ExpressionEngine.execute();
+    EXPECT_DOUBLE_EQ(own->getValue(), 4.0);
+    EXPECT_DOUBLE_EQ(other->getValue(), 3.0);
+
+    // Act
+    EXPECT_TRUE(varSet->renameDynamicProperty(placement, "NewPos"));
+    placement->setValue(Base::Placement(Base::Vector3d(6, 7, 8), Base::Rotation()));
+    EXPECT_NO_THROW(varSet->ExpressionEngine.execute());
+    EXPECT_NO_THROW(varSet2->ExpressionEngine.execute());
+
+    // Assert
+    EXPECT_DOUBLE_EQ(own->getValue(), 7.0);
+    EXPECT_DOUBLE_EQ(other->getValue(), 6.0);
+    std::vector<App::DocumentObject*> objects {varSet, varSet2};
+    for (auto* obj : objects) {
+        for (const auto& [id, expression] : obj->ExpressionEngine.getExpressions()) {
+            EXPECT_NE(expression->toString().find("NewPos.Base"), std::string::npos)
+                << expression->toString();
+        }
+    }
 
     // Tear down
     doc->removeObject(varSet2->getNameInDocument());
@@ -741,6 +790,38 @@ TEST_F(MoveProperty, updateSubPathExpressionMovedProp)
     EXPECT_EQ(expressions.begin()->first.getProperty(), movedProp);
     EXPECT_EQ(expressions.begin()->first.toString(), ".Pos.Base.x");
     EXPECT_EQ(expressions.begin()->second->toString(), "5 mm");
+}
+
+// Tests whether references below a moved property ('Pos.Base.x') are updated
+TEST_F(MoveProperty, updateSubPathReferences)
+{
+    // Arrange
+    auto* placement = freecad_cast<App::PropertyPlacement*>(
+        varSet1Doc1->addDynamicProperty("App::PropertyPlacement", "Pos", "Variables")
+    );
+    placement->setValue(Base::Placement(Base::Vector3d(3, 4, 5), Base::Rotation()));
+    auto* own = freecad_cast<App::PropertyLength*>(
+        varSet1Doc1->addDynamicProperty("App::PropertyLength", "Own", "Variables")
+    );
+    std::shared_ptr<App::Expression> expr(App::Expression::parse(varSet1Doc1, "Pos.Base.x"));
+    varSet1Doc1->setExpression(App::ObjectIdentifier(*own), expr);
+    varSet1Doc1->ExpressionEngine.execute();
+    EXPECT_DOUBLE_EQ(own->getValue(), 3.0);
+
+    // Act
+    auto* movedProp = freecad_cast<App::PropertyPlacement*>(
+        varSet1Doc1->moveDynamicProperty(placement, varSet2Doc1)
+    );
+    ASSERT_TRUE(movedProp != nullptr);
+    movedProp->setValue(Base::Placement(Base::Vector3d(6, 7, 8), Base::Rotation()));
+    EXPECT_NO_THROW(varSet1Doc1->ExpressionEngine.execute());
+
+    // Assert
+    EXPECT_DOUBLE_EQ(own->getValue(), 6.0);
+    EXPECT_STREQ(
+        varSet1Doc1->ExpressionEngine.getExpressions().begin()->second->toString().c_str(),
+        "VarSet001.Pos.Base.x"
+    );
 }
 
 void MoveProperty::testUndoProperty(App::DocumentObject* target)
