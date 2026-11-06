@@ -53,3 +53,23 @@ class TestImportCSGVisibility(unittest.TestCase):
         )
         visible = self._visible_shapes(doc)
         self.assertEqual([obj.TypeId for obj in visible], ["Part::Sphere"])
+
+    def test_resized_cube_shown_once(self):
+        doc = self._import(
+            "resize(newsize = [20, 0, 0], auto = [0, 0, 0], convexity = 2) {"
+            "cube(size = [10, 5, 2], center = false);}"
+        )
+        visible = self._visible_shapes(doc)
+        self.assertEqual([obj.Name for obj in visible], ["Matrix_Deformation"])
+        self.assertFalse(doc.cube.ViewObject.Visibility)
+        self.assertAlmostEqual(visible[0].Shape.BoundBox.XLength, 20.0, places=6)
+
+    def test_imported_mesh_shown_once(self):
+        import Mesh
+
+        Mesh.createBox(10, 10, 10).write(str(Path(self.temp.name) / "box.stl"))
+        doc = self._import('import(file = "box.stl", layer = "");')
+        visible = self._visible_shapes(doc)
+        self.assertEqual([obj.Name for obj in visible], ["Mesh"])
+        self.assertEqual(doc.box.TypeId, "Mesh::Feature")
+        self.assertFalse(doc.box.ViewObject.Visibility)
