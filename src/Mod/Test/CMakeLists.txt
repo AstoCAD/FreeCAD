@@ -72,6 +72,7 @@ SET(Test_SRCS
     TestPythonEditorExecuteGui.py
     TestPreferenceDefaultsGui.py
     TestParameterEditorFloatGui.py
+    TestEditorFontPreferenceGui.py
     TestActivateViewGui.py
     TestRecomputeAllGui.py
     TestPropertyGroupIndicatorGui.py
