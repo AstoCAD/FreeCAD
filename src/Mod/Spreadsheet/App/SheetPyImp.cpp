@@ -974,7 +974,11 @@ static float decodeFloat(const PyObject* obj)
         return PyFloat_AsDouble((PyObject*)obj);
     }
     else if (PyLong_Check(obj)) {
-        return PyLong_AsLong((PyObject*)obj);
+        const long value = PyLong_AsLong((PyObject*)obj);
+        if (value == -1 && PyErr_Occurred()) {
+            throw Py::Exception();  // OverflowError: do not set the cells with it pending
+        }
+        return value;
     }
     throw Base::TypeError("Float or integer expected");
 }
