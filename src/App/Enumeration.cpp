@@ -199,7 +199,8 @@ bool Enumeration::isValue(const char* value) const
 
 bool Enumeration::contains(const char* value) const
 {
-    if (!isValid()) {
+    // the current index is irrelevant when searching for an item
+    if (!hasEnums()) {
         return false;
     }
 
