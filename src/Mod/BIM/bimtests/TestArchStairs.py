@@ -34,6 +34,23 @@ class TestArchStairs(TestArchBase.TestArchBase):
         self.assertIsNotNone(stairs, "makeStairs failed to create a stairs object.")
         self.assertEqual(stairs.Label, "TestStairs", "Stairs label is incorrect.")
 
+    def test_riser_height_enforce_parameter(self):
+        """makeStraightStairsWithLanding() must use the riserHeightEnforce argument."""
+        operation = "Testing makeStraightStairsWithLanding with riserHeightEnforce"
+        self.printTestMessage(operation)
+
+        import FreeCAD
+        import Part
+
+        stairs = Arch.makeStairs(length=3000, width=1000, height=3000, steps=10)
+        self.document.recompute()
+
+        edge = Part.LineSegment(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(3000, 0, 0)).toShape()
+        # used to raise NameError: name 'riserHeight' is not defined
+        stairs.Proxy.makeStraightStairsWithLanding(stairs, edge, riserHeightEnforce=200.0)
+        self.assertAlmostEqual(stairs.RiserHeight.Value, 200.0, places=6)
+        self.assertAlmostEqual(stairs.AbsTop.z, 2000.0, places=6)
+
     def test_makeRailing(self):
         """Test the makeRailing function."""
         operation = "Testing makeRailing..."
