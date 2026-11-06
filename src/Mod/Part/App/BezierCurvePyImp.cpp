@@ -39,6 +39,7 @@
 #include "BezierCurvePy.h"
 #include "BezierCurvePy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -127,8 +128,8 @@ PyObject* BezierCurvePy::insertPoleAfter(PyObject* args)
     if (!PyArg_ParseTuple(args, "iO!|d", &index, &(Base::VectorPy::Type), &p, &weight)) {
         return nullptr;
     }
-    Base::Vector3d vec = static_cast<Base::VectorPy*>(p)->value();
-    gp_Pnt pnt(vec.x, vec.y, vec.z);
+    gp_Pnt pnt = toFinitePnt(static_cast<Base::VectorPy*>(p)->value(), "Pole");
+    checkFinite(weight, "Weight");
     try {
         Handle(Geom_BezierCurve)
             curve = Handle(Geom_BezierCurve)::DownCast(getGeometryPtr()->handle());
@@ -149,8 +150,8 @@ PyObject* BezierCurvePy::insertPoleBefore(PyObject* args)
     if (!PyArg_ParseTuple(args, "iO!|d", &index, &(Base::VectorPy::Type), &p, &weight)) {
         return nullptr;
     }
-    Base::Vector3d vec = static_cast<Base::VectorPy*>(p)->value();
-    gp_Pnt pnt(vec.x, vec.y, vec.z);
+    gp_Pnt pnt = toFinitePnt(static_cast<Base::VectorPy*>(p)->value(), "Pole");
+    checkFinite(weight, "Weight");
     try {
         Handle(Geom_BezierCurve)
             curve = Handle(Geom_BezierCurve)::DownCast(getGeometryPtr()->handle());
@@ -207,8 +208,8 @@ PyObject* BezierCurvePy::setPole(PyObject* args)
     if (!PyArg_ParseTuple(args, "iO!|d", &index, &(Base::VectorPy::Type), &p, &weight)) {
         return nullptr;
     }
-    Base::Vector3d vec = static_cast<Base::VectorPy*>(p)->value();
-    gp_Pnt pnt(vec.x, vec.y, vec.z);
+    gp_Pnt pnt = toFinitePnt(static_cast<Base::VectorPy*>(p)->value(), "Pole");
+    checkFinite(weight, "Weight");
     try {
         Handle(Geom_BezierCurve)
             curve = Handle(Geom_BezierCurve)::DownCast(getGeometryPtr()->handle());
@@ -282,8 +283,7 @@ PyObject* BezierCurvePy::setPoles(PyObject* args)
         int index = poles.Lower();
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector v(*it);
-            Base::Vector3d pole = v.toVector();
-            poles.SetValue(index++, gp_Pnt(pole.x, pole.y, pole.z));
+            poles.SetValue(index++, toFinitePnt(v.toVector(), "Pole"));
         }
 
         Handle(Geom_BezierCurve) bezier = new Geom_BezierCurve(poles);
@@ -303,6 +303,7 @@ PyObject* BezierCurvePy::setWeight(PyObject* args)
     if (!PyArg_ParseTuple(args, "id", &index, &weight)) {
         return nullptr;
     }
+    checkFinite(weight, "Weight");
     try {
         Handle(Geom_BezierCurve)
             curve = Handle(Geom_BezierCurve)::DownCast(getGeometryPtr()->handle());
@@ -432,7 +433,7 @@ PyObject* BezierCurvePy::interpolate(PyObject* args)
             int idx = 1;
             for (Py::Sequence::iterator pit = plist.begin(); pit != plist.end(); ++pit) {
                 Py::Float val(*pit);
-                params(idx++) = (double)val;
+                params(idx++) = checkFinite((double)val, "Parameter");
             }
         }
         else {
@@ -478,7 +479,7 @@ PyObject* BezierCurvePy::interpolate(PyObject* args)
             for (Py::Sequence::iterator it2 = row.begin(); it2 != row.end(); ++it2) {
                 OCCmatrix.SetRow(row_idx, bezier_eval.Row(idx2));
                 Py::Vector v(*it2);
-                Base::Vector3d pnt = v.toVector();
+                Base::Vector3d pnt = checkFinite(v.toVector(), "Constraint");
                 res_x(row_idx) = pnt.x;
                 res_y(row_idx) = pnt.y;
                 res_z(row_idx) = pnt.z;

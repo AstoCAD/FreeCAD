@@ -31,6 +31,7 @@
 #include "ArcOfEllipsePy.cpp"
 #include "EllipsePy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -124,7 +125,7 @@ Py::Float ArcOfEllipsePy::getMajorRadius() const
 
 void ArcOfEllipsePy::setMajorRadius(Py::Float arg)
 {
-    getGeomArcOfEllipsePtr()->setMajorRadius((double)arg);
+    getGeomArcOfEllipsePtr()->setMajorRadius(checkFinite((double)arg, "MajorRadius"));
 }
 
 Py::Float ArcOfEllipsePy::getMinorRadius() const
@@ -134,7 +135,7 @@ Py::Float ArcOfEllipsePy::getMinorRadius() const
 
 void ArcOfEllipsePy::setMinorRadius(Py::Float arg)
 {
-    getGeomArcOfEllipsePtr()->setMinorRadius((double)arg);
+    getGeomArcOfEllipsePtr()->setMinorRadius(checkFinite((double)arg, "MinorRadius"));
 }
 
 Py::Object ArcOfEllipsePy::getEllipse() const

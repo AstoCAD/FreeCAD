@@ -32,6 +32,7 @@
 #include "Geom2d/ArcOfParabola2dPy.cpp"
 #include "Geom2d/Parabola2dPy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -98,7 +99,7 @@ Py::Float ArcOfParabola2dPy::getFocal() const
 
 void ArcOfParabola2dPy::setFocal(Py::Float arg)
 {
-    getGeom2dArcOfParabolaPtr()->setFocal((double)arg);
+    getGeom2dArcOfParabolaPtr()->setFocal(checkFinite((double)arg, "Focal"));
 }
 
 Py::Object ArcOfParabola2dPy::getParabola() const

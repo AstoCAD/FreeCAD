@@ -35,6 +35,7 @@
 #include "Geom2d/Line2dSegmentPy.cpp"
 #include "Geom2d/Line2dPy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -134,8 +135,8 @@ int Line2dSegmentPy::PyInit(PyObject* args, PyObject* /*kwd*/)
             Base::Vector2dPy::type_object(),
             &pV2
         )) {
-        Base::Vector2d v1 = Py::toVector2d(pV1);
-        Base::Vector2d v2 = Py::toVector2d(pV2);
+        Base::Vector2d v1 = checkFinite(Py::toVector2d(pV1), "Point1");
+        Base::Vector2d v2 = checkFinite(Py::toVector2d(pV2), "Point2");
         try {
             // Create line out of two points
             double distance = (v1 - v2).Length();
@@ -239,6 +240,7 @@ void Line2dSegmentPy::setStartPoint(Py::Object arg)
         error += p->ob_type->tp_name;
         throw Py::TypeError(error);
     }
+    checkFinite(Base::Vector2d(p1.X(), p1.Y()), "StartPoint");
 
     try {
         // Create line out of two points
@@ -293,6 +295,7 @@ void Line2dSegmentPy::setEndPoint(Py::Object arg)
         error += p->ob_type->tp_name;
         throw Py::TypeError(error);
     }
+    checkFinite(Base::Vector2d(p2.X(), p2.Y()), "EndPoint");
 
     try {
         // Create line out of two points

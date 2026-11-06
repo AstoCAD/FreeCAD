@@ -30,6 +30,7 @@
 #include "Geom2d/Conic2dPy.h"
 #include "Geom2d/Conic2dPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -61,7 +62,7 @@ Py::Object Conic2dPy::getLocation() const
 
 void Conic2dPy::setLocation(Py::Object arg)
 {
-    Base::Vector2d loc = Py::toVector2d(arg.ptr());
+    Base::Vector2d loc = checkFinite(Py::toVector2d(arg.ptr()), "Location");
     getGeom2dConicPtr()->setLocation(loc);
 }
 
@@ -80,7 +81,7 @@ Py::Object Conic2dPy::getXAxis() const
 
 void Conic2dPy::setXAxis(Py::Object arg)
 {
-    Base::Vector2d dir = Py::toVector2d(arg.ptr());
+    Base::Vector2d dir = checkFinite(Py::toVector2d(arg.ptr()), "XAxis");
     Handle(Geom2d_Conic) conic = Handle(Geom2d_Conic)::DownCast(getGeom2dConicPtr()->handle());
     gp_Ax2d xaxis = conic->XAxis();
     xaxis.SetDirection(gp_Dir2d(dir.x, dir.y));
@@ -96,7 +97,7 @@ Py::Object Conic2dPy::getYAxis() const
 
 void Conic2dPy::setYAxis(Py::Object arg)
 {
-    Base::Vector2d dir = Py::toVector2d(arg.ptr());
+    Base::Vector2d dir = checkFinite(Py::toVector2d(arg.ptr()), "YAxis");
     Handle(Geom2d_Conic) conic = Handle(Geom2d_Conic)::DownCast(getGeom2dConicPtr()->handle());
     gp_Ax2d yaxis = conic->YAxis();
     yaxis.SetDirection(gp_Dir2d(dir.x, dir.y));

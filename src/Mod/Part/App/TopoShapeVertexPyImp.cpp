@@ -39,6 +39,7 @@
 #include "TopoShapeVertexPy.h"
 #include "TopoShapeVertexPy.cpp"
 #include "PointPy.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -140,7 +141,7 @@ int TopoShapeVertexPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     }
 
     TopoShapeVertexPy::PointerType ptr = getTopoShapePtr();
-    BRepBuilderAPI_MakeVertex aBuilder(gp_Pnt(x, y, z));
+    BRepBuilderAPI_MakeVertex aBuilder(toFinitePnt(Base::Vector3d(x, y, z), "Vertex coordinates"));
     TopoDS_Shape s = aBuilder.Vertex();
     ptr->setShape(s);
 

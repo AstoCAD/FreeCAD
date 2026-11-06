@@ -39,6 +39,7 @@
 #include "GeometryPy.cpp"
 #include "GeometryExtensionPy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -69,7 +70,7 @@ PyObject* GeometryPy::mirror(PyObject* args)
 {
     PyObject* o;
     if (PyArg_ParseTuple(args, "O!", &(Base::VectorPy::Type), &o)) {
-        Base::Vector3d vec = static_cast<Base::VectorPy*>(o)->value();
+        Base::Vector3d vec = checkFinite(static_cast<Base::VectorPy*>(o)->value(), "Point");
         getGeometryPtr()->mirror(vec);
         Py_Return;
     }
@@ -77,8 +78,8 @@ PyObject* GeometryPy::mirror(PyObject* args)
     PyErr_Clear();
     PyObject* axis;
     if (PyArg_ParseTuple(args, "O!O!", &(Base::VectorPy::Type), &o, &(Base::VectorPy::Type), &axis)) {
-        Base::Vector3d pnt = static_cast<Base::VectorPy*>(o)->value();
-        Base::Vector3d dir = static_cast<Base::VectorPy*>(axis)->value();
+        Base::Vector3d pnt = checkFinite(static_cast<Base::VectorPy*>(o)->value(), "Point");
+        Base::Vector3d dir = checkFinite(static_cast<Base::VectorPy*>(axis)->value(), "Direction");
         getGeometryPtr()->mirror(pnt, dir);
         Py_Return;
     }
@@ -98,6 +99,7 @@ PyObject* GeometryPy::rotate(PyObject* args)
     }
 
     Base::Placement* plm = static_cast<Base::PlacementPy*>(o)->getPlacementPtr();
+    checkFinite(plm->toMatrix(), "Placement");
     getGeometryPtr()->rotate(*plm);
     Py_Return;
 }
@@ -112,7 +114,8 @@ PyObject* GeometryPy::scale(PyObject* args)
             PyErr_SetString(PyExc_ValueError, "Scale factor must not be NaN");
             return nullptr;
         }
-        vec = static_cast<Base::VectorPy*>(o)->value();
+        vec = checkFinite(static_cast<Base::VectorPy*>(o)->value(), "Center");
+        checkFinite(scale, "Scale factor");
         getGeometryPtr()->scale(vec, scale);
         Py_Return;
     }
@@ -123,7 +126,8 @@ PyObject* GeometryPy::scale(PyObject* args)
             PyErr_SetString(PyExc_ValueError, "Scale factor must not be NaN");
             return nullptr;
         }
-        vec = Base::getVectorFromTuple<double>(o);
+        vec = checkFinite(Base::getVectorFromTuple<double>(o), "Center");
+        checkFinite(scale, "Scale factor");
         getGeometryPtr()->scale(vec, scale);
         Py_Return;
     }
@@ -138,7 +142,7 @@ PyObject* GeometryPy::transform(PyObject* args)
     if (!PyArg_ParseTuple(args, "O!", &(Base::MatrixPy::Type), &o)) {
         return nullptr;
     }
-    Base::Matrix4D mat = static_cast<Base::MatrixPy*>(o)->value();
+    Base::Matrix4D mat = checkFinite(static_cast<Base::MatrixPy*>(o)->value(), "Matrix");
     getGeometryPtr()->transform(mat);
     Py_Return;
 }
@@ -148,14 +152,14 @@ PyObject* GeometryPy::translate(PyObject* args)
     PyObject* o;
     Base::Vector3d vec;
     if (PyArg_ParseTuple(args, "O!", &(Base::VectorPy::Type), &o)) {
-        vec = static_cast<Base::VectorPy*>(o)->value();
+        vec = checkFinite(static_cast<Base::VectorPy*>(o)->value(), "Translation");
         getGeometryPtr()->translate(vec);
         Py_Return;
     }
 
     PyErr_Clear();
     if (PyArg_ParseTuple(args, "O!", &PyTuple_Type, &o)) {
-        vec = Base::getVectorFromTuple<double>(o);
+        vec = checkFinite(Base::getVectorFromTuple<double>(o), "Translation");
         getGeometryPtr()->translate(vec);
         Py_Return;
     }
