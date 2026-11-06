@@ -184,6 +184,7 @@ SET(TDTest_SRCS
     TDTest/DrawCosmeticLifetimeTest.py
     TDTest/DrawCosmeticCircleRadiusTest.py
     TDTest/DrawCosmeticVertex3dTest.py
+    TDTest/DrawViewWrapperIdentityTest.py
     TDTest/DrawCosmeticEdgeLineNumberTest.py
     TDTest/DrawDecorateLineInvalidEdgeTest.py
     TDTest/DrawCosmeticRefreshNoGeometryTest.py
