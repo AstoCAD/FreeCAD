@@ -1340,7 +1340,7 @@ void Material::saveGeneral(QTextStream& stream) const
     if (!_tags.isEmpty()) {
         stream << "  Tags:\n";
         for (auto tag : _tags) {
-            stream << "    - \"" << tag << "\"\n";
+            stream << "    - \"" << MaterialValue::escapeString(tag) << "\"\n";
         }
     }
 }
@@ -1352,7 +1352,8 @@ void Material::saveInherits(QTextStream& stream) const
             auto material = MaterialManager::getManager().getMaterial(_parentUuid);
 
             stream << "Inherits:\n";
-            stream << "  " << material->getName() << ":\n";
+            // Quoted: a name such as "Steel #1" would otherwise break the YAML
+            stream << "  \"" << MaterialValue::escapeString(material->getName()) << "\":\n";
             stream << "    UUID: \"" << _parentUuid << "\"\n";
         }
         catch (const MaterialNotFound&) {
