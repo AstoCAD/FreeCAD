@@ -754,6 +754,20 @@ class DocumentBasicCases(unittest.TestCase):
         obj.SL = ["ok", "é"]
         self.assertEqual(obj.SL, ["ok", "é"])
 
+    def testPropertyMapRejectsSequences(self):
+        # A list or str passes PyMapping_Check() but has no keys(): assigning one
+        # used to clear the map and return with the Python error still set
+        # (SystemError).
+        obj = self.Doc.addObject("App::FeaturePython", "MapHolder")
+        obj.addProperty("App::PropertyMap", "Map")
+        for value in (["a"], "abc", b"xy", (1, 2), range(3)):
+            obj.Map = {"keep": "me"}
+            with self.assertRaises((TypeError, AttributeError), msg=repr(value)):
+                obj.Map = value
+            self.assertEqual(obj.Map, {"keep": "me"}, msg=repr(value))
+        obj.Map = {"a": "b"}
+        self.assertEqual(obj.Map, {"a": "b"})
+
     def testUnencodableStringArguments(self):
         # Same as testUnencodableStringPropertyValues for method arguments.
         bad = "\ud800"
