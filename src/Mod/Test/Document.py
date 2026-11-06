@@ -297,6 +297,20 @@ class DocumentBasicCases(unittest.TestCase):
             obj = self.Doc.addObject("App::DocumentObject", viewType="App::Extension")
             self.assertIsNone(obj.ViewObject)
 
+    def testFindObjectsInvalidRegex(self):
+        # An invalid regular expression was silently ignored: findObjects() then
+        # returned every object of the type instead of raising.
+        first = self.Doc.addObject("App::FeaturePython", "First")
+        first.Label = "Alpha"
+        self.Doc.addObject("App::FeaturePython", "Second")
+        self.assertEqual(self.Doc.findObjects(Label="^Alp"), [first])
+        self.assertEqual(self.Doc.findObjects(Name="^First$"), [first])
+        for pattern in ("(", "[", "*", "\\"):
+            with self.assertRaises(RuntimeError, msg=pattern):
+                self.Doc.findObjects(Label=pattern)
+            with self.assertRaises(RuntimeError, msg=pattern):
+                self.Doc.findObjects(Name=pattern)
+
     def testMem(self):
         self.Doc.MemSize
 
