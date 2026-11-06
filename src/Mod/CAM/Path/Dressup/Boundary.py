@@ -65,6 +65,17 @@ def _opHeight(op, prop):
     return None
 
 
+def _entersFromAbove(inside, outside):
+    """Return True if a vertical line, split into the edges where it may cut
+    (inside) and the others (outside), comes down into the inside from above
+    and stays there to its bottom: every outside part lies above every inside
+    part."""
+    if not inside:
+        return False
+    entry = max(v.Z for e in inside for v in e.Vertexes)
+    return all(v.Z >= entry - Path.Geom.Tolerance for e in outside for v in e.Vertexes)
+
+
 class DressupPathBoundary(object):
     def promoteStockToBoundary(self, stock):
         """Ensure stock object has boundary properties set."""
@@ -330,6 +341,30 @@ class PathBoundary:
                 lastExit = None
                 continue
 
+            if cmd.Name in Path.Geom.CmdMoveDrill:
+                # process cmd G73, G81, G82, G83, G85
+                # A cycle drills straight down at its own X, Y from the height
+                # the tool is at, and returns there. Test that line, not the
+                # line from the previous hole, which crosses whatever lies
+                # between the holes.
+                # The tool reaches the hole from above, as on the links this
+                # dressup inserts (boundaryCommands), so the line may start
+                # above the boundary, e.g. above the stock it is made of. Keep
+                # the cycle when the line stays in the boundary from where it
+                # enters it down to the bottom of the hole.
+                hole = Path.Geom.commandEndPoint(cmd, pos)
+                top = FreeCAD.Vector(hole.x, hole.y, pos.z)
+                edge = Path.Geom.edgeForCmd(cmd, top)
+                if edge:
+                    inside = edge.common(self.boundary).Edges
+                    outside = edge.cut(self.boundary).Edges
+                    if not self.inside:
+                        inside, outside = outside, inside
+                    if _entersFromAbove(inside, outside):
+                        commands.append(cmd)
+                pos = top
+                continue
+
             # convert cmd to edge
             edge = Path.Geom.edgeForCmd(cmd, pos)
             if not edge:
@@ -340,12 +375,6 @@ class PathBoundary:
             outside = edge.cut(self.boundary).Edges
             if not self.inside:
                 inside, outside = outside, inside
-
-            if cmd.Name in Path.Geom.CmdMoveDrill:
-                # process cmd G73, G81, G82, G83, G85
-                if inside and not outside:
-                    commands.append(cmd)
-                continue
 
             if inside and not outside:
                 # cmd fully included by boundary
