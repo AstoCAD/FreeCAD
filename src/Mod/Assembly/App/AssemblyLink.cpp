@@ -139,6 +139,13 @@ void AssemblyLink::onChanged(const App::Property* prop)
         return;
     }
 
+    if (prop == &Rigid && getDocument()->isPerformingTransaction()) {
+        // Undo/redo already restores the joint group, the joints, the grounded joints
+        // and the placements that toggling Rigid created, deleted or changed.
+        App::Part::onChanged(prop);
+        return;
+    }
+
     if (prop == &Rigid) {
         Base::Placement movePlc;
 
