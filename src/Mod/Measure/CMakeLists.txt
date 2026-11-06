@@ -20,6 +20,7 @@ set(Measure_Scripts
     TestMeasurementGroupProviderGui.py
     TestMeasureShapeFinder.py
     TestMeasurementMissingElement.py
+    TestMeasurementAxisAngle.py
 )
 
 if(BUILD_GUI)
