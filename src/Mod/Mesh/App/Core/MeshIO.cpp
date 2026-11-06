@@ -2315,13 +2315,17 @@ bool MeshOutput::SaveIDTF(std::ostream& str) const
     }
     str << Base::tabs(3) << "}\n";
     str << Base::tabs(3) << "MODEL_POSITION_LIST {\n";
-    for (const auto& pt : pts) {
+    for (const auto& it : pts) {
+        Base::Vector3f pt = this->apply_transform ? this->_transform * it : Base::Vector3f(it);
         str << Base::tabs(4) << pt.x << " " << pt.y << " " << pt.z << '\n';
     }
     str << Base::tabs(3) << "}\n";
     str << Base::tabs(3) << "MODEL_NORMAL_LIST {\n";
     for (const auto& ft : fts) {
         MeshGeomFacet face = _rclMesh.GetFacet(ft);
+        if (this->apply_transform) {
+            face.Transform(this->_transform);
+        }
         Base::Vector3f normal = face.GetNormal();
         str << Base::tabs(4) << normal.x << " " << normal.y << " " << normal.z << '\n';
         str << Base::tabs(4) << normal.x << " " << normal.y << " " << normal.z << '\n';
@@ -2352,7 +2356,10 @@ bool MeshOutput::SaveMGL(std::ostream& str) const
         return false;
     }
 
-    const MeshPointArray& pts = _rclMesh.GetPoints();
+    MeshPointArray pts = _rclMesh.GetPoints();
+    if (this->apply_transform) {
+        pts.Transform(this->_transform);
+    }
     const MeshFacetArray& fts = _rclMesh.GetFacets();
 
     str.precision(2);
