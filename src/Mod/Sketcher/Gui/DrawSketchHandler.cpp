@@ -1679,7 +1679,8 @@ void DrawSketchHandler::addGeneratedAutoConstraints(
 {
     auto constraints = toPointerVector(autoConstraints);
 
-    Gui::Command::doCommand(
+    // run the generated code as is: doCommand() would take it as a printf format
+    Gui::Command::runCommand(
         Gui::Command::Doc,
         Sketcher::PythonConverter::convert(Gui::Command::getObjectCmd(sketchgui->getObject()), constraints)
             .c_str()
