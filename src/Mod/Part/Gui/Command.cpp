@@ -2351,23 +2351,17 @@ CmdColorPerFace::CmdColorPerFace()
     sPixmap = "Part_ColorFace";
 }
 
+/// Kept for user toolbars, shortcuts and macros: opens Std_SetAppearance for the selected faces
 void CmdColorPerFace::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
     if (getActiveGuiDocument()->getInEdit()) {
         getActiveGuiDocument()->resetEdit();
     }
-    std::vector<App::DocumentObject*> sel = Gui::Selection().getObjectsOfType(
-        Part::Feature::getClassTypeId()
-    );
-    if (sel.empty()) {
-        return;
-    }
-    PartGui::ViewProviderPartExt* vp = dynamic_cast<PartGui::ViewProviderPartExt*>(
-        Gui::Application::Instance->getViewProvider(sel.front())
-    );
-    if (vp) {
-        vp->changeFaceAppearances();
+    if (auto cmd = Gui::Application::Instance->commandManager().getCommandByName(
+            "Std_SetAppearance"
+        )) {
+        cmd->invoke(1);  // the face scope
     }
 }
 

@@ -50,6 +50,7 @@
 
 #include <QAction>
 #include <QMenu>
+#include <algorithm>
 #include <sstream>
 
 #include <Inventor/SoPickedPoint.h>
@@ -77,8 +78,11 @@
 #include <Base/TimeInfo.h>
 #include <Base/Tools.h>
 
+#include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
+#include <Gui/Command.h>
 #include <Gui/Control.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/Selection/SoFCSelectionAction.h>
 #include <Gui/Selection/SoFCUnifiedSelection.h>
 #include <Gui/ViewParams.h>
@@ -1026,17 +1030,30 @@ bool ViewProviderPartExt::changeFaceAppearances()
         return false;
     }
 
-    Gui::Selection().clearSelection();
-    Gui::Control().showDialog(new TaskFaceAppearances(this));
-    return true;
+    // One command sets the material and the appearance: open it for the faces of this object.
+    // It is a task dialog of its own, not an edit mode.
+    auto obj = getObject();
+    auto cmd = Gui::Application::Instance->commandManager().getCommandByName("Std_SetAppearance");
+    if (!obj || !cmd) {
+        return false;
+    }
+    // Keep faces of this object that are already selected
+    auto selection = Gui::Selection().getCompleteSelection();
+    bool selected = std::any_of(selection.begin(), selection.end(), [obj](const auto& sel) {
+        return sel.pObject == obj;
+    });
+    if (!selected) {
+        Gui::Selection().clearSelection();
+        Gui::Selection().addSelection(obj->getDocument()->getName(), obj->getNameInDocument());
+    }
+    cmd->invoke(1);  // the face scope
+    return false;
 }
 
 bool ViewProviderPartExt::setEdit(int ModNum)
 {
     if (ModNum == ViewProvider::Color) {
-        // When double-clicking on the item for this pad the
-        // object unsets and sets its edit mode without closing
-        // the task panel
+        // Opens the "Material and appearance" task dialog for the faces: no edit mode
         return changeFaceAppearances();
     }
     else {

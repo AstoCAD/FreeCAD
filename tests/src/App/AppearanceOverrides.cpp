@@ -305,6 +305,31 @@ TEST(AppearanceOverrides, resetFaceToObjectOverride)
     EXPECT_TRUE(AppearanceOverrides::sameLook(appearance[0], red));
 }
 
+TEST(AppearanceOverrides, paintFaces)
+{
+    Looks appearance {aluminium};
+    AppearanceOverrides::paintFaces(appearance, 3, {1, 7}, red);  // face 8 does not exist
+    ASSERT_EQ(appearance.size(), 3U);
+    EXPECT_TRUE(AppearanceOverrides::sameLook(appearance[0], aluminium));
+    EXPECT_TRUE(AppearanceOverrides::sameLook(appearance[1], red));
+    EXPECT_TRUE(AppearanceOverrides::sameLook(appearance[2], aluminium));
+
+    // The overrides follow from the change
+    auto names = AppearanceOverrides::afterChange({}, {aluminium}, appearance, aluminium);
+    EXPECT_EQ(names, Names {"Face2"});
+
+    // A painted face keeps its transparency
+    Looks seeThroughFaces {seeThrough(aluminium, 0.6F), aluminium};  // NOLINT
+    AppearanceOverrides::paintFaces(seeThroughFaces, 2, {0}, red);
+    EXPECT_TRUE(AppearanceOverrides::sameLook(seeThroughFaces[0], red));
+    EXPECT_FLOAT_EQ(seeThroughFaces[0].transparency, 0.6F);  // NOLINT
+
+    // A shape without faces has nothing to paint
+    Looks single {aluminium};
+    AppearanceOverrides::paintFaces(single, 0, {0}, red);
+    EXPECT_EQ(single, Looks {aluminium});
+}
+
 TEST(AppearanceOverrides, guessOldFiles)
 {
     Material defaultLook = look(0.8F, 0.8F, 0.8F);  // NOLINT
