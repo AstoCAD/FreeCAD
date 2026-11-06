@@ -29,6 +29,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestPerpendicularArcProjection.py
     SketcherTests/TestPerpendicularArcProjection.FCStd
     SketcherTests/TestPerpendicularPointPointLine.py
+    SketcherTests/TestDrivenAngleConstraints.py
     SketcherTests/TestSketchInvalidConstraintList.py
     SketcherTests/TestSketchInternalFaces.py
     SketcherTests/TestSketcherEllipse.py
