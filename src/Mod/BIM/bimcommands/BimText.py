@@ -65,10 +65,11 @@ class BIM_Text:
             anno = FreeCAD.ActiveDocument.addObject("TechDraw::DrawViewAnnotation", "Annotation")
             anno.Text = self.text
             page.addView(anno)
-            param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Draft")
-            anno.TextSize = param.GetFloat("textheight", 10) * pagescale
-            anno.Font = param.GetString("textfont", "Sans")
-            c = param.GetUnsigned("DefaultTextColor", 255)
+            from draftutils import params
+
+            anno.TextSize = params.get_param("textheight") * pagescale
+            anno.Font = params.get_param("textfont")
+            c = params.get_param("DefaultTextColor")
             r = ((c >> 24) & 0xFF) / 255.0
             g = ((c >> 16) & 0xFF) / 255.0
             b = ((c >> 8) & 0xFF) / 255.0
