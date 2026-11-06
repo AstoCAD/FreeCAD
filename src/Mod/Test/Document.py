@@ -768,6 +768,21 @@ class DocumentBasicCases(unittest.TestCase):
         obj.Map = {"a": "b"}
         self.assertEqual(obj.Map, {"a": "b"})
 
+    def testEnumerationItemsWithBadIndex(self):
+        # Assigning (items, index) with an index out of range raised ValueError
+        # only after the new items had been set.
+        obj = self.Doc.addObject("App::FeaturePython", "EnumHolder")
+        obj.addProperty("App::PropertyEnumeration", "Choice")
+        obj.Choice = ["a", "b"]
+        obj.Choice = "b"
+        with self.assertRaises(ValueError):
+            obj.Choice = (["p", "q"], 5)
+        self.assertEqual(obj.getEnumerationsOfProperty("Choice"), ["a", "b"])
+        self.assertEqual(obj.Choice, "b")
+        obj.Choice = (["p", "q", "r"], 2)
+        self.assertEqual(obj.getEnumerationsOfProperty("Choice"), ["p", "q", "r"])
+        self.assertEqual(obj.Choice, "r")
+
     def testUnencodableStringArguments(self):
         # Same as testUnencodableStringPropertyValues for method arguments.
         bad = "\ud800"
