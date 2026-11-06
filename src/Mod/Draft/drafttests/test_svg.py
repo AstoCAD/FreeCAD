@@ -217,6 +217,56 @@ class DraftSVGImportRegression(test_base.DraftTestCaseDoc):
                 arcs = [args for cmd, args in parser.commands if cmd in "Aa"]
                 self.assertEqual(parser.arc_args(arcs[0]), expected[name])
 
+    def test_read_svg_transform_compact_numbers(self):
+        """Transform arguments without separators ("translate(20-30)") are parsed."""
+        results = {}
+        for name, transform in {
+            "spaced": "translate(20,-30) scale(0.5 0.5)",
+            "compact": "translate(20-30)scale(.5.5)",
+        }.items():
+            doc = App.newDocument("svg_" + name)
+            try:
+                svg = (
+                    '<?xml version="1.0"?>\n'
+                    '<svg xmlns="http://www.w3.org/2000/svg" '
+                    'width="100mm" height="100mm" viewBox="0 0 100 100">'
+                    '<rect x="0" y="0" width="10" height="10" transform="{}" '
+                    'style="fill:none;stroke:#000000"/></svg>\n'.format(transform)
+                )
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    in_file = os.path.join(temp_dir, name + ".svg")
+                    with open(in_file, "w", encoding="utf-8") as svg_file:
+                        svg_file.write(svg)
+                    importSVG.insert(in_file, doc.Name)
+                shapes = [o.Shape for o in doc.Objects if hasattr(o, "Shape") and not o.Shape.isNull()]
+                self.assertEqual(len(shapes), 1, name)
+                bb = shapes[0].BoundBox
+                results[name] = [round(v, 6) for v in (bb.XMin, bb.YMin, bb.XMax, bb.YMax)]
+            finally:
+                App.closeDocument(doc.Name)
+        self.assertEqual(results["spaced"][0], 20)
+        self.assertEqual(results["spaced"][2], 25)
+        self.assertEqual(results["compact"], results["spaced"])
+
+    def test_read_svg_polygon_compact_points(self):
+        """Polygon points without separators ("0 0 10-5") are parsed."""
+        svg = (
+            '<?xml version="1.0"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="100mm" height="100mm" viewBox="0 0 100 100">'
+            '<polygon points="0,0 10-0 10-10" style="fill:none;stroke:#000000"/></svg>\n'
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "polygon.svg")
+            with open(in_file, "w", encoding="utf-8") as svg_file:
+                svg_file.write(svg)
+            importSVG.insert(in_file, self.doc.Name)
+        shapes = [o.Shape for o in self.doc.Objects if hasattr(o, "Shape") and not o.Shape.isNull()]
+        self.assertEqual(len(shapes), 1)
+        self.assertEqual(len(shapes[0].Edges), 3)
+        self.assertAlmostEqual(shapes[0].Length, 20 + 200**0.5, places=6)
+        self.assertEqual(importSVG.get_numbers("10-5.5.5 1e1,-2E-1"), [10, -5.5, 0.5, 10, -0.2])
+
     def test_read_svg_transform_list_with_matrix_and_skew(self):
         """matrix/skewX/skewY in a transform list must be applied in SVG order."""
         transforms = {
