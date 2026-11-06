@@ -118,7 +118,13 @@ def check_member_for_solver_calculix(analysis, solver, mesh, member):
             if "PoissonRatio" not in mat_map:
                 # PoissonRatio is allowed to be 0.0 (in ccx), but it should be set anyway.
                 message += "No PoissonRatio defined for at least one material.\n"
-        if solver.AnalysisType == "frequency" or member.cons_selfweight:
+        # same cases as in the CalculiX writer, see is_density_needed() in write_femelement_material
+        if (
+            solver.AnalysisType == "frequency"
+            or (solver.AnalysisType == "thermomech" and not solver.ThermoMechSteadyState)
+            or member.cons_centrif
+            or member.cons_selfweight
+        ):
             if "Density" not in mat_map:
                 message += "No Density defined for at least one material.\n"
         if solver.AnalysisType == "thermomech":
