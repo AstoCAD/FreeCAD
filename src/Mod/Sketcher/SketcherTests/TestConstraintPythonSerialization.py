@@ -261,3 +261,61 @@ class TestConstraintPythonThirdElementRoundTrip(unittest.TestCase):
              Part.LineSegment(App.Vector(3, -2, 0), App.Vector(3, 4, 0))],
             Sketcher.Constraint("Perpendicular", 0, 1),
         )
+
+
+class TestReversedArcPythonRoundTrip(unittest.TestCase):
+    """Arcs with a clockwise (-Z) axis, e.g. from a flipped carbon copy, replay unchanged."""
+
+    def setUp(self):
+        self.doc = App.newDocument("ReversedArcRoundTrip")
+        self.addCleanup(App.closeDocument, self.doc.Name)
+
+    def _replay(self, geometry, reverse):
+        if reverse:
+            # Mirroring about an in-plane axis turns the arc clockwise (axis -Z).
+            geometry.mirror(App.Vector(0, 0, 0), App.Vector(1, 0, 0))
+        source = self.doc.addObject("Sketcher::SketchObject", "Source")
+        source.addGeometry(geometry, False)
+        self.doc.recompute()
+        self.assertAlmostEqual(source.Geometry[0].Axis.z, -1.0 if reverse else 1.0)
+        commands = tuple(source.toPythonCommands())
+
+        target = self.doc.addObject("Sketcher::SketchObject", "Target")
+        scope = {"App": App, "Part": Part, "Sketcher": Sketcher, "ActiveSketch": target}
+        for command in commands:
+            exec(command, scope)
+        self.doc.recompute()
+        self.assertEqual(target.GeometryCount, 1)
+        # Start, end and center as the sketcher sees them (counter-clockwise in XY).
+        for pos in (1, 2, 3):
+            self.assertAlmostEqual(
+                (source.getPoint(0, pos) - target.getPoint(0, pos)).Length,
+                0,
+                places=6,
+                msg="point %d moved; commands=%r" % (pos, commands),
+            )
+        middle = source.Geometry[0].value(
+            (source.Geometry[0].FirstParameter + source.Geometry[0].LastParameter) / 2
+        )
+        self.assertAlmostEqual(
+            target.Shape.distToShape(Part.Vertex(middle))[0], 0, places=6, msg=repr(commands)
+        )
+
+    def _arc(self):
+        return Part.ArcOfCircle(Part.Circle(App.Vector(1, 1, 0), App.Vector(0, 0, 1), 3), 0.3, 2.0)
+
+    def _arcOfEllipse(self):
+        ellipse = Part.Ellipse(App.Vector(3, 4, 0), App.Vector(-1.6, 1.2, 0), App.Vector(0, 0, 0))
+        return Part.ArcOfEllipse(ellipse, 0.5, 2.5)
+
+    def test_reversed_arc_of_circle(self):
+        self._replay(self._arc(), True)
+
+    def test_reversed_arc_of_ellipse(self):
+        self._replay(self._arcOfEllipse(), True)
+
+    def test_arc_of_circle_control(self):
+        self._replay(self._arc(), False)
+
+    def test_arc_of_ellipse_control(self):
+        self._replay(self._arcOfEllipse(), False)
