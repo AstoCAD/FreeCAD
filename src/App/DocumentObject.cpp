@@ -507,12 +507,15 @@ void DocumentObject::getOutList(int options, std::vector<DocumentObject*>& res) 
     std::size_t size = res.size();
     for (auto prop : props) {
         auto link = freecad_cast<PropertyLinkBase*>(prop);
-        if (link) {
-            link->getLinks(res, noHidden);
+        if (!link) {
+            continue;
         }
-    }
-    if (!(options & OutListNoExpression)) {
-        ExpressionEngine.getLinks(res);
+        // The expression engine is a link property too, so its links are listed here, once,
+        // like those of any other link property: one entry per link, as the back links count.
+        if (link == &ExpressionEngine && (options & OutListNoExpression)) {
+            continue;
+        }
+        link->getLinks(res, noHidden);
     }
 
     if (options & OutListNoXLinked) {

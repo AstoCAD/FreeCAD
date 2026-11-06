@@ -3562,10 +3562,8 @@ class DocumentExpressionCases(unittest.TestCase):
         dependent = self._addValueObject("Dependent")
         dependent.setExpression("Value", "Source.Value")
         self.Doc.recompute()
-        # the expression engine is listed twice in OutList (as a link property
-        # and as the expression engine), so compare with the state before deletion
         outList = [o.Name for o in dependent.OutList]
-        self.assertIn("Source", outList)
+        self.assertEqual(outList, ["Source"])
         self.assertEqual([o.Name for o in source.InList], ["Dependent"])
         self.assertEqual(len(source.InListProp), 1)
         self.Doc.openTransaction("Delete dependent")
@@ -3616,6 +3614,50 @@ class DocumentExpressionCases(unittest.TestCase):
         self.Doc.removeObject("Dependent")
         self.assertEqual(source.InList, [])
         self.assertEqual(source.InListProp, [])
+
+    def testOutListCountsExpressionLinksOnce(self):
+        # OutList holds one entry per link, as InList holds one back link per
+        # link. The expression engine, a link property, was listed twice.
+        self.Doc.UndoMode = 1
+        source = self._addValueObject("Source")
+        dependent = self._addValueObject("Dependent")
+        dependent.addProperty("App::PropertyLink", "Base")
+        dependent.setExpression("Value", "Source.Value + Source.Value")
+        self.Doc.recompute()
+        self.assertEqual(dependent.OutList, [source])
+        self.assertEqual(source.InList, [dependent])
+
+        # a real link to the same object is a second entry on both sides
+        dependent.Base = source
+        self.assertEqual(dependent.OutList, [source, source])
+        self.assertEqual(source.InList, [dependent, dependent])
+
+        for redo in (True, False):
+            self.Doc.openTransaction("Delete dependent")
+            self.Doc.removeObject("Dependent")
+            self.Doc.commitTransaction()
+            self.assertEqual(source.InList, [])
+            self.Doc.undo()
+            dependent = self.Doc.getObject("Dependent")
+            self.assertEqual(dependent.OutList, [source, source])
+            self.assertEqual(source.InList, [dependent, dependent])
+            if redo:
+                self.Doc.redo()
+                self.assertEqual(source.InList, [])
+                self.Doc.undo()
+                dependent = self.Doc.getObject("Dependent")
+
+        # dropping either link keeps the other one
+        dependent.Base = None
+        self.assertEqual(dependent.OutList, [source])
+        self.assertEqual(source.InList, [dependent])
+        source.Value = 2
+        self.Doc.recompute()
+        self.assertEqual(dependent.Value, 4)
+        dependent.Base = source
+        dependent.setExpression("Value", None)
+        self.assertEqual(dependent.OutList, [source])
+        self.assertEqual(source.InList, [dependent])
 
     def testUndoDeleteAfterExpressionDependencyDestroyed(self):
         # the deleted object kept pointers to the objects its expression used:
