@@ -22,6 +22,7 @@
  ***************************************************************************/
 
 
+#include <algorithm>
 #include <sstream>
 
 #include <FCConfig.h>
@@ -31,6 +32,7 @@
 #endif
 
 #include <App/Document.h>
+#include <Base/UnitsApi.h>
 #include <Gui/Application.h>
 #include <Gui/Command.h>
 #include <Gui/Document.h>
@@ -964,6 +966,99 @@ bool CmdSpreadsheetStyleUnderline::isActive()
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+// Show one decimal more (delta 1) or less (delta -1) in the selected cells,
+// starting from the decimals shown in the first selected cell.
+static void changeDecimals(Gui::Command* command, int delta)
+{
+    auto* sheetView = freecad_cast<SpreadsheetGui::SheetView*>(Gui::getMainWindow()->activeWindow());
+    if (!sheetView) {
+        return;
+    }
+    Sheet* sheet = sheetView->getSheet();
+    std::vector<Range> ranges = sheetView->selectedRanges();
+    if (ranges.empty()) {
+        return;
+    }
+    const Cell* cell = sheet->getCell(ranges.front().from());
+    const int current = cell ? cell->getDisplayDecimals() : Base::UnitsApi::getDecimals();
+    const int decimals = std::clamp(current + delta, 0, 15);
+
+    command->openCommand(
+        delta > 0 ? QT_TRANSLATE_NOOP("Command", "Increase decimals")
+                  : QT_TRANSLATE_NOOP("Command", "Decrease decimals")
+    );
+    for (const auto& range : ranges) {
+        Gui::Command::doCommand(
+            Gui::Command::Doc,
+            "App.ActiveDocument.%s.setDecimals('%s', %d)",
+            sheet->getNameInDocument(),
+            range.rangeString().c_str(),
+            decimals
+        );
+    }
+    command->commitCommand();
+    Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
+}
+
+static bool isSheetViewActive()
+{
+    return freecad_cast<SpreadsheetGui::SheetView*>(Gui::getMainWindow()->activeWindow()) != nullptr;
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetIncreaseDecimals)
+
+CmdSpreadsheetIncreaseDecimals::CmdSpreadsheetIncreaseDecimals()
+    : Command("Spreadsheet_IncreaseDecimals")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("&Increase Decimals");
+    sToolTipText = QT_TR_NOOP("Shows one more decimal for the numbers in the selected cells");
+    sWhatsThis = "Spreadsheet_IncreaseDecimals";
+    sStatusTip = sToolTipText;
+    sPixmap = "SpreadsheetIncreaseDecimals";
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetIncreaseDecimals::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    changeDecimals(this, 1);
+}
+
+bool CmdSpreadsheetIncreaseDecimals::isActive()
+{
+    return getActiveGuiDocument() && isSheetViewActive();
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetDecreaseDecimals)
+
+CmdSpreadsheetDecreaseDecimals::CmdSpreadsheetDecreaseDecimals()
+    : Command("Spreadsheet_DecreaseDecimals")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("&Decrease Decimals");
+    sToolTipText = QT_TR_NOOP("Shows one decimal less for the numbers in the selected cells");
+    sWhatsThis = "Spreadsheet_DecreaseDecimals";
+    sStatusTip = sToolTipText;
+    sPixmap = "SpreadsheetDecreaseDecimals";
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetDecreaseDecimals::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    changeDecimals(this, -1);
+}
+
+bool CmdSpreadsheetDecreaseDecimals::isActive()
+{
+    return getActiveGuiDocument() && isSheetViewActive();
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 DEF_STD_CMD_A(CmdSpreadsheetSetAlias)
 
 CmdSpreadsheetSetAlias::CmdSpreadsheetSetAlias()
@@ -1096,6 +1191,9 @@ void CreateSpreadsheetCommands()
     rcCmdMgr.addCommand(new CmdSpreadsheetStyleBold());
     rcCmdMgr.addCommand(new CmdSpreadsheetStyleItalic());
     rcCmdMgr.addCommand(new CmdSpreadsheetStyleUnderline());
+
+    rcCmdMgr.addCommand(new CmdSpreadsheetIncreaseDecimals());
+    rcCmdMgr.addCommand(new CmdSpreadsheetDecreaseDecimals());
 
     rcCmdMgr.addCommand(new CmdSpreadsheetSetAlias());
 }

@@ -204,6 +204,8 @@ public:
     void setDisplayUnit(App::CellAddress address, const std::string& unit);
     void setDisplayUnit(App::Range range, const std::string& unit);
 
+    void setDecimals(App::Range range, int decimals);
+
     void setComputedUnit(App::CellAddress address, const Base::Unit& unit);
     void setComputedUnit(App::Range range, const Base::Unit& unit);
 

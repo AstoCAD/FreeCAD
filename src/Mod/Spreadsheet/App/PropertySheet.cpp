@@ -827,6 +827,27 @@ void PropertySheet::setDisplayUnit(Range range, const std::string& unit)
     signaller.tryInvoke();
 }
 
+void PropertySheet::setDecimals(Range range, int decimals)
+{
+    if (decimals > 15) {
+        throw Base::ValueError("The number of decimals must be at most 15");
+    }
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        if (decimals >= 0) {
+            if (Cell* cell = nonNullCellAt(*range)) {
+                cell->setDecimals(decimals);
+            }
+        }
+        else if (Cell* cell = cellAt(*range)) {
+            // Clearing does not create cells
+            cell->setDecimals(-1);
+        }
+    } while (range.next());
+
+    signaller.tryInvoke();
+}
+
 
 void PropertySheet::setAlias(CellAddress address, const std::string& alias)
 {

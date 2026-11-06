@@ -167,6 +167,18 @@ class Sheet(DocumentObject):
     def getDisplayUnit(self, address: str, /) -> str | None:
         """Get display unit for cell"""
 
+    def setDecimals(self, cell: str, decimals: int | None, /) -> None:
+        """
+        Set the number of decimals (0 to 15) shown for numbers in the cell or
+        range; None uses the decimals of the unit preferences again. Only the
+        display changes, not the values.
+        """
+        ...
+
+    def getDecimals(self, address: str, /) -> int | None:
+        """Get the number of decimals set for the cell, or None"""
+        ...
+
     def setForeground(self, address: str, value: tuple[float, ...] | None, /) -> None:
         """Set foreground color of the cell, None clears it"""
 

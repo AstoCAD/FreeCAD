@@ -328,7 +328,8 @@ Gui::MenuItem* Workbench::setupMenuBar() const
                  << "Separator"
                  << "Spreadsheet_FillDown"
                  << "Spreadsheet_FillRight"
-                 << "Separator" << alignments << styles;
+                 << "Separator" << alignments << styles << "Separator"
+                 << "Spreadsheet_IncreaseDecimals" << "Spreadsheet_DecreaseDecimals";
 
     return root;
 }
@@ -356,6 +357,9 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
           << "Spreadsheet_StyleBold"
           << "Spreadsheet_StyleItalic"
           << "Spreadsheet_StyleUnderline"
+          << "Separator"
+          << "Spreadsheet_IncreaseDecimals"
+          << "Spreadsheet_DecreaseDecimals"
           << "Separator"
           << "Spreadsheet_SetAlias"
           << "Separator";

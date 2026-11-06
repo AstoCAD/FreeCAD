@@ -29,6 +29,7 @@ import FreeCAD
 import Part
 import Sketcher
 import tempfile
+import zipfile
 from FreeCAD import Base
 from FreeCAD import Units
 
@@ -2979,6 +2980,67 @@ class SpreadsheetEditing(unittest.TestCase):
         self.assertEqual(sheet.getContents("A1"), "2")
         self.assertEqual(sheet.getContents("B1"), "=A1 * 2")
         self.assertEqual(sheet.getContents("B2"), "")
+
+    def testDecimals(self):
+        sheet = self.sheet
+        self.doc.UndoMode = 1
+        sheet.set("A1", "2")
+        sheet.set("A2", "=A1 / 3")
+        self.doc.recompute()
+        self.assertIsNone(sheet.getDecimals("A1"))
+        # Formatted values follow the decimals of the cell
+        self.assertEqual(sheet.findCells("000", False, False, True), [])
+        self.doc.openTransaction("Decimals")
+        sheet.setDecimals("A1:A2", 3)
+        self.doc.commitTransaction()
+        self.assertEqual(sheet.getDecimals("A2"), 3)
+        self.doc.undo()
+        self.assertIsNone(sheet.getDecimals("A2"))
+        self.doc.redo()
+        self.doc.recompute()
+        self.assertEqual(sheet.getDecimals("A2"), 3)
+        self.assertEqual(sheet.findCells("000", False, False, True), ["A1"])
+        self.assertEqual(sheet.findCells("666", False, False, True), [])
+        self.assertEqual(sheet.findCells("667", False, False, True), ["A2"])
+        # Only the display changes
+        self.assertEqual(sheet.A2, 2 / 3)
+        # Copied with the cell
+        sheet.fillDown("A1:A3")
+        self.assertEqual(sheet.getDecimals("A3"), 3)
+        with self.assertRaises(ValueError):
+            sheet.setDecimals("A1", 16)
+        with self.assertRaises(ValueError):
+            sheet.setDecimals("A1", -1)
+        with self.assertRaises(TypeError):
+            sheet.setDecimals("A1", "3")
+        sheet.setDecimals("A1", None)
+        self.assertIsNone(sheet.getDecimals("A1"))
+        # Clearing does not create cells
+        sheet.setDecimals("E1:E5", None)
+        self.assertEqual(sheet.getUsedCells().count("E1"), 0)
+
+    def testDecimalsSaveAndRestore(self):
+        sheet = self.sheet
+        sheet.set("A1", "1.5")
+        sheet.setDecimals("A1", 4)
+        sheet.setDecimals("B2", 0)
+        self.doc.recompute()
+        path = os.path.join(tempfile.gettempdir(), "SpreadsheetDecimals.FCStd")
+        self.doc.saveAs(path)
+        name = self.doc.Name
+        FreeCAD.closeDocument(name)
+        try:
+            with zipfile.ZipFile(path) as archive:
+                xml = archive.read("Document.xml").decode("utf-8")
+            # A plain optional attribute, ignored by versions that do not know it
+            self.assertIn('decimals="4"', xml)
+            self.doc = FreeCAD.openDocument(path)
+            sheet = self.doc.getObject("Spreadsheet")
+            self.assertEqual(sheet.getDecimals("A1"), 4)
+            self.assertEqual(sheet.getDecimals("B2"), 0)
+            self.assertEqual(sheet.getContents("A1"), "1.5")
+        finally:
+            os.remove(path)
 
     def _findSample(self):
         sheet = self.sheet

@@ -115,6 +115,27 @@ class TestSpreadsheetFeaturesGui(unittest.TestCase):
         self.assertEqual(self.sheet.getContents("C3"), "'pear")
         self.assertEqual(self.sheet.getContents("B2"), "'plum pie")
 
+    def testIncreaseDecreaseDecimalsCommands(self):
+        self.sheet.set("A1", "1.5")
+        self.sheet.set("A2", "2")
+        self.doc.recompute()
+        table = self._tableView()
+        self._select(table, 0, 0, 1, 0)
+        decimals = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Units").GetInt(
+            "Decimals", 2
+        )
+        FreeCADGui.runCommand("Spreadsheet_IncreaseDecimals")
+        self._process()
+        self.assertEqual(self.sheet.getDecimals("A1"), decimals + 1)
+        self.assertEqual(self.sheet.getDecimals("A2"), decimals + 1)
+        FreeCADGui.runCommand("Spreadsheet_DecreaseDecimals")
+        FreeCADGui.runCommand("Spreadsheet_DecreaseDecimals")
+        self._process()
+        self.assertEqual(self.sheet.getDecimals("A1"), max(decimals - 1, 0))
+        # The display follows
+        text = table.model().data(table.model().index(1, 0))
+        self.assertEqual(text.count("0"), max(decimals - 1, 0))
+
 
 if __name__ == "__main__":
     unittest.main()

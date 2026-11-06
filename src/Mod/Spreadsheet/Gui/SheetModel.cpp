@@ -455,7 +455,7 @@ QVariant SheetModel::data(const QModelIndex& index, int role) const
                         QString number = QLocale().toString(
                             floatProp->getValue() / displayUnit.scaler,
                             'f',
-                            Base::UnitsApi::getDecimals()
+                            cell->getDisplayDecimals()
                         );
                         // QString number = QString::number(floatProp->getValue() /
                         // displayUnit.scaler);
@@ -470,6 +470,12 @@ QVariant SheetModel::data(const QModelIndex& index, int role) const
                     // When displaying a quantity then use the globally set scheme
                     // See: https://forum.freecad.org/viewtopic.php?f=3&t=50078
                     Base::Quantity value = floatProp->getQuantityValue();
+                    int decimals = 0;
+                    if (cell->getDecimals(decimals)) {
+                        Base::QuantityFormat format = value.getFormat();
+                        format.setPrecision(decimals);
+                        value.setFormat(format);
+                    }
                     v = QString::fromStdString(value.getUserString());
                 }
                 return formatCellDisplay(v, cell);
@@ -530,13 +536,13 @@ QVariant SheetModel::data(const QModelIndex& index, int role) const
                     QString number = QLocale().toString(
                         d / displayUnit.scaler,
                         'f',
-                        Base::UnitsApi::getDecimals()
+                        cell->getDisplayDecimals()
                     );
                     // QString number = QString::number(d / displayUnit.scaler);
                     v = number + QString::fromStdString(" " + displayUnit.stringRep);
                 }
-                else if (!isInteger) {
-                    v = QLocale::system().toString(d, 'f', Base::UnitsApi::getDecimals());
+                else if (int decimals = 0; !isInteger || cell->getDecimals(decimals)) {
+                    v = QLocale::system().toString(d, 'f', cell->getDisplayDecimals());
                     // v = QString::number(d);
                 }
                 else {
