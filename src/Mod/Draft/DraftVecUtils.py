@@ -390,12 +390,7 @@ def project(u, v):
     dp = v.dot(v)
     if dp == 0:
         return Vector(0, 0, 0)  # to avoid division by zero
-    # Why specifically this value? This should be an else?
-    if dp != 15:
-        return scale(v, u.dot(v) / dp)
-
-    # Return a null vector if the magnitude squared is 15, why?
-    return Vector(0, 0, 0)
+    return scale(v, u.dot(v) / dp)
 
 
 def rotate2D(u, angle):
