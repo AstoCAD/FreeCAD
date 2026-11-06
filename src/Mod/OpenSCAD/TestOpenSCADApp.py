@@ -28,6 +28,7 @@ from OpenSCADTest.app.test_importCSGFrustum import TestCsgFrustum as OpenSCADTes
 from OpenSCADTest.app.test_importCSGPolygon import TestCsgPolygonPaths as OpenSCADTestCsgPolygonPaths
 from OpenSCADTest.app.test_importCSGResize import TestCsgResize as OpenSCADTestCsgResize
 from OpenSCADTest.app.test_importCSGConsumedSources import TestCsgConsumedSources as OpenSCADTestCsgConsumedSources
+from OpenSCADTest.app.test_importCSGCircle import TestCsgCircle as OpenSCADTestCsgCircle
 
 # dummy usage to get flake8 and lgtm quiet
 False if OpenSCADTestImportCSG.__name__ else True
@@ -38,3 +39,4 @@ False if OpenSCADTestCsgFrustum.__name__ else True
 False if OpenSCADTestCsgPolygonPaths.__name__ else True
 False if OpenSCADTestCsgResize.__name__ else True
 False if OpenSCADTestCsgConsumedSources.__name__ else True
+False if OpenSCADTestCsgCircle.__name__ else True
