@@ -506,6 +506,30 @@ class TestCAMSanity(PathTestBase):
             f"Expected WARNING squawk for unused TC, got: {squawks}",
         )
 
+    def test225_tool_controller_without_toolbit_squawk(self):
+        """A tool controller without a toolbit gives one WARNING squawk and no None entry.
+
+        Given: A job with one tool controller whose Tool is None (e.g. a legacy tool
+               dropped when a template was loaded).
+        When: _toolData() and validate_job() are called.
+        Then: squawkData holds exactly one WARNING about the legacy tool, and
+              validate_job() returns it among the critical squawks.
+        """
+        mock_tc = self._make_mock_tc(tool_number=3)
+        mock_tc.Tool = None
+        mock_job = self._make_mock_job(machine_name="")
+        mock_job.Tools.Group = [mock_tc]
+
+        S = self._make_sanity_with_mock_job(mock_job)
+        squawks = S._toolData().get("squawkData", [])
+        self.assertEqual(len(squawks), 1, f"Expected one squawk, got: {squawks}")
+        self.assertEqual(squawks[0]["squawkType"], "WARNING")
+        self.assertIn("legacy tool", squawks[0]["Note"])
+
+        all_squawks, critical_squawks = Sanity.CAMSanity.validate_job(mock_job)
+        self.assertNotIn(None, all_squawks)
+        self.assertTrue(any("legacy tool" in s["Note"] for s in critical_squawks))
+
     def test230_duplicate_tool_number_squawk(self):
         """Two tool controllers sharing the same tool number should produce a CAUTION squawk.
 
