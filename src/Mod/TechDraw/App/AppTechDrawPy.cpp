@@ -43,6 +43,7 @@
 #include <Base/Console.h>
 #include <Base/Exception.h>
 #include <Base/PyWrapParseTupleAndKeywords.h>
+#include <Base/Tools.h>
 #include <Base/Vector3D.h>
 #include <Base/VectorPy.h>
 
@@ -1033,9 +1034,20 @@ private:
         if (PyObject_TypeCheck(pTo, &(Base::VectorPy::Type))) {
             to = static_cast<Base::VectorPy*>(pTo)->value();
         }
-        //3d points are not scaled
-        from = DrawUtil::invertY(dvp->projectPoint(from));
-        to   = DrawUtil::invertY(dvp->projectPoint(to));
+        // 3d points are not centered, scaled or rotated. makeDistDim expects the inverted,
+        // scaled and rotated view points that makeDistanceDim passes, and turns them back into
+        // canonical points, so center and project the 3d points and transform them to the view.
+        const Base::Vector3d centroid = dvp->getOriginalCentroid();
+        const auto toViewPoint = [dvp, &centroid](const Base::Vector3d& point) {
+            Base::Vector3d result = dvp->projectPoint(point - centroid, false) * dvp->getScale();
+            const double rotation = dvp->Rotation.getValue();
+            if (rotation != 0.0) {
+                result.RotateZ(Base::toRadians(rotation));
+            }
+            return DrawUtil::invertY(result);
+        };
+        from = toViewPoint(from);
+        to   = toViewPoint(to);
         //DrawViewDimension* =
         DrawDimHelper::makeDistDim(dvp,
                                    dimType,
