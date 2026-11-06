@@ -1363,8 +1363,8 @@ int Sketch::addArcOfHyperbola(const Part::GeomArcOfHyperbola& hyperbolaSegment, 
     def.type = ArcOfHyperbola;
 
     Base::Vector3d center = aoh->getCenter();
-    Base::Vector3d startPnt = aoh->getStartPoint();
-    Base::Vector3d endPnt = aoh->getEndPoint();
+    Base::Vector3d startPnt = aoh->getStartPoint(/*emulateCCW=*/true);
+    Base::Vector3d endPnt = aoh->getEndPoint(/*emulateCCW=*/true);
     double radmaj = aoh->getMajorRadius();
     double radmin = aoh->getMinorRadius();
     Base::Vector3d radmajdir = aoh->getMajorAxisDir();
@@ -1509,8 +1509,8 @@ int Sketch::addArcOfParabola(const Part::GeomArcOfParabola& parabolaSegment, boo
     def.type = ArcOfParabola;
 
     Base::Vector3d vertex = aop->getCenter();
-    Base::Vector3d startPnt = aop->getStartPoint();
-    Base::Vector3d endPnt = aop->getEndPoint();
+    Base::Vector3d startPnt = aop->getStartPoint(/*emulateCCW=*/true);
+    Base::Vector3d endPnt = aop->getEndPoint(/*emulateCCW=*/true);
     Base::Vector3d focus = aop->getFocus();
 
     double startAngle, endAngle;

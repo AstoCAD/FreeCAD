@@ -1349,10 +1349,9 @@ int SketchObject::split(int GeoId, const Base::Vector3d& point)
     paramsOfNewGeos.back().first = splitParam;
 
     // The first piece keeps GeoId and the constraints of the start point. The sketch takes the
-    // start point of a reversed (clockwise) arc of circle or ellipse at its last parameter
-    // (emulated CCW arc), so its first piece is the one at the end of the parameter range.
-    if (paramsOfNewGeos.size() == 2
-        && (geoAsCurve->is<Part::GeomArcOfCircle>() || geoAsCurve->is<Part::GeomArcOfEllipse>())
+    // start point of a reversed (clockwise) arc of conic at its last parameter (emulated CCW
+    // arc), so its first piece is the one at the end of the parameter range.
+    if (paramsOfNewGeos.size() == 2 && geoAsCurve->isDerivedFrom<Part::GeomArcOfConic>()
         && static_cast<const Part::GeomArcOfConic*>(geoAsCurve)->isReversed()) {
         std::swap(paramsOfNewGeos.front(), paramsOfNewGeos.back());
     }
@@ -1538,10 +1537,10 @@ int SketchObject::join(
     }
 
     // toNurbs() follows the parameter direction of the curve, but the sketch takes the start point
-    // of a reversed (clockwise) arc of circle or ellipse at its last parameter (emulated CCW
-    // arc): make the start of each spline the start point of its curve in the sketch.
+    // of a reversed (clockwise) arc of conic at its last parameter (emulated CCW arc): make the
+    // start of each spline the start point of its curve in the sketch.
     auto startAtStartPoint = [](const Part::GeomCurve* geo, Part::GeomBSplineCurve* bsp) {
-        if ((geo->is<Part::GeomArcOfCircle>() || geo->is<Part::GeomArcOfEllipse>())
+        if (geo->isDerivedFrom<Part::GeomArcOfConic>()
             && static_cast<const Part::GeomArcOfConic*>(geo)->isReversed()) {
             bsp->reverse();
         }

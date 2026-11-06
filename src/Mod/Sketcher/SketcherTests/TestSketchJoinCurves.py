@@ -166,7 +166,7 @@ class TestSketchJoinCurves(unittest.TestCase):
         self.assertTrue(poles)
         self._assertValid()
 
-    def _joinArcAndLine(self, arc, arcFirst):
+    def _joinArcAndLine(self, arc, arcFirst, recompute=True):
         # the sketch end point of the arc (geometry 0) is joined to a line going down from it
         self.sketch.addGeometry(arc)  # 0
         start = self.sketch.getPoint(0, 1)
@@ -178,7 +178,8 @@ class TestSketchJoinCurves(unittest.TestCase):
         else:
             self._line((lineEnd.x, lineEnd.y, 0), (end.x, end.y, 0))  # 1
             self.sketch.addConstraint(Sketcher.Constraint("Coincident", 1, 2, 0, 2))
-        self.doc.recompute()
+        if recompute:
+            self.doc.recompute()
         length = arc.length() + 5
 
         if arcFirst:
@@ -209,6 +210,20 @@ class TestSketchJoinCurves(unittest.TestCase):
         arc.mirror(V(0, 0, 0), V(1, 0, 0))
         self.assertLess(arc.Axis.z, 0)
         self._joinArcAndLine(arc, True)
+
+    # A solve turns a clockwise arc of hyperbola or parabola counter-clockwise: these join it as
+    # it was added.
+    def testJoinClockwiseArcOfHyperbola(self):
+        arc = Part.ArcOfHyperbola(Part.Hyperbola(V(0, 0, 0), 5, 2), -1.0, 1.2)
+        arc.mirror(V(0, 0, 0), V(1, 0, 0))
+        self.assertLess(arc.Axis.z, 0)
+        self._joinArcAndLine(arc, True, recompute=False)
+
+    def testJoinLineToClockwiseArcOfParabola(self):
+        arc = Part.ArcOfParabola(Part.Parabola(V(0, 1, 0), V(0, 0, 0), V(0, 0, 1)), -2, 3)
+        arc.mirror(V(0, 0, 0), V(1, 0, 0))
+        self.assertLess(arc.Axis.z, 0)
+        self._joinArcAndLine(arc, False, recompute=False)
 
     def testJoinCounterClockwiseArcOfCircle(self):
         # control

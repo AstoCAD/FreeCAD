@@ -158,12 +158,13 @@ public:
     Base::Vector3d getPoint(const Part::Geometry* geo, PointPos PosId) const override
     {
         auto aoh = dynamic_cast<const GeomType*>(geo);
+        const bool emulateCCW = true;
         switch (PosId) {
             case PointPos::start: {
-                return aoh->getStartPoint();
+                return aoh->getStartPoint(emulateCCW);
             }
             case PointPos::end: {
-                return aoh->getEndPoint();
+                return aoh->getEndPoint(emulateCCW);
             }
             case PointPos::mid: {
                 return aoh->getCenter();
@@ -181,12 +182,13 @@ public:
     Base::Vector3d getPoint(const Part::Geometry* geo, PointPos PosId) const override
     {
         auto aop = dynamic_cast<const GeomType*>(geo);
+        const bool emulateCCW = true;
         switch (PosId) {
             case PointPos::start: {
-                return aop->getStartPoint();
+                return aop->getStartPoint(emulateCCW);
             }
             case PointPos::end: {
-                return aop->getEndPoint();
+                return aop->getEndPoint(emulateCCW);
             }
             case PointPos::mid: {
                 return aop->getCenter();
