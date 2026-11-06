@@ -214,6 +214,8 @@ private:
         const std::string& doc
     ) const;
     App::Property* createProperty();
+    App::Property* getCreatedProperty() const;
+    void removeCreatedProperty();
     void closeTransaction(TransactionOption option);
     void clearFields();
     void addDocumentation();
@@ -231,6 +233,9 @@ private:
     std::unique_ptr<QWidget> editor;
     std::unique_ptr<PropertyEditor::PropertyItem> propertyItem;
     std::unique_ptr<App::ObjectIdentifier> objectIdentifier;
+    // The property created for the entered name and type, also for a type without a property
+    // item; empty when there is none (no valid name yet, removed, or accepted)
+    std::string createdPropertyName;
 
     // a transactionID of 0 means that there is no active transaction.
     int transactionID;
