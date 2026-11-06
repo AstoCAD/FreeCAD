@@ -38,6 +38,7 @@
 
 namespace App
 {
+class DocumentObject;
 class Property;
 }
 
@@ -65,8 +66,13 @@ public:
                   Gui::SelectionSingleton::MessageType Reason) override;
     void showDefaultButtons(bool);
     void reject() override;
+    /// Applies the appearance to the selected faces instead of the whole objects
+    void setFaceScope(bool faces);
 
 private Q_SLOTS:
+    void onPhysicalMaterialSelected(const std::shared_ptr<Materials::Material>& material);
+    void onButtonResetToMaterialClicked();
+    void onScopeToggled(bool);
     void onChangeModeActivated(const QString&);
     void onChangePlotActivated(const QString&);
     void onSpinTransparencyValueChanged(int);
@@ -97,6 +103,16 @@ private:
     void setLineTransparency(const std::vector<Gui::ViewProvider*>&);
     std::vector<Gui::ViewProvider*> getSelection() const;
     void setPropertiesFromSelection();
+    void setPhysicalMaterial(const std::vector<Gui::ViewProvider*>&);
+    void updateLookSource();
+    void updateScope();
+    bool isFaceScope() const;
+    /// The selected objects with a geometry view provider, each once
+    std::vector<App::DocumentObject*> getSelectedObjects() const;
+    /// The selected faces ("Face1" ...) of @a obj
+    std::vector<std::string> getSelectedFaces(const App::DocumentObject* obj) const;
+    /// Applies @a look to the whole objects or to the selected faces
+    void applyAppearance(const App::Material& look);
 
 private:
     class Private;
@@ -108,7 +124,7 @@ class TaskDisplayProperties: public Gui::TaskView::TaskDialog
     Q_OBJECT
 
 public:
-    TaskDisplayProperties();
+    explicit TaskDisplayProperties(bool faceScope = false);
     ~TaskDisplayProperties() override;
 
 public:

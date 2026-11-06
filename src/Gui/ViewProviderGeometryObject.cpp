@@ -38,6 +38,7 @@
 #include <Inventor/nodes/SoSwitch.h>
 #include <Inventor/sensors/SoNodeSensor.h>
 
+#include <App/ComplexGeoData.h>
 #include <App/Document.h>
 #include <App/GeoFeature.h>
 #include <App/Material.h>
@@ -330,6 +331,35 @@ void ViewProviderGeometryObject::resetToMaterial(const std::vector<std::string>&
     if (names != AppearanceOverrides.getValues()) {
         AppearanceOverrides.setValues(names);
     }
+}
+
+void ViewProviderGeometryObject::setFaceAppearance(
+    const std::vector<std::string>& faces,
+    const App::Material& look
+)
+{
+    auto geometry = getObject<App::GeoFeature>();
+    auto prop = geometry ? geometry->getPropertyOfGeometry() : nullptr;
+    auto data = prop ? prop->getComplexData() : nullptr;
+    if (!data) {
+        return;
+    }
+
+    std::vector<std::size_t> indices;
+    for (const auto& name : faces) {
+        int index = App::AppearanceOverrides::faceIndex(name);
+        if (index >= 0) {
+            indices.push_back(static_cast<std::size_t>(index));
+        }
+    }
+    if (indices.empty()) {
+        return;
+    }
+
+    auto values = ShapeAppearance.getValues();
+    App::AppearanceOverrides::paintFaces(values, data->countSubElements("Face"), indices, look);
+    // The overrides follow from the change in onChanged()
+    ShapeAppearance.setValues(values);
 }
 
 void ViewProviderGeometryObject::followMaterial()

@@ -24,6 +24,7 @@
 #include <QPointer>
 
 
+#include <Gui/Application.h>
 #include <Gui/Command.h>
 #include <Gui/Control.h>
 #include <Gui/MainWindow.h>
@@ -51,7 +52,7 @@ CmdMaterialEdit::CmdMaterialEdit()
 {
     sAppModule = "Material";
     sGroup = QT_TR_NOOP("Material");
-    sMenuText = QT_TR_NOOP("Edit");
+    sMenuText = QT_TR_NOOP("&Material Editor");
     sToolTipText = QT_TR_NOOP("Edits material properties");
     sWhatsThis = "Material_Edit";
     sStatusTip = sToolTipText;
@@ -85,19 +86,21 @@ StdCmdSetAppearance::StdCmdSetAppearance()
     : Command("Std_SetAppearance")
 {
     sGroup = "Standard-View";
-    sMenuText = QT_TR_NOOP("&Appearance");
-    sToolTipText = QT_TR_NOOP("Sets the display properties of the selected object");
+    sMenuText = QT_TR_NOOP("Material and &Appearance");
+    sToolTipText = QT_TR_NOOP(
+        "Sets the physical material and the appearance of the selected objects or faces"
+    );
     sWhatsThis = "Std_SetAppearance";
-    sStatusTip = QT_TR_NOOP("Sets the display properties of the selected object");
+    sStatusTip = sToolTipText;
     sPixmap = "Std_SetAppearance";
     sAccel = "Ctrl+D";
     eType = Alter3DView;
 }
 
+/// iMsg 1 applies the appearance to the selected faces (Part_ColorPerFace)
 void StdCmdSetAppearance::activated(int iMsg)
 {
-    Q_UNUSED(iMsg);
-    Gui::Control().showDialog(new MatGui::TaskDisplayProperties());
+    Gui::Control().showDialog(new MatGui::TaskDisplayProperties(iMsg == 1));
 }
 
 bool StdCmdSetAppearance::isActive()
@@ -108,6 +111,7 @@ bool StdCmdSetAppearance::isActive()
 //===========================================================================
 // Std_SetMaterial
 //===========================================================================
+/// Kept for user toolbars, shortcuts and macros: opens Std_SetAppearance
 DEF_STD_CMD_A(StdCmdSetMaterial)
 
 StdCmdSetMaterial::StdCmdSetMaterial()
@@ -115,18 +119,18 @@ StdCmdSetMaterial::StdCmdSetMaterial()
 {
     sGroup = "Standard-View";
     sMenuText = QT_TR_NOOP("&Material");
-    sToolTipText = QT_TR_NOOP("Sets the material of the selected object");
+    sToolTipText = QT_TR_NOOP(
+        "Sets the physical material and the appearance of the selected objects or faces"
+    );
     sWhatsThis = "Std_SetMaterial";
-    sStatusTip = QT_TR_NOOP("Sets the material of the selected object");
+    sStatusTip = sToolTipText;
     sPixmap = "Material_Edit";
-    // sAccel        = "Ctrl+D";
-    // eType = Alter3DView;
 }
 
 void StdCmdSetMaterial::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    Gui::Control().showDialog(new MatGui::TaskMaterial());
+    Gui::Application::Instance->commandManager().runCommandByName("Std_SetAppearance");
 }
 
 bool StdCmdSetMaterial::isActive()
