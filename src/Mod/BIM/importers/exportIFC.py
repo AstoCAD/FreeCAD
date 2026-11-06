@@ -2262,6 +2262,11 @@ def getRepresentation(
         if (not shapes) and obj.isDerivedFrom("Part::Extrusion"):
             import ArchComponent
 
+            # None for extrusions to both sides or tapered ones: exported as brep below
+            extrusion_vector = ArchComponent.getPartExtrusionVector(obj)
+        else:
+            extrusion_vector = None
+        if extrusion_vector is not None:
             pstr = str([v.Point for v in obj.Base.Shape.Vertexes])
             profile, pl = ArchComponent.Component.rebase(obj, obj.Base.Shape)
             profile.scale(preferences["SCALE_FACTOR"])
@@ -2269,11 +2274,7 @@ def getRepresentation(
             profile = getProfile(ifcfile, profile)
             if profile:
                 profiledefs[pstr] = profile
-            ev = FreeCAD.Vector(obj.Dir)
-            l = obj.LengthFwd.Value
-            if l:
-                ev = ev.normalize()  # new since 0.20 - obj.Dir length is ignored
-                ev.multiply(l)
+            ev = FreeCAD.Vector(extrusion_vector)
             ev.multiply(preferences["SCALE_FACTOR"])
             ev = pl.Rotation.inverted().multVec(ev)
             xvc = ifcbin.createIfcDirection(tuple(pl.Rotation.multVec(FreeCAD.Vector(1, 0, 0))))
