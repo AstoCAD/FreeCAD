@@ -396,7 +396,26 @@ class DraftSVGColorRegression(test_base.DraftTestCaseDoc):
 
 
 class DraftSVGExportLabelRegression(test_base.DraftTestCaseDoc):
-    """Regression tests for object labels written by the SVG exporter."""
+    """Regression tests for the files written by importSVG.export."""
+
+    def test_export_svg_declares_freecad_namespace(self):
+        """freecad:* attributes written by get_svg need a declared namespace prefix."""
+        import xml.etree.ElementTree as ET
+
+        obj = self.doc.addObject("Part::Feature", "Face")
+        obj.Shape = Part.makePlane(10, 10)
+        self.doc.recompute()
+        # Dimensions, texts and arrows carry freecad:* attributes; they need the GUI,
+        # so stand in for them.
+        fake_svg = '<path freecad:skip="1" d="M 0 0 L 10 0" stroke="#000000"/>\n'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_file = os.path.join(temp_dir, "namespace.svg")
+            with mock.patch.object(importSVG, "get_svg", return_value=fake_svg):
+                importSVG.export([obj], out_file)
+            with open(out_file, "rb") as svg_file:
+                ET.fromstring(svg_file.read())  # namespace-aware parse
+            # the importer parses its input with ElementTree as well
+            self.assertIn("freecad:skip", importSVG.replace_use_with_reference(out_file))
 
     def test_export_svg_title_is_label(self):
         """The title of an exported object is its label, escaped, in a well-formed UTF-8 file."""
