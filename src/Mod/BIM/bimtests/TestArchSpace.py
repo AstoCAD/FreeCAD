@@ -68,6 +68,21 @@ class TestArchSpace(TestArchBase.TestArchBase):
         s = Arch.makeSpace([b])
         self.assertTrue(s, "Arch Space failed")
 
+    def test_area_at_center_of_mass_excludes_holes(self):
+        """The 'At Center of Mass' area must not count holes (e.g. a column inside the room)."""
+        self.printTestMessage("Checking Space area at center of mass with a hole...")
+
+        room = Part.makeBox(4000, 4000, 3000)
+        column = Part.makeBox(1000, 1000, 3000, App.Vector(1500, 1500, 0))
+        base = self.document.addObject("Part::Feature", "RoomWithColumn")
+        base.Shape = room.cut(column)
+        space = Arch.makeSpace(base)
+        space.AreaCalculationType = "At Center of Mass"
+        self.document.recompute()
+
+        self.assertAlmostEqual(space.Area.Value, 4000 * 4000 - 1000 * 1000, delta=1e-3)
+        self.assertAlmostEqual(space.PerimeterLength.Value, 4 * 4000, delta=1e-3)
+
     @unittest.skipUnless(_HAS_IFCOPENSHELL, "ifcopenshell not available")
     def testElevationWithFlooringIsNotInferred(self):
         """Do not infer the finished floor elevation from the space geometry."""
