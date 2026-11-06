@@ -181,6 +181,7 @@ endif(BUILD_GUI)
 SET(TDTest_SRCS
     TDTest/__init__.py
     TDTest/DrawCosmeticCircleRadiusTest.py
+    TDTest/DrawCosmeticVertex3dTest.py
     TDTest/DrawCosmeticEdgeLineNumberTest.py
     TDTest/DrawDecorateLineInvalidEdgeTest.py
     TDTest/DrawCosmeticRefreshNoGeometryTest.py

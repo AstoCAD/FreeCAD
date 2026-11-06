@@ -333,7 +333,7 @@ PyObject* DrawViewPartPy::makeCosmeticVertex3d(PyObject *args)
     // center the point
     pnt1 = pnt1 - centroid;
     // project but do not invert
-    Base::Vector3d projected = dvp->projectPoint(pnt1);
+    Base::Vector3d projected = dvp->projectPoint(pnt1, false);
     // this is a real world point, it is not scaled or rotated, so so it is in canonical form
     // add and invert the point.
     std::string id = dvp->addCosmeticVertex(projected);
