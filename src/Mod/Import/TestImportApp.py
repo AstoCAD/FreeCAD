@@ -56,6 +56,29 @@ class StepExportColorTest(unittest.TestCase):
             self.assertLessEqual(value, 1.0)
 
 
+class FileTypeRegistrationTest(unittest.TestCase):
+    """Every module registered as an importer or exporter must be installed."""
+
+    @staticmethod
+    def _modules(types):
+        modules = set()
+        for value in types.values():
+            modules.update(value if isinstance(value, (list, tuple)) else [value])
+        return modules
+
+    def testRegisteredModulesExist(self):
+        import importlib.util
+        import sys
+
+        modules = self._modules(App.getImportType()) | self._modules(App.getExportType())
+        self.assertIn("Import", modules)
+        for module in sorted(modules):
+            top = module.split(".")[0]
+            with self.subTest(module=module):
+                # Only locate the top-level module: nothing gets imported.
+                self.assertTrue(top in sys.modules or importlib.util.find_spec(top) is not None)
+
+
 class DxfSketchExportTest(unittest.TestCase):
     def setUp(self):
         self.fileName = os.path.join(tempfile.gettempdir(), "ImportDxfSketchExportTest.dxf")
