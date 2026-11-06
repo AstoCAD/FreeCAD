@@ -283,13 +283,14 @@ class PartDesignFormProxy(FormFeatureProxy):
         self._ensure_sharpness_properties(obj)
         self._ensure_local_edit_properties(obj)
         self._ensure_partdesign_properties(obj, _partdesign_operation(obj))
-        # Edit mode itself is not restored by FreeCAD. Do not leave a recovered
-        # document displaying the temporary, uncombined tool shape.
-        obj.EditingForm = False
         obj.Proxy = self
         self.onChanged(obj, "CageMode")
-        obj.touch()
-        obj.recompute()
+        if obj.EditingForm:
+            # Edit mode itself is not restored by FreeCAD. A document saved
+            # while editing stores the uncombined tool shape here and in the
+            # features after it, so leave the Form touched for a recompute.
+            obj.EditingForm = False
+            obj.Document.addRecomputeObject(obj)
 
 
 class AdditiveFormProxy(PartDesignFormProxy):
