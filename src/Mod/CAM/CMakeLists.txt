@@ -660,6 +660,7 @@ SET(Tests_SRCS
     CAMTests/TestPostOutput.py
     CAMTests/TestPathPocket.py
     CAMTests/TestPathPreferences.py
+    CAMTests/TestPathPreprocessors.py
     CAMTests/TestPathProfile.py
     CAMTests/TestPathPropertyBag.py
     CAMTests/TestPathRampEntryGenerator.py

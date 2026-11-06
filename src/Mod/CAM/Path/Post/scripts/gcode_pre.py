@@ -155,10 +155,8 @@ def parse(inputstring):
 
         # remove line numbers
         if lin[0].upper() in ["N"]:
-            lin = lin.split(" ", 1)
-            if len(lin) >= 1:
-                lin = lin[1].strip()
-            else:
+            lin = re.sub(r"^[nN]\d*\s*", "", lin)
+            if not lin:
                 continue
 
         # Anything else not a G/M code or an axis move is ignored.
