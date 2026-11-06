@@ -102,6 +102,11 @@ public:
      * of the given group object.
      */
     bool isChildOf(const GroupExtension* group, bool recursive = true) const;
+    /**
+     * Checks whether having \a obj in Group would make this group contain itself: \a obj is
+     * this group's own object, or a group that holds it, directly or through sub-groups.
+     */
+    bool isCyclicMember(const DocumentObject* obj) const;
     /** Returns a list of all objects this group does have.
      */
     const std::vector<DocumentObject*>& getObjects() const;
@@ -123,6 +128,7 @@ public:
     PyObject* getExtensionPyObject() override;
 
     void extensionOnChanged(const Property* p) override;
+    void onExtendedDocumentRestored() override;
 
     bool extensionGetSubObject(DocumentObject*& ret,
                                const char* subname,
@@ -141,6 +147,14 @@ public:
     /// Properties
     PropertyLinkList Group;
     PropertyBool _GroupTouched;
+
+protected:
+    /**
+     * isCyclicMember() for an object that was not in Group before its current change. Only a
+     * member being added can create a cycle; members that already formed one (restored from an
+     * old file) are left alone, so that removing or reordering members of such a group still works.
+     */
+    bool isNewCyclicMember(const DocumentObject* obj) const;
 
 private:
     void removeObjectFromDocument(DocumentObject*);

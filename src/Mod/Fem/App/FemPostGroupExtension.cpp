@@ -27,20 +27,6 @@
 
 using namespace Fem;
 
-namespace
-{
-// True if obj is the group owner itself or a group that (recursively) holds the owner.
-// Such a member forms a cycle: the pipeline setup and recomputeChildren() loop forever.
-bool isCyclicMember(const App::DocumentObject* owner, App::DocumentObject* obj)
-{
-    if (obj == owner) {
-        return true;
-    }
-    auto ext = obj ? obj->getExtensionByType<App::GroupExtension>(true) : nullptr;
-    return ext && ext->hasObject(owner, true);
-}
-}  // namespace
-
 EXTENSION_PROPERTY_SOURCE(Fem::FemPostGroupExtension, App::GroupExtension);
 
 const char* FemPostGroupExtension::ModeEnums[] = {"Serial", "Parallel", nullptr};
@@ -85,8 +71,8 @@ void FemPostGroupExtension::extensionOnChanged(const App::Property* p)
             // a group cannot contain itself or a group holding it
             auto owner = getExtendedObject();
             auto objs = Group.getValues();
-            auto removed = std::erase_if(objs, [owner](App::DocumentObject* obj) {
-                return isCyclicMember(owner, obj);
+            auto removed = std::erase_if(objs, [this](App::DocumentObject* obj) {
+                return isCyclicMember(obj);
             });
 
             // sort the group, so that non filter objects are always on top (in case any object
@@ -120,7 +106,7 @@ std::vector<Fem::FemPostFilter*> FemPostGroupExtension::getFilter()
     // collect all other items that are not filters
     std::vector<Fem::FemPostFilter*> filters;
     for (auto& obj : Group.getValues()) {
-        if (obj->isDerivedFrom<FemPostFilter>() && !isCyclicMember(getExtendedObject(), obj)) {
+        if (obj->isDerivedFrom<FemPostFilter>() && !isCyclicMember(obj)) {
             filters.push_back(static_cast<FemPostFilter*>(obj));
         }
     }
