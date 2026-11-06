@@ -57,14 +57,13 @@ ViewProviderTextDocument::ViewProviderTextDocument()
 
     QFont font;
     font.setFamily(
-        QString::fromLatin1(
+        QString::fromStdString(
             App::GetApplication()
                 .GetUserParameter()
                 .GetGroup("BaseApp")
                 ->GetGroup("Preferences")
                 ->GetGroup("Editor")
-                ->GetASCII("Font", font.family().toLatin1())
-                .c_str()
+                ->GetASCII("Font", font.family().toStdString().c_str())
         )
     );
     font.setPointSize(
@@ -79,7 +78,7 @@ ViewProviderTextDocument::ViewProviderTextDocument()
     ADD_PROPERTY_TYPE(FontSize, (font.pointSize()), "Editor", App::Prop_None, "Font size");
     ADD_PROPERTY_TYPE(
         FontName,
-        ((const char*)font.family().toLatin1()),
+        (font.family().toStdString().c_str()),
         "Editor",
         App::Prop_None,
         "Font name"
@@ -145,7 +144,7 @@ void ViewProviderTextDocument::onChanged(const App::Property* prop)
             editorWidget->setReadOnly(ReadOnly.getValue());
         }
         else if (prop == &FontSize || prop == &FontName) {
-            QFont font(QString::fromLatin1(this->FontName.getValue()), (int)this->FontSize.getValue());
+            QFont font(QString::fromUtf8(this->FontName.getValue()), (int)this->FontSize.getValue());
             editorWidget->setFont(font);
         }
         else if (prop == &SyntaxHighlighter) {
