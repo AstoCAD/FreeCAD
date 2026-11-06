@@ -859,30 +859,56 @@ bool DocumentObject::renameDynamicProperty(Property* prop, const char* name)
 {
     std::string oldName = prop->getName();
 
-    auto expressions = ExpressionEngine.getExpressions();
-    std::vector<std::shared_ptr<Expression>> expressionsToMove;
-    std::vector<App::ObjectIdentifier> idsWithExprsToRemove;
+    struct BoundExpression
+    {
+        App::ObjectIdentifier id;
+        int propertyIndex;
+        std::shared_ptr<Expression> expression;
+    };
+    std::vector<BoundExpression> expressionsToMove;
 
-    for (const auto& [id, expr] : expressions) {
+    for (const auto& [id, expr] : ExpressionEngine.getExpressions()) {
         if (id.getProperty() == prop) {
-            idsWithExprsToRemove.push_back(id);
-            expressionsToMove.emplace_back(expr->copy());
+            // The path may go below the property (e.g. '.Placement.Base.x'): remember where the
+            // property component is, while the old name still resolves, to keep the sub-path.
+            int propertyIndex = 0;
+            id.getPropertyComponent(0, &propertyIndex);
+            expressionsToMove.push_back(
+                {id, propertyIndex, std::shared_ptr<Expression>(expr->copy())});
         }
     }
 
-    for (const auto& it : idsWithExprsToRemove) {
-        ExpressionEngine.setValue(it, std::shared_ptr<Expression>());
+    // The bindings are keyed by the old name, so they must be removed before the rename.
+    for (const auto& bound : expressionsToMove) {
+        ExpressionEngine.setValue(bound.id, std::shared_ptr<Expression>());
     }
+    // If the property is not renamed, put them back where they were.
+    auto restoreExpressions = [&]() {
+        for (const auto& bound : expressionsToMove) {
+            ExpressionEngine.setValue(bound.id, bound.expression);
+        }
+    };
 
-    bool renamed = TransactionalObject::renameDynamicProperty(prop, name);
-    if (renamed && _pDoc) {
+    bool renamed = false;
+    try {
+        renamed = TransactionalObject::renameDynamicProperty(prop, name);
+    }
+    catch (...) {
+        restoreExpressions();
+        throw;
+    }
+    if (!renamed) {
+        restoreExpressions();
+        return false;
+    }
+    if (_pDoc) {
         _pDoc->renamePropertyOfObject(this, prop, oldName.c_str());
     }
 
-
-    App::ObjectIdentifier idNewProp(prop->getContainer(), std::string(name));
-    for (auto& exprToMove : expressionsToMove) {
-        ExpressionEngine.setValue(idNewProp, exprToMove);
+    for (auto& bound : expressionsToMove) {
+        App::ObjectIdentifier newId(bound.id);
+        newId.setComponent(bound.propertyIndex, App::ObjectIdentifier::SimpleComponent(name));
+        ExpressionEngine.setValue(newId, bound.expression);
     }
 
     return renamed;
