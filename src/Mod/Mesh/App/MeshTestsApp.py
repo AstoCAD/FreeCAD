@@ -1208,6 +1208,37 @@ class MeshProperty(unittest.TestCase):
         self.assertEqual(len(material2["shininess"]), len1 + len2)
         self.assertEqual(len(material2["transparency"]), len1 + len2)
 
+    def testMeshAfterRecompute(self):
+        """Mesh returns the result of the last recompute once it was read from Python"""
+        # Features replace their mesh object on recompute; the cached Python wrapper kept
+        # referring to the first result.
+        box1 = self.doc.addObject("Mesh::Feature", "Box1")
+        box1.Mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        box2 = self.doc.addObject("Mesh::Feature", "Box2")
+        mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        mesh.translate(0.5, 0.5, 0.5)
+        box2.Mesh = mesh
+        op = self.doc.addObject("Mesh::SetOperations", "Operation")
+        op.Source1 = box1
+        op.Source2 = box2
+        op.OperationType = "union"
+        self.doc.recompute()
+        first = op.Mesh
+        self.assertAlmostEqual(first.Volume, 1.875, 4)
+        op.OperationType = "intersection"
+        self.doc.recompute()
+        self.assertAlmostEqual(op.Mesh.Volume, 0.125, 4)
+        op.OperationType = "difference"
+        self.doc.recompute()
+        self.assertAlmostEqual(op.Mesh.Volume, 0.875, 4)
+        # a reference taken before keeps the mesh it referred to
+        self.assertAlmostEqual(first.Volume, 1.875, 4)
+
+        # assigning a list of points also replaces the mesh object
+        self.assertEqual(box1.Mesh.CountFacets, 12)
+        box1.Mesh = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+        self.assertEqual(box1.Mesh.CountFacets, 1)
+
     def testNormalListKeepsNaN(self):
         """Normals given as list, tuple or Vector accept NaN alike (bulk data, as on restore)"""
         # A list or tuple was converted through a temporary App::PropertyVector, which
