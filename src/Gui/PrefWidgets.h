@@ -477,6 +477,7 @@ public:
     ~PrefFontBox() override;
 
 protected:
+    void wheelEvent(QWheelEvent* event) override;
     // restore from/save to parameters
     void restorePreferences() override;
     void savePreferences() override;
