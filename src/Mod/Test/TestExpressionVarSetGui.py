@@ -268,6 +268,15 @@ class TestExpressionVarSetGui(unittest.TestCase):
         self.assertAlmostEqual(self.store(source, "Scale", "", "3.5", "Scale"), 3.5)
         self.assertNotIn("Scale", dict(self.variables.ExpressionEngine))
 
+    def testFloatLiteralKeepsAllDigits(self):
+        # the value was recorded with "%f": 6 decimals only
+        source = self.valueSource()
+        self.doc.recompute()
+        self.assertAlmostEqual(self.store(source, "Scale", "", "1.23456789", "Precise"), 1.23456789,
+                               places=12)
+        self.assertAlmostEqual(self.store(source, "Scale", "", "0.0000001", "Tiny"), 1e-7,
+                               places=12)
+
     def testReferencedVariableChain(self):
         self.variables.addProperty("App::PropertyLength", "Middle", "Variables")
         self.variables.setExpression("Middle", "Length / 2")
