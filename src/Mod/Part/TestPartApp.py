@@ -1603,7 +1603,8 @@ class PartExtrusionTests(unittest.TestCase):
             with self.subTest(prop=prop, value=value):
                 extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
                 extrusion.Base = base_feature
-                if isinstance(value, float) and math.isnan(value):
+                numbers = value if isinstance(value, Base.Vector) else (value,)
+                if any(math.isnan(number) for number in numbers):
                     # assigning NaN raises: it can only come from a file
                     restoreValueAsFromFile(extrusion, prop, value)
                 else:

@@ -39,6 +39,16 @@ namespace Py
 class Object;
 }
 
+namespace Base
+{
+class Matrix4D;
+class Placement;
+class Rotation;
+template<typename T>
+class Vector3;
+using Vector3d = Vector3<double>;
+}  // namespace Base
+
 namespace App
 {
 
@@ -593,6 +603,23 @@ protected:
      * @param[in] path The path to verify.
      */
     virtual void verifyPath(const App::ObjectIdentifier& path) const;
+
+    /**
+     * @brief Throw Base::ValueError if a value holds NaN.
+     *
+     * NaN passes every range check (all comparisons with it are false), so the
+     * consumers of a property cannot catch it, and OCC crashes or hangs on it.
+     * Values entering from Python or an expression are checked; setValue() and
+     * Restore() are not, so files holding NaN still load.
+     *
+     * @param[in] value The value to check; for a rotation its quaternion and
+     * its axis and angle, for a placement its position and rotation.
+     */
+    void checkNotNaN(double value) const;
+    void checkNotNaN(const Base::Vector3d& value) const;
+    void checkNotNaN(const Base::Rotation& value) const;
+    void checkNotNaN(const Base::Placement& value) const;
+    void checkNotNaN(const Base::Matrix4D& value) const;
 
     /**
      * @brief Return a file name suitable for saving this property.

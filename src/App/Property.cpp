@@ -24,12 +24,17 @@
 
 #include <cassert>
 #include <array>
+#include <cmath>
 #include <tuple>
 
 #include <atomic>
 #include <sstream>
 #include <Base/Interpreter.h>
+#include <Base/Matrix.h>
+#include <Base/Placement.h>
+#include <Base/Rotation.h>
 #include <Base/Tools.h>
+#include <Base/Vector3D.h>
 #include <Base/Writer.h>
 #include <CXX/Objects.hxx>
 
@@ -319,6 +324,47 @@ void Property::aboutToSetValue()
 void Property::verifyPath(const ObjectIdentifier& p) const
 {
     p.verify(*this);
+}
+
+void Property::checkNotNaN(double value) const
+{
+    if (std::isnan(value)) {
+        throw Base::ValueError("Invalid value 'nan' for property " + getFullName());
+    }
+}
+
+void Property::checkNotNaN(const Base::Vector3d& value) const
+{
+    checkNotNaN(value.x);
+    checkNotNaN(value.y);
+    checkNotNaN(value.z);
+}
+
+void Property::checkNotNaN(const Base::Rotation& value) const
+{
+    for (unsigned short i = 0; i < 4; ++i) {
+        checkNotNaN(value[i]);
+    }
+    Base::Vector3d axis;
+    double angle {};
+    value.getRawValue(axis, angle);
+    checkNotNaN(axis);
+    checkNotNaN(angle);
+}
+
+void Property::checkNotNaN(const Base::Placement& value) const
+{
+    checkNotNaN(value.getPosition());
+    checkNotNaN(value.getRotation());
+}
+
+void Property::checkNotNaN(const Base::Matrix4D& value) const
+{
+    for (unsigned int row = 0; row < 4; ++row) {
+        for (double element : value[row]) {
+            checkNotNaN(element);
+        }
+    }
 }
 
 Property* Property::Copy() const
