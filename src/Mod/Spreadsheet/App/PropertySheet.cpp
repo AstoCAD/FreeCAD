@@ -1698,9 +1698,11 @@ void PropertySheet::onRenameDynamicProperty(const App::Property& prop, const cha
 {
     ObjectIdentifier oldNameId = ObjectIdentifier(prop.getContainer(), std::string(oldName));
     ObjectIdentifier newNameId = ObjectIdentifier(prop);
-    const std::map<ObjectIdentifier, ObjectIdentifier> paths = {
+    std::map<ObjectIdentifier, ObjectIdentifier> paths = {
         {oldNameId, newNameId},
     };
+    // References below the property (e.g. 'VarSet.Pos.Base.x') need their own mapping
+    addSubPathMappings(oldNameId, newNameId, paths);
 
     renameObjectIdentifiers(paths);
 }
@@ -1709,9 +1711,11 @@ void PropertySheet::onMoveDynamicProperty(const App::Property& prop, const App::
 {
     ObjectIdentifier oldNameId = ObjectIdentifier(prop);
     ObjectIdentifier newNameId = ObjectIdentifier(&targetObj, std::string(prop.getName()));
-    const std::map<ObjectIdentifier, ObjectIdentifier> paths = {
+    std::map<ObjectIdentifier, ObjectIdentifier> paths = {
         {oldNameId, newNameId},
     };
+    // References below the property (e.g. 'VarSet.Pos.Base.x') need their own mapping
+    addSubPathMappings(oldNameId, newNameId, paths);
 
     renameObjectIdentifiers(paths);
 }

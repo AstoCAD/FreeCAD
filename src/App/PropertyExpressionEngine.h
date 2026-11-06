@@ -101,6 +101,22 @@ protected:
     virtual void onMoveDynamicProperty(const App::Property& prop,
                                        const App::DocumentObject& targetObj) = 0;
 
+    /**
+     * @brief Complete the identifier mapping of a renamed or moved property.
+     *
+     * A reference below the property (e.g. `Obj.Placement.Base.x`) is an
+     * identifier of its own that the mapping of the whole property does not
+     * match. Add a mapping for each such reference in the expressions of this
+     * container, keeping its sub-path.
+     *
+     * @param[in] oldPropId The identifier of the property before the change.
+     * @param[in] newPropId The identifier of the property after the change.
+     * @param[in,out] paths The mapping to complete.
+     */
+    void addSubPathMappings(const App::ObjectIdentifier& oldPropId,
+                            const App::ObjectIdentifier& newPropId,
+                            std::map<App::ObjectIdentifier, App::ObjectIdentifier>& paths) const;
+
 private:
     static void slotRelabelDocument(const App::Document& doc);
     static void slotRenameDynamicProperty(const App::Property& prop, const char* oldName);

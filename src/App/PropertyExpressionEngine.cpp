@@ -1183,13 +1183,44 @@ void PropertyExpressionEngine::onRelabeledDocument(const App::Document& doc)
     }
 }
 
+void PropertyExpressionContainer::addSubPathMappings(
+    const ObjectIdentifier& oldPropId,
+    const ObjectIdentifier& newPropId,
+    std::map<ObjectIdentifier, ObjectIdentifier>& paths) const
+{
+    const DocumentObject* oldObj = oldPropId.getDocumentObject();
+    const std::string oldName = oldPropId.getPropertyName();
+    for (const auto& [path, expression] : getExpressions()) {
+        if (!expression) {
+            continue;
+        }
+        for (const auto& [id, hidden] : expression->getIdentifiers()) {
+            // the same canonical path the rename visitor looks up
+            ObjectIdentifier oldId = id.canonicalPath();
+            if (oldId.getDocumentObject() != oldObj || oldId.getPropertyName() != oldName
+                || oldId.numSubComponents() <= 1) {
+                continue;
+            }
+            int propertyIndex = 0;
+            oldId.getPropertyComponent(0, &propertyIndex);
+            ObjectIdentifier newId(newPropId);
+            const auto& components = oldId.getComponents();
+            for (std::size_t i = propertyIndex + 1; i < components.size(); ++i) {
+                newId.addComponent(components[i]);
+            }
+            paths.emplace(oldId, newId);
+        }
+    }
+}
+
 void PropertyExpressionEngine::onRenameDynamicProperty(const App::Property& prop, const char* oldName)
 {
     ObjectIdentifier oldNameId = ObjectIdentifier(prop.getContainer(), std::string(oldName));
     ObjectIdentifier newNameId = ObjectIdentifier(prop);
-    const std::map<ObjectIdentifier, ObjectIdentifier> paths = {
+    std::map<ObjectIdentifier, ObjectIdentifier> paths = {
         {oldNameId, newNameId},
     };
+    addSubPathMappings(oldNameId, newNameId, paths);
 
     renameObjectIdentifiers(paths);
 }
@@ -1199,9 +1230,10 @@ void PropertyExpressionEngine::onMoveDynamicProperty(const App::Property& prop,
 {
     ObjectIdentifier oldNameId = ObjectIdentifier(prop);
     ObjectIdentifier newNameId = ObjectIdentifier(&targetObj, std::string(prop.getName()));
-    const std::map<ObjectIdentifier, ObjectIdentifier> paths = {
+    std::map<ObjectIdentifier, ObjectIdentifier> paths = {
         {oldNameId, newNameId},
     };
+    addSubPathMappings(oldNameId, newNameId, paths);
 
     renameObjectIdentifiers(paths);
 }
