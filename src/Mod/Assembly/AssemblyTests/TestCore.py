@@ -177,6 +177,12 @@ class TestCore(AssemblyTestBase):
     def test_simulation_accepts_python_document_object_group(self):
         self._check_origin_only_simulation("App::DocumentObjectGroupPython")
 
+    def test_simulation_accepts_study_without_group(self):
+        # A study without a Group has no motions or contacts; it still runs.
+        study = self.doc.addObject("App::FeaturePython", "Study")
+        self.assertFalse(hasattr(study, "Group"))
+        self.assertEqual(self.assembly.generateSimulation(study), 0)
+
     def _check_bare_root_datum_grounded(self, type_id):
         datum = self.assembly.newObject(type_id, "RootDatum")
         self.assertIn(datum, self.assembly.Group)

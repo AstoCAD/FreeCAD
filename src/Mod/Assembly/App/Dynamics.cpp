@@ -1026,10 +1026,12 @@ std::vector<Object*> AssemblyObject::getContacts(Object* simulation)
             break;
         }
     }
-    if (simulation) {
-        appendContacts(
-            property<App::PropertyLinkList>(simulation, "Group").getValues(), simulation
-        );
+    // A kinematic study without a Group has no local inputs, as in
+    // getMotionsFromSimulation(). Dynamics validates its study's Group itself.
+    if (auto* group = simulation ? dynamic_cast<App::PropertyLinkList*>(
+                                       simulation->getPropertyByName("Group"))
+                                 : nullptr) {
+        appendContacts(group->getValues(), simulation);
     }
     return result;
 }
