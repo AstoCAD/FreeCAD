@@ -821,6 +821,21 @@ PyObject* DocumentPy::purgeTouched(PyObject* args)
     Py_Return;
 }
 
+PyObject* DocumentPy::addRecomputeObject(PyObject* args)
+{
+    PyObject* pyobj = nullptr;
+    if (!PyArg_ParseTuple(args, "O!", &DocumentObjectPy::Type, &pyobj)) {
+        return nullptr;
+    }
+    auto* obj = static_cast<DocumentObjectPy*>(pyobj)->getDocumentObjectPtr();
+    if (!obj || obj->getDocument() != getDocumentPtr()) {
+        PyErr_SetString(PyExc_ValueError, "The object is not in this document");
+        return nullptr;
+    }
+    getDocumentPtr()->addRecomputeObject(obj);
+    Py_Return;
+}
+
 PyObject* DocumentPy::getObject(PyObject* args)
 {
     DocumentObject* obj = nullptr;
