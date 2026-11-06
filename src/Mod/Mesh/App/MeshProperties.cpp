@@ -26,6 +26,7 @@
 #include <App/PropertyGeo.h>
 #include <Base/Converter.h>
 #include <Base/Exception.h>
+#include <Base/Interpreter.h>
 #include <Base/Reader.h>
 #include <Base/Stream.h>
 #include <Base/VectorPy.h>
@@ -748,6 +749,15 @@ void PropertyMeshKernel::setValuePtr(MeshObject* mesh)
     Base::Reference<MeshObject> tmp(_meshObject);
     aboutToSetValue();
     _meshObject = mesh;
+    if (meshPyObject) {
+        // The cached Python wrapper refers to the replaced mesh object: release it so that
+        // getPyObject() returns the new mesh. Like in the destructor, existing Python references
+        // keep the old mesh accessible.
+        Base::PyGILStateLocker lock;
+        meshPyObject->parentProperty = nullptr;
+        Py_DECREF(meshPyObject);
+        meshPyObject = nullptr;
+    }
     hasSetValue();
 }
 
