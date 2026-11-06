@@ -663,6 +663,8 @@ class SvgPathParser:
         _arg = "(" + _num + _exp + ")"
         self.commands = pathcommandsre.findall(" ".join(data["d"]))
         self.argsre = re.compile(_arg, re.DOTALL)
+        # Arc flags are a single "0" or "1" that needs no separator.
+        self.arcflagre = re.compile("[\\s,]*([01])(?![.eE])")
         self.data = data
         self.paths = []
         self.shapes = []
@@ -680,8 +682,11 @@ class SvgPathParser:
         for d, argsstr in self.commands:
             relative = d.islower()
 
-            _args = self.argsre.findall(argsstr.replace(",", " "))
-            args = [float(number) for number, exponent in _args]
+            if d in "Aa":
+                args = self.arc_args(argsstr)
+            else:
+                _args = self.argsre.findall(argsstr.replace(",", " "))
+                args = [float(number) for number, exponent in _args]
 
             if d in "Mm":
                 path.add_move(args.pop(0), args.pop(0), relative)
@@ -706,6 +711,28 @@ class SvgPathParser:
 
         path.correct_endpoints()
         self.shapes = path.create_edges()
+
+    def arc_args(self, argsstr):
+        """Return the numbers of the arguments of an arc command.
+
+        The large-arc and sweep flags of each arc (its 4th and 5th
+        argument) are read as a single character, as the SVG path grammar
+        defines them, so that compact data like "5 5 0 0110 0" is split
+        into 5, 5, 0, 0, 1, 10, 0. A flag written as a number ("1.0")
+        is still read as that number.
+        """
+        args = []
+        pos = 0
+        while True:
+            match = None
+            if len(args) % 7 in (3, 4):
+                match = self.arcflagre.match(argsstr, pos)
+            if not match:
+                match = self.argsre.search(argsstr, pos)
+            if not match:
+                return args
+            args.append(float(match.group(1)))
+            pos = match.end()
 
     def create_faces(self, fill=True, add_wire_for_invalid_face=False):
         """
