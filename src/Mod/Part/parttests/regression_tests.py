@@ -355,6 +355,22 @@ class RegressionTests(unittest.TestCase):
         seg.scale(Vector(0, 0, 0), 2)
         self.assertAlmostEqual(seg.length(), 6)
 
+    def test_arc_constructor_nan_parameters_raise(self):
+        "ArcOfHyperbola/ArcOfParabola built from a NaN parameter crashed when used"
+        nan = float("nan")
+        for arcType, conicType in (
+            (Part.ArcOfHyperbola, Part.Hyperbola),
+            (Part.ArcOfParabola, Part.Parabola),
+        ):
+            for args in ((0, nan), (nan, 1), (nan, nan)):
+                with self.subTest(arc=arcType.__name__, args=args):
+                    with self.assertRaises(ValueError):
+                        arcType(conicType(), *args).toShape()
+            arc = arcType(conicType(), -1, 1)
+            self.assertAlmostEqual(arc.FirstParameter, -1)
+            self.assertAlmostEqual(arc.LastParameter, 1)
+            self.assertTrue(arc.toShape().isValid())
+
     def tearDown(self):
         """Clean up our test, optionally preserving the test document"""
         # This flag allows doing something like this:
