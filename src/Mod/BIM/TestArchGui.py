@@ -41,3 +41,4 @@ from bimtests.TestBimLibraryGui import TestBimLibraryGui
 from bimtests.TestBimSetupGui import TestBimSetupGui
 from bimtests.TestBimTDViewGui import TestBimTDViewGui
 from bimtests.TestArchReferenceGui import TestArchReferenceGui
+from bimtests.TestBimPreferencesGui import TestBimPreferencesGui
