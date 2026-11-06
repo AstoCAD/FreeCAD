@@ -529,6 +529,46 @@ class TestPad(unittest.TestCase):
         self.assertTrue(tab.Shape.isValid())
         self.assertAlmostEqual(tab.Shape.Volume, unrefinedVolume)
 
+    def testRefineValidityCheckOnlyNeedsChangedFaces(self):
+        # The validity check after refine only analyses the faces refine rebuilt:
+        # every face refine does not touch must stay the very same face
+        box1 = Part.makeBox(10, 10, 10)
+        box2 = Part.makeBox(10, 10, 10, FreeCAD.Vector(10, 0, 0))
+        fused = box1.fuse(box2).Solids[0]
+        refined = fused.removeSplitter()
+        self.assertEqual(len(fused.Faces), 10)
+        self.assertEqual(len(refined.Faces), 6)
+        untouched = [f for f in refined.Faces if any(f.isSame(g) for g in fused.Faces)]
+        self.assertEqual(len(untouched), 2)  # the two end faces
+        # nothing to merge: all faces are kept
+        fused = box1.fuse(Part.makeBox(5, 5, 5, FreeCAD.Vector(2, 2, 10))).Solids[0]
+        refined = fused.removeSplitter()
+        self.assertEqual(len(refined.Faces), len(fused.Faces))
+        self.assertTrue(all(any(f.isSame(g) for g in fused.Faces) for f in refined.Faces))
+
+        # and a refined feature still gets its faces merged into a valid solid
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        sketch1 = body.newObject("Sketcher::SketchObject", "Sketch1")
+        sketch1.AttachmentSupport = (self.Doc.getObject("XY_Plane"), [""])
+        sketch1.MapMode = "FlatFace"
+        TestSketcherApp.CreateRectangleSketch(sketch1, (0, 0), (10, 10))
+        pad1 = body.newObject("PartDesign::Pad", "Pad1")
+        pad1.Profile = sketch1
+        pad1.Length = 10
+        sketch2 = body.newObject("Sketcher::SketchObject", "Sketch2")
+        sketch2.AttachmentSupport = (self.Doc.getObject("XY_Plane"), [""])
+        sketch2.MapMode = "FlatFace"
+        TestSketcherApp.CreateRectangleSketch(sketch2, (10, 0), (10, 10))
+        pad2 = body.newObject("PartDesign::Pad", "Pad2")
+        pad2.Profile = sketch2
+        pad2.Length = 10
+        pad2.Refine = True
+        self.Doc.recompute()
+        self.assertTrue(pad2.isValid(), pad2.getStatusString())
+        self.assertTrue(pad2.Shape.isValid())
+        self.assertEqual(len(pad2.Shape.Faces), 6)
+        self.assertAlmostEqual(pad2.Shape.Volume, 2000)
+
     def _makeLengthFeature(self, typeName):
         body = self.Doc.addObject("PartDesign::Body", "Body")
         if typeName == "PartDesign::Pocket":
