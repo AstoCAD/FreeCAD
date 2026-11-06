@@ -761,6 +761,13 @@ PyObject * @self.export.Name@::staticCallback_get@i.Name@ (PyObject *self, void 
 -
     try {
         return Py::new_reference_to(static_cast<@self.export.Name@*>(self)->get@i.Name@());
+    } // Please sync the following catch implementation with PY_CATCH
+    catch (const Base::Exception& e) {
+        e.setPyException();
+        return nullptr;
+    } catch (const std::exception& e) {
+        PyErr_SetString(Base::PyExc_FC_GeneralError, e.what());
+        return nullptr;
     } catch (const Py::Exception&) {
         // The exception text is already set
         return nullptr;
@@ -827,6 +834,13 @@ int @self.export.Name@::staticCallback_set@i.Name@ (PyObject *self, PyObject *va
         static_cast<@self.export.Name@*>(self)->set@i.Name@(Py::@i.Parameter.Type@(value,false));
 -
         return 0;
+    } // Please sync the following catch implementation with PY_CATCH
+    catch (const Base::Exception& e) {
+        e.setPyException();
+        return -1;
+    } catch (const std::exception& e) {
+        PyErr_SetString(Base::PyExc_FC_GeneralError, e.what());
+        return -1;
     } catch (const Py::Exception&) {
         // The exception text is already set
         return -1;
