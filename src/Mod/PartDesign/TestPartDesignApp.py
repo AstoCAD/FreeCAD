@@ -67,6 +67,7 @@ from PartDesignTests.TestThickness import TestThickness
 # extras
 from PartDesignTests.TestInvoluteGear import TestInvoluteGear
 from PartDesignTests.TestSprocket import TestSprocket
+from PartDesignTests.TestWizardShaft import TestWizardShaft
 from PartDesignTests.TestSketch import TestSketch
 from PartDesignTests.TestSuppressed import TestSuppressed
 
