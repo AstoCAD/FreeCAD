@@ -192,6 +192,22 @@ class TestPathStock(PathTestBase):
             stock.Placement,
         )
 
+    def test11a(self):
+        """Verify FromTemplate cylinder creation keeps the cylinder axis."""
+        for axis, direction in (("X", FreeCAD.Vector(1, 0, 0)), ("Y", FreeCAD.Vector(0, 1, 0))):
+            orig = PathStock.CreateCylinder(self.job, 7, 12, axis=axis)
+            for extent, placement in ((True, True), (False, True), (True, False)):
+                template = PathStock.TemplateAttributes(orig, extent, placement)
+                stock = PathStock.CreateFromTemplate(self.job, template)
+                self.assertEqual(axis, stock.Axis)
+                self.assertCoincide(stock.Shape.Faces[0].Surface.Axis, direction)
+
+        # templates written without an axis still create a cylinder along Z
+        template = PathStock.TemplateAttributes(orig)
+        del template["axis"]
+        stock = PathStock.CreateFromTemplate(self.job, template)
+        self.assertEqual("Z", stock.Axis)
+
     def test12(self):
         """Verify FromTemplate from Base creation."""
         neg = FreeCAD.Vector(1, 2, 3)
