@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 #include <limits>
 #include <memory>
@@ -1208,6 +1209,15 @@ double PropertyFloat::getValue() const
     return _dValue;
 }
 
+void PropertyFloat::checkNotNaN(double value) const
+{
+    // NaN passes every range check (all comparisons are false), so consumers that
+    // validate their parameters cannot catch it, and OCC crashes or hangs on it.
+    if (std::isnan(value)) {
+        throw Base::ValueError("Invalid value 'nan' for property " + getFullName());
+    }
+}
+
 PyObject* PropertyFloat::getPyObject()
 {
     return Py_BuildValue("d", _dValue);
@@ -1216,8 +1226,10 @@ PyObject* PropertyFloat::getPyObject()
 void PropertyFloat::setPyObject(PyObject* value)
 {
     if (PyFloat_Check(value)) {
+        const double convertedValue = PyFloat_AsDouble(value);
+        checkNotNaN(convertedValue);
         aboutToSetValue();
-        _dValue = PyFloat_AsDouble(value);
+        _dValue = convertedValue;
         hasSetValue();
     }
     else if (PyLong_Check(value)) {
@@ -1277,13 +1289,19 @@ void PropertyFloat::setPathValue(const ObjectIdentifier& path, const boost::any&
         setValue(boost::any_cast<int>(value));
     }
     else if (value.type() == typeid(double)) {
-        setValue(boost::any_cast<double>(value));
+        const double convertedValue = boost::any_cast<double>(value);
+        checkNotNaN(convertedValue);
+        setValue(convertedValue);
     }
     else if (value.type() == typeid(float)) {
-        setValue(boost::any_cast<float>(value));
+        const double convertedValue = boost::any_cast<float>(value);
+        checkNotNaN(convertedValue);
+        setValue(convertedValue);
     }
     else if (value.type() == typeid(Quantity)) {
-        setValue((boost::any_cast<Quantity>(value)).getValue());
+        const double convertedValue = boost::any_cast<Quantity>(value).getValue();
+        checkNotNaN(convertedValue);
+        setValue(convertedValue);
     }
     else {
         throw bad_cast();
@@ -1359,6 +1377,7 @@ void PropertyFloatConstraint::setPyObject(PyObject* value)
 {
     if (PyFloat_Check(value)) {
         double temp = PyFloat_AsDouble(value);
+        checkNotNaN(temp);
         if (_ConstStruct) {
             if (temp > _ConstStruct->UpperBound) {
                 temp = _ConstStruct->UpperBound;
@@ -1429,6 +1448,10 @@ void PropertyFloatConstraint::setPyObject(PyObject* value)
             std::string error = std::string("type must be float, dict or tuple, not ");
             error += value->ob_type->tp_name;
             throw Base::TypeError(error);
+        }
+
+        for (double number : valConstr) {
+            checkNotNaN(number);
         }
 
         double stepSize = valConstr[3];

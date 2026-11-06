@@ -28,6 +28,7 @@ SET(Test_SRCS
     TestPropertyMatrixIntegerOverflow.py
     TestPropertyFloatIntegerConversion.py
     TestFloatConstraintQuantityIntegerConversion.py
+    TestPropertyFloatNaN.py
     TestHelpFallback.py
     TestProjectUtility.py
     TestUserParameters.py

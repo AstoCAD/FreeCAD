@@ -25,6 +25,7 @@ import unittest
 
 import FreeCAD
 import TestSketcherApp
+from TestPropertyFloatNaN import restoreValueAsFromFile
 
 
 class TestPolarPattern(unittest.TestCase):
@@ -211,7 +212,8 @@ class TestPolarPattern(unittest.TestCase):
         self.PolarPattern.Occurrences = 3
         self.Doc.recompute()
         self.assertIn("Up-to-date", self.PolarPattern.State)
-        self.PolarPattern.Angle = float("nan")
+        # assigning NaN raises: it can only come from a file
+        restoreValueAsFromFile(self.PolarPattern, "Angle", float("nan"))
         self.Doc.recompute()
         self.assertIn("Invalid", self.PolarPattern.State)
 

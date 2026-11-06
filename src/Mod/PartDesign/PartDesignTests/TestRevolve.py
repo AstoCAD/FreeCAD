@@ -26,6 +26,7 @@ import unittest
 import FreeCAD
 import Part
 import Sketcher
+from TestPropertyFloatNaN import restoreValueAsFromFile
 
 
 class TestRevolve(unittest.TestCase):
@@ -147,20 +148,21 @@ class TestRevolve(unittest.TestCase):
     def testRevolutionNaNAngleFails(self):
         # NaN passed the angle checks and the revolution never finished
         revolution = self._makeRevolved("PartDesign::Revolution")
-        revolution.Angle = float("nan")
+        # assigning NaN raises: it can only come from a file
+        restoreValueAsFromFile(revolution, "Angle", float("nan"))
         self.Doc.recompute()
         self.assertIn("Invalid", revolution.State)
 
     def testGrooveNaNAngleFails(self):
         groove = self._makeRevolved("PartDesign::Groove")
-        groove.Angle = float("nan")
+        restoreValueAsFromFile(groove, "Angle", float("nan"))
         self.Doc.recompute()
         self.assertIn("Invalid", groove.State)
 
     def testRevolutionNaNSecondAngleFails(self):
         revolution = self._makeRevolved("PartDesign::Revolution")
         revolution.SideType = "Two sides"
-        revolution.Angle2 = float("nan")
+        restoreValueAsFromFile(revolution, "Angle2", float("nan"))
         self.Doc.recompute()
         self.assertIn("Invalid", revolution.State)
 
