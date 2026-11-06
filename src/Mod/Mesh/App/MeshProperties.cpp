@@ -735,6 +735,10 @@ PropertyMeshKernel::PropertyMeshKernel()
 PropertyMeshKernel::~PropertyMeshKernel()
 {
     if (meshPyObject) {
+        // The property can be destroyed without the calling thread holding the GIL, e.g. when
+        // FreeCADCmd closes the documents still open at exit. Releasing the wrapper may
+        // deallocate it, which needs the GIL (like in ~PropertyPythonObject).
+        Base::PyGILStateLocker lock;
         // Note: Do not call setInvalid() of the Python binding
         // because the mesh should still be accessible afterwards.
         meshPyObject->parentProperty = nullptr;
