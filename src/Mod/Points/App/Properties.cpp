@@ -29,6 +29,7 @@
 
 
 #include <Base/Converter.h>
+#include <Base/Exception.h>
 #include <Base/Matrix.h>
 #include <Base/Persistence.h>
 #include <Base/Stream.h>
@@ -265,6 +266,38 @@ PyObject* PropertyNormalList::getPyObject()
     return list;
 }
 
+namespace
+{
+// Normals are bulk data like the points, which keep NaN for the invalid points of a structured
+// cloud; their normals are NaN too (PCD files store them as 'nan'). So a NaN component is kept
+// as it is (as by setValues() and on restore), not rejected.
+Base::Vector3f normalFromPy(PyObject* item)
+{
+    if (PyObject_TypeCheck(item, &(Base::VectorPy::Type))) {
+        return Base::convertTo<Base::Vector3f>(*static_cast<Base::VectorPy*>(item)->getVectorPtr());
+    }
+    if (PyTuple_Check(item) && PyTuple_Size(item) == 3) {
+        Base::Vector3d vec;
+        for (unsigned short i = 0; i < 3; ++i) {
+            PyObject* component = PyTuple_GetItem(item, i);
+            if (PyFloat_Check(component)) {
+                vec[i] = PyFloat_AsDouble(component);
+            }
+            else if (PyLong_Check(component)) {
+                vec[i] = static_cast<double>(PyLong_AsLong(component));
+            }
+            else {
+                throw Base::TypeError("Not allowed type used in tuple (float expected)...");
+            }
+        }
+        return Base::convertTo<Base::Vector3f>(vec);
+    }
+    std::string error = std::string("type must be 'Vector' or tuple of three floats, not ");
+    error += item->ob_type->tp_name;
+    throw Base::TypeError(error);
+}
+}  // namespace
+
 void PropertyNormalList::setPyObject(PyObject* value)
 {
     if (PyList_Check(value)) {
@@ -273,23 +306,14 @@ void PropertyNormalList::setPyObject(PyObject* value)
         values.resize(nSize);
 
         for (Py_ssize_t i = 0; i < nSize; ++i) {
-            PyObject* item = PyList_GetItem(value, i);
-            App::PropertyVector val;
-            val.setPyObject(item);
-            values[i] = Base::convertTo<Base::Vector3f>(val.getValue());
+            values[i] = normalFromPy(PyList_GetItem(value, i));
         }
 
         setValues(values);
     }
-    else if (PyObject_TypeCheck(value, &(Base::VectorPy::Type))) {
-        Base::VectorPy* pcObject = static_cast<Base::VectorPy*>(value);
-        Base::Vector3d* val = pcObject->getVectorPtr();
-        setValue(Base::convertTo<Base::Vector3f>(*val));
-    }
-    else if (PyTuple_Check(value) && PyTuple_Size(value) == 3) {
-        App::PropertyVector val;
-        val.setPyObject(value);
-        setValue(Base::convertTo<Base::Vector3f>(val.getValue()));
+    else if (PyObject_TypeCheck(value, &(Base::VectorPy::Type))
+             || (PyTuple_Check(value) && PyTuple_Size(value) == 3)) {
+        setValue(normalFromPy(value));
     }
     else {
         std::string error = std::string("type must be 'Vector' or list of 'Vector', not ");

@@ -1207,3 +1207,25 @@ class MeshProperty(unittest.TestCase):
         self.assertEqual(len(material2["emissiveColor"]), len1 + len2)
         self.assertEqual(len(material2["shininess"]), len1 + len2)
         self.assertEqual(len(material2["transparency"]), len1 + len2)
+
+    def testNormalListKeepsNaN(self):
+        """Normals given as list, tuple or Vector accept NaN alike (bulk data, as on restore)"""
+        # A list or tuple was converted through a temporary App::PropertyVector, which
+        # rejects NaN as "property ?", while a single Vector was accepted.
+        mesh = self.doc.addObject("Mesh::Feature", "Normals")
+        mesh.addProperty("Mesh::PropertyNormalList", "Normal")
+        nan = float("nan")
+        mesh.Normal = [FreeCAD.Vector(0, 0, 1), FreeCAD.Vector(nan, nan, nan), (nan, 0, 1)]
+        self.assertEqual(len(mesh.Normal), 3)
+        self.assertTrue(math.isnan(mesh.Normal[1].x))
+        self.assertTrue(math.isnan(mesh.Normal[2].x))
+        mesh.Normal = (nan, 0, 1)
+        self.assertTrue(math.isnan(mesh.Normal[0].x))
+        mesh.Normal = FreeCAD.Vector(nan, 0, 1)
+        self.assertTrue(math.isnan(mesh.Normal[0].x))
+        mesh.Normal = [(1, 0, 0)]
+        self.assertEqual(mesh.Normal, [FreeCAD.Vector(1, 0, 0)])
+        with self.assertRaises(TypeError):
+            mesh.Normal = ["a"]
+        with self.assertRaises(TypeError):
+            mesh.Normal = [("a", 0, 1)]
