@@ -590,6 +590,7 @@ SET(Tests_SRCS
     CAMTests/TestGenericSheetCutting.py
     CAMTests/TestGrblPost.py
     CAMTests/TestHeidenhainPost.py
+    CAMTests/TestHeidenhainLegacyPost.py
     CAMTests/TestEstlCamPost.py
     CAMTests/TestKineticNCBeamicon2LegacyPost.py
     CAMTests/TestLinuxCNCPost.py
