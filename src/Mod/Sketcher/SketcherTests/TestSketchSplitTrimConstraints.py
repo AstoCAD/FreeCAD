@@ -284,3 +284,119 @@ class TestSketchSplitTrimConstraints(unittest.TestCase):
     def testSplitClockwiseArcOfParabola(self):
         arc = self._clockwiseArcOfParabola()
         self._splitArc(arc, (arc.FirstParameter + 2 * arc.LastParameter) / 3, recompute=False)
+
+    def _trimArc(self, arc, cuttingLines, click, recompute=True):
+        """Trim arc (geometry 0) at click; its sketch start and end points are fixed by
+        coincident points. Returns the GeoIds of the remaining pieces of the arc."""
+        self.sketch.addGeometry(arc)  # 0
+        start = self.sketch.getPoint(0, 1)
+        end = self.sketch.getPoint(0, 2)
+        self.sketch.addGeometry(Part.Point(start))  # 1
+        self.sketch.addGeometry(Part.Point(end))  # 2
+        self.sketch.addConstraint(Sketcher.Constraint("Coincident", 1, 1, 0, 1))
+        self.sketch.addConstraint(Sketcher.Constraint("Coincident", 2, 1, 0, 2))
+        for geoId in (1, 2):
+            self.sketch.addConstraint(Sketcher.Constraint("Block", geoId))
+        for line in cuttingLines:
+            geoId = self.sketch.addGeometry(line)
+            self.sketch.addConstraint(Sketcher.Constraint("Block", geoId))
+        if recompute:
+            self.doc.recompute()
+            self.assertEqual(arc.Axis.z < 0, self.sketch.Geometry[0].Axis.z < 0)
+
+        self.sketch.trim(0, click)
+
+        self._assertSolveKeepsGeometry()
+        pieces = [i for i, g in enumerate(self.sketch.Geometry) if g.TypeId == arc.TypeId]
+        edge = arc.toShape()
+        for geoId in pieces:
+            piece = self.sketch.Geometry[geoId]
+            for k in range(5):
+                point = piece.value(
+                    piece.FirstParameter + k * (piece.LastParameter - piece.FirstParameter) / 4
+                )
+                self.assertLess(edge.distToShape(Part.Vertex(point))[0], 1e-6, "a piece moved")
+        return pieces, start, end
+
+    def _assertOnLine(self, point, line):
+        self.assertLess(line.toShape().distToShape(Part.Vertex(point))[0], 1e-6)
+
+    def _trimArcInTwo(self, arc, recompute=True):
+        # remove the middle of the arc, between the two vertical lines
+        lines = [
+            Part.LineSegment(V(-1, -10, 0), V(-1, 10, 0)),
+            Part.LineSegment(V(1, -10, 0), V(1, 10, 0)),
+        ]
+        click = arc.value((arc.FirstParameter + arc.LastParameter) / 2)
+        pieces, start, end = self._trimArc(arc, lines, click, recompute)
+
+        self.assertEqual(len(pieces), 2)
+        # the first piece keeps the start point, the second one the end point
+        self.assertLess((self.sketch.getPoint(pieces[0], 1) - start).Length, 1e-6)
+        self.assertLess((self.sketch.getPoint(pieces[1], 2) - end).Length, 1e-6)
+        startSide = 0 if start.x < 0 else 1
+        self._assertOnLine(self.sketch.getPoint(pieces[0], 2), lines[startSide])
+        self._assertOnLine(self.sketch.getPoint(pieces[1], 1), lines[1 - startSide])
+
+    def _trimArcEnd(self, arc, atStart):
+        # remove the piece between the vertical line and the start or end point
+        line = Part.LineSegment(V(0, -10, 0), V(0, 10, 0))
+        first, last = arc.FirstParameter, arc.LastParameter
+        nearStart = arc.value(last - 0.1 * (last - first) if arc.Axis.z < 0 else first + 0.1 * (last - first))
+        nearEnd = arc.value(first + 0.1 * (last - first) if arc.Axis.z < 0 else last - 0.1 * (last - first))
+        pieces, start, end = self._trimArc(arc, [line], nearStart if atStart else nearEnd)
+
+        self.assertEqual(pieces, [0])
+        if atStart:
+            self._assertOnLine(self.sketch.getPoint(0, 1), line)
+            self.assertLess((self.sketch.getPoint(0, 2) - end).Length, 1e-6)
+        else:
+            self.assertLess((self.sketch.getPoint(0, 1) - start).Length, 1e-6)
+            self._assertOnLine(self.sketch.getPoint(0, 2), line)
+
+    def _arcOfCircle(self, clockwise):
+        arc = Part.ArcOfCircle(Part.Circle(V(0, 0, 0), V(0, 0, 1), 6), 0.3, 2.8)
+        if clockwise:
+            arc.mirror(V(0, 0, 0), V(1, 0, 0))
+            self.assertLess(arc.Axis.z, 0)
+        return arc
+
+    def _arcOfEllipse(self, clockwise):
+        arc = Part.ArcOfEllipse(Part.Ellipse(V(0, 0, 0), 6, 3), 0.3, 2.8)
+        if clockwise:
+            arc.mirror(V(0, 0, 0), V(1, 0, 0))
+            self.assertLess(arc.Axis.z, 0)
+        return arc
+
+    def testTrimClockwiseArcOfCircleInTwo(self):
+        self._trimArcInTwo(self._arcOfCircle(True))
+
+    def testTrimClockwiseArcOfCircleAtItsStart(self):
+        self._trimArcEnd(self._arcOfCircle(True), True)
+
+    def testTrimClockwiseArcOfCircleAtItsEnd(self):
+        self._trimArcEnd(self._arcOfCircle(True), False)
+
+    def testTrimClockwiseArcOfEllipseInTwo(self):
+        self._trimArcInTwo(self._arcOfEllipse(True))
+
+    def testTrimClockwiseArcOfEllipseAtItsStart(self):
+        self._trimArcEnd(self._arcOfEllipse(True), True)
+
+    def testTrimClockwiseArcOfEllipseAtItsEnd(self):
+        self._trimArcEnd(self._arcOfEllipse(True), False)
+
+    def testTrimClockwiseArcOfParabolaInTwo(self):
+        self._trimArcInTwo(self._clockwiseArcOfParabola(), recompute=False)
+
+    def testTrimCounterClockwiseArcOfCircleInTwo(self):
+        # control
+        self._trimArcInTwo(self._arcOfCircle(False))
+
+    def testTrimCounterClockwiseArcOfCircleAtItsStart(self):
+        # control
+        self._trimArcEnd(self._arcOfCircle(False), True)
+
+    def testTrimCounterClockwiseArcOfEllipseAtItsEnd(self):
+        # control
+        self._trimArcEnd(self._arcOfEllipse(False), False)
