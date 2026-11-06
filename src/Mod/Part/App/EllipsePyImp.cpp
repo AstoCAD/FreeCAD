@@ -33,6 +33,7 @@
 #include "EllipsePy.h"
 #include "EllipsePy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -90,10 +91,11 @@ int EllipsePy::PyInit(PyObject* args, PyObject* kwds)
             &(Base::VectorPy::Type),
             &pV3
         )) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
-        Base::Vector3d v3 = static_cast<Base::VectorPy*>(pV3)->value();
-        GC_MakeEllipse me(gp_Pnt(v1.x, v1.y, v1.z), gp_Pnt(v2.x, v2.y, v2.z), gp_Pnt(v3.x, v3.y, v3.z));
+        GC_MakeEllipse me(
+            toFinitePnt(static_cast<Base::VectorPy*>(pV1)->value(), "S1"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV2)->value(), "S2"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV3)->value(), "Center")
+        );
         if (!me.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(me.Status()));
             return -1;
@@ -118,8 +120,10 @@ int EllipsePy::PyInit(PyObject* args, PyObject* kwds)
             &major,
             &minor
         )) {
-        Base::Vector3d c = static_cast<Base::VectorPy*>(pV)->value();
-        GC_MakeEllipse me(gp_Ax2(gp_Pnt(c.x, c.y, c.z), gp_Dir(0.0, 0.0, 1.0)), major, minor);
+        gp_Pnt center = toFinitePnt(static_cast<Base::VectorPy*>(pV)->value(), "Center");
+        checkFinite(major, "MajorRadius");
+        checkFinite(minor, "MinorRadius");
+        GC_MakeEllipse me(gp_Ax2(center, gp_Dir(0.0, 0.0, 1.0)), major, minor);
         if (!me.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(me.Status()));
             return -1;
@@ -150,7 +154,7 @@ Py::Float EllipsePy::getMajorRadius() const
 void EllipsePy::setMajorRadius(Py::Float arg)
 {
     Handle(Geom_Ellipse) ellipse = Handle(Geom_Ellipse)::DownCast(getGeomEllipsePtr()->handle());
-    ellipse->SetMajorRadius((double)arg);
+    ellipse->SetMajorRadius(checkFinite((double)arg, "MajorRadius"));
 }
 
 Py::Float EllipsePy::getMinorRadius() const
@@ -162,7 +166,7 @@ Py::Float EllipsePy::getMinorRadius() const
 void EllipsePy::setMinorRadius(Py::Float arg)
 {
     Handle(Geom_Ellipse) ellipse = Handle(Geom_Ellipse)::DownCast(getGeomEllipsePtr()->handle());
-    ellipse->SetMinorRadius((double)arg);
+    ellipse->SetMinorRadius(checkFinite((double)arg, "MinorRadius"));
 }
 
 Py::Float EllipsePy::getFocal() const

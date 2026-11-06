@@ -33,6 +33,7 @@
 #include "ArcOfParabolaPy.cpp"
 #include "ParabolaPy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -131,7 +132,7 @@ Py::Float ArcOfParabolaPy::getFocal() const
 
 void ArcOfParabolaPy::setFocal(Py::Float arg)
 {
-    getGeomArcOfParabolaPtr()->setFocal((double)arg);
+    getGeomArcOfParabolaPtr()->setFocal(checkFinite((double)arg, "Focal"));
 }
 
 Py::Object ArcOfParabolaPy::getParabola() const

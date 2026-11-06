@@ -97,6 +97,7 @@
 #include "PartFeature.h"
 #include "PartPyCXX.h"
 #include "PyException.h"
+#include "PyFiniteInput.h"
 #include "Tools.h"
 #include "TopoShapeCompoundPy.h"
 #include "TopoShapePy.h"
@@ -1378,6 +1379,8 @@ private:
             throw Py::Exception();
         }
 
+        checkFinite(length, "Length of plane");
+        checkFinite(width, "Width of plane");
         if (length < Precision::Confusion()) {
             throw Py::ValueError("length of plane too small");
         }
@@ -1390,15 +1393,18 @@ private:
             gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
+                checkFinite(pnt, "Point");
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
             }
             if (pDirZ) {
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDirZ)->value();
+                checkFinite(vec, "Normal");
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
             Handle(Geom_Plane) aPlane;
             if (pDirX) {
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDirX)->value();
+                checkFinite(vec, "X direction");
                 gp_Dir dx;
                 dx.SetCoord(vec.x, vec.y, vec.z);
                 aPlane = new Geom_Plane(gp_Ax3(p, d, dx));
@@ -1435,6 +1441,9 @@ private:
             throw Py::Exception();
         }
 
+        checkFinite(length, "Length of box");
+        checkFinite(width, "Width of box");
+        checkFinite(height, "Height of box");
         if (length < Precision::Confusion()) {
             throw Py::ValueError("length of box too small");
         }
@@ -1450,10 +1459,12 @@ private:
             gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
+                checkFinite(pnt, "Point");
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
             }
             if (pDir) {
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
+                checkFinite(vec, "Direction");
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
             BRepPrimAPI_MakeBox mkBox(gp_Ax2(p, d), length, width, height);
@@ -1489,6 +1500,9 @@ private:
             throw Py::Exception();
         }
 
+        for (double value : {xmin, ymin, zmin, z2min, x2min, xmax, ymax, zmax, z2max, x2max}) {
+            checkFinite(value, "Wedge bounds");
+        }
         double dx = xmax - xmin;
         double dy = ymax - ymin;
         double dz = zmax - zmin;
@@ -1515,10 +1529,12 @@ private:
             gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
+                checkFinite(pnt, "Point");
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
             }
             if (pDir) {
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
+                checkFinite(vec, "Direction");
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
             BRepPrim_Wedge
@@ -1559,7 +1575,10 @@ private:
         }
 
         // Create directly the underlying line geometry
-        BRepBuilderAPI_MakeEdge makeEdge(gp_Pnt(pnt1.x, pnt1.y, pnt1.z), gp_Pnt(pnt2.x, pnt2.y, pnt2.z));
+        BRepBuilderAPI_MakeEdge makeEdge(
+            toFinitePnt(pnt1, "Start point"),
+            toFinitePnt(pnt2, "End point")
+        );
 
         const char* error = nullptr;
         switch (makeEdge.Error()) {
@@ -1606,11 +1625,11 @@ private:
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
                 if (PyObject_TypeCheck((*it).ptr(), &(Base::VectorPy::Type))) {
                     Base::Vector3d v = static_cast<Base::VectorPy*>((*it).ptr())->value();
-                    mkPoly.Add(gp_Pnt(v.x, v.y, v.z));
+                    mkPoly.Add(toFinitePnt(v, "Polygon point"));
                 }
                 else if (PyObject_TypeCheck((*it).ptr(), &PyTuple_Type)) {
                     Base::Vector3d v = Base::getVectorFromTuple<double>((*it).ptr());
-                    mkPoly.Add(gp_Pnt(v.x, v.y, v.z));
+                    mkPoly.Add(toFinitePnt(v, "Polygon point"));
                 }
             }
 
@@ -1651,15 +1670,21 @@ private:
             throw Py::Exception();
         }
 
+        checkFinite(radius, "Radius");
+        checkFinite(angle1, "Start angle");
+        checkFinite(angle2, "End angle");
+
         try {
             gp_Pnt loc(0, 0, 0);
             gp_Dir dir(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
+                checkFinite(pnt, "Point");
                 loc.SetCoord(pnt.x, pnt.y, pnt.z);
             }
             if (pDir) {
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
+                checkFinite(vec, "Direction");
                 dir.SetCoord(vec.x, vec.y, vec.z);
             }
             gp_Ax1 axis(loc, dir);
@@ -1699,15 +1724,22 @@ private:
             throw Py::Exception();
         }
 
+        checkFinite(radius, "Radius");
+        checkFinite(angle1, "Start angle");
+        checkFinite(angle2, "End angle");
+        checkFinite(angle3, "Rotation angle");
+
         try {
             gp_Pnt p(0, 0, 0);
             gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
+                checkFinite(pnt, "Point");
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
             }
             if (pDir) {
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
+                checkFinite(vec, "Direction");
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
             BRepPrimAPI_MakeSphere mkSphere(
@@ -1742,15 +1774,21 @@ private:
             throw Py::Exception();
         }
 
+        checkFinite(radius, "Radius");
+        checkFinite(height, "Height");
+        checkFinite(angle, "Angle");
+
         try {
             gp_Pnt p(0, 0, 0);
             gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
+                checkFinite(pnt, "Point");
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
             }
             if (pDir) {
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
+                checkFinite(vec, "Direction");
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
             BRepPrimAPI_MakeCylinder mkCyl(gp_Ax2(p, d), radius, height, Base::toRadians<double>(angle));
@@ -1780,15 +1818,22 @@ private:
             throw Py::Exception();
         }
 
+        checkFinite(radius1, "Radius1");
+        checkFinite(radius2, "Radius2");
+        checkFinite(height, "Height");
+        checkFinite(angle, "Angle");
+
         try {
             gp_Pnt p(0, 0, 0);
             gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
+                checkFinite(pnt, "Point");
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
             }
             if (pDir) {
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
+                checkFinite(vec, "Direction");
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
             BRepPrimAPI_MakeCone
@@ -1820,15 +1865,23 @@ private:
             throw Py::Exception();
         }
 
+        checkFinite(radius1, "Radius1");
+        checkFinite(radius2, "Radius2");
+        checkFinite(angle1, "Start angle");
+        checkFinite(angle2, "End angle");
+        checkFinite(angle, "Rotation angle");
+
         try {
             gp_Pnt p(0, 0, 0);
             gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
+                checkFinite(pnt, "Point");
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
             }
             if (pDir) {
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
+                checkFinite(vec, "Direction");
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
             BRepPrimAPI_MakeTorus mkTorus(
@@ -2015,10 +2068,12 @@ private:
             gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
+                checkFinite(pnt, "Point");
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
             }
             if (pDir) {
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
+                checkFinite(vec, "Direction");
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
 

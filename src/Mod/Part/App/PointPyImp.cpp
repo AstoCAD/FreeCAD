@@ -33,6 +33,7 @@
 #include "PointPy.h"
 #include "PointPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 #include "TopoShapeVertexPy.h"
 
 
@@ -85,6 +86,7 @@ int PointPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     PyObject* pV;
     if (PyArg_ParseTuple(args, "O!", &(Base::VectorPy::Type), &pV)) {
         Base::Vector3d v = static_cast<Base::VectorPy*>(pV)->value();
+        checkFinite(v, "Point coordinates");
         Handle(Geom_CartesianPoint)
             this_point = Handle(Geom_CartesianPoint)::DownCast(this->getGeomPointPtr()->handle());
         this_point->SetCoord(v.x, v.y, v.z);
@@ -139,7 +141,7 @@ void PointPy::setX(Py::Float X)
         this_point = Handle(Geom_CartesianPoint)::DownCast(this->getGeomPointPtr()->handle());
 
     try {
-        this_point->SetX(double(X));
+        this_point->SetX(checkFinite(double(X), "X"));
     }
     catch (Standard_Failure& e) {
         throw Py::RuntimeError(e.GetMessageString());
@@ -159,7 +161,7 @@ void PointPy::setY(Py::Float Y)
         this_point = Handle(Geom_CartesianPoint)::DownCast(this->getGeomPointPtr()->handle());
 
     try {
-        this_point->SetY(double(Y));
+        this_point->SetY(checkFinite(double(Y), "Y"));
     }
     catch (Standard_Failure& e) {
         throw Py::RuntimeError(e.GetMessageString());
@@ -179,7 +181,7 @@ void PointPy::setZ(Py::Float Z)
         this_point = Handle(Geom_CartesianPoint)::DownCast(this->getGeomPointPtr()->handle());
 
     try {
-        this_point->SetZ(double(Z));
+        this_point->SetZ(checkFinite(double(Z), "Z"));
     }
     catch (Standard_Failure& e) {
         throw Py::RuntimeError(e.GetMessageString());

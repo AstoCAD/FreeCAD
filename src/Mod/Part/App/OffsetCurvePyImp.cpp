@@ -33,6 +33,7 @@
 #include "OffsetCurvePy.cpp"
 #include "Geometry.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -68,8 +69,9 @@ int OffsetCurvePy::PyInit(PyObject* args, PyObject* /*kwd*/)
         return -1;
     }
 
+    checkFinite(offset, "Offset");
+    Base::Vector3d dir = checkFinite(static_cast<Base::VectorPy*>(pDir)->value(), "Direction");
     try {
-        Base::Vector3d dir = static_cast<Base::VectorPy*>(pDir)->value();
         Handle(Geom_OffsetCurve)
             curve2 = new Geom_OffsetCurve(curve, offset, gp_Dir(dir.x, dir.y, dir.z));
         getGeomOffsetCurvePtr()->setHandle(curve2);
@@ -91,7 +93,7 @@ Py::Float OffsetCurvePy::getOffsetValue() const
 void OffsetCurvePy::setOffsetValue(Py::Float arg)
 {
     Handle(Geom_OffsetCurve) curve = Handle(Geom_OffsetCurve)::DownCast(getGeometryPtr()->handle());
-    curve->SetOffsetValue((double)arg);
+    curve->SetOffsetValue(checkFinite((double)arg, "OffsetValue"));
 }
 
 Py::Object OffsetCurvePy::getOffsetDirection() const
@@ -105,13 +107,13 @@ void OffsetCurvePy::setOffsetDirection(Py::Object arg)
 {
     PyObject* p = arg.ptr();
     if (PyObject_TypeCheck(p, &(Base::VectorPy::Type))) {
-        Base::Vector3d dir = static_cast<Base::VectorPy*>(p)->value();
+        Base::Vector3d dir = checkFinite(static_cast<Base::VectorPy*>(p)->value(), "OffsetDirection");
         Handle(Geom_OffsetCurve)
             curve = Handle(Geom_OffsetCurve)::DownCast(getGeometryPtr()->handle());
         curve->SetDirection(gp_Dir(dir.x, dir.y, dir.z));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
-        Base::Vector3d dir = Base::getVectorFromTuple<double>(p);
+        Base::Vector3d dir = checkFinite(Base::getVectorFromTuple<double>(p), "OffsetDirection");
         Handle(Geom_OffsetCurve)
             curve = Handle(Geom_OffsetCurve)::DownCast(getGeometryPtr()->handle());
         curve->SetDirection(gp_Dir(dir.x, dir.y, dir.z));
