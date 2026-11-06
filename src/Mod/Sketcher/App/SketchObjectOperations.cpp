@@ -1348,6 +1348,15 @@ int SketchObject::split(int GeoId, const Base::Vector3d& point)
         : splitParam;
     paramsOfNewGeos.back().first = splitParam;
 
+    // The first piece keeps GeoId and the constraints of the start point. The sketch takes the
+    // start point of a reversed (clockwise) arc of circle or ellipse at its last parameter
+    // (emulated CCW arc), so its first piece is the one at the end of the parameter range.
+    if (paramsOfNewGeos.size() == 2
+        && (geoAsCurve->is<Part::GeomArcOfCircle>() || geoAsCurve->is<Part::GeomArcOfEllipse>())
+        && static_cast<const Part::GeomArcOfConic*>(geoAsCurve)->isReversed()) {
+        std::swap(paramsOfNewGeos.front(), paramsOfNewGeos.back());
+    }
+
     switch (paramsOfNewGeos.size()) {
         case 0: {
             delGeometry(GeoId);
