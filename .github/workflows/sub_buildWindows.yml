@@ -153,10 +153,21 @@ jobs:
           ccachebindir: ${{ env.ccachebindir }}
 
       - name: Get Libpack
-        if: "!inputs.skipBuild"
+        if: "!inputs.skipBuild && vars.ASTOCAD_LIBPACK_URL == ''"
         uses: ./.github/workflows/actions/windows/getLibpack
         with:
           libpackdir: ${{ env.libpackdir }}
+
+      # Opt-in: a LibPack whose OCCT is the AstoCAD OCCT fork (realthunder's LinkVibe-801 plus the
+      # local BRepFeat_Form patch, exceptions on). Set both repository variables to use it;
+      # unset, the step above takes the default LibPack. The name keys the LibPack cache.
+      - name: Get Libpack (OCCT fork)
+        if: "!inputs.skipBuild && vars.ASTOCAD_LIBPACK_URL != ''"
+        uses: ./.github/workflows/actions/windows/getLibpack
+        with:
+          libpackdir: ${{ env.libpackdir }}
+          libpackdownloadurl: ${{ vars.ASTOCAD_LIBPACK_URL }}
+          libpackname: ${{ vars.ASTOCAD_LIBPACK_NAME }}
 
       - name: Restore compiler cache
         id: cache-restore
