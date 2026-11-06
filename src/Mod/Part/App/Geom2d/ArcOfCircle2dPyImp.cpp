@@ -34,6 +34,7 @@
 #include "Geom2d/ArcOfCircle2dPy.cpp"
 #include "Geom2d/Circle2dPy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -96,9 +97,9 @@ int ArcOfCircle2dPy::PyInit(PyObject* args, PyObject* /*kwds*/)
             Base::Vector2dPy::type_object(),
             &pV3
         )) {
-        Base::Vector2d v1 = Py::toVector2d(pV1);
-        Base::Vector2d v2 = Py::toVector2d(pV2);
-        Base::Vector2d v3 = Py::toVector2d(pV3);
+        Base::Vector2d v1 = checkFinite(Py::toVector2d(pV1), "Point1");
+        Base::Vector2d v2 = checkFinite(Py::toVector2d(pV2), "Point2");
+        Base::Vector2d v3 = checkFinite(Py::toVector2d(pV3), "Point3");
 
         GCE2d_MakeArcOfCircle arc(gp_Pnt2d(v1.x, v1.y), gp_Pnt2d(v2.x, v2.y), gp_Pnt2d(v3.x, v3.y));
         if (!arc.IsDone()) {
@@ -125,7 +126,7 @@ Py::Float ArcOfCircle2dPy::getRadius() const
 
 void ArcOfCircle2dPy::setRadius(Py::Float arg)
 {
-    getGeom2dArcOfCirclePtr()->setRadius((double)arg);
+    getGeom2dArcOfCirclePtr()->setRadius(checkFinite((double)arg, "Radius"));
 }
 
 Py::Object ArcOfCircle2dPy::getCircle() const

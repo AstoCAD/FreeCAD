@@ -48,6 +48,7 @@
 
 #include "OCCError.h"
 #include "PartPyCXX.h"
+#include "PyFiniteInput.h"
 #include "Tools.h"
 
 // inclusion of the generated files (generated out of TopoShapeSolidPy.xml)
@@ -271,6 +272,7 @@ PyObject* TopoShapeSolidPy::offsetFaces(PyObject* args) const
     bool paramOK = false;
     if (PyArg_ParseTuple(args, "Od", &obj, &offset)) {
         paramOK = true;
+        checkFinite(offset, "Offset");
         Py::Sequence list(obj);
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapePy::Type))) {
@@ -291,7 +293,8 @@ PyObject* TopoShapeSolidPy::offsetFaces(PyObject* args) const
                 // set offset of the requested faces
                 const TopoDS_Shape& face
                     = static_cast<TopoShapePy*>((*it).first.ptr())->getTopoShapePtr()->getShape();
-                Standard_Real value = (double)Py::Float((*it).second.ptr());
+                Standard_Real value
+                    = checkFinite((double)Py::Float((*it).second.ptr()), "Offset");
                 builder.SetOffsetOnFace(TopoDS::Face(face), value);
             }
         }

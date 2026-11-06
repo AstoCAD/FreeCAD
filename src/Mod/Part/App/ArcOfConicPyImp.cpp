@@ -31,6 +31,7 @@
 #include "ArcOfConicPy.h"
 #include "ArcOfConicPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -72,11 +73,11 @@ void ArcOfConicPy::setLocation(Py::Object arg)
     PyObject* p = arg.ptr();
     if (PyObject_TypeCheck(p, &(Base::VectorPy::Type))) {
         Base::Vector3d loc = static_cast<Base::VectorPy*>(p)->value();
-        getGeomArcOfConicPtr()->setLocation(loc);
+        getGeomArcOfConicPtr()->setLocation(checkFinite(loc, "Location"));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
         Base::Vector3d loc = Base::getVectorFromTuple<double>(p);
-        getGeomArcOfConicPtr()->setLocation(loc);
+        getGeomArcOfConicPtr()->setLocation(checkFinite(loc, "Location"));
     }
     else {
         std::string error = std::string("type must be 'Vector', not ");
@@ -90,11 +91,11 @@ void ArcOfConicPy::setCenter(Py::Object arg)
     PyObject* p = arg.ptr();
     if (PyObject_TypeCheck(p, &(Base::VectorPy::Type))) {
         Base::Vector3d loc = static_cast<Base::VectorPy*>(p)->value();
-        getGeomArcOfConicPtr()->setCenter(loc);
+        getGeomArcOfConicPtr()->setCenter(checkFinite(loc, "Center"));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
         Base::Vector3d loc = Base::getVectorFromTuple<double>(p);
-        getGeomArcOfConicPtr()->setCenter(loc);
+        getGeomArcOfConicPtr()->setCenter(checkFinite(loc, "Center"));
     }
     else {
         std::string error = std::string("type must be 'Vector', not ");
@@ -110,7 +111,7 @@ Py::Float ArcOfConicPy::getAngleXU() const
 
 void ArcOfConicPy::setAngleXU(Py::Float arg)
 {
-    getGeomArcOfConicPtr()->setAngleXU((double)arg);
+    getGeomArcOfConicPtr()->setAngleXU(checkFinite((double)arg, "AngleXU"));
 }
 
 Py::Object ArcOfConicPy::getAxis() const
@@ -142,6 +143,7 @@ void ArcOfConicPy::setAxis(Py::Object arg)
     Handle(Geom_TrimmedCurve)
         trim = Handle(Geom_TrimmedCurve)::DownCast(getGeomArcOfConicPtr()->handle());
     Handle(Geom_Conic) conic = Handle(Geom_Conic)::DownCast(trim->BasisCurve());
+    checkFinite(val, "Axis");
     try {
         gp_Ax1 axis;
         axis.SetLocation(conic->Location());
@@ -182,6 +184,7 @@ void ArcOfConicPy::setXAxis(Py::Object arg)
     Handle(Geom_TrimmedCurve)
         trim = Handle(Geom_TrimmedCurve)::DownCast(getGeomArcOfConicPtr()->handle());
     Handle(Geom_Conic) conic = Handle(Geom_Conic)::DownCast(trim->BasisCurve());
+    checkFinite(val, "XAxis");
     try {
         gp_Ax2 pos;
         pos = conic->Position();
@@ -222,6 +225,7 @@ void ArcOfConicPy::setYAxis(Py::Object arg)
     Handle(Geom_TrimmedCurve)
         trim = Handle(Geom_TrimmedCurve)::DownCast(getGeomArcOfConicPtr()->handle());
     Handle(Geom_Conic) conic = Handle(Geom_Conic)::DownCast(trim->BasisCurve());
+    checkFinite(val, "YAxis");
     try {
         gp_Ax2 pos;
         pos = conic->Position();

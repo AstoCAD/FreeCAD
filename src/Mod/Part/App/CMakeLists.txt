@@ -409,6 +409,7 @@ SET(Python_SRCS
     BRepOffsetAPI_MakeFillingPyImp.cpp
     PartPyCXX.cpp
     PartPyCXX.h
+    PyFiniteInput.h
 )
 SOURCE_GROUP("Python" FILES ${Python_SRCS})
 

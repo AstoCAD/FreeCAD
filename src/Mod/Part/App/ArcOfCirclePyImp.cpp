@@ -33,6 +33,7 @@
 #include "ArcOfCirclePy.cpp"
 #include "CirclePy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -112,14 +113,10 @@ int ArcOfCirclePy::PyInit(PyObject* args, PyObject* /*kwds*/)
             &(Base::VectorPy::Type),
             &pV3
         )) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
-        Base::Vector3d v3 = static_cast<Base::VectorPy*>(pV3)->value();
-
         GC_MakeArcOfCircle arc(
-            gp_Pnt(v1.x, v1.y, v1.z),
-            gp_Pnt(v2.x, v2.y, v2.z),
-            gp_Pnt(v3.x, v3.y, v3.z)
+            toFinitePnt(static_cast<Base::VectorPy*>(pV1)->value(), "Point1"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV2)->value(), "Point2"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV3)->value(), "Point3")
         );
         if (!arc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(arc.Status()));
@@ -145,7 +142,7 @@ Py::Float ArcOfCirclePy::getRadius() const
 
 void ArcOfCirclePy::setRadius(Py::Float arg)
 {
-    getGeomArcOfCirclePtr()->setRadius((double)arg);
+    getGeomArcOfCirclePtr()->setRadius(checkFinite((double)arg, "Radius"));
 }
 
 Py::Object ArcOfCirclePy::getCircle() const
