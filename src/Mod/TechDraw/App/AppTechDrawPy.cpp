@@ -1407,7 +1407,7 @@ private:
         auto newLeader = DrawLeaderLine::makeLeader(dvp, pointList, iStartSymbol, iEndSymbol);
 
         // return the new leader as DrawLeaderPy
-        return Py::asObject(new DrawLeaderLinePy(newLeader));
+        return Py::asObject(newLeader->getPyObject());
    }
 
     Py::Object nearestFraction(const Py::Tuple& args)
