@@ -137,6 +137,29 @@ class TestCcxTools(unittest.TestCase):
         self.assertTrue(density_message())
 
     # ********************************************************************************************
+    def test_fluid_section_liquid_pump(self):
+        # CalculiX reads an unused first entry, then the pairs flow rate, total head,
+        # with at most 16 entries per line
+        from femsolver.calculix.write_femelement_geometry import liquid_section_def
+        import ObjectsFem
+
+        fluid = ObjectsFem.makeElementFluid1D(self.document)
+        fluid.LiquidSectionType = "LIQUID PUMP"
+        fluid.PumpFlowRate = [0, 1.04e-04, 2.08e-4]
+        fluid.PumpHeadLoss = [30, 29.17, 26.67]
+        self.assertEqual(
+            liquid_section_def(fluid, "LIQUID PUMP"),
+            "0,0,30,0.000104,29.17,0.000208,26.67\n",
+        )
+
+        fluid.PumpFlowRate = [float(i) for i in range(9)]
+        fluid.PumpHeadLoss = [float(20 - i) for i in range(9)]
+        self.assertEqual(
+            liquid_section_def(fluid, "LIQUID PUMP"),
+            "0,0,20,1,19,2,18,3,17,4,16,5,15,6,14\n7,13,8,12\n",
+        )
+
+    # ********************************************************************************************
     def test_box_frequency(self):
         # set up
         from femexamples.boxanalysis_frequency import setup

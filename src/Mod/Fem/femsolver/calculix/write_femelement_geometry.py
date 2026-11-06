@@ -201,12 +201,15 @@ def liquid_section_def(obj, section_type):
         )
         return section_geo
     elif section_type == "LIQUID PUMP":
-        section_geo = ""
+        # CalculiX: a first entry that is not used, then the pairs flow rate, total head,
+        # at most 16 entries per line
+        lines = [["0"]]
         for i in range(len(obj.PumpFlowRate)):
-            flow_rate = obj.PumpFlowRate[i]
-            top = obj.PumpHeadLoss[i]
-            section_geo = f"{section_geo + flow_rate:.13G},{top:.13G},\n"
-        section_geo = f"{section_geo}\n"
+            if len(lines[-1]) > 14:
+                lines.append([])
+            lines[-1].append(f"{obj.PumpFlowRate[i]:.13G}")
+            lines[-1].append(f"{obj.PumpHeadLoss[i]:.13G}")
+        section_geo = "".join(",".join(line) + "\n" for line in lines)
         return section_geo
     else:
         return ""
