@@ -22,7 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
+
 #include <BRepPrimAPI_MakePrism.hxx>
+#include <Standard_Failure.hxx>
 
 
 #include <Base/Tools.h>
@@ -73,13 +76,16 @@ void PrismExtension::extensionOnChanged(const App::Property* prop)
 TopoDS_Shape PrismExtension::makePrism(double height, const TopoDS_Face& face) const
 {
     // the direction vector for the prism is the height for z and the given angle
-    BRepPrimAPI_MakePrism mkPrism(
-        face,
-        gp_Vec(
-            height * tan(Base::toRadians<double>(FirstAngle.getValue())),
-            height * tan(Base::toRadians<double>(SecondAngle.getValue())),
-            height
-        )
+    gp_Vec dir(
+        height * tan(Base::toRadians<double>(FirstAngle.getValue())),
+        height * tan(Base::toRadians<double>(SecondAngle.getValue())),
+        height
     );
+    // NaN passes the range checks of the height and the angles, and a prism along a
+    // NaN direction crashes when it is used
+    if (!std::isfinite(dir.X()) || !std::isfinite(dir.Y()) || !std::isfinite(dir.Z())) {
+        throw Standard_Failure("Height and angles of the prism must be finite numbers");
+    }
+    BRepPrimAPI_MakePrism mkPrism(face, dir);
     return mkPrism.Shape();
 }

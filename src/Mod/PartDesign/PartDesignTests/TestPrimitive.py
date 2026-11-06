@@ -158,6 +158,23 @@ class TestPrimitive(unittest.TestCase):
         self.Doc.recompute()
         self.assertAlmostEqual(self.Wedge001.Shape.Volume, 1 / 2.0 * (10 * 10 - 9 * 8) * 10)
 
+    def testPrimitivePrismNaNFails(self):
+        # NaN passed the height and angle checks and the NaN prism crashed the recompute
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        for typeName, prop in (
+            ("PartDesign::AdditivePrism", "Height"),
+            ("PartDesign::AdditivePrism", "FirstAngle"),
+            ("PartDesign::AdditivePrism", "SecondAngle"),
+            ("PartDesign::AdditiveCylinder", "FirstAngle"),
+        ):
+            with self.subTest(type=typeName, prop=prop):
+                feature = self.Body.newObject(typeName, "Feature")
+                setattr(feature, prop, float("nan"))
+                self.Doc.recompute()
+                self.assertIn("Invalid", feature.State)
+                self.Body.removeObject(feature)
+                self.Doc.removeObject(feature.Name)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestPrimitive")
