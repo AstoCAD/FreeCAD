@@ -860,7 +860,19 @@ void PrefQuantitySpinBox::setHistorySize(int i)
 PrefFontBox::PrefFontBox(QWidget* parent)
     : QFontComboBox(parent)
     , PrefWidget()
-{}
+{
+    setFocusPolicy(Qt::FocusPolicy::StrongFocus);
+}
+
+void PrefFontBox::wheelEvent(QWheelEvent* event)
+{
+    if (hasFocus()) {
+        QFontComboBox::wheelEvent(event);
+    }
+    else {
+        event->ignore();
+    }
+}
 
 PrefFontBox::~PrefFontBox() = default;
 
