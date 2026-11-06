@@ -2393,6 +2393,36 @@ class DocumentGroupCases(unittest.TestCase):
         self.prt.removeObject(self.fus1)
         self.assertTrue(len(self.prt.Group) == 0)
 
+    def testRemoveObjectsFromDocumentCyclicGroup(self):
+        # Assigning Group directly can make a group contain itself; removing its
+        # content recursed until the stack overflowed
+        G1 = self.Doc.addObject("App::DocumentObjectGroup", "G1")
+        G1.Group = [G1]
+        G1.removeObjectsFromDocument()
+        self.assertEqual(G1.Group, [])
+        self.assertIsNotNone(self.Doc.getObject("G1"))
+
+        G2 = self.Doc.addObject("App::DocumentObjectGroup", "G2")
+        G3 = self.Doc.addObject("App::DocumentObjectGroup", "G3")
+        L = self.Doc.addObject("App::FeatureTest", "L")
+        G2.Group = [G3]
+        G3.Group = [G2, L]
+        G2.removeObjectsFromDocument()
+        self.assertEqual(G2.Group, [])
+        self.assertIsNone(self.Doc.getObject("G3"))
+        self.assertIsNone(self.Doc.getObject("L"))
+        self.assertIsNotNone(self.Doc.getObject("G2"))
+
+    def testRemoveObjectsFromDocumentNested(self):
+        G1 = self.Doc.addObject("App::DocumentObjectGroup", "G1")
+        G2 = G1.newObject("App::DocumentObjectGroup", "G2")
+        G2.newObject("App::FeatureTest", "L1")
+        G1.newObject("App::FeatureTest", "L2")
+        G1.removeObjectsFromDocument()
+        self.assertEqual(G1.Group, [])
+        for name in ("G2", "L1", "L2"):
+            self.assertIsNone(self.Doc.getObject(name))
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("GroupTests")

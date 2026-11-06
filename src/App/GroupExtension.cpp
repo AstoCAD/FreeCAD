@@ -24,6 +24,9 @@
 
 
 
+#include <algorithm>
+#include <set>
+
 #include <Base/Tools.h>
 
 #include "Document.h"
@@ -162,8 +165,27 @@ std::vector<DocumentObject*> GroupExtension::removeObjects(std::vector<DocumentO
     return removed;
 }
 
+namespace
+{
+// The groups whose children removeObjectsFromDocument() is removing at the moment
+std::set<const GroupExtension*> groupsBeingEmptied;  // NOLINT
+}  // namespace
+
 void GroupExtension::removeObjectsFromDocument()
 {
+    struct EmptyingGuard
+    {
+        const GroupExtension* group;
+        bool inserted;
+        ~EmptyingGuard()
+        {
+            if (inserted) {
+                groupsBeingEmptied.erase(group);
+            }
+        }
+    };
+    EmptyingGuard guard {this, groupsBeingEmptied.insert(this).second};
+
     while (Group.getSize() > 0) {
         // Remove the objects step by step because it can happen
         // that an object is part of several groups and thus a
@@ -184,6 +206,17 @@ void GroupExtension::removeObjectFromDocument(DocumentObject* obj)
     if (obj->hasExtension(GroupExtension::getExtensionClassTypeId())) {
         GroupExtension* grp = static_cast<GroupExtension*>(
             obj->getExtension(GroupExtension::getExtensionClassTypeId()));
+
+        // A cyclic Group (a group inside itself, directly or through subgroups) leads back to a
+        // group whose children are being removed further up: recursing again never ended (stack
+        // overflow), and deleting that group would pull it from under its running loop. Only
+        // take it out of this group.
+        if (groupsBeingEmptied.count(grp)) {
+            auto values = Group.getValues();
+            values.erase(std::remove(values.begin(), values.end(), obj), values.end());
+            Group.setValues(values);
+            return;
+        }
 
         // recursive call to remove all subgroups
         grp->removeObjectsFromDocument();
