@@ -344,6 +344,10 @@ private:
         App::CellAddress previousAddress = App::CellAddress()
     );
 
+    void recomputeMovedAliasDependants(
+        const std::map<std::string, App::CellAddress>& previousAliases
+    );
+
     void slotChangedObject(const App::DocumentObject& obj, const App::Property& prop);
     void recomputeDependants(const App::DocumentObject* obj, const char* propName);
 
