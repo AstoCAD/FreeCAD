@@ -22,6 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
+
 #include <GCE2d_MakeArcOfParabola.hxx>
 #include <Geom2d_Parabola.hxx>
 #include <Geom2d_TrimmedCurve.hxx>
@@ -60,6 +62,11 @@ int ArcOfParabola2dPy::PyInit(PyObject* args, PyObject* /*kwds*/)
     if (
         PyArg_ParseTuple(args, "O!dd|O!", &(Part::Parabola2dPy::Type), &o, &u1, &u2, &PyBool_Type, &sense)
     ) {
+        // NaN passes the range checks of the trimmed curve and the arc crashes when used
+        if (std::isnan(u1) || std::isnan(u2)) {
+            PyErr_SetString(PyExc_ValueError, "Curve parameter must not be NaN");
+            return -1;
+        }
         try {
             Handle(Geom2d_Parabola) parabola = Handle(Geom2d_Parabola)::DownCast(
                 static_cast<Parabola2dPy*>(o)->getGeom2dParabolaPtr()->handle()
