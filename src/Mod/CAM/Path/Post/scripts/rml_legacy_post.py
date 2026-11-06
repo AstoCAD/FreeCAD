@@ -50,9 +50,12 @@ def export(objectslist, filename, argstring):
     for obj in objectslist:
         code += convertobject(obj)
 
-    gfile = pyopen(filename, "w")
-    gfile.write(code)
-    gfile.close()
+    if not filename == "-":
+        gfile = pyopen(filename, "w")
+        gfile.write(code)
+        gfile.close()
+
+    return code
 
 
 def convertobject(obj):
