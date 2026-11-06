@@ -1537,6 +1537,18 @@ int SketchObject::join(
         return -1;
     }
 
+    // toNurbs() follows the parameter direction of the curve, but the sketch takes the start point
+    // of a reversed (clockwise) arc of circle or ellipse at its last parameter (emulated CCW
+    // arc): make the start of each spline the start point of its curve in the sketch.
+    auto startAtStartPoint = [](const Part::GeomCurve* geo, Part::GeomBSplineCurve* bsp) {
+        if ((geo->is<Part::GeomArcOfCircle>() || geo->is<Part::GeomArcOfEllipse>())
+            && static_cast<const Part::GeomArcOfConic*>(geo)->isReversed()) {
+            bsp->reverse();
+        }
+    };
+    startAtStartPoint(geo1, bsp1.get());
+    startAtStartPoint(geo2, bsp2.get());
+
     // reverse the splines if needed: join end of 1st to start of 2nd
     if (Sketcher::PointPos::start == posId1) {
         bsp1->reverse();
