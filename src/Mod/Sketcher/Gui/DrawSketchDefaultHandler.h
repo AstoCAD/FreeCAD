@@ -1052,7 +1052,8 @@ protected:
         auto shapeGeometry = toPointerVector(ShapeGeometry);
         std::string sketchObj = Gui::Command::getObjectCmd(sketchgui->getObject());
         Gui::Command::doCommand(Gui::Command::Doc, "ActiveSketch = %s\n", sketchObj.c_str());
-        Gui::Command::doCommand(
+        // run the generated code as is: doCommand() would take it as a printf format
+        Gui::Command::runCommand(
             Gui::Command::Doc,
             Sketcher::PythonConverter::convert(
                 sketchObj,
@@ -1064,7 +1065,7 @@ protected:
 
         size_t initialConstraintCount = sketchgui->getSketchObject()->Constraints.getSize();
         auto shapeConstraints = toPointerVector(ShapeConstraints);
-        Gui::Command::doCommand(
+        Gui::Command::runCommand(
             Gui::Command::Doc,
             Sketcher::PythonConverter::convert(sketchObj, shapeConstraints).c_str()
         );

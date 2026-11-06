@@ -630,7 +630,8 @@ void CmdSketcherPaste::activated(int iMsg)
 
    openCommand(QT_TRANSLATE_NOOP("Command", "Paste in Sketcher"));
 
-    Gui::Command::doCommand(Gui::Command::Doc, data.c_str());
+    // run the code as is: doCommand() would take it as a printf format
+    Gui::Command::runCommand(Gui::Command::Doc, data.c_str());
 
     obj->solve(true);
     vp->draw(false, false);
