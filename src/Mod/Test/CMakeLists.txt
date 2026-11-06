@@ -103,6 +103,7 @@ SET(Test_SRCS
     TestLinkGroupToolTipsGui.py
     TestImagePlaneDraggerGui.py
     TestCameraSettingsNestingGui.py
+    TestTaskDialogGateGui.py
 )
 
 SET(TestData_SRCS

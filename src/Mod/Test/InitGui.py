@@ -155,4 +155,5 @@ FreeCAD.__unit_test__ += [
     "TestLinkGroupToolTipsGui",
     "TestImagePlaneDraggerGui",
     "TestCameraSettingsNestingGui",
+    "TestTaskDialogGateGui",
 ]
