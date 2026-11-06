@@ -513,11 +513,17 @@ bool TaskPipeParameters::accept()
     QString label = ui->spineBaseEdit->text();
     if (!spine && !label.isEmpty()) {
         QByteArray ba = label.toUtf8();
-        std::vector<App::DocumentObject*> objs = pipe->getDocument()->findObjects(
-            App::DocumentObject::getClassTypeId(),
-            nullptr,
-            ba.constData()
-        );
+        std::vector<App::DocumentObject*> objs;
+        try {
+            objs = pipe->getDocument()->findObjects(
+                App::DocumentObject::getClassTypeId(),
+                nullptr,
+                ba.constData()
+            );
+        }
+        catch (const std::exception&) {
+            // the label is not a valid regular expression: no object matches it
+        }
         if (!objs.empty()) {
             pipe->Spine.setValue(objs.front());
             spine = objs.front();
