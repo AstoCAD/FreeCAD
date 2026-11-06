@@ -18,5 +18,7 @@
         <file>icons/SpreadsheetStyleBold.svg</file>
         <file>icons/SpreadsheetWorkbench.svg</file>
         <file>icons/SpreadsheetAlias.svg</file>
+        <file>icons/SpreadsheetIncreaseDecimals.svg</file>
+        <file>icons/SpreadsheetDecreaseDecimals.svg</file>
     </qresource>
 </RCC>
