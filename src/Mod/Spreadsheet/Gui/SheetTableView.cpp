@@ -43,6 +43,7 @@
 #include <Base/Reader.h>
 #include <Base/Stream.h>
 #include <Base/Writer.h>
+#include <Gui/Action.h>
 #include <Gui/Application.h>
 #include <Gui/Command.h>
 #include <Gui/CommandT.h>
@@ -60,6 +61,24 @@
 using namespace SpreadsheetGui;
 using namespace Spreadsheet;
 using namespace App;
+
+static constexpr const char* fillDownCommand = "Spreadsheet_FillDown";
+static constexpr const char* fillRightCommand = "Spreadsheet_FillRight";
+static constexpr const char* fillCommands[] = {fillDownCommand, fillRightCommand};
+
+/// Whether \a event is the key of the shortcut currently assigned to the command
+/// \a name: its default one, the one the user gave it, or none.
+static bool isCommandShortcut(const QKeyEvent* event, const char* name)
+{
+    auto* cmd = Gui::Application::Instance->commandManager().getCommandByName(name);
+    const Gui::Action* action = cmd ? cmd->getAction() : nullptr;
+    if (!action) {
+        return false;
+    }
+    const QKeySequence shortcut = action->shortcut();
+    const QKeyCombination key(event->modifiers() & ~Qt::KeypadModifier, Qt::Key(event->key()));
+    return shortcut.count() == 1 && shortcut[0] == key;
+}
 
 /// Gathers adjacent columns/rows into ranges. Returns the ranges in descending order.
 static std::vector<std::pair<int, int>> selectionRanges(
@@ -205,6 +224,13 @@ SheetTableView::SheetTableView(QWidget* parent)
     actionCopy = createAction(":/icons/edit-copy.svg", tr("Copy"), &SheetTableView::copySelection);
     actionPaste = createAction(":/icons/edit-paste.svg", tr("Paste"), &SheetTableView::pasteClipboard);
     actionDel = createAction(":/icons/edit-delete.svg", tr("Delete"), &SheetTableView::deleteSelection);
+    contextMenu.addSeparator();
+    // Commands, so their shortcuts can be changed (see event() for their keys)
+    for (const char* name : fillCommands) {
+        if (auto* cmd = Gui::Application::Instance->commandManager().getCommandByName(name)) {
+            cmd->addTo(&contextMenu);
+        }
+    }
 
     // "Document window" submenu, so an undocked sheet can be docked again without a shortcut
     if (auto* cmd = Gui::Application::Instance->commandManager().getCommandByName(
@@ -516,6 +542,14 @@ bool SheetTableView::event(QEvent* event)
             pasteClipboard();
             return true;
         }
+        else if (isCommandShortcut(kevent, fillDownCommand)) {
+            fillDown();
+            return true;
+        }
+        else if (isCommandShortcut(kevent, fillRightCommand)) {
+            fillRight();
+            return true;
+        }
     }
     else if (event && event->type() == QEvent::ShortcutOverride) {
         QKeyEvent* kevent = static_cast<QKeyEvent*>(event);
@@ -565,6 +599,13 @@ bool SheetTableView::event(QEvent* event)
             kevent->accept();
         }
         else if (kevent->matches(QKeySequence::Paste)) {
+            kevent->accept();
+        }
+        else if (isCommandShortcut(kevent, fillDownCommand)
+                 || isCommandShortcut(kevent, fillRightCommand)) {
+            // While the cells have the focus, the keys of Fill Down and Fill Right
+            // go to them, before any other command bound to the same keys
+            // (Std_SetAppearance has Ctrl+D, Std_Refresh Ctrl+R on some systems).
             kevent->accept();
         }
     }
@@ -732,6 +773,49 @@ void SheetTableView::pasteClipboard()
         return;
     }
     clearSelection();
+}
+
+void SheetTableView::fillDown()
+{
+    fillSelection(true);
+}
+
+void SheetTableView::fillRight()
+{
+    fillSelection(false);
+}
+
+void SheetTableView::fillSelection(bool down)
+{
+    auto ranges = selectedRanges();
+    if (ranges.size() != 1) {
+        return;
+    }
+    const Range& range = ranges.front();
+    if ((down && range.rowCount() < 2) || (!down && range.colCount() < 2)) {
+        return;
+    }
+
+    App::AutoTransaction committer(sheet->getDocument()->openTransaction(
+        down ? QT_TRANSLATE_NOOP("Command", "Fill Down") : QT_TRANSLATE_NOOP("Command", "Fill Right")
+    ));
+    try {
+        Gui::cmdAppObjectArgs(
+            sheet,
+            down ? "fillDown('%s')" : "fillRight('%s')",
+            range.rangeString()
+        );
+        Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
+    }
+    catch (Base::Exception& e) {
+        committer.close(App::TransactionCloseMode::Abort);
+        e.reportException();
+        QMessageBox::critical(
+            Gui::getMainWindow(),
+            down ? tr("Fill Down Failed") : tr("Fill Right Failed"),
+            QString::fromUtf8(e.what())
+        );
+    }
 }
 
 void SheetTableView::finishEditWithMove(int keyPressed, Qt::KeyboardModifiers modifiers, bool handleTabMotion)
@@ -1077,6 +1161,12 @@ void SheetTableView::contextMenuEvent(QContextMenuEvent*)
     auto ranges = selectedRanges();
     actionBind->setEnabled(!ranges.empty() && ranges.size() <= 2);
     actionConf->setEnabled(ranges.size() == 1 && ranges.back().size() > 1);
+    // The state of the commands is refreshed shortly after a selection change: now
+    for (const char* name : fillCommands) {
+        if (auto* cmd = Gui::Application::Instance->commandManager().getCommandByName(name)) {
+            cmd->testActive();
+        }
+    }
 
     contextMenu.exec(QCursor::pos());
 }

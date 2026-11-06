@@ -48,6 +48,7 @@
 #include <Base/FileInfo.h>
 #include <Base/Reader.h>
 #include <Base/Stream.h>
+#include <Base/Writer.h>
 
 #include "Sheet.h"
 #include "SheetObserver.h"
@@ -412,6 +413,66 @@ bool Sheet::mergeCells(const Range& range)
 void Sheet::splitCell(CellAddress address)
 {
     cells.splitCell(address);
+}
+
+/**
+ * Copy the first row (\a down) or the first column of \a range into the
+ * rest of the range, the way copy and paste does: contents, formatting and
+ * relative cell references are shifted, absolute references are kept, and
+ * empty source cells clear their targets.
+ *
+ * @param range Range to fill. Ranges with merged cells are rejected.
+ * @param down  True to fill downwards, false to fill to the right.
+ *
+ */
+
+static void fillRange(Sheet* sheet, PropertySheet& cells, const Range& range, bool down)
+{
+    const CellAddress from = range.from();
+    const CellAddress to = range.to();
+    if ((down && range.rowCount() < 2) || (!down && range.colCount() < 2)) {
+        return;
+    }
+
+    if (cells.hasSpan()) {
+        Range r(range);
+        do {
+            if (sheet->isMergedCell(*r)) {
+                throw Base::ValueError("Cannot fill a range that contains merged cells");
+            }
+        } while (r.next());
+    }
+
+    const Range source = down ? Range(from, CellAddress(from.row(), to.col()))
+                              : Range(from, CellAddress(to.row(), from.col()));
+
+    Base::StringWriter writer;
+    cells.copyCells(writer, {source});
+    const std::string buffer = writer.getString();
+
+    // Paste the source line once per target line: pasting it once over the
+    // whole target would tile only the expressions, not the formatting.
+    const int count = down ? range.rowCount() : range.colCount();
+    for (int i = 1; i < count; ++i) {
+        const Range target = down
+            ? Range(CellAddress(from.row() + i, from.col()), CellAddress(from.row() + i, to.col()))
+            : Range(CellAddress(from.row(), from.col() + i), CellAddress(to.row(), from.col() + i));
+        Base::StringIStreambuf buf(buffer);
+        std::istream in(nullptr);
+        in.rdbuf(&buf);
+        Base::XMLReader reader("<memory>", in);
+        cells.pasteCells(reader, target);
+    }
+}
+
+void Sheet::fillDown(const Range& range)
+{
+    fillRange(this, cells, range, true);
+}
+
+void Sheet::fillRight(const Range& range)
+{
+    fillRange(this, cells, range, false);
 }
 
 /**

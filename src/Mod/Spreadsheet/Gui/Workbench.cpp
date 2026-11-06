@@ -325,6 +325,9 @@ Gui::MenuItem* Workbench::setupMenuBar() const
                  << "Separator"
                  << "Spreadsheet_MergeCells"
                  << "Spreadsheet_SplitCell"
+                 << "Separator"
+                 << "Spreadsheet_FillDown"
+                 << "Spreadsheet_FillRight"
                  << "Separator" << alignments << styles;
 
     return root;

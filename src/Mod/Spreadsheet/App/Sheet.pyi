@@ -63,6 +63,22 @@ class Sheet(DocumentObject):
     def splitCell(self, address: str, /) -> None:
         """Split a previously merged cell"""
 
+    def fillDown(self, range: str, /) -> None:
+        """
+        Copy the first row of the range into the other rows of the range,
+        like copy and paste: relative cell references are shifted, absolute
+        ones are kept. Recompute the document to update the values.
+        """
+        ...
+
+    def fillRight(self, range: str, /) -> None:
+        """
+        Copy the first column of the range into the other columns of the range,
+        like copy and paste: relative cell references are shifted, absolute
+        ones are kept. Recompute the document to update the values.
+        """
+        ...
+
     def insertColumns(self, column: str, count: int, /) -> None:
         """Insert a given number of columns into the spreadsheet."""
 

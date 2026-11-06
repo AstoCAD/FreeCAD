@@ -2567,3 +2567,91 @@ class SpreadsheetCases(unittest.TestCase):
 
         # Restore the original fine-grained recompute preference
         ParamGroup.SetBool("FineGrainedRecompute", fineGrainedPref)
+
+
+#############################################################################################
+class SpreadsheetEditing(unittest.TestCase):
+    """Editing commands of the sheet: fill, sort."""
+
+    def setUp(self):
+        self.doc = FreeCAD.newDocument()
+        self.sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def testFillDown(self):
+        sheet = self.sheet
+        sheet.set("A1", "1")
+        sheet.set("B1", "=A1 * 2")
+        sheet.set("C1", "=$A$1 + A1")
+        sheet.set("D2", "stale")
+        sheet.setStyle("B1", "bold")
+        sheet.setAlias("B1", "first")
+        sheet.set("A4", "untouched")
+        sheet.fillDown("A1:D3")
+        self.doc.recompute()
+
+        self.assertEqual(sheet.getContents("A2"), "1")
+        self.assertEqual(sheet.getContents("B2"), "=A2 * 2")
+        self.assertEqual(sheet.getContents("B3"), "=A3 * 2")
+        self.assertEqual(sheet.getContents("C3"), "=$A$1 + A3")
+        self.assertEqual(sheet.B3, 2)
+        self.assertEqual(sheet.C3, 2)
+        # Empty source cells clear their targets
+        self.assertEqual(sheet.getContents("D2"), "")
+        # Formatting follows, the alias stays unique
+        self.assertEqual(sheet.getStyle("B3"), {"bold"})
+        self.assertEqual(sheet.getAlias("B1"), "first")
+        self.assertIsNone(sheet.getAlias("B2"))
+        # Cells outside the range are left alone
+        self.assertEqual(sheet.getContents("A4"), "'untouched")
+
+    def testFillRight(self):
+        sheet = self.sheet
+        sheet.set("A1", "10")
+        sheet.set("A2", "=A1 + 1")
+        sheet.fillRight("A1:C2")
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("C1"), "10")
+        self.assertEqual(sheet.getContents("B2"), "=B1 + 1")
+        self.assertEqual(sheet.getContents("C2"), "=C1 + 1")
+        self.assertEqual(sheet.C2, 11)
+
+    def testFillNormalizesRangeAndIgnoresSingleLine(self):
+        sheet = self.sheet
+        sheet.set("A1", "5")
+        sheet.set("B1", "6")
+        sheet.set("A2", "keep")
+        # One row: nothing to fill downwards
+        sheet.fillDown("A1:B1")
+        self.assertEqual(sheet.getContents("A2"), "'keep")
+        # A reversed range is the same range
+        sheet.fillDown("B2:A1")
+        self.assertEqual(sheet.getContents("A2"), "5")
+        self.assertEqual(sheet.getContents("B2"), "6")
+
+    def testFillRejectsMergedCellsAndBadRanges(self):
+        sheet = self.sheet
+        sheet.set("A1", "1")
+        sheet.mergeCells("B2:C2")
+        with self.assertRaises(ValueError):
+            sheet.fillDown("A1:C3")
+        self.assertEqual(sheet.getContents("A2"), "")
+        with self.assertRaises(ValueError):
+            sheet.fillDown("not a range")
+
+    def testFillDownUndo(self):
+        sheet = self.sheet
+        self.doc.UndoMode = 1
+        sheet.set("A1", "=1 + 1")
+        self.doc.recompute()
+        self.doc.openTransaction("Fill Down")
+        sheet.fillDown("A1:A3")
+        self.doc.commitTransaction()
+        self.doc.recompute()
+        self.assertEqual(sheet.A3, 2)
+        self.doc.undo()
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("A3"), "")
+        self.assertEqual(sheet.getContents("A1"), "=1 + 1")
