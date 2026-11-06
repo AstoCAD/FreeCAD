@@ -194,6 +194,7 @@ SET(TDTest_SRCS
     TDTest/DrawEdgeWalkerNullEdgeTest.py
     TDTest/DrawNearestFractionTest.py
     TDTest/DrawMakeCanonicalPointTest.py
+    TDTest/DrawClosedDocumentViewTest.py
     TDTest/DrawViewSectionCycleTest.py
     TDTest/DrawLeaderParentLoopTest.py
     TDTest/SketchAnnotationsTest.py
