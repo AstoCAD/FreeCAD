@@ -589,6 +589,18 @@ class TestPathGeom(PathTestBase):
             p2,
         )
 
+    def test31(self):
+        """Verify a helical arc ending above or below its start is one full turn."""
+        p1 = Vector(1, 0, 0)
+        p2 = Vector(1, 0, -2)
+        for name, quarter in (("G2", Vector(0, -1, -0.5)), ("G3", Vector(0, 1, -0.5))):
+            edge = Path.Geom.edgeForCmd(
+                Path.Command(name, {"X": p2.x, "Y": p2.y, "Z": p2.z, "I": -1, "J": 0}), p1
+            )
+            self.assertCurve(edge, p1, Vector(-1, 0, -1), p2)
+            self.assertRoughly(edge.Length, math.hypot(2 * math.pi, 2), 0.001)
+            self.assertCoincide(edge.discretize(5)[1], quarter)
+
     def test40(self):
         """Verify arc results in proper G2/G3 command."""
         p1 = Vector(0, -10, 0)
