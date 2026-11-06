@@ -2173,7 +2173,6 @@ def compact_mesh(old_femmesh):
             ele_id += 1
     if old_femmesh.Faces:
         for fa in old_femmesh.Faces:
-            ele_id += 1
             old_elem_nodes = old_femmesh.getElementNodes(fa)
             new_elemnodes = []
             for old_node_id in old_elem_nodes:
