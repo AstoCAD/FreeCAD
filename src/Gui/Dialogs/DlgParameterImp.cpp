@@ -29,6 +29,7 @@
 #include <QContextMenuEvent>
 #include <QHeaderView>
 #include <QInputDialog>
+#include <QLocale>
 #include <QMessageBox>
 #include <QMenu>
 #include <QTreeWidget>
@@ -1338,7 +1339,8 @@ ParameterFloat::ParameterFloat(
     setIcon(0, BitmapFactory().iconFromTheme("Param_Float"));
     setText(0, label);
     setText(1, QStringLiteral("Float"));
-    setText(2, QStringLiteral("%1").arg(value));
+    // all digits: appendToGroup() and changeValue() read the value back from this text
+    setText(2, QString::number(value, 'g', QLocale::FloatingPointShortest));
 }
 
 ParameterFloat::~ParameterFloat() = default;
@@ -1358,7 +1360,7 @@ void ParameterFloat::changeValue()
         Qt::MSWindowsFixedSizeDialogHint
     );
     if (ok) {
-        setText(2, QStringLiteral("%1").arg(num));
+        setText(2, QString::number(num, 'g', QLocale::FloatingPointShortest));
         _hcGrp->SetFloat(text(0).toLatin1(), num);
     }
 }
