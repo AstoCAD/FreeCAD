@@ -330,6 +330,25 @@ class PathBoundary:
                 lastExit = None
                 continue
 
+            if cmd.Name in Path.Geom.CmdMoveDrill:
+                # process cmd G73, G81, G82, G83, G85
+                # A cycle drills straight down at its own X, Y from the height
+                # the tool is at, and returns there. Test that line, not the
+                # line from the previous hole, which crosses whatever lies
+                # between the holes.
+                hole = Path.Geom.commandEndPoint(cmd, pos)
+                top = FreeCAD.Vector(hole.x, hole.y, pos.z)
+                edge = Path.Geom.edgeForCmd(cmd, top)
+                if edge:
+                    inside = edge.common(self.boundary).Edges
+                    outside = edge.cut(self.boundary).Edges
+                    if not self.inside:
+                        inside, outside = outside, inside
+                    if inside and not outside:
+                        commands.append(cmd)
+                pos = top
+                continue
+
             # convert cmd to edge
             edge = Path.Geom.edgeForCmd(cmd, pos)
             if not edge:
@@ -340,12 +359,6 @@ class PathBoundary:
             outside = edge.cut(self.boundary).Edges
             if not self.inside:
                 inside, outside = outside, inside
-
-            if cmd.Name in Path.Geom.CmdMoveDrill:
-                # process cmd G73, G81, G82, G83, G85
-                if inside and not outside:
-                    commands.append(cmd)
-                continue
 
             if inside and not outside:
                 # cmd fully included by boundary
