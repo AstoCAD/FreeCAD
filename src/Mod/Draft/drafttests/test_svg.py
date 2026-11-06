@@ -374,4 +374,25 @@ class DraftSVGExportRegression(test_base.DraftTestCaseDoc):
                 )
 
 
+class DraftSVGColorRegression(test_base.DraftTestCaseDoc):
+    """Regression tests for SVG colors given as presentation attributes."""
+
+    def test_read_svg_rgba_fill_attribute(self):
+        """A fill="rgba(...)" attribute must be read like the same value in a style."""
+        svg = (
+            '<?xml version="1.0"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="100mm" height="100mm" viewBox="0 0 100 100">'
+            '<rect x="0" y="0" width="10" height="10" fill="rgba(255, 0, 0, 0.5)"/>'
+            "</svg>\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "rgba_fill.svg")
+            with open(in_file, "w", encoding="utf-8") as svg_file:
+                svg_file.write(svg)
+            shapes = importSVG.readShapes(in_file)
+        self.assertEqual(len(shapes), 1)
+        self.assertAlmostEqual(shapes[0].Area, 100.0, places=6)
+
+
 ## @}
