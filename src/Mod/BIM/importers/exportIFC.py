@@ -2791,7 +2791,7 @@ def create_annotation(anno, ifcfile, context, history, preferences):
             reps.append(ifcfile.createIfcGeometricCurveSet(curves))
         curves = []
         for e in sh.Edges:
-            if e.hashCode not in ehc:
+            if e.hashCode() not in ehc:
                 curves.append(createCurve(ifcfile, e))
         if curves:
             reps.append(ifcfile.createIfcGeometricCurveSet(curves))
