@@ -104,6 +104,7 @@ SET(Test_SRCS
     TestImagePlaneDraggerGui.py
     TestCameraSettingsNestingGui.py
     TestTaskDialogGateGui.py
+    TestNewPartNameGui.py
 )
 
 SET(TestData_SRCS
