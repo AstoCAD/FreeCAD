@@ -58,6 +58,7 @@ from SketcherTests.TestConstraintPythonSerialization import (
 from SketcherTests.TestSketchBlocks import TestSketchBlocks
 from SketcherTests.TestRemoveAxesAlignment import TestRemoveAxesAlignment
 from SketcherTests.TestSketchNormal import TestSketchNormal
+from SketcherTests.TestSketchSplitTrimConstraints import TestSketchSplitTrimConstraints
 
 # Path and PartDesign tests use these functions that used to live here
 # but moved to SketcherTests/TestSketcherSolver.py
@@ -93,6 +94,7 @@ __all__ = [
     "TestSketchBlocks",
     "TestRemoveAxesAlignment",
     "TestSketchNormal",
+    "TestSketchSplitTrimConstraints",
     "CreateCircleSketch",
     "CreateRectangleSketch",
     "CreateSlotPlateSet",
