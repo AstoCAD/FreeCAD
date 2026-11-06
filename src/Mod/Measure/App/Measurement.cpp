@@ -849,10 +849,9 @@ double Measurement::angle(const Base::Vector3d& /*param*/) const
                 axis1 = curve1.Circle().Axis();
                 axis2 = surface2.Cylinder().Axis();
             }
+            // the axes have no preferred direction: return the angle between the lines
             double aRad = axis1.Angle(axis2);
-            return Base::toDegrees<double>(
-                std::min(aRad, std::fmod(aRad + std::numbers::pi, 2.0 * std::numbers::pi))
-            );
+            return Base::toDegrees<double>(std::min(aRad, std::numbers::pi - aRad));
         }
     }
     throw Base::RuntimeError("Unexpected error for angle measurement");
