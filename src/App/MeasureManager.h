@@ -106,6 +106,10 @@ public:
 
     static void addMeasureHandler(const char* module, MeasureTypeMethod typeCb);
     static bool hasMeasureHandler(const char* module);
+    /// The object whose module measures the sub-object referenced by \a subject: the sub-object
+    /// itself or, for a link or a link array element, the object it links to. nullptr if the
+    /// sub-object cannot be resolved.
+    static App::DocumentObject* getMeasuredObject(const App::SubObjectT& subject);
     static MeasureHandler getMeasureHandler(const char* module);
     static MeasureHandler getMeasureHandler(const App::MeasureSelectionItem& selectionItem);
     static MeasureElementType getMeasureElementType(const App::MeasureSelectionItem& selectionItem);

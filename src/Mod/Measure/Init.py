@@ -25,3 +25,4 @@
 
 FreeCAD.__unit_test__ += ["TestMeasureShapeFinder", "TestMeasurementMissingElement"]
 FreeCAD.__unit_test__ += ["TestMeasurementAxisAngle", "TestMeasurementLength"]
+FreeCAD.__unit_test__ += ["TestMeasureLinkElement"]
