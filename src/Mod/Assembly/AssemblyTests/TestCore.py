@@ -447,6 +447,24 @@ class TestCore(AssemblyTestBase):
         )
         self.assertNotIn("Invalid", bom.State)
 
+    def test_bom_lists_only_components_of_parts(self):
+        """Objects used by the expressions of an assembly or a part are not its components."""
+        outside = self.doc.addObject("Part::Box", "Outside")
+        part = self.assembly.newObject("App::Part", "Part")
+        part.newObject("Part::Box", "PartBox")
+        part.setExpression(".Placement.Base.x", "Outside.Length")
+        self.assembly.setExpression(".Placement.Base.y", "Outside.Width")
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Index", "Name", "Quantity"]
+        self.doc.recompute()
+
+        rows = []
+        for row in range(2, 10):
+            if bom.getContents(f"A{row}"):
+                rows.append((bom.get(f"A{row}"), bom.get(f"B{row}")))
+        self.assertEqual(rows, [("1", part.Label), ("1.1", "PartBox")])
+        self.assertNotIn("Invalid", bom.State)
+
     def test_bom_keeps_component_labels_as_text(self):
         """Labels that look like numbers, quantities or formulas must be listed verbatim,
         and the custom column text of their rows must survive a BOM refresh."""
