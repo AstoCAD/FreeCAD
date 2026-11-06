@@ -588,33 +588,39 @@ PyObject* QuantityPy::richCompare(PyObject* v, PyObject* w, int op)
         const Quantity* u1 = static_cast<QuantityPy*>(v)->getQuantityPtr();
         const Quantity* u2 = static_cast<QuantityPy*>(w)->getQuantityPtr();
 
-        PyObject* res = nullptr;
-        switch (op) {
-            case Py_NE:
-                res = (!(*u1 == *u2)) ? Py_True : Py_False;
-                Py_INCREF(res);
-                return res;
-            case Py_LT:
-                res = (*u1 < *u2) ? Py_True : Py_False;
-                Py_INCREF(res);
-                return res;
-            case Py_LE:
-                res = (*u1 < *u2) || (*u1 == *u2) ? Py_True : Py_False;
-                Py_INCREF(res);
-                return res;
-            case Py_GT:
-                res = (!(*u1 < *u2)) && (!(*u1 == *u2)) ? Py_True : Py_False;
-                Py_INCREF(res);
-                return res;
-            case Py_GE:
-                res = (!(*u1 < *u2)) ? Py_True : Py_False;
-                Py_INCREF(res);
-                return res;
-            case Py_EQ:
-                res = (*u1 == *u2) ? Py_True : Py_False;
-                Py_INCREF(res);
-                return res;
+        // Quantity::operator<() throws for different units; this is the tp_richcompare
+        // slot, so the exception must become a Python error here
+        PY_TRY
+        {
+            PyObject* res = nullptr;
+            switch (op) {
+                case Py_NE:
+                    res = (!(*u1 == *u2)) ? Py_True : Py_False;
+                    Py_INCREF(res);
+                    return res;
+                case Py_LT:
+                    res = (*u1 < *u2) ? Py_True : Py_False;
+                    Py_INCREF(res);
+                    return res;
+                case Py_LE:
+                    res = (*u1 < *u2) || (*u1 == *u2) ? Py_True : Py_False;
+                    Py_INCREF(res);
+                    return res;
+                case Py_GT:
+                    res = (!(*u1 < *u2)) && (!(*u1 == *u2)) ? Py_True : Py_False;
+                    Py_INCREF(res);
+                    return res;
+                case Py_GE:
+                    res = (!(*u1 < *u2)) ? Py_True : Py_False;
+                    Py_INCREF(res);
+                    return res;
+                case Py_EQ:
+                    res = (*u1 == *u2) ? Py_True : Py_False;
+                    Py_INCREF(res);
+                    return res;
+            }
         }
+        PY_CATCH
     }
     else if (PyNumber_Check(v) && PyNumber_Check(w)) {
         // Try to get floating numbers

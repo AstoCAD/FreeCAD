@@ -254,6 +254,24 @@ class UnitBasicCases(unittest.TestCase):
         with self.assertRaises(ValueError):
             FreeCAD.Units.toNumber(1023, "s", 2)
 
+    def testCompareDifferentUnits(self):
+        # Ordering quantities of different units threw a C++ exception straight
+        # through the rich comparison slot instead of raising a Python error
+        length = FreeCAD.Units.Quantity("1 m")
+        mass = FreeCAD.Units.Quantity("1 kg")
+        for compare in (
+            lambda: length < mass,
+            lambda: length <= mass,
+            lambda: length > mass,
+            lambda: length >= mass,
+        ):
+            with self.assertRaises(ArithmeticError):
+                compare()
+        self.assertFalse(length == mass)
+        self.assertTrue(length != mass)
+        self.assertTrue(length > FreeCAD.Units.Quantity("999 mm"))
+        self.assertTrue(length <= FreeCAD.Units.Quantity("1000 mm"))
+
     def testIssue6735(self):
         FreeCAD.Units.Quantity("1400.0 N/mm^2")
 
