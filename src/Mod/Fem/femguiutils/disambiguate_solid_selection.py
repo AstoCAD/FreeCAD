@@ -74,10 +74,15 @@ class HighlightContext:
         self._parent_part.ViewObject.update()
 
     def __enter__(self) -> None:
+        # The highlight is no appearance override of the part
+        self._parent_part.ViewObject.beginTemporaryAppearance()
         self._set_color(self._unhighlighted_color)
 
     def __exit__(self, *arg, **kwargs) -> bool:
-        self._set_color(self._initial_color)
+        try:
+            self._set_color(self._initial_color)
+        finally:
+            self._parent_part.ViewObject.endTemporaryAppearance()
         return False
 
 
