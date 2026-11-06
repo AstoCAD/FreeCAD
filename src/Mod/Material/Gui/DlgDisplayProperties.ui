@@ -11,10 +11,50 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Display Properties</string>
+   <string>Material and Appearance</string>
   </property>
   <layout class="QGridLayout" name="gridLayout_4">
    <item row="0" column="0">
+    <widget class="QGroupBox" name="groupPhysicalMaterial">
+     <property name="title">
+      <string>Physical Material</string>
+     </property>
+     <layout class="QVBoxLayout" name="layoutPhysicalMaterial">
+      <item>
+       <widget class="MatGui::MaterialTreeWidget" name="widgetPhysicalMaterial" native="true">
+        <property name="toolTip">
+         <string>The material the object is made of. Its appearance gives the look of every face without an appearance override.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="layoutLookSource">
+        <item>
+         <widget class="QLabel" name="labelLookSource">
+          <property name="text">
+           <string notr="true">-</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="buttonResetToMaterial">
+          <property name="toolTip">
+           <string>Removes the appearance overrides so that the look comes from the physical material again</string>
+          </property>
+          <property name="text">
+           <string>Reset to Material</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="2" column="0">
     <widget class="QGroupBox" name="groupBox1">
      <property name="title">
       <string>Viewing Mode</string>
@@ -100,7 +140,7 @@
      </layout>
     </widget>
    </item>
-   <item row="2" column="0">
+   <item row="3" column="0">
     <widget class="QGroupBox" name="groupBox2">
      <property name="title">
       <string>Display</string>
@@ -335,7 +375,7 @@
    <item row="1" column="0">
     <widget class="QGroupBox" name="groupBox3">
      <property name="title">
-      <string>Material</string>
+      <string>Appearance</string>
      </property>
      <layout class="QGridLayout" name="gridLayout_2">
       <item row="1" column="0">
@@ -355,6 +395,36 @@
         <property name="bottomMargin">
          <number>0</number>
         </property>
+        <item>
+         <widget class="QLabel" name="labelScope">
+          <property name="text">
+           <string>Apply to</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radioScopeObject">
+          <property name="toolTip">
+           <string>The appearance replaces the look of the whole object, including its faces</string>
+          </property>
+          <property name="text">
+           <string>Whole object</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radioScopeFaces">
+          <property name="toolTip">
+           <string>The appearance is given to the faces selected in the 3D view</string>
+          </property>
+          <property name="text">
+           <string>Selected faces</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
       <item row="2" column="0">

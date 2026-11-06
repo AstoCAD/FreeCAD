@@ -158,14 +158,7 @@ Gui::MenuItem* Workbench::setupMenuBar() const
           << "Materials_InspectAppearance"
           << "Materials_InspectMaterial";
 
-    Gui::MenuItem* view = root->findItem("&View");
-    if (view) {
-        Gui::MenuItem* appr = view->findItem("Std_RandomColor");
-        appr = view->afterItem(appr);
-        Gui::MenuItem* face = new Gui::MenuItem();
-        face->setCommand("Part_ColorPerFace");
-        view->insertItem(appr, face);
-    }
+    // Part_ColorPerFace is in Std_SetAppearance (scope: selected faces)
 
     return root;
 }
@@ -204,8 +197,7 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
           << "Part_CrossSections"
           << "Part_CompOffset"
           << "Part_Thickness"
-          << "Part_ProjectionOnSurface"
-          << "Part_ColorPerFace";  // See issues #0477 and #1954 in the tracker
+          << "Part_ProjectionOnSurface";
 
     Gui::ToolBarItem* boolop = new Gui::ToolBarItem(root);
     boolop->setCommand("Boolean Tools");

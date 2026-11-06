@@ -127,6 +127,8 @@ public:
      * that their look comes from the physical material again.
      */
     void resetToMaterial(const std::vector<std::string>& faces = {});
+    /// Gives @a look to the faces @a faces ("Face1" ...): an override of these faces
+    void setFaceAppearance(const std::vector<std::string>& faces, const App::Material& look);
     //@}
 
     bool isSelectable() const override

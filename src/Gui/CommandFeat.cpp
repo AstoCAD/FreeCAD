@@ -127,21 +127,38 @@ void StdCmdRandomColor::activated(int iMsg)
         // NOLINTEND
         auto objColor = Base::Color(fRed, fGrn, fBlu);
 
+        // A random color is an appearance of its own, not the look of a material card: drop
+        // the card (UUID) so that it does not show as the appearance preset
+        auto setColor = [&objColor](App::PropertyMaterialList& prop) {
+            std::vector<App::Material> values = prop.getValues();
+            if (values.empty()) {
+                values.emplace_back(App::Material::getDefaultAppearance());
+            }
+            for (auto& value : values) {
+                value.diffuseColor = objColor;
+                value.uuid.clear();
+            }
+            prop.setValues(values);
+        };
+
         auto vpLink = freecad_cast<ViewProviderLink*>(view);
         if (vpLink) {
             if (!vpLink->OverrideMaterial.getValue()) {
                 vpLink->OverrideMaterial.setValue(true);
             }
-            vpLink->ShapeAppearance.setDiffuseColor(objColor);
+            setColor(vpLink->ShapeAppearance);
         }
         else if (view) {
             // clang-format off
             // get the view provider of the selected object and set the shape color
             if (auto prop = dynamic_cast<App::PropertyMaterialList*>(view->getPropertyByName("ShapeAppearance"))) {
-                prop->setDiffuseColor(objColor);
+                setColor(*prop);
             }
             else if (auto prop = dynamic_cast<App::PropertyMaterial*>(view->getPropertyByName("ShapeAppearance"))) {
-                prop->setDiffuseColor(objColor);
+                App::Material value = prop->getValue();
+                value.diffuseColor = objColor;
+                value.uuid.clear();
+                prop->setValue(value);
             }
             // clang-format on
         }

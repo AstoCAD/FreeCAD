@@ -33,18 +33,20 @@ class WorkbenchManipulator: public Gui::WorkbenchManipulator
 protected:
     /*!
      * \brief modifyMenuBar
-     * Adds the commands Std_SetMaterial and Std_SetAppearance to the View menu
+     * Adds the command Std_SetAppearance to the View menu and the material editor to the
+     * Tools menu
      */
     void modifyMenuBar(Gui::MenuItem* menuBar) override;
     /*!
      * \brief modifyContextMenu
-     * Adds the commands Std_SetMaterial and Std_SetAppearance to the contex-menu
+     * Adds the command Std_SetAppearance to the context-menu
      */
     void modifyContextMenu(const char* recipient, Gui::MenuItem* menuBar) override;
 
 private:
     static void addCommands(Gui::MenuItem* menuBar, const char* reference);
     static void addCommandsToTree(Gui::MenuItem* menuBar);
+    static void addEditor(Gui::MenuItem* menuBar, const char* reference);
 };
 
 } // namespace MatGui

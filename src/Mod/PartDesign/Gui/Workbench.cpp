@@ -502,14 +502,7 @@ Gui::MenuItem* Workbench::setupMenuBar() const
         *part << "Separator" << "PartDesign_WizardShaft";
     }
 
-    Gui::MenuItem* view = root->findItem("&View");
-    if (view) {
-        Gui::MenuItem* appr = view->findItem("Std_RandomColor");
-        appr = view->afterItem(appr);
-        Gui::MenuItem* face = new Gui::MenuItem();
-        face->setCommand("Part_ColorPerFace");
-        view->insertItem(appr, face);
-    }
+    // Part_ColorPerFace is in Std_SetAppearance (scope: selected faces)
 
     // Replace the "Duplicate selection" menu item with a replacement that is compatible with Body
     item = root->findItem("&Edit");
