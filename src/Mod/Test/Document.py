@@ -2488,10 +2488,14 @@ class DocumentGroupCases(unittest.TestCase):
         self.assertTrue(fus.State[0] == "Up-to-date")
 
         # grouping must be resilient against cyclic links and not crash: #issue 0002567
+        # (a cycle is refused and the Group keeps its valid members)
         prt1.addObject(prt2)
         grp = prt2.Group
+        old = prt2.Group
         grp.append(prt1)
-        prt2.Group = grp
+        with self.assertRaises(RuntimeError):
+            prt2.Group = grp
+        self.assertEqual(prt2.Group, old)
         self.Doc.recompute()
         prt2.Group = []
         try:
@@ -2558,20 +2562,246 @@ class DocumentGroupCases(unittest.TestCase):
         self.prt.removeObject(self.fus1)
         self.assertTrue(len(self.prt.Group) == 0)
 
+    def _reopenWithGroupLinksReplaced(self, replacements):
+        # Group refuses cycles when it is set, so a cyclic group can only come from a
+        # file (e.g. one written before cycles were refused): save, point the given
+        # links at other objects in Document.xml and reopen.
+        tempdir = tempfile.mkdtemp()
+        path = os.path.join(tempdir, "GroupTests.FCStd")
+        self.addCleanup(os.rmdir, tempdir)
+        self.addCleanup(os.remove, path)
+        self.Doc.saveAs(path)
+        FreeCAD.closeDocument(self.Doc.Name)
+        with zipfile.ZipFile(path) as zin:
+            entries = [(info, zin.read(info.filename)) for info in zin.infolist()]
+        with zipfile.ZipFile(path, "w") as zout:
+            for info, data in entries:
+                if info.filename == "Document.xml":
+                    text = data.decode("utf-8")
+                    for old, new in replacements.items():
+                        link = '<Link value="{}"/>'
+                        self.assertEqual(text.count(link.format(old)), 1)
+                        text = text.replace(link.format(old), link.format(new))
+                    data = text.encode("utf-8")
+                zout.writestr(info, data)
+        self.Doc = FreeCAD.openDocument(path)
+        self.assertEqual(self.Doc.Name, "GroupTests")
+
+    def testGroupCannotContainItself(self):
+        A = self.Doc.addObject("App::DocumentObjectGroup", "A")
+        B = self.Doc.addObject("App::DocumentObjectGroup", "B")
+        C = self.Doc.addObject("App::DocumentObjectGroup", "C")
+        L = self.Doc.addObject("App::FeatureTest", "L")
+
+        # directly, the invalid member is dropped and the valid ones are kept
+        with self.assertRaises(RuntimeError):
+            A.Group = [L, A]
+        self.assertEqual(A.Group, [L])
+
+        # through sub-groups
+        A.Group = [B]
+        B.Group = [C]
+        with self.assertRaises(RuntimeError):
+            C.Group = [A]
+        self.assertEqual(C.Group, [])
+        with self.assertRaises(RuntimeError):
+            B.Group = [C, A]
+        self.assertEqual(B.Group, [C])
+        self.assertEqual(A.Group, [B])
+        self.assertIsNone(A.getParentGroup())
+
+        # addObject() raises, addObjects()/setObjects() skip the cycle without
+        # taking the group out of its parent
+        with self.assertRaises(Exception):
+            C.addObject(A)
+        with self.assertRaises(Exception):
+            C.addObject(B)
+        self.assertEqual(C.addObjects([A, L]), [L])
+        self.assertEqual(C.Group, [L])
+        self.assertEqual(C.setObjects([B]), [])
+        self.assertEqual(C.Group, [])
+        self.assertEqual(A.Group, [B])
+        self.assertEqual(B.Group, [C])
+        self.assertEqual(A.addObjects([A]), [])
+
+        # moving a group to another branch is still allowed
+        D = self.Doc.addObject("App::DocumentObjectGroup", "D")
+        A.addObject(D)
+        C.addObject(D)
+        self.assertEqual(A.Group, [B])
+        self.assertEqual(C.Group, [D])
+        self.Doc.recompute()
+
+    def testGeoFeatureGroupCannotContainItself(self):
+        P1 = self.Doc.addObject("App::Part", "P1")
+        P2 = self.Doc.addObject("App::Part", "P2")
+        G = self.Doc.addObject("App::DocumentObjectGroup", "G")
+        with self.assertRaises(RuntimeError):
+            P1.Group = [P1]
+        self.assertEqual(P1.Group, [])
+
+        P1.addObject(P2)
+        with self.assertRaises(RuntimeError):
+            P2.Group = [P1]
+        self.assertEqual(P2.Group, [])
+        with self.assertRaises(Exception):
+            P2.addObject(P1)
+        self.assertEqual(P2.Group, [])
+        self.assertEqual(P1.Group, [P2])
+
+        # through a plain group, both ways
+        P2.addObject(G)
+        with self.assertRaises(RuntimeError):
+            G.Group = [P1]
+        self.assertEqual(G.Group, [])
+        self.assertEqual(G.addObjects([P2]), [])
+        self.assertEqual(P1.Group, [P2])
+        self.assertEqual(P2.Group, [G])
+        self.Doc.recompute()
+
+    def testGroupCannotContainLinkToItself(self):
+        # A link to a group depends on the group. Inside it, the group depended on
+        # itself: recompute reported that the graph is not a DAG, sub-objects and shapes
+        # recursed until the link depth limit, and a STEP export crashed.
+        P = self.Doc.addObject("App::Part", "P")
+        F = self.Doc.addObject("App::FeatureTest", "F")
+        G = self.Doc.addObject("App::DocumentObjectGroup", "G")
+        P.addObjects([F, G])
+        L = self.Doc.addObject("App::Link", "L")
+        L.setLink(P)
+        with self.assertRaises(RuntimeError):
+            P.Group = P.Group + [L]
+        self.assertEqual(P.Group, [F, G])
+        with self.assertRaises(Exception):
+            P.addObject(L)
+        self.assertEqual(P.addObjects([L]), [])
+
+        # through a sub-group, a link to the link, a link array, and for a plain group
+        with self.assertRaises(RuntimeError):
+            G.Group = [L]
+        self.assertEqual(G.addObjects([L]), [])
+        L2 = self.Doc.addObject("App::Link", "L2")
+        L2.setLink(L)
+        self.assertEqual(P.addObjects([L2]), [])
+        A = self.Doc.addObject("App::Link", "A")
+        A.setLink(P)
+        A.ElementCount = 3
+        self.assertEqual(G.addObjects([A]), [])
+        L3 = self.Doc.addObject("App::Link", "L3")
+        L3.setLink(G)
+        with self.assertRaises(RuntimeError):
+            G.Group = [L3]
+        self.assertEqual(P.Group, [F, G])
+        self.assertEqual(G.Group, [])
+
+        # a sub-assembly cannot hold a link to an assembly that links to it
+        Sub = self.Doc.addObject("App::Part", "Sub")
+        Asm = self.Doc.addObject("App::Part", "Asm")
+        asmSub = self.Doc.addObject("App::Link", "AsmSub")
+        asmSub.setLink(Sub)
+        Asm.addObject(asmSub)
+        toAsm = self.Doc.addObject("App::Link", "ToAsm")
+        toAsm.setLink(Asm)
+        self.assertEqual(Sub.addObjects([toAsm]), [])
+        self.assertEqual(Sub.Group, [])
+        self.assertIsNone(L.getParentGeoFeatureGroup())
+        self.Doc.recompute()
+        self.assertFalse([o.Name for o in self.Doc.Objects if "Touched" in o.State])
+
+    def testGroupCanContainLinksNotLeadingToIt(self):
+        # links that do not depend on the group stay allowed in it
+        P = self.Doc.addObject("App::Part", "P")
+        F = self.Doc.addObject("App::FeatureTest", "F")
+        G = self.Doc.addObject("App::DocumentObjectGroup", "G")
+        P.addObjects([F, G])
+        Q = self.Doc.addObject("App::Part", "Q")
+        Q.addObject(self.Doc.addObject("App::FeatureTest", "QF"))
+
+        # to an object inside the group, to another Part, as a link array
+        inner = self.Doc.addObject("App::Link", "Inner")
+        inner.setLink(F)
+        toQ = self.Doc.addObject("App::Link", "ToQ")
+        toQ.setLink(Q)
+        arrayQ = self.Doc.addObject("App::Link", "ArrayQ")
+        arrayQ.setLink(Q)
+        arrayQ.ElementCount = 2
+        self.assertEqual(P.addObjects([inner, toQ]), [inner, toQ])
+        G.addObject(arrayQ)
+        self.assertEqual(P.Group, [F, G, inner, toQ, arrayQ])
+        self.assertEqual(G.Group, [arrayQ])
+
+        # an assembly holding links to a sub-assembly and to a part the sub-assembly
+        # links to as well
+        Sub = self.Doc.addObject("App::Part", "Sub")
+        Asm = self.Doc.addObject("App::Part", "Asm")
+        subQ = self.Doc.addObject("App::Link", "SubQ")
+        subQ.setLink(Q)
+        Sub.addObject(subQ)
+        asmSub = self.Doc.addObject("App::Link", "AsmSub")
+        asmSub.setLink(Sub)
+        asmQ = self.Doc.addObject("App::Link", "AsmQ")
+        asmQ.setLink(Q)
+        self.assertEqual(Asm.addObjects([asmSub, asmQ]), [asmSub, asmQ])
+        self.assertEqual(Asm.Group, [asmSub, asmQ])
+        self.assertEqual(Asm.getSubObjects(), ("AsmSub.", "AsmQ."))
+        QF = self.Doc.getObject("QF")
+        self.assertEqual(Asm.getSubObject("AsmSub.SubQ.QF.", retType=1), QF)
+        self.Doc.recompute()
+        self.assertFalse([o.Name for o in self.Doc.Objects if "Touched" in o.State])
+    def testRestoreCyclicGroup(self):
+        # an old file with a cyclic group still opens with its Group as saved
+        A = self.Doc.addObject("App::DocumentObjectGroup", "A")
+        B = self.Doc.addObject("App::DocumentObjectGroup", "B")
+        L = self.Doc.addObject("App::FeatureTest", "L")
+        S = self.Doc.addObject("App::FeatureTest", "S")
+        A.Group = [B]
+        B.Group = [S, L]
+        self._reopenWithGroupLinksReplaced({"S": "A"})
+        A = self.Doc.getObject("A")
+        B = self.Doc.getObject("B")
+        L = self.Doc.getObject("L")
+        self.assertEqual(A.Group, [B])
+        self.assertEqual(B.Group, [A, L])
+
+        # its members can still be changed and removed, but the cycle cannot be made again
+        X = self.Doc.addObject("App::FeatureTest", "X")
+        B.Group = B.Group + [X]
+        self.assertEqual(B.Group, [A, L, X])
+        B.Group = [X, A, L]
+        self.Doc.removeObject("L")
+        self.assertEqual(B.Group, [X, A])
+        B.removeObject(X)
+        self.assertEqual(B.Group, [A])
+        B.removeObject(A)
+        self.assertEqual(B.Group, [])
+        with self.assertRaises(RuntimeError):
+            B.Group = [A]
+        self.assertEqual(B.Group, [])
+        self.assertEqual(A.Group, [B])
+        self.Doc.recompute()
+
     def testRemoveObjectsFromDocumentCyclicGroup(self):
-        # Assigning Group directly can make a group contain itself; removing its
-        # content recursed until the stack overflowed
+        # A group that contains itself (from a file) made removing its content recurse
+        # until the stack overflowed
         G1 = self.Doc.addObject("App::DocumentObjectGroup", "G1")
-        G1.Group = [G1]
+        S1 = self.Doc.addObject("App::FeatureTest", "S1")
+        G1.Group = [S1]
+        G2 = self.Doc.addObject("App::DocumentObjectGroup", "G2")
+        G3 = self.Doc.addObject("App::DocumentObjectGroup", "G3")
+        L = self.Doc.addObject("App::FeatureTest", "L")
+        S2 = self.Doc.addObject("App::FeatureTest", "S2")
+        G2.Group = [G3]
+        G3.Group = [S2, L]
+        self._reopenWithGroupLinksReplaced({"S1": "G1", "S2": "G2"})
+
+        G1 = self.Doc.getObject("G1")
+        self.assertEqual(G1.Group, [G1])
         G1.removeObjectsFromDocument()
         self.assertEqual(G1.Group, [])
         self.assertIsNotNone(self.Doc.getObject("G1"))
 
-        G2 = self.Doc.addObject("App::DocumentObjectGroup", "G2")
-        G3 = self.Doc.addObject("App::DocumentObjectGroup", "G3")
-        L = self.Doc.addObject("App::FeatureTest", "L")
-        G2.Group = [G3]
-        G3.Group = [G2, L]
+        G2 = self.Doc.getObject("G2")
+        self.assertEqual(self.Doc.getObject("G3").Group, [G2, self.Doc.getObject("L")])
         G2.removeObjectsFromDocument()
         self.assertEqual(G2.Group, [])
         self.assertIsNone(self.Doc.getObject("G3"))

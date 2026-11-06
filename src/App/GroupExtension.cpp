@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <set>
 
+#include <Base/Console.h>
 #include <Base/Tools.h>
 
 #include "Document.h"
@@ -92,6 +93,12 @@ std::vector<DocumentObject*> GroupExtension::addObjects(std::vector<DocumentObje
         }
 
         if (hasObject(obj)) {
+            continue;
+        }
+
+        // a group cannot contain itself. Skip it before it is taken out of its current groups:
+        // extensionOnChanged() would refuse it only after that.
+        if (isCyclicMember(obj)) {
             continue;
         }
 
@@ -317,6 +324,24 @@ bool GroupExtension::isChildOf(const GroupExtension* group, bool recursive) cons
     return group->hasObject(getExtendedObject(), recursive);
 }
 
+bool GroupExtension::isCyclicMember(const DocumentObject* obj) const
+{
+    // Group links this group to its members, so a member that already depends on this group makes
+    // the group depend on itself: a group holding it (through the Group of its sub-groups), a link
+    // to it (App::Link refuses to be set to its own container in the same way) or any other link
+    // or expression. Ask the dependency graph, like for any other link: its in-lists are walked
+    // with a visited set, so a cycle that already exists (e.g. restored from a file) cannot make
+    // this loop forever.
+    return !getExtendedObject()->testIfLinkDAGCompatible(const_cast<DocumentObject*>(obj));
+}
+
+bool GroupExtension::isNewCyclicMember(const DocumentObject* obj) const
+{
+    // _Conns holds the members of Group before its current change: extensionOnChanged() rebuilds
+    // it after the validation, also when Group is restored or undone.
+    return _Conns.find(obj) == _Conns.end() && isCyclicMember(obj);
+}
+
 const std::vector<DocumentObject*>& GroupExtension::getObjects() const
 {
     return Group.getValues();
@@ -385,12 +410,22 @@ void GroupExtension::extensionOnChanged(const Property* p)
 {
     auto owner = getExtendedObject();
 
-    // objects are only allowed in a single group.
+    // objects are only allowed in a single group, and a group cannot contain itself.
     if (p == &Group && !Group.testStatus(Property::User3)) {
         if (!owner->isRestoring() && !owner->getDocument()->isPerformingTransaction()) {
             bool error = false;
+            bool cycle = false;
             auto corrected = Group.getValues();
             for (auto obj : Group.getValues()) {
+
+                // a group inside itself, directly, through sub-groups or through a link to it,
+                // makes every walk down the group tree loop forever
+                if (isNewCyclicMember(obj)) {
+                    cycle = true;
+                    corrected.erase(std::remove(corrected.begin(), corrected.end(), obj),
+                                    corrected.end());
+                    continue;
+                }
 
                 // we have already set the obj into the group, so in a case of multiple groups
                 // getGroupOfObject would return anyone of it and hence it is possible that we miss
@@ -410,10 +445,12 @@ void GroupExtension::extensionOnChanged(const Property* p)
             }
 
             // if an error was found we need to correct the values and inform the user
-            if (error) {
+            if (error || cycle) {
                 Base::ObjectStatusLocker<Property::Status, Property> guard(Property::User3, &Group);
                 Group.setValues(corrected);
-                throw Base::RuntimeError("Object can only be in a single Group");
+                throw Base::RuntimeError(
+                    cycle ? "A group cannot contain itself or an object that depends on it"
+                          : "Object can only be in a single Group");
             }
         }
     }
@@ -456,6 +493,24 @@ void GroupExtension::extensionOnChanged(const Property* p)
     }
 
     App::Extension::extensionOnChanged(p);
+}
+
+void GroupExtension::onExtendedDocumentRestored()
+{
+    inherited::onExtendedDocumentRestored();
+
+    // Group is not validated while a file is restored. Files written before cycles were refused
+    // may contain a group inside itself: keep it as it is so that the file still opens, but tell
+    // the user.
+    auto owner = getExtendedObject();
+    for (auto obj : Group.getValues()) {
+        if (isCyclicMember(obj)) {
+            Base::Console().warning("'{}' depends on itself through its Group member '{}'\n",
+                                    owner->getFullName(),
+                                    obj->getFullName());
+            break;
+        }
+    }
 }
 
 void GroupExtension::slotChildChanged(const DocumentObject& obj, const Property& prop)
