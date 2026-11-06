@@ -747,6 +747,32 @@ class MeshSmoothNegativeIteration(unittest.TestCase):
         self.assertEqual(mesh.CountFacets, 12)
 
 
+class MeshOptimizeTopology(unittest.TestCase):
+    def testSwapsEdgeWithBenefit(self):
+        a = FreeCAD.Vector(0, 0, 0)
+        b = FreeCAD.Vector(4, -1, 0)
+        c = FreeCAD.Vector(8, 0, 0)
+        d = FreeCAD.Vector(4, 1, 0)
+        mesh = Mesh.Mesh([a, b, c, a, c, d])
+        mesh.optimizeTopology()
+        self.assertEqual(mesh.CountFacets, 2)
+        for facet in mesh.Facets:
+            points = [tuple(p) for p in facet.Points]
+            self.assertIn(tuple(b), points)
+            self.assertIn(tuple(d), points)
+
+    def testSymmetricMeshTerminates(self):
+        """Swaps whose benefit is rounding noise must not loop forever"""
+        # The quads of a sphere are isosceles trapezoids: both diagonals were swapped
+        # back and forth endlessly.
+        mesh = Mesh.createSphere(1.0, 20)
+        count = mesh.CountFacets
+        volume = mesh.Volume
+        mesh.optimizeTopology()
+        self.assertEqual(mesh.CountFacets, count)
+        self.assertAlmostEqual(mesh.Volume, volume, 3)
+
+
 class MeshRegularGeomsNegativeSampling(unittest.TestCase):
     """A negative sampling count or edge length must fail instead of looping forever"""
 
