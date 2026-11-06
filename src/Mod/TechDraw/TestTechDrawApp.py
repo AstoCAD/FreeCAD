@@ -40,6 +40,7 @@ from TDTest.DrawCosmeticArcTest import DrawCosmeticArcTest  # noqa: F401
 from TDTest.DrawDimensionBSplineCircle3dTest import DrawDimensionBSplineCircle3dTest  # noqa: F401
 from TDTest.DrawDimensionAngleReferenceTest import DrawDimensionAngleReferenceTest  # noqa: F401
 from TDTest.DrawDimensionCircleAlignmentTest import DrawDimensionCircleAlignmentTest  # noqa: F401
+from TDTest.DrawDimensionAreaToleranceTest import DrawDimensionAreaToleranceTest  # noqa: F401
 from TDTest.DrawViewWrapperIdentityTest import DrawViewWrapperIdentityTest  # noqa: F401
 from TDTest.DrawPageAddViewTypeTest import DrawPageAddViewTypeTest  # noqa: F401
 from TDTest.DrawDistanceDim3dTest import DrawDistanceDim3dTest  # noqa: F401
