@@ -137,7 +137,7 @@ QWidget* ArrayDelegate::createWidget(QWidget* parent, const QVariant& item) cons
         // for almost all Float parameters of materials a step of 1 would be too large
         spinner->setSingleStep(0.1);
 
-        spinner->setMinimum(std::numeric_limits<double>::min());
+        spinner->setMinimum(std::numeric_limits<double>::lowest());
         spinner->setMaximum(std::numeric_limits<double>::max());
         spinner->setValue(item.toDouble());
         widget = spinner;
@@ -152,7 +152,7 @@ QWidget* ArrayDelegate::createWidget(QWidget* parent, const QVariant& item) cons
     }
     else if (_type == Materials::MaterialValue::Quantity) {
         auto input = new Gui::QuantitySpinBox();
-        input->setMinimum(std::numeric_limits<double>::min());
+        input->setMinimum(std::numeric_limits<double>::lowest());
         input->setMaximum(std::numeric_limits<double>::max());
         input->setUnitText(_units);
         input->setValue(item.value<Base::Quantity>());
