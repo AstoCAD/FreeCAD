@@ -73,3 +73,49 @@ class TestDressupBoundaryArray(PathTestUtils.PathTestBase):
         # Every base must be cleared, so the highest heights are used.
         self.assertRoughly(pb.safeHeight, self.profile2.SafeHeight.Value)
         self.assertRoughly(pb.clearanceHeight, self.profile2.ClearanceHeight.Value)
+
+
+class TestDressupBoundaryDrill(PathTestUtils.PathTestBase):
+    """The Boundary dressup keeps the drill cycles whose holes it contains."""
+
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("TestDressupBoundaryDrill")
+        FreeCAD.setActiveDocument(self.doc.Name)
+        box = self.doc.addObject("Part::Box", "Box")
+        self.job = PathJob.Create("Job", [box], None)
+        self.op = PathProfile.Create("Profile")
+        self.doc.recompute()
+        clearance = self.op.ClearanceHeight.Value
+        safe = self.op.SafeHeight.Value
+        # Consecutive cycles, as the Drilling operation emits them: no move
+        # between the holes, the tool travels at the retract plane.
+        self.op.Path = Path.Path(
+            [
+                Path.Command("G0", {"Z": clearance}),
+                Path.Command("G0", {"X": 0, "Y": 0}),
+                Path.Command("G0", {"Z": safe}),
+                Path.Command("G81", {"X": 0, "Y": 0, "Z": -5, "R": 3, "F": 1}),
+                Path.Command("G81", {"X": 20, "Y": 0, "Z": -5, "R": 3, "F": 1}),
+                Path.Command("G81", {"X": 40, "Y": 0, "Z": -5, "R": 3, "F": 1}),
+                Path.Command("G0", {"Z": clearance}),
+            ]
+        )
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def _holes(self, x0, x1, inside):
+        boundary = Part.makeBox(x1 - x0, 100, 200, FreeCAD.Vector(x0, -50, -100))
+        commands = PathDressupBoundary.PathBoundary(self.op, boundary, inside).execute()
+        return [cmd.x for cmd in commands.Commands if cmd.Name == "G81"]
+
+    def test00_holes_inside(self):
+        """Only the holes inside the boundary are drilled."""
+        self.assertEqual(self._holes(-10, 50, True), [0, 20, 40])
+        self.assertEqual(self._holes(30, 50, True), [40])
+        self.assertEqual(self._holes(10, 50, True), [20, 40])
+
+    def test01_holes_outside(self):
+        """Only the holes outside an excluding boundary are drilled."""
+        self.assertEqual(self._holes(15, 25, False), [0, 40])
+        self.assertEqual(self._holes(-10, 10, False), [20, 40])
