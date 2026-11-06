@@ -12,6 +12,7 @@ SET(Test_SRCS
     Document.py
     GuiDocument.py
     TestTextDocumentOpenGui.py
+    TestTextDocumentFontNameGui.py
     TestInactiveDocumentUnitsGui.py
     Metadata.py
     StringHasher.py
@@ -72,6 +73,7 @@ SET(Test_SRCS
     TestPythonEditorExecuteGui.py
     TestPreferenceDefaultsGui.py
     TestParameterEditorFloatGui.py
+    TestEditorFontPreferenceGui.py
     TestActivateViewGui.py
     TestRecomputeAllGui.py
     TestPropertyGroupIndicatorGui.py
