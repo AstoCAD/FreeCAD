@@ -945,7 +945,7 @@ void CenterLine::Restore(Base::XMLReader &reader)
     reader.readElement("Type");
     m_type = reader.getAttribute<Type>("value");
     reader.readElement("Flip");
-    m_flip2Line = reader.getAttribute<bool>("value") == 0;
+    m_flip2Line = reader.getAttribute<bool>("value");
 
     reader.readElement("Faces");
     int count = reader.getAttribute<long>("FaceCount");
