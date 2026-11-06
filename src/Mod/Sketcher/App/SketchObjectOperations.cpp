@@ -1741,6 +1741,16 @@ int SketchObject::addSymmetric(
                 GeoElementId rep = constr->getElement(0);
                 rep.GeoId = firstIt->second;
                 constNew->setElement(0, rep);
+                if (constr->Type == Sketcher::Angle) {
+                    // The angle of a line to the horizontal axis is not kept by the symmetry (the
+                    // span of an arc is): take it from the mirrored line.
+                    if (const auto* line = dynamic_cast<const Part::GeomLineSegment*>(
+                            getGeometry(firstIt->second)
+                        )) {
+                        Base::Vector3d dir = line->getEndPoint() - line->getStartPoint();
+                        constNew->setValue(std::atan2(dir.y, dir.x));
+                    }
+                }
                 newconstrVals.push_back(constNew);
 
                 continue;
