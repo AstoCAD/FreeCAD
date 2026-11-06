@@ -1260,6 +1260,25 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.get("alias2"), 124)
         self.assertEqual(sheet.getContents("B2"), "=alias2")
 
+    def testRenameAndMovePropertyReferencedBelowIt(self):
+        """Cells referring below a renamed or moved dynamic property follow it"""
+        varset = self.doc.addObject("App::VarSet", "VarSet")
+        varset.addProperty("App::PropertyPlacement", "Pos")
+        varset.Pos = FreeCAD.Placement(FreeCAD.Vector(1, 2, 3), FreeCAD.Rotation())
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "=VarSet.Pos.Base.y")
+        sheet.set("A2", "=VarSet.Pos")
+        self.doc.recompute()
+        varset.renameProperty("Pos", "NewPos")
+        self.assertEqual(sheet.getContents("A1"), "=VarSet.NewPos.Base.y")
+        self.assertEqual(sheet.getContents("A2"), "=VarSet.NewPos")
+        other = self.doc.addObject("App::VarSet", "VarSet2")
+        varset.moveProperty("NewPos", other)
+        self.assertEqual(sheet.getContents("A1"), "=VarSet2.NewPos.Base.y")
+        self.assertEqual(sheet.getContents("A2"), "=VarSet2.NewPos")
+        self.doc.recompute()
+        self.assertEqual(sheet.A1, FreeCAD.Units.Quantity("2 mm"))
+
     def testRenameAlias2(self):
         """Test renaming of alias1 to alias2 in a spreadsheet, when referenced from another object"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
