@@ -62,7 +62,7 @@ else:
 hassetcolor = []
 alreadyhidden = []
 original_root_objects = []
-# Objects whose shape was copied into a non-parametric feature: they stay
+# Objects whose geometry was copied into a non-parametric feature: they stay
 # orphaned root objects in the document but must remain hidden.
 consumed_objects = []
 
@@ -479,31 +479,36 @@ def p_minkowski_action(p):
 def p_resize_action(p):
     '''
     resize_action : resize LPAREN keywordargument_list RPAREN OBRACE block_list EBRACE '''
-    new_size = p[3]['newsize']
-    auto     = p[3]['auto']
-    p[6][0].recompute()
-    if p[6][0].Shape.isNull():
+    new_size = [float(s) for s in p[3]['newsize']]
+    auto     = [a == '1' for a in p[3]['auto']]
+    # Like OpenSCAD, resize the union of all children, sized by its bounding box
+    part = fuse(p[6], "Resize Union")
+    part.recompute()
+    if part.Shape.isNull():
         doc.recompute()
-    p[6][0].Shape.tessellate(0.05)
-    old_bbox = p[6][0].Shape.BoundBox
+    part.Shape.tessellate(0.05)
+    old_bbox = part.Shape.BoundBox
     old_size = [old_bbox.XLength, old_bbox.YLength, old_bbox.ZLength]
+
+    # Same rules as OpenSCAD: a zero size keeps that dimension unchanged
+    # (e.g. Z of 2D objects), unless auto is set for it: then it is scaled
+    # like the largest requested size.
+    scale = [1.0, 1.0, 1.0]
     for r in range(0,3):
-        if auto[r] == '1':
-            new_size[r] = new_size[0]
-        if new_size[r] == '0':
-            new_size[r] = str(old_size[r])
+        if new_size[r] > 0 and old_size[r] > 0:
+            scale[r] = new_size[r] / old_size[r]
+    autoscale = scale[new_size.index(max(new_size))]
+    for r in range(0,3):
+        if auto[r] and new_size[r] <= 0:
+            scale[r] = autoscale
 
     # Calculate a transform matrix from the current bounding box to the new one:
     transform_matrix = FreeCAD.Matrix()
-
-    scale = FreeCAD.Vector(float(new_size[0])/old_size[0],
-                           float(new_size[1])/old_size[1],
-                           float(new_size[2])/old_size[2])
-
-    transform_matrix.scale(scale)
+    transform_matrix.scale(FreeCAD.Vector(*scale))
 
     new_part=doc.addObject("Part::FeaturePython",'Matrix Deformation')
-    new_part.Shape = p[6][0].Shape.transformGeometry(transform_matrix)
+    new_part.Shape = part.Shape.transformGeometry(transform_matrix)
+    consumed_objects.append(part)
     if gui:
         if FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/OpenSCAD").\
             GetBool('useViewProviderTree'):
@@ -511,7 +516,7 @@ def p_resize_action(p):
             ViewProviderTree(new_part.ViewObject)
         else:
             new_part.ViewObject.Proxy = 0
-        p[6][0].ViewObject.hide()
+        part.ViewObject.hide()
     p[0] = [new_part]
 
 
@@ -908,6 +913,7 @@ def process_mesh_file(fname,ext):
         if solid.Volume < 0:
             solid.complement()
         obj.Shape = solid
+        consumed_objects.append(mesh1)
     else: #mesh1 is None
         FreeCAD.Console.PrintError('Mesh not imported %s.%s %s\n' % \
                 (objname,ext,filename))
