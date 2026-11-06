@@ -488,7 +488,7 @@ def _get_triangle_sets_from_triangle(
     # Get the materials and associated triangles.
     material_map: dict[collada.scene.MaterialNode, list] = {}
     tri: collada.triangleset.Triangle
-    for tri in prim:
+    for tri in prim.triangles():
         material_node: "collada.material.Material" = tri.material
         if material_node not in material_map:
             # Not yet in the dict, create a new entry.
@@ -506,7 +506,7 @@ def _get_triangle_sets_from_polylist(
     # Get the materials and associated triangles.
     material_map: dict[collada.scene.MaterialNode, list] = {}
     poly: collada.triangleset.Triangle
-    for poly in prim:
+    for poly in prim.polygons():
         material_node: "collada.material.Material" = poly.material
         if material_node not in material_map:
             # Not yet in the dict, create a new entry.
