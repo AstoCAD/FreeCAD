@@ -631,7 +631,7 @@ class Shaft:
                 b = np.array([coefficientsF[ax][0], coefficientsM[ax][0]])
                 try:
                     solution = np.linalg.solve(A, b)  # A * solution = b
-                except np.linalg.linalg.LinAlgError as e:
+                except np.linalg.LinAlgError as e:
                     FreeCAD.Console.PrintMessage(str(e))
                     FreeCAD.Console.PrintMessage(". No solution possible.\n")
                     self.parent.updateButtons(ax, False)
