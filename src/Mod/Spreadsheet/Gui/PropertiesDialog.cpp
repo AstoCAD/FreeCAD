@@ -155,6 +155,10 @@ PropertiesDialog::PropertiesDialog(Sheet* _sheet, const std::vector<Range>& _ran
     }
 
     ui->displayUnit->setText(QString::fromStdString(displayUnit.stringRep));
+    if (!cell->getDecimals(orgDecimals)) {
+        orgDecimals = -1;
+    }
+    ui->decimals->setValue(orgDecimals);
 
     ui->alias->setText(QString::fromStdString(alias));
 
@@ -451,6 +455,16 @@ void PropertiesDialog::apply()
                     "setDisplayUnit('%s', '%s')",
                     i->rangeString().c_str(),
                     escapedstr.c_str()
+                );
+                changes = true;
+            }
+            if (ui->decimals->value() != orgDecimals) {
+                const int decimals = ui->decimals->value();
+                Gui::cmdAppObjectArgs(
+                    sheet,
+                    "setDecimals('%s', %s)",
+                    i->rangeString().c_str(),
+                    decimals < 0 ? std::string("None") : std::to_string(decimals)
                 );
                 changes = true;
             }

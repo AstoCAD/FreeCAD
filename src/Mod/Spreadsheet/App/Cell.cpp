@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 
+#include <algorithm>
 #include <QLocale>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/tokenizer.hpp>
@@ -82,6 +83,7 @@ const unsigned int Cell::DISPLAY_UNIT_SET     = 0x40;
 const unsigned int Cell::COMPUTED_UNIT_SET    = 0x80;
 const unsigned int Cell::ALIAS_SET            = 0x100;
 const unsigned int Cell::SPANS_SET            = 0x200;
+const unsigned int Cell::DECIMALS_SET         = 0x400;
 const unsigned int Cell::MARK_SET             = 0x40000000;
 const unsigned int Cell::EXCEPTION_SET        = 0x20000000;
 const unsigned int Cell::PARSE_EXCEPTION_SET  = 0x80000000;
@@ -120,6 +122,7 @@ Cell::Cell(const CellAddress& _address, PropertySheet* _owner)
     , computedUnit()
     , rowSpan(1)
     , colSpan(1)
+    , decimals(-1)
     , anchor()
 {
     assert(address.isValid());
@@ -138,6 +141,7 @@ Cell::Cell(PropertySheet* _owner, const Cell& other)
     , computedUnit(other.computedUnit)
     , rowSpan(other.rowSpan)
     , colSpan(other.colSpan)
+    , decimals(other.decimals)
 {
     setUsed(MARK_SET, false);
     setAlias(other.alias);
@@ -168,6 +172,7 @@ Cell& Cell::operator=(const Cell& rhs)
         clearForeground();
     }
     setDisplayUnit(rhs.displayUnit.stringRep);
+    setDecimals(rhs.isUsed(DECIMALS_SET) ? rhs.decimals : -1);
     setComputedUnit(rhs.computedUnit);
     setAlias(rhs.alias);
     setSpans(rhs.rowSpan, rhs.colSpan);
@@ -243,7 +248,7 @@ const App::Expression* Cell::getExpression(bool withFormat) const
     if (withFormat && expression) {
         if ((used
              & (ALIGNMENT_SET | STYLE_SET | FOREGROUND_COLOR_SET | BACKGROUND_COLOR_SET
-                | DISPLAY_UNIT_SET | ALIAS_SET | SPANS_SET))) {
+                | DISPLAY_UNIT_SET | DECIMALS_SET | ALIAS_SET | SPANS_SET))) {
             std::ostringstream ss;
             save(ss, "", true);
             expression->comment = ss.str();
@@ -663,6 +668,42 @@ bool Cell::getDisplayUnit(DisplayUnit& unit) const
     return isUsed(DISPLAY_UNIT_SET);
 }
 
+/**
+ * Set the number of decimals shown for numbers in the cell, overriding the
+ * decimals of the unit preferences. A negative value clears it.
+ *
+ */
+
+void Cell::setDecimals(int newDecimals)
+{
+    if (newDecimals > 15) {
+        throw Base::ValueError("The number of decimals must be at most 15");
+    }
+    if (newDecimals < 0) {
+        newDecimals = -1;
+    }
+    if (newDecimals != decimals) {
+        PropertySheet::AtomicPropertyChange signaller(*owner);
+
+        decimals = newDecimals;
+        setUsed(DECIMALS_SET, decimals >= 0);
+        setDirty();
+
+        signaller.tryInvoke();
+    }
+}
+
+bool Cell::getDecimals(int& value) const
+{
+    value = decimals;
+    return isUsed(DECIMALS_SET);
+}
+
+int Cell::getDisplayDecimals() const
+{
+    return isUsed(DECIMALS_SET) ? decimals : Base::UnitsApi::getDecimals();
+}
+
 void Cell::setAlias(const std::string& n)
 {
     if (alias != n) {
@@ -887,6 +928,10 @@ void Cell::restore(Base::XMLReader& reader, bool checkAlias)
     const char* colSpan = reader.hasAttribute("colSpan")
         ? reader.getAttribute<const char*>("colSpan")
         : nullptr;
+    // Optional; versions that do not know it ignore the attribute.
+    const char* decimalsAttr = reader.hasAttribute("decimals")
+        ? reader.getAttribute<const char*>("decimals")
+        : nullptr;
 
     // Don't trigger multiple updates below; wait until everything is loaded by calling unfreeze()
     // below.
@@ -934,6 +979,9 @@ void Cell::restore(Base::XMLReader& reader, bool checkAlias)
     }
     if (displayUnit) {
         setDisplayUnit(displayUnit);
+    }
+    if (decimalsAttr) {
+        setDecimals(std::min(atoi(decimalsAttr), 15));
     }
     if (alias && (!checkAlias || !owner->revAliasProp.count(alias))) {
         setAlias(alias);
@@ -993,6 +1041,10 @@ void Cell::save(std::ostream& os, const char* indent, bool noContent) const
 
     if (isUsed(DISPLAY_UNIT_SET)) {
         os << "displayUnit=\"" << App::Property::encodeAttribute(displayUnit.stringRep) << "\" ";
+    }
+
+    if (isUsed(DECIMALS_SET)) {
+        os << "decimals=\"" << decimals << "\" ";
     }
 
     if (isUsed(ALIAS_SET)) {
@@ -1244,11 +1296,10 @@ std::string Cell::getFormattedQuantity()
         bool hasDisplayUnit = getDisplayUnit(du);
         double duScale = du.scaler;
         const Base::Unit& computedUnit = floatProp->getUnit();
-        qFormatted = QLocale().toString(rawVal, 'f', Base::UnitsApi::getDecimals());
+        qFormatted = QLocale().toString(rawVal, 'f', getDisplayDecimals());
         if (hasDisplayUnit) {
             if (computedUnit == Unit::One || computedUnit == du.unit) {
-                QString number
-                    = QLocale().toString(rawVal / duScale, 'f', Base::UnitsApi::getDecimals());
+                QString number = QLocale().toString(rawVal / duScale, 'f', getDisplayDecimals());
                 qFormatted = number + QString::fromStdString(" " + displayUnit.stringRep);
             }
         }
@@ -1258,9 +1309,9 @@ std::string Cell::getFormattedQuantity()
         DisplayUnit du;
         bool hasDisplayUnit = getDisplayUnit(du);
         double duScale = du.scaler;
-        qFormatted = QLocale().toString(rawVal, 'f', Base::UnitsApi::getDecimals());
+        qFormatted = QLocale().toString(rawVal, 'f', getDisplayDecimals());
         if (hasDisplayUnit) {
-            QString number = QLocale().toString(rawVal / duScale, 'f', Base::UnitsApi::getDecimals());
+            QString number = QLocale().toString(rawVal / duScale, 'f', getDisplayDecimals());
             qFormatted = number + QString::fromStdString(" " + displayUnit.stringRep);
         }
     }
@@ -1270,9 +1321,10 @@ std::string Cell::getFormattedQuantity()
         bool hasDisplayUnit = getDisplayUnit(du);
         double duScale = du.scaler;
         int iRawVal = std::round(rawVal);
-        qFormatted = QLocale().toString(iRawVal);
+        qFormatted = isUsed(DECIMALS_SET) ? QLocale().toString(rawVal, 'f', decimals)
+                                          : QLocale().toString(iRawVal);
         if (hasDisplayUnit) {
-            QString number = QLocale().toString(rawVal / duScale, 'f', Base::UnitsApi::getDecimals());
+            QString number = QLocale().toString(rawVal / duScale, 'f', getDisplayDecimals());
             qFormatted = number + QString::fromStdString(" " + displayUnit.stringRep);
         }
     }

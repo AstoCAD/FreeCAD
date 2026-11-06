@@ -80,6 +80,7 @@ private:
     int orgAlignment;
     std::set<std::string> orgStyle;
     Spreadsheet::DisplayUnit orgDisplayUnit;
+    int orgDecimals {-1};
     std::string orgAlias;
 
     bool displayUnitOk;

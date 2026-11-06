@@ -735,6 +735,63 @@ PyObject* SheetPy::getCellFromAlias(PyObject* args)
     }
 }
 
+PyObject* SheetPy::setDecimals(PyObject* args)
+{
+    const char* cell;
+    PyObject* value;
+
+    if (!PyArg_ParseTuple(args, "sO:setDecimals", &cell, &value)) {
+        return nullptr;
+    }
+
+    int decimals = -1;
+    if (value != Py_None) {
+        if (!PyLong_Check(value)) {
+            PyErr_SetString(PyExc_TypeError, "Decimals must be an integer or None");
+            return nullptr;
+        }
+        long n = PyLong_AsLong(value);
+        if (n < 0 || n > 15) {
+            PyErr_SetString(PyExc_ValueError, "Decimals must be between 0 and 15");
+            return nullptr;
+        }
+        decimals = static_cast<int>(n);
+    }
+
+    try {
+        getSheetPtr()->setDecimals(Range(cell, true), decimals);
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+
+    Py_Return;
+}
+
+PyObject* SheetPy::getDecimals(PyObject* args)
+{
+    const char* strAddress;
+
+    if (!PyArg_ParseTuple(args, "s:getDecimals", &strAddress)) {
+        return nullptr;
+    }
+
+    try {
+        CellAddress address = stringToAddress(strAddress);
+        int decimals = 0;
+        const Cell* cell = getSheetPtr()->getCell(address);
+        if (cell && cell->getDecimals(decimals)) {
+            return Py::new_reference_to(Py::Long(decimals));
+        }
+        Py_Return;
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+}
+
 PyObject* SheetPy::getDisplayUnit(PyObject* args)
 {
     const char* strAddress;

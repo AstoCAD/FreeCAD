@@ -1958,6 +1958,17 @@ void Sheet::setDisplayUnit(App::Range range, const std::string& unit)
 }
 
 /**
+ * @brief Set the number of decimals shown for numbers in the cells of \a range.
+ * @param range Range of cells
+ * @param decimals 0 to 15, or a negative value to use the unit preferences again
+ */
+
+void Sheet::setDecimals(App::Range range, int decimals)
+{
+    cells.setDecimals(range, decimals);
+}
+
+/**
  * @brief Set computed unit for cell at address \a address to \a unit.
  * @param address Address of cell
  * @param unit New unit.
