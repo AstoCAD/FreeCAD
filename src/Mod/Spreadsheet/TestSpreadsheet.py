@@ -1963,6 +1963,16 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.getForeground("B1"), (1.0, 0.0, 0.0, 1.0))
         self.assertEqual(sheet.getBackground("B1"), (0.0, 0.0, 1.0, 1.0))
 
+    def testHugeColorComponentRaisesOverflowError(self):
+        """An int color component that does not fit into a C long raised SystemError
+        ("returned a result with an exception set") after setting the cell color"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        for setter in (sheet.setForeground, sheet.setBackground):
+            with self.assertRaises(OverflowError):
+                setter("A1", (2**70, 0, 0))
+        self.assertIsNone(sheet.getForeground("A1"))
+        self.assertIsNone(sheet.getBackground("A1"))
+
     def testSetBlackForegroundAndWhiteBackground(self):
         """Issue #24481: black text and white background must be settable
         (the default colors depend on the theme), also on a range and after
