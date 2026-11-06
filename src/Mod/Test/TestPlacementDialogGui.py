@@ -44,3 +44,36 @@ class TestPlacementDialogGui(unittest.TestCase):
         self.assertIsNotNone(self.doc.getObject("Other"))
         self.doc.commitTransaction()
         self.assertIn("Other command", self.doc.UndoNames)
+
+
+@unittest.skipIf(not App.GuiUp, "GUI tests require FreeCAD GUI mode")
+class TestPlacementDialogApplyGui(unittest.TestCase):
+    """For the "Placement" property the dialog applies a recorded Python command."""
+
+    def setUp(self):
+        self.doc = App.newDocument("PlacementDialogApply")
+        self.obj = self.doc.addObject("App::FeaturePython", "Feature")
+        self.obj.addProperty("App::PropertyPlacement", "Placement")
+        self.doc.recompute()
+        self.dialog = Gui.TaskPlacement()
+        self.dialog.setSelection([self.obj])
+        self.dialog.open()
+        Gui.updateGui()
+
+    def tearDown(self):
+        self.dialog.form = None
+        App.closeDocument(self.doc.Name)
+
+    def testAcceptKeepsAllDigits(self):
+        # the command held only 6 significant digits: 12345.67 became 12345.7
+        target = App.Placement(
+            App.Vector(12345.67, -98765.43, 1000.25), App.Rotation(App.Vector(0, 0, 1), 30)
+        )
+        self.dialog.setPlacement(target)
+        Gui.updateGui()
+        self.assertTrue(self.dialog.accept())
+        result = self.obj.Placement
+        self.assertAlmostEqual(result.Base.x, 12345.67, places=6)
+        self.assertAlmostEqual(result.Base.y, -98765.43, places=6)
+        self.assertAlmostEqual(result.Base.z, 1000.25, places=6)
+        self.assertAlmostEqual(result.Rotation.Angle, target.Rotation.Angle, places=6)
