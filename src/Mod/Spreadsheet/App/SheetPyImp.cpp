@@ -30,6 +30,7 @@
 #include <Base/Exception.h>
 
 #include "Sheet.h"
+#include "Utils.h"
 // inclusion of the generated files (generated out of SheetPy.xml)
 // clang-format off
 #include "SheetPy.h"
@@ -1275,6 +1276,54 @@ PyObject* SheetPy::getRowHeight(PyObject* args)
         PyErr_SetString(PyExc_ValueError, e.what());
         return nullptr;
     }
+}
+
+PyObject* SheetPy::getColumnWidths(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    Py::Dict widths;
+    for (const auto& [column, width] : getSheetPtr()->getColumnWidths()) {
+        widths.setItem(Py::String(columnName(column)), Py::Long(width));
+    }
+    return Py::new_reference_to(widths);
+}
+
+PyObject* SheetPy::getRowHeights(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    Py::Dict heights;
+    for (const auto& [row, height] : getSheetPtr()->getRowHeights()) {
+        heights.setItem(Py::String(rowName(row)), Py::Long(height));
+    }
+    return Py::new_reference_to(heights);
+}
+
+PyObject* SheetPy::getMergedCells(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    Sheet* sheet = getSheetPtr();
+    Py::List merged;
+    for (const auto& anchor : sheet->getCells()->getUsedCells()) {
+        int rows = 1;
+        int cols = 1;
+        sheet->getSpans(anchor, rows, cols);
+        if (rows > 1 || cols > 1) {
+            const Range range(
+                anchor.row(),
+                anchor.col(),
+                anchor.row() + rows - 1,
+                anchor.col() + cols - 1
+            );
+            merged.append(Py::String(range.rangeString()));
+        }
+    }
+    return Py::new_reference_to(merged);
 }
 
 PyObject* SheetPy::touchCells(PyObject* args)
