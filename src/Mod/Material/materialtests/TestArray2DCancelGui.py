@@ -188,12 +188,12 @@ def assert_baseline(data):
                     "Bundled baseline quantity differs at %s,%s" % (row, column))
 
 
-def edit_density(dialog, row=0, text="11 kg/m^3", expected_rows=4, commit=True):
+def edit_density(dialog, row=0, text="11 kg/m^3", expected_rows=4, commit=True, column=1):
     table = one(dialog, QtWidgets.QTableView, "tableView")
     model = table.model()
     changed = []
     model.dataChanged.connect(lambda *args: changed.append(True))
-    index = model.index(row, 1)
+    index = model.index(row, column)
     require(dialog.isVisible() and table.isVisibleTo(dialog),
             "Actual array child/table is not visible")
     dialog.raise_()
@@ -614,6 +614,15 @@ class TestArray2DCancelGui(unittest.TestCase):
         self.assertEqual(first["after_edit"], expected)
         self.assertEqual(reopened, expected)
         self.assertTrue(dirty)
+
+    def test_negative_value_can_be_typed(self):
+        """The quantity editor accepts zero and negative values (e.g. a temperature)"""
+        first, reopened, dirty = self._exercise(
+            lambda dialog: edit_density(dialog, text="-20 C", column=0), accept=True)
+        expected = json.loads(json.dumps(first["before"]))
+        expected["cells"][0][0] = quantity(App.Units.Quantity("-20 C"))
+        self.assertEqual(first["after_edit"], expected)
+        self.assertEqual(reopened, expected)
 
     def test_committed_cell_edit_cancel_preserves_material(self):
         first, reopened, dirty = self._exercise(edit_density)
