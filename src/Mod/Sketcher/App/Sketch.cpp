@@ -290,230 +290,211 @@ int Sketch::setUpSketch(
     // these geometries are blocked, frozen and sent as fixed parameters to the solver
     std::vector<bool> onlyBlockedGeometry(intGeoList.size(), false);
 
+    excludedLayerGeometry = excludedGeometry;
+    lockedLayerGeometry = lockedGeometry;
 
-    int restartCount = 0;
-    while (true) {
-        clear();
-        excludedLayerGeometry = excludedGeometry;
-        lockedLayerGeometry = lockedGeometry;
+    // these constraints are unenforceable due to a Blocked constraint
+    std::vector<bool> unenforceableConstraints(ConstraintList.size(), false);
 
-        // these constraints are unenforceable due to a Blocked constraint
-        std::vector<bool> unenforceableConstraints(ConstraintList.size(), false);
+    /* This implements the old block constraint. I have decided not to remove it at this time while
+     * the new is tested, just in case the change needs to be reverted */
+    /*if(!intGeoList.empty())
+        getBlockedGeometry(blockedGeometry, unenforceableConstraints, ConstraintList);*/
 
-        /* This implements the old block constraint. I have decided not to remove it at this time while
-         * the new is tested, just in case the change needs to be reverted */
-        /*if(!intGeoList.empty())
-            getBlockedGeometry(blockedGeometry, unenforceableConstraints, ConstraintList);*/
+    // Pre-analysis of blocked geometry (new block constraint) to fix geometry only affected by a
+    // block constraint (see comment in Sketch.h)
+    std::vector<int> blockedGeoIds;
+    bool doesBlockAffectOtherConstraints
+        = analyseBlockedGeometry(intGeoList, ConstraintList, onlyBlockedGeometry, blockedGeoIds);
 
-        // Pre-analysis of blocked geometry (new block constraint) to fix geometry only affected by a
-        // block constraint (see comment in Sketch.h)
-        std::vector<int> blockedGeoIds;
-        bool doesBlockAffectOtherConstraints
-            = analyseBlockedGeometry(intGeoList, ConstraintList, onlyBlockedGeometry, blockedGeoIds);
-
-        for (int id : lockedGeometry) {
-            if (id >= 0 && id < static_cast<int>(onlyBlockedGeometry.size())) {
-                onlyBlockedGeometry[id] = true;
-            }
+    for (int id : lockedGeometry) {
+        if (id >= 0 && id < static_cast<int>(onlyBlockedGeometry.size())) {
+            onlyBlockedGeometry[id] = true;
         }
+    }
 
-        // Remove from blockedGeoIds if they are already in onlyBlockedGeometry (e.g. from a
-        // previous restart)
-        auto newEnd = std::remove_if(blockedGeoIds.begin(), blockedGeoIds.end(), [&](int id) {
-            return excludedGeometry.contains(id)
-                || (id >= 0 && id < (int)onlyBlockedGeometry.size() && onlyBlockedGeometry[id]);
+    buildInternalAlignmentGeometryMap(ConstraintList);
+
+    // Blocked geometry that other constraints also act on is fixed as a whole as well, like
+    // geometry only affected by its Block constraint: fixing just the parameters chosen by the
+    // post-analysis below would leave its internal constraints (e.g. ArcRules) in the system,
+    // and these would lock the geometry connected to it (#19105).
+    // Geometry tied by InternalAlignment (an ellipse and its axes, a B-spline and its poles,
+    // ...) is not fixed: the blocked parameters of one may only be determined through the
+    // other, and fixing it would leave its InternalAlignment constraints to the unblocked
+    // internal geometry as excess equations. It is left to the post-analysis.
+    // This is decided before the geometry is added, so that the system is set up only once.
+    auto isInternallyAligned = [this](int geoId) {
+        if (internalAlignmentGeometryMap.contains(geoId)) {
+            return true;
+        }
+        return std::ranges::any_of(internalAlignmentGeometryMap, [geoId](const auto& p) {
+            return p.second == geoId;
         });
-        blockedGeoIds.erase(newEnd, blockedGeoIds.end());
-        if (blockedGeoIds.empty()) {
-            doesBlockAffectOtherConstraints = false;
+    };
+    for (int geoId : blockedGeoIds) {
+        if (!excludedGeometry.contains(geoId) && !isInternallyAligned(geoId)) {
+            onlyBlockedGeometry[geoId] = true;
         }
+    }
 
-    #ifdef DEBUG_BLOCK_CONSTRAINT
-        if (doesBlockAffectOtherConstraints) {
-            Base::Console().log(
-                "\n  Block interferes with other constraints: Post-analysis required"
-            );
-        }
+    // Remove from blockedGeoIds the geometry that is fixed as a whole
+    auto newEnd = std::remove_if(blockedGeoIds.begin(), blockedGeoIds.end(), [&](int id) {
+        return excludedGeometry.contains(id)
+            || (id >= 0 && id < (int)onlyBlockedGeometry.size() && onlyBlockedGeometry[id]);
+    });
+    blockedGeoIds.erase(newEnd, blockedGeoIds.end());
+    if (blockedGeoIds.empty()) {
+        doesBlockAffectOtherConstraints = false;
+    }
 
-        Base::Console().log("\nOnlyBlocked GeoIds:");
-        size_t i = 0;
-        bool found = false;
-        for (; i < onlyBlockedGeometry.size(); i++) {
-            if (onlyBlockedGeometry[i]) {
-                Base::Console().log("\n  GeoId={}", i);
-                found = true;
-            }
-        }
-        if (found) {
-            Base::Console().log("\n  None");
-        }
+#ifdef DEBUG_BLOCK_CONSTRAINT
+    if (doesBlockAffectOtherConstraints) {
+        Base::Console().log("\n  Block interferes with other constraints: Post-analysis required");
+    }
 
-        Base::Console().log("\nNotOnlyBlocked GeoIds:");
-        i = 0;
-        for (; i < blockedGeoIds.size(); i++) {
-            Base::Console().log("\n  GeoId={}", blockedGeoIds[i]);
+    Base::Console().log("\nOnlyBlocked GeoIds:");
+    size_t i = 0;
+    bool found = false;
+    for (; i < onlyBlockedGeometry.size(); i++) {
+        if (onlyBlockedGeometry[i]) {
+            Base::Console().log("\n  GeoId={}", i);
+            found = true;
         }
-        if (i == 0) {
-            Base::Console().log("\n  None");
-        }
-        Base::Console().log("\n");
+    }
+    if (found) {
+        Base::Console().log("\n  None");
+    }
+
+    Base::Console().log("\nNotOnlyBlocked GeoIds:");
+    i = 0;
+    for (; i < blockedGeoIds.size(); i++) {
+        Base::Console().log("\n  GeoId={}", blockedGeoIds[i]);
+    }
+    if (i == 0) {
+        Base::Console().log("\n  None");
+    }
+    Base::Console().log("\n");
 #endif  // DEBUG_BLOCK_CONSTRAINT
 
-        buildInternalAlignmentGeometryMap(ConstraintList);
-
-        addGeometry(intGeoList, onlyBlockedGeometry, inGroupGeoIds);
-        int extStart = Geoms.size();
-        for (size_t i = 0; i < extGeoList.size(); ++i) {
-            const int id = static_cast<int>(i) - extGeoCount;
-            if (excludedGeometry.contains(id)) {
-                GeoDef def;
-                def.geo = extGeoList[i]->clone();
-                Geoms.push_back(def);
-            }
-            else {
-                addGeometry(extGeoList[i], true);
-            }
+    addGeometry(intGeoList, onlyBlockedGeometry, inGroupGeoIds);
+    int extStart = Geoms.size();
+    for (size_t i = 0; i < extGeoList.size(); ++i) {
+        const int id = static_cast<int>(i) - extGeoCount;
+        if (excludedGeometry.contains(id)) {
+            GeoDef def;
+            def.geo = extGeoList[i]->clone();
+            Geoms.push_back(def);
         }
-        int extEnd = Geoms.size() - 1;
-        for (int i = extStart; i <= extEnd; i++) {
-            Geoms[i].external = true;
+        else {
+            addGeometry(extGeoList[i], true);
         }
+    }
+    int extEnd = Geoms.size() - 1;
+    for (int i = extStart; i <= extEnd; i++) {
+        Geoms[i].external = true;
+    }
 
-        // The Geoms list might be empty after an undo/redo
-        if (!Geoms.empty()) {
-            // Disable any constraint that act on geometries that are in a group.
-            for (size_t i = 0; i < ConstraintList.size(); ++i) {
-                const auto& c = ConstraintList[i];
+    // The Geoms list might be empty after an undo/redo
+    if (!Geoms.empty()) {
+        // Disable any constraint that act on geometries that are in a group.
+        for (size_t i = 0; i < ConstraintList.size(); ++i) {
+            const auto& c = ConstraintList[i];
 
-                // Group transforms operate on Part geometry and never add GCS equations.
-                if (c->Type == Group || c->Type == Text) {
-                    continue;
-                }
-                bool excluded = false;
-                for (int j = 0; c->hasElement(j); ++j) {
-                    excluded |= excludedGeometry.contains(c->getGeoId(j));
-                }
-                if (excluded) {
+            // Group transforms operate on Part geometry and never add GCS equations.
+            if (c->Type == Group || c->Type == Text) {
+                continue;
+            }
+            bool excluded = false;
+            for (int j = 0; c->hasElement(j); ++j) {
+                excluded |= excludedGeometry.contains(c->getGeoId(j));
+            }
+            if (excluded) {
+                unenforceableConstraints[i] = true;
+                continue;
+            }
+            // Existing constraints entirely on fixed geometry do not add equations.
+            bool touchesLocked = false;
+            bool allFixed = true;
+            for (int j = 0; c->hasElement(j); ++j) {
+                const int id = c->getGeoId(j);
+                touchesLocked |= lockedGeometry.contains(id);
+                allFixed &= id < 0 || lockedGeometry.contains(id);
+            }
+            if (touchesLocked && allFixed) {
+                unenforceableConstraints[i] = true;
+                continue;
+            }
+            for (int j = 0; c->hasElement(j); ++j) {
+                if (inGroupGeoIds.count(c->getGeoId(j))) {
                     unenforceableConstraints[i] = true;
-                    continue;
-                }
-                // Existing constraints entirely on fixed geometry do not add equations.
-                bool touchesLocked = false;
-                bool allFixed = true;
-                for (int j = 0; c->hasElement(j); ++j) {
-                    const int id = c->getGeoId(j);
-                    touchesLocked |= lockedGeometry.contains(id);
-                    allFixed &= id < 0 || lockedGeometry.contains(id);
-                }
-                if (touchesLocked && allFixed) {
-                    unenforceableConstraints[i] = true;
-                    continue;
-                }
-                for (int j = 0; c->hasElement(j); ++j) {
-                    if (inGroupGeoIds.count(c->getGeoId(j))) {
-                        unenforceableConstraints[i] = true;
-                        break;
-                    }
+                    break;
                 }
             }
-
-            addConstraints(ConstraintList, unenforceableConstraints);
         }
-        clearTemporaryConstraints();
-        GCSsys.declareUnknowns(Parameters);
-        GCSsys.declareDrivenParams(DrivenParameters);
-        GCSsys.initSolution(defaultSolverRedundant);
 
-        // Post-analysis
-        // Now that we have all the parameters information, we deal properly with the block constraints
-        // if necessary
-        if (doesBlockAffectOtherConstraints) {
+        addConstraints(ConstraintList, unenforceableConstraints);
+    }
+    clearTemporaryConstraints();
+    GCSsys.declareUnknowns(Parameters);
+    GCSsys.declareDrivenParams(DrivenParameters);
+    GCSsys.initSolution(defaultSolverRedundant);
 
-            std::vector<double*> params_to_block;
+    // Post-analysis
+    // Now that we have all the parameters information, we deal properly with the block constraints
+    // if necessary
+    if (doesBlockAffectOtherConstraints) {
 
-            bool unsatisfied_groups
-                = analyseBlockedConstraintDependentParameters(blockedGeoIds, params_to_block);
+        std::vector<double*> params_to_block;
 
-            // I am unsure if more than one QR iterations are needed with the current implementation.
-            //
-            // With previous implementations mostly one QR iteration was enough, but if block constraint
-            // is abused, more iterations were needed.
-            int index = 0;
-            while (unsatisfied_groups) {
-                // We tried hard not to arrive to an unsatisfied group, so we try harder
-                // This loop has the advantage that the user will notice increased effort to solve,
-                // so they may understand that they are abusing the block constraint, while guaranteeing
-                // that wrong behaviour of the block constraint is not undetected.
+        bool unsatisfied_groups
+            = analyseBlockedConstraintDependentParameters(blockedGeoIds, params_to_block);
 
-                // Another QR iteration
-                fixParametersAndDiagnose(params_to_block);
+        // I am unsure if more than one QR iterations are needed with the current implementation.
+        //
+        // With previous implementations mostly one QR iteration was enough, but if block constraint
+        // is abused, more iterations were needed.
+        int index = 0;
+        while (unsatisfied_groups) {
+            // We tried hard not to arrive to an unsatisfied group, so we try harder
+            // This loop has the advantage that the user will notice increased effort to solve,
+            // so they may understand that they are abusing the block constraint, while guaranteeing
+            // that wrong behaviour of the block constraint is not undetected.
 
-                unsatisfied_groups
-                    = analyseBlockedConstraintDependentParameters(blockedGeoIds, params_to_block);
-
-                if (debugMode == GCS::IterationLevel) {
-                    Base::Console().log("Sketcher::setUpSketch()-BlockConstraint-PostAnalysis:{}\n", index);
-                }
-                index++;
-            }
-
-            // 2. If something needs blocking, block-it
+            // Another QR iteration
             fixParametersAndDiagnose(params_to_block);
 
-            // DIAGNOSIS START: Check if geometries are fully blocked and trigger restart
-            if (!blockedGeoIds.empty() && restartCount < 2) {
-                bool restartNeeded = false;
-                // Geometry tied by InternalAlignment (an ellipse and its axes, a B-spline and its
-                // poles, ...) is not promoted: the blocked parameters of one may only be
-                // determined through the other, and fixing it would leave its InternalAlignment
-                // constraints to the unblocked internal geometry as excess equations.
-                auto isInternallyAligned = [this](int geoId) {
-                    if (internalAlignmentGeometryMap.contains(geoId)) {
-                        return true;
-                    }
-                    return std::ranges::any_of(internalAlignmentGeometryMap, [geoId](const auto& p) {
-                        return p.second == geoId;
-                    });
-                };
-                for (int geoId : blockedGeoIds) {
-                    if (!onlyBlockedGeometry[geoId] && !isInternallyAligned(geoId)) {
-                        // If a geometry was in blockedGeoIds, and the heuristic successfully
-                        // finished, it implies the Block constraint is satisfied by fixing
-                        // parameters. We promote it to 'fixed' to prevent internal constraints
-                        // (e.g. ArcRules) from locking the system in the solver.
-                        onlyBlockedGeometry[geoId] = true;
-                        restartNeeded = true;
-                    }
-                }
-                if (restartNeeded) {
-                    restartCount++;
-                    continue;  // Restart the loop
-                }
-            }
-            // DIAGNOSIS END
+            unsatisfied_groups
+                = analyseBlockedConstraintDependentParameters(blockedGeoIds, params_to_block);
 
-    #ifdef DEBUG_BLOCK_CONSTRAINT
-            if (params_to_block.size() > 0) {
-                std::vector<std::vector<double*>> groups;
-                GCSsys.getDependentParamsGroups(groups);
-
-                // Debug code block
-                for (size_t i = 0; i < groups.size(); i++) {
-                    Base::Console().log("\nDepParams: Group {}:", i);
-                    for (size_t j = 0; j < groups[i].size(); j++) {
-                        Base::Console().log(
-                            "\n  Param={:x} ,GeoId={}, GeoPos={}",
-                            param2geoelement.find(*std::next(groups[i].begin(), j))->first,
-                            param2geoelement.find(*std::next(groups[i].begin(), j))->second.first,
-                            param2geoelement.find(*std::next(groups[i].begin(), j))->second.second
-                        );
-                    }
-                }
+            if (debugMode == GCS::IterationLevel) {
+                Base::Console().log("Sketcher::setUpSketch()-BlockConstraint-PostAnalysis:{}\n", index);
             }
-    #endif  // DEBUG_BLOCK_CONSTRAINT
+            index++;
         }
 
-        break;  // Finished setup
+        // 2. If something needs blocking, block-it
+        fixParametersAndDiagnose(params_to_block);
+
+#ifdef DEBUG_BLOCK_CONSTRAINT
+        if (params_to_block.size() > 0) {
+            std::vector<std::vector<double*>> groups;
+            GCSsys.getDependentParamsGroups(groups);
+
+            // Debug code block
+            for (size_t i = 0; i < groups.size(); i++) {
+                Base::Console().log("\nDepParams: Group {}:", i);
+                for (size_t j = 0; j < groups[i].size(); j++) {
+                    Base::Console().log(
+                        "\n  Param={:x} ,GeoId={}, GeoPos={}",
+                        param2geoelement.find(*std::next(groups[i].begin(), j))->first,
+                        param2geoelement.find(*std::next(groups[i].begin(), j))->second.first,
+                        param2geoelement.find(*std::next(groups[i].begin(), j))->second.second
+                    );
+                }
+            }
+        }
+#endif  // DEBUG_BLOCK_CONSTRAINT
     }
 
     // Now we set the Sketch status with the latest solver information

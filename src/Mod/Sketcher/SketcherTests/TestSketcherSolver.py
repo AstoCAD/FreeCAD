@@ -1774,6 +1774,54 @@ class TestSketcherSolver(unittest.TestCase):
         sketch.toggleConstruction(0)
         self.assertTrue(sketch.getConstruction(0))
 
+    def testBlockedGeometryWithOtherConstraintsIsFixed(self):
+        """Blocked geometry that other constraints act on is fixed as a whole: the
+        geometry connected to it keeps its freedom (#19105). Internally aligned
+        blocked geometry (an ellipse and its axes) is still fully blocked."""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchBlocked")
+        arc = sketch.addGeometry(
+            Part.ArcOfCircle(Part.Circle(vec(0, 0), xy_normal, 10), 0, math.pi / 2)
+        )
+        line = sketch.addGeometry(Part.LineSegment(vec(0, 10), vec(-20, 10)))
+        sketch.addConstraint(
+            [Sketcher.Constraint("Block", arc), Sketcher.Constraint("Tangent", arc, 2, line, 1)]
+        )
+        self.assertSuccessfulSolve(sketch)
+        self.assertEqual(sketch.RedundantConstraints, [])
+        self.assertEqual(sketch.DoF, 1)  # the length of the line
+        sketch.moveGeometry(line, 2, vec(-30, 10), False)
+        self.assertSuccessfulSolve(sketch)
+        self.assertVectorAlmostEqual(sketch.Geometry[line].EndPoint, vec(-30, 10))
+        self.assertVectorAlmostEqual(sketch.Geometry[line].StartPoint, vec(0, 10))
+        self.assertVectorAlmostEqual(sketch.Geometry[arc].StartPoint, vec(10, 0))
+        self.assertVectorAlmostEqual(sketch.Geometry[arc].EndPoint, vec(0, 10))
+
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchBlockedMixed")
+        l0 = sketch.addGeometry(Part.LineSegment(vec(0, 0), vec(10, 0)))
+        l1 = sketch.addGeometry(Part.LineSegment(vec(10, 0), vec(10, 10)))
+        ellipse = sketch.addGeometry(Part.Ellipse(vec(50, 0), vec(40, 5), vec(40, 0)))
+        sketch.solve()
+        sketch.exposeInternalGeometry(ellipse)
+        sketch.addConstraint(
+            [
+                Sketcher.Constraint("Block", l0),
+                Sketcher.Constraint("Coincident", l0, 2, l1, 1),
+                Sketcher.Constraint("Perpendicular", l0, l1),
+                Sketcher.Constraint("Block", ellipse),
+            ]
+        )
+        self.assertSuccessfulSolve(sketch)
+        self.assertEqual(sketch.RedundantConstraints, [])
+        self.assertEqual(sketch.DoF, 1)  # the length of l1
+        sketch.moveGeometry(l1, 2, vec(10, 25), False)
+        self.assertSuccessfulSolve(sketch)
+        self.assertVectorAlmostEqual(sketch.Geometry[l1].EndPoint, vec(10, 25))
+        self.assertVectorAlmostEqual(sketch.Geometry[l0].StartPoint, vec(0, 0))
+        self.assertVectorAlmostEqual(sketch.Geometry[l0].EndPoint, vec(10, 0))
+        self.assertVectorAlmostEqual(sketch.Geometry[ellipse].Location, vec(40, 0))
+        self.assertAlmostEqual(sketch.Geometry[ellipse].MajorRadius, 10)
+        self.assertAlmostEqual(sketch.Geometry[ellipse].MinorRadius, 5)
+
     def testBlockOnAxisDoesNotCrash(self):
         """A Block constraint on an axis has no geometry state to set or clear"""
         sketch = self.Doc.addObject("Sketcher::SketchObject", "SketchBlockAxis")
