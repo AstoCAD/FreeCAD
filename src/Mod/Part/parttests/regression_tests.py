@@ -424,6 +424,29 @@ class RegressionTests(unittest.TestCase):
                 with self.assertRaises(Part.OCCError):
                     cls([poles[0]] if cls is Part.BezierCurve else [poles2d[0]])
 
+    def test_fillet_chamfer_invalid_edge_reports_the_edge(self):
+        "Part Fillet/Chamfer with an edge the base does not have failed with a raw OCC error"
+        box = self.Doc.addObject("Part::Box", "Box")
+        line = self.Doc.addObject("Part::Line", "Line")
+        for type_name in ("Part::Fillet", "Part::Chamfer"):
+            with self.subTest(feature=type_name):
+                feature = self.Doc.addObject(type_name, type_name.replace("Part::", ""))
+                feature.Base = box
+                feature.Edges = [(99, 1.0, 1.0)]
+                self.Doc.recompute()
+                self.assertFalse(feature.isValid())
+                self.assertIn("Invalid edge link: Edge99", feature.getStatusString())
+                feature.Edges = [(1, 1.0, 1.0)]
+                self.Doc.recompute()
+                self.assertTrue(feature.isValid())
+                self.assertTrue(feature.Shape.isValid())
+        chamfer = self.Doc.getObject("Chamfer")
+        chamfer.Base = line
+        chamfer.Edges = [(1, 0.1, 0.1)]
+        self.Doc.recompute()
+        self.assertFalse(chamfer.isValid())
+        self.assertIn("Edge has no adjacent face: Edge1", chamfer.getStatusString())
+
     def tearDown(self):
         """Clean up our test, optionally preserving the test document"""
         # This flag allows doing something like this:
