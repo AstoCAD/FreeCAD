@@ -47,9 +47,9 @@ try:
 
     Path.Log.info("Successfully loaded C++ surface generator module.")
 except ImportError as e:
-    Path.Log.critical("Failed to load the critical C++ surface generator module!")
-    Path.Log.critical("The 3D Surface operation will be non-functional.")
-    Path.Log.critical(f"Error details: {e}")
+    Path.Log.error("Failed to load the critical C++ surface generator module!")
+    Path.Log.error("The 3D Surface operation will be non-functional.")
+    Path.Log.error(f"Error details: {e}")
     # Re-raise the error to halt module loading.
     raise
 
