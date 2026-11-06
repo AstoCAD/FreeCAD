@@ -120,3 +120,74 @@ class TestArchReference(TestArchBase.TestArchBase):
                 os.rmdir(os.path.dirname(filename))
             except OSError:
                 pass
+
+    def test_ifcReferenceFollowsFileChanges(self):
+        """An IFC reference must read the new file when its File changes, and the
+        file again when it changed on disk; the first file read used to stay cached."""
+        try:
+            import ifcopenshell
+            import ifcopenshell.api
+        except ImportError:
+            self.skipTest("ifcopenshell not available")
+
+        def write_wall_file(path, length):
+            run = ifcopenshell.api.run
+            model = run("project.create_file", version="IFC4")
+            project = run("root.create_entity", model, ifc_class="IfcProject", name="Project")
+            run("unit.assign_unit", model)
+            ctx = run("context.add_context", model, context_type="Model")
+            body = run(
+                "context.add_context",
+                model,
+                context_type="Model",
+                context_identifier="Body",
+                target_view="MODEL_VIEW",
+                parent=ctx,
+            )
+            site = run("root.create_entity", model, ifc_class="IfcSite")
+            run("aggregate.assign_object", model, relating_object=project, products=[site])
+            wall = run("root.create_entity", model, ifc_class="IfcWall", name="Wall")
+            rep = run(
+                "geometry.add_wall_representation",
+                model,
+                context=body,
+                length=length,
+                height=3,
+                thickness=0.2,
+            )
+            run("geometry.assign_representation", model, product=wall, representation=rep)
+            run("spatial.assign_container", model, relating_structure=site, products=[wall])
+            model.write(path)
+
+        folder = tempfile.mkdtemp()
+        file1 = os.path.join(folder, "wall1.ifc")
+        file2 = os.path.join(folder, "wall2.ifc")
+        write_wall_file(file1, 1)
+        write_wall_file(file2, 2)
+        try:
+            ref = Arch.makeReference(file1)
+            self.document.recompute()
+            self.assertAlmostEqual(ref.Shape.Volume, 1000 * 3000 * 200, delta=1)
+
+            # another file
+            ref.File = file2
+            self.document.recompute()
+            self.assertAlmostEqual(ref.Shape.Volume, 2000 * 3000 * 200, delta=1)
+
+            # the same file, changed on disk (what the reload command does)
+            write_wall_file(file2, 4)
+            os.utime(file2, (1e9, 1e9))
+            ref.Proxy.reload = True
+            ref.touch()
+            self.document.recompute()
+            self.assertAlmostEqual(ref.Shape.Volume, 4000 * 3000 * 200, delta=1)
+        finally:
+            for path in (file1, file2):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+            try:
+                os.rmdir(folder)
+            except OSError:
+                pass
