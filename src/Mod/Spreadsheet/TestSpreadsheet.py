@@ -1844,6 +1844,67 @@ class SpreadsheetCases(unittest.TestCase):
         self.doc.recompute()
         self.assertEqual(sheet.C1, 14)
 
+    def testRowsAndColumnsMoveAliasDependants(self):
+        """A cell referring to an alias must follow the alias when inserting or
+        removing rows or columns moves the aliased cell, also after undo/redo,
+        and must no longer depend on the address the alias had before"""
+
+        def transaction(doc, name, func):
+            doc.openTransaction(name)
+            func()
+            doc.commitTransaction()
+            doc.recompute()
+
+        def check(op, aliasCell, movedE1):
+            doc = FreeCAD.newDocument("AliasDeps")
+            try:
+                doc.UndoMode = 1
+                sheet = doc.addObject("Spreadsheet::Sheet", "Sheet")
+                for row in range(1, 7):
+                    sheet.set("C%d" % row, str(row))
+                sheet.setAlias("C4", "cfour")
+                sheet.set("A1", "=cfour * 2")  # does not move
+                sheet.set("E1", "=cfour * 3")  # moves with the columns
+                doc.recompute()
+                self.assertEqual((sheet.A1, sheet.E1), (8, 12))
+
+                def values():
+                    return (sheet.A1, sheet.get(movedE1))
+
+                transaction(doc, "op", lambda: op(sheet))
+                self.assertEqual(sheet.getCellFromAlias("cfour"), aliasCell, aliasCell)
+                self.assertEqual(values(), (8, 12), aliasCell)
+                # The dependants follow the alias...
+                transaction(doc, "value", lambda: sheet.set(aliasCell, "10"))
+                self.assertEqual(values(), (20, 30), aliasCell)
+                # ...and no longer depend on C4 (that would be a cycle)
+                transaction(doc, "C4", lambda: sheet.set("C4", "=A1 + 1"))
+                self.assertEqual(sheet.C4, 21, aliasCell)
+                for _ in range(3):
+                    doc.undo()
+                doc.recompute()
+                self.assertEqual(sheet.getCellFromAlias("cfour"), "C4", aliasCell)
+                self.assertEqual((sheet.A1, sheet.E1), (8, 12), aliasCell)
+                doc.redo()  # op
+                doc.recompute()
+                self.assertEqual(sheet.getCellFromAlias("cfour"), aliasCell, aliasCell)
+                self.assertEqual(values(), (8, 12), aliasCell)
+                transaction(doc, "value", lambda: sheet.set(aliasCell, "5"))
+                self.assertEqual(values(), (10, 15), aliasCell)
+                doc.undo()  # value
+                doc.undo()  # op
+                doc.recompute()
+                self.assertEqual(sheet.getCellFromAlias("cfour"), "C4", aliasCell)
+                transaction(doc, "value", lambda: sheet.set("C4", "7"))
+                self.assertEqual((sheet.A1, sheet.E1), (14, 21), aliasCell)
+            finally:
+                FreeCAD.closeDocument(doc.Name)
+
+        check(lambda sheet: sheet.removeRows("3", 1), "C3", "E1")
+        check(lambda sheet: sheet.insertRows("2", 1), "C5", "E1")
+        check(lambda sheet: sheet.removeColumns("B", 1), "B4", "D1")
+        check(lambda sheet: sheet.insertColumns("B", 1), "D4", "F1")
+
     def testUndoKeepsDefaultColors(self):
         """Issue #30477: undo must not give explicit colors to cells that
         use the default ones"""
