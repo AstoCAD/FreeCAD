@@ -899,6 +899,58 @@ class MeshReadObjEscapedNames(unittest.TestCase):
         self.assertEqual(mesh.CountFacets, 1)
 
 
+class MeshReadObjPolygons(unittest.TestCase):
+    """Faces of an OBJ file may have any number of vertices"""
+
+    def _read(self, face):
+        # a regular hexagon of radius 1 in the XY plane
+        lines = []
+        for i in range(6):
+            angle = math.radians(60 * i)
+            lines.append("v {} {} 0".format(math.cos(angle), math.sin(angle)))
+        lines.append("vt 0 0")
+        lines.append("vn 0 0 1")
+        lines.append(face)
+        with tempfile.TemporaryDirectory() as tmpDir:
+            fileName = os.path.join(tmpDir, "polygons.obj")
+            with open(fileName, "w") as f:
+                f.write("\n".join(lines) + "\n")
+            return Mesh.Mesh(fileName)
+
+    def _check(self, face, count, area):
+        mesh = self._read(face)
+        self.assertEqual(mesh.CountFacets, count, face)
+        self.assertAlmostEqual(mesh.Area, area, places=5, msg=face)
+
+    def testTriangleAndQuad(self):
+        triangle = math.sqrt(3) / 4  # area of the triangle 1, 2, 3
+        quad = math.sqrt(3) * 3 / 4  # area of the quad 1, 2, 3, 4
+        self._check("f 1 2 3", 1, triangle)
+        self._check("f 1/1 2/1 3/1", 1, triangle)
+        self._check("f 1//1 2//1 3//1", 1, triangle)
+        self._check("f 1/1/1 2/1/1 3/1/1", 1, triangle)
+        self._check("f -6 -5 -4", 1, triangle)
+        self._check("f 1 2 3 4", 2, quad)
+        self._check("f 1/1/1 2/1/1 3/1/1 4/1/1", 2, quad)
+
+    def testPolygons(self):
+        # Faces with more than four vertices were dropped or read with wrong
+        # vertices, e.g. the hexagon "f 1 2 3 4 5 6" as the triangle 1, 3, 5
+        hexagon = math.sqrt(3) * 3 / 2
+        self._check("f 1 2 3 4 5", 3, hexagon - math.sqrt(3) / 4)
+        self._check("f 1 2 3 4 5 6", 4, hexagon)
+        self._check("f 1/1 2/1 3/1 4/1 5/1 6/1", 4, hexagon)
+        self._check("f 1//1 2//1 3//1 4//1 5//1 6//1", 4, hexagon)
+        self._check("f 1/1/1 2/1/1 3/1/1 4/1/1 5/1/1 6/1/1", 4, hexagon)
+
+    def testDegeneratedFace(self):
+        # a face with less than three vertices is ignored
+        self._check("f 1 2\nf 1 2 3", 1, math.sqrt(3) / 4)
+
+    def testTrailingComment(self):
+        self._check("f 1 2 3 4 5 6 # hexagon", 4, math.sqrt(3) * 3 / 2)
+
+
 class MeshPartLoftOnCurve(unittest.TestCase):
     def testDegeneratedEdge(self):
         # A sphere has degenerated edges (no 3D curve) at its poles.
