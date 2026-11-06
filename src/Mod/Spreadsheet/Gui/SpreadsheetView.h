@@ -130,6 +130,7 @@ protected Q_SLOTS:
     void columnResizeFinished();
     void rowResizeFinished();
     void modelUpdated(const QModelIndex& topLeft, const QModelIndex& bottomRight);
+    void updateSelectionSummary();
 
 protected:
     void updateContentLine();
@@ -148,6 +149,7 @@ protected:
 
     std::map<int, int> newColumnSizes;
     std::map<int, int> newRowSizes;
+    bool selectionSummaryShown = false;
 };
 
 class SheetViewPy: public Py::PythonExtension<SheetViewPy>
