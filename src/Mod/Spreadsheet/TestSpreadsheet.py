@@ -2042,6 +2042,124 @@ class SpreadsheetCases(unittest.TestCase):
         with self.assertRaises(AttributeError):
             sheet.C2
 
+    def testImportXLSXFormatsOutsideSheet(self):
+        """Formatted empty cells beyond column ZZ or row 16384, which Excel may
+        write, are skipped instead of aborting the import"""
+        import zipfile
+        import importXLSX
+
+        main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        workbook = (
+            f'<workbook xmlns="{main}" xmlns:r="{rels}"><sheets>'
+            '<sheet name="Outside" sheetId="1" r:id="rId1"/></sheets></workbook>'
+        )
+        workbookRels = (
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'<Relationship Id="rId1" Type="{rels}/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>"
+        )
+        styles = (
+            f'<styleSheet xmlns="{main}">'
+            '<fonts count="2"><font><sz val="11"/></font><font><b/><sz val="11"/></font></fonts>'
+            '<fills count="2"><fill><patternFill patternType="none"/></fill>'
+            '<fill><patternFill patternType="gray125"/></fill></fills>'
+            '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            "</cellXfs></styleSheet>"
+        )
+        worksheet = (
+            f'<worksheet xmlns="{main}"><sheetData>'
+            '<row r="1"><c r="A1" s="1"><v>5</v></c><c r="AAA1" s="1"/></row>'
+            '<row r="20000"><c r="A20000" s="1"/></row>'
+            "</sheetData></worksheet>"
+        )
+        filename = os.path.join(self.TempPath, "SpreadsheetFormatsOutside.xlsx")
+        with zipfile.ZipFile(filename, "w") as z:
+            z.writestr("xl/workbook.xml", workbook)
+            z.writestr("xl/_rels/workbook.xml.rels", workbookRels)
+            z.writestr("xl/styles.xml", styles)
+            z.writestr("xl/worksheets/sheet1.xml", worksheet)
+        importXLSX.insert(filename, self.doc.Name)
+        sheet = self.doc.getObject("Outside")
+        self.assertEqual(sheet.A1, 5)
+        self.assertEqual(sheet.getStyle("A1"), {"bold"})
+
+    def testImportXLSXCellFormats(self):
+        """Bold, italic, underline, RGB colors and alignment of XLSX cells are imported"""
+        import zipfile
+        import importXLSX
+
+        main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        workbook = (
+            f'<workbook xmlns="{main}" xmlns:r="{rels}"><sheets>'
+            '<sheet name="Formats" sheetId="1" r:id="rId1"/></sheets></workbook>'
+        )
+        workbookRels = (
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'<Relationship Id="rId1" Type="{rels}/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>"
+        )
+        styles = (
+            f'<styleSheet xmlns="{main}">'
+            '<fonts count="3">'
+            '<font><sz val="11"/><color theme="1"/><name val="Calibri"/></font>'
+            '<font><b/><i/><sz val="11"/><color rgb="FFFF0000"/><name val="Calibri"/></font>'
+            '<font><b val="0"/><u/><color rgb="FF000000"/></font>'
+            "</fonts>"
+            '<fills count="3">'
+            '<fill><patternFill patternType="none"/></fill>'
+            '<fill><patternFill patternType="gray125"/></fill>'
+            '<fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/>'
+            '<bgColor indexed="64"/></patternFill></fill>'
+            "</fills>"
+            '<cellXfs count="4">'
+            '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1">'
+            '<alignment horizontal="center" vertical="top"/></xf>'
+            '<xf numFmtId="0" fontId="2" fillId="1" borderId="0" xfId="0">'
+            '<alignment horizontal="right"/></xf>'
+            '<xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0"/>'
+            "</cellXfs>"
+            '<dxfs count="1"><dxf><font><b/></font></dxf></dxfs>'
+            "</styleSheet>"
+        )
+        worksheet = (
+            f'<worksheet xmlns="{main}"><sheetData>'
+            '<row r="1"><c r="A1" s="1"><v>1</v></c><c r="B1" s="2"><v>2</v></c>'
+            '<c r="C1" s="0"><v>3</v></c><c r="D1" s="3"/><c r="E1" s="99"><v>5</v></c></row>'
+            "</sheetData></worksheet>"
+        )
+        filename = os.path.join(self.TempPath, "SpreadsheetFormats.xlsx")
+        with zipfile.ZipFile(filename, "w") as z:
+            z.writestr("xl/workbook.xml", workbook)
+            z.writestr("xl/_rels/workbook.xml.rels", workbookRels)
+            z.writestr("xl/styles.xml", styles)
+            z.writestr("xl/worksheets/sheet1.xml", worksheet)
+        importXLSX.insert(filename, self.doc.Name)
+        sheet = self.doc.getObject("Formats")
+
+        self.assertEqual(sheet.getStyle("A1"), {"bold", "italic"})
+        self.assertEqual(sheet.getForeground("A1"), (1.0, 0.0, 0.0, 1.0))
+        self.assertEqual(sheet.getBackground("A1"), (1.0, 1.0, 0.0, 1.0))
+        self.assertEqual(sheet.getAlignment("A1"), {"center", "top"})
+
+        self.assertEqual(sheet.getStyle("B1"), {"underline"})
+        # Black text is the default color, the gray125 pattern is not a fill
+        self.assertIsNone(sheet.getForeground("B1"))
+        self.assertIsNone(sheet.getBackground("B1"))
+        self.assertIn("right", sheet.getAlignment("B1"))
+        self.assertNotIn("left", sheet.getAlignment("B1"))
+
+        # The default format and unknown format indexes change nothing
+        self.assertFalse(sheet.getStyle("C1"))
+        self.assertIsNone(sheet.getBackground("C1"))
+        self.assertFalse(sheet.getStyle("E1"))
+        self.assertEqual(sheet.E1, 5)
+        # Empty cells keep their format
+        self.assertEqual(sheet.getBackground("D1"), (1.0, 1.0, 0.0, 1.0))
+
     def testRemoveRowsAliasReuseName(self):
         """Regression test for issue 4492; deleted aliases remains in database"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")

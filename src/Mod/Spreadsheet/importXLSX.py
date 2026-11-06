@@ -47,6 +47,7 @@ Features:
 - strings are imported
 - references to cells with strings are working
 - column widths, custom row heights and merged cells
+- bold, italic, underline, RGB text and fill colors, alignment
 
 known issues:
 - units are not imported
@@ -316,16 +317,155 @@ def getText(nodelist):
         return "".join(rc)
 
 
-def handleWorkSheet(theDom, actSheet, strList):
+def handleWorkSheet(theDom, actSheet, strList, cellFormats=None):
     rows = theDom.getElementsByTagName("row")
     sharedFormulas = {}
     for row in rows:
         handleCells(row.getElementsByTagName("c"), actSheet, strList, sharedFormulas)
+    # Before merging: formatting a cell inside a merged cell formats the merged cell
+    if cellFormats:
+        for row in rows:
+            handleCellFormats(row.getElementsByTagName("c"), actSheet, cellFormats)
     handleLayout(theDom, actSheet)
+
+
+def childElements(node, tagName):
+    return [
+        child
+        for child in node.childNodes
+        if child.nodeType == child.ELEMENT_NODE and (child.localName or child.tagName) == tagName
+    ]
+
+
+def firstChildElement(node, tagName):
+    children = childElements(node, tagName)
+    return children[0] if children else None
+
+
+def decodeColor(colorNode):
+    """Returns the (r, g, b, a) floats of an Excel color given as ARGB hex digits,
+    or None for theme and indexed colors."""
+    if colorNode is None:
+        return None
+    rgb = colorNode.getAttribute("rgb")
+    if len(rgb) == 6:
+        rgb = "FF" + rgb
+    if len(rgb) != 8:
+        return None
+    try:
+        a, r, g, b = (int(rgb[i : i + 2], 16) / 255.0 for i in range(0, 8, 2))
+    except ValueError:
+        return None
+    # Excel does not use the alpha byte, the colors are opaque
+    return (r, g, b, 1.0)
+
+
+def isOn(node):
+    """True for a boolean font property like <b/> or <b val="1"/>."""
+    return node is not None and node.getAttribute("val") not in ("0", "false")
+
+
+def handleStyles(theStyles):
+    """Returns the cell formats of xl/styles.xml, indexed like the "s" attribute
+    of the cells: a tuple (style set, text color, background color, alignment)."""
+    fonts = []
+    fontsNode = firstChildElement(theStyles.documentElement, "fonts")
+    for font in childElements(fontsNode, "font") if fontsNode else []:
+        style = set()
+        if isOn(firstChildElement(font, "b")):
+            style.add("bold")
+        if isOn(firstChildElement(font, "i")):
+            style.add("italic")
+        underline = firstChildElement(font, "u")
+        if underline is not None and underline.getAttribute("val") != "none":
+            style.add("underline")
+        color = decodeColor(firstChildElement(font, "color"))
+        if color == (0.0, 0.0, 0.0, 1.0):
+            color = None  # the default text color
+        fonts.append((style, color))
+
+    fills = []
+    fillsNode = firstChildElement(theStyles.documentElement, "fills")
+    for fill in childElements(fillsNode, "fill") if fillsNode else []:
+        pattern = firstChildElement(fill, "patternFill")
+        color = None
+        if pattern is not None and pattern.getAttribute("patternType") == "solid":
+            color = decodeColor(firstChildElement(pattern, "fgColor"))
+        fills.append(color)
+
+    horizontal = {"left": "left", "center": "center", "centerContinuous": "center", "right": "right"}
+    vertical = {"top": "top", "center": "vcenter", "bottom": "bottom"}
+
+    formats = []
+    xfsNode = firstChildElement(theStyles.documentElement, "cellXfs")
+    for xf in childElements(xfsNode, "xf") if xfsNode else []:
+        try:
+            style, foreground = fonts[int(xf.getAttribute("fontId") or 0)]
+        except (ValueError, IndexError):
+            style, foreground = set(), None
+        try:
+            background = fills[int(xf.getAttribute("fillId") or 0)]
+        except (ValueError, IndexError):
+            background = None
+        alignment = set()
+        alignNode = firstChildElement(xf, "alignment")
+        if alignNode is not None:
+            if alignNode.getAttribute("horizontal") in horizontal:
+                alignment.add(horizontal[alignNode.getAttribute("horizontal")])
+            if alignNode.getAttribute("vertical") in vertical:
+                alignment.add(vertical[alignNode.getAttribute("vertical")])
+        formats.append((style, foreground, background, alignment))
+    return formats
+
+
+def readCellFormats(z):
+    """Returns the cell formats of an open XLSX zip file (empty without styles)."""
+    if "xl/styles.xml" not in z.namelist():
+        return []
+    theStyles = xml.dom.minidom.parse(z.open("xl/styles.xml"))
+    try:
+        return handleStyles(theStyles)
+    finally:
+        theStyles.unlink()
+
+
+def handleCellFormats(cellList, actCellSheet, cellFormats):
+    """Applies the bold, italic, underline, colors and alignment of the cells."""
+    for cell in cellList:
+        ref = cell.getAttribute("r")
+        index = cell.getAttribute("s")
+        if not ref or not index:
+            continue
+        try:
+            style, foreground, background, alignment = cellFormats[int(index)]
+        except (ValueError, IndexError):
+            continue
+        if not isSheetCell(ref):
+            # Excel writes formatted empty cells beyond the columns and rows
+            # FreeCAD has; there is nothing to format there
+            continue
+        if style:
+            actCellSheet.setStyle(ref, style)
+        if foreground:
+            actCellSheet.setForeground(ref, foreground)
+        if background:
+            actCellSheet.setBackground(ref, background)
+        if alignment:
+            actCellSheet.setAlignment(ref, alignment, "keep")
 
 
 # FreeCAD spreadsheets have the columns A to ZZ
 maxColumns = 26 * 26 + 26
+# and the rows 1 to 16384
+maxRows = 16384
+
+
+def isSheetCell(ref):
+    """True if the cell reference, like "B3", is inside a FreeCAD spreadsheet."""
+    if not cellRefPattern.fullmatch(ref):
+        return False
+    col, row = splitCellRef(ref)
+    return 1 <= col <= maxColumns and 1 <= row <= maxRows
 
 
 def excelWidthToPixels(width):
@@ -567,13 +707,15 @@ def open(nameXLSX):
             handleStrings(theStrings, stringList)
             theStrings.unlink()
 
+        cellFormats = readCellFormats(z)
+
         for sheetSpec in sheetDict:
             # print("sheetSpec: ", sheetSpec)
             theSheet, sheetFile = sheetDict[sheetSpec]
             f = z.open("xl/" + sheetFile)
             myDom = xml.dom.minidom.parse(f)
 
-            handleWorkSheet(myDom, theSheet, stringList)
+            handleWorkSheet(myDom, theSheet, stringList, cellFormats)
             myDom.unlink()
 
         z.close()
@@ -609,13 +751,15 @@ def insert(nameXLSX, docname):
         handleStrings(theStrings, stringList)
         theStrings.unlink()
 
+    cellFormats = readCellFormats(z)
+
     for sheetSpec in sheetDict:
         # print("sheetSpec: ", sheetSpec)
         theSheet, sheetFile = sheetDict[sheetSpec]
         f = z.open("xl/" + sheetFile)
         myDom = xml.dom.minidom.parse(f)
 
-        handleWorkSheet(myDom, theSheet, stringList)
+        handleWorkSheet(myDom, theSheet, stringList, cellFormats)
         myDom.unlink()
 
     z.close()
