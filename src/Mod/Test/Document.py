@@ -936,6 +936,18 @@ class DocumentBasicCases(unittest.TestCase):
         doc = self.saveAndRestore()
         self.assertEqual(doc.B.LinkedObject, doc.A)
 
+    def testLinkPropertyInfoByIndexAndName(self):
+        # The index and name overloads ran after a failed PyArg_ParseTuple() without
+        # clearing its error, so a valid call raised SystemError.
+        link = self.Doc.addObject("App::Link", "Link")
+        infos = link.getLinkPropertyInfo()
+        self.assertEqual(link.getLinkPropertyInfo(0), infos[0])
+        self.assertEqual(link.getLinkPropertyInfo(infos[0][0]), infos[0][1:])
+        with self.assertRaises(ValueError):
+            link.getLinkPropertyInfo(len(infos))
+        with self.assertRaises(ValueError):
+            link.getLinkPropertyInfo("NoSuchProperty")
+
     def testNoProxy(self):
         test = self.Doc.addObject("App::DocumentObject", "Object")
         test.addProperty("App::PropertyPythonObject", "Dictionary")

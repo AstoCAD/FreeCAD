@@ -188,6 +188,7 @@ PyObject* LinkBaseExtensionPy::getLinkPropertyInfo(PyObject* args)
         return Py::new_reference_to(ret);
     }
 
+    PyErr_Clear();  // set by PyArg_ParseTuple()
     short index = 0;
     if (PyArg_ParseTuple(args, "h", &index)) {
         if (index < 0 || index >= (int)infos.size()) {
@@ -200,6 +201,7 @@ PyObject* LinkBaseExtensionPy::getLinkPropertyInfo(PyObject* args)
         return Py::new_reference_to(ret);
     }
 
+    PyErr_Clear();  // set by PyArg_ParseTuple()
     char* name;
     if (PyArg_ParseTuple(args, "s", &name)) {
         for (const auto& info : infos) {
