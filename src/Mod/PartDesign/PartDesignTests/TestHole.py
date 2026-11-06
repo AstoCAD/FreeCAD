@@ -286,6 +286,15 @@ class TestHole(unittest.TestCase):
             self.assertFalse(self.Hole.HoleCutCustomValues, msg=size)
             self.assertAlmostEqual(self.Hole.HoleCutDepth.Value, depth + thickness, msg=size)
 
+    def testHoleCutCustomValuesReadOnlyAfterThreadTypeChange(self):
+        """Custom cut values are only editable for screw definition cut types"""
+        for cut in ("None", "Counterbore", "Countersink"):
+            self.Hole.ThreadType = "None"
+            self.Hole.HoleCutType = cut
+            self.Hole.ThreadType = "ISOMetricProfile"
+            self.assertEqual(self.Hole.HoleCutType, cut)
+            self.assertIn("ReadOnly", self.Hole.getEditorMode("HoleCutCustomValues"), msg=cut)
+
     def testThreadEnums(self):
         """Test thread enums for correct order"""
         # Due to the savefile use of indexes and not strings
