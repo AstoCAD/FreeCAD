@@ -828,19 +828,28 @@ std::unique_ptr<Constraint> transformPreexistingConstraintForTrim(
     return newConstr;
 }
 
+// `isCuttingGeoAlignedToCutGeo`: the cutting geometry is internal geometry of the conic that
+// `cutGeoId` keeps (an axis). Its end points already lie on the curve through the internal
+// alignment, so a coincidence with one of them would state that again (partially redundant):
+// the point is kept on the axis line instead, which holds it at that end without redundancy.
 std::unique_ptr<Constraint> getNewConstraintAtTrimCut(
     const SketchObject* obj,
     int cuttingGeoId,
     int cutGeoId,
     PointPos cutPosId,
-    const Base::Vector3d& cutPointVec
+    const Base::Vector3d& cutPointVec,
+    bool isCuttingGeoAlignedToCutGeo
 )
 {
     auto newConstr = std::make_unique<Sketcher::Constraint>();
     newConstr->First = cutGeoId;
     newConstr->FirstPos = cutPosId;
     newConstr->Second = cuttingGeoId;
-    if (isPointAtPosition(obj, cuttingGeoId, PointPos::start, cutPointVec)) {
+    if (isCuttingGeoAlignedToCutGeo) {
+        newConstr->Type = Sketcher::PointOnObject;
+        newConstr->SecondPos = PointPos::none;
+    }
+    else if (isPointAtPosition(obj, cuttingGeoId, PointPos::start, cutPointVec)) {
         newConstr->Type = Sketcher::Coincident;
         newConstr->SecondPos = PointPos::start;
     }
@@ -1017,16 +1026,40 @@ void createNewConstraintsForTrim(
     // to coincident or end-to-end tangency/perpendicularity.
     // TODO: Tangent/perpendicular not yet covered
 
+    // The internal geometry of a trimmed conic stays aligned to the first piece (see above),
+    // so a cut at one of its axes may need a different constraint on that piece.
+    auto isAlignedToPiece = [&](int cuttingGeoId, int pieceGeoId) {
+        return isTrimmedGeoConic && pieceGeoId == newIds.front()
+            && std::ranges::any_of(allConstraints, [&](const Constraint* constr) {
+                   return constr->Type == InternalAlignment && constr->First == cuttingGeoId
+                       && constr->Second == GeoId;
+               });
+    };
+
     if (cuttingGeoIds[0] != GeoEnum::GeoUndef && !isPoint1ConstrainedOnGeoId1) {
         newConstraints.emplace_back(
-            getNewConstraintAtTrimCut(obj, cuttingGeoIds[0], newIds.front(), PointPos::end, cutPoints[0])
+            getNewConstraintAtTrimCut(
+                obj,
+                cuttingGeoIds[0],
+                newIds.front(),
+                PointPos::end,
+                cutPoints[0],
+                isAlignedToPiece(cuttingGeoIds[0], newIds.front())
+            )
                 .release()
         );
     }
 
     if (cuttingGeoIds[1] != GeoEnum::GeoUndef && !isPoint2ConstrainedOnGeoId2) {
         newConstraints.emplace_back(
-            getNewConstraintAtTrimCut(obj, cuttingGeoIds[1], newIds.back(), PointPos::start, cutPoints[1])
+            getNewConstraintAtTrimCut(
+                obj,
+                cuttingGeoIds[1],
+                newIds.back(),
+                PointPos::start,
+                cutPoints[1],
+                isAlignedToPiece(cuttingGeoIds[1], newIds.back())
+            )
                 .release()
         );
     }

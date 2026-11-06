@@ -180,10 +180,50 @@ class TestSketchSplitTrimConstraints(unittest.TestCase):
         self.assertEqual(len(self.sketch.Geometry), 2 + internal)
         alignments = [c for c in self.sketch.Constraints if c.Type == "InternalAlignment"]
         self.assertEqual(len(alignments), internal)
-        coincident = [
-            c
-            for c in self.sketch.Constraints
-            if c.Type == "Coincident" and {c.First, c.Second} == {0, majorAxis[0]}
-        ]
-        self.assertEqual(len(coincident), 1)
+        self.assertEqual(self._constraintsBetween(0, majorAxis[0]), [("PointOnObject", 0, 2)])
         self._assertSolveKeepsGeometry()
+        self.assertEqual(self.sketch.PartiallyRedundantConstraints, [])
+
+    def _constraintsBetween(self, geoId, otherGeoId):
+        return [
+            (c.Type, c.First, c.FirstPos)
+            for c in self.sketch.Constraints
+            if c.Type != "InternalAlignment" and {c.First, c.Second} == {geoId, otherGeoId}
+        ]
+
+    def testTrimRotatedArcOfEllipseAtItsMinorAxisHasNoRedundantConstraint(self):
+        # The end of the minor axis is already on the curve through the internal alignment: the
+        # new end of the arc is kept on the axis, not made coincident with its end point again.
+        ellipse = Part.Ellipse(V(0, 0, 0), 12, 6)
+        arc = Part.ArcOfEllipse(ellipse, -2.8, 2.8)
+        arc.rotate(App.Placement(V(), App.Rotation(V(0, 0, 1), 20)))
+        self.sketch.addGeometry(arc)  # 0
+        self.sketch.addGeometry(Part.LineSegment(V(5, -20, 0), V(5, 20, 0)))  # 1
+        self.sketch.exposeInternalGeometry(0)
+        self.doc.recompute()
+        minorAxis = [
+            c.First
+            for c in self.sketch.Constraints
+            if c.Type == "InternalAlignment"
+            and c.Second == 0
+            and isinstance(self.sketch.Geometry[c.First], Part.LineSegment)
+            and abs(self.sketch.Geometry[c.First].length() - 12) < 1e-6
+        ]
+        self.assertEqual(len(minorAxis), 1)
+        minorAxisEnds = (
+            self.sketch.Geometry[minorAxis[0]].StartPoint,
+            self.sketch.Geometry[minorAxis[0]].EndPoint,
+        )
+
+        # remove the piece between the end of the minor axis and the end of the arc
+        self.sketch.trim(0, arc.value(arc.parameter(V(-11, 2, 0))))
+
+        trimmed = self.sketch.Geometry[0]
+        self.assertIsInstance(trimmed, Part.ArcOfEllipse)
+        self.assertLess((trimmed.StartPoint - arc.StartPoint).Length, 1e-6)
+        # the trim still stops at the end of the minor axis
+        self.assertLess(min((trimmed.EndPoint - p).Length for p in minorAxisEnds), 1e-6)
+        self.assertEqual(self._constraintsBetween(0, minorAxis[0]), [("PointOnObject", 0, 2)])
+        self._assertSolveKeepsGeometry()
+        self.assertEqual(self.sketch.RedundantConstraints, [])
+        self.assertEqual(self.sketch.PartiallyRedundantConstraints, [])
