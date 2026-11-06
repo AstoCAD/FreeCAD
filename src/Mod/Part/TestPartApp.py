@@ -1586,6 +1586,26 @@ class PartExtrusionTests(unittest.TestCase):
         expected_volume = outer - hole  # ~781
         self.assertAlmostEqual(extrusion.Shape.Volume, expected_volume, places=1)
 
+    def testNonFiniteLengthOrDirectionFails(self):
+        # NaN passed the zero length checks and crashed the prism (segmentation fault)
+        nan = float("nan")
+        inf = float("inf")
+        base_feature = self.Doc.addObject("Part::Feature", "Base")
+        base_feature.Shape = self._make_face_with_hole()
+        for prop, value in (
+            ("LengthFwd", nan),
+            ("LengthFwd", inf),
+            ("LengthRev", nan),
+            ("Dir", Base.Vector(nan, 0, 1)),
+        ):
+            with self.subTest(prop=prop, value=value):
+                extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
+                extrusion.Base = base_feature
+                setattr(extrusion, prop, value)
+                self.Doc.recompute()
+                self.assertIn("Invalid", extrusion.State)
+                self.Doc.removeObject(extrusion.Name)
+
     def tearDown(self):
         FreeCAD.closeDocument("PartExtrusionTest")
 
