@@ -135,3 +135,287 @@ class DocumentTestCases(unittest.TestCase):
         self.assertEqual(vobj.ShapeAppearance[0].DiffuseColor[:3], (1.0, 0.0, 0.0))
         self.assertAlmostEqual(vobj.ShapeAppearance[0].Transparency, 0.25, places=6)
         self.assertEqual(vobj.ShapeMaterial.DiffuseColor[:3], (1.0, 0.0, 0.0))
+
+
+WOOD_UUID = "b588224e-e8d6-47ad-ba1f-a058333fd1c6"  # Wood-Generic, look of Appearance/Wood
+ALUMINIUM_UUID = "9bf060e9-1663-44a2-88e2-2ff6ee858efe"  # Aluminum-Generic
+WOOD_COLOR = (0.8984, 0.7305, 0.3906)
+ALUMINIUM_COLOR = (0.3, 0.3, 0.3)
+RED = (1.0, 0.0, 0.0)
+
+
+class MaterialLookTestCases(unittest.TestCase):
+    """The look follows the physical material unless an appearance overrides it."""
+
+    def setUp(self):
+        if "BUILD_PART" not in FreeCAD.__cmake__ or not FreeCAD.GuiUp:
+            self.skipTest("needs Part and the GUI")
+        self.manager = Materials.MaterialManager()
+        self.doc = FreeCAD.newDocument("MaterialLook")
+        self.tempdir = None
+
+    def tearDown(self):
+        if self.doc and self.doc.Name in FreeCAD.listDocuments():
+            FreeCAD.closeDocument(self.doc.Name)
+        if self.tempdir:
+            import shutil
+
+            shutil.rmtree(self.tempdir, ignore_errors=True)
+
+    def setMaterial(self, obj, uuid):
+        obj.ShapeMaterial = self.manager.getMaterial(uuid)
+
+    @staticmethod
+    def appearance(color):
+        mat = FreeCAD.Material()
+        mat.DiffuseColor = color + (0.0,)
+        return mat
+
+    def assertColor(self, material, color):
+        for actual, expected in zip(material.DiffuseColor[:3], color):
+            self.assertAlmostEqual(actual, expected, places=3)
+
+    def newBox(self, uuid=WOOD_UUID):
+        box = self.doc.addObject("Part::Box")
+        self.doc.recompute()
+        self.setMaterial(box, uuid)
+        return box
+
+    def saveAndReload(self, edit=None):
+        import os
+        import tempfile
+
+        self.tempdir = self.tempdir or tempfile.mkdtemp()
+        path = os.path.join(self.tempdir, "look.FCStd")
+        self.doc.saveAs(path)
+        FreeCAD.closeDocument(self.doc.Name)
+        self.doc = None
+        if edit:
+            edit(path)
+        self.doc = FreeCAD.openDocument(path)
+
+    def testLookFollowsMaterialUntilOverridden(self):
+        box = self.newBox()
+        vobj = box.ViewObject
+        self.assertColor(vobj.ShapeAppearance[0], WOOD_COLOR)
+        self.assertEqual(vobj.AppearanceOverrides, [])
+        self.assertTrue(vobj.isLookFromMaterial())
+
+        self.setMaterial(box, ALUMINIUM_UUID)
+        self.assertColor(vobj.ShapeAppearance[0], ALUMINIUM_COLOR)
+
+        vobj.ShapeAppearance = [self.appearance(RED)]
+        self.assertEqual(vobj.AppearanceOverrides, ["Object"])
+        self.assertFalse(vobj.isLookFromMaterial())
+
+        # The override wins over a new material
+        self.setMaterial(box, WOOD_UUID)
+        self.assertColor(vobj.ShapeAppearance[0], RED)
+
+        vobj.resetToMaterial()
+        self.assertEqual(vobj.AppearanceOverrides, [])
+        self.assertColor(vobj.ShapeAppearance[0], WOOD_COLOR)
+        self.setMaterial(box, ALUMINIUM_UUID)
+        self.assertColor(vobj.ShapeAppearance[0], ALUMINIUM_COLOR)
+
+    def testFaceOverrideSurvivesMaterialChange(self):
+        box = self.newBox()
+        vobj = box.ViewObject
+        faces = [vobj.ShapeAppearance[0]] * 6
+        faces[1] = self.appearance(RED)
+        vobj.ShapeAppearance = faces
+        self.assertEqual(vobj.AppearanceOverrides, ["Face2"])
+        self.assertFalse(vobj.isLookFromMaterial("Face2"))
+        self.assertTrue(vobj.isLookFromMaterial("Face1"))
+
+        self.setMaterial(box, ALUMINIUM_UUID)
+        self.assertEqual(len(vobj.ShapeAppearance), 6)
+        self.assertColor(vobj.ShapeAppearance[0], ALUMINIUM_COLOR)
+        self.assertColor(vobj.ShapeAppearance[1], RED)
+        self.assertColor(vobj.ShapeAppearance[5], ALUMINIUM_COLOR)
+
+        vobj.resetToMaterial(["Face2"])
+        self.assertEqual(vobj.AppearanceOverrides, [])
+        self.assertEqual(len(vobj.ShapeAppearance), 1)
+        self.assertColor(vobj.ShapeAppearance[0], ALUMINIUM_COLOR)
+
+    def testOverridesSurviveSaveAndReload(self):
+        painted = self.newBox()
+        painted.ViewObject.ShapeAppearance = [self.appearance(RED)]
+        plain = self.newBox()
+        names = (painted.Name, plain.Name)
+
+        self.saveAndReload()
+        painted, plain = (self.doc.getObject(name) for name in names)
+        self.assertEqual(painted.ViewObject.AppearanceOverrides, ["Object"])
+        self.assertEqual(plain.ViewObject.AppearanceOverrides, [])
+        self.assertColor(plain.ViewObject.ShapeAppearance[0], WOOD_COLOR)
+
+        self.setMaterial(painted, ALUMINIUM_UUID)
+        self.setMaterial(plain, ALUMINIUM_UUID)
+        self.assertColor(painted.ViewObject.ShapeAppearance[0], RED)
+        self.assertColor(plain.ViewObject.ShapeAppearance[0], ALUMINIUM_COLOR)
+
+    def testOldFileWithoutOverrides(self):
+        """A file without the saved overrides (older version or upstream FreeCAD) is guessed."""
+        import re
+        import zipfile
+
+        painted = self.newBox()
+        painted.ViewObject.ShapeAppearance = [self.appearance(RED)]
+        plain = self.newBox()
+        names = (painted.Name, plain.Name)
+
+        def dropOverrides(path):
+            with zipfile.ZipFile(path) as archive:
+                entries = {info: archive.read(info.filename) for info in archive.infolist()}
+            with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+                for info, data in entries.items():
+                    if info.filename == "GuiDocument.xml":
+                        text = data.decode("utf-8")
+                        text = re.sub(
+                            r'<Property name="AppearanceOverrides".*?</Property>',
+                            "",
+                            text,
+                            flags=re.DOTALL,
+                        )
+                        self.assertNotIn("AppearanceOverrides", text)
+                        data = text.encode("utf-8")
+                    archive.writestr(info, data)
+
+        self.saveAndReload(dropOverrides)
+        painted, plain = (self.doc.getObject(name) for name in names)
+        # Loading changes nothing
+        self.assertColor(painted.ViewObject.ShapeAppearance[0], RED)
+        self.assertColor(plain.ViewObject.ShapeAppearance[0], WOOD_COLOR)
+        self.assertEqual(painted.ViewObject.AppearanceOverrides, ["Object"])
+        self.assertEqual(plain.ViewObject.AppearanceOverrides, [])
+
+        self.setMaterial(painted, ALUMINIUM_UUID)
+        self.setMaterial(plain, ALUMINIUM_UUID)
+        self.assertColor(painted.ViewObject.ShapeAppearance[0], RED)
+        self.assertColor(plain.ViewObject.ShapeAppearance[0], ALUMINIUM_COLOR)
+
+    def testUndoRestoresLookAndOverrides(self):
+        box = self.newBox()
+        vobj = box.ViewObject
+        self.doc.UndoMode = 1
+
+        self.doc.openTransaction("Paint")
+        vobj.ShapeAppearance = [self.appearance(RED)]
+        self.doc.commitTransaction()
+        self.doc.openTransaction("Material")
+        self.setMaterial(box, ALUMINIUM_UUID)
+        self.doc.commitTransaction()
+        self.assertColor(vobj.ShapeAppearance[0], RED)
+
+        self.doc.undo()  # material
+        self.assertEqual(box.ShapeMaterial.UUID, WOOD_UUID)
+        self.assertColor(vobj.ShapeAppearance[0], RED)
+        self.doc.undo()  # paint
+        self.assertColor(vobj.ShapeAppearance[0], WOOD_COLOR)
+        self.assertEqual(vobj.AppearanceOverrides, [])
+
+        self.doc.redo()
+        self.assertEqual(vobj.AppearanceOverrides, ["Object"])
+        self.assertColor(vobj.ShapeAppearance[0], RED)
+
+    def testTransparencyIsNoOverride(self):
+        box = self.newBox()
+        vobj = box.ViewObject
+        vobj.Transparency = 60
+        self.assertEqual(vobj.AppearanceOverrides, [])
+        self.assertTrue(vobj.isLookFromMaterial())
+
+        # The material changes the look and keeps the transparency
+        self.setMaterial(box, ALUMINIUM_UUID)
+        self.assertColor(vobj.ShapeAppearance[0], ALUMINIUM_COLOR)
+        self.assertAlmostEqual(vobj.ShapeAppearance[0].Transparency, 0.6, places=3)
+        self.assertEqual(vobj.Transparency, 60)
+
+    def testTransparencyOfALookFromAnotherMaterialIsNoOverride(self):
+        """Air has no look: the box keeps the wood look, which still follows the material."""
+        box = self.newBox()
+        vobj = box.ViewObject
+        self.setMaterial(box, "94370b96-c97e-4a3f-83b2-11d7461f7da7")  # Air
+        self.assertColor(vobj.ShapeAppearance[0], WOOD_COLOR)
+        vobj.Transparency = 60
+        self.assertEqual(vobj.AppearanceOverrides, [])
+
+        self.setMaterial(box, ALUMINIUM_UUID)
+        self.assertColor(vobj.ShapeAppearance[0], ALUMINIUM_COLOR)
+        self.assertEqual(vobj.Transparency, 60)
+
+    def testFaceTransparencyIsNoOverride(self):
+        box = self.newBox()
+        vobj = box.ViewObject
+        faces = [vobj.ShapeAppearance[0]] * 6
+        seeThrough = vobj.ShapeAppearance[0]
+        seeThrough.Transparency = 0.5
+        faces[1] = seeThrough
+        vobj.ShapeAppearance = faces
+        self.assertEqual(vobj.AppearanceOverrides, [])
+
+        self.setMaterial(box, ALUMINIUM_UUID)
+        self.assertEqual(len(vobj.ShapeAppearance), 6)
+        self.assertColor(vobj.ShapeAppearance[1], ALUMINIUM_COLOR)
+        self.assertAlmostEqual(vobj.ShapeAppearance[1].Transparency, 0.5, places=3)
+        self.assertAlmostEqual(vobj.ShapeAppearance[0].Transparency, 0.0, places=3)
+
+    def testTemporaryAppearanceIsNoOverride(self):
+        box = self.newBox()
+        vobj = box.ViewObject
+        vobj.beginTemporaryAppearance()
+        try:
+            vobj.ShapeColor = (1.0, 0.0, 1.0)
+        finally:
+            vobj.endTemporaryAppearance()
+        self.assertEqual(vobj.AppearanceOverrides, [])
+
+        # A later change is recorded again
+        vobj.ShapeAppearance = [self.appearance(RED)]
+        self.assertEqual(vobj.AppearanceOverrides, ["Object"])
+
+    def testFemSolidHighlightIsNoOverride(self):
+        """The highlight while picking a solid of a compound (FEM) is temporary."""
+        try:
+            from femguiutils.disambiguate_solid_selection import HighlightContext
+        except ImportError:
+            self.skipTest("needs FEM")
+
+        box = self.newBox()
+        vobj = box.ViewObject
+        with HighlightContext(box):
+            self.assertEqual(vobj.AppearanceOverrides, [])
+        self.assertEqual(vobj.AppearanceOverrides, [])
+        self.assertColor(vobj.ShapeAppearance[0], WOOD_COLOR)
+
+        # The look still follows the material
+        self.setMaterial(box, ALUMINIUM_UUID)
+        self.assertColor(vobj.ShapeAppearance[0], ALUMINIUM_COLOR)
+
+    def testRandomColorIsAnOverride(self):
+        import FreeCADGui
+
+        box = self.newBox()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(box)
+        try:
+            FreeCADGui.runCommand("Std_RandomColor")
+        finally:
+            FreeCADGui.Selection.clearSelection()
+        self.assertEqual(box.ShapeMaterial.UUID, WOOD_UUID)
+        self.assertEqual(box.ViewObject.AppearanceOverrides, ["Object"])
+
+    def testLinkColorOverrideIsKept(self):
+        box = self.newBox()
+        link = self.doc.addObject("App::Link")
+        link.setLink(box)
+        self.doc.recompute()
+        link.ViewObject.OverrideMaterial = True
+        link.ViewObject.ShapeAppearance = [self.appearance(RED)]
+
+        self.setMaterial(box, ALUMINIUM_UUID)
+        self.assertColor(box.ViewObject.ShapeAppearance[0], ALUMINIUM_COLOR)
+        self.assertTrue(link.ViewObject.OverrideMaterial)
+        self.assertColor(link.ViewObject.ShapeAppearance[0], RED)

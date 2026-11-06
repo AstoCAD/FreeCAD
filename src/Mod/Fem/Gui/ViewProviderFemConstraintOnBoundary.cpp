@@ -110,6 +110,8 @@ void ViewProviderFemConstraintOnBoundary::highlightReferences(const bool on)
                     colors.empty() ? ShapeAppearance.getDiffuseColor() : colors[0]
                 );
                 highlighter.getFaceColors(subSet.second, colors);
+                // The highlight is no appearance override
+                Gui::ViewProviderGeometryObject::TemporaryAppearance temporary(vp);
                 vp->ShapeAppearance.setDiffuseColors(colors);
             }
         }
@@ -123,6 +125,7 @@ void ViewProviderFemConstraintOnBoundary::highlightReferences(const bool on)
                 originalLineColors[base].clear();
             }
             else if (!originalFaceColors[base].empty()) {
+                Gui::ViewProviderGeometryObject::TemporaryAppearance temporary(vp);
                 vp->ShapeAppearance.setDiffuseColors(originalFaceColors[base]);
                 originalFaceColors[base].clear();
             }
@@ -173,6 +176,7 @@ void ViewProviderFemConstraintOnBoundary::highlightReferences(const bool on)
                 continue;
             }
 
+            Gui::ViewProviderGeometryObject::TemporaryAppearance temporary(vp);
             vp->ShapeAppearance.setDiffuseColors(ogPair.second);
             ogPair.second.clear();
         }

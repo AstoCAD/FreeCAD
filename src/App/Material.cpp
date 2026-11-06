@@ -22,8 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <algorithm>
 #include <cstring>
 #include <random>
+#include <set>
 
 #include "Application.h"
 #include "Material.h"
@@ -363,3 +365,278 @@ App::Material Material::getDefaultAppearance()
     return mat;
 }
 // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+
+//===========================================================================
+// AppearanceOverrides
+//===========================================================================
+
+namespace
+{
+
+/// The overrides split by kind, written back in a stable order
+struct OverrideSet
+{
+    bool object {false};
+    std::set<std::size_t> faces;
+    std::vector<std::string> others;  // kinds this version does not handle, kept as they are
+
+    explicit OverrideSet(const std::vector<std::string>& names)
+    {
+        for (const auto& name : names) {
+            int index = AppearanceOverrides::faceIndex(name);
+            if (name == AppearanceOverrides::objectName()) {
+                object = true;
+            }
+            else if (index >= 0) {
+                faces.insert(static_cast<std::size_t>(index));
+            }
+            else if (std::find(others.begin(), others.end(), name) == others.end()) {
+                others.push_back(name);
+            }
+        }
+    }
+
+    std::vector<std::string> names() const
+    {
+        std::vector<std::string> result;
+        if (object) {
+            result.emplace_back(AppearanceOverrides::objectName());
+        }
+        for (auto index : faces) {
+            result.push_back(AppearanceOverrides::faceName(index));
+        }
+        result.insert(result.end(), others.begin(), others.end());
+        return result;
+    }
+};
+
+/// All values are equal, the card (UUID) aside
+bool sameValues(const Material& first, const Material& second)
+{
+    Material left = first;
+    Material right = second;
+    left.uuid.clear();
+    right.uuid.clear();
+    return left == right;
+}
+
+bool identical(const std::vector<Material>& first, const std::vector<Material>& second)
+{
+    return std::equal(
+        first.begin(),
+        first.end(),
+        second.begin(),
+        second.end(),
+        [](const Material& left, const Material& right) {
+            return left.uuid == right.uuid && sameValues(left, right);
+        }
+    );
+}
+
+/// @a look with the transparency of @a current: the transparency is no part of the look
+Material withTransparencyOf(const Material& look, const Material& current)
+{
+    Material result = look;
+    result.transparency = current.transparency;
+    return result;
+}
+
+/// One entry if all faces look the same
+void collapseIfUniform(std::vector<Material>& appearance)
+{
+    if (appearance.size() > 1
+        && std::all_of(appearance.begin() + 1, appearance.end(), [&](const Material& entry) {
+               return entry.uuid == appearance.front().uuid && sameValues(entry, appearance.front());
+           })) {
+        appearance.resize(1);
+    }
+}
+
+}  // namespace
+
+const char* AppearanceOverrides::objectName()
+{
+    return "Object";
+}
+
+std::string AppearanceOverrides::faceName(std::size_t index)
+{
+    return "Face" + std::to_string(index + 1);
+}
+
+int AppearanceOverrides::faceIndex(const std::string& name)
+{
+    constexpr std::size_t prefix = 4;
+    constexpr int maxIndex = 100000000;
+    if (name.size() <= prefix || name.compare(0, prefix, "Face") != 0 || name[prefix] == '0') {
+        return -1;
+    }
+    int number = 0;
+    for (std::size_t i = prefix; i < name.size(); ++i) {
+        char digit = name[i];
+        if (digit < '0' || digit > '9' || number > maxIndex) {
+            return -1;
+        }
+        number = number * 10 + (digit - '0');  // NOLINT(readability-magic-numbers)
+    }
+    return number - 1;
+}
+
+bool AppearanceOverrides::sameLook(const Material& first, const Material& second)
+{
+    // The transparency is set on its own (Transparency property, temporary see-through views)
+    Material left = withTransparencyOf(first, second);
+    return sameValues(left, second);
+}
+
+bool AppearanceOverrides::hasLook(const Material& materialLook)
+{
+    return !sameValues(materialLook, Material());
+}
+
+std::vector<std::string> AppearanceOverrides::afterChange(
+    const std::vector<std::string>& overrides,
+    const std::vector<Material>& before,
+    const std::vector<Material>& after,
+    const Material& materialLook
+)
+{
+    OverrideSet set(overrides);
+    if (after.size() <= 1) {
+        // One look for the whole object replaces the looks of the faces
+        set.faces.clear();
+        if (after.size() == 1 && before.size() == 1 && sameLook(before.front(), after.front())) {
+            return set.names();  // the object keeps its look and its state
+        }
+        set.object = !after.empty() && !sameLook(after.front(), materialLook);
+        return set.names();
+    }
+
+    // Faces beyond the new appearance do not exist anymore
+    set.faces.erase(set.faces.lower_bound(after.size()), set.faces.end());
+    for (std::size_t i = 0; i < after.size(); ++i) {
+        const Material* previous = nullptr;
+        if (before.size() == after.size()) {
+            previous = &before[i];
+        }
+        else if (before.size() == 1) {
+            previous = &before.front();
+        }
+        if (previous && sameLook(*previous, after[i])) {
+            continue;  // this face keeps its look and its state
+        }
+        if (!set.object && sameLook(after[i], materialLook)) {
+            set.faces.erase(i);
+        }
+        else {
+            set.faces.insert(i);
+        }
+    }
+    return set.names();
+}
+
+bool AppearanceOverrides::followMaterial(
+    const std::vector<std::string>& overrides,
+    const std::vector<Material>& appearance,
+    const Material& materialLook,
+    std::vector<Material>& result
+)
+{
+    result = appearance;
+    OverrideSet set(overrides);
+    if (!hasLook(materialLook) || set.object) {
+        // A material without appearance (Air) keeps the current look
+        return false;
+    }
+
+    if (result.empty()) {
+        result.push_back(materialLook);
+    }
+    for (std::size_t i = 0; i < result.size(); ++i) {
+        if (set.faces.count(i) == 0) {
+            result[i] = withTransparencyOf(materialLook, result[i]);
+        }
+    }
+    collapseIfUniform(result);
+    return !identical(result, appearance);
+}
+
+void AppearanceOverrides::reset(
+    std::vector<std::string>& overrides,
+    std::vector<Material>& appearance,
+    const Material& materialLook,
+    const std::vector<std::size_t>& faces
+)
+{
+    OverrideSet set(overrides);
+    if (appearance.empty()) {
+        appearance.push_back(materialLook);
+    }
+    if (faces.empty()) {
+        set.object = false;
+        set.faces.clear();
+        overrides = set.names();
+        for (auto& entry : appearance) {
+            entry = withTransparencyOf(materialLook, entry);
+        }
+        collapseIfUniform(appearance);
+        return;
+    }
+
+    if (appearance.size() <= 1) {
+        // No face has a look of its own: only drop stale names
+        for (auto index : faces) {
+            set.faces.erase(index);
+        }
+        overrides = set.names();
+        return;
+    }
+
+    // The faces inherit the object override if it shows on a face, else the material look
+    const Material* inherited = nullptr;
+    if (set.object) {
+        for (std::size_t i = 0; i < appearance.size(); ++i) {
+            if (set.faces.count(i) == 0) {
+                inherited = &appearance[i];
+                break;
+            }
+        }
+        // An object override that shows on no face anymore is dropped
+        set.object = inherited != nullptr;
+    }
+    Material look = inherited ? *inherited : materialLook;
+
+    for (auto index : faces) {
+        if (index < appearance.size()) {
+            set.faces.erase(index);
+            appearance[index] = withTransparencyOf(look, appearance[index]);
+        }
+    }
+    collapseIfUniform(appearance);
+    overrides = set.names();
+}
+
+std::vector<std::string> AppearanceOverrides::guess(
+    const std::vector<Material>& appearance,
+    const Material& materialLook,
+    const Material& defaultLook
+)
+{
+    auto follows = [&](const Material& look) {
+        return sameLook(look, Material()) || sameLook(look, defaultLook)
+            || (hasLook(materialLook) && sameLook(look, materialLook));
+    };
+
+    OverrideSet set(std::vector<std::string> {});
+    if (appearance.size() <= 1) {
+        set.object = !appearance.empty() && !follows(appearance.front());
+    }
+    else {
+        for (std::size_t i = 0; i < appearance.size(); ++i) {
+            if (!follows(appearance[i])) {
+                set.faces.insert(i);
+            }
+        }
+    }
+    return set.names();
+}
