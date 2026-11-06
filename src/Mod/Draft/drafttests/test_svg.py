@@ -139,6 +139,17 @@ class DraftSVGImportRegression(test_base.DraftTestCaseDoc):
         # 'r' itself and its valid use
         self.assertEqual(result.count("<rect"), 2)
 
+    def test_getsize_css_centimeters(self):
+        """1 cm must convert to the same number of pixels as 10 mm."""
+        for mode in ("css90.0", "css96.0"):
+            with self.subTest(mode=mode):
+                self.assertAlmostEqual(
+                    importSVG.getsize("1cm", mode), importSVG.getsize("10mm", mode), places=9
+                )
+                self.assertAlmostEqual(
+                    importSVG.getsize("2.54cm", mode), importSVG.getsize("1in", mode), places=9
+                )
+
     def test_read_svg_transform_list_with_matrix_and_skew(self):
         """matrix/skewX/skewY in a transform list must be applied in SVG order."""
         transforms = {
