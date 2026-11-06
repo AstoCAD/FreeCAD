@@ -34,6 +34,7 @@
 #include "Geom2d/Geometry2dPy.h"
 #include "Geom2d/Geometry2dPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -64,7 +65,7 @@ PyObject* Geometry2dPy::mirror(PyObject* args)
 {
     PyObject* o;
     if (PyArg_ParseTuple(args, "O!", Base::Vector2dPy::type_object(), &o)) {
-        Base::Vector2d vec = Py::toVector2d(o);
+        Base::Vector2d vec = checkFinite(Py::toVector2d(o), "Point");
         gp_Pnt2d pnt(vec.x, vec.y);
         getGeometry2dPtr()->handle()->Mirror(pnt);
         Py_Return;
@@ -80,8 +81,8 @@ PyObject* Geometry2dPy::mirror(PyObject* args)
             Base::Vector2dPy::type_object(),
             &axis
         )) {
-        Base::Vector2d pnt = Py::toVector2d(o);
-        Base::Vector2d dir = Py::toVector2d(axis);
+        Base::Vector2d pnt = checkFinite(Py::toVector2d(o), "Point");
+        Base::Vector2d dir = checkFinite(Py::toVector2d(axis), "Direction");
         gp_Ax2d ax1(gp_Pnt2d(pnt.x, pnt.y), gp_Dir2d(dir.x, dir.y));
         getGeometry2dPtr()->handle()->Mirror(ax1);
         Py_Return;
@@ -100,7 +101,8 @@ PyObject* Geometry2dPy::rotate(PyObject* args)
     double angle;
     Base::Vector2d vec;
     if (PyArg_ParseTuple(args, "O!d", Base::Vector2dPy::type_object(), &o, &angle)) {
-        vec = Py::toVector2d(o);
+        vec = checkFinite(Py::toVector2d(o), "Center");
+        checkFinite(angle, "Angle");
         gp_Pnt2d pnt(vec.x, vec.y);
         getGeometry2dPtr()->handle()->Rotate(pnt, angle);
         Py_Return;
@@ -116,7 +118,8 @@ PyObject* Geometry2dPy::scale(PyObject* args)
     double scale;
     Base::Vector2d vec;
     if (PyArg_ParseTuple(args, "O!d", Base::Vector2dPy::type_object(), &o, &scale)) {
-        vec = Py::toVector2d(o);
+        vec = checkFinite(Py::toVector2d(o), "Center");
+        checkFinite(scale, "Scale factor");
         gp_Pnt2d pnt(vec.x, vec.y);
         getGeometry2dPtr()->handle()->Scale(pnt, scale);
         Py_Return;
@@ -139,6 +142,9 @@ PyObject* Geometry2dPy::transform(PyObject* args)
     double a21 = static_cast<double>(Py::Float(list.getItem(3)));
     double a22 = static_cast<double>(Py::Float(list.getItem(4)));
     double a23 = static_cast<double>(Py::Float(list.getItem(5)));
+    for (double value : {a11, a12, a13, a21, a22, a23}) {
+        checkFinite(value, "Matrix");
+    }
 
     gp_Trsf mat;
     mat.SetValues(a11, a12, 0, a13, a21, a22, 0, a23, 0, 0, 1, 0);
@@ -153,7 +159,7 @@ PyObject* Geometry2dPy::translate(PyObject* args)
     PyObject* o;
     Base::Vector2d vec;
     if (PyArg_ParseTuple(args, "O!", Base::Vector2dPy::type_object(), &o)) {
-        vec = Py::toVector2d(o);
+        vec = checkFinite(Py::toVector2d(o), "Translation");
         gp_Vec2d trl(vec.x, vec.y);
         getGeometry2dPtr()->handle()->Translate(trl);
         Py_Return;

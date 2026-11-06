@@ -33,6 +33,7 @@
 #include "ArcOfCirclePy.cpp"
 #include "CirclePy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -145,7 +146,7 @@ Py::Float ArcOfCirclePy::getRadius() const
 
 void ArcOfCirclePy::setRadius(Py::Float arg)
 {
-    getGeomArcOfCirclePtr()->setRadius((double)arg);
+    getGeomArcOfCirclePtr()->setRadius(checkFinite((double)arg, "Radius"));
 }
 
 Py::Object ArcOfCirclePy::getCircle() const

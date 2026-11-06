@@ -33,6 +33,7 @@
 #include "Geom2d/Ellipse2dPy.h"
 #include "Geom2d/Ellipse2dPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -93,9 +94,9 @@ int Ellipse2dPy::PyInit(PyObject* args, PyObject* kwds)
             Base::Vector2dPy::type_object(),
             &pV3
         )) {
-        Base::Vector2d v1 = Py::toVector2d(pV1);
-        Base::Vector2d v2 = Py::toVector2d(pV2);
-        Base::Vector2d v3 = Py::toVector2d(pV3);
+        Base::Vector2d v1 = checkFinite(Py::toVector2d(pV1), "S1");
+        Base::Vector2d v2 = checkFinite(Py::toVector2d(pV2), "S2");
+        Base::Vector2d v3 = checkFinite(Py::toVector2d(pV3), "Center");
         GCE2d_MakeEllipse me(gp_Pnt2d(v1.x, v1.y), gp_Pnt2d(v2.x, v2.y), gp_Pnt2d(v3.x, v3.y));
         if (!me.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(me.Status()));
@@ -122,7 +123,9 @@ int Ellipse2dPy::PyInit(PyObject* args, PyObject* kwds)
             &major,
             &minor
         )) {
-        Base::Vector2d c = Py::toVector2d(pV);
+        Base::Vector2d c = checkFinite(Py::toVector2d(pV), "Center");
+        checkFinite(major, "MajorRadius");
+        checkFinite(minor, "MinorRadius");
         GCE2d_MakeEllipse me(gp_Ax2d(gp_Pnt2d(c.x, c.y), gp_Dir2d(0.0, 1.0)), major, minor);
         if (!me.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(me.Status()));
@@ -157,7 +160,7 @@ void Ellipse2dPy::setMajorRadius(Py::Float arg)
 {
     Handle(Geom2d_Ellipse)
         ellipse = Handle(Geom2d_Ellipse)::DownCast(getGeom2dEllipsePtr()->handle());
-    ellipse->SetMajorRadius((double)arg);
+    ellipse->SetMajorRadius(checkFinite((double)arg, "MajorRadius"));
 }
 
 Py::Float Ellipse2dPy::getMinorRadius() const
@@ -171,7 +174,7 @@ void Ellipse2dPy::setMinorRadius(Py::Float arg)
 {
     Handle(Geom2d_Ellipse)
         ellipse = Handle(Geom2d_Ellipse)::DownCast(getGeom2dEllipsePtr()->handle());
-    ellipse->SetMinorRadius((double)arg);
+    ellipse->SetMinorRadius(checkFinite((double)arg, "MinorRadius"));
 }
 
 Py::Float Ellipse2dPy::getFocal() const

@@ -47,6 +47,7 @@
 #include "BSplineCurvePy.cpp"
 #include "BezierCurvePy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -221,6 +222,7 @@ PyObject* BSplineCurvePy::insertKnot(PyObject* args)
     if (!PyArg_ParseTuple(args, "d|idO!", &U, &M, &tol, &PyBool_Type, &add)) {
         return nullptr;
     }
+    checkFinite(U, "Knot");
 
     try {
         Handle(Geom_BSplineCurve)
@@ -251,7 +253,7 @@ PyObject* BSplineCurvePy::insertKnots(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = knots.begin(); it != knots.end(); ++it) {
             Py::Float val(*it);
-            k(index++) = (double)val;
+            k(index++) = checkFinite((double)val, "Knot");
         }
         Py::Sequence mults(obj2);
         TColStd_Array1OfInteger m(1, mults.size());
@@ -348,6 +350,7 @@ PyObject* BSplineCurvePy::setKnot(PyObject* args)
     if (!PyArg_ParseTuple(args, "id|i", &Index, &K, &M)) {
         return nullptr;
     }
+    checkFinite(K, "Knot");
 
     try {
         Handle(Geom_BSplineCurve)
@@ -399,7 +402,7 @@ PyObject* BSplineCurvePy::setKnots(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Float val(*it);
-            k(index++) = (double)val;
+            k(index++) = checkFinite((double)val, "Knot");
         }
 
         Handle(Geom_BSplineCurve)
@@ -443,8 +446,8 @@ PyObject* BSplineCurvePy::setPole(PyObject* args)
     if (!PyArg_ParseTuple(args, "iO!|d", &index, &(Base::VectorPy::Type), &p, &weight)) {
         return nullptr;
     }
-    Base::Vector3d vec = static_cast<Base::VectorPy*>(p)->value();
-    gp_Pnt pnt(vec.x, vec.y, vec.z);
+    gp_Pnt pnt = toFinitePnt(static_cast<Base::VectorPy*>(p)->value(), "Pole");
+    checkFinite(weight, "Weight");
     try {
         Handle(Geom_BSplineCurve)
             curve = Handle(Geom_BSplineCurve)::DownCast(getGeometryPtr()->handle());
@@ -545,6 +548,7 @@ PyObject* BSplineCurvePy::setWeight(PyObject* args)
     if (!PyArg_ParseTuple(args, "id", &index, &weight)) {
         return nullptr;
     }
+    checkFinite(weight, "Weight");
     try {
         Handle(Geom_BSplineCurve)
             curve = Handle(Geom_BSplineCurve)::DownCast(getGeometryPtr()->handle());
@@ -630,7 +634,7 @@ PyObject* BSplineCurvePy::movePoint(PyObject* args)
         Handle(Geom_BSplineCurve)
             curve = Handle(Geom_BSplineCurve)::DownCast(getGeometryPtr()->handle());
         int first, last;
-        curve->MovePoint(U, gp_Pnt(p.x, p.y, p.z), index1, index2, first, last);
+        curve->MovePoint(U, toFinitePnt(p, "Point"), index1, index2, first, last);
         return Py_BuildValue("(ii)", first, last);
     }
     catch (Standard_Failure& e) {
@@ -929,8 +933,7 @@ PyObject* BSplineCurvePy::approximate(PyObject* args, PyObject* kwds)
         TColgp_Array1OfPnt pnts(1, list.size());
         Standard_Integer index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-            Base::Vector3d vec = Py::Vector(*it).toVector();
-            pnts(index++) = gp_Pnt(vec.x, vec.y, vec.z);
+            pnts(index++) = toFinitePnt(Py::Vector(*it).toVector(), "Point");
         }
 
         if (degMin > degMax) {
@@ -984,7 +987,7 @@ PyObject* BSplineCurvePy::approximate(PyObject* args, PyObject* kwds)
             Standard_Integer index = 1;
             for (Py::Sequence::iterator it = plist.begin(); it != plist.end(); ++it) {
                 Py::Float f(*it);
-                parameters(index++) = static_cast<double>(f);
+                parameters(index++) = checkFinite(static_cast<double>(f), "Parameter");
             }
 
             GeomAPI_PointsToBSpline fit(pnts, parameters, degMin, degMax, c, tol3d);
@@ -1143,8 +1146,7 @@ PyObject* BSplineCurvePy::interpolate(PyObject* args, PyObject* kwds)
         Standard_Integer index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector v(*it);
-            Base::Vector3d pnt = v.toVector();
-            interpolationPoints->SetValue(index++, gp_Pnt(pnt.x, pnt.y, pnt.z));
+            interpolationPoints->SetValue(index++, toFinitePnt(v.toVector(), "Point"));
         }
 
         if (interpolationPoints->Length() < 2) {
@@ -1158,7 +1160,7 @@ PyObject* BSplineCurvePy::interpolate(PyObject* args, PyObject* kwds)
             Standard_Integer pindex = 1;
             for (Py::Sequence::iterator it = plist.begin(); it != plist.end(); ++it) {
                 Py::Float f(*it);
-                parameters->SetValue(pindex++, static_cast<double>(f));
+                parameters->SetValue(pindex++, checkFinite(static_cast<double>(f), "Parameter"));
             }
         }
 
@@ -1180,8 +1182,8 @@ PyObject* BSplineCurvePy::interpolate(PyObject* args, PyObject* kwds)
         }
 
         if (t1 && t2) {
-            Base::Vector3d v1 = Py::Vector(t1, false).toVector();
-            Base::Vector3d v2 = Py::Vector(t2, false).toVector();
+            Base::Vector3d v1 = checkFinite(Py::Vector(t1, false).toVector(), "InitialTangent");
+            Base::Vector3d v2 = checkFinite(Py::Vector(t2, false).toVector(), "FinalTangent");
             gp_Vec initTangent(v1.x, v1.y, v1.z), finalTangent(v2.x, v2.y, v2.z);
             aBSplineInterpolation->Load(initTangent, finalTangent, Base::asBoolean(scale));
         }
@@ -1191,7 +1193,7 @@ PyObject* BSplineCurvePy::interpolate(PyObject* args, PyObject* kwds)
             Standard_Integer index = 1;
             for (Py::Sequence::iterator it = tlist.begin(); it != tlist.end(); ++it) {
                 Py::Vector v(*it);
-                Base::Vector3d vec = v.toVector();
+                Base::Vector3d vec = checkFinite(v.toVector(), "Tangent");
                 tangents.SetValue(index++, gp_Vec(vec.x, vec.y, vec.z));
             }
 
@@ -1252,8 +1254,7 @@ PyObject* BSplineCurvePy::buildFromPoles(PyObject* args)
         Standard_Integer index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector v(*it);
-            Base::Vector3d pnt = v.toVector();
-            poles(index++) = gp_Pnt(pnt.x, pnt.y, pnt.z);
+            poles(index++) = toFinitePnt(v.toVector(), "Pole");
         }
 
         if (poles.Length() <= degree) {
@@ -1363,8 +1364,7 @@ PyObject* BSplineCurvePy::buildFromPolesMultsKnots(PyObject* args, PyObject* key
         Standard_Integer index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector v(*it);
-            Base::Vector3d pnt = v.toVector();
-            occpoles(index++) = gp_Pnt(pnt.x, pnt.y, pnt.z);
+            occpoles(index++) = toFinitePnt(v.toVector(), "Pole");
         }
         // Calculate the number of knots
         if (mults != Py_None && knots != Py_None) {
@@ -1441,7 +1441,7 @@ PyObject* BSplineCurvePy::buildFromPolesMultsKnots(PyObject* args, PyObject* key
                  it != knotssq.end() && index <= occknots.Length();
                  ++it) {
                 Py::Float knot(*it);
-                occknots(index++) = knot;
+                occknots(index++) = checkFinite(static_cast<double>(knot), "Knot");
             }
         }
         else {  // knotes are uniformly spaced 0..1 if not given
@@ -1458,7 +1458,7 @@ PyObject* BSplineCurvePy::buildFromPolesMultsKnots(PyObject* args, PyObject* key
             Standard_Integer index = 1;
             for (Py::Sequence::iterator it = weightssq.begin(); it != weightssq.end(); ++it) {
                 Py::Float weight(*it);
-                occweights(index++) = weight;
+                occweights(index++) = checkFinite(static_cast<double>(weight), "Weight");
             }
         }
         else {  // weights are 1.0

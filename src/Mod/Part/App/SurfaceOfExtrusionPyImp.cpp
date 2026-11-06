@@ -33,6 +33,7 @@
 #include "SurfaceOfExtrusionPy.cpp"
 #include "GeometryCurvePy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -65,8 +66,8 @@ int SurfaceOfExtrusionPy::PyInit(PyObject* args, PyObject* /*kwd*/)
         return -1;
     }
 
+    Base::Vector3d dir = checkFinite(static_cast<Base::VectorPy*>(pDir)->value(), "Direction");
     try {
-        Base::Vector3d dir = static_cast<Base::VectorPy*>(pDir)->value();
         Handle(Geom_SurfaceOfLinearExtrusion)
             curve2 = new Geom_SurfaceOfLinearExtrusion(curve, gp_Dir(dir.x, dir.y, dir.z));
         getGeomSurfaceOfExtrusionPtr()->setHandle(curve2);
@@ -91,13 +92,13 @@ void SurfaceOfExtrusionPy::setDirection(Py::Object arg)
 {
     PyObject* p = arg.ptr();
     if (PyObject_TypeCheck(p, &(Base::VectorPy::Type))) {
-        Base::Vector3d dir = static_cast<Base::VectorPy*>(p)->value();
+        Base::Vector3d dir = checkFinite(static_cast<Base::VectorPy*>(p)->value(), "Direction");
         Handle(Geom_SurfaceOfLinearExtrusion)
             curve = Handle(Geom_SurfaceOfLinearExtrusion)::DownCast(getGeometryPtr()->handle());
         curve->SetDirection(gp_Dir(dir.x, dir.y, dir.z));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
-        Base::Vector3d dir = Base::getVectorFromTuple<double>(p);
+        Base::Vector3d dir = checkFinite(Base::getVectorFromTuple<double>(p), "Direction");
         Handle(Geom_SurfaceOfLinearExtrusion)
             curve = Handle(Geom_SurfaceOfLinearExtrusion)::DownCast(getGeometryPtr()->handle());
         curve->SetDirection(gp_Dir(dir.x, dir.y, dir.z));

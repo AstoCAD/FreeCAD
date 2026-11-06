@@ -32,6 +32,7 @@
 #include "SpherePy.h"
 #include "SpherePy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -86,7 +87,7 @@ void SpherePy::setRadius(Py::Float arg)
 {
     Handle(Geom_SphericalSurface)
         sphere = Handle(Geom_SphericalSurface)::DownCast(getGeomSpherePtr()->handle());
-    sphere->SetRadius((double)arg);
+    sphere->SetRadius(checkFinite((double)arg, "Radius"));
 }
 
 Py::Float SpherePy::getArea() const
@@ -118,13 +119,13 @@ void SpherePy::setCenter(Py::Object arg)
         Base::Vector3d loc = static_cast<Base::VectorPy*>(p)->value();
         Handle(Geom_SphericalSurface)
             sphere = Handle(Geom_SphericalSurface)::DownCast(getGeomSpherePtr()->handle());
-        sphere->SetLocation(gp_Pnt(loc.x, loc.y, loc.z));
+        sphere->SetLocation(toFinitePnt(loc, "Center"));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
         Base::Vector3d loc = Base::getVectorFromTuple<double>(p);
         Handle(Geom_SphericalSurface)
             sphere = Handle(Geom_SphericalSurface)::DownCast(getGeomSpherePtr()->handle());
-        sphere->SetLocation(gp_Pnt(loc.x, loc.y, loc.z));
+        sphere->SetLocation(toFinitePnt(loc, "Center"));
     }
     else {
         std::string error = std::string("type must be 'Vector', not ");
@@ -163,6 +164,7 @@ void SpherePy::setAxis(Py::Object arg)
         throw Py::TypeError(error);
     }
 
+    checkFinite(Base::Vector3d(dir_x, dir_y, dir_z), "Axis");
     try {
         Handle(Geom_ElementarySurface)
             this_surf = Handle(Geom_ElementarySurface)::DownCast(this->getGeometryPtr()->handle());

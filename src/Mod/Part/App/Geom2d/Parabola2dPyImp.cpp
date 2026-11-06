@@ -30,6 +30,7 @@
 #include "Geom2d/Parabola2dPy.h"
 #include "Geom2d/Parabola2dPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -67,7 +68,7 @@ Py::Float Parabola2dPy::getFocal() const
 void Parabola2dPy::setFocal(Py::Float arg)
 {
     Handle(Geom2d_Parabola) curve = Handle(Geom2d_Parabola)::DownCast(getGeometry2dPtr()->handle());
-    curve->SetFocal((double)arg);
+    curve->SetFocal(checkFinite((double)arg, "Focal"));
 }
 
 Py::Object Parabola2dPy::getFocus() const

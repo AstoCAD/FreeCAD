@@ -34,6 +34,7 @@
 #include "Geom2d/ArcOfCircle2dPy.cpp"
 #include "Geom2d/Circle2dPy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -125,7 +126,7 @@ Py::Float ArcOfCircle2dPy::getRadius() const
 
 void ArcOfCircle2dPy::setRadius(Py::Float arg)
 {
-    getGeom2dArcOfCirclePtr()->setRadius((double)arg);
+    getGeom2dArcOfCirclePtr()->setRadius(checkFinite((double)arg, "Radius"));
 }
 
 Py::Object ArcOfCircle2dPy::getCircle() const

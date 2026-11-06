@@ -98,6 +98,7 @@
 
 #include "OCCError.h"
 #include "PartPyCXX.h"
+#include "PyFiniteInput.h"
 #include "ShapeMapHasher.h"
 #include "TopoShapeMapper.h"
 
@@ -1030,8 +1031,8 @@ PyObject* TopoShapePy::mirror(PyObject* args) const
         return nullptr;
     }
 
-    Base::Vector3d base = Py::Vector(v1, false).toVector();
-    Base::Vector3d norm = Py::Vector(v2, false).toVector();
+    Base::Vector3d base = checkFinite(Py::Vector(v1, false).toVector(), "Base");
+    Base::Vector3d norm = checkFinite(Py::Vector(v2, false).toVector(), "Normal");
 
     try {
         gp_Ax2 ax2(gp_Pnt(base.x, base.y, base.z), gp_Dir(norm.x, norm.y, norm.z));
@@ -1051,8 +1052,8 @@ PyObject* TopoShapePy::transformGeometry(PyObject* args) const
         return nullptr;
     }
 
+    Base::Matrix4D mat = checkFinite(static_cast<Base::MatrixPy*>(obj)->value(), "Matrix");
     try {
-        Base::Matrix4D mat = static_cast<Base::MatrixPy*>(obj)->value();
         TopoDS_Shape shape = this->getTopoShapePtr()->transformGShape(mat, Base::asBoolean(cpy));
         return new TopoShapePy(new TopoShape(shape));
     }
@@ -1080,7 +1081,7 @@ PyObject* TopoShapePy::transformShape(PyObject* args)
         return nullptr;
     }
 
-    Base::Matrix4D mat = static_cast<Base::MatrixPy*>(obj)->value();
+    Base::Matrix4D mat = checkFinite(static_cast<Base::MatrixPy*>(obj)->value(), "Matrix");
     PY_TRY
     {
         this->getTopoShapePtr()->transformShape(mat, Base::asBoolean(copy), Base::asBoolean(checkScale));
@@ -1113,7 +1114,7 @@ PyObject* TopoShapePy::transformed(PyObject* args, PyObject* keywds) const
         return nullptr;
     }
 
-    Base::Matrix4D mat = static_cast<Base::MatrixPy*>(pymat)->value();
+    Base::Matrix4D mat = checkFinite(static_cast<Base::MatrixPy*>(pymat)->value(), "Matrix");
     (void)op;
     PY_TRY
     {
@@ -1142,6 +1143,7 @@ PyObject* TopoShapePy::translate(PyObject* args)
         PyErr_SetString(PyExc_TypeError, "either vector or tuple expected");
         return nullptr;
     }
+    checkFinite(vec, "Translation");
 
     gp_Trsf mov;
     mov.SetTranslation(gp_Vec(vec.x, vec.y, vec.z));
@@ -1166,10 +1168,16 @@ PyObject* TopoShapePy::rotate(PyObject* args)
         // Vector also supports sequence
         Py::Sequence p1(obj1), p2(obj2);
         // Convert into OCC representation
-        gp_Pnt pos
-            = gp_Pnt((double)Py::Float(p1[0]), (double)Py::Float(p1[1]), (double)Py::Float(p1[2]));
-        gp_Dir dir
-            = gp_Dir((double)Py::Float(p2[0]), (double)Py::Float(p2[1]), (double)Py::Float(p2[2]));
+        gp_Pnt pos = toFinitePnt(
+            Base::Vector3d((double)Py::Float(p1[0]), (double)Py::Float(p1[1]), (double)Py::Float(p1[2])),
+            "Center"
+        );
+        Base::Vector3d axisDir = checkFinite(
+            Base::Vector3d((double)Py::Float(p2[0]), (double)Py::Float(p2[1]), (double)Py::Float(p2[2])),
+            "Axis"
+        );
+        checkFinite(angle, "Angle");
+        gp_Dir dir = gp_Dir(axisDir.x, axisDir.y, axisDir.z);
 
         gp_Ax1 axis(pos, dir);
         gp_Trsf mov;
@@ -1194,11 +1202,9 @@ PyObject* TopoShapePy::scale(PyObject* args)
 
     gp_Pnt pos(0, 0, 0);
     if (p) {
-        Base::Vector3d pnt = static_cast<Base::VectorPy*>(p)->value();
-        pos.SetX(pnt.x);
-        pos.SetY(pnt.y);
-        pos.SetZ(pnt.z);
+        pos = toFinitePnt(static_cast<Base::VectorPy*>(p)->value(), "Center");
     }
+    checkFinite(factor, "Scale factor");
     if (fabs(factor) < Precision::Confusion()) {
         PyErr_SetString(PyExc_ValueError, "scale factor too small");
         return nullptr;

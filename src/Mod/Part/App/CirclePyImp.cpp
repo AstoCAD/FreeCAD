@@ -33,6 +33,7 @@
 #include "CirclePy.h"
 #include "CirclePy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -78,7 +79,7 @@ int CirclePy::PyInit(PyObject* args, PyObject* kwds)
         CirclePy* pcCircle = static_cast<CirclePy*>(pCirc);
         Handle(Geom_Circle)
             circle = Handle(Geom_Circle)::DownCast(pcCircle->getGeomCirclePtr()->handle());
-        GC_MakeCircle mc(circle->Circ(), dist);
+        GC_MakeCircle mc(circle->Circ(), checkFinite(dist, "Distance"));
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
             return -1;
@@ -104,8 +105,9 @@ int CirclePy::PyInit(PyObject* args, PyObject* kwds)
             &pV2,
             &dist
         )) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
+        Base::Vector3d v1 = checkFinite(static_cast<Base::VectorPy*>(pV1)->value(), "Center");
+        Base::Vector3d v2 = checkFinite(static_cast<Base::VectorPy*>(pV2)->value(), "Normal");
+        checkFinite(dist, "Radius");
         GC_MakeCircle mc(gp_Pnt(v1.x, v1.y, v1.z), gp_Dir(v2.x, v2.y, v2.z), dist);
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
@@ -142,10 +144,11 @@ int CirclePy::PyInit(PyObject* args, PyObject* kwds)
             &(Base::VectorPy::Type),
             &pV3
         )) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
-        Base::Vector3d v3 = static_cast<Base::VectorPy*>(pV3)->value();
-        GC_MakeCircle mc(gp_Pnt(v1.x, v1.y, v1.z), gp_Pnt(v2.x, v2.y, v2.z), gp_Pnt(v3.x, v3.y, v3.z));
+        GC_MakeCircle mc(
+            toFinitePnt(static_cast<Base::VectorPy*>(pV1)->value(), "Point1"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV2)->value(), "Point2"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV3)->value(), "Point3")
+        );
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
             return -1;
@@ -186,7 +189,7 @@ Py::Float CirclePy::getRadius() const
 void CirclePy::setRadius(Py::Float arg)
 {
     Handle(Geom_Circle) circle = Handle(Geom_Circle)::DownCast(getGeomCirclePtr()->handle());
-    circle->SetRadius((double)arg);
+    circle->SetRadius(checkFinite((double)arg, "Radius"));
 }
 
 PyObject* CirclePy::getCustomAttributes(const char*) const
