@@ -783,6 +783,20 @@ class DocumentBasicCases(unittest.TestCase):
         self.assertEqual(obj.getEnumerationsOfProperty("Choice"), ["p", "q", "r"])
         self.assertEqual(obj.Choice, "r")
 
+    def testEnumerationItemByNameWithIndexOutOfRange(self):
+        # An expression can leave the index of an enumeration out of range; an
+        # item could then no longer be selected by name ("not part of the enumeration").
+        obj = self.Doc.addObject("App::FeaturePython", "EnumIndex")
+        obj.addProperty("App::PropertyEnumeration", "Mode")
+        obj.Mode = ["a", "b", "c"]
+        obj.setExpression("Mode", "5")
+        self.Doc.recompute()
+        obj.setExpression("Mode", None)
+        obj.Mode = "b"
+        self.assertEqual(obj.Mode, "b")
+        with self.assertRaises(ValueError):
+            obj.Mode = "z"
+
     def testExpressionPathWithComputedIndex(self):
         # A non-literal index such as [-1] is not part of an expression path; it was
         # dropped, so the expression was bound to the whole list and replaced it.
