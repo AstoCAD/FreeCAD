@@ -419,3 +419,90 @@ class MaterialLookTestCases(unittest.TestCase):
         self.assertColor(box.ViewObject.ShapeAppearance[0], ALUMINIUM_COLOR)
         self.assertTrue(link.ViewObject.OverrideMaterial)
         self.assertColor(link.ViewObject.ShapeAppearance[0], RED)
+
+    def testSetFaceAppearance(self):
+        box = self.newBox()
+        vobj = box.ViewObject
+        vobj.setFaceAppearance(["Face3"], self.appearance(RED))
+        self.assertEqual(len(vobj.ShapeAppearance), 6)
+        self.assertEqual(vobj.AppearanceOverrides, ["Face3"])
+        self.assertColor(vobj.ShapeAppearance[2], RED)
+        self.assertColor(vobj.ShapeAppearance[0], WOOD_COLOR)
+
+
+class MaterialAppearanceDialogTestCases(unittest.TestCase):
+    """One command and dialog sets the physical material and the appearance."""
+
+    def setUp(self):
+        if "BUILD_PART" not in FreeCAD.__cmake__ or not FreeCAD.GuiUp:
+            self.skipTest("needs Part and the GUI")
+        import FreeCADGui
+
+        self.gui = FreeCADGui
+        self.doc = FreeCAD.newDocument("MaterialDialog")
+        self.box = self.doc.addObject("Part::Box", "Box")
+        self.doc.recompute()
+        self.box.ShapeMaterial = Materials.MaterialManager().getMaterial(WOOD_UUID)
+        self.gui.Selection.clearSelection()
+
+    def tearDown(self):
+        self.gui.Control.closeDialog()
+        self.gui.Selection.clearSelection()
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def findWidget(self, cls, name):
+        from PySide import QtWidgets
+
+        widget = self.gui.getMainWindow().findChild(getattr(QtWidgets, cls), name)
+        self.assertIsNotNone(widget, name)
+        return widget
+
+    def testCommands(self):
+        info = self.gui.Command.get("Std_SetAppearance").getInfo()
+        self.assertIn("Material and", info["menuText"].replace("&", ""))
+        # Kept for user toolbars and macros
+        self.assertIsNotNone(self.gui.Command.get("Std_SetMaterial"))
+        self.assertIsNotNone(self.gui.Command.get("Part_ColorPerFace"))
+        self.assertNotIn("MaterialWorkbench", self.gui.listWorkbenches())
+
+    def testSetMaterialOpensTheUnifiedDialog(self):
+        self.gui.Selection.addSelection(self.doc.Name, self.box.Name)
+        self.gui.runCommand("Std_SetMaterial")
+        self.assertIsNotNone(self.gui.Control.activeDialog())
+        self.findWidget("QWidget", "widgetPhysicalMaterial")
+        self.findWidget("QRadioButton", "radioScopeFaces")
+
+    def testLookSourceAndReset(self):
+        vobj = self.box.ViewObject
+        self.gui.Selection.addSelection(self.doc.Name, self.box.Name)
+        self.gui.runCommand("Std_SetAppearance")
+        label = self.findWidget("QLabel", "labelLookSource")
+        reset = self.findWidget("QPushButton", "buttonResetToMaterial")
+        self.assertTrue(label.text().startswith("From material"), label.text())
+        self.assertFalse(reset.isEnabled())
+
+        red = FreeCAD.Material()
+        red.DiffuseColor = (1.0, 0.0, 0.0, 0.0)
+        vobj.ShapeAppearance = [red]
+        self.assertEqual(label.text(), "Override")
+        self.assertTrue(reset.isEnabled())
+
+        reset.click()
+        self.assertEqual(vobj.AppearanceOverrides, [])
+        self.assertTrue(label.text().startswith("From material"), label.text())
+
+    def testColorPerFaceUsesTheFaceScope(self):
+        vobj = self.box.ViewObject
+        red = FreeCAD.Material()
+        red.DiffuseColor = (1.0, 0.0, 0.0, 0.0)
+        vobj.setFaceAppearance(["Face2"], red)
+        self.gui.Selection.addSelection(self.doc.Name, self.box.Name, "Face2")
+        self.gui.runCommand("Part_ColorPerFace")
+        self.assertTrue(self.findWidget("QRadioButton", "radioScopeFaces").isChecked())
+        label = self.findWidget("QLabel", "labelLookSource")
+        self.assertEqual(label.text(), "Override")
+
+        # Resetting the selected face leaves the other faces alone
+        self.findWidget("QPushButton", "buttonResetToMaterial").click()
+        self.assertEqual(vobj.AppearanceOverrides, [])
+        self.assertEqual(len(vobj.ShapeAppearance), 1)

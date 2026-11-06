@@ -31,6 +31,7 @@ using namespace MatGui;
 void WorkbenchManipulator::modifyMenuBar([[maybe_unused]] Gui::MenuItem* menuBar)
 {
     addCommands(menuBar, "Std_ToggleNavigation");
+    addEditor(menuBar, "Std_UnitsCalculator");
 }
 
 void WorkbenchManipulator::modifyContextMenu(const char* recipient, Gui::MenuItem* menuBar)
@@ -50,12 +51,10 @@ void WorkbenchManipulator::addCommands(Gui::MenuItem* menuBar, const char* refer
         auto item = par->findItem(reference);
         item = par->afterItem(item);
 
-        auto cmd1 = new Gui::MenuItem();
-        cmd1->setCommand("Std_SetMaterial");
-        par->insertItem(item, cmd1);
-        auto cmd2 = new Gui::MenuItem();
-        cmd2->setCommand("Std_SetAppearance");
-        par->insertItem(item, cmd2);
+        // Std_SetAppearance sets the material too: Std_SetMaterial is only kept as an alias
+        auto cmd = new Gui::MenuItem();
+        cmd->setCommand("Std_SetAppearance");
+        par->insertItem(item, cmd);
     }
 }
 
@@ -66,11 +65,21 @@ void WorkbenchManipulator::addCommandsToTree(Gui::MenuItem* menuBar)
     if (par) {
         auto item = par->findItem(randomColor);
 
-        auto cmd1 = new Gui::MenuItem();
-        cmd1->setCommand("Std_SetMaterial");
-        par->insertItem(item, cmd1);
-        auto cmd2 = new Gui::MenuItem();
-        cmd2->setCommand("Std_SetAppearance");
-        par->insertItem(item, cmd2);
+        auto cmd = new Gui::MenuItem();
+        cmd->setCommand("Std_SetAppearance");
+        par->insertItem(item, cmd);
+    }
+}
+
+void WorkbenchManipulator::addEditor(Gui::MenuItem* menuBar, const char* reference)
+{
+    // The material editor had its own workbench before
+    const char* editor = "Material_Edit";
+    auto par = menuBar->findParentOf(reference);
+    if (par && !par->findItem(editor)) {
+        auto item = par->afterItem(par->findItem(reference));
+        auto cmd = new Gui::MenuItem();
+        cmd->setCommand(editor);
+        par->insertItem(item, cmd);
     }
 }

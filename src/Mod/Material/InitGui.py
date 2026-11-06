@@ -20,32 +20,14 @@
 #*   USA                                                                   *
 #*                                                                         *
 #***************************************************************************
-"""Initialization of the Material Workbench graphical interface."""
+"""Initialization of the Material module graphical interface.
 
-import FreeCAD as App
-import FreeCADGui as Gui
-import os
+There is no Material workbench anymore: its only tool, the material setter, is part of
+Std_SetAppearance ("Material and appearance"), and the material editor is in the Tools menu.
+"""
 
-
-class MaterialWorkbench(Gui.Workbench):
-    """Part workbench object."""
-
-    def __init__(self):
-        self.__class__.Icon = os.path.join(App.getResourceDir(),
-                                           "Mod", "Material",
-                                           "Resources", "icons",
-                                           "MaterialWorkbench.svg")
-        self.__class__.MenuText = "Material"
-        self.__class__.ToolTip = "Material workbench"
-
-    def Initialize(self):
-        # load the module
-        import MatGui
-
-    def GetClassName(self):
-        return "MatGui::Workbench"
-
-
-Gui.addWorkbench(MaterialWorkbench())
+# Load the GUI at startup, like Measure, so that "Material and appearance" (View menu, context
+# menus, Ctrl+D) and the material editor (Tools menu) exist in every workbench
+import MatGui
 
 FreeCAD.__unit_test__ += [ "TestMaterialsGui" ]

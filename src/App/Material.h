@@ -231,6 +231,16 @@ public:
         const std::vector<std::size_t>& faces = {}
     );
 
+    /** Gives @a look to @a faces (zero-based) of a shape with @a faceCount faces; the faces keep
+     * their transparency. A single look for the whole object is first copied to every face.
+     */
+    static void paintFaces(
+        std::vector<Material>& appearance,
+        std::size_t faceCount,
+        const std::vector<std::size_t>& faces,
+        const Material& look
+    );
+
     /** The overrides of an appearance saved before they were recorded. A look that equals the
      * material look or one of the default looks follows the material, anything else is an
      * override.

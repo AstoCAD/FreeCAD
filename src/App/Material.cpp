@@ -616,6 +616,27 @@ void AppearanceOverrides::reset(
     overrides = set.names();
 }
 
+void AppearanceOverrides::paintFaces(
+    std::vector<Material>& appearance,
+    std::size_t faceCount,
+    const std::vector<std::size_t>& faces,
+    const Material& look
+)
+{
+    if (faceCount == 0) {
+        return;
+    }
+    if (appearance.size() != faceCount) {
+        Material base = appearance.empty() ? look : appearance.front();
+        appearance.resize(faceCount, base);
+    }
+    for (auto index : faces) {
+        if (index < faceCount) {
+            appearance[index] = withTransparencyOf(look, appearance[index]);
+        }
+    }
+}
+
 std::vector<std::string> AppearanceOverrides::guess(
     const std::vector<Material>& appearance,
     const Material& materialLook,

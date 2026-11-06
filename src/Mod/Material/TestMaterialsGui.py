@@ -24,4 +24,5 @@
 
 from materialtests.TestMaterialDocument import DocumentTestCases
 from materialtests.TestMaterialDocument import MaterialLookTestCases
+from materialtests.TestMaterialDocument import MaterialAppearanceDialogTestCases
 from materialtests.TestArray2DCancelGui import TestArray2DCancelGui

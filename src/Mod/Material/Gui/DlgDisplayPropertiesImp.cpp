@@ -24,10 +24,14 @@
 
 #include <QSignalBlocker>
 #include <algorithm>
+#include <cstring>
 #include <fastsignals/signal.h>
 
+#include <App/DocumentObject.h>
+#include <App/ElementNamingUtils.h>
 #include <Base/Console.h>
 #include <Gui/Application.h>
+#include <Gui/Command.h>
 #include <Gui/Dialogs/DlgMaterialPropertiesImp.h>
 #include <Gui/DockWindowManager.h>
 #include <Gui/Document.h>
@@ -36,6 +40,7 @@
 #include <Gui/WaitCursor.h>
 
 #include <Mod/Material/App/ModelUuids.h>
+#include <Mod/Material/App/PropertyMaterial.h>
 
 #include "DlgDisplayPropertiesImp.h"
 #include "ui_DlgDisplayProperties.h"
@@ -150,10 +155,12 @@ DlgDisplayPropertiesImp::DlgDisplayPropertiesImp(QWidget* parent, Qt::WindowFlag
     // that contain the basic render model.
     setupFilters();
 
-    {
-        QSignalBlocker block(d->ui.widgetMaterial);
-        setPropertiesFromSelection();
-    }
+    // The physical material: cards with physical properties
+    Materials::MaterialFilter physicalFilter;
+    physicalFilter.requirePhysical(true);
+    d->ui.widgetPhysicalMaterial->setFilter(physicalFilter);
+
+    setPropertiesFromSelection();
 
     Gui::Selection().Attach(this);
 
@@ -242,6 +249,18 @@ void DlgDisplayPropertiesImp::setupConnections()
             &MaterialTreeWidget::materialSelected,
             this,
             &DlgDisplayPropertiesImp::onMaterialSelected);
+    connect(d->ui.widgetPhysicalMaterial,
+            &MaterialTreeWidget::materialSelected,
+            this,
+            &DlgDisplayPropertiesImp::onPhysicalMaterialSelected);
+    connect(d->ui.buttonResetToMaterial,
+            &QPushButton::clicked,
+            this,
+            &DlgDisplayPropertiesImp::onButtonResetToMaterialClicked);
+    connect(d->ui.radioScopeFaces,
+            &QRadioButton::toggled,
+            this,
+            &DlgDisplayPropertiesImp::onScopeToggled);
 }
 
 void DlgDisplayPropertiesImp::changeEvent(QEvent* e)
@@ -254,7 +273,12 @@ void DlgDisplayPropertiesImp::changeEvent(QEvent* e)
 
 void DlgDisplayPropertiesImp::setPropertiesFromSelection()
 {
+    // Showing the current cards must not apply them again
+    QSignalBlocker blockAppearance(d->ui.widgetMaterial);
+    QSignalBlocker blockPhysical(d->ui.widgetPhysicalMaterial);
+
     std::vector<Gui::ViewProvider*> views = getSelection();
+    setPhysicalMaterial(views);
     setDisplayModes(views);
     setColorPlot(views);
     setShapeAppearance(views);
@@ -264,6 +288,8 @@ void DlgDisplayPropertiesImp::setPropertiesFromSelection()
     setLineWidth(views);
     setTransparency(views);
     setLineTransparency(views);
+    updateScope();
+    updateLookSource();
 }
 
 /// @cond DOXERR
@@ -294,10 +320,18 @@ void DlgDisplayPropertiesImp::slotChangedObject(const Gui::ViewProvider& obj,
         const char* name = obj.getPropertyName(&prop);
         // this is not a property of the view provider but of the document object
         if (!name) {
+            if (prop.getName() && strcmp(prop.getName(), "ShapeMaterial") == 0) {
+                QSignalBlocker block(d->ui.widgetPhysicalMaterial);
+                setPhysicalMaterial(Provider);
+                updateLookSource();
+            }
             return;
         }
         std::string prop_name = name;
-        if (prop.is<App::PropertyColor>()) {
+        if (prop_name == "AppearanceOverrides") {
+            updateLookSource();
+        }
+        else if (prop.is<App::PropertyColor>()) {
             Base::Color value = static_cast<const App::PropertyColor&>(prop).getValue();
             if (prop_name == "LineColor") {
                 bool blocked = d->ui.buttonLineColor->blockSignals(true);
@@ -314,6 +348,7 @@ void DlgDisplayPropertiesImp::slotChangedObject(const Gui::ViewProvider& obj,
             if (prop_name == "ShapeAppearance") {
                 auto& values = static_cast<const App::PropertyMaterialList&>(prop).getValues();
                 auto& material = values[0];
+                QSignalBlocker block(d->ui.widgetMaterial);
                 d->ui.widgetMaterial->setMaterial(QString::fromStdString(material.uuid));
             }
         }
@@ -372,12 +407,7 @@ void DlgDisplayPropertiesImp::onButtonCustomAppearanceClicked()
         }
     }
     dlg.exec();
-    App::Material mat = dlg.getCustomMaterial();
-    for (auto vp : Provider) {
-        if (auto vpg = dynamic_cast<Gui::ViewProviderGeometryObject*>(vp)) {
-            vpg->ShapeAppearance.setValue(mat);
-        }
-    }
+    applyAppearance(dlg.getCustomMaterial());
 }
 
 /**
@@ -630,23 +660,216 @@ std::vector<Gui::ViewProvider*> DlgDisplayPropertiesImp::getSelection() const
 void DlgDisplayPropertiesImp::onMaterialSelected(
     const std::shared_ptr<Materials::Material>& material)
 {
-    std::vector<Gui::ViewProvider*> Provider = getSelection();
-    for (auto it : Provider) {
-        if (auto* prop = dynamic_cast<App::PropertyMaterialList*>(
-                it->getPropertyByName("ShapeAppearance"))) {
-            prop->setValue(material->getMaterialAppearance());
+    if (material) {
+        applyAppearance(material->getMaterialAppearance());
+    }
+}
+
+void DlgDisplayPropertiesImp::applyAppearance(const App::Material& look)
+{
+    // The view providers record the override: the dialog only sets the look
+    bool faces = isFaceScope();
+    int tid = Gui::Command::openActiveDocumentCommand(
+        faces ? QT_TRANSLATE_NOOP("Command", "Set face appearance")
+              : QT_TRANSLATE_NOOP("Command", "Set appearance")
+    );
+    for (auto obj : getSelectedObjects()) {
+        auto vp = Gui::Application::Instance->getViewProvider(obj);
+        if (!vp) {
+            continue;
+        }
+        if (faces) {
+            auto vpg = dynamic_cast<Gui::ViewProviderGeometryObject*>(vp);
+            auto names = getSelectedFaces(obj);
+            if (vpg && !names.empty()) {
+                vpg->setFaceAppearance(names, look);
+            }
+        }
+        else if (auto* prop = dynamic_cast<App::PropertyMaterialList*>(
+                     vp->getPropertyByName("ShapeAppearance"))) {
+            prop->setValue(look);
         }
     }
+    Gui::Command::commitCommand(tid);
+}
+
+void DlgDisplayPropertiesImp::onPhysicalMaterialSelected(
+    const std::shared_ptr<Materials::Material>& material)
+{
+    if (!material) {
+        return;
+    }
+    // The view providers give the look of the material to everything without override
+    int tid = Gui::Command::openActiveDocumentCommand(QT_TRANSLATE_NOOP("Command", "Set material"));
+    for (auto obj : getSelectedObjects()) {
+        if (auto prop =
+                dynamic_cast<Materials::PropertyMaterial*>(obj->getPropertyByName("ShapeMaterial"))) {
+            prop->setValue(*material);
+        }
+    }
+    Gui::Command::commitCommand(tid);
+    updateLookSource();
+}
+
+void DlgDisplayPropertiesImp::onButtonResetToMaterialClicked()
+{
+    bool faces = isFaceScope();
+    int tid = Gui::Command::openActiveDocumentCommand(
+        QT_TRANSLATE_NOOP("Command", "Reset to material")
+    );
+    for (auto obj : getSelectedObjects()) {
+        auto vpg = dynamic_cast<Gui::ViewProviderGeometryObject*>(
+            Gui::Application::Instance->getViewProvider(obj));
+        if (!vpg) {
+            continue;
+        }
+        if (!faces) {
+            vpg->resetToMaterial();
+        }
+        else if (auto names = getSelectedFaces(obj); !names.empty()) {
+            vpg->resetToMaterial(names);
+        }
+    }
+    Gui::Command::commitCommand(tid);
+    setPropertiesFromSelection();
+}
+
+void DlgDisplayPropertiesImp::onScopeToggled(bool)
+{
+    // Also enables the appearance widgets again for the whole objects
+    setPropertiesFromSelection();
+}
+
+void DlgDisplayPropertiesImp::setFaceScope(bool faces)
+{
+    if (faces) {
+        d->ui.radioScopeFaces->setChecked(true);
+    }
+    else {
+        d->ui.radioScopeObject->setChecked(true);
+    }
+    setPropertiesFromSelection();
+}
+
+bool DlgDisplayPropertiesImp::isFaceScope() const
+{
+    return d->ui.radioScopeFaces->isChecked();
+}
+
+void DlgDisplayPropertiesImp::updateScope()
+{
+    if (!isFaceScope()) {
+        d->ui.widgetMaterial->setEnabled(true);
+        return;
+    }
+    // Faces get a look only if some are selected
+    bool hasFaces = false;
+    for (auto obj : getSelectedObjects()) {
+        if (!getSelectedFaces(obj).empty()) {
+            hasFaces = true;
+            break;
+        }
+    }
+    d->ui.widgetMaterial->setEnabled(hasFaces);
+    d->ui.buttonCustomAppearance->setEnabled(hasFaces);
+}
+
+void DlgDisplayPropertiesImp::setPhysicalMaterial(const std::vector<Gui::ViewProvider*>& views)
+{
+    for (auto view : views) {
+        auto vpd = dynamic_cast<Gui::ViewProviderDocumentObject*>(view);
+        auto obj = vpd ? vpd->getObject() : nullptr;
+        if (auto prop = obj ? dynamic_cast<Materials::PropertyMaterial*>(
+                                  obj->getPropertyByName("ShapeMaterial"))
+                            : nullptr) {
+            d->ui.groupPhysicalMaterial->setEnabled(true);
+            d->ui.widgetPhysicalMaterial->setMaterial(prop->getValue().getUUID());
+            return;
+        }
+    }
+    d->ui.groupPhysicalMaterial->setEnabled(false);
+}
+
+void DlgDisplayPropertiesImp::updateLookSource()
+{
+    bool faces = isFaceScope();
+    bool hasMaterial = false;
+    bool fromMaterial = true;
+    QString materialName;
+    for (auto obj : getSelectedObjects()) {
+        auto vpg = dynamic_cast<Gui::ViewProviderGeometryObject*>(
+            Gui::Application::Instance->getViewProvider(obj));
+        auto prop =
+            dynamic_cast<Materials::PropertyMaterial*>(obj->getPropertyByName("ShapeMaterial"));
+        if (!vpg || !prop) {
+            continue;
+        }
+        if (!hasMaterial) {
+            hasMaterial = true;
+            materialName = prop->getValue().getName();
+        }
+        if (!faces) {
+            fromMaterial = fromMaterial && vpg->isLookFromMaterial();
+        }
+        else {
+            for (const auto& face : getSelectedFaces(obj)) {
+                fromMaterial = fromMaterial && vpg->isLookFromMaterial(face);
+            }
+        }
+    }
+
+    if (!hasMaterial) {
+        d->ui.labelLookSource->setText(tr("No physical material"));
+        d->ui.buttonResetToMaterial->setEnabled(false);
+        return;
+    }
+    d->ui.labelLookSource->setText(
+        fromMaterial ? tr("From material: %1").arg(materialName) : tr("Override")
+    );
+    d->ui.buttonResetToMaterial->setEnabled(!fromMaterial);
+}
+
+std::vector<App::DocumentObject*> DlgDisplayPropertiesImp::getSelectedObjects() const
+{
+    std::vector<App::DocumentObject*> objects;
+    for (const auto& it : Gui::Selection().getCompleteSelection()) {
+        if (it.pObject && std::find(objects.begin(), objects.end(), it.pObject) == objects.end()) {
+            objects.push_back(it.pObject);
+        }
+    }
+    return objects;
+}
+
+std::vector<std::string> DlgDisplayPropertiesImp::getSelectedFaces(
+    const App::DocumentObject* obj) const
+{
+    std::vector<std::string> faces;
+    for (const auto& it : Gui::Selection().getCompleteSelection()) {
+        if (it.pObject != obj || !it.SubName) {
+            continue;
+        }
+        const char* element = Data::findElementName(it.SubName);
+        if (!element) {
+            continue;
+        }
+        std::string name(element);
+        if (App::AppearanceOverrides::faceIndex(name) >= 0
+            && std::find(faces.begin(), faces.end(), name) == faces.end()) {
+            faces.push_back(name);
+        }
+    }
+    return faces;
 }
 
 // ----------------------------------------------------------------------------
 
 /* TRANSLATOR Gui::Dialog::TaskDisplayProperties */
 
-TaskDisplayProperties::TaskDisplayProperties()
+TaskDisplayProperties::TaskDisplayProperties(bool faceScope)
 {
     this->setButtonPosition(TaskDisplayProperties::North);
     widget = new DlgDisplayPropertiesImp();
+    widget->setFaceScope(faceScope);
     addTaskBox(widget);
 }
 
