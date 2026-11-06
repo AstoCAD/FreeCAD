@@ -191,15 +191,16 @@ void ModelLoader::dereference(std::shared_ptr<ModelEntry> model,
         for (auto it = inherits.begin(); it != inherits.end(); it++) {
             QString nodeName = QString::fromStdString((*it)["UUID"].as<std::string>());
 
-            // This requires that all models have already been loaded undereferenced
-            try {
-                std::shared_ptr<ModelEntry> child = (*_modelEntryMap)[nodeName];
-                dereference(model->getUUID(), model, child, inheritances);
-            }
-            catch (const std::out_of_range&) {
+            // This requires that all models have already been loaded undereferenced.
+            // Look the parent up without inserting: operator[] added an empty entry for a
+            // missing parent, which was then dereferenced (crash).
+            auto child = _modelEntryMap->find(nodeName);
+            if (child == _modelEntryMap->end()) {
                 Base::Console().log("Unable to find '{}' in model map\n",
                                     nodeName.toStdString());
+                continue;
             }
+            dereference(model->getUUID(), model, child->second, inheritances);
         }
     }
 

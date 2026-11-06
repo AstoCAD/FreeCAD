@@ -317,6 +317,7 @@ set(MaterialTest_Files
     materialtests/TestArray2DCancelGui.py
     materialtests/TestMaterialFilter.py
     materialtests/TestMaterialInheritance.py
+    materialtests/TestMaterialLibraries.py
 )
 
 ADD_CUSTOM_TARGET(MaterialTest ALL

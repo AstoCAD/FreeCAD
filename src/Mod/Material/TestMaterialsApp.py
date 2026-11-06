@@ -34,3 +34,4 @@ from materialtests.TestMaterialCreation import MaterialCreationTestCases
 from materialtests.TestMaterialCreation import MaterialSaveTestCases
 from materialtests.TestMaterialFilter import MaterialFilterTestCases
 from materialtests.TestMaterialInheritance import MaterialInheritanceTestCases
+from materialtests.TestMaterialLibraries import ModelLibraryTestCases
