@@ -26,6 +26,7 @@ import math
 
 import FreeCAD
 import TestSketcherApp
+from TestPropertyFloatNaN import restoreValueAsFromFile
 
 App = FreeCAD
 
@@ -179,7 +180,8 @@ class TestMultiTransform(unittest.TestCase):
         body, pad = self.makePadBody()
         scaled = body.newObject("PartDesign::Scaled", "Scaled")
         scaled.Originals = [pad]
-        scaled.Factor = float("nan")
+        # assigning NaN raises: it can only come from a file
+        restoreValueAsFromFile(scaled, "Factor", float("nan"))
         self.Doc.recompute()
         self.assertIn("Invalid", scaled.State)
 
@@ -188,7 +190,7 @@ class TestMultiTransform(unittest.TestCase):
         multiTransform = body.newObject("PartDesign::MultiTransform", "MultiTransform")
         multiTransform.Originals = [pad]
         scaled = body.newObject("PartDesign::Scaled", "Scaled")
-        scaled.Factor = float("nan")
+        restoreValueAsFromFile(scaled, "Factor", float("nan"))
         multiTransform.Transformations = [scaled]
         self.Doc.recompute()
         self.assertIn("Invalid", multiTransform.State)

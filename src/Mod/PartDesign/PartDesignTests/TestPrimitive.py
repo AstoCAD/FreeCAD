@@ -25,6 +25,7 @@ from math import pi, sqrt
 import unittest
 
 import FreeCAD
+from TestPropertyFloatNaN import restoreValueAsFromFile
 
 
 class TestPrimitive(unittest.TestCase):
@@ -169,7 +170,8 @@ class TestPrimitive(unittest.TestCase):
         ):
             with self.subTest(type=typeName, prop=prop):
                 feature = self.Body.newObject(typeName, "Feature")
-                setattr(feature, prop, float("nan"))
+                # assigning NaN raises: it can only come from a file
+                restoreValueAsFromFile(feature, prop, float("nan"))
                 self.Doc.recompute()
                 self.assertIn("Invalid", feature.State)
                 self.Body.removeObject(feature)
