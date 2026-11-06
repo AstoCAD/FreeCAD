@@ -235,6 +235,41 @@ class TestMeshCommon(unittest.TestCase):
         self.assertEqual(len(mesh.addVolumeList([1, 2, 3, 4], [4])), 1)
 
     # ********************************************************************************************
+    def test_volume_of_linear_elements(self):
+        # FemMesh.Volume only summed up 10-node tetrahedra, it was 0 for every other element type
+        def volume(points):
+            mesh = Fem.FemMesh()
+            for i, p in enumerate(points, 1):
+                mesh.addNode(*p, i)
+            mesh.addVolume(list(range(1, len(points) + 1)))
+            return mesh.Volume.Value
+
+        tetra4 = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
+        tetra10 = tetra4 + [
+            (0.5, 0, 0),
+            (0.5, 0.5, 0),
+            (0, 0.5, 0),
+            (0, 0, 0.5),
+            (0.5, 0, 0.5),
+            (0, 0.5, 0.5),
+        ]
+        penta6 = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 2), (1, 0, 2), (0, 1, 2)]
+        hexa8 = [
+            (0, 0, 0),
+            (2, 0, 0),
+            (2, 1, 0),
+            (0, 1, 0),
+            (0, 0, 3),
+            (2, 0, 3),
+            (2, 1, 3),
+            (0, 1, 3),
+        ]
+        self.assertAlmostEqual(volume(tetra4), 1 / 6)
+        self.assertAlmostEqual(volume(tetra10), 1 / 6)
+        self.assertAlmostEqual(volume(penta6), 1)
+        self.assertAlmostEqual(volume(hexa8), 6)
+
+    # ********************************************************************************************
     def test_unv_non_ascii_path(self):
         # https://github.com/FreeCAD/FreeCAD/issues/29274
         # UNV files (also used to save a mesh in the document through a temporary file)
