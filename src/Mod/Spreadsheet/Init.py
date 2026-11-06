@@ -38,5 +38,6 @@ ParGrp.SetString("WorkBenchModule", "SpreadsheetWorkbench.py")
 
 # add Import/Export types
 App.addImportType("Excel spreadsheet (*.xlsx *.XLSX)", "importXLSX")
+App.addExportType("Excel spreadsheet (*.xlsx)", "importXLSX")
 
 App.__unit_test__ += ["TestSpreadsheet"]

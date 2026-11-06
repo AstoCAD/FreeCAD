@@ -2180,6 +2180,165 @@ class SpreadsheetCases(unittest.TestCase):
         # Empty cells keep their format
         self.assertEqual(sheet.getBackground("D1"), (1.0, 1.0, 0.0, 1.0))
 
+    def testExportXLSX(self):
+        """Values, expressible formulas, aliases, formats and layout are exported
+        to XLSX, and read back by the importer"""
+        import zipfile
+        import importXLSX
+
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Exported")
+        sheet.set("A1", "1.5")
+        sheet.setAlias("A1", "len")
+        sheet.set("B1", "=A1*2")
+        sheet.set("C1", "10 mm")
+        sheet.set("D1", "=C1*2")
+        sheet.set("E1", "=len + 1")
+        sheet.set("F1", "=sum(A1:B1)")
+        sheet.set("G1", "=A1^2")
+        sheet.set("H1", "=B1 + C1")
+        sheet.set("A2", "<hello> & 'bye'")
+        sheet.setStyle("A2", "bold|italic")
+        sheet.setAlignment("A2", "center|top")
+        sheet.setForeground("A2", (1.0, 0.0, 0.0))
+        sheet.setBackground("A2", (0.0, 1.0, 0.0))
+        sheet.set("A3", "merged")
+        sheet.mergeCells("A3:B4")
+        sheet.setColumnWidth("B", 150)
+        sheet.setRowHeight("3", 40)
+        self.doc.recompute()
+
+        filename = os.path.join(self.TempPath, "SpreadsheetExport.xlsx")
+        importXLSX.export([sheet], filename)
+        with zipfile.ZipFile(filename) as z:
+            worksheet = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
+            workbook = z.read("xl/workbook.xml").decode("utf-8")
+            self.assertIn("xl/styles.xml", z.namelist())
+            self.assertIn("[Content_Types].xml", z.namelist())
+        self.assertIn('<c r="B1"><f>A1*2</f><v>3.0</v></c>', worksheet)
+        self.assertIn("<f>len+1</f>", worksheet)
+        self.assertIn("<f>SUM(A1:B1)</f>", worksheet)
+        # Units, '^' and references to quantities are not expressible: values only
+        self.assertNotIn("<f>10", worksheet)
+        self.assertNotIn("C1*2", worksheet)
+        self.assertNotIn("A1^2", worksheet)
+        self.assertNotIn("B1+C1", worksheet)
+        self.assertIn('<c r="G1"><v>2.25</v></c>', worksheet)
+        self.assertIn("&lt;hello&gt; &amp; 'bye'", worksheet)
+        self.assertIn('<mergeCell ref="A3:B4"/>', worksheet)
+        self.assertIn(
+            '<definedName name="len" localSheetId="0">Exported!$A$1</definedName>', workbook
+        )
+
+        # Read back by the importer
+        doc = FreeCAD.newDocument("ExportXLSXRoundTrip")
+        try:
+            importXLSX.insert(filename, doc.Name)
+            back = doc.getObject("Exported")
+            self.assertEqual(back.getContents("B1"), "=A1 * 2")
+            self.assertEqual(back.getAlias("A1"), "len")
+            self.assertEqual(back.E1, 2.5)
+            self.assertEqual(back.F1, 4.5)
+            self.assertEqual(back.G1, 2.25)
+            self.assertAlmostEqual(back.get("C1").Value, 10.0)
+            self.assertAlmostEqual(back.get("D1").Value, 20.0)
+            self.assertEqual(back.A2, "<hello> & 'bye'")
+            self.assertEqual(back.getStyle("A2"), {"bold", "italic"})
+            self.assertEqual(back.getAlignment("A2"), {"center", "top"})
+            self.assertEqual(back.getForeground("A2"), (1.0, 0.0, 0.0, 1.0))
+            self.assertEqual(back.getBackground("A2"), (0.0, 1.0, 0.0, 1.0))
+            self.assertEqual(back.getColumnWidth("B"), 150)
+            self.assertEqual(back.getColumnWidth("A"), sheet.getColumnWidth("A"))
+            self.assertEqual(back.getRowHeight("3"), 40)
+            self.assertEqual(importXLSX._spans(back), {"A3": (2, 2)})
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
+    def testExportXLSXDecimals(self):
+        """Per-cell decimals are exported as number formats"""
+        import zipfile
+        import importXLSX
+
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Decimals")
+        sheet.set("A1", "1.5")
+        sheet.setDecimals("A1", 3)
+        self.doc.recompute()
+        filename = os.path.join(self.TempPath, "SpreadsheetDecimals.xlsx")
+        importXLSX.export([sheet], filename)
+        with zipfile.ZipFile(filename) as z:
+            styles = z.read("xl/styles.xml").decode("utf-8")
+            worksheet = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
+        self.assertIn('<numFmt numFmtId="164" formatCode="0.000"/>', styles)
+        self.assertIn('<c r="A1" s="1"><v>1.5</v></c>', worksheet)
+
+    def testExportXLSXQuantityPrecision(self):
+        """Quantities are exported at full precision, not rounded to the
+        decimals of the preferences, and read back as the same quantity"""
+        import zipfile
+        import importXLSX
+
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Quantities")
+        sheet.set("A1", "=1/3 * 1 mm")
+        self.doc.recompute()
+        filename = os.path.join(self.TempPath, "SpreadsheetQuantities.xlsx")
+        importXLSX.export([sheet], filename)
+        with zipfile.ZipFile(filename) as z:
+            worksheet = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
+        self.assertIn(">%s mm<" % repr(1 / 3), worksheet)
+
+        doc = FreeCAD.newDocument("ExportXLSXQuantities")
+        try:
+            importXLSX.insert(filename, doc.Name)
+            back = doc.Objects[0]
+            self.assertAlmostEqual(back.get("A1").Value, 1 / 3, places=12)
+            self.assertEqual(back.get("A1").Unit, FreeCAD.Units.Length)
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
+    def testExportXLSXDefinedNames(self):
+        """Aliases are exported as names of their own worksheet, so that sheets
+        can share an alias, with the worksheet name quoted when Excel needs it"""
+        import zipfile
+        import importXLSX
+
+        first = self.doc.addObject("Spreadsheet::Sheet", "First")
+        first.Label = "2024"
+        first.set("A1", "1")
+        first.setAlias("A1", "len")
+        first.set("A2", "=len*2")
+        second = self.doc.addObject("Spreadsheet::Sheet", "Second")
+        second.Label = "AB12"
+        second.set("B2", "5")
+        second.setAlias("B2", "len")
+        second.set("B3", "=len+1")
+        second.set("C1", "7")
+        second.setAlias("C1", "R1C1")
+        self.doc.recompute()
+
+        filename = os.path.join(self.TempPath, "SpreadsheetDefinedNames.xlsx")
+        importXLSX.export([first, second], filename)
+        with zipfile.ZipFile(filename) as z:
+            workbook = z.read("xl/workbook.xml").decode("utf-8")
+        self.assertIn(
+            '<definedName name="len" localSheetId="0">\'2024\'!$A$1</definedName>', workbook
+        )
+        self.assertIn(
+            '<definedName name="len" localSheetId="1">\'AB12\'!$B$2</definedName>', workbook
+        )
+        # Not a valid Excel name (an R1C1 reference)
+        self.assertNotIn('"R1C1"', workbook)
+
+        doc = FreeCAD.newDocument("ExportXLSXDefinedNames")
+        try:
+            importXLSX.insert(filename, doc.Name)
+            # In the order of the worksheets ("2024" becomes the object "_2024")
+            back1, back2 = doc.Objects
+            self.assertEqual(back1.getAlias("A1"), "len")
+            self.assertEqual(back2.getAlias("B2"), "len")
+            self.assertEqual(back1.A2, 2)
+            self.assertEqual(back2.B3, 6)
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
     def testRemoveRowsAliasReuseName(self):
         """Regression test for issue 4492; deleted aliases remains in database"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
