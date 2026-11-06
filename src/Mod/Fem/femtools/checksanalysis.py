@@ -216,7 +216,7 @@ def check_member_for_solver_calculix(analysis, solver, mesh, member):
     if member.cons_displacement:
         for di in member.cons_displacement:
             if len(di["Object"].References) == 0:
-                message += "{} has empty references.".format(c["Object"].Name)
+                message += "{} has empty references.".format(di["Object"].Name)
     # plane rotation
     if member.cons_planerotation:
         for c in member.cons_planerotation:

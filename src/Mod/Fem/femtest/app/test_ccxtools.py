@@ -137,6 +137,26 @@ class TestCcxTools(unittest.TestCase):
         self.assertTrue(density_message())
 
     # ********************************************************************************************
+    def test_prerequisites_displacement_empty_references(self):
+        # a displacement constraint whose geometry was deleted has no references left,
+        # the prerequisites must name it (and not fail when there is no fixed constraint)
+        from femexamples.ccx_cantilever_faceload import setup
+        import ObjectsFem
+
+        setup(self.document, "ccxtools")
+        for obj in self.document.Analysis.Group:
+            if obj.isDerivedFrom("Fem::ConstraintFixed"):
+                self.document.removeObject(obj.Name)
+        displacement = ObjectsFem.makeConstraintDisplacement(self.document, "EmptyDisplacement")
+        self.document.Analysis.addObject(displacement)
+
+        fea = ccxtools.FemToolsCcx(
+            self.document.Analysis, self.document.CalculiXCcxTools, test_mode=True
+        )
+        fea.update_objects()
+        self.assertIn("EmptyDisplacement has empty references.", fea.check_prerequisites())
+
+    # ********************************************************************************************
     def test_fluid_section_liquid_pump(self):
         # CalculiX reads an unused first entry, then the pairs flow rate, total head,
         # with at most 16 entries per line
