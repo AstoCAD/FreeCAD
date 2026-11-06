@@ -39,3 +39,19 @@ class TestArchFence(TestArchBase.TestArchBase):
         self.assertEqual(fence.Section, section, "Fence section is incorrect")
         self.assertEqual(fence.Post, post, "Fence post is incorrect")
         self.assertEqual(fence.Path, path, "Fence path is incorrect")
+
+    def test_makeFence_edge_path(self):
+        # A path whose shape is a bare edge (no wire), e.g. a Part Line, used to
+        # raise NameError: name 'Part' is not defined in calculatePathWire
+        section = Draft.make_rectangle(100, 10)
+        post = Draft.make_rectangle(10, 10)
+        path = self.document.addObject("Part::Line", "PathLine")
+        path.X2 = 1000
+        self.document.recompute()
+        self.assertFalse(path.Shape.Wires, "Test path should be a bare edge")
+
+        fence = Arch.makeFence(section, post, path)
+        self.document.recompute()
+        self.assertNotIn("Invalid", fence.State, "Fence failed to recompute")
+        self.assertFalse(fence.Shape.isNull(), "Fence shape is null")
+        self.assertGreater(fence.NumberOfPosts, 1, "Fence has no posts")
