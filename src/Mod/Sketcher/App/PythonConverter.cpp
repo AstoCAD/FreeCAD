@@ -248,6 +248,9 @@ PythonConverter::SingleGeometry PythonConverter::process(const Part::Geometry* g
              auto arc = static_cast<const Part::GeomArcOfCircle*>(geo);
              double startAngle, endAngle;
              arc->getRange(startAngle, endAngle, /*emulateCCWXY=*/true);
+             // The range is the one of the counter-clockwise arc in the XY plane (as the solver
+             // sees it), so the circle is created counter-clockwise too, also for a reversed arc.
+             const Base::Vector3d axis(0.0, 0.0, 1.0);
              SingleGeometry sg;
              sg.creation = boost::str(
                  boost::format(
@@ -255,7 +258,7 @@ PythonConverter::SingleGeometry PythonConverter::process(const Part::Geometry* g
                      "%.8f), App.Vector(%.8f, %.8f, %.8f), %.8f), %.8f, %.8f)"
                  )
                  % arc->getCenter().x % arc->getCenter().y % arc->getCenter().z
-                 % arc->getAxisDirection().x % arc->getAxisDirection().y % arc->getAxisDirection().z
+                 % axis.x % axis.y % axis.z
                  % arc->getRadius() % startAngle % endAngle
              );
              sg.construction = Sketcher::GeometryFacade::getConstruction(geo);
@@ -298,7 +301,10 @@ PythonConverter::SingleGeometry PythonConverter::process(const Part::Geometry* g
              SingleGeometry sg;
              auto center = aoe->getCenter();
              auto periapsis = center + aoe->getMajorAxisDir() * aoe->getMajorRadius();
-             auto positiveB = center + aoe->getMinorAxisDir() * aoe->getMinorRadius();
+             // The range is the one of the counter-clockwise arc in the XY plane, so the minor
+             // axis point is taken counter-clockwise from the major axis, also for a reversed arc.
+             auto minorDir = Base::Vector3d(0.0, 0.0, 1.0) % aoe->getMajorAxisDir();
+             auto positiveB = center + minorDir * aoe->getMinorRadius();
              sg.creation = boost::str(
                  boost::format(
                      "Part.ArcOfEllipse(Part.Ellipse(App.Vector(%.8f, %.8f, %.8f), "
