@@ -3,6 +3,7 @@ For optimizing sequences of Path.Commands
 """
 
 from collections.abc import Iterator
+import math
 
 import Constants
 import Path
@@ -212,7 +213,7 @@ def collapse_g0(commands: list[Path.Command]) -> Iterator[Path.Command]:
             # F carries over from g0
             return True
         else:
-            return math.isclose(g0_f, cmd_f, 1e-4)
+            return math.isclose(g0_f, cmd_f, rel_tol=1e-4)
 
     def start_chain(cmd):
         # we know cmd is a g0
