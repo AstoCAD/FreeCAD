@@ -1018,10 +1018,13 @@ class Joint:
 
         isAssembly = assembly is not None
         if isAssembly:
+            # Temporarily suppress the joint so it is not counted as a connection,
+            # then restore the user's suppression state.
+            suppressed_backup = joint.Suppressed
             joint.Suppressed = True
             part1Connected = assembly.isPartConnected(part1)
             part2Connected = assembly.isPartConnected(part2)
-            joint.Suppressed = False
+            joint.Suppressed = suppressed_backup
         else:
             part1Connected = True
             part2Connected = False
