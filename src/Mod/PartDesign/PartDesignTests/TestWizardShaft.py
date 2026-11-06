@@ -73,3 +73,51 @@ class TestWizardShaft(unittest.TestCase):
 
         self.assertEqual(len(shaft.segments), 3)
         self.assertEqual(fixed.References, [])
+
+    def testSingularBendingLineIsReported(self):
+        """Without boundary conditions the bending line has no solution: report it, do not raise"""
+        from PartDesign.WizardShaft import SegmentFunction
+
+        moment = SegmentFunction.SegmentFunction("M")
+        moment.buildFromDict("x", {0.0: 1.0, 0.5: -1.0})
+        areaMoment = SegmentFunction.IntervalFunction()
+        areaMoment.addInterval(0.0, 1.0, 1.0e-8)
+
+        line = SegmentFunction.TranslationFunction(moment, 2.1e12, areaMoment, [], [])
+
+        self.assertFalse(hasattr(line, "boundaries"))
+
+    def testSingularEquilibriumIsReported(self):
+        """Two bearings at the same place give a singular system: report it, do not raise"""
+
+        class Parent:
+            def __init__(self):
+                self.disabled = set()
+
+            def updateButtons(self, col, flag):
+                if not flag:
+                    self.disabled.add(col)
+
+            def updateButton(self, row, col, flag):
+                pass
+
+        class Bearing:
+            BasePoint = FreeCAD.Vector(5, 0, 0)
+            AxialFree = True
+
+        shaft = self.makeShaft()
+        shaft.parent = Parent()
+        shaft.F = [None, None, None]
+        shaft.M = [None, None, None]
+        shaft.w = [None, None, None]
+        shaft.sigmaN = [None, None, None]
+        shaft.sigmaB = [None, None, None]
+        shaft.addSegment(10.0, 5.0, 0.0)
+        shaft.addSegment(10.0, 5.0, 0.0)
+        for segment in shaft.segments:
+            segment.constraintType = "Bearing"
+            segment.constraint = Bearing()
+
+        shaft.equilibrium()
+
+        self.assertEqual(shaft.parent.disabled, {0, 1, 2})
