@@ -235,6 +235,18 @@ class TestMeshCommon(unittest.TestCase):
         self.assertEqual(len(mesh.addVolumeList([1, 2, 3, 4], [4])), 1)
 
     # ********************************************************************************************
+    def test_three_non_colinear_nodes(self):
+        # the third node of the CalculiX plane rotation MPC was always the first node of the list
+        from femmesh import meshtools
+
+        square = [(1, 0, 0, 0), (2, 1, 0, 0), (3, 1, 1, 0), (4, 0, 1, 0)]
+        self.assertEqual(meshtools.get_three_non_colinear_nodes(square), [1, 2, 3])
+        line_and_apex = [(7, 0, 0, 0), (8, 1, 0, 0), (9, 2, 0, 0), (5, 0.5, 4, 0)]
+        nodes = meshtools.get_three_non_colinear_nodes(line_and_apex)
+        self.assertEqual(len(set(nodes)), 3)
+        self.assertIn(5, nodes)
+
+    # ********************************************************************************************
     def test_volume_of_linear_elements(self):
         # FemMesh.Volume only summed up 10-node tetrahedra, it was 0 for every other element type
         def volume(points):

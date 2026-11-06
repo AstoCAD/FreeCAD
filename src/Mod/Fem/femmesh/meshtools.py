@@ -2047,7 +2047,7 @@ def get_three_non_colinear_nodes(nodes_coords):
         z_1 = dum_max[3]
         z_2 = dum_max[7]
         z_3 = nodes_coords[i][3]
-        node_3 = int(nodes_coords[j][0])
+        node_3 = int(nodes_coords[i][0])
         distance_1 = ((x_1 - x_3) ** 2 + (y_1 - y_3) ** 2 + (z_1 - z_3) ** 2) ** 0.5
         distance_2 = ((x_3 - x_2) ** 2 + (y_3 - y_2) ** 2 + (z_3 - z_2) ** 2) ** 0.5
         tot = distance_1 + distance_2
@@ -2055,6 +2055,7 @@ def get_three_non_colinear_nodes(nodes_coords):
             node_dis = [node_3, tot]
     node_1 = int(dum_max[0])
     node_2 = int(dum_max[4])
+    node_3 = int(node_dis[0])
     FreeCAD.Console.PrintMessage(f"{[node_1, node_2, node_3]}\n")
     return [node_1, node_2, node_3]
 
