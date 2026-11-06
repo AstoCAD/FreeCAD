@@ -42,6 +42,7 @@ SET(OpenSCADTestsApp_SRCS
     OpenSCADTest/app/test_importCSGPolygon.py
     OpenSCADTest/app/test_importCSGResize.py
     OpenSCADTest/app/test_importCSGConsumedSources.py
+    OpenSCADTest/app/test_exportCSGPrimitives.py
     OpenSCADTest/app/test_importCSGCircle.py
 )
 
