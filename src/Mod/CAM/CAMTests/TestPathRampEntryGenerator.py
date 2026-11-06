@@ -296,3 +296,29 @@ class TestPathRampEntryGenerator(PathTestUtils.PathTestBase):
             result = RampEntry(**args).generate()
             links = [c for c in result if c.Annotations.get("type") == "linking"]
             self.assertEqual(len(links), 3, f"linking annotations lost by method {method}")
+
+    def test21(self):
+        """Verify a plunge into a full circle is ramped along the circle by every method"""
+        # A full circle is one command, as Path.Geom.cmdsForEdge writes a circle edge
+        # (e.g. the Engrave operation on a circle).
+        commands = [
+            Path.Command("G0", {"X": 10, "Y": 0, "Z": 5}),
+            Path.Command("G1", {"X": 10, "Y": 0, "Z": -2, "F": 1}),
+            Path.Command("G2", {"X": 10, "Y": 0, "Z": -2, "I": -10, "J": 0, "F": 2}),
+            Path.Command("G0", {"Z": 5}),
+        ]
+        for method in range(5):
+            result = RampEntry(commands, method=method, angle_rad=math.radians(10)).generate()
+            pos = FreeCAD.Vector(0, 0, 0)
+            reached = False
+            for cmd in result:
+                end = Path.Geom.commandEndPoint(cmd, pos)
+                if cmd.Name in Path.Geom.CmdMoveMill and Path.Geom.isRoughly(end.z, -2):
+                    reached = True
+                if cmd.Name in Path.Geom.CmdMoveStraight and end.z < pos.z - 1e-6:
+                    self.assertFalse(
+                        Path.Geom.pointsCoincide(Path.Geom.xy(end), Path.Geom.xy(pos)),
+                        f"plunge left in place by method {method}: {cmd}",
+                    )
+                pos = end
+            self.assertTrue(reached, f"cut depth not reached by method {method}")
