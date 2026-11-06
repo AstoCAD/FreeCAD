@@ -82,7 +82,8 @@ def import_z88_disp(filename, analysis=None, result_name_prefix=None):
 
         # read result mesh
         if filename.endswith("z88o2.txt"):
-            mesh_file = filename.replace("o2", "i1")
+            # replace only the file name, the directory may contain "o2" too
+            mesh_file = filename[: -len("z88o2.txt")] + "z88i1.txt"
             mesh_data = importZ88Mesh.read_z88_mesh(mesh_file)
             femmesh = importToolsFem.make_femmesh(mesh_data)
             result_mesh_object = ObjectsFem.makeMeshResult(FreeCAD.ActiveDocument, "Result_mesh")
