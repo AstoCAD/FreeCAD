@@ -182,6 +182,7 @@ SET(TDTest_SRCS
     TDTest/__init__.py
     TDTest/DrawBrokenOutSectionDepthTest.py
     TDTest/DrawCosmeticCircleRadiusTest.py
+    TDTest/DrawCosmeticVertex3dTest.py
     TDTest/DrawCosmeticEdgeLineNumberTest.py
     TDTest/DrawDecorateLineInvalidEdgeTest.py
     TDTest/DrawCosmeticRefreshNoGeometryTest.py
