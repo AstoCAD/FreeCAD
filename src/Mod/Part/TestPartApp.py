@@ -143,6 +143,77 @@ class PartTestCases(unittest.TestCase):
         # a single wire is unchanged
         self.assertAlmostEqual(Part.Face([Part.makePolygon(outer + [outer[0]])]).Area, 600.0)
 
+    def testFaceFromWiresHoleOrientationCases(self):
+        # Correctly oriented holes are kept as given (no re-oriented copies), also with many
+        # holes, and wire layouts that are not an outer wire with holes inside are left as
+        # they were built: only the orientation of nested wires is repaired.
+        def square(x, y, size, ccw=True):
+            points = [
+                App.Vector(x, y, 0),
+                App.Vector(x + size, y, 0),
+                App.Vector(x + size, y + size, 0),
+                App.Vector(x, y + size, 0),
+            ]
+            if not ccw:
+                points.reverse()
+            return Part.makePolygon(points + [points[0]])
+
+        def build(wires):
+            face = Part.Face(wires[0])
+            face.cutHoles(wires[1:])
+            return (
+                ("wires", Part.Face(wires)),
+                ("surface", Part.Face(Part.Plane(), wires)),
+                ("cutHoles", face),
+            )
+
+        outer = square(0, 0, 100)
+        holes = [
+            Part.Wire(Part.makeCircle(2, App.Vector(5 + 10 * i, 5 + 10 * j, 0), App.Vector(0, 0, -1)))
+            for i in range(10)
+            for j in range(10)
+        ]
+        for name, face in build([outer] + holes):
+            with self.subTest(case="many holes", kind=name):
+                self.assertTrue(face.isValid())
+                self.assertEqual(len(face.Wires), 101)
+                self.assertAlmostEqual(face.Area, 10000.0 - 400.0 * math.pi, places=6)
+                for wire in [outer] + holes:
+                    self.assertTrue(any(w.isSame(wire) for w in face.Wires))
+
+        cases = (
+            # name, wires, valid, area, input wires kept as given
+            ("hole", [square(0, 0, 10), square(3, 3, 3, False)], True, 91.0, [True, True]),
+            ("same orientation", [square(0, 0, 10), square(3, 3, 3)], True, 91.0, [True, False]),
+            ("hole first", [square(3, 3, 3), square(0, 0, 10)], True, 91.0, [False, True]),
+            ("disjoint", [square(0, 0, 1), square(5, 0, 1)], False, 2.0, [True, True]),
+            ("disjoint hole", [square(0, 0, 1), square(5, 0, 1, False)], False, 2.0, [True, False]),
+            ("overlapping", [square(0, 0, 10), square(8, 8, 4)], False, 116.0, [True, True]),
+            (
+                "overlapping hole",
+                [square(0, 0, 10), square(8, 8, 4, False)],
+                False,
+                116.0,
+                [True, False],
+            ),
+            (
+                "nested holes",
+                [square(0, 0, 10), square(2, 2, 6, False), square(4, 4, 2, False)],
+                False,
+                60.0,
+                [True, True, True],
+            ),
+        )
+        for case, wires, valid, area, kept in cases:
+            for name, face in build(wires):
+                with self.subTest(case=case, kind=name):
+                    self.assertEqual(face.isValid(), valid)
+                    self.assertEqual(len(face.Wires), len(wires))
+                    self.assertAlmostEqual(face.Area, area, places=6)
+                    self.assertEqual(
+                        [any(w.isSame(wire) for w in face.Wires) for wire in wires], kept
+                    )
+
     def testThicknessNeverStoresInvalidSolid(self):
         # Part::Thickness stored whatever OCC returned, even a broken solid (stock OCC 8.0
         # returns invalid solids for these filleted shapes, a patched one an inside-out solid
