@@ -315,6 +315,7 @@ void PropertySheet::Paste(const Property& from)
     const PropertySheet& froms = dynamic_cast<const PropertySheet&>(from);
 
     AtomicPropertyChange signaller(*this);
+    const auto previousAliases = revAliasProp;
 
     std::map<CellAddress, Cell*>::iterator icurr = data.begin();
 
@@ -375,6 +376,10 @@ void PropertySheet::Paste(const Property& from)
             ++icurr;
         }
     }
+
+    // A cell referring to an alias may have been pasted before the cell
+    // that has the alias now (e.g. undo/redo of inserting rows)
+    recomputeMovedAliasDependants(previousAliases);
 
     if (!spanChanges.empty()) {
         mergedCells = froms.mergedCells;
@@ -1049,6 +1054,7 @@ void PropertySheet::insertRows(int row, int count)
         visitor(*this, CellAddress(row, CellAddress::MAX_COLUMNS), count, 0);
 
     AtomicPropertyChange signaller(*this);
+    const auto previousAliases = revAliasProp;
 
     // move all the aliases first so dependencies can be calculated correctly
     for (std::vector<CellAddress>::const_reverse_iterator i = keys.rbegin(); i != keys.rend(); ++i) {
@@ -1076,6 +1082,7 @@ void PropertySheet::insertRows(int row, int count)
             moveCell(*i, CellAddress(i->row() + count, i->col()), renames);
         }
     }
+    recomputeMovedAliasDependants(previousAliases);
 
     const App::DocumentObject* docObj = static_cast<const App::DocumentObject*>(getContainer());
     owner->getDocument()->renameObjectIdentifiers(renames, [docObj](const App::DocumentObject* obj) {
@@ -1127,6 +1134,7 @@ void PropertySheet::removeRows(int row, int count)
         visitor(*this, CellAddress(row + count - 1, CellAddress::MAX_COLUMNS), -count, 0);
 
     AtomicPropertyChange signaller(*this);
+    const auto previousAliases = revAliasProp;
 
     // move all the aliases first so dependencies can be calculated correctly
     for (const auto& key : keys) {
@@ -1174,6 +1182,7 @@ void PropertySheet::removeRows(int row, int count)
             );
         }
     }
+    recomputeMovedAliasDependants(previousAliases);
 
     const App::DocumentObject* docObj = static_cast<const App::DocumentObject*>(getContainer());
     owner->getDocument()->renameObjectIdentifiers(renames, [docObj](const App::DocumentObject* obj) {
@@ -1197,6 +1206,7 @@ void PropertySheet::insertColumns(int col, int count)
         visitor(*this, CellAddress(CellAddress::MAX_ROWS, col), 0, count);
 
     AtomicPropertyChange signaller(*this);
+    const auto previousAliases = revAliasProp;
 
     // move all the aliases first so dependencies can be calculated correctly
     for (std::vector<CellAddress>::const_reverse_iterator i = keys.rbegin(); i != keys.rend(); ++i) {
@@ -1224,6 +1234,7 @@ void PropertySheet::insertColumns(int col, int count)
             moveCell(*i, CellAddress(i->row(), i->col() + count), renames);
         }
     }
+    recomputeMovedAliasDependants(previousAliases);
 
     const App::DocumentObject* docObj = static_cast<const App::DocumentObject*>(getContainer());
     owner->getDocument()->renameObjectIdentifiers(renames, [docObj](const App::DocumentObject* obj) {
@@ -1275,6 +1286,7 @@ void PropertySheet::removeColumns(int col, int count)
         visitor(*this, CellAddress(CellAddress::MAX_ROWS, col + count - 1), 0, -count);
 
     AtomicPropertyChange signaller(*this);
+    const auto previousAliases = revAliasProp;
 
     // move all the aliases first so dependencies can be calculated correctly
     for (const auto& key : keys) {
@@ -1322,6 +1334,7 @@ void PropertySheet::removeColumns(int col, int count)
             );
         }
     }
+    recomputeMovedAliasDependants(previousAliases);
 
     const App::DocumentObject* docObj = static_cast<const App::DocumentObject*>(getContainer());
     owner->getDocument()->renameObjectIdentifiers(renames, [docObj](const App::DocumentObject* obj) {
@@ -2089,6 +2102,37 @@ void PropertySheet::recomputeAliasDependants(const std::string& alias, CellAddre
             recomputeDependencies(address);
             setDirty(address);
         }
+    }
+}
+
+/**
+ * Refresh the cells that refer to an alias that is on another cell than in
+ * \a previousAliases (alias -> cell before cells were moved or replaced in
+ * bulk), that is gone, or that is new. The expressions of these cells are
+ * unchanged, so their dependencies still hold the address the alias had
+ * when they were built.
+ */
+
+void PropertySheet::recomputeMovedAliasDependants(
+    const std::map<std::string, CellAddress>& previousAliases
+)
+{
+    // A reference to an alias that resolves is recorded on the address of the
+    // aliased cell only, hence the previous address.
+    std::map<std::string, CellAddress> changed;
+    for (const auto& [alias, address] : previousAliases) {
+        auto it = revAliasProp.find(alias);
+        if (it == revAliasProp.end() || it->second != address) {
+            changed.emplace(alias, address);
+        }
+    }
+    for (const auto& entry : revAliasProp) {
+        if (!previousAliases.count(entry.first)) {
+            changed.emplace(entry.first, CellAddress());
+        }
+    }
+    for (const auto& [alias, previousAddress] : changed) {
+        recomputeAliasDependants(alias, previousAddress);
     }
 }
 
