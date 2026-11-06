@@ -23,6 +23,8 @@
  ***************************************************************************/
 
 
+#include <algorithm>
+
 #include <QPalette>
 #include <QPrintDialog>
 #include <QPrintPreviewDialog>
@@ -33,6 +35,7 @@
 #include <App/Application.h>
 #include <App/DocumentObject.h>
 #include <App/Range.h>
+#include <Base/Quantity.h>
 #include <Base/Tools.h>
 #include <Gui/Application.h>
 #include <Gui/Command.h>
@@ -89,6 +92,12 @@ SheetView::SheetView(Gui::Document* pcDocument, App::DocumentObject* docObj, QWi
         &QItemSelectionModel::currentChanged,
         this,
         &SheetView::currentChanged
+    );
+    connect(
+        ui->cells->selectionModel(),
+        &QItemSelectionModel::selectionChanged,
+        this,
+        &SheetView::updateSelectionSummary
     );
 
     connect(
@@ -506,6 +515,115 @@ void SheetView::currentChanged(const QModelIndex& current, const QModelIndex& pr
     Q_UNUSED(previous);
     updateContentLine();
     updateAliasLine();
+}
+
+/**
+ * Show the count, sum, average, minimum and maximum of the numeric cells of a
+ * multi-cell selection in the status bar, like other spreadsheets do.
+ * Quantities are summed only when they all have the same unit.
+ */
+
+void SheetView::updateSelectionSummary()
+{
+    const std::vector<Range> ranges = selectedRanges();
+    long long selectedSize = 0;
+    for (const auto& range : ranges) {
+        selectedSize += range.size();
+    }
+
+    int count = 0;
+    int numbers = 0;
+    double sum = 0.0;
+    double minimum = 0.0;
+    double maximum = 0.0;
+    Base::Unit unit;
+    bool sameUnit = true;
+
+    auto addCell = [&](CellAddress address) {
+        auto* prop = sheet->getPropertyByName(
+            address.toString(CellAddress::Cell::ShowRowColumn).c_str()
+        );
+        if (!prop) {
+            return;
+        }
+        ++count;
+        double value = 0.0;
+        Base::Unit cellUnit;
+        if (auto* quantity = freecad_cast<App::PropertyQuantity*>(prop)) {
+            value = quantity->getValue();
+            cellUnit = quantity->getUnit();
+        }
+        else if (auto* number = freecad_cast<App::PropertyFloat*>(prop)) {
+            value = number->getValue();
+        }
+        else if (auto* integer = freecad_cast<App::PropertyInteger*>(prop)) {
+            value = static_cast<double>(integer->getValue());
+        }
+        else {
+            return;
+        }
+        if (numbers == 0) {
+            unit = cellUnit;
+            minimum = value;
+            maximum = value;
+        }
+        else {
+            sameUnit = sameUnit && cellUnit == unit;
+            minimum = std::min(minimum, value);
+            maximum = std::max(maximum, value);
+        }
+        sum += value;
+        ++numbers;
+    };
+
+    auto inSelection = [&ranges](CellAddress address) {
+        return std::any_of(ranges.begin(), ranges.end(), [&address](const Range& range) {
+            return address.row() >= range.from().row() && address.row() <= range.to().row()
+                && address.col() >= range.from().col() && address.col() <= range.to().col();
+        });
+    };
+
+    if (selectedSize > 1) {
+        // Small selections are scanned cell by cell, large ones (whole rows
+        // or columns) through the cells that have contents.
+        constexpr long long maxScannedCells = 4096;
+        if (selectedSize <= maxScannedCells) {
+            for (auto range : ranges) {
+                do {
+                    addCell(*range);
+                } while (range.next());
+            }
+        }
+        else {
+            for (const auto& address : sheet->getCells()->getNonEmptyCells()) {
+                if (inSelection(address)) {
+                    addCell(address);
+                }
+            }
+        }
+    }
+
+    QString message;
+    if (count > 1) {
+        message = tr("Count: %1").arg(count);
+        if (numbers > 0 && sameUnit) {
+            auto format = [&unit](double value) {
+                return QString::fromStdString(Base::Quantity(value, unit).getUserString());
+            };
+            message += QStringLiteral("    ")
+                + tr("Sum: %1    Average: %2    Min: %3    Max: %4")
+                      .arg(format(sum), format(sum / numbers), format(minimum), format(maximum));
+        }
+    }
+
+    if (!message.isEmpty()) {
+        Gui::getMainWindow()->showMessage(message);
+        selectionSummaryShown = true;
+    }
+    else if (selectionSummaryShown) {
+        Gui::getMainWindow()->showMessage(QString());
+        selectionSummaryShown = false;
+    }
 }
 
 void SheetView::updateCell(const App::Property* prop)
