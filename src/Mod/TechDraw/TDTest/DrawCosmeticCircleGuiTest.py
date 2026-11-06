@@ -385,5 +385,51 @@ class TestCosmeticCircleCompatibility(_CosmeticCircleGuiTestCase):
         self._assert_no_native_errors()
 
 
+    def _open_edit_task(self, tag):
+        indices = []
+        for index in range(len(self.view.getVisibleEdges()) + 10):
+            try:
+                edge = self.view.getCosmeticEdgeBySelection("Edge" + str(index))
+            except ValueError:
+                continue
+            if edge.Tag == tag:
+                indices.append(index)
+        self.assertEqual(len(indices), 1)
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(self.doc.Name, self.view.Name, "Edge" + str(indices[0]))
+        return self._open_selected_task()
+
+
+    def test_edit_off_axis_circle_keeps_center(self):
+        """Editing a circle must not mirror its stored center in Y."""
+        center = App.Vector(10, 20, 0)
+        tag = self.view.makeCosmeticCircle(center, 7.5)
+        self.assertTrue(tag)
+        self._open_edit_task(tag)
+        center_y = self.form.findChild(QtWidgets.QWidget, "qsbCenterY")
+        self.assertIsNotNone(center_y)
+        self.retained.append(center_y)
+        self.assertAlmostEqual(float(center_y.property("rawValue")), 20.0)
+        self.assertTrue(self.radius.setProperty("rawValue", 8.25))
+        self.task.accept()
+        self.assertTrue(self._wait(lambda: not Gui.Control.activeDialog()))
+        self.doc.recompute()
+        edge = self.view.getCosmeticEdge(tag)
+        self.assertAlmostEqual(edge.Radius, 8.25)
+        self.assertLess((edge.Center - center).Length, 1e-8, "edited circle center was mirrored")
+        # a second edit starts from the stored center
+        self._open_edit_task(tag)
+        center_y = self.form.findChild(QtWidgets.QWidget, "qsbCenterY")
+        self.retained.append(center_y)
+        self.assertAlmostEqual(float(center_y.property("rawValue")), 20.0)
+        self.task.reject()
+        self.assertTrue(self._wait(lambda: not Gui.Control.activeDialog()))
+        # the Python setter rebuilds the circle from the stored center
+        edge = self.view.getCosmeticEdge(tag)
+        edge.Radius = 9.0
+        self.assertLess((edge.Center - center).Length, 1e-8)
+        self._assert_no_native_errors()
+
+
 if __name__ == "__main__":
     unittest.main()
