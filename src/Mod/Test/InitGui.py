@@ -156,4 +156,5 @@ FreeCAD.__unit_test__ += [
     "TestImagePlaneDraggerGui",
     "TestCameraSettingsNestingGui",
     "TestTaskDialogGateGui",
+    "TestNewPartNameGui",
 ]
