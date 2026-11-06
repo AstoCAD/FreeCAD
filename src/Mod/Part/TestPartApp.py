@@ -2116,8 +2116,8 @@ class PartCompoundFilterTests(unittest.TestCase):
 
 
 class PartGroupCycleShapeTests(unittest.TestCase):
-    """A group that contains itself can be made by assigning Group directly;
-    Part.getShape() recursed into its children until the stack overflowed."""
+    """A group that contains itself (Group refuses that, but old files may contain
+    one); Part.getShape() recursed into its children until the stack overflowed."""
 
     def setUp(self):
         self.Doc = FreeCAD.newDocument("PartGroupCycleShape")
@@ -2125,9 +2125,36 @@ class PartGroupCycleShapeTests(unittest.TestCase):
     def tearDown(self):
         FreeCAD.closeDocument(self.Doc.Name)
 
+    def _reopenWithLinkReplaced(self, old, new):
+        # save, point the Group link to `old` at `new` in Document.xml, reopen
+        import os
+        import tempfile
+        import zipfile
+
+        tempdir = tempfile.mkdtemp()
+        path = os.path.join(tempdir, "PartGroupCycleShape.FCStd")
+        self.addCleanup(os.rmdir, tempdir)
+        self.addCleanup(os.remove, path)
+        self.Doc.saveAs(path)
+        FreeCAD.closeDocument(self.Doc.Name)
+        with zipfile.ZipFile(path) as zin:
+            entries = [(info, zin.read(info.filename)) for info in zin.infolist()]
+        with zipfile.ZipFile(path, "w") as zout:
+            for info, data in entries:
+                if info.filename == "Document.xml":
+                    text = data.decode("utf-8")
+                    link = '<Link value="{}"/>'
+                    self.assertEqual(text.count(link.format(old)), 1)
+                    data = text.replace(link.format(old), link.format(new)).encode("utf-8")
+                zout.writestr(info, data)
+        self.Doc = FreeCAD.openDocument(path)
+
     def testSelfContainingPart(self):
         part = self.Doc.addObject("App::Part", "Part")
-        part.Group = [part]
+        part.Group = [self.Doc.addObject("App::FeatureTest", "Placeholder")]
+        self._reopenWithLinkReplaced("Placeholder", "Part")
+        part = self.Doc.getObject("Part")
+        self.assertEqual(part.Group, [part])
         self.assertTrue(Part.getShape(part).isNull())
 
     def testMutuallyContainingParts(self):
@@ -2136,7 +2163,11 @@ class PartGroupCycleShapeTests(unittest.TestCase):
         box = self.Doc.addObject("Part::Box", "Box")
         self.Doc.recompute()
         part1.Group = [part2, box]
-        part2.Group = [part1]
+        part2.Group = [self.Doc.addObject("App::FeatureTest", "Placeholder")]
+        self._reopenWithLinkReplaced("Placeholder", "Part1")
+        part1 = self.Doc.getObject("Part1")
+        part2 = self.Doc.getObject("Part2")
+        self.assertEqual(part2.Group, [part1])
         Part.getShape(part1)
         Part.getShape(part2)
 
