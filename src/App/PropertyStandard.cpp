@@ -2247,8 +2247,18 @@ void PropertyMap::setPyObject(PyObject* value)
     if (PyMapping_Check(value)) {
         std::map<std::string, std::string> values;
         // get key and item list
-        PyObject* keyList = PyMapping_Keys(value);
-        PyObject* itemList = PyMapping_Values(value);
+        // PyMapping_Check() also accepts sequences such as list or str, which have no keys():
+        // then PyMapping_Keys() fails with the error set, and the map must stay unchanged.
+        Py::Object keyHolder(PyMapping_Keys(value), true);
+        if (keyHolder.isNull()) {
+            throw Py::Exception();
+        }
+        Py::Object itemHolder(PyMapping_Values(value), true);
+        if (itemHolder.isNull()) {
+            throw Py::Exception();
+        }
+        PyObject* keyList = keyHolder.ptr();
+        PyObject* itemList = itemHolder.ptr();
         Py_ssize_t nSize = PyList_Size(keyList);
 
         for (Py_ssize_t i = 0; i < nSize; ++i) {
@@ -2275,9 +2285,6 @@ void PropertyMap::setPyObject(PyObject* value)
                 throw Base::TypeError(error);
             }
         }
-
-        Py_XDECREF(itemList);
-        Py_XDECREF(keyList);
 
         setValues(values);
     }
