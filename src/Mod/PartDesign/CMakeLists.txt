@@ -72,12 +72,12 @@ set(PartDesign_TestScripts
     PartDesignTests/TestTopologicalNamingProblem.py
     PartDesignTests/TestInvoluteGear.py
     PartDesignTests/TestSprocket.py
+    PartDesignTests/TestWizardShaft.py
     PartDesignTests/TestSketch.py
 )
 
 if(BUILD_GUI)
     list(APPEND PartDesign_TestScripts
-        PartDesignTests/TestDeleteFeatureGui.py
         PartDesignTests/TestLoftSelectionGui.py
         PartDesignTests/TestLoftVisibilityGui.py
         PartDesignTests/TestQuantityExpressionGui.py
@@ -99,6 +99,7 @@ if(BUILD_GUI)
         PartDesignTests/TestTransformedModeGui.py
         PartDesignTests/TestBodyLineWidthGui.py
         PartDesignTests/TestCloneColorGui.py
+        PartDesignTests/TestDeleteFeatureGui.py
         PartDesignTests/TestGroupCommandToolTipGui.py
         PartDesignTests/TestThicknessToolTipsGui.py
         PartDesignTests/TestRememberLastLengthGui.py
