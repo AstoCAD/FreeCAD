@@ -366,6 +366,43 @@ class TestDraftGeomUtils(test_base.DraftTestCaseNoDoc):
             circles, [(round(5 - offset, 6), 3.0, 3.0), (round(5 + offset, 6), 3.0, 3.0)]
         )
 
+    def _assert_points(self, points, expected):
+        """Compare points with the expected (x, y, z) tuples, in any order."""
+        found = sorted((round(p.x, 6), round(p.y, 6), round(p.z, 6)) for p in points)
+        self.assertEqual(found, sorted(expected))
+
+    def test_find_intersection_lines_3d(self):
+        """findIntersection of coplanar lines whose plane contains (1, 1, 1)."""
+        line1 = Part.makeLine(Vector(0, 0, 0), Vector(1, 1, 1))
+        line2 = Part.makeLine(Vector(2, 2, 0), Vector(2, 2, 1))
+        points = DraftGeomUtils.findIntersection(line1, line2, True, True)
+        self._assert_points(points, [(2, 2, 2)])
+        points = DraftGeomUtils.findIntersection(
+            Vector(0, 0, 0), Vector(1, 1, 0), Vector(3, 3, 5), Vector(3, 3, 6), True, True
+        )
+        self._assert_points(points, [(3, 3, 0)])
+
+    def test_find_intersection_circle_line_off_plane(self):
+        """findIntersection of a circle and a line that is not in its plane."""
+        circle = Part.makeCircle(5, Vector(1, 2, 3))
+        # The line pierces the plane of the circle on the circle:
+        line = Part.makeLine(Vector(6, 2, 2), Vector(6, 2, 4))
+        points = DraftGeomUtils.findIntersection(circle, line, True, True)
+        self._assert_points(points, [(6, 2, 3)])
+        # The line pierces the plane of the circle at its center:
+        line = Part.makeLine(Vector(1, 2, 2), Vector(1, 2, 4))
+        self.assertEqual(DraftGeomUtils.findIntersection(circle, line, True, True), [])
+        self.assertEqual(DraftGeomUtils.findIntersection(line, circle, True, True), [])
+
+    def test_find_intersection_circles_not_coplanar(self):
+        """findIntersection of two circles in different planes."""
+        circle1 = Part.makeCircle(5, Vector(1, 0, 0))
+        circle2 = Part.makeCircle(4, Vector(4, 0, 0), Vector(1, 0, 0))
+        points = DraftGeomUtils.findIntersection(circle1, circle2, True, True)
+        self._assert_points(points, [(4, -4, 0), (4, 4, 0)])
+        points = DraftGeomUtils.findIntersection(circle1, circle2, dts=False)
+        self._assert_points(points, [(4, -4, 0), (4, 4, 0)])
+
 
 # suite = unittest.defaultTestLoader.loadTestsFromTestCase(TestDraftGeomUtils)
 # unittest.TextTestRunner().run(suite)
