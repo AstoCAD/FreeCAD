@@ -478,8 +478,20 @@ App::any pyObjectToAny(Py::Object value, bool check) {
     }
     if (PyFloat_Check(pyvalue))
         return App::any(PyFloat_AsDouble(pyvalue));
-    if (PyLong_Check(pyvalue))
-        return App::any(PyLong_AsLong(pyvalue));
+    if (PyLong_Check(pyvalue)) {
+        int overflow = 0;
+        long value = PyLong_AsLongAndOverflow(pyvalue, &overflow);
+        if (overflow == 0) {
+            return App::any(value);
+        }
+        // Beyond a C long (e.g. 2^40 on Windows, where long has 32 bits): keep the
+        // magnitude as a double instead of failing with an OverflowError
+        double dvalue = PyLong_AsDouble(pyvalue);
+        if (dvalue == -1.0 && PyErr_Occurred()) {
+            throw Base::PyException();  // larger than a double
+        }
+        return App::any(dvalue);
+    }
     else if (PyUnicode_Check(pyvalue)) {
         const char* utf8value = PyUnicode_AsUTF8(pyvalue);
         if (!utf8value) {
@@ -497,8 +509,15 @@ bool pyToQuantity(Quantity &q, const Py::Object &pyobj) {
         q = *static_cast<Base::QuantityPy*>(*pyobj)->getQuantityPtr();
     else if (PyFloat_Check(*pyobj))
         q = Quantity(PyFloat_AsDouble(*pyobj));
-    else if (PyLong_Check(*pyobj))
-        q = Quantity(PyLong_AsLong(*pyobj));
+    else if (PyLong_Check(*pyobj)) {
+        // Quantity holds a double: convert directly, as a Python integer may not fit in a
+        // C long (e.g. 2^40 on Windows, where PyLong_AsLong() fails with an OverflowError)
+        double value = PyLong_AsDouble(*pyobj);
+        if (value == -1.0 && PyErr_Occurred()) {
+            throw Base::PyException();  // larger than a double
+        }
+        q = Quantity(value);
+    }
     else
         return false;
     return true;

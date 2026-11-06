@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 #include <limits>
 #include <memory>
@@ -80,6 +81,19 @@ long checkedPyLongAsLong(PyObject* value)
         throw Py::Exception();
     }
     return result;
+}
+
+// Round a floating-point value for an integer property: a value outside the range of long
+// (e.g. an expression giving 1e12 on Windows) would otherwise become an arbitrary integer
+long roundToLong(double value)
+{
+    // the long range is [-2^(n-1), 2^(n-1)); both bounds are exact as doubles
+    constexpr double lowest = static_cast<double>(std::numeric_limits<long>::min());
+    const double rounded = std::isfinite(value) ? boost::math::round(value) : value;
+    if (!(rounded >= lowest && rounded < -lowest)) {
+        throw Base::ValueError("Value out of range for an integer property");
+    }
+    return static_cast<long>(rounded);
 }
 }  // namespace
 
@@ -180,13 +194,13 @@ void PropertyInteger::setPathValue(const ObjectIdentifier& path, const boost::an
         setValue(boost::any_cast<int>(value));
     }
     else if (value.type() == typeid(double)) {
-        setValue(boost::math::round(boost::any_cast<double>(value)));
+        setValue(roundToLong(boost::any_cast<double>(value)));
     }
     else if (value.type() == typeid(float)) {
-        setValue(boost::math::round(boost::any_cast<float>(value)));
+        setValue(roundToLong(boost::any_cast<float>(value)));
     }
     else if (value.type() == typeid(Quantity)) {
-        setValue(boost::math::round(boost::any_cast<Quantity>(value).getValue()));
+        setValue(roundToLong(boost::any_cast<Quantity>(value).getValue()));
     }
     else {
         throw bad_cast();

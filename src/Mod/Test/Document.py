@@ -3039,6 +3039,33 @@ class DocumentExpressionCases(unittest.TestCase):
         ypr = obj.Placement.Rotation.toEulerAngles("YawPitchRoll")
         self.assertAlmostEqual(round(ypr[2], 9), 160.0)
 
+    def testIntegerResultBeyondCLong(self):
+        # An integer result of Python arithmetic that does not fit in a C long
+        # (32 bits on Windows) gave -1 and a pending OverflowError
+        obj = self.Doc.addObject("App::FeatureTest", "BigInteger")
+        obj.setExpression("Float", "2^40")
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", obj.State)
+        self.assertEqual(obj.Float, 2**40)
+        self.assertEqual(obj.evalExpression("2^40 + 1"), 2**40 + 1)
+        self.assertEqual(obj.evalExpression("-(2^70)"), -float(2**70))
+
+    def testIntegerPropertyOutOfRange(self):
+        # A value outside the C long range must not be stored as an arbitrary integer
+        for expression in ("2^40", "1e12", "-1e30"):
+            with self.subTest(expression=expression):
+                obj = self.Doc.addObject("App::FeatureTest", "OutOfRange")
+                obj.Integer = 7
+                obj.setExpression("Integer", expression)
+                self.Doc.recompute()
+                self.assertIn("Invalid", obj.State)
+                self.assertEqual(obj.Integer, 7)
+                obj.setExpression("Integer", "2^30")
+                self.Doc.recompute()
+                self.assertNotIn("Invalid", obj.State)
+                self.assertEqual(obj.Integer, 2**30)
+                self.Doc.removeObject(obj.Name)
+
     def testIssue4649(self):
         class Cls:
             def __init__(self, obj):
