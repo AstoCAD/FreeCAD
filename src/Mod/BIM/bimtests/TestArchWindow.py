@@ -653,6 +653,43 @@ class TestArchWindow(TestArchBase.TestArchBase):
         self.assertNotIn("Invalid", wall.State, "Host wall failed to recompute.")
         self.assertFalse(wall.Shape.isNull())
 
+    def test_cloned_window_uses_original_hole_wire(self):
+        """A window clone must drill its hole with the HoleWire of the original window."""
+
+        wall_base = Draft.make_line(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(6000, 0, 0))
+        wall = Arch.makeWall(wall_base, width=200, height=3000)
+        self.document.recompute()
+        initial_wall_volume = wall.Shape.Volume
+
+        def rect(x, z, size):
+            V = FreeCAD.Vector
+            return Part.makePolygon(
+                [V(x, 0, z), V(x + size, 0, z), V(x + size, 0, z + size), V(x, 0, z + size)],
+                True,
+            )
+
+        # Three wires in the XZ plane: the hole wire (Wire 1) is neither the biggest one
+        # (the default hole) nor the last one.
+        base = self.document.addObject("Part::Feature", "HoleWireBase")
+        base.Shape = Part.makeCompound([rect(0, 0, 400), rect(600, 0, 1500), rect(2300, 0, 800)])
+        window = Arch.makeWindow(base)
+        window.HoleWire = 1
+        self.document.recompute()
+
+        clone = Draft.clone(window)
+        clone.Placement.Base = FreeCAD.Vector(1000, 100, 500)
+        self.document.recompute()
+        self.assertEqual(clone.HoleWire, 0, "The clone should not override the HoleWire.")
+        Arch.addComponents(clone, host=wall)
+        self.document.recompute()
+
+        self.assertAlmostEqual(
+            initial_wall_volume - wall.Shape.Volume,
+            400 * 400 * 200,
+            delta=1e-3,
+            msg="The clone did not use the HoleWire of the original window.",
+        )
+
     def test_addComponents_window_to_wall(self):
         """
         Tests the Arch.addComponents function for adding a window to a wall.
