@@ -1562,21 +1562,67 @@ int SketchObject::join(
         true
     );
 
-    // int newGeoId = addGeometry(newSpline);
-    std::vector<Part::Geometry*> newGeos {newSpline};
-    replaceGeometries({geoId1, geoId2}, newGeos);
-
-    exposeInternalGeometry(geoId1);
-    setConstruction(geoId1, areOriginalCurvesConstruction);
-
-    // TODO: transfer constraints on the non-connected ends
     auto otherPosId1 = (Sketcher::PointPos::start == posId1) ? Sketcher::PointPos::end
                                                              : Sketcher::PointPos::start;
     auto otherPosId2 = (Sketcher::PointPos::start == posId2) ? Sketcher::PointPos::end
                                                              : Sketcher::PointPos::start;
 
-    transferConstraints(geoId1, otherPosId1, geoId1, PointPos::start, true);
+    // The new spline takes the place of geoId1, so the constraints of geoId1 stay on it.
+    // Drop those that no longer make sense on the spline: the ones on the joined point (now
+    // inside the curve), on the center and on the whole edge (length, horizontal, radius...),
+    // except point-on-object and block, which still hold on the spline. The constraints of
+    // geoId2 are deleted with it.
+    const auto& allConstraints = Constraints.getValues();
+    std::vector<int> obsoleteConstraints;
+    for (int i = 0; i < static_cast<int>(allConstraints.size()); ++i) {
+        const Constraint* constr = allConstraints[i];
+        if (isGroupConstraint(constr)) {
+            continue;
+        }
+        if (constr->Type == InternalAlignment) {
+            // The axes and foci of a conic do not belong to a B-spline. The poles and knots of
+            // a B-spline are matched again by exposeInternalGeometry() below.
+            if (constr->Second == geoId1 && !geo1->is<Part::GeomBSplineCurve>()) {
+                obsoleteConstraints.push_back(i);
+            }
+            continue;
+        }
+        if (constr->involvesGeoIdAndPosId(geoId1, posId1)
+            || constr->involvesGeoIdAndPosId(geoId1, PointPos::mid)
+            || (constr->involvesGeoIdAndPosId(geoId1, PointPos::none)
+                && constr->Type != PointOnObject && constr->Type != Block)) {
+            obsoleteConstraints.push_back(i);
+        }
+    }
+    delConstraints(std::move(obsoleteConstraints), DeleteOption::NoFlag);
+
+    // Move the constraints of the free ends to the ends of the spline while both curves still
+    // exist: the start of the spline is the free end of geoId1, its end the free end of geoId2.
+    if (otherPosId1 != PointPos::start) {
+        transferConstraints(geoId1, otherPosId1, geoId1, PointPos::start, true);
+    }
     transferConstraints(geoId2, otherPosId2, geoId1, PointPos::end, true);
+
+    // The spline takes over the id of geoId1 (replaceGeometries() copies it)
+    const long splineId = GeometryFacade::getFacade(getGeometry(geoId1))->getId();
+
+    // int newGeoId = addGeometry(newSpline);
+    std::vector<Part::Geometry*> newGeos {newSpline};
+    replaceGeometries({geoId1, geoId2}, newGeos);
+
+    // Deleting geoId2 (and its internal geometry) renumbers the geometry after it, so geoId1 is
+    // no longer the spline when geoId2 came first: find the spline by its id.
+    int splineGeoId = geoId1;
+    const std::vector<Part::Geometry*>& geosAfterJoin = getInternalGeometry();
+    for (int i = 0; i < static_cast<int>(geosAfterJoin.size()); ++i) {
+        if (GeometryFacade::getFacade(geosAfterJoin[i])->getId() == splineId) {
+            splineGeoId = i;
+            break;
+        }
+    }
+
+    exposeInternalGeometry(splineGeoId);
+    setConstruction(splineGeoId, areOriginalCurvesConstruction);
 
     return 0;
 }
