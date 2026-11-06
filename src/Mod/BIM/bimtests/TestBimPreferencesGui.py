@@ -46,3 +46,36 @@ class TestBimPreferencesGui(unittest.TestCase):
         # nativeifc.ifc_import.get_options() reads SwitchWB with default True
         page = self._page(":/ui/preferencesNativeIFC.ui")
         self.assertTrue(self._check_box(page, b"SwitchWB").isChecked())
+
+    def test_bim_text_uses_draft_text_height_default(self):
+        # BIM_Text on a TechDraw page must use the Draft text height (3.5 mm by default)
+        from draftutils import params
+
+        if not hasattr(FreeCADGui, "draftToolBar"):
+            import DraftGui  # noqa: F401  (creates the Draft tool bar used by finish())
+        from bimcommands import BimText
+
+        grp = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Draft")
+        had = "textheight" in grp.GetFloats()
+        old = grp.GetFloat("textheight") if had else None
+        grp.RemFloat("textheight")
+        self.addCleanup(
+            lambda: grp.SetFloat("textheight", old) if had else grp.RemFloat("textheight")
+        )
+        doc = FreeCAD.newDocument("BimTextDefaults")
+        self.addCleanup(FreeCAD.closeDocument, doc.Name)
+        page = doc.addObject("TechDraw::DrawPage", "Page")
+
+        class View:
+            def getPage(self):
+                return page
+
+        cmd = BimText.BIM_Text()
+        cmd.view = View()
+        cmd.text = ["Text"]
+        cmd.createObject()
+        annos = [o for o in doc.Objects if o.isDerivedFrom("TechDraw::DrawViewAnnotation")]
+        self.assertEqual(len(annos), 1)
+        expected = params.get_param("textheight") * (page.Scale or 1)
+        self.assertAlmostEqual(expected, 3.5 * (page.Scale or 1))
+        self.assertAlmostEqual(annos[0].TextSize.Value, expected)
