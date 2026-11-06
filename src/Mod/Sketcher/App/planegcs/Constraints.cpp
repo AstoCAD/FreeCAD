@@ -2436,6 +2436,14 @@ double ConstraintAngleViaPoint::grad(double* param)
     return scale * deriv;
 }
 
+void ConstraintAngleViaPoint::evaluate()
+{
+    DeriVector2 n1 = crv1->CalculateNormal(poa);
+    DeriVector2 n2 = crv2->CalculateNormal(poa);
+
+    *angle() = closestAngle(vectorAngleHelper(n1.x, n1.y, n2.x, n2.y), *angle());
+}
+
 // --------------------------------------------------------
 // ConstraintAngleViaTwoPoints
 ConstraintAngleViaTwoPoints::ConstraintAngleViaTwoPoints(
@@ -2811,6 +2819,27 @@ void ConstraintSnell::errorgrad(double* err, double* grad, double* param)
     }
     if (grad) {
         *grad = dn1 * sin1 + *n1() * dsin1 - dn2 * sin2 - *n2() * dsin2;
+    }
+}
+
+void ConstraintSnell::evaluate()
+{
+    DeriVector2 tang1 = ray1->CalculateNormal(poa).rotate90cw().getNormalized();
+    DeriVector2 tang2 = ray2->CalculateNormal(poa).rotate90cw().getNormalized();
+    DeriVector2 tangB = boundary->CalculateNormal(poa).rotate90cw().getNormalized();
+    double sin1 = tang1.scalarProd(tangB);
+    double sin2 = tang2.scalarProd(tangB);
+    if (flipn1) {
+        sin1 = -sin1;
+    }
+    if (flipn2) {
+        sin2 = -sin2;
+    }
+    // n1 * sin1 = n2 * sin2. Only the ratio n2 / n1 is the value of the constraint, so keep n1.
+    // A ray normal to the boundary (sin1 == 0) or grazing it (sin2 == 0) defines no ratio: keep
+    // the value. A zero ratio would also be turned into n1 = 1 / 0 when the sketch is set up again.
+    if (std::abs(sin1) > 1e-12 && std::abs(sin2) > 1e-12) {
+        *n2() = *n1() * sin1 / sin2;
     }
 }
 

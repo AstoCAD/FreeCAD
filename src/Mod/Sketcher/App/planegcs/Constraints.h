@@ -1130,6 +1130,7 @@ public:
     ConstraintType getTypeId() override;
     double error() override;
     double grad(double*) override;
+    void evaluate() override;
 };
 
 class ConstraintAngleViaTwoPoints: public Constraint
@@ -1212,6 +1213,7 @@ public:
     );
     ~ConstraintSnell() override;
     ConstraintType getTypeId() override;
+    void evaluate() override;
 };
 
 class ConstraintAngleViaPointAndParam: public Constraint
