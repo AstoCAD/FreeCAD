@@ -159,7 +159,11 @@ def read_z88_mesh(z88_mesh_input):
     nodes_dimension = int(mesh_info[0])
     nodes_count = int(mesh_info[1])
     elements_count = int(mesh_info[2])
-    kflag = int(mesh_info[4])
+    # the Z88 solver writer (femsolver/z88/writer.py) writes no KFLAG, only a comment
+    try:
+        kflag = int(mesh_info[4])
+    except (IndexError, ValueError):
+        kflag = 0
     # for non rotational elements is --> kflag = 0 --> cartesian, kflag = 1 polar coordinates
     if kflag:
         Console.PrintError("KFLAG = 1, Rotational coordinates not supported at the moment\n")
