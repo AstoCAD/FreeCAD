@@ -330,6 +330,17 @@ class TestDraftGeomUtils(test_base.DraftTestCaseNoDoc):
         straight.interpolate([Vector(0, 0, 0), Vector(5, 0, 0), Vector(10, 0, 0)])
         self.assertIsNone(DraftGeomUtils.get_spline_normal(straight.toShape()))
 
+    def test_project_onto_vector_of_squared_length_15(self):
+        """DraftVecUtils.project must not return a null vector when |v|^2 == 15."""
+        import math
+        import DraftVecUtils
+
+        v = Vector(3, math.sqrt(6), 0)
+        self.assertEqual(v.dot(v), 15.0)
+        proj = DraftVecUtils.project(Vector(3, 0, 0), v)
+        expected = Vector(v).multiply(9.0 / 15.0)
+        self.assertAlmostEqual((proj - expected).Length, 0.0, places=9)
+
     def _assert_circles(self, circles, expected):
         """Compare (center, radius) of circles with the expected ones, in any order."""
         self.assertIsNotNone(circles)
