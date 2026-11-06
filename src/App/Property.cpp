@@ -27,6 +27,8 @@
 #include <tuple>
 
 #include <atomic>
+#include <sstream>
+#include <Base/Interpreter.h>
 #include <Base/Tools.h>
 #include <Base/Writer.h>
 #include <CXX/Objects.hxx>
@@ -440,6 +442,69 @@ void PropertyListsBase::_setPyObject(PyObject* value)
         }
     }
     setPyValues(vals, indices);
+}
+
+int PropertyListsBase::getItemPathIndex(const ObjectIdentifier& path, int* component) const
+{
+    if (path.numSubComponents() < 2) {
+        return -1;
+    }
+    int pos = 0;
+    const ObjectIdentifier::Component& indexComp = path.getPropertyComponent(1, &pos);
+    if (!indexComp.isArray()) {
+        return -1;
+    }
+
+    const int size = getSize();
+    int index = indexComp.getIndex();
+    if (index < 0) {
+        index += size;
+    }
+    if (index < 0 || index >= size) {
+        FC_THROWM(Base::IndexError,
+                  "Index " << indexComp.getIndex() << " is out of range in '" << path.toString()
+                           << "', the list has " << size << " item(s)");
+    }
+    if (component) {
+        *component = pos;
+    }
+    return index;
+}
+
+bool PropertyListsBase::setItemPathValue(Property& prop,
+                                         const ObjectIdentifier& path,
+                                         const boost::any& value)
+{
+    // The generic Property::setPathValue() would set the item on the temporary
+    // Python list returned by the property and lose it, so set it here.
+    int first = 0;
+    const int index = getItemPathIndex(path, &first);
+    if (index < 0) {
+        return false;
+    }
+    const auto& components = path.getComponents();
+    const int last = static_cast<int>(components.size()) - 1;
+
+    Base::PyGILStateLocker lock;
+    try {
+        Py::Object item = pyObjectFromAny(value);
+        if (last > first) {
+            // Change a copy of the item, then store the copy.
+            Py::Object list(prop.getPyObject(), true);
+            Py::Object newItem = Py::Sequence(list).getItem(index);
+            Py::Object pyobj = newItem;
+            for (int i = first + 1; i < last; ++i) {
+                pyobj = components[i].get(pyobj);
+            }
+            components[last].set(pyobj, item);
+            item = newItem;
+        }
+        setPyValues({item.ptr()}, {index});
+    }
+    catch (Py::Exception&) {
+        Base::PyException::throwException();
+    }
+    return true;
 }
 
 

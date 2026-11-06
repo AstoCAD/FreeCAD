@@ -920,6 +920,41 @@ long PropertyIntegerList::getPyValue(PyObject* item) const
     throw Base::TypeError(error);
 }
 
+void PropertyIntegerList::setPathValue(const ObjectIdentifier& path, const boost::any& value)
+{
+    // An expression bound to an item ('.Counts[1]') sets it as PropertyInteger::setPathValue()
+    // sets an integer property: a float or a quantity is rounded. Other values and paths go
+    // through the Python conversion of the list.
+    int component = 0;
+    const int index = getItemPathIndex(path, &component);
+    if (index >= 0 && component + 1 == static_cast<int>(path.getComponents().size())) {
+        if (value.type() == typeid(long)) {
+            set1Value(index, boost::any_cast<long>(value));
+            return;
+        }
+        if (value.type() == typeid(int)) {
+            set1Value(index, boost::any_cast<int>(value));
+            return;
+        }
+        if (value.type() == typeid(double)) {
+            set1Value(index, static_cast<long>(boost::math::round(boost::any_cast<double>(value))));
+            return;
+        }
+        if (value.type() == typeid(float)) {
+            set1Value(index, static_cast<long>(boost::math::round(boost::any_cast<float>(value))));
+            return;
+        }
+        if (value.type() == typeid(Quantity)) {
+            set1Value(
+                index,
+                static_cast<long>(boost::math::round(boost::any_cast<Quantity>(value).getValue()))
+            );
+            return;
+        }
+    }
+    PropertyListsT<long>::setPathValue(path, value);
+}
+
 void PropertyIntegerList::Save(Base::Writer& writer) const
 {
     writer.Stream() << writer.ind() << "<IntegerList count=\"" << getSize() << "\">" << endl;
@@ -1592,6 +1627,42 @@ double PropertyFloatList::getPyValue(PyObject* item) const
     std::string error = std::string("type in list must be float, not ");
     error += item->ob_type->tp_name;
     throw Base::TypeError(error);
+}
+
+void PropertyFloatList::setPathValue(const ObjectIdentifier& path, const boost::any& value)
+{
+    // An expression bound to an item ('.Values[1]') sets it as PropertyFloat::setPathValue()
+    // sets a float property: a quantity gives its value. Other values and paths go through
+    // the Python conversion of the list.
+    int component = 0;
+    const int index = getItemPathIndex(path, &component);
+    if (index >= 0 && component + 1 == static_cast<int>(path.getComponents().size())) {
+        if (value.type() == typeid(double)) {
+            set1Value(index, boost::any_cast<double>(value));
+            return;
+        }
+        if (value.type() == typeid(float)) {
+            set1Value(index, boost::any_cast<float>(value));
+            return;
+        }
+        if (value.type() == typeid(long)) {
+            set1Value(index, static_cast<double>(boost::any_cast<long>(value)));
+            return;
+        }
+        if (value.type() == typeid(unsigned long)) {
+            set1Value(index, static_cast<double>(boost::any_cast<unsigned long>(value)));
+            return;
+        }
+        if (value.type() == typeid(int)) {
+            set1Value(index, boost::any_cast<int>(value));
+            return;
+        }
+        if (value.type() == typeid(Quantity)) {
+            set1Value(index, boost::any_cast<Quantity>(value).getValue());
+            return;
+        }
+    }
+    PropertyListsT<double>::setPathValue(path, value);
 }
 
 void PropertyFloatList::Save(Base::Writer& writer) const

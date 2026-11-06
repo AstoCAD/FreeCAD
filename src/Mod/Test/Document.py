@@ -979,6 +979,88 @@ class DocumentBasicCases(unittest.TestCase):
         self.Doc = FreeCAD.open(SaveName)
         self.assertEqual(self.Doc.ActiveObject.Label, "abc_ef")
 
+    def testExpressionOnListItem(self):
+        # An expression bound to one item of a list (".Values[1]") or to a value inside
+        # an item (".Points[1].y") was evaluated but set on a temporary copy of the list.
+        self.Doc.UndoMode = 1
+        obj = self.Doc.addObject("App::FeaturePython", "ListItems")
+        obj.addProperty("App::PropertyFloat", "Source")
+        obj.addProperty("App::PropertyFloatList", "Values")
+        obj.addProperty("App::PropertyIntegerList", "Counts")
+        obj.addProperty("App::PropertyVectorList", "Points")
+        obj.addProperty("App::PropertyPlacementList", "Placements")
+        obj.Source = 7.5
+        obj.Values = [1.0, 2.0, 3.0]
+        obj.Counts = [1, 2, 3]
+        obj.Points = [FreeCAD.Vector(1, 2, 3), FreeCAD.Vector(4, 5, 6)]
+        obj.Placements = [FreeCAD.Placement(), FreeCAD.Placement()]
+        obj.setExpression(".Values[1]", "Source * 2")
+        obj.setExpression(".Counts[0]", "4")
+        obj.setExpression(".Points[1].y", "Source")
+        obj.setExpression(".Placements[1].Base.z", "Source + 1")
+        self.Doc.recompute()
+
+        def check(source):
+            self.assertEqual(obj.Values, [1.0, source * 2, 3.0])
+            self.assertEqual(obj.Counts, [4, 2, 3])
+            self.assertEqual(obj.Points, [FreeCAD.Vector(1, 2, 3), FreeCAD.Vector(4, source, 6)])
+            self.assertEqual(obj.Placements[0].Base, FreeCAD.Vector(0, 0, 0))
+            self.assertEqual(obj.Placements[1].Base, FreeCAD.Vector(0, 0, source + 1))
+
+        check(7.5)
+        self.assertEqual(obj.evalExpression("Values[1]"), 15.0)
+
+        # the items follow their expression, and undo restores them
+        self.Doc.openTransaction("Change source")
+        obj.Source = 1.5
+        self.Doc.recompute()
+        self.Doc.commitTransaction()
+        check(1.5)
+        self.Doc.undo()
+        check(7.5)
+
+        # the bindings and the values survive save and reload
+        obj = self.saveAndRestore().getObject("ListItems")
+        check(7.5)
+        obj.Source = 2.5
+        self.Doc.recompute()
+        check(2.5)
+        paths = [path for path, _ in obj.ExpressionEngine]
+        self.assertEqual(
+            sorted(paths), [".Counts[0]", ".Placements[1].Base.z", ".Points[1].y", ".Values[1]"]
+        )
+
+        # an index out of range is refused, or is an error of the binding when the list shrinks
+        with self.assertRaises(IndexError):
+            obj.setExpression(".Values[3]", "9")
+        obj.Values = [1.0]
+        self.Doc.recompute()
+        self.assertFalse(obj.isValid())
+        self.assertIn("out of range", obj.getStatusString())
+        self.assertEqual(obj.Values, [1.0])
+
+    def testExpressionOnListItemTakesNumbersLikeScalars(self):
+        # A list item takes the number of its expression as the scalar property of its type
+        # does: a quantity (e.g. a length) gives its value, an integer item rounds a float.
+        obj = self.Doc.addObject("App::FeaturePython", "ListItemNumbers")
+        obj.addProperty("App::PropertyLength", "Size")
+        obj.addProperty("App::PropertyFloat", "Ratio")
+        obj.addProperty("App::PropertyFloatList", "Values")
+        obj.addProperty("App::PropertyIntegerList", "Counts")
+        obj.Size = 12.5
+        obj.Ratio = 2.6
+        obj.Values = [1.0, 2.0, 3.0]
+        obj.Counts = [1, 2, 3]
+        obj.setExpression(".Values[0]", "Size")
+        obj.setExpression(".Values[2]", "Ratio * 2")
+        obj.setExpression(".Counts[0]", "Ratio * 2")
+        obj.setExpression(".Counts[1]", "Size")
+        obj.setExpression(".Counts[2]", "7")
+        self.Doc.recompute()
+        self.assertTrue(obj.isValid(), obj.getStatusString())
+        self.assertEqual(obj.Values, [12.5, 2.0, 5.2])
+        self.assertEqual(obj.Counts, [5, 13, 7])
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("CreateTest")
