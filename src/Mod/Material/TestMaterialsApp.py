@@ -38,3 +38,4 @@ from materialtests.TestMaterialInheritance import MaterialInheritanceTestCases
 from materialtests.TestMaterialLibraries import ModelLibraryTestCases
 from materialtests.TestMaterialLibraries import MaterialLibraryTestCases
 from materialtests.TestMaterialLibraries import DefaultMaterialTestCases
+from materialtests.TestMaterialLibraries import EmbeddedMaterialTestCases
