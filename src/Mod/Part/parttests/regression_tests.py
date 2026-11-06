@@ -412,6 +412,24 @@ class RegressionTests(unittest.TestCase):
         self.assertTrue(solid.isValid())
         self.assertGreater(solid.Volume, 0)
 
+    def test_long_helix_default_is_cylindrical(self):
+        "Part.makeLongHelix() without an angle built a conical helix of -1 degree"
+        pitch, height, radius = 2.0, 10.0, 3.0
+        length = height / pitch * math.hypot(2 * math.pi * radius, pitch)
+        for helix in (
+            Part.makeHelix(pitch, height, radius),
+            Part.makeLongHelix(pitch, height, radius, 0.0),
+            Part.makeLongHelix(pitch, height, radius),
+        ):
+            self.assertAlmostEqual(helix.BoundBox.ZMax - helix.BoundBox.ZMin, height, places=3)
+            self.assertAlmostEqual(helix.Length, length, places=3)
+            for point in helix.discretize(100):
+                self.assertAlmostEqual(math.hypot(point.x, point.y), radius, places=3)
+        # an explicit angle still gives a conical helix, narrowing for a negative one
+        cone = Part.makeLongHelix(pitch, height, radius, -1.0)
+        smallest = min(math.hypot(p.x, p.y) for p in cone.discretize(100))
+        self.assertLess(smallest, radius - 0.1)
+
     def tearDown(self):
         """Clean up our test, optionally preserving the test document"""
         # This flag allows doing something like this:
