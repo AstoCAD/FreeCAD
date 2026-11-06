@@ -401,6 +401,17 @@ class RegressionTests(unittest.TestCase):
             self.assertAlmostEqual(arc.LastParameter, 1)
             self.assertTrue(arc.toShape().isValid())
 
+    def test_revolve_non_finite_angle_raises(self):
+        "Shape.revolve() with an infinite angle never returned"
+        face = Part.makePlane(1, 1, Vector(1, 0, 0))
+        for angle in (float("inf"), float("-inf"), float("nan")):
+            with self.subTest(angle=angle):
+                with self.assertRaises(ValueError):
+                    face.revolve(Vector(0, 0, 0), Vector(0, 1, 0), angle)
+        solid = face.revolve(Vector(0, 0, 0), Vector(0, 1, 0), 90)
+        self.assertTrue(solid.isValid())
+        self.assertGreater(solid.Volume, 0)
+
     def tearDown(self):
         """Clean up our test, optionally preserving the test document"""
         # This flag allows doing something like this:
