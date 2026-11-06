@@ -711,3 +711,30 @@ class MatrixTestCase(unittest.TestCase):
 class FileSystem(unittest.TestCase):
     def testEncoding(self):
         self.assertEqual(sys.getfilesystemencoding(), "utf-8")
+
+
+class AttributeExceptionTestCase(unittest.TestCase):
+    """A C++ exception thrown by a generated attribute setter must become the matching
+    Python exception, as it does for methods, not 'Unknown exception while writing attribute'."""
+
+    def testSetterBaseExceptionIsTranslated(self):
+        cs = FreeCAD.Base.CoordinateSystem()
+        # CoordinateSystem::setXDirection/setYDirection throw Base::ValueError
+        with self.assertRaisesRegex(ValueError, "parallel to Z-direction"):
+            cs.XDirection = FreeCAD.Vector(0, 0, 1)
+        with self.assertRaisesRegex(ValueError, "parallel to Z-direction"):
+            cs.YDirection = FreeCAD.Vector(0, 0, 2)
+        self.assertEqual(cs.XDirection, FreeCAD.Vector(1, 0, 0))
+        self.assertEqual(cs.YDirection, FreeCAD.Vector(0, 1, 0))
+
+    def testSetterValidValueUnchanged(self):
+        cs = FreeCAD.Base.CoordinateSystem()
+        cs.XDirection = FreeCAD.Vector(0, 1, 0)
+        self.assertEqual(cs.XDirection, FreeCAD.Vector(0, 1, 0))
+        self.assertEqual(cs.YDirection, FreeCAD.Vector(-1, 0, 0))
+
+    def testSetterPythonExceptionUnchanged(self):
+        cs = FreeCAD.Base.CoordinateSystem()
+        # raised as Py::TypeError by the setter itself
+        with self.assertRaisesRegex(TypeError, "not an Axis"):
+            cs.Axis = 1
