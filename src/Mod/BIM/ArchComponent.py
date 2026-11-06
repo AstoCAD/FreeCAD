@@ -75,6 +75,36 @@ def _make_projected_horizontal_area_face(projected_faces):
     return fused_face.removeSplitter()
 
 
+def getPartExtrusionVector(extrusion):
+    """Return the vector by which a Part::Extrusion extrudes its base, or None.
+
+    Follows Part::Extrusion: the direction is Dir, reversed by Reversed, and the
+    length is LengthFwd, or the length of Dir when LengthFwd and LengthRev are both
+    zero (as written by Draft.extrude and BIM_ExtrudeFace). Returns None when the
+    extrusion goes to both sides of its base (LengthRev, Symmetric) or is tapered,
+    which a base and a vector cannot describe.
+    """
+
+    tol = 1e-7  # Precision::Confusion, as in Part::Extrusion
+    direction = FreeCAD.Vector(extrusion.Dir)
+    if direction.Length < tol:
+        return None
+    length = extrusion.LengthFwd.Value
+    if abs(length) < tol and abs(extrusion.LengthRev.Value) < tol:
+        length = direction.Length
+    if (
+        extrusion.Symmetric
+        or abs(extrusion.LengthRev.Value) >= tol
+        or abs(extrusion.TaperAngle.Value) >= tol
+        or abs(extrusion.TaperAngleRev.Value) >= tol
+    ):
+        return None
+    direction.normalize()
+    if extrusion.Reversed:
+        direction = direction.negative()
+    return direction.multiply(length)
+
+
 def addToComponent(compobject, addobject, prop):
     """Add an object to a component's property.
 
@@ -713,15 +743,11 @@ class Component(ArchIFC.IfcProduct):
             # the base is a Part Extrusion
             elif obj.Base.isDerivedFrom("Part::Extrusion"):
                 if obj.Base.Base and len(obj.Base.Base.Shape.Wires) == 1:
+                    extrusion = getPartExtrusionVector(obj.Base)
+                    if extrusion is None:
+                        return None
                     base, placement = self.rebase(obj.Base.Base.Shape)
-                    extrusion = FreeCAD.Vector(obj.Base.Dir).normalize()
-                    if extrusion.Length == 0:
-                        extrusion = FreeCAD.Vector(0, 0, 1)
-                    else:
-                        extrusion = placement.inverse().Rotation.multVec(extrusion)
-                    if hasattr(obj.Base, "LengthFwd"):
-                        if obj.Base.LengthFwd.Value:
-                            extrusion = extrusion.multiply(obj.Base.LengthFwd.Value)
+                    extrusion = placement.inverse().Rotation.multVec(extrusion)
                     if not self.isIdentity(obj.Base.Placement):
                         placement = placement.multiply(obj.Base.Placement)
                     return (base, extrusion, placement)
@@ -733,15 +759,11 @@ class Component(ArchIFC.IfcProduct):
                 for sub in obj.Base.Shapes:
                     if sub.isDerivedFrom("Part::Extrusion"):
                         if sub.Base:
+                            extrusion = getPartExtrusionVector(sub)
+                            if extrusion is None:
+                                return None
                             base, placement = self.rebase(sub.Base.Shape)
-                            extrusion = FreeCAD.Vector(sub.Dir).normalize()
-                            if extrusion.Length == 0:
-                                extrusion = FreeCAD.Vector(0, 0, 1)
-                            else:
-                                extrusion = placement.inverse().Rotation.multVec(extrusion)
-                            if hasattr(sub, "LengthFwd"):
-                                if sub.LengthFwd.Value:
-                                    extrusion = extrusion.multiply(sub.LengthFwd.Value)
+                            extrusion = placement.inverse().Rotation.multVec(extrusion)
                             placement = obj.Placement.multiply(placement)
                             rshapes.append(base)
                             revs.append(extrusion)
