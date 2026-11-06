@@ -20,7 +20,6 @@
  ******************************************************************************/
 
 #include <algorithm>
-#include <cmath>
 #include <set>
 #include <limits>
 #include <memory>
@@ -1246,15 +1245,6 @@ double PropertyFloat::getValue() const
     return _dValue;
 }
 
-void PropertyFloat::checkNotNaN(double value) const
-{
-    // NaN passes every range check (all comparisons are false), so consumers that
-    // validate their parameters cannot catch it, and OCC crashes or hangs on it.
-    if (std::isnan(value)) {
-        throw Base::ValueError("Invalid value 'nan' for property " + getFullName());
-    }
-}
-
 PyObject* PropertyFloat::getPyObject()
 {
     return Py_BuildValue("d", _dValue);
@@ -1630,17 +1620,21 @@ double PropertyFloatList::getPyValue(PyObject* item) const
 void PropertyFloatList::setPathValue(const ObjectIdentifier& path, const boost::any& value)
 {
     // An expression bound to an item ('.Values[1]') sets it as PropertyFloat::setPathValue()
-    // sets a float property: a quantity gives its value. Other values and paths go through
-    // the Python conversion of the list.
+    // sets a float property: a quantity gives its value, NaN is rejected. Other values and
+    // paths go through the Python conversion of the list.
     int component = 0;
     const int index = getItemPathIndex(path, &component);
     if (index >= 0 && component + 1 == static_cast<int>(path.getComponents().size())) {
         if (value.type() == typeid(double)) {
-            set1Value(index, boost::any_cast<double>(value));
+            const double convertedValue = boost::any_cast<double>(value);
+            checkNotNaN(convertedValue);
+            set1Value(index, convertedValue);
             return;
         }
         if (value.type() == typeid(float)) {
-            set1Value(index, boost::any_cast<float>(value));
+            const double convertedValue = boost::any_cast<float>(value);
+            checkNotNaN(convertedValue);
+            set1Value(index, convertedValue);
             return;
         }
         if (value.type() == typeid(long)) {
@@ -1656,7 +1650,9 @@ void PropertyFloatList::setPathValue(const ObjectIdentifier& path, const boost::
             return;
         }
         if (value.type() == typeid(Quantity)) {
-            set1Value(index, boost::any_cast<Quantity>(value).getValue());
+            const double convertedValue = boost::any_cast<Quantity>(value).getValue();
+            checkNotNaN(convertedValue);
+            set1Value(index, convertedValue);
             return;
         }
     }
