@@ -1557,7 +1557,13 @@ void CDxfWrite::writeLinearDimBlock(
     Base::Vector3d e2S(MakeVector3d(extLine2));
     // point on DimLine (somewhere!)
     Base::Vector3d dl(MakeVector3d(lineDefPoint));
-    Base::Vector3d perp = dl.DistanceToLineSegment(e2S, e1S);
+    // The dimension line may be placed beyond the ends of the measured span, so project onto
+    // the infinite line through the extension line origins, not onto the segment between them:
+    // the extension lines must stay perpendicular to the dimension line.
+    Base::Vector3d perp = e1S - dl;
+    if ((e1S - e2S).Sqr() > 0.0) {
+        perp = dl.Perpendicular(e2S, e1S - e2S) - dl;
+    }
     Base::Vector3d e1E = e1S - perp;
     Base::Vector3d e2E = e2S - perp;
     Base::Vector3d para = e1E - e2E;
