@@ -125,6 +125,9 @@ This feature may slightly increase recomputation time.</string>
         <property name="text">
          <string>Allow aborting recomputation</string>
         </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
         <property name="prefEntry" stdset="0">
          <cstring>CanAbortRecompute</cstring>
         </property>
