@@ -41,6 +41,7 @@ UUIDCard = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e10"
 UUIDInvalidCard = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e11"
 UUIDInvalidCard2 = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e12"
 UUIDTestModel = "34d0583d-f999-49ba-99e6-aa40bd5c3a6b"
+UUIDDefaultMaterial = "7f9fd73b-50c9-41d8-b7b2-575a030c1eeb"
 UUIDModel = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e01"
 UUIDMissingModel = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0eff"
 
@@ -218,3 +219,45 @@ class MaterialLibraryTestCases(unittest.TestCase):
         self.assertIn(UUIDCard, materials)
         self.assertFalse(UUIDInvalidCard in materials)
         self.assertFalse(UUIDInvalidCard2 in materials)
+
+
+@unittest.skipUnless("BUILD_PART" in FreeCAD.__cmake__, "requires the Part module")
+class DefaultMaterialTestCases(unittest.TestCase):
+    """
+    Part features get the default material even when its card is not available
+    """
+
+    def setUp(self):
+        self.MaterialManager = Materials.MaterialManager()
+        self.param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Material")
+        self.defaultMaterial = self.param.GetString("DefaultMaterial", "")
+        resources = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Material/Resources")
+        self.useBuiltInDir = resources.GetBool("UseBuiltInMaterials", True)
+        self.doc = FreeCAD.newDocument()
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+        if self.defaultMaterial:
+            self.param.SetString("DefaultMaterial", self.defaultMaterial)
+        else:
+            self.param.RemString("DefaultMaterial")
+        resources = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Material/Resources")
+        resources.SetBool("UseBuiltInMaterials", self.useBuiltInDir)
+        self.MaterialManager.refresh()
+
+    def testMissingPreferredDefaultMaterial(self):
+        """A default material preference naming a missing card falls back to the built-in one"""
+        self.param.SetString("DefaultMaterial", "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0eee")
+        box = self.doc.addObject("Part::Box", "Box")
+        self.assertEqual(box.ShapeMaterial.UUID, UUIDDefaultMaterial)
+
+    def testBuiltInMaterialsDisabled(self):
+        """Without the built-in materials, Part features are still created"""
+        resources = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Material/Resources")
+        resources.SetBool("UseBuiltInMaterials", False)
+        self.MaterialManager.refresh()
+        self.assertFalse(UUIDDefaultMaterial in self.MaterialManager.Materials)
+        box = self.doc.addObject("Part::Box", "Box")
+        self.doc.recompute()
+        self.assertEqual(box.ShapeMaterial.UUID, UUIDDefaultMaterial)
+        self.assertEqual(box.ShapeMaterial.Name, "Default")
