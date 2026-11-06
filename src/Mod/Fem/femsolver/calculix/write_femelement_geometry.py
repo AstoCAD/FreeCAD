@@ -189,8 +189,8 @@ def liquid_section_def(obj, section_type):
         return section_geo
     elif section_type == "PIPE WHITE-COLEBROOK":
         colebrooke_area = obj.ColebrookeArea.getValueAs("mm^2").Value
-        colebrooke_diameter = 2 * obj.ColebrookeRadius.getValueAs("mm")
-        colebrooke_grain_diameter = obj.ColebrookeGrainDiameter.getValueAs("mm")
+        colebrooke_diameter = 2 * obj.ColebrookeRadius.getValueAs("mm").Value
+        colebrooke_grain_diameter = obj.ColebrookeGrainDiameter.getValueAs("mm").Value
         colebrooke_form_factor = obj.ColebrookeFormFactor
         section_geo = "{:.13G},{:.13G},{},{:.13G},{:.13G}\n".format(
             colebrooke_area,
