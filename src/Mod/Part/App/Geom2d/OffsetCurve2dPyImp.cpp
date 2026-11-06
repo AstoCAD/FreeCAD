@@ -28,6 +28,7 @@
 #include "Geom2d/OffsetCurve2dPy.h"
 #include "Geom2d/OffsetCurve2dPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -60,6 +61,7 @@ int OffsetCurve2dPy::PyInit(PyObject* args, PyObject* /*kwd*/)
         return -1;
     }
 
+    checkFinite(offset, "Offset");
     try {
         Handle(Geom2d_OffsetCurve) curve2 = new Geom2d_OffsetCurve(curve, offset);
         getGeom2dOffsetCurvePtr()->setHandle(curve2);
@@ -83,7 +85,7 @@ void OffsetCurve2dPy::setOffsetValue(Py::Float arg)
 {
     Handle(Geom2d_OffsetCurve)
         curve = Handle(Geom2d_OffsetCurve)::DownCast(getGeometry2dPtr()->handle());
-    curve->SetOffsetValue((double)arg);
+    curve->SetOffsetValue(checkFinite((double)arg, "OffsetValue"));
 }
 
 Py::Object OffsetCurve2dPy::getBasisCurve() const

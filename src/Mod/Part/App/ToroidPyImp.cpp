@@ -30,6 +30,7 @@
 #include <Base/VectorPy.h>
 
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 #include "ToroidPy.h"
 #include "ToroidPy.cpp"
 
@@ -74,7 +75,7 @@ void ToroidPy::setMajorRadius(Py::Float arg)
     try {
         Handle(Geom_ToroidalSurface)
             torus = Handle(Geom_ToroidalSurface)::DownCast(getGeomToroidPtr()->handle());
-        torus->SetMajorRadius((double)arg);
+        torus->SetMajorRadius(checkFinite((double)arg, "MajorRadius"));
     }
     catch (Standard_Failure&) {
         throw Py::RuntimeError("Major radius must be positive and higher than minor radius");
@@ -93,7 +94,7 @@ void ToroidPy::setMinorRadius(Py::Float arg)
     try {
         Handle(Geom_ToroidalSurface)
             torus = Handle(Geom_ToroidalSurface)::DownCast(getGeomToroidPtr()->handle());
-        torus->SetMinorRadius((double)arg);
+        torus->SetMinorRadius(checkFinite((double)arg, "MinorRadius"));
     }
     catch (Standard_Failure&) {
         throw Py::RuntimeError("Minor radius must be positive and lower than major radius");
@@ -115,7 +116,7 @@ void ToroidPy::setCenter(Py::Object arg)
         Base::Vector3d loc = static_cast<Base::VectorPy*>(p)->value();
         Handle(Geom_ToroidalSurface)
             torus = Handle(Geom_ToroidalSurface)::DownCast(getGeomToroidPtr()->handle());
-        torus->SetLocation(gp_Pnt(loc.x, loc.y, loc.z));
+        torus->SetLocation(toFinitePnt(loc, "Center"));
     }
     else {
         std::string error = std::string("type must be 'Vector', not ");
@@ -154,6 +155,7 @@ void ToroidPy::setAxis(Py::Object arg)
         throw Py::TypeError(error);
     }
 
+    checkFinite(Base::Vector3d(dir_x, dir_y, dir_z), "Axis");
     try {
         Handle(Geom_ElementarySurface)
             this_surf = Handle(Geom_ElementarySurface)::DownCast(this->getGeometryPtr()->handle());

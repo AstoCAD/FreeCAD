@@ -32,6 +32,7 @@
 #include "Geom2d/Line2dPy.h"
 #include "Geom2d/Line2dPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -85,8 +86,8 @@ int Line2dPy::PyInit(PyObject* args, PyObject* /*kwd*/)
             Base::Vector2dPy::type_object(),
             &pV2
         )) {
-        Base::Vector2d v1 = Py::toVector2d(pV1);
-        Base::Vector2d v2 = Py::toVector2d(pV2);
+        Base::Vector2d v1 = checkFinite(Py::toVector2d(pV1), "Point1");
+        Base::Vector2d v2 = checkFinite(Py::toVector2d(pV2), "Point2");
         try {
             // Create line out of two points
             double distance = (v1 - v2).Length();
@@ -158,6 +159,7 @@ void Line2dPy::setLocation(Py::Object arg)
         error += p->ob_type->tp_name;
         throw Py::TypeError(error);
     }
+    checkFinite(Base::Vector2d(pnt.X(), pnt.Y()), "Location");
 
     try {
         GCE2d_MakeLine ms(pnt, dir);
@@ -191,13 +193,14 @@ void Line2dPy::setDirection(Py::Object arg)
 
     PyObject* p = arg.ptr();
     if (PyObject_TypeCheck(p, Base::Vector2dPy::type_object())) {
-        Base::Vector2d v = Py::toVector2d(p);
+        Base::Vector2d v = checkFinite(Py::toVector2d(p), "Direction");
         dir = gp_Dir2d(v.x, v.y);
     }
     else if (PyTuple_Check(p)) {
         Py::Tuple tuple(arg);
         double x = (double)Py::Float(tuple.getItem(0));
         double y = (double)Py::Float(tuple.getItem(1));
+        checkFinite(Base::Vector2d(x, y), "Direction");
         dir = gp_Dir2d(x, y);
     }
     else {

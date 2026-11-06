@@ -32,6 +32,7 @@
 #include "Geom2d/ArcOfEllipse2dPy.cpp"
 #include "Geom2d/Ellipse2dPy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -98,7 +99,7 @@ Py::Float ArcOfEllipse2dPy::getMajorRadius() const
 
 void ArcOfEllipse2dPy::setMajorRadius(Py::Float arg)
 {
-    getGeom2dArcOfEllipsePtr()->setMajorRadius((double)arg);
+    getGeom2dArcOfEllipsePtr()->setMajorRadius(checkFinite((double)arg, "MajorRadius"));
 }
 
 Py::Float ArcOfEllipse2dPy::getMinorRadius() const
@@ -108,7 +109,7 @@ Py::Float ArcOfEllipse2dPy::getMinorRadius() const
 
 void ArcOfEllipse2dPy::setMinorRadius(Py::Float arg)
 {
-    getGeom2dArcOfEllipsePtr()->setMinorRadius((double)arg);
+    getGeom2dArcOfEllipsePtr()->setMinorRadius(checkFinite((double)arg, "MinorRadius"));
 }
 
 Py::Object ArcOfEllipse2dPy::getEllipse() const

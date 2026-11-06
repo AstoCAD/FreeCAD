@@ -44,6 +44,7 @@
 #include "BSplineSurfacePy.cpp"
 #include "BSplineCurvePy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -259,6 +260,7 @@ PyObject* BSplineSurfacePy::insertUKnot(PyObject* args)
     if (!PyArg_ParseTuple(args, "did|O!", &U, &M, &tol, &PyBool_Type, &add)) {
         return nullptr;
     }
+    checkFinite(U, "Knot");
 
     try {
         Handle(Geom_BSplineSurface)
@@ -289,7 +291,7 @@ PyObject* BSplineSurfacePy::insertUKnots(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = knots.begin(); it != knots.end(); ++it) {
             Py::Float val(*it);
-            k(index++) = (double)val;
+            k(index++) = checkFinite((double)val, "Knot");
         }
         Py::Sequence mults(obj2);
         TColStd_Array1OfInteger m(1, mults.size());
@@ -320,6 +322,7 @@ PyObject* BSplineSurfacePy::insertVKnot(PyObject* args)
     if (!PyArg_ParseTuple(args, "did|O!", &V, &M, &tol, &PyBool_Type, &add)) {
         return nullptr;
     }
+    checkFinite(V, "Knot");
 
     try {
         Handle(Geom_BSplineSurface)
@@ -350,7 +353,7 @@ PyObject* BSplineSurfacePy::insertVKnots(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = knots.begin(); it != knots.end(); ++it) {
             Py::Float val(*it);
-            k(index++) = (double)val;
+            k(index++) = checkFinite((double)val, "Knot");
         }
         Py::Sequence mults(obj2);
         TColStd_Array1OfInteger m(1, mults.size());
@@ -439,6 +442,7 @@ PyObject* BSplineSurfacePy::setUKnot(PyObject* args)
     if (!PyArg_ParseTuple(args, "id|i", &Index, &K, &M)) {
         return nullptr;
     }
+    checkFinite(K, "Knot");
 
     Handle(Geom_BSplineSurface)
         surf = Handle(Geom_BSplineSurface)::DownCast(getGeometryPtr()->handle());
@@ -459,6 +463,7 @@ PyObject* BSplineSurfacePy::setVKnot(PyObject* args)
     if (!PyArg_ParseTuple(args, "id|i", &Index, &K, &M)) {
         return nullptr;
     }
+    checkFinite(K, "Knot");
 
     Handle(Geom_BSplineSurface)
         surf = Handle(Geom_BSplineSurface)::DownCast(getGeometryPtr()->handle());
@@ -512,7 +517,7 @@ PyObject* BSplineSurfacePy::setUKnots(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Float val(*it);
-            k(index++) = (double)val;
+            k(index++) = checkFinite((double)val, "Knot");
         }
 
         Handle(Geom_BSplineSurface)
@@ -538,7 +543,7 @@ PyObject* BSplineSurfacePy::setVKnots(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Float val(*it);
-            k(index++) = (double)val;
+            k(index++) = checkFinite((double)val, "Knot");
         }
 
         Handle(Geom_BSplineSurface)
@@ -604,8 +609,8 @@ PyObject* BSplineSurfacePy::setPole(PyObject* args)
     if (!PyArg_ParseTuple(args, "iiO!|d", &uindex, &vindex, &(Base::VectorPy::Type), &p, &weight)) {
         return nullptr;
     }
-    Base::Vector3d vec = static_cast<Base::VectorPy*>(p)->value();
-    gp_Pnt pnt(vec.x, vec.y, vec.z);
+    gp_Pnt pnt = toFinitePnt(static_cast<Base::VectorPy*>(p)->value(), "Pole");
+    checkFinite(weight, "Weight");
     try {
         Handle(Geom_BSplineSurface)
             surf = Handle(Geom_BSplineSurface)::DownCast(getGeometryPtr()->handle());
@@ -637,8 +642,7 @@ PyObject* BSplineSurfacePy::setPoleCol(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector p(*it);
-            Base::Vector3d v = p.toVector();
-            poles(index++) = gp_Pnt(v.x, v.y, v.z);
+            poles(index++) = toFinitePnt(p.toVector(), "Pole");
         }
 
         Handle(Geom_BSplineSurface)
@@ -651,7 +655,7 @@ PyObject* BSplineSurfacePy::setPoleCol(PyObject* args)
             TColStd_Array1OfReal weights(1, list.size());
             int index = 1;
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                weights(index++) = (double)Py::Float(*it);
+                weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
             }
             surf->SetPoleCol(vindex, poles, weights);
         }
@@ -678,8 +682,7 @@ PyObject* BSplineSurfacePy::setPoleRow(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector p(*it);
-            Base::Vector3d v = p.toVector();
-            poles(index++) = gp_Pnt(v.x, v.y, v.z);
+            poles(index++) = toFinitePnt(p.toVector(), "Pole");
         }
 
         Handle(Geom_BSplineSurface)
@@ -692,7 +695,7 @@ PyObject* BSplineSurfacePy::setPoleRow(PyObject* args)
             TColStd_Array1OfReal weights(1, list.size());
             int index = 1;
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                weights(index++) = (double)Py::Float(*it);
+                weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
             }
             surf->SetPoleRow(uindex, poles, weights);
         }
@@ -764,6 +767,7 @@ PyObject* BSplineSurfacePy::setWeight(PyObject* args)
     if (!PyArg_ParseTuple(args, "iid", &uindex, &vindex, &weight)) {
         return nullptr;
     }
+    checkFinite(weight, "Weight");
     try {
         Handle(Geom_BSplineSurface)
             surf = Handle(Geom_BSplineSurface)::DownCast(getGeometryPtr()->handle());
@@ -788,7 +792,7 @@ PyObject* BSplineSurfacePy::setWeightCol(PyObject* args)
         TColStd_Array1OfReal weights(1, list.size());
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-            weights(index++) = (double)Py::Float(*it);
+            weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
         }
 
         Handle(Geom_BSplineSurface)
@@ -814,7 +818,7 @@ PyObject* BSplineSurfacePy::setWeightRow(PyObject* args)
         TColStd_Array1OfReal weights(1, list.size());
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-            weights(index++) = (double)Py::Float(*it);
+            weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
         }
 
         Handle(Geom_BSplineSurface)
@@ -951,15 +955,15 @@ PyObject* BSplineSurfacePy::movePoint(PyObject* args)
         )) {
         return nullptr;
     }
+    gp_Pnt p = toFinitePnt(static_cast<Base::VectorPy*>(pnt)->value(), "Point");
     try {
-        Base::Vector3d p = static_cast<Base::VectorPy*>(pnt)->value();
         Handle(Geom_BSplineSurface)
             surf = Handle(Geom_BSplineSurface)::DownCast(getGeometryPtr()->handle());
         int ufirst, ulast, vfirst, vlast;
         surf->MovePoint(
             U,
             V,
-            gp_Pnt(p.x, p.y, p.z),
+            p,
             uindex1,
             uindex2,
             vindex1,
@@ -1279,6 +1283,9 @@ PyObject* BSplineSurfacePy::approximate(PyObject* args, PyObject* kwds)
         )) {
         return nullptr;
     }
+    for (double value : {X0, dX, Y0, dY}) {
+        checkFinite(value, "Grid");
+    }
     try {
         Py::Sequence list(obj);
         Standard_Integer lu = list.size();
@@ -1298,13 +1305,12 @@ PyObject* BSplineSurfacePy::approximate(PyObject* args, PyObject* kwds)
                 index2++;
                 if ((dX == 0) || (dY == 0)) {
                     Py::Vector v(*it2);
-                    Base::Vector3d pnt = v.toVector();
-                    gp_Pnt newPoint(pnt.x, pnt.y, pnt.z);
+                    gp_Pnt newPoint = toFinitePnt(v.toVector(), "Point");
                     interpolationPoints.SetValue(index1, index2, newPoint);
                 }
                 else {
                     Standard_Real val = PyFloat_AsDouble((*it2).ptr());
-                    zPoints.SetValue(index1, index2, val);
+                    zPoints.SetValue(index1, index2, checkFinite(val, "Height"));
                 }
             }
         }
@@ -1401,6 +1407,9 @@ PyObject* BSplineSurfacePy::interpolate(PyObject* args)
     if (!PyArg_ParseTuple(args, "O|dddd", &obj, &X0, &dX, &Y0, &dY)) {
         return nullptr;
     }
+    for (double value : {X0, dX, Y0, dY}) {
+        checkFinite(value, "Grid");
+    }
     try {
         Py::Sequence list(obj);
         Standard_Integer lu = list.size();
@@ -1419,13 +1428,12 @@ PyObject* BSplineSurfacePy::interpolate(PyObject* args)
                 index2++;
                 if (len == 1) {
                     Py::Vector v(*it2);
-                    Base::Vector3d pnt = v.toVector();
-                    gp_Pnt newPoint(pnt.x, pnt.y, pnt.z);
+                    gp_Pnt newPoint = toFinitePnt(v.toVector(), "Point");
                     interpolationPoints.SetValue(index1, index2, newPoint);
                 }
                 else {
                     Standard_Real val = PyFloat_AsDouble((*it2).ptr());
-                    zPoints.SetValue(index1, index2, val);
+                    zPoints.SetValue(index1, index2, checkFinite(val, "Height"));
                 }
             }
         }
@@ -1526,8 +1534,7 @@ PyObject* BSplineSurfacePy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
             for (Py::Sequence::iterator it2 = row.begin(); it2 != row.end(); ++it2) {
                 index2++;
                 Py::Vector v(*it2);
-                Base::Vector3d pnt = v.toVector();
-                gp_Pnt newPoint(pnt.x, pnt.y, pnt.z);
+                gp_Pnt newPoint = toFinitePnt(v.toVector(), "Pole");
                 occpoles.SetValue(index1, index2, newPoint);
                 if (genweights) {
                     occweights.SetValue(index1, index2, 1.0);  // set weights if they are not given
@@ -1554,7 +1561,7 @@ PyObject* BSplineSurfacePy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
                 for (Py::Sequence::iterator it2 = row.begin(); it2 != row.end(); ++it2) {
                     index2++;
                     Py::Float f(*it2);
-                    occweights.SetValue(index1, index2, f);
+                    occweights.SetValue(index1, index2, checkFinite(static_cast<double>(f), "Weight"));
                 }
             }
         }
@@ -1602,7 +1609,7 @@ PyObject* BSplineSurfacePy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
                  it != uknotssq.end() && index <= occuknots.Length();
                  ++it) {
                 Py::Float knot(*it);
-                occuknots(index++) = knot;
+                occuknots(index++) = checkFinite(static_cast<double>(knot), "Knot");
             }
         }
         else {  // knotes are uniformly spaced 0..1 if not given
@@ -1617,7 +1624,7 @@ PyObject* BSplineSurfacePy::buildFromPolesMultsKnots(PyObject* args, PyObject* k
                  it != vknotssq.end() && index <= occvknots.Length();
                  ++it) {
                 Py::Float knot(*it);
-                occvknots(index++) = knot;
+                occvknots(index++) = checkFinite(static_cast<double>(knot), "Knot");
             }
         }
         else {  // knotes are uniformly spaced 0..1 if not given

@@ -35,6 +35,7 @@
 #include "Geom2d/BezierCurve2dPy.h"
 #include "Geom2d/BezierCurve2dPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -127,7 +128,8 @@ PyObject* BezierCurve2dPy::insertPoleAfter(PyObject* args)
     if (!PyArg_ParseTuple(args, "iO!|d", &index, Base::Vector2dPy::type_object(), &p, &weight)) {
         return nullptr;
     }
-    Base::Vector2d vec = Py::toVector2d(p);
+    Base::Vector2d vec = checkFinite(Py::toVector2d(p), "Pole");
+    checkFinite(weight, "Weight");
     gp_Pnt2d pnt(vec.x, vec.y);
     try {
         Handle(Geom2d_BezierCurve)
@@ -149,7 +151,8 @@ PyObject* BezierCurve2dPy::insertPoleBefore(PyObject* args)
     if (!PyArg_ParseTuple(args, "iO!|d", &index, Base::Vector2dPy::type_object(), &p, &weight)) {
         return nullptr;
     }
-    Base::Vector2d vec = Py::toVector2d(p);
+    Base::Vector2d vec = checkFinite(Py::toVector2d(p), "Pole");
+    checkFinite(weight, "Weight");
     gp_Pnt2d pnt(vec.x, vec.y);
     try {
         Handle(Geom2d_BezierCurve)
@@ -207,7 +210,8 @@ PyObject* BezierCurve2dPy::setPole(PyObject* args)
     if (!PyArg_ParseTuple(args, "iO!|d", &index, Base::Vector2dPy::type_object(), &p, &weight)) {
         return nullptr;
     }
-    Base::Vector2d vec = Py::toVector2d(p);
+    Base::Vector2d vec = checkFinite(Py::toVector2d(p), "Pole");
+    checkFinite(weight, "Weight");
     gp_Pnt2d pnt(vec.x, vec.y);
     try {
         Handle(Geom2d_BezierCurve)
@@ -280,7 +284,7 @@ PyObject* BezierCurve2dPy::setPoles(PyObject* args)
         TColgp_Array1OfPnt2d poles(1, list.size());
         int index = poles.Lower();
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-            Base::Vector2d pole = Py::toVector2d(*it);
+            Base::Vector2d pole = checkFinite(Py::toVector2d(*it), "Pole");
             poles.SetValue(index++, gp_Pnt2d(pole.x, pole.y));
         }
 
@@ -301,6 +305,7 @@ PyObject* BezierCurve2dPy::setWeight(PyObject* args)
     if (!PyArg_ParseTuple(args, "id", &index, &weight)) {
         return nullptr;
     }
+    checkFinite(weight, "Weight");
     try {
         Handle(Geom2d_BezierCurve)
             curve = Handle(Geom2d_BezierCurve)::DownCast(getGeometry2dPtr()->handle());

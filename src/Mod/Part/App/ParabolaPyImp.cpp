@@ -33,6 +33,7 @@
 #include "ParabolaPy.h"
 #include "ParabolaPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -90,9 +91,9 @@ int ParabolaPy::PyInit(PyObject* args, PyObject* kwds)
             &(Base::VectorPy::Type),
             &pV3
         )) {
-        Base::Vector3d focus = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d center = static_cast<Base::VectorPy*>(pV2)->value();
-        Base::Vector3d normal = static_cast<Base::VectorPy*>(pV3)->value();
+        Base::Vector3d focus = checkFinite(static_cast<Base::VectorPy*>(pV1)->value(), "Focus");
+        Base::Vector3d center = checkFinite(static_cast<Base::VectorPy*>(pV2)->value(), "Center");
+        Base::Vector3d normal = checkFinite(static_cast<Base::VectorPy*>(pV3)->value(), "Normal");
 
         Base::Vector3d xvect = focus - center;
 
@@ -141,9 +142,9 @@ PyObject* ParabolaPy::compute(PyObject* args)
         )) {
         return nullptr;
     }
-    Base::Vector3d v1 = Py::Vector(p1, false).toVector();
-    Base::Vector3d v2 = Py::Vector(p2, false).toVector();
-    Base::Vector3d v3 = Py::Vector(p3, false).toVector();
+    Base::Vector3d v1 = checkFinite(Py::Vector(p1, false).toVector(), "Point1");
+    Base::Vector3d v2 = checkFinite(Py::Vector(p2, false).toVector(), "Point2");
+    Base::Vector3d v3 = checkFinite(Py::Vector(p3, false).toVector(), "Point3");
     Base::Vector3d c = (v1 - v2) % (v3 - v2);
     double zValue = v1.z;
     if (fabs(c.Length()) < 0.0001) {
@@ -187,7 +188,7 @@ Py::Float ParabolaPy::getFocal() const
 void ParabolaPy::setFocal(Py::Float arg)
 {
     Handle(Geom_Parabola) curve = Handle(Geom_Parabola)::DownCast(getGeometryPtr()->handle());
-    curve->SetFocal((double)arg);
+    curve->SetFocal(checkFinite((double)arg, "Focal"));
 }
 
 Py::Object ParabolaPy::getFocus() const

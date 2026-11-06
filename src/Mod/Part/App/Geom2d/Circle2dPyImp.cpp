@@ -33,6 +33,7 @@
 #include "Geom2d/Circle2dPy.h"
 #include "Geom2d/Circle2dPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -64,7 +65,7 @@ int Circle2dPy::PyInit(PyObject* args, PyObject* kwds)
         Circle2dPy* pcCircle = static_cast<Circle2dPy*>(pCirc);
         Handle(Geom2d_Circle)
             circle = Handle(Geom2d_Circle)::DownCast(pcCircle->getGeom2dCirclePtr()->handle());
-        GCE2d_MakeCircle mc(circle->Circ2d(), dist);
+        GCE2d_MakeCircle mc(circle->Circ2d(), checkFinite(dist, "Distance"));
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
             return -1;
@@ -88,7 +89,8 @@ int Circle2dPy::PyInit(PyObject* args, PyObject* kwds)
             &pV1,
             &dist
         )) {
-        Base::Vector2d v1 = Py::toVector2d(pV1);
+        Base::Vector2d v1 = checkFinite(Py::toVector2d(pV1), "Center");
+        checkFinite(dist, "Radius");
         GCE2d_MakeCircle mc(gp_Pnt2d(v1.x, v1.y), dist);
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
@@ -127,9 +129,9 @@ int Circle2dPy::PyInit(PyObject* args, PyObject* kwds)
             Base::Vector2dPy::type_object(),
             &pV3
         )) {
-        Base::Vector2d v1 = Py::toVector2d(pV1);
-        Base::Vector2d v2 = Py::toVector2d(pV2);
-        Base::Vector2d v3 = Py::toVector2d(pV3);
+        Base::Vector2d v1 = checkFinite(Py::toVector2d(pV1), "Point1");
+        Base::Vector2d v2 = checkFinite(Py::toVector2d(pV2), "Point2");
+        Base::Vector2d v3 = checkFinite(Py::toVector2d(pV3), "Point3");
         GCE2d_MakeCircle mc(gp_Pnt2d(v1.x, v1.y), gp_Pnt2d(v2.x, v2.y), gp_Pnt2d(v3.x, v3.y));
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
@@ -199,7 +201,7 @@ Py::Float Circle2dPy::getRadius() const
 void Circle2dPy::setRadius(Py::Float arg)
 {
     Handle(Geom2d_Circle) circle = Handle(Geom2d_Circle)::DownCast(getGeom2dCirclePtr()->handle());
-    circle->SetRadius((double)arg);
+    circle->SetRadius(checkFinite((double)arg, "Radius"));
 }
 
 PyObject* Circle2dPy::getCustomAttributes(const char*) const

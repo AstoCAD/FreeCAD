@@ -33,6 +33,7 @@
 #include "HyperbolaPy.h"
 #include "HyperbolaPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -91,9 +92,9 @@ int HyperbolaPy::PyInit(PyObject* args, PyObject* kwds)
             &(Base::VectorPy::Type),
             &pV3
         )) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
-        Base::Vector3d v3 = static_cast<Base::VectorPy*>(pV3)->value();
+        Base::Vector3d v1 = checkFinite(static_cast<Base::VectorPy*>(pV1)->value(), "S1");
+        Base::Vector3d v2 = checkFinite(static_cast<Base::VectorPy*>(pV2)->value(), "S2");
+        Base::Vector3d v3 = checkFinite(static_cast<Base::VectorPy*>(pV3)->value(), "Center");
 
 
 #if OCC_VERSION_HEX < 0x080000
@@ -152,8 +153,10 @@ int HyperbolaPy::PyInit(PyObject* args, PyObject* kwds)
             &major,
             &minor
         )) {
-        Base::Vector3d c = static_cast<Base::VectorPy*>(pV)->value();
-        GC_MakeHyperbola me(gp_Ax2(gp_Pnt(c.x, c.y, c.z), gp_Dir(0.0, 0.0, 1.0)), major, minor);
+        gp_Pnt center = toFinitePnt(static_cast<Base::VectorPy*>(pV)->value(), "Center");
+        checkFinite(major, "MajorRadius");
+        checkFinite(minor, "MinorRadius");
+        GC_MakeHyperbola me(gp_Ax2(center, gp_Dir(0.0, 0.0, 1.0)), major, minor);
         if (!me.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(me.Status()));
             return -1;
@@ -187,7 +190,7 @@ void HyperbolaPy::setMajorRadius(Py::Float arg)
 {
     Handle(Geom_Hyperbola)
         hyperbola = Handle(Geom_Hyperbola)::DownCast(getGeomHyperbolaPtr()->handle());
-    hyperbola->SetMajorRadius((double)arg);
+    hyperbola->SetMajorRadius(checkFinite((double)arg, "MajorRadius"));
 }
 
 Py::Float HyperbolaPy::getMinorRadius() const
@@ -201,7 +204,7 @@ void HyperbolaPy::setMinorRadius(Py::Float arg)
 {
     Handle(Geom_Hyperbola)
         hyperbola = Handle(Geom_Hyperbola)::DownCast(getGeomHyperbolaPtr()->handle());
-    hyperbola->SetMinorRadius((double)arg);
+    hyperbola->SetMinorRadius(checkFinite((double)arg, "MinorRadius"));
 }
 
 Py::Float HyperbolaPy::getFocal() const

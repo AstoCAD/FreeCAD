@@ -31,6 +31,7 @@
 #include "ConicPy.h"
 #include "ConicPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -73,11 +74,11 @@ void ConicPy::setCenter(Py::Object arg)
     PyObject* p = arg.ptr();
     if (PyObject_TypeCheck(p, &(Base::VectorPy::Type))) {
         Base::Vector3d loc = static_cast<Base::VectorPy*>(p)->value();
-        getGeomConicPtr()->setLocation(loc);
+        getGeomConicPtr()->setLocation(checkFinite(loc, "Location"));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
         Base::Vector3d loc = Base::getVectorFromTuple<double>(p);
-        getGeomConicPtr()->setLocation(loc);
+        getGeomConicPtr()->setLocation(checkFinite(loc, "Location"));
     }
     else {
         std::string error = std::string("type must be 'Vector', not ");
@@ -91,11 +92,11 @@ void ConicPy::setLocation(Py::Object arg)
     PyObject* p = arg.ptr();
     if (PyObject_TypeCheck(p, &(Base::VectorPy::Type))) {
         Base::Vector3d loc = static_cast<Base::VectorPy*>(p)->value();
-        getGeomConicPtr()->setLocation(loc);
+        getGeomConicPtr()->setLocation(checkFinite(loc, "Location"));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
         Base::Vector3d loc = Base::getVectorFromTuple<double>(p);
-        getGeomConicPtr()->setLocation(loc);
+        getGeomConicPtr()->setLocation(checkFinite(loc, "Location"));
     }
     else {
         std::string error = std::string("type must be 'Vector', not ");
@@ -117,7 +118,7 @@ Py::Float ConicPy::getAngleXU() const
 
 void ConicPy::setAngleXU(Py::Float arg)
 {
-    getGeomConicPtr()->setAngleXU((double)arg);
+    getGeomConicPtr()->setAngleXU(checkFinite((double)arg, "AngleXU"));
 }
 
 Py::Object ConicPy::getAxis() const
@@ -144,6 +145,7 @@ void ConicPy::setAxis(Py::Object arg)
         throw Py::TypeError(error);
     }
 
+    checkFinite(val, "Axis");
     Handle(Geom_Conic) conic = Handle(Geom_Conic)::DownCast(getGeomConicPtr()->handle());
     try {
         gp_Ax1 axis;
@@ -180,6 +182,7 @@ void ConicPy::setXAxis(Py::Object arg)
         throw Py::TypeError(error);
     }
 
+    checkFinite(val, "XAxis");
     Handle(Geom_Conic) conic = Handle(Geom_Conic)::DownCast(getGeomConicPtr()->handle());
     try {
         gp_Ax2 pos;
@@ -216,6 +219,7 @@ void ConicPy::setYAxis(Py::Object arg)
         throw Py::TypeError(error);
     }
 
+    checkFinite(val, "YAxis");
     Handle(Geom_Conic) conic = Handle(Geom_Conic)::DownCast(getGeomConicPtr()->handle());
     try {
         gp_Ax2 pos;

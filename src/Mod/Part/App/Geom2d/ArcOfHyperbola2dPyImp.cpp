@@ -34,6 +34,7 @@
 #include "Geom2d/ArcOfHyperbola2dPy.cpp"
 #include "Geom2d/Hyperbola2dPy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -105,7 +106,7 @@ Py::Float ArcOfHyperbola2dPy::getMajorRadius() const
 
 void ArcOfHyperbola2dPy::setMajorRadius(Py::Float arg)
 {
-    getGeom2dArcOfHyperbolaPtr()->setMajorRadius((double)arg);
+    getGeom2dArcOfHyperbolaPtr()->setMajorRadius(checkFinite((double)arg, "MajorRadius"));
 }
 
 Py::Float ArcOfHyperbola2dPy::getMinorRadius() const
@@ -115,7 +116,7 @@ Py::Float ArcOfHyperbola2dPy::getMinorRadius() const
 
 void ArcOfHyperbola2dPy::setMinorRadius(Py::Float arg)
 {
-    getGeom2dArcOfHyperbolaPtr()->setMinorRadius((double)arg);
+    getGeom2dArcOfHyperbolaPtr()->setMinorRadius(checkFinite((double)arg, "MinorRadius"));
 }
 
 Py::Object ArcOfHyperbola2dPy::getHyperbola() const

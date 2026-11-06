@@ -38,6 +38,7 @@
 #include "PlanePy.h"
 #include "PlanePy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -68,7 +69,7 @@ int PlanePy::PyInit(PyObject* args, PyObject* kwds)
     ) {
         PlanePy* pcPlane = static_cast<PlanePy*>(pPlane);
         Handle(Geom_Plane) plane = Handle(Geom_Plane)::DownCast(pcPlane->getGeometryPtr()->handle());
-        GC_MakePlane mc(plane->Pln(), dist);
+        GC_MakePlane mc(plane->Pln(), checkFinite(dist, "Distance"));
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
             return -1;
@@ -84,6 +85,9 @@ int PlanePy::PyInit(PyObject* args, PyObject* kwds)
     static const std::array<const char*, 5> keywords_abcd {"A", "B", "C", "D", nullptr};
     PyErr_Clear();
     if (Base::Wrapped_ParseTupleAndKeywords(args, kwds, "dddd", keywords_abcd, &a, &b, &c, &d)) {
+        for (double value : {a, b, c, d}) {
+            checkFinite(value, "Plane equation coefficient");
+        }
         GC_MakePlane mc(a, b, c, d);
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
@@ -110,10 +114,11 @@ int PlanePy::PyInit(PyObject* args, PyObject* kwds)
             &(Base::VectorPy::Type),
             &pV3
         )) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
-        Base::Vector3d v3 = static_cast<Base::VectorPy*>(pV3)->value();
-        GC_MakePlane mc(gp_Pnt(v1.x, v1.y, v1.z), gp_Pnt(v2.x, v2.y, v2.z), gp_Pnt(v3.x, v3.y, v3.z));
+        GC_MakePlane mc(
+            toFinitePnt(static_cast<Base::VectorPy*>(pV1)->value(), "Point1"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV2)->value(), "Point2"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV3)->value(), "Point3")
+        );
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
             return -1;
@@ -137,8 +142,8 @@ int PlanePy::PyInit(PyObject* args, PyObject* kwds)
             &(Base::VectorPy::Type),
             &pV2
         )) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
+        Base::Vector3d v1 = checkFinite(static_cast<Base::VectorPy*>(pV1)->value(), "Location");
+        Base::Vector3d v2 = checkFinite(static_cast<Base::VectorPy*>(pV2)->value(), "Normal");
         GC_MakePlane mc(gp_Pnt(v1.x, v1.y, v1.z), gp_Dir(v2.x, v2.y, v2.z));
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
@@ -210,6 +215,7 @@ void PlanePy::setPosition(Py::Object arg)
         throw Py::TypeError(error);
     }
 
+    checkFinite(Base::Vector3d(loc.X(), loc.Y(), loc.Z()), "Position");
     try {
         Handle(Geom_Plane)
             this_surf = Handle(Geom_Plane)::DownCast(this->getGeomPlanePtr()->handle());
@@ -250,6 +256,7 @@ void PlanePy::setAxis(Py::Object arg)
         throw Py::TypeError(error);
     }
 
+    checkFinite(Base::Vector3d(dir_x, dir_y, dir_z), "Axis");
     try {
         Handle(Geom_ElementarySurface)
             this_surf = Handle(Geom_ElementarySurface)::DownCast(this->getGeometryPtr()->handle());

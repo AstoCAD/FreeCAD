@@ -39,6 +39,7 @@
 
 #include "OCCError.h"
 #include "PartPyCXX.h"
+#include "PyFiniteInput.h"
 #include "Tools.h"
 #include "TopoShapeCompoundPy.h"
 #include "TopoShapeCompoundPy.h"
@@ -172,12 +173,9 @@ PyObject* TopoShapeShellPy::makeHalfSpace(PyObject* args) const
         return nullptr;
     }
 
+    gp_Pnt pt = toFinitePnt(Py::Vector(pPnt, false).toVector(), "Point");
     try {
-        Base::Vector3d pt = Py::Vector(pPnt, false).toVector();
-        BRepPrimAPI_MakeHalfSpace mkHS(
-            TopoDS::Shell(this->getTopoShapePtr()->getShape()),
-            gp_Pnt(pt.x, pt.y, pt.z)
-        );
+        BRepPrimAPI_MakeHalfSpace mkHS(TopoDS::Shell(this->getTopoShapePtr()->getShape()), pt);
         return new TopoShapeSolidPy(new TopoShape(mkHS.Solid()));
     }
     catch (Standard_Failure& e) {

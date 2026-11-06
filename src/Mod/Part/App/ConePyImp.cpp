@@ -35,6 +35,7 @@
 #include "ConePy.h"
 #include "ConePy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -81,9 +82,12 @@ int ConePy::PyInit(PyObject* args, PyObject* kwds)
             &radius1,
             &radius2
         )) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
-        GC_MakeConicalSurface mc(gp_Pnt(v1.x, v1.y, v1.z), gp_Pnt(v2.x, v2.y, v2.z), radius1, radius2);
+        GC_MakeConicalSurface mc(
+            toFinitePnt(static_cast<Base::VectorPy*>(pV1)->value(), "Point1"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV2)->value(), "Point2"),
+            checkFinite(radius1, "Radius1"),
+            checkFinite(radius2, "Radius2")
+        );
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
             return -1;
@@ -112,15 +116,11 @@ int ConePy::PyInit(PyObject* args, PyObject* kwds)
             &(Base::VectorPy::Type),
             &pV4
         )) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
-        Base::Vector3d v3 = static_cast<Base::VectorPy*>(pV3)->value();
-        Base::Vector3d v4 = static_cast<Base::VectorPy*>(pV4)->value();
         GC_MakeConicalSurface mc(
-            gp_Pnt(v1.x, v1.y, v1.z),
-            gp_Pnt(v2.x, v2.y, v2.z),
-            gp_Pnt(v3.x, v3.y, v3.z),
-            gp_Pnt(v4.x, v4.y, v4.z)
+            toFinitePnt(static_cast<Base::VectorPy*>(pV1)->value(), "Point1"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV2)->value(), "Point2"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV3)->value(), "Point3"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV4)->value(), "Point4")
         );
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
@@ -179,7 +179,7 @@ Py::Float ConePy::getRadius() const
 void ConePy::setRadius(Py::Float arg)
 {
     Handle(Geom_ConicalSurface) s = Handle(Geom_ConicalSurface)::DownCast(getGeomConePtr()->handle());
-    s->SetRadius((double)arg);
+    s->SetRadius(checkFinite((double)arg, "Radius"));
 }
 
 Py::Float ConePy::getSemiAngle() const
@@ -191,7 +191,7 @@ Py::Float ConePy::getSemiAngle() const
 void ConePy::setSemiAngle(Py::Float arg)
 {
     Handle(Geom_ConicalSurface) s = Handle(Geom_ConicalSurface)::DownCast(getGeomConePtr()->handle());
-    s->SetSemiAngle((double)arg);
+    s->SetSemiAngle(checkFinite((double)arg, "SemiAngle"));
 }
 
 Py::Object ConePy::getCenter() const
@@ -209,13 +209,13 @@ void ConePy::setCenter(Py::Object arg)
         Base::Vector3d loc = static_cast<Base::VectorPy*>(p)->value();
         Handle(Geom_ElementarySurface)
             s = Handle(Geom_ElementarySurface)::DownCast(getGeomConePtr()->handle());
-        s->SetLocation(gp_Pnt(loc.x, loc.y, loc.z));
+        s->SetLocation(toFinitePnt(loc, "Center"));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
         Base::Vector3d loc = Base::getVectorFromTuple<double>(p);
         Handle(Geom_ElementarySurface)
             s = Handle(Geom_ElementarySurface)::DownCast(getGeomConePtr()->handle());
-        s->SetLocation(gp_Pnt(loc.x, loc.y, loc.z));
+        s->SetLocation(toFinitePnt(loc, "Center"));
     }
     else {
         std::string error = std::string("type must be 'Vector', not ");
@@ -254,6 +254,7 @@ void ConePy::setAxis(Py::Object arg)
         throw Py::TypeError(error);
     }
 
+    checkFinite(Base::Vector3d(dir_x, dir_y, dir_z), "Axis");
     try {
         Handle(Geom_ElementarySurface)
             this_surf = Handle(Geom_ElementarySurface)::DownCast(this->getGeometryPtr()->handle());

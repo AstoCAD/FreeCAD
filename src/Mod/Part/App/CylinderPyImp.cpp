@@ -36,6 +36,7 @@
 #include "CylinderPy.cpp"
 #include "CirclePy.h"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -68,7 +69,7 @@ int CylinderPy::PyInit(PyObject* args, PyObject* kwds)
         Handle(Geom_CylindricalSurface) cylinder = Handle(Geom_CylindricalSurface)::DownCast(
             pcCylinder->getGeomCylinderPtr()->handle()
         );
-        GC_MakeCylindricalSurface mc(cylinder->Cylinder(), dist);
+        GC_MakeCylindricalSurface mc(cylinder->Cylinder(), checkFinite(dist, "Distance"));
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
             return -1;
@@ -108,13 +109,10 @@ int CylinderPy::PyInit(PyObject* args, PyObject* kwds)
             &(Base::VectorPy::Type),
             &pV3
         )) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
-        Base::Vector3d v3 = static_cast<Base::VectorPy*>(pV3)->value();
         GC_MakeCylindricalSurface mc(
-            gp_Pnt(v1.x, v1.y, v1.z),
-            gp_Pnt(v2.x, v2.y, v2.z),
-            gp_Pnt(v3.x, v3.y, v3.z)
+            toFinitePnt(static_cast<Base::VectorPy*>(pV1)->value(), "Point1"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV2)->value(), "Point2"),
+            toFinitePnt(static_cast<Base::VectorPy*>(pV3)->value(), "Point3")
         );
         if (!mc.IsDone()) {
             PyErr_SetString(PartExceptionOCCError, gce_ErrorStatusText(mc.Status()));
@@ -179,7 +177,7 @@ void CylinderPy::setRadius(Py::Float arg)
 {
     Handle(Geom_CylindricalSurface)
         cyl = Handle(Geom_CylindricalSurface)::DownCast(getGeomCylinderPtr()->handle());
-    cyl->SetRadius((double)arg);
+    cyl->SetRadius(checkFinite((double)arg, "Radius"));
 }
 
 Py::Object CylinderPy::getCenter() const
@@ -197,13 +195,13 @@ void CylinderPy::setCenter(Py::Object arg)
         Base::Vector3d loc = static_cast<Base::VectorPy*>(p)->value();
         Handle(Geom_CylindricalSurface)
             cyl = Handle(Geom_CylindricalSurface)::DownCast(getGeomCylinderPtr()->handle());
-        cyl->SetLocation(gp_Pnt(loc.x, loc.y, loc.z));
+        cyl->SetLocation(toFinitePnt(loc, "Center"));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
         Base::Vector3d loc = Base::getVectorFromTuple<double>(p);
         Handle(Geom_CylindricalSurface)
             cyl = Handle(Geom_CylindricalSurface)::DownCast(getGeomCylinderPtr()->handle());
-        cyl->SetLocation(gp_Pnt(loc.x, loc.y, loc.z));
+        cyl->SetLocation(toFinitePnt(loc, "Center"));
     }
     else {
         std::string error = std::string("type must be 'Vector', not ");
@@ -242,6 +240,7 @@ void CylinderPy::setAxis(Py::Object arg)
         throw Py::TypeError(error);
     }
 
+    checkFinite(Base::Vector3d(dir_x, dir_y, dir_z), "Axis");
     try {
         Handle(Geom_ElementarySurface)
             this_surf = Handle(Geom_ElementarySurface)::DownCast(this->getGeometryPtr()->handle());

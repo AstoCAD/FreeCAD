@@ -36,6 +36,7 @@
 #include "BezierSurfacePy.h"
 #include "BezierSurfacePy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -181,8 +182,7 @@ PyObject* BezierSurfacePy::insertPoleColAfter(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector p(*it);
-            Base::Vector3d v = p.toVector();
-            poles(index++) = gp_Pnt(v.x, v.y, v.z);
+            poles(index++) = toFinitePnt(p.toVector(), "Pole");
         }
 
         Handle(Geom_BezierSurface)
@@ -195,7 +195,7 @@ PyObject* BezierSurfacePy::insertPoleColAfter(PyObject* args)
             TColStd_Array1OfReal weights(1, list.size());
             int index = 1;
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                weights(index++) = (double)Py::Float(*it);
+                weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
             }
             surf->InsertPoleColAfter(vindex, poles, weights);
         }
@@ -222,8 +222,7 @@ PyObject* BezierSurfacePy::insertPoleRowAfter(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector p(*it);
-            Base::Vector3d v = p.toVector();
-            poles(index++) = gp_Pnt(v.x, v.y, v.z);
+            poles(index++) = toFinitePnt(p.toVector(), "Pole");
         }
 
         Handle(Geom_BezierSurface)
@@ -236,7 +235,7 @@ PyObject* BezierSurfacePy::insertPoleRowAfter(PyObject* args)
             TColStd_Array1OfReal weights(1, list.size());
             int index = 1;
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                weights(index++) = (double)Py::Float(*it);
+                weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
             }
             surf->InsertPoleRowAfter(uindex, poles, weights);
         }
@@ -263,8 +262,7 @@ PyObject* BezierSurfacePy::insertPoleColBefore(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector p(*it);
-            Base::Vector3d v = p.toVector();
-            poles(index++) = gp_Pnt(v.x, v.y, v.z);
+            poles(index++) = toFinitePnt(p.toVector(), "Pole");
         }
 
         Handle(Geom_BezierSurface)
@@ -277,7 +275,7 @@ PyObject* BezierSurfacePy::insertPoleColBefore(PyObject* args)
             TColStd_Array1OfReal weights(1, list.size());
             int index = 1;
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                weights(index++) = (double)Py::Float(*it);
+                weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
             }
             surf->InsertPoleColBefore(vindex, poles, weights);
         }
@@ -304,8 +302,7 @@ PyObject* BezierSurfacePy::insertPoleRowBefore(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector p(*it);
-            Base::Vector3d v = p.toVector();
-            poles(index++) = gp_Pnt(v.x, v.y, v.z);
+            poles(index++) = toFinitePnt(p.toVector(), "Pole");
         }
 
         Handle(Geom_BezierSurface)
@@ -318,7 +315,7 @@ PyObject* BezierSurfacePy::insertPoleRowBefore(PyObject* args)
             TColStd_Array1OfReal weights(1, list.size());
             int index = 1;
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                weights(index++) = (double)Py::Float(*it);
+                weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
             }
             surf->InsertPoleRowBefore(uindex, poles, weights);
         }
@@ -393,15 +390,16 @@ PyObject* BezierSurfacePy::setPole(PyObject* args)
     if (!PyArg_ParseTuple(args, "iiO!|d", &uindex, &vindex, &(Base::VectorPy::Type), &obj, &weight)) {
         return nullptr;
     }
+    gp_Pnt pole = toFinitePnt(static_cast<Base::VectorPy*>(obj)->value(), "Pole");
+    checkFinite(weight, "Weight");
     try {
-        Base::Vector3d pole = static_cast<Base::VectorPy*>(obj)->value();
         Handle(Geom_BezierSurface)
             surf = Handle(Geom_BezierSurface)::DownCast(getGeometryPtr()->handle());
         if (weight <= gp::Resolution()) {
-            surf->SetPole(uindex, vindex, gp_Pnt(pole.x, pole.y, pole.z));
+            surf->SetPole(uindex, vindex, pole);
         }
         else {
-            surf->SetPole(uindex, vindex, gp_Pnt(pole.x, pole.y, pole.z), weight);
+            surf->SetPole(uindex, vindex, pole, weight);
         }
         Py_Return;
     }
@@ -425,8 +423,7 @@ PyObject* BezierSurfacePy::setPoleCol(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector p(*it);
-            Base::Vector3d v = p.toVector();
-            poles(index++) = gp_Pnt(v.x, v.y, v.z);
+            poles(index++) = toFinitePnt(p.toVector(), "Pole");
         }
 
         Handle(Geom_BezierSurface)
@@ -439,7 +436,7 @@ PyObject* BezierSurfacePy::setPoleCol(PyObject* args)
             TColStd_Array1OfReal weights(1, list.size());
             int index = 1;
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                weights(index++) = (double)Py::Float(*it);
+                weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
             }
             surf->SetPoleCol(vindex, poles, weights);
         }
@@ -466,8 +463,7 @@ PyObject* BezierSurfacePy::setPoleRow(PyObject* args)
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             Py::Vector p(*it);
-            Base::Vector3d v = p.toVector();
-            poles(index++) = gp_Pnt(v.x, v.y, v.z);
+            poles(index++) = toFinitePnt(p.toVector(), "Pole");
         }
 
         Handle(Geom_BezierSurface)
@@ -480,7 +476,7 @@ PyObject* BezierSurfacePy::setPoleRow(PyObject* args)
             TColStd_Array1OfReal weights(1, list.size());
             int index = 1;
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                weights(index++) = (double)Py::Float(*it);
+                weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
             }
             surf->SetPoleRow(uindex, poles, weights);
         }
@@ -551,6 +547,7 @@ PyObject* BezierSurfacePy::setWeight(PyObject* args)
     if (!PyArg_ParseTuple(args, "iid", &uindex, &vindex, &weight)) {
         return nullptr;
     }
+    checkFinite(weight, "Weight");
     try {
         Handle(Geom_BezierSurface)
             surf = Handle(Geom_BezierSurface)::DownCast(getGeometryPtr()->handle());
@@ -575,7 +572,7 @@ PyObject* BezierSurfacePy::setWeightCol(PyObject* args)
         TColStd_Array1OfReal weights(1, list.size());
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-            weights(index++) = (double)Py::Float(*it);
+            weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
         }
 
         Handle(Geom_BezierSurface)
@@ -601,7 +598,7 @@ PyObject* BezierSurfacePy::setWeightRow(PyObject* args)
         TColStd_Array1OfReal weights(1, list.size());
         int index = 1;
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-            weights(index++) = (double)Py::Float(*it);
+            weights(index++) = checkFinite((double)Py::Float(*it), "Weight");
         }
 
         Handle(Geom_BezierSurface)

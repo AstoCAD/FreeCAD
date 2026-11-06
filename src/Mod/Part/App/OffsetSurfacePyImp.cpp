@@ -29,6 +29,7 @@
 #include "OCCError.h"
 #include "OffsetSurfacePy.h"
 #include "OffsetSurfacePy.cpp"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -61,6 +62,7 @@ int OffsetSurfacePy::PyInit(PyObject* args, PyObject* /*kwd*/)
         return -1;
     }
 
+    checkFinite(offset, "Offset");
     try {
         Handle(Geom_OffsetSurface) surf2 = new Geom_OffsetSurface(surf, offset);
         getGeomOffsetSurfacePtr()->setHandle(surf2);
@@ -84,7 +86,7 @@ void OffsetSurfacePy::setOffsetValue(Py::Float arg)
 {
     Handle(Geom_OffsetSurface)
         surf = Handle(Geom_OffsetSurface)::DownCast(getGeometryPtr()->handle());
-    surf->SetOffsetValue((double)arg);
+    surf->SetOffsetValue(checkFinite((double)arg, "OffsetValue"));
 }
 
 Py::Object OffsetSurfacePy::getBasisSurface() const

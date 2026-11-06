@@ -77,6 +77,7 @@ set(Part_tests
     parttests/Geom2d_tests.py
     parttests/part_test_objects.py
     parttests/regression_tests.py
+    parttests/TestFiniteInput.py
     parttests/TopoShapeListTest.py
     parttests/ColorPerFaceTest.py
     parttests/ColorTransparencyTest.py

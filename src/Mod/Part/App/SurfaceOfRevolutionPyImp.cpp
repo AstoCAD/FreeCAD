@@ -31,6 +31,7 @@
 #include "SurfaceOfRevolutionPy.h"
 #include "SurfaceOfRevolutionPy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -73,12 +74,12 @@ int SurfaceOfRevolutionPy::PyInit(PyObject* args, PyObject* /*kwd*/)
         return -1;
     }
 
+    gp_Pnt pnt = toFinitePnt(static_cast<Base::VectorPy*>(pPnt)->value(), "Location");
+    Base::Vector3d dir = checkFinite(static_cast<Base::VectorPy*>(pDir)->value(), "Direction");
     try {
-        Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
-        Base::Vector3d dir = static_cast<Base::VectorPy*>(pDir)->value();
         Handle(Geom_SurfaceOfRevolution) curve2 = new Geom_SurfaceOfRevolution(
             curve,
-            gp_Ax1(gp_Pnt(pnt.x, pnt.y, pnt.z), gp_Dir(dir.x, dir.y, dir.z))
+            gp_Ax1(pnt, gp_Dir(dir.x, dir.y, dir.z))
         );
         getGeomSurfaceOfRevolutionPtr()->setHandle(curve2);
         return 0;
@@ -102,13 +103,13 @@ void SurfaceOfRevolutionPy::setLocation(Py::Object arg)
 {
     PyObject* p = arg.ptr();
     if (PyObject_TypeCheck(p, &(Base::VectorPy::Type))) {
-        Base::Vector3d pnt = static_cast<Base::VectorPy*>(p)->value();
+        Base::Vector3d pnt = checkFinite(static_cast<Base::VectorPy*>(p)->value(), "Location");
         Handle(Geom_SurfaceOfRevolution)
             curve = Handle(Geom_SurfaceOfRevolution)::DownCast(getGeometryPtr()->handle());
         curve->SetLocation(gp_Pnt(pnt.x, pnt.y, pnt.z));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
-        Base::Vector3d pnt = Base::getVectorFromTuple<double>(p);
+        Base::Vector3d pnt = checkFinite(Base::getVectorFromTuple<double>(p), "Location");
         Handle(Geom_SurfaceOfRevolution)
             curve = Handle(Geom_SurfaceOfRevolution)::DownCast(getGeometryPtr()->handle());
         curve->SetLocation(gp_Pnt(pnt.x, pnt.y, pnt.z));
@@ -132,13 +133,13 @@ void SurfaceOfRevolutionPy::setDirection(Py::Object arg)
 {
     PyObject* p = arg.ptr();
     if (PyObject_TypeCheck(p, &(Base::VectorPy::Type))) {
-        Base::Vector3d dir = static_cast<Base::VectorPy*>(p)->value();
+        Base::Vector3d dir = checkFinite(static_cast<Base::VectorPy*>(p)->value(), "Direction");
         Handle(Geom_SurfaceOfRevolution)
             curve = Handle(Geom_SurfaceOfRevolution)::DownCast(getGeometryPtr()->handle());
         curve->SetDirection(gp_Dir(dir.x, dir.y, dir.z));
     }
     else if (PyObject_TypeCheck(p, &PyTuple_Type)) {
-        Base::Vector3d dir = Base::getVectorFromTuple<double>(p);
+        Base::Vector3d dir = checkFinite(Base::getVectorFromTuple<double>(p), "Direction");
         Handle(Geom_SurfaceOfRevolution)
             curve = Handle(Geom_SurfaceOfRevolution)::DownCast(getGeometryPtr()->handle());
         curve->SetDirection(gp_Dir(dir.x, dir.y, dir.z));

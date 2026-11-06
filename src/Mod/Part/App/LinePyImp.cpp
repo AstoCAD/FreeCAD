@@ -32,6 +32,7 @@
 #include "LinePy.h"
 #include "LinePy.cpp"
 #include "OCCError.h"
+#include "PyFiniteInput.h"
 
 
 using namespace Part;
@@ -77,8 +78,8 @@ int LinePy::PyInit(PyObject* args, PyObject* /*kwd*/)
     PyErr_Clear();
     PyObject *pV1, *pV2;
     if (PyArg_ParseTuple(args, "O!O!", &(Base::VectorPy::Type), &pV1, &(Base::VectorPy::Type), &pV2)) {
-        Base::Vector3d v1 = static_cast<Base::VectorPy*>(pV1)->value();
-        Base::Vector3d v2 = static_cast<Base::VectorPy*>(pV2)->value();
+        Base::Vector3d v1 = checkFinite(static_cast<Base::VectorPy*>(pV1)->value(), "Point1");
+        Base::Vector3d v2 = checkFinite(static_cast<Base::VectorPy*>(pV2)->value(), "Point2");
         try {
             // Create line out of two points
             double distance = Base::Distance(v1, v2);
@@ -152,6 +153,7 @@ void LinePy::setLocation(Py::Object arg)
         throw Py::TypeError(error);
     }
 
+    checkFinite(Base::Vector3d(pnt.X(), pnt.Y(), pnt.Z()), "Location");
     try {
         GC_MakeLine ms(pnt, dir);
         if (!ms.IsDone()) {
@@ -183,7 +185,7 @@ void LinePy::setDirection(Py::Object arg)
 
     PyObject* p = arg.ptr();
     if (PyObject_TypeCheck(p, &(Base::VectorPy::Type))) {
-        Base::Vector3d v = static_cast<Base::VectorPy*>(p)->value();
+        Base::Vector3d v = checkFinite(static_cast<Base::VectorPy*>(p)->value(), "Direction");
         dir = gp_Dir(v.x, v.y, v.z);
     }
     else if (PyTuple_Check(p)) {
@@ -191,6 +193,7 @@ void LinePy::setDirection(Py::Object arg)
         double x = (double)Py::Float(tuple.getItem(0));
         double y = (double)Py::Float(tuple.getItem(1));
         double z = (double)Py::Float(tuple.getItem(2));
+        checkFinite(Base::Vector3d(x, y, z), "Direction");
         dir = gp_Dir(x, y, z);
     }
     else {
