@@ -1086,6 +1086,8 @@ void View3DInventorViewer::init()
 
     // setup light sources
     SoDirectionalLight* hl = this->getHeadlight();
+    // The 'fixed key light' of the Enhanced rendering quality finds the headlight by its name.
+    hl->setName(Render::headlightNodeName);
 
     environment = new SoEnvironment();
     environment->ref();

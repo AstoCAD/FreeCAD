@@ -59,8 +59,8 @@ DlgSettings3DViewImp::DlgSettings3DViewImp(QWidget* parent)
     updateEnhancedOptions();
 }
 
-// The environment, shadow, FXAA, supersampling and ambient occlusion options only apply to the
-// 'Enhanced' quality: show them only when it is selected.
+// The environment, direct light, shadow, FXAA, supersampling and ambient occlusion options only
+// apply to the 'Enhanced' quality: show them only when it is selected.
 void DlgSettings3DViewImp::updateEnhancedOptions()
 {
     constexpr int enhancedIndex = 1;  // Classic, Enhanced (RenderSettings::Quality)
@@ -68,6 +68,8 @@ void DlgSettings3DViewImp::updateEnhancedOptions()
     for (QWidget* widget : std::initializer_list<QWidget*> {
              ui->renderEnvironmentLabel,
              ui->comboRenderEnvironment,
+             ui->renderKeyLightLabel,
+             ui->comboRenderKeyLight,
              ui->CheckBox_RenderShadows,
              ui->CheckBox_RenderFxaa,
              ui->renderSupersamplingLabel,
@@ -89,6 +91,7 @@ void DlgSettings3DViewImp::saveSettings()
     ui->comboTransparentRender->onSave();
     ui->comboRenderQuality->onSave();
     ui->comboRenderEnvironment->onSave();
+    ui->comboRenderKeyLight->onSave();
     ui->CheckBox_RenderShadows->onSave();
     ui->CheckBox_RenderFxaa->onSave();
     ui->CheckBox_RenderAmbientOcclusion->onSave();
@@ -129,6 +132,7 @@ void DlgSettings3DViewImp::loadSettings()
     ui->comboTransparentRender->onRestore();
     ui->comboRenderQuality->onRestore();
     ui->comboRenderEnvironment->onRestore();
+    ui->comboRenderKeyLight->onRestore();
     ui->CheckBox_RenderShadows->onRestore();
     ui->CheckBox_RenderFxaa->onRestore();
     ui->CheckBox_RenderAmbientOcclusion->onRestore();

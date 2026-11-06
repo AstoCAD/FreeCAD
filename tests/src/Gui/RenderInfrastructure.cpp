@@ -34,6 +34,7 @@ protected:
         RenderSettings::setRequestedQuality(defaultQuality);
         RenderSettings::setEnvironmentPreset(defaultEnvironmentPreset);
         RenderSettings::setShadowsEnabled(false);
+        RenderSettings::setKeyLight(defaultKeyLight);
     }
 };
 
@@ -114,6 +115,46 @@ TEST(RenderSettingsMapping, environmentParameters)
     EXPECT_EQ(environmentFromParameter(1), EnvironmentPreset::Neutral);
     EXPECT_EQ(environmentFromParameter(2), EnvironmentPreset::Interior);
     EXPECT_EQ(environmentFromParameter(7), defaultEnvironmentPreset);
+}
+
+TEST(RenderSettingsMapping, keyLightParameters)
+{
+    EXPECT_EQ(defaultKeyLight, KeyLight::Headlight);  // the classic behaviour stays the default
+    EXPECT_EQ(keyLightFromParameter(0), KeyLight::Headlight);
+    EXPECT_EQ(keyLightFromParameter(1), KeyLight::Sun);
+    EXPECT_EQ(keyLightFromParameter(-3), defaultKeyLight);
+    EXPECT_EQ(keyLightFromParameter(9), defaultKeyLight);
+}
+
+TEST(RenderSettingsMapping, sunKeyLightReplacesOnlyAKnownHeadlight)
+{
+    // Headlight mode: nothing is replaced.
+    EXPECT_EQ(sunKeyLightIndex(KeyLight::Headlight, 0, 3, 3), -1);
+    // Sun mode: the headlight's own index.
+    EXPECT_EQ(sunKeyLightIndex(KeyLight::Sun, 0, 3, 3), 0);
+    EXPECT_EQ(sunKeyLightIndex(KeyLight::Sun, 2, 3, 3), 2);
+    // Headlight off or not found: other lights are left alone.
+    EXPECT_EQ(sunKeyLightIndex(KeyLight::Sun, -1, 2, 2), -1);
+    // The registered lights do not match the OpenGL lights: the index cannot be trusted.
+    EXPECT_EQ(sunKeyLightIndex(KeyLight::Sun, 0, 2, 3), -1);
+    EXPECT_EQ(sunKeyLightIndex(KeyLight::Sun, 3, 3, 3), -1);
+}
+
+TEST_F(RenderSettingsTest, keyLightChangesTheVisibleStateOnlyInEnhanced)
+{
+    const unsigned generation = RenderSettings::generation();
+    RenderSettings::setKeyLight(KeyLight::Sun);
+    EXPECT_EQ(RenderSettings::keyLight(), KeyLight::Sun);
+    EXPECT_NE(RenderSettings::generation(), generation);
+    EXPECT_EQ(RenderSettings::visibleState(), 0U);  // Classic ignores it
+    EXPECT_NE(
+        visibleRenderState(Quality::Enhanced, EnvironmentPreset::Studio, false, false, false, KeyLight::Sun),
+        visibleRenderState(Quality::Enhanced, EnvironmentPreset::Studio, false, false, false, KeyLight::Headlight)
+    );
+    EXPECT_EQ(
+        visibleRenderState(Quality::Enhanced, EnvironmentPreset::Studio, true, true, true),
+        visibleRenderState(Quality::Enhanced, EnvironmentPreset::Studio, true, true, true, KeyLight::Headlight)
+    );
 }
 
 TEST(RenderSettingsMapping, classicEnvironmentVariable)
@@ -295,6 +336,11 @@ TEST(ShaderLibrary, faceShadersAreGLSL120)
         const std::string source = shaderSource(id);
         ASSERT_FALSE(source.empty()) << shaderResourcePath(id);
         EXPECT_EQ(source.rfind("#version 120", 0), 0U) << shaderResourcePath(id);
+        // The fixed key light is driven by FaceShading.cpp through these uniforms.
+        if (id == ShaderId::FaceShadingFragment) {
+            EXPECT_NE(source.find("uniform int fc_keyLightIndex;"), std::string::npos);
+            EXPECT_NE(source.find("uniform vec3 fc_keyLightDirection;"), std::string::npos);
+        }
         // Clip planes must keep working.
         if (id == ShaderId::FaceShadingVertex) {
             EXPECT_NE(source.find("gl_ClipVertex"), std::string::npos);
