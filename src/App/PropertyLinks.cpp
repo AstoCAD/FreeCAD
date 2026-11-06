@@ -5827,6 +5827,14 @@ void PropertyXLinkContainer::breakLink(App::DocumentObject* obj, bool clear)
     if (obj != owner) {
         return;
     }
+    if (_Deps.empty() && _PropDeps.empty() && _XLinks.empty()) {
+        return;
+    }
+    // The owner leaves the document and all its dependencies are dropped below. Record this
+    // property in the active transaction, as the other link properties do by resetting their
+    // value, so that undo pastes it back and rebuilds the dependencies through hasSetValue()
+    // (back links, onAddDep()) against the objects that exist at that time.
+    aboutToSetValue();
     for (auto& v : _Deps) {
         auto key = v.first;
         if (!key || !key->isAttachedToDocument()) {
@@ -5837,8 +5845,8 @@ void PropertyXLinkContainer::breakLink(App::DocumentObject* obj, bool clear)
             key->_removeBackLink(owner);
         }
     }
-    // Remove property backlinks as well as object backlinks. Keep the dependency
-    // metadata so undo can restore the removed object's expression links.
+    // Remove property backlinks as well as object backlinks, and forget both maps: the removed
+    // owner may stay in the undo stack while the objects it referred to are destroyed.
     for (const auto& [dependency, hidden] : _PropDeps) {
         auto* linkedObject = dependency.second;
         if (!hidden && linkedObject && linkedObject->isAttachedToDocument()) {
@@ -5847,6 +5855,10 @@ void PropertyXLinkContainer::breakLink(App::DocumentObject* obj, bool clear)
     }
     _XLinks.clear();
     _Deps.clear();
+    _PropDeps.clear();
+    // hasSetValue() is not called here (it would rebuild the dependencies), so drop the
+    // owner's out-list cache it would have cleared: undo re-adds back links from that list.
+    owner->clearOutListCache();
 }
 
 int PropertyXLinkContainer::checkRestore(std::string* msg) const
