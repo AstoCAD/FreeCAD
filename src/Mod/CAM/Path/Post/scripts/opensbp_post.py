@@ -316,6 +316,11 @@ class OpenSBPPost(PostProcessor):
 
         params = command.Parameters
 
+        # Arcs are XY only here (G18 and G19 are unsupported), so a K is the
+        # center word along the plane's normal. It says nothing, and the shared
+        # move conversion drops it; Path.Area writes it on every arc.
+        params.pop(Constants.ARC_CENTER_WORD_NORMAL_TO_PLANE["G17"], None)
+
         # We may be axis-modal, restore "missing" params
         machine_state_params = self.machine_state.previous
         params.update(
