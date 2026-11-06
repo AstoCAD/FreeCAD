@@ -2036,3 +2036,42 @@ class PartGeometryCreateInstanceTests(unittest.TestCase):
         self.assertIsInstance(str(line), str)
         plane = Base.TypeId.fromName("Part::GeomPlane").createInstance()
         self.assertIsInstance(plane, Part.Plane)
+
+
+class PartCompoundFilterTests(unittest.TestCase):
+    """CompoundFilter 'specific items' mode with index ranges."""
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("PartCompoundFilterTests")
+        boxes = []
+        for i in range(5):
+            box = Part.makeBox(1, 1, 1)
+            box.translate(FreeCAD.Vector(2 * i, 0, 0))
+            boxes.append(box)
+        self.base = self.Doc.addObject("Part::Feature", "Base")
+        self.base.Shape = Part.makeCompound(boxes)
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.Doc.Name)
+
+    def _filter(self, items, invert):
+        from CompoundTools.CompoundFilter import makeCompoundFilter
+
+        cf = makeCompoundFilter("Filter", self.Doc)
+        cf.Base = self.base
+        cf.FilterType = "specific items"
+        cf.items = items
+        cf.Invert = invert
+        self.Doc.recompute()
+        return sorted(round(s.BoundBox.XMin) for s in cf.Shape.childShapes())
+
+    def testRange(self):
+        self.assertEqual(self._filter("1:3", False), [2, 4])
+        self.assertEqual(self._filter("0;3:", False), [0, 6, 8])
+
+    def testInvertedRange(self):
+        # The pieces picked by a range must be left out when inverted, like
+        # pieces picked by a single index.
+        self.assertEqual(self._filter("1:3", True), [0, 6, 8])
+        self.assertEqual(self._filter("::2", True), [2, 6])
+        self.assertEqual(self._filter("4;0:2", True), [4, 6])

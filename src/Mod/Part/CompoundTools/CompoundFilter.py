@@ -188,8 +188,8 @@ class _CompoundFilter:
                     ito = None if len(r_v[1].strip()) == 0 else int(r_v[1])
                     istep = None if len(r_v[2].strip()) == 0 else int(r_v[2])
                     rst = rst + shps[ifrom:ito:istep]
-                    for b in flags[ifrom:ito:istep]:
-                        b = True
+                    for i in range(len(shps))[ifrom:ito:istep]:
+                        flags[i] = True
                 else:
                     raise ValueError("index range cannot be parsed: '{}'".format(r))
             if obj.Invert:
