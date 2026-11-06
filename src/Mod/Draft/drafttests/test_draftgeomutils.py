@@ -403,6 +403,20 @@ class TestDraftGeomUtils(test_base.DraftTestCaseNoDoc):
         points = DraftGeomUtils.findIntersection(circle1, circle2, dts=False)
         self._assert_points(points, [(4, -4, 0), (4, 4, 0)])
 
+    def test_orient_edge_trimmed_bspline(self):
+        """orientEdge keeps the trimmed range of a B-spline edge."""
+        curve = Part.BSplineCurve()
+        curve.interpolate([Vector(0, 0, 5), Vector(5, 5, 5), Vector(10, 0, 5), Vector(15, 5, 5)])
+        edge = curve.toShape(0.2, 0.8)
+        geom = DraftGeomUtils.orientEdge(edge, Vector(0, 0, 1))
+        new = geom.toShape()
+        self.assertAlmostEqual(new.Length, edge.Length, places=6)
+        self.assertTrue(new.Vertexes[0].Point.isEqual(edge.Vertexes[0].Point, 1e-6))
+        self.assertTrue(new.Vertexes[-1].Point.isEqual(edge.Vertexes[-1].Point, 1e-6))
+        # an untrimmed B-spline is returned as it is
+        geom = DraftGeomUtils.orientEdge(curve.toShape(), Vector(0, 0, 1))
+        self.assertAlmostEqual(geom.toShape().Length, curve.toShape().Length, places=6)
+
 
 # suite = unittest.defaultTestLoader.loadTestsFromTestCase(TestDraftGeomUtils)
 # unittest.TextTestRunner().run(suite)
