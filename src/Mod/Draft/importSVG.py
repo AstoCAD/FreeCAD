@@ -704,7 +704,7 @@ class svgHandler(xml.sax.ContentHandler):
         for k in ["fill", "stroke", "stroke-width", "font-size"]:
             if k in data:
                 if isinstance(data[k], list):
-                    if data[k][0].lower().startswith("rgb("):
+                    if data[k][0].lower().startswith(("rgb(", "rgba(")):
                         data[k] = ",".join(data[k])
                     else:
                         data[k] = data[k][0]
