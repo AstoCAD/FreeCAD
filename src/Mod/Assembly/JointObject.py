@@ -936,11 +936,9 @@ class Joint:
 
             self.ensureUnconnectedIsSecondRef(joint)
 
+            # Without preservePosition, keep the offsets the user or a script already set.
             if preservePosition:
                 self.setPreservedPosOffsets(joint)
-            else:
-                joint.Offset1 = App.Placement()
-                joint.Offset2 = App.Placement()
 
             if joint.JointType in JointUsingPreSolve:
                 self.preSolve(joint)
@@ -2453,9 +2451,11 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
         self.updateJointList()
 
         # Then we pass the new list to the joint object
-        self.joint.Proxy.setJointConnectors(
-            self.joint, self.refs, self.jForm.preservePosCheckbox.isChecked()
-        )
+        preservePosition = self.jForm.preservePosCheckbox.isChecked()
+        self.joint.Proxy.setJointConnectors(self.joint, self.refs, preservePosition)
+        if preservePosition:
+            # Show the computed offsets instead of the previous values.
+            self.updateOffsetWidgets()
 
         self.updateIsolation()
 

@@ -334,6 +334,39 @@ class TestCore(AssemblyTestBase):
     def test_custom_assembly_type_preserves_grounded_second_reference(self):
         self._check_grounded_part_with_assembly_type("Custom assembly metadata")
 
+    def _fixed_joint_between_offset_boxes(self):
+        grounded = self.assembly.newObject("Part::Box", "Grounded")
+        moving = self.assembly.newObject("Part::Box", "Moving")
+        moving.Placement = App.Placement(App.Vector(40, 50, 60), App.Rotation(10, 20, 30))
+        self.doc.recompute()
+        ground = self.jointgroup.newObject("App::FeaturePython", "Ground")
+        JointObject.GroundedJoint(ground, grounded)
+        joint = self.jointgroup.newObject("App::FeaturePython", "Fixed")
+        JointObject.Joint(joint, JointObject.JointTypes.index("Fixed"))
+        refs = [[grounded, ["Face6", "Vertex7"]], [moving, ["Face6", "Vertex7"]]]
+        return moving, joint, refs
+
+    def test_set_joint_connectors_keeps_existing_offsets(self):
+        """Offsets set before the references (typed in the task panel, or by a script)
+        are kept unless the position is explicitly preserved."""
+        _moving, joint, refs = self._fixed_joint_between_offset_boxes()
+        offset = App.Placement(App.Vector(0, 0, 10), App.Rotation(15, 0, 0))
+        joint.Offset2 = offset
+
+        joint.Proxy.setJointConnectors(joint, refs)
+
+        self.assertTrue(joint.Offset2.isSame(offset, 1e-9), str(joint.Offset2))
+        self.assertTrue(joint.Offset1.isIdentity(), str(joint.Offset1))
+
+    def test_set_joint_connectors_preserve_position(self):
+        moving, joint, refs = self._fixed_joint_between_offset_boxes()
+        before = App.Placement(moving.Placement)
+
+        joint.Proxy.setJointConnectors(joint, refs, True)
+
+        self.assertFalse(joint.Offset2.isIdentity())
+        self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
+
     def test_plain_part_matching_still_moves_second_component(self):
         part = self.doc.addObject("App::Part", "OrdinaryPart")
         first = part.newObject("Part::Box", "First")
