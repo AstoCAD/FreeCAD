@@ -186,6 +186,7 @@ SET(TDTest_SRCS
     TDTest/DrawCosmeticVertex3dTest.py
     TDTest/DrawCosmeticArcTest.py
     TDTest/DrawViewWrapperIdentityTest.py
+    TDTest/DrawPageAddViewTypeTest.py
     TDTest/DrawDistanceDim3dTest.py
     TDTest/DrawCosmeticEdgeLineNumberTest.py
     TDTest/DrawDecorateLineInvalidEdgeTest.py
