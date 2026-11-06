@@ -44,3 +44,25 @@ class TestPasteSelectionGui(SketcherGuiTestCase):
         selection = Gui.Selection.getSelectionEx(self.doc.Name)
         selected = selection[0].SubElementNames if selection else []
         self.assertEqual(sorted(selected), sorted(expected))
+
+    def testPastedCodeKeepsPercentSigns(self):
+        """The clipboard code is run as is, not used as a printf format."""
+        from PySide import QtGui
+
+        clipboard = QtGui.QGuiApplication.clipboard()
+        saved = clipboard.text()
+        try:
+            clipboard.setText(
+                "# Copied from sketcher. From:\n"
+                "#objectStr = x\n"
+                'objectStr.addGeometry(Part.Point(App.Vector(len("a%%b"), 100 % 7, 0)))\n'
+            )
+            Gui.runCommand("Sketcher_Paste", 0)
+            self.flush_gui(50)
+        finally:
+            clipboard.setText(saved)
+
+        self.assertEqual(self.sketch.GeometryCount, 4)
+        point = self.sketch.Geometry[3]
+        self.assertAlmostEqual(point.X, 4)
+        self.assertAlmostEqual(point.Y, 2)
