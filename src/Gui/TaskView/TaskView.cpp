@@ -1047,7 +1047,9 @@ void TaskView::setShownTaskInfo(TaskIndex index)
 
     setCurrentIndex(index);
 
-    if (isIndexValid(initIndex)) {
+    // Staying on the same page is not leaving it: its dialog may be the one just shown
+    // and must keep the selection gate it set
+    if (isIndexValid(initIndex) && initIndex != index) {
         if (auto dialog = taskInfos[initIndex].ActiveDialog) {
             Gui::Selection().rmvSelectionGate();
             dialog->deactivate();
