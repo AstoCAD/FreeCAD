@@ -212,7 +212,8 @@ void PythonEditor::onExecuteInConsole()
 
         if (!dedentedCode.isEmpty()) {
             try {
-                Gui::Command::doCommand(Gui::Command::Doc, dedentedCode.toStdString().c_str());
+                // run the code as is: doCommand() would take it as a printf format
+                Gui::Command::runCommand(Gui::Command::Doc, dedentedCode.toUtf8());
             }
             catch (const Base::Exception& e) {
                 QString errorMessage = QString::fromStdString(e.what());

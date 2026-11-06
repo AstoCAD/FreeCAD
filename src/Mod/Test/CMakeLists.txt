@@ -69,6 +69,7 @@ SET(Test_SRCS
     TestGraphicsViewWrapping.py
     TestMDIView.py
     TestPythonEditorTitleGui.py
+    TestPythonEditorExecuteGui.py
     TestActivateViewGui.py
     TestRecomputeAllGui.py
     TestPropertyGroupIndicatorGui.py
