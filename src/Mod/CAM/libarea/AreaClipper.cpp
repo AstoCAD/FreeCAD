@@ -322,30 +322,33 @@ void CArea::NaiveOffset(double offset)
 
     std::list<CCurve> offset_curves;
 
+    // Offset of a single point: positive offset is the circle about that point, and negative
+    // offset is empty.
+    auto addPointOffset = [&](const Point& center) {
+        const Point right(center.x + offset, center.y);
+        const Point left(center.x - offset, center.y);
+
+        // Construct output circle
+        CCurve output_curve;
+        output_curve.m_vertices.emplace_back(0, right, heeks::Point {0, 0});
+        output_curve.m_vertices.emplace_back(1, left, center);
+        output_curve.m_vertices.emplace_back(1, right, center);
+        for (auto it = std::next(output_curve.m_vertices.begin());
+             it != output_curve.m_vertices.end();
+             ++it) {
+            output_curve.m_edgeTags.push_back(1);
+        }
+        offset_curves.push_back(output_curve);
+    };
+
     for (CCurve& curve : m_curves) {
         if (curve.m_vertices.empty()) {
             continue;
         }
 
-        // Handle "curves" of a single point -- positive offset is the circle about that point,
-        // and negative offset is empty.
+        // Handle "curves" of a single point
         if (curve.m_vertices.size() == 1) {
-            const Point& center = curve.m_vertices.front().m_p;
-            const Point right(center.x + offset, center.y);
-            const Point left(center.x - offset, center.y);
-
-            // Construct output circle
-            CCurve output_curve;
-            output_curve.m_vertices.emplace_back(0, right, heeks::Point {0, 0});
-            output_curve.m_vertices.emplace_back(1, left, center);
-            output_curve.m_vertices.emplace_back(1, right, center);
-            for (auto it = std::next(output_curve.m_vertices.begin());
-                 it != output_curve.m_vertices.end();
-                 ++it) {
-                output_curve.m_edgeTags.push_back(1);
-            }
-            offset_curves.push_back(output_curve);
-
+            addPointOffset(curve.m_vertices.front().m_p);
             continue;
         }
 
@@ -551,6 +554,13 @@ void CArea::NaiveOffset(double offset)
             // Update state variables
             pPrev = v.m_p;
             std::tie(prevDirX, prevDirY) = std::make_pair(eTanX, eTanY);
+        }
+
+        // Every edge was degenerate (zero length, e.g. a vertical plunge seen from above), so
+        // the curve is a single point and cPos/cNeg are still empty
+        if (cPos.m_vertices.empty()) {
+            addPointOffset(curve.m_vertices.front().m_p);
+            continue;
         }
 
         // Post processing

@@ -215,6 +215,32 @@ G0 Z0.500000
         with self.assertRaises(ValueError):
             area.getRestArea([Path.Area()], 1.0)
 
+    def test13(self):
+        """Test Path.getClearedArea of a vertical plunge (#34148)"""
+        import Part
+
+        diameter = 2.0
+        bbox = FreeCAD.BoundBox(-50, -50, -50, 50, 50, 50)
+        # the plunge below zmax is a zero length move seen from above; its
+        # offset read an empty list and the plunge cleared nothing
+        plunge = Path.Path(
+            [
+                Path.Command("G0", {"X": 3, "Y": 4, "Z": 5}),
+                Path.Command("G1", {"Z": -1}),
+                Path.Command("G1", {"Z": -2}),
+            ]
+        )
+        shape = plunge.getClearedArea(diameter, 0, bbox).getShape()
+        self.assertFalse(shape.isNull())
+        self.assertEqual(len(shape.Wires), 1)
+        bb = shape.BoundBox
+        radius = bb.XLength / 2
+        self.assertGreater(radius, diameter / 2 - 1e-6)
+        self.assertRoughly(bb.YLength / 2, radius, 1e-6)
+        self.assertRoughly(bb.Center.x, 3, 1e-6)
+        self.assertRoughly(bb.Center.y, 4, 1e-6)
+        self.assertRoughly(Part.Face(shape.Wires[0]).Area, math.pi * radius**2, 1e-3)
+
     def test50(self):
         """Test Path.Length calculation"""
         commands = []
