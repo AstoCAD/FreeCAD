@@ -847,6 +847,35 @@ protected:
      */
     void _setPyObject(PyObject* pyObj);
 
+    /**
+     * @brief Get the item index a path starts with.
+     *
+     * @param[in] path The path into the list, such as `.Values[1]` or `.Points[0].x`.
+     * @param[out] component Optional return of the position of the index in the
+     *                       components of @p path.
+     * @return The index of the item, in [0, getSize()) (a negative index in the
+     *         path counts from the end), or -1 if the path does not start with
+     *         an index.
+     * @throws Base::IndexError if the index is out of range.
+     */
+    int getItemPathIndex(const ObjectIdentifier& path, int* component = nullptr) const;
+
+    /**
+     * @brief Set one item of the list, or a value inside it, given by a path.
+     *
+     * Handles the paths that start with an index, such as `.Values[1]` or
+     * `.Points[0].x` (as used by expression bindings).  The new item is built
+     * from the current one and stored with setPyValues(), so that it is
+     * converted and signalled like an item assigned from Python.
+     *
+     * @param[in] prop The list property itself.
+     * @param[in] path The path to set.
+     * @param[in] value The new value.
+     * @return False if the path does not start with an index; nothing is done then.
+     * @throws Base::IndexError if the index is out of range.
+     */
+    bool setItemPathValue(Property& prop, const ObjectIdentifier& path, const boost::any& value);
+
 protected:
     /// The list of touched elements.
     std::set<int> _touchList;
@@ -1083,6 +1112,37 @@ public:
         catch (...) {
         }
         parent_type::setPyObject(value);
+    }
+
+    /**
+     * @brief Set the value identified by a path.
+     *
+     * A path that starts with an index (e.g. `.Values[1]` or `.Points[0].x`)
+     * sets that item with set1Value(); other paths are handled by the parent.
+     *
+     * @param[in] path The path to the value.
+     * @param[in] value The value to set.
+     */
+    void setPathValue(const ObjectIdentifier& path, const boost::any& value) override
+    {
+        if (!this->setItemPathValue(*this, path, value)) {
+            parent_type::setPathValue(path, value);
+        }
+    }
+
+    /**
+     * @brief Get the value identified by a path.
+     *
+     * A path that starts with an index out of range raises a Base::IndexError
+     * naming the path; everything else is handled by the parent.
+     *
+     * @param[in] path The path to the value.
+     * @return The value.
+     */
+    const boost::any getPathValue(const ObjectIdentifier& path) const override
+    {
+        this->getItemPathIndex(path);
+        return parent_type::getPathValue(path);
     }
 
     /**
