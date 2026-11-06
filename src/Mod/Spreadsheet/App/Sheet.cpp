@@ -53,6 +53,7 @@
 #include "SheetObserver.h"
 #include "SheetParameter.h"
 #include "SheetPy.h"
+#include "Utils.h"
 
 
 FC_LOG_LEVEL_INIT("Spreadsheet", true, true)
@@ -551,11 +552,7 @@ void Sheet::sortRows(const Range& range, int column, bool ascending)
         const CellAddress address(row, column);
         const Cell* cell = getCell(address);
         if (cell && cell->getExpression()) {
-            // A cell marked dirty (set, moved, ... since the last recompute) is
-            // not computed, as in the table view: its property, if any, can
-            // hold the value of the contents that were there before
-            const bool computed = cells.getDirty().count(address) == 0;
-            const Property* prop = computed ? getProperty(address) : nullptr;
+            const Property* prop = getComputedProperty(address);
             if (prop && prop->isDerivedFrom<App::PropertyFloat>()) {
                 key = {0, static_cast<const App::PropertyFloat*>(prop)->getValue(), QString()};
             }
@@ -614,6 +611,120 @@ void Sheet::sortRows(const Range& range, int column, bool ascending)
         row += range.from().row();
     }
     cells.permuteRows(range, order);
+}
+
+static bool matchCellText(const QString& subject, const QString& text, bool matchCase, bool wholeCell)
+{
+    const Qt::CaseSensitivity cs = matchCase ? Qt::CaseSensitive : Qt::CaseInsensitive;
+    return wholeCell ? QString::compare(subject, text, cs) == 0 : subject.contains(text, cs);
+}
+
+// The contents of a cell as typed, without the apostrophe that marks text.
+static QString searchableContent(const Cell* cell, bool& isText)
+{
+    std::string content;
+    cell->getStringContent(content);
+    isText = !content.empty() && content[0] == '\'';
+    return QString::fromStdString(isText ? content.substr(1) : content);
+}
+
+/**
+ * Find the cells whose contents (or, with \a values, formatted values) contain
+ * \a text, or are \a text with \a wholeCell. Text cells are matched without
+ * their leading apostrophe. Cells not computed since they were set or moved
+ * have no value to match yet. Returns the addresses row by row.
+ */
+
+std::vector<CellAddress> Sheet::findCells(const std::string& text, bool matchCase, bool wholeCell, bool values)
+{
+    std::vector<CellAddress> result;
+    if (text.empty()) {
+        return result;
+    }
+    const QString needle = QString::fromStdString(text);
+    for (const auto& address : cells.getNonEmptyCells()) {
+        Cell* cell = getCell(address);
+        if (!cell) {
+            continue;
+        }
+        QString subject;
+        if (values) {
+            if (!getComputedProperty(address)) {
+                continue;
+            }
+            subject = QString::fromStdString(cell->getFormattedQuantity());
+        }
+        else {
+            bool isText = false;
+            subject = searchableContent(cell, isText);
+        }
+        if (matchCellText(subject, needle, matchCase, wholeCell)) {
+            result.push_back(address);
+        }
+    }
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
+/**
+ * Replace \a text by \a replacement in the contents of the matching cells
+ * (see findCells), or the whole contents with \a wholeCell, limited to
+ * \a ranges when given. Text cells stay text. The new contents are set as if
+ * typed, so bare user parameter names are qualified. Returns the number of
+ * cells changed. Recompute the document to update the values.
+ */
+
+int Sheet::replaceCells(
+    const std::string& text,
+    const std::string& replacement,
+    bool matchCase,
+    bool wholeCell,
+    const std::vector<Range>& ranges
+)
+{
+    if (text.empty()) {
+        throw Base::ValueError("The text to replace is empty");
+    }
+    const QString needle = QString::fromStdString(text);
+    const QString with = QString::fromStdString(replacement);
+    const Qt::CaseSensitivity cs = matchCase ? Qt::CaseSensitive : Qt::CaseInsensitive;
+
+    auto inRanges = [&ranges](const CellAddress& address) {
+        if (ranges.empty()) {
+            return true;
+        }
+        for (const auto& range : ranges) {
+            if (address.row() >= range.from().row() && address.row() <= range.to().row()
+                && address.col() >= range.from().col() && address.col() <= range.to().col()) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    int count = 0;
+    for (const auto& address : findCells(text, matchCase, wholeCell, false)) {
+        if (!inRanges(address)) {
+            continue;
+        }
+        const Cell* cell = getCell(address);
+        bool isText = false;
+        QString content = searchableContent(cell, isText);
+        if (wholeCell) {
+            content = with;
+        }
+        else {
+            content.replace(needle, with, cs);
+        }
+        std::string newContent = (isText ? "'" : "") + content.toStdString();
+        if (!isText) {
+            qualifyUserParameters(this, newContent);
+        }
+        // setContent, not setCell: an empty result must not clear the formatting
+        setContent(address, newContent.c_str());
+        ++count;
+    }
+    return count;
 }
 
 /**
@@ -738,6 +849,19 @@ std::string Sheet::getCanonicalPropertyName(const char* name) const
 Property* Sheet::getProperty(const char* addr) const
 {
     return props.getDynamicPropertyByName(addr);
+}
+
+/**
+ * @brief Get the property holding the computed value of a cell.
+ * @param key Address of the cell.
+ * @return The property, or 0 if the cell has not been computed since it was
+ * set, moved or reformatted (dirty, shown as pending in the table view): its
+ * property, if any, can hold the value of the contents that were there before.
+ */
+
+Property* Sheet::getComputedProperty(CellAddress key)
+{
+    return cells.getDirty().count(key) == 0 ? getProperty(key) : nullptr;
 }
 
 /**
