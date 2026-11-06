@@ -73,6 +73,12 @@ namespace
 {
 constexpr const int lowPrec = 2;
 constexpr const int highPrec = 16;
+
+/// The text as a Python string literal for setPropertyValue(), which runs it as code
+std::string toPythonString(const QString& value)
+{
+    return Base::Tools::quoted(Base::Tools::escapeEncodeString(value.toStdString()));
+}
 }  // namespace
 
 
@@ -843,8 +849,7 @@ QVariant PropertyStringItem::value(const App::Property* prop) const
 void PropertyStringItem::setValue(const QVariant& value)
 {
     if (!hasExpression() && value.canConvert<QString>()) {
-        std::string val = Base::Tools::escapeEncodeString(value.toString().toStdString());
-        setPropertyValue(Base::Tools::quoted(val));
+        setPropertyValue(toPythonString(value.toString()));
     }
 }
 
@@ -903,7 +908,7 @@ QVariant PropertyFontItem::value(const App::Property* prop) const
 void PropertyFontItem::setValue(const QVariant& value)
 {
     if (!hasExpression() && value.canConvert<QString>()) {
-        setPropertyValue(Base::Tools::quoted(value.toString().toStdString()));
+        setPropertyValue(toPythonString(value.toString()));
     }
 }
 
@@ -4505,7 +4510,7 @@ QVariant PropertyFileItem::value(const App::Property* prop) const
 void PropertyFileItem::setValue(const QVariant& value)
 {
     if (!hasExpression() && value.canConvert<QString>()) {
-        setPropertyValue(Base::Tools::quoted(value.toString().toStdString()));
+        setPropertyValue(toPythonString(value.toString()));
     }
 }
 
@@ -4559,7 +4564,7 @@ QVariant PropertyPathItem::value(const App::Property* prop) const
 void PropertyPathItem::setValue(const QVariant& value)
 {
     if (!hasExpression() && value.canConvert<QString>()) {
-        setPropertyValue(Base::Tools::quoted(value.toString().toStdString()));
+        setPropertyValue(toPythonString(value.toString()));
     }
 }
 
@@ -4607,7 +4612,7 @@ QVariant PropertyTransientFileItem::value(const App::Property* prop) const
 void PropertyTransientFileItem::setValue(const QVariant& value)
 {
     if (!hasExpression() && value.canConvert<QString>()) {
-        setPropertyValue(Base::Tools::quoted(value.toString().toStdString()));
+        setPropertyValue(toPythonString(value.toString()));
     }
 }
 
@@ -5028,9 +5033,7 @@ void PropertyMapItem::setValue(const QVariant& value)
     std::ostringstream ss;
     ss << "{";
     for (auto it = map.keyValueBegin(); it != map.keyValueEnd(); it++) {
-        std::string k = Base::InterpreterSingleton::strToPython(it->first.toStdString());
-        std::string v = Base::InterpreterSingleton::strToPython(it->second.toString().toStdString());
-        ss << "\"" << k << "\": \"" << v << "\", ";
+        ss << toPythonString(it->first) << ": " << toPythonString(it->second.toString()) << ", ";
     }
     ss << "}";
     setPropertyValue(ss.str());
