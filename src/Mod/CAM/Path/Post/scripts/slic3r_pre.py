@@ -28,6 +28,7 @@ This is an preprocessor to read gcode files produced from slic3r.
 """
 
 import os
+import re
 import Path
 import FreeCAD
 from builtins import open as pyopen
@@ -69,7 +70,9 @@ def parse(inputstring):
             continue
         if l[0].upper() in ["N"]:
             # remove line numbers
-            l = l.split(" ", 1)[1]
+            l = re.sub(r"^[nN]\d*\s*", "", l)
+            if not l:
+                continue
         if ";" in l:
             # replace ; comments with ()
             l = l.replace(";", "(")
