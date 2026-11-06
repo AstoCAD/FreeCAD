@@ -397,8 +397,9 @@ int SketchObject::fillet(int GeoId1, int GeoId2, const Base::Vector3d& refPnt1,
 
     PointPos PosId1 = static_cast<PointPos>(pos1);
     PointPos PosId2 = static_cast<PointPos>(pos2);
-    PointPos filletPosId1 = PointPos::none;
-    PointPos filletPosId2 = PointPos::none;
+    // Ends of the fillet arc at p1 and p2. The chamfer line needs them too when nothing is trimmed.
+    PointPos filletPosId1 = reverse ? PointPos::start : PointPos::end;
+    PointPos filletPosId2 = reverse ? PointPos::end : PointPos::start;
 
     Base::Vector3d p1 = arc->getStartPoint(true);
     Base::Vector3d p2 = arc->getEndPoint(true);
@@ -478,8 +479,6 @@ int SketchObject::fillet(int GeoId1, int GeoId2, const Base::Vector3d& refPnt1,
             delConstraintOnPoint(GeoId2, PosId2, false);
         }
 
-        filletPosId1 = reverse ? PointPos::start : PointPos::end;
-        filletPosId2 = reverse ? PointPos::end : PointPos::start;
         moveGeometry(GeoId1, PosId1, p1, false, true);
         moveGeometry(GeoId2, PosId2, p2, false, true);
 

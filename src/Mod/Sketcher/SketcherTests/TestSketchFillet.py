@@ -392,6 +392,46 @@ class TestSketchFillet(unittest.TestCase):
             App.Vector(5, 3, 0).distanceToPoint(SketchFeature.getPoint(3, 1)), 0.0
         )
 
+    def _assertUntrimmedChamfer(self, SketchFeature):
+        # the lines stay as they were; the chamfer line joins the ends of the construction arc
+        self.Doc.recompute()
+        self.assertEqual(SketchFeature.solve(), 0)
+        self.assertEqual(SketchFeature.MalformedConstraints, [])
+        arc = SketchFeature.Geometry[2]
+        chamfer = SketchFeature.Geometry[3]
+        self.assertIsInstance(arc, Part.ArcOfCircle)
+        self.assertIsInstance(chamfer, Part.LineSegment)
+        coincidents = [c for c in SketchFeature.Constraints if c.Type == "Coincident"]
+        joints = [(c.FirstPos, c.SecondPos) for c in coincidents if c.First == 3 and c.Second == 2]
+        self.assertEqual(len(joints), 2)
+        self.assertEqual(sorted(j[0] for j in joints), [1, 2])
+        self.assertEqual(sorted(j[1] for j in joints), [1, 2])
+        ends = sorted([chamfer.StartPoint, chamfer.EndPoint], key=lambda v: v.x)
+        arcEnds = sorted([arc.StartPoint, arc.EndPoint], key=lambda v: v.x)
+        for p, q, expected in zip(ends, arcEnds, (App.Vector(8, 0, 0), App.Vector(10, 2, 0))):
+            self.assertAlmostEqual(p.distanceToPoint(q), 0.0)
+            self.assertAlmostEqual(p.distanceToPoint(expected), 0.0)
+        self.assertAlmostEqual(SketchFeature.Geometry[0].EndPoint.distanceToPoint(App.Vector(10, 0, 0)), 0.0)
+
+    def _corner(self, name):
+        SketchFeature = self.Doc.addObject("Sketcher::SketchObject", name)
+        SketchFeature.addGeometry(Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)))
+        SketchFeature.addGeometry(Part.LineSegment(App.Vector(10, 0, 0), App.Vector(10, 10, 0)))
+        SketchFeature.addConstraint(Sketcher.Constraint("Coincident", 0, 2, 1, 1))
+        return SketchFeature
+
+    def testChamferWithoutTrim(self):
+        SketchFeature = self._corner("ChamferWithoutTrim")
+        SketchFeature.fillet(0, 2, 2.0, False, False, True)
+        self._assertUntrimmedChamfer(SketchFeature)
+
+    def testChamferOnBlockedLine(self):
+        # a blocked line cannot be trimmed, so the chamfer is made without trimming
+        SketchFeature = self._corner("ChamferOnBlockedLine")
+        SketchFeature.addConstraint(Sketcher.Constraint("Block", 0))
+        SketchFeature.fillet(0, 2, 2.0, True, False, True)
+        self._assertUntrimmedChamfer(SketchFeature)
+
     def tearDown(self):
         # comment out to omit closing document for debugging
         FreeCAD.closeDocument("TestSketchFillet")
