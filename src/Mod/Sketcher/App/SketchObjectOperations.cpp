@@ -611,17 +611,25 @@ SketchSolveStatus SketchObject::extend(int GeoId, double increment, PointPos end
         }
     }
     else if (geom->is<Part::GeomArcOfCircle>()) {
-        auto* arc = static_cast<Part::GeomArcOfCircle*>(geom);
+        // Extend a clone and set it through the property: changing the arc owned by the Geometry
+        // property in place neither touches the sketch (no recompute) nor records the old arc for
+        // undo.
+        std::unique_ptr<Part::GeomArcOfCircle> arc(
+            static_cast<Part::GeomArcOfCircle*>(geom->clone()));
         double startArc, endArc;
         arc->getRange(startArc, endArc, true);
         if (endpoint == PointPos::start) {
             arc->setRange(startArc - increment, endArc, true);
-            status = SketchSolveStatus::Success;
         }
         else if (endpoint == PointPos::end) {
             arc->setRange(startArc, endArc + increment, true);
-            status = SketchSolveStatus::Success;
         }
+        if (endpoint == PointPos::start || endpoint == PointPos::end) {
+            Base::StateLocker lock(managedoperation, true);
+            Geometry.set1Value(GeoId, std::move(arc));
+            solverNeedsUpdate = true;
+        }
+        status = SketchSolveStatus::Success;
     }
     if (status == SketchSolveStatus::Success && noRecomputes) {
         solve();
