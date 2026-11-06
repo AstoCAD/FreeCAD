@@ -86,6 +86,12 @@ public:
     void setDisplayUnit(const std::string& unit);
     bool getDisplayUnit(DisplayUnit& unit) const;
 
+    /// Number of decimals shown for numbers; a negative value clears it.
+    void setDecimals(int decimals);
+    bool getDecimals(int& decimals) const;
+    /// The decimals of the cell if set, otherwise those of the unit preferences.
+    int getDisplayDecimals() const;
+
     void setAlias(const std::string& n);
     bool getAlias(std::string& n) const;
 
@@ -198,6 +204,7 @@ private:
     static const unsigned int COMPUTED_UNIT_SET;
     static const unsigned int ALIAS_SET;
     static const unsigned int SPANS_SET;
+    static const unsigned int DECIMALS_SET;
     static const unsigned int MARK_SET;
     static const unsigned int EXCEPTION_SET;
     static const unsigned int PARSE_EXCEPTION_SET;
@@ -217,6 +224,7 @@ private:
     Base::Unit computedUnit;
     int rowSpan;
     int colSpan;
+    int decimals;
     std::string exceptionStr;
     App::CellAddress anchor;
     friend class PropertySheet;
