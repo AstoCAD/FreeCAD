@@ -3374,6 +3374,37 @@ class DocumentExpressionCases(unittest.TestCase):
         self.assertEqual(dependent.OutListProp, [])
         self.assertIn(("Value", "Source.Value"), dependent.ExpressionEngine)
 
+    def testSliceOfProperty(self):
+        # A literal slice of a property was turned into an identifier range that
+        # lost a missing end ([1:] became [1:0], an empty list) and a slice with
+        # only a step ([::2]) lost the step.
+        obj = self.Doc.addObject("App::FeaturePython", "Obj")
+        obj.addProperty("App::PropertyStringList", "SL").SL = ["a", "b", "c", "d"]
+        obj.addProperty("App::PropertyFloatList", "FL").FL = [1, 2, 3, 4]
+        obj.addProperty("App::PropertyFloat", "Value")
+        lst = ["a", "b", "c", "d"]
+        for expr, expected in (
+            ("SL[1:]", lst[1:]),
+            ("SL[3:]", lst[3:]),
+            ("SL[-1:]", lst[-1:]),
+            ("SL[:2]", lst[:2]),
+            ("SL[1:3]", lst[1:3]),
+            ("SL[::2]", lst[::2]),
+            ("SL[::-1]", lst[::-1]),
+            ("SL[::1]", lst[::1]),
+            ("SL[1::2]", lst[1::2]),
+            ("SL[2:0:-1]", lst[2:0:-1]),
+            ("Obj.SL[1:]", lst[1:]),
+        ):
+            self.assertEqual(obj.evalExpression(expr), expected, expr)
+        with self.assertRaises(Exception):
+            obj.evalExpression("SL[::0]")
+
+        obj.setExpression("Value", "FL[1:][0]")
+        self.assertEqual(obj.ExpressionEngine, [("Value", "FL[1:][0]")])
+        self.Doc.recompute()
+        self.assertEqual(obj.Value, 2)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument(self.Doc.Name)
