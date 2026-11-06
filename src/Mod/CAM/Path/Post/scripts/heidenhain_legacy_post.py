@@ -25,6 +25,10 @@ import argparse
 import Path.Post.Utils as PostUtils
 import PathScripts.PathUtils as PathUtils
 import Path
+import Path.Op.Helix
+import Path.Op.MillFace
+import Path.Op.Profile
+import Path.Tool.Controller
 import PathScripts
 import shlex
 import math
@@ -331,6 +335,7 @@ def export(objectslist, filename, argstring):
             )
             return
 
+    POSTGCODE.clear()  # each call is a program of its own
     POSTGCODE.append(HEIDEN_Begin(objectslist))  # add header
 
     for obj in objectslist:
@@ -346,7 +351,7 @@ def export(objectslist, filename, argstring):
             MACHINE_LAST_POSITION["X"] = 99999
             MACHINE_LAST_POSITION["Y"] = 99999
             MACHINE_LAST_POSITION["Z"] = 99999
-        elif isinstance(obj.Proxy, Path.Op.ProfileEdges.ObjectProfile):
+        elif isinstance(obj.Proxy, Path.Op.Profile.ObjectProfile):
             Object_Kind = "PROFILE"
             if LBLIZE_ACTIVE:
                 LBLIZE_STAUS = True
@@ -360,17 +365,13 @@ def export(objectslist, filename, argstring):
         commands = PathUtils.getPathWithPlacement(obj).Commands
 
         # If used compensated path, store, recompute and diff when asked
-        if not hasattr(obj, "UseComp") or not SOLVE_COMPENSATION_ACTIVE:
-            continue
+        solve_compensation = SOLVE_COMPENSATION_ACTIVE and hasattr(obj, "UseComp") and obj.UseComp
 
-        if not obj.UseComp:
-            continue
-
-        if hasattr(obj.Path, "Commands") and Object_Kind == "PROFILE":
+        if solve_compensation and hasattr(obj.Path, "Commands") and Object_Kind == "PROFILE":
             # Take a copy of compensated path
             STORED_COMPENSATED_OBJ = commands
         # Find mill compensation
-        if hasattr(obj, "Side") and hasattr(obj, "Direction"):
+        if solve_compensation and hasattr(obj, "Side") and hasattr(obj, "Direction"):
             if obj.Side == "Outside" and obj.Direction == "CW":
                 Compensation = "L"
             elif obj.Side == "Outside" and obj.Direction == "CCW":
@@ -529,9 +530,12 @@ def export(objectslist, filename, argstring):
     if SHOW_EDITOR:
         PostUtils.editor(Program_Out)
 
-    gfile = pyopen(filename, "w")
-    gfile.write(Program_Out)
-    gfile.close()
+    if not filename == "-":
+        gfile = pyopen(filename, "w")
+        gfile.write(Program_Out)
+        gfile.close()
+
+    return Program_Out
 
 
 def HEIDEN_Begin(ActualJob):  # use Label for program name
