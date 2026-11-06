@@ -57,7 +57,7 @@ class CAMError(Exception):
         if self.operation:
             context.append(f"Op <{self.operation.Label}>")
         if self.item:
-            context.append(f"Postable {item.item_type}:{item.label}")
+            context.append(f"Postable {self.item.item_type}:{self.item.label}")
         if self.command:
             context.append(f"<{self.command.toGCode()}>")
         if self.line:

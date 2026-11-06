@@ -57,6 +57,12 @@ class TestPathPostUtils(unittest.TestCase):
         # self.assertTrue(len(results.Commands) == 117)
         self.assertTrue(len([c for c in results.Commands if c.Name in ["G2", "G3"]]) == 0)
 
+    def test015_cam_error_names_its_postable(self):
+        """A CAMError raised with an item names that postable instead of raising NameError."""
+        item = PostList.Postable("fixture", "G54", Path.Path(), None)
+        error = CAMValueError("Bad value", item=item, line=3)
+        self.assertEqual(str(error), "Bad value, in Postable fixture:G54, in line 3")
+
     def test020(self):
         """Test Termination of Canned Cycles"""
         # Test basic cycle termination when parameters change
