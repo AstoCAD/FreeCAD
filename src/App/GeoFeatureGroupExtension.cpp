@@ -168,6 +168,12 @@ GeoFeatureGroupExtension::addObjects(std::vector<App::DocumentObject*> objects)
         links.push_back(object);
 
         for (auto obj : links) {
+            // Group is only updated after the loop: skip an object that is already added in this
+            // call, e.g. a base shared by two of the objects or an object listed twice
+            if (std::ranges::find(ret, obj) != ret.end()) {
+                continue;
+            }
+
             // a group cannot contain itself. Skip it before it is taken out of its current group:
             // extensionOnChanged() would refuse it only after that.
             if (isCyclicMember(obj)) {
