@@ -314,6 +314,28 @@ class TestMeshCommon(unittest.TestCase):
         self.assertAlmostEqual(volume(hexa8), 6)
 
     # ********************************************************************************************
+    def test_stl_save_load(self):
+        # the binary STL reader assembled every float in a one-byte bool,
+        # so the nodes of a mesh written to STL read back as garbage
+        tria3 = Fem.FemMesh()
+        tria3.addNode(0, 0, 0, 1)
+        tria3.addNode(2.5, 0, 0, 2)
+        tria3.addNode(2.5, 4, -1, 3)
+        tria3.addNode(-3, 4, 8, 4)
+        tria3.addFace([1, 2, 3])
+        tria3.addFace([1, 3, 4])
+
+        stl_file = join(testtools.get_fem_test_tmp_dir("mesh_common_stl_save"), "tria3_mesh.stl")
+        tria3.write(stl_file)
+        newmesh = Fem.read(stl_file)
+        self.assertEqual(newmesh.NodeCount, 4)
+        self.assertEqual(newmesh.FaceCount, 2)
+        self.assertEqual(
+            sorted(tuple(v) for v in newmesh.Nodes.values()),
+            sorted(tuple(v) for v in tria3.Nodes.values()),
+        )
+
+    # ********************************************************************************************
     def test_unv_non_ascii_path(self):
         # https://github.com/FreeCAD/FreeCAD/issues/29274
         # UNV files (also used to save a mesh in the document through a temporary file)

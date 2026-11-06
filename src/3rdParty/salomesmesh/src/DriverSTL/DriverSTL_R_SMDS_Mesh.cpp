@@ -24,6 +24,9 @@
 
 #include <Basics_Utils.hxx>
 
+#include <cstdint>
+#include <cstring>
+
 #include <gp_Pnt.hxx>
 #include <NCollection_DataMap.hxx>
 #include <Standard_NoMoreObject.hxx>
@@ -174,19 +177,19 @@ Driver_Mesh::Status DriverSTL_R_SMDS_Mesh::Perform()
 
 static Standard_Real readFloat(SMESH_File& theFile)
 {
-  union {
-    Standard_Boolean i;
-    Standard_ShortReal f;
-  } u;
-
+  // Assemble the little-endian bits in a 32-bit integer: Standard_Boolean, used here
+  // before, is a one-byte bool in current OCCT versions, which turned every value into garbage
   const char* c = theFile;
-  u.i  =  c[0] & 0xFF;
-  u.i |= (c[1] & 0xFF) << 0x08;
-  u.i |= (c[2] & 0xFF) << 0x10;
-  u.i |= (c[3] & 0xFF) << 0x18;
+  std::uint32_t i  =  static_cast<std::uint32_t>(c[0] & 0xFF);
+  i |= static_cast<std::uint32_t>(c[1] & 0xFF) << 0x08;
+  i |= static_cast<std::uint32_t>(c[2] & 0xFF) << 0x10;
+  i |= static_cast<std::uint32_t>(c[3] & 0xFF) << 0x18;
   theFile += SIZE_OF_FLOAT;
 
-  return u.f;
+  Standard_ShortReal f;
+  static_assert(sizeof(f) == sizeof(i), "an STL float has 32 bits");
+  std::memcpy(&f, &i, sizeof(f));
+  return f;
 }
 
 static SMDS_MeshNode* addNode(const gp_Pnt& P,
