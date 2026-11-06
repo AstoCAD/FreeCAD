@@ -2957,7 +2957,8 @@ void VariableExpression::addComponent(Component *c) {
     do {
         if(!components.empty())
             break;
-        if(!c->e1 && !c->e2) {
+        // a slice like [::2] has only a step: it is not a plain component
+        if(!c->e1 && !c->e2 && !c->e3) {
             var << c->comp;
             return;
         }
@@ -2986,7 +2987,8 @@ void VariableExpression::addComponent(Component *c) {
                 return;
             }
             if(!c->e2) {
-                var << ObjectIdentifier::RangeComponent(l1,l2,l3);
+                // [n:] has no end: RangeComponent() takes INT_MAX as "no end", 0 is an end
+                var << ObjectIdentifier::RangeComponent(l1,std::numeric_limits<int>::max(),l3);
                 return;
             }
         }
