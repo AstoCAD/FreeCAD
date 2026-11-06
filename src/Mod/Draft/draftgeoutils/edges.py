@@ -29,6 +29,7 @@
 # \ingroup draftgeoutils
 # \brief Provides various functions to work with edges.
 
+import math
 import lazy_loader.lazy_loader as lz
 
 import FreeCAD as App
@@ -85,7 +86,14 @@ def orientEdge(edge, normal=None, make_arc=False):
         return Part.ArcOfEllipse(
             edge.Curve, edge.FirstParameter, edge.LastParameter, edge.Curve.Axis.z > 0
         )
-    return edge.Curve
+    curve = edge.Curve
+    if isinstance(curve, Part.BSplineCurve) and not (
+        math.isclose(edge.FirstParameter, curve.FirstParameter, abs_tol=1e-9)
+        and math.isclose(edge.LastParameter, curve.LastParameter, abs_tol=1e-9)
+    ):
+        # The edge only uses a part of its curve
+        curve.segment(edge.FirstParameter, edge.LastParameter)
+    return curve
 
 
 def isSameLine(e1, e2):
