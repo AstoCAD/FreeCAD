@@ -112,6 +112,7 @@ def show_psets(obj):
     element = ifc_tools.get_ifc_element(obj)
     if not element:
         return
+    ifcfile = ifc_tools.get_ifcfile(obj)
     psets = get_psets(element)
     for gname, pset in psets.items():
         for pname, pvalue in pset.items():
@@ -133,6 +134,8 @@ def show_psets(obj):
                 "IfcNonNegativeLengthMeasure",
             ]:
                 ftype = "App::PropertyDistance"
+                # the IFC value is in file units, edit_pset() converts it back from mm
+                value = float(value) / ifc_tools.get_scale(ifcfile)
             elif ptype in ["IfcVolumeMeasure"]:
                 ftype = "App::PropertyVolume"
             elif ptype in ["IfcPositivePlaneAngleMeasure", "IfcPlaneAngleMeasure"]:

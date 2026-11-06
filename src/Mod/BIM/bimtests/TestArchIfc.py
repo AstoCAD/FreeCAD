@@ -133,6 +133,44 @@ class TestArchIfc(TestArchBase.TestArchBase):
         psets = [p for p in ifcfile.by_type("IfcPropertySet") if p.Name == "Pset_Custom"]
         self.assertEqual(psets, [])
 
+    def test_show_psets_length_in_file_units(self):
+        """A length property of an IFC file in meters is shown in mm, and showing it does
+        not change the file; it used to be read as mm and written back divided by 1000."""
+        from nativeifc import ifc_psets
+        from nativeifc import ifc_tools
+
+        run = ifcopenshell.api.run
+        model = run("project.create_file", version="IFC4")
+        project = run("root.create_entity", model, ifc_class="IfcProject", name="Project")
+        length_unit = run("unit.add_si_unit", model, unit_type="LENGTHUNIT")
+        run("unit.assign_unit", model, units=[length_unit])
+        site = run("root.create_entity", model, ifc_class="IfcSite")
+        run("aggregate.assign_object", model, relating_object=project, products=[site])
+        wall = run("root.create_entity", model, ifc_class="IfcWall", name="TestWall")
+        run("spatial.assign_container", model, relating_structure=site, products=[wall])
+        pset = ifcopenshell.api.run("pset.add_pset", model, product=wall, name="Pset_Custom")
+        pset.HasProperties = [
+            model.createIfcPropertySingleValue("Thick", None, model.createIfcLengthMeasure(0.2))
+        ]
+        path = os.path.join(tempfile.mkdtemp(), "length_property.ifc")
+        model.write(path)
+
+        ifc_tools.create_document(self.document, path, shapemode=1, strategy=2, silent=True)
+        self.document.recompute()
+        obj = [o for o in self.document.Objects if getattr(o, "IfcClass", "") == "IfcWall"][0]
+        element = ifc_tools.get_ifc_element(obj)
+        self.assertAlmostEqual(ifc_tools.get_scale(ifc_tools.get_ifcfile(obj)), 0.001)
+
+        ifc_psets.show_psets(obj)
+        self.assertAlmostEqual(obj.Thick.Value, 200, places=6)
+        value = ifc_psets.get_pset("Pset_Custom", element).HasProperties[0].NominalValue
+        self.assertAlmostEqual(value.wrappedValue, 0.2, places=9)
+
+        # editing the property writes it back in file units
+        obj.Thick = 250
+        value = ifc_psets.get_pset("Pset_Custom", element).HasProperties[0].NominalValue
+        self.assertAlmostEqual(value.wrappedValue, 0.25, places=9)
+
     def test_export_app_part_skips_base_objects(self):
         """The base objects of BIM objects inside an App::Part must not be exported.
         https://github.com/FreeCAD/FreeCAD/issues/28368"""
