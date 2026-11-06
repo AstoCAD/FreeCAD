@@ -48,8 +48,7 @@ conv = params.GetInt('exportConvexity', 10)
 fafs = '$fa = %f, $fs = %f' % (fa, fs)
 convexity = 'convexity = %d' % conv
 #***************************************************************************
-# Radius values not fixed for value apart from cylinder & Cone
-# no doubt there will be a problem when they do implement Value
+# Length properties are quantities: write their .Value, str() adds the unit.
 
 def center(b):
     if b == 2:
@@ -107,8 +106,9 @@ def process_object(csg,ob):
 
     if ob.TypeId == "Part::Sphere":
         print("Sphere Radius : "+str(ob.Radius))
-        check_multmatrix(csg, ob, 0, 0, 0)
-        csg.write("sphere($fn = 0, "+fafs+", r = "+str(ob.Radius)+");\n")
+        mm = check_multmatrix(csg, ob, 0, 0, 0)
+        csg.write("sphere($fn = 0, "+fafs+", r = "+str(ob.Radius.Value)+");\n")
+        if mm == 1 : csg.write("}\n")
 
     elif ob.TypeId == "Part::Box":
         print("cube : ("+ str(ob.Length)+","+str(ob.Width)+","+str(ob.Height)+")")
@@ -136,9 +136,9 @@ def process_object(csg,ob):
         print(ob.Radius2)
         if ob.Angle3 == 360.00:
             mm = check_multmatrix(csg, ob, 0, 0, 0)
-            csg.write("rotate_extrude("+convexity+", $fn = 0, "+fafs+")\n")
-            csg.write("multmatrix([[1, 0, 0, "+str(ob.Radius1)+"], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])\n")
-            csg.write("circle($fn = 0, "+fafs+", r = "+str(ob.Radius2)+");\n")
+            csg.write("rotate_extrude("+convexity+", $fn = 0, "+fafs+") {\n")
+            csg.write("multmatrix([[1, 0, 0, "+str(ob.Radius1.Value)+"], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]) {\n")
+            csg.write("circle($fn = 0, "+fafs+", r = "+str(ob.Radius2.Value)+");\n}\n}\n")
             if mm == 1 : csg.write("}\n")
         else: # Cannot convert to rotate extrude so best effort is polyhedron
             csg.write('%s\n' % shape2polyhedron(ob.Shape))
@@ -146,7 +146,7 @@ def process_object(csg,ob):
     elif ob.TypeId == "Part::Prism":
         import math
         f = str(ob.Polygon)
-        r = str(ob.Circumradius) # length seems to be the outer radius
+        r = str(ob.Circumradius.Value) # length seems to be the outer radius
         h = str(ob.Height.Value)
         mm = check_multmatrix(csg, ob, 0, 0, -float(h)/2)
         csg.write("cylinder($fn = "+f+", "+fafs+", h = "+h+", r1 = "+r+\
@@ -154,8 +154,8 @@ def process_object(csg,ob):
         if mm == 1: csg.write("}\n")
 
     elif ob.TypeId == "Part::RegularPolygon":
-        mm = check_multmatrix(csg, ob, 0, 0, -float(h)/2)
-        csg.write("circle($fn = "+str(ob.NumberOfSides)+", "+fafs+", r = "+str(ob.Radius)+");\n")
+        mm = check_multmatrix(csg, ob, 0, 0, 0)
+        csg.write("circle($fn = "+str(ob.Polygon)+", "+fafs+", r = "+str(ob.Circumradius.Value)+");\n")
         if mm == 1: csg.write("}\n")
 
     elif ob.TypeId == "Part::Extrusion":
