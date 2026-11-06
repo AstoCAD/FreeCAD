@@ -428,10 +428,6 @@ App::DocumentObjectExecReturn* Transformed::execute()
         return new App::DocumentObjectExecReturn(e.GetMessageString());
     }
 
-    if (transformations.empty()) {
-        return App::DocumentObject::StdReturn;  // No transformations defined, exit silently
-    }
-
     // A NaN parameter (e.g. Scaled Factor or PolarPattern Angle) passes the range checks of
     // the patterns and gives a NaN transformation, which crashes OCC when it is applied.
     const auto isFinite = [](const gp_Trsf& transformation) {
@@ -478,6 +474,21 @@ App::DocumentObjectExecReturn* Transformed::execute()
 
     supportShape.setTransform(Base::Matrix4D());
     resultShape.setTransform(Base::Matrix4D());
+
+    if (transformations.empty()) {
+        // No transformation at all (e.g. every transformation was removed from a MultiTransform):
+        // the result is the unchanged support, not the shape left by the previous recompute.
+        resultShape = refineShapeIfActive(resultShape);
+        this->Shape.setValue(getSolid(resultShape));
+        if (singleSolidRuleMode() == SingleSolidRuleMode::Enforced
+            && resultShape.countSubShapes(TopAbs_SOLID) > 0) {
+            rejected = getRemainingSolids(resultShape.getShape());
+        }
+        else {
+            rejected.Nullify();
+        }
+        return App::DocumentObject::StdReturn;
+    }
 
     const auto transformToSupport = [&trsfInv](Part::TopoShape shape) {
         if (shape.isNull()) {

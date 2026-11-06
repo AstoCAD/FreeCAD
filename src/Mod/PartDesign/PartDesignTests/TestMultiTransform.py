@@ -195,6 +195,28 @@ class TestMultiTransform(unittest.TestCase):
         self.Doc.recompute()
         self.assertIn("Invalid", multiTransform.State)
 
+    def testMultiTransformWithoutTransformationsKeepsSupport(self):
+        # Without any transformation the result is the support. It used to keep the shape of the
+        # previous recompute (stale copies after removing the last transformation) or stay null.
+        body, pad = self.makePadBody()
+        multiTransform = body.newObject("PartDesign::MultiTransform", "MultiTransform")
+        multiTransform.Originals = [pad]
+        self.Doc.recompute()
+        self.assertFalse(multiTransform.Shape.isNull())
+        self.assertAlmostEqual(multiTransform.Shape.Volume, 1000)
+        pattern = body.newObject("PartDesign::LinearPattern", "LinearPattern")
+        pattern.Direction = (self.Doc.getObject("X_Axis"), [""])
+        pattern.Length = 20
+        pattern.Occurrences = 3
+        multiTransform.Transformations = [pattern]
+        self.Doc.recompute()
+        self.assertAlmostEqual(multiTransform.Shape.Volume, 3000)
+        multiTransform.Transformations = []
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", multiTransform.State)
+        self.assertAlmostEqual(multiTransform.Shape.Volume, 1000)
+        self.assertAlmostEqual(multiTransform.Shape.BoundBox.XMax, 10)
+
     def testMultiTransformBody(self):
         pass
         # TODO:  Someone who understands the second mode added to transform needs to
