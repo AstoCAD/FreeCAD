@@ -375,6 +375,69 @@ class TestGuiDocument(unittest.TestCase):
             ]
             self.assertEqual(deprecations, [])
 
+    def _guiSaveAnswering(self, button):
+        """Save the Gui document, answering any message box with the given button."""
+        boxes = []
+        start = time.monotonic()
+
+        def answer():
+            modal = QtWidgets.QApplication.activeModalWidget()
+            if isinstance(modal, QtWidgets.QMessageBox):
+                boxes.append(modal.text())
+                if modal.button(button):
+                    modal.button(button).click()
+                else:
+                    modal.reject()
+            elif modal is not None and time.monotonic() - start > 10:
+                modal.reject()
+
+        poll = QtCore.QTimer()
+        poll.setInterval(50)
+        poll.timeout.connect(answer)
+        poll.start()
+        try:
+            result = FreeCADGui.getDocument(self.doc.Name).save()
+        finally:
+            poll.stop()
+        return result, boxes
+
+    def testSaveAsksBeforeOverwritingFileChangedOnDisk(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/8924
+        yes = QtWidgets.QMessageBox.StandardButton.Yes
+        no = QtWidgets.QMessageBox.StandardButton.No
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "ChangedOnDisk.FCStd")
+            self.doc.saveAs(path)
+
+            # saving again without outside changes must not ask
+            self.doc.addObject("App::FeaturePython", "First")
+            result, boxes = self._guiSaveAnswering(no)
+            self.assertTrue(result)
+            self.assertEqual(boxes, [])
+
+            # another program writes the file
+            stat = os.stat(path)
+            changed = stat.st_mtime_ns + 10_000_000_000
+            os.utime(path, ns=(stat.st_atime_ns, changed))
+
+            self.doc.addObject("App::FeaturePython", "Second")
+            result, boxes = self._guiSaveAnswering(no)
+            self.assertFalse(result)
+            self.assertEqual(len(boxes), 1)
+            self.assertIn("ChangedOnDisk.FCStd", boxes[0])
+            self.assertEqual(os.stat(path).st_mtime_ns, changed)
+
+            result, boxes = self._guiSaveAnswering(yes)
+            self.assertTrue(result)
+            self.assertEqual(len(boxes), 1)
+            self.assertNotEqual(os.stat(path).st_mtime_ns, changed)
+
+            # the overwritten file is the reference again
+            self.doc.addObject("App::FeaturePython", "Third")
+            result, boxes = self._guiSaveAnswering(no)
+            self.assertTrue(result)
+            self.assertEqual(boxes, [])
+
     def testRecoverySnapshotIncludesGuiDocument(self):
         self.doc.addObject("App::FeaturePython", "RecoveryGuiObject")
 
