@@ -96,6 +96,21 @@ using namespace Part;
 
 namespace TechDraw {
 
+/** The object of a Python document object argument whose type was already checked.
+ *
+ * The wrapper of an object of a closed document has no C++ object any more: raise instead
+ * of dereferencing a null pointer.
+ */
+template<typename T>
+T* objectFromPy(PyObject* pyObject)
+{
+    App::DocumentObject* object = static_cast<App::DocumentObjectPy*>(pyObject)->getDocumentObjectPtr();
+    if (!object) {
+        throw Py::ValueError("Invalid document object");
+    }
+    return static_cast<T*>(object);
+}
+
 /** Copies a Python dictionary of Python strings to a C++ container.
  *
  * After the function call, the key-value pairs of the Python
@@ -466,7 +481,7 @@ private:
             std::string dxfText;
             std::stringstream ss;
             if (PyObject_TypeCheck(viewObj, &(TechDraw::DrawViewPartPy::Type))) {
-                obj = static_cast<App::DocumentObjectPy*>(viewObj)->getDocumentObjectPtr();
+                obj = objectFromPy<App::DocumentObject>(viewObj);
                 dvp = static_cast<TechDraw::DrawViewPart*>(obj);
                 TechDraw::GeometryObjectPtr gObj = dvp->getGeometryObject();
                 if (!gObj) {
@@ -529,7 +544,7 @@ private:
             std::string svgText;
             std::stringstream ss;
             if (PyObject_TypeCheck(viewObj, &(TechDraw::DrawViewPartPy::Type))) {
-                obj = static_cast<App::DocumentObjectPy*>(viewObj)->getDocumentObjectPtr();
+                obj = objectFromPy<App::DocumentObject>(viewObj);
                 dvp = static_cast<TechDraw::DrawViewPart*>(obj);
                 TechDraw::GeometryObjectPtr gObj = dvp->getGeometryObject();
                 if (!gObj) {
@@ -710,7 +725,7 @@ private:
             App::DocumentObject* obj = nullptr;
             TechDraw::DrawViewPart* dvp = nullptr;
             if (PyObject_TypeCheck(viewObj, &(TechDraw::DrawViewPartPy::Type))) {
-                obj = static_cast<App::DocumentObjectPy*>(viewObj)->getDocumentObjectPtr();
+                obj = objectFromPy<App::DocumentObject>(viewObj);
                 dvp = static_cast<TechDraw::DrawViewPart*>(obj);
 
                 layerName = dvp->getNameInDocument();
@@ -744,7 +759,7 @@ private:
             App::DocumentObject* obj = nullptr;
             TechDraw::DrawPage* dPage = nullptr;
             if (PyObject_TypeCheck(pageObj, &(TechDraw::DrawPagePy::Type))) {
-                obj = static_cast<App::DocumentObjectPy*>(pageObj)->getDocumentObjectPtr();
+                obj = objectFromPy<App::DocumentObject>(pageObj);
                 dPage = static_cast<TechDraw::DrawPage*>(obj);
                 auto views = dPage->getAllViews();
                 for (auto& view : views) {
@@ -914,7 +929,7 @@ private:
             throw Py::TypeError("expected (DrawViewPart, listofedgesnames, direction");
         }
         if (PyObject_TypeCheck(pDvp, &(TechDraw::DrawViewPartPy::Type))) {
-            App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(pDvp)->getDocumentObjectPtr();
+            App::DocumentObject* obj = objectFromPy<App::DocumentObject>(pDvp);
             dvp = static_cast<TechDraw::DrawViewPart*>(obj);
         }
         if (dvp && !dvp->findParentPage()) {
@@ -965,7 +980,7 @@ private:
         }
         //TODO: errors for all the type checks
         if (PyObject_TypeCheck(pDvp, &(TechDraw::DrawViewPartPy::Type))) {
-            App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(pDvp)->getDocumentObjectPtr();
+            App::DocumentObject* obj = objectFromPy<App::DocumentObject>(pDvp);
             dvp = static_cast<TechDraw::DrawViewPart*>(obj);
         }
         else {
@@ -1013,7 +1028,7 @@ private:
         }
         //TODO: errors for all the type checks
         if (PyObject_TypeCheck(pDvp, &(TechDraw::DrawViewPartPy::Type))) {
-            App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(pDvp)->getDocumentObjectPtr();
+            App::DocumentObject* obj = objectFromPy<App::DocumentObject>(pDvp);
             dvp = static_cast<TechDraw::DrawViewPart*>(obj);
         }
         else {
@@ -1372,8 +1387,7 @@ private:
         throw Py::Exception();
     }
     bool unscale = pyUnscale == Py_True ? true : false;
-    DrawViewPartPy* pyDvp = static_cast<TechDraw::DrawViewPartPy*>(pyDocObj);
-    DrawViewPart* dvp = pyDvp->getDrawViewPartPtr();
+    DrawViewPart* dvp = objectFromPy<DrawViewPart>(pyDocObj);
     Base::Vector3d cPoint = static_cast<Base::VectorPy*>(pyPointIn)->value();
     cPoint = CosmeticVertex::makeCanonicalPoint(dvp, cPoint, unscale);
     return Py::asObject(new Base::VectorPy(cPoint));
@@ -1391,7 +1405,7 @@ private:
                              &(PyList_Type), &pPointList, &iStartSymbol, &iEndSymbol)) {
             throw Py::TypeError("expected (DrawViewPart, listofpoints, startsymbolindex, endsymbolindex");
         }
-        App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(pDvp)->getDocumentObjectPtr();
+        App::DocumentObject* obj = objectFromPy<App::DocumentObject>(pDvp);
         dvp = static_cast<TechDraw::DrawViewPart*>(obj);
         if (!dvp->findParentPage()) {
             throw Py::ValueError("The parent view must belong to a page");
