@@ -2558,10 +2558,16 @@ Py::Object FunctionExpression::evaluate(const Expression *expr, int f, const std
         // Compute new unit for exponentiation
         double exponent = v2.getValue();
         if (!v1.isDimensionless()) {
-            if (exponent - boost::math::round(exponent) < 1e-9)
+            // Unit::pow() accepts any exponent that gives whole unit exponents, e.g.
+            // (mm^2)^0.5 and (mm^3)^(1/3), the same rule as for the ^ operator. (A
+            // check of the exponent here rejected only a fraction above the next lower
+            // integer, so pow(mm^3; 1/3) failed while pow(mm^2; 0.5) worked.)
+            try {
                 unit = v1.getUnit().pow(exponent);
-            else
+            }
+            catch (const Base::UnitsMismatchError&) {
                 _EXPR_THROW("Exponent must be an integer when used with a unit.",expr);
+            }
         }
         break;
     }
