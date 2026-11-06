@@ -452,4 +452,27 @@ class DraftSVGColorRegression(test_base.DraftTestCaseDoc):
         self.assertAlmostEqual(shapes[0].Area, 100.0, places=6)
 
 
+class DraftSVGExportLabelRegression(test_base.DraftTestCaseDoc):
+    """Regression tests for object labels written by the SVG exporter."""
+
+    def test_export_svg_title_is_label(self):
+        """The title of an exported object is its label, escaped, in a well-formed UTF-8 file."""
+        import xml.dom.minidom
+
+        obj = self.doc.addObject("Part::Feature", "Face")
+        obj.Shape = Part.makePlane(10, 10)
+        label = "R&D " + chr(0xE9) + " <1>"  # e acute
+        obj.Label = label
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_file = os.path.join(temp_dir, "label.svg")
+            importSVG.export([obj], out_file)
+            with open(out_file, "rb") as svg_file:
+                data = svg_file.read()
+        dom = xml.dom.minidom.parseString(data)
+        titles = dom.getElementsByTagName("title")
+        self.assertEqual(len(titles), 1)
+        self.assertEqual(titles[0].firstChild.data, label)
+
+
 ## @}
