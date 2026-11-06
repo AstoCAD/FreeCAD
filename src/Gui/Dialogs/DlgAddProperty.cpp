@@ -956,7 +956,10 @@ void DlgAddProperty::recordMacroAdd(
         FC_ERR("Cannot record macro for container of type " << container->getTypeId().getName());
         return;
     }
-    command << ".addProperty('" << type << "', '" << name << "', '" << group << "', '" << doc + "')";
+    // The tooltip is free text
+    command << ".addProperty('" << type << "', '" << name << "', '"
+            << Base::Tools::escapeEncodeString(group) << "', '"
+            << Base::Tools::escapeEncodeString(doc) << "')";
     Application::Instance->macroManager()->addLine(Gui::MacroManager::App, command.str().c_str());
 }
 
@@ -967,16 +970,9 @@ App::Property* DlgAddProperty::createProperty()
     std::string type = ui->comboBoxType->currentText().toStdString();
     std::string doc = ui->lineEditToolTip->text().toStdString();
 
-    auto recordAddCommand = [this](MacroManager::LineType, const char* line) {
-        this->addCommand = line;
-    };
-
     try {
-        App::Property* prop
-            = container->addDynamicProperty(type, name.c_str(), group.c_str(), doc.c_str());
-        MacroManager::MacroRedirector redirector(recordAddCommand);
-        recordMacroAdd(container, type, name, group, doc);
-        return prop;
+        // The macro command is recorded in accept(): the group and the tooltip can still change
+        return container->addDynamicProperty(type, name.c_str(), group.c_str(), doc.c_str());
     }
     catch (Base::Exception& e) {
         e.reportException();
@@ -1052,13 +1048,31 @@ void DlgAddProperty::accept()
     }
     closeTransaction(TransactionOption::Commit);
 
+    std::string group = comboBoxGroup.currentText().toStdString();
+    std::string type = ui->comboBoxType->currentText().toStdString();
+
     setValueRedirector = nullptr;
-    Application::Instance->macroManager()->addLine(MacroManager::LineType::App, addCommand.c_str());
+    // Record the property as it is now: its group and tooltip may have changed since it was
+    // created. A type without an editor has no property item: find the property by its name.
+    App::Property* prop = propertyItem ? propertyItem->getFirstProperty() : nullptr;
+    if (!prop) {
+        std::string name = ui->lineEditName->text().toStdString();
+        prop = container->getDynamicPropertyByName(name.c_str());
+    }
+    if (prop) {
+        const char* propGroup = prop->getGroup();
+        const char* propDoc = prop->getDocumentation();
+        recordMacroAdd(
+            container,
+            type,
+            prop->getName(),
+            propGroup ? propGroup : "",
+            propDoc ? propDoc : ""
+        );
+    }
     Application::Instance->macroManager()->addLine(MacroManager::LineType::App, setValueCommand.c_str());
     setupMacroRedirector();
 
-    std::string group = comboBoxGroup.currentText().toStdString();
-    std::string type = ui->comboBoxType->currentText().toStdString();
     auto paramGroup = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/PropertyView"
     );
