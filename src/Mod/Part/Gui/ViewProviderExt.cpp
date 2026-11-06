@@ -97,7 +97,6 @@
 #include "SoBrepEdgeSet.h"
 #include "SoBrepFaceSet.h"
 #include "SoBrepPointSet.h"
-#include "TaskFaceAppearances.h"
 
 
 FC_LOG_LEVEL_INIT("Part", true, true)

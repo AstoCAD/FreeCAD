@@ -61,7 +61,6 @@ set(PartGui_UIC_SRCS
     PatternPathParametersWidget.ui
     SectionCutting.ui
     ShapeFromMesh.ui
-    TaskFaceAppearances.ui
     TaskLinkArrayParameters.ui
     TaskShapeBuilder.ui
     TaskLoft.ui
@@ -257,9 +256,6 @@ SET(PartGui_SRCS
     SectionCutting.ui
     ShapeFromMesh.cpp
     ShapeFromMesh.h
-    TaskFaceAppearances.cpp
-    TaskFaceAppearances.h
-    TaskFaceAppearances.ui
     TaskLinkArrayParameters.cpp
     TaskLinkArrayParameters.h
     TaskLinkArrayParameters.ui
