@@ -45,6 +45,7 @@
 
 #include "AssemblyObject.h"
 #include "AssemblyLink.h"
+#include "AssemblyUtils.h"
 #include "BomObject.h"
 #include "BomObjectPy.h"
 
@@ -197,6 +198,7 @@ void BomObject::addObjectChildrenToBom(
         }
 
         bool isMirrored = isObjMirrored(child);
+        int quantity = 1;
 
         if (auto* asmLink = freecad_cast<AssemblyLink*>(child)) {
             child = asmLink->getLinkedAssembly();
@@ -205,7 +207,25 @@ void BomObject::addObjectChildrenToBom(
             }
         }
         else if (child->isDerivedFrom<App::Link>()) {
-            child = static_cast<App::Link*>(child)->getLinkedObject();
+            auto* link = static_cast<App::Link*>(child);
+            // A link array (App::Link with elements, or Part::LinkArray) is several
+            // occurrences of the linked object. Suppressed elements are not counted.
+            // getLinkedObject() returns the array itself, so ask for the true linked object.
+            if (link->ElementCount.getValue() > 0) {
+                quantity = link->ElementCount.getValue();
+                for (auto* element : link->ElementList.getValues()) {
+                    if (isSuppressedLinkElement(element)) {
+                        --quantity;
+                    }
+                }
+                if (quantity <= 0) {
+                    continue;
+                }
+                child = link->getTrueLinkedObject(true);
+            }
+            else {
+                child = link->getLinkedObject();
+            }
             if (!child) {
                 continue;
             }
@@ -230,7 +250,7 @@ void BomObject::addObjectChildrenToBom(
             bool found = false;
             for (auto& sibling : siblings) {
                 if (child == sibling.object && isMirrored == sibling.isMirrored) {
-                    int qty = std::stoi(getText(sibling.row, quantityColIndex)) + 1;
+                    int qty = std::stoi(getText(sibling.row, quantityColIndex)) + quantity;
                     setCell(
                         App::CellAddress(sibling.row, quantityColIndex),
                         std::to_string(qty).c_str()
@@ -248,7 +268,7 @@ void BomObject::addObjectChildrenToBom(
         ++sub_i;
 
         size_t childRow = row;
-        addObjectToBom(child, childRow, sub_index, isMirrored);
+        addObjectToBom(child, childRow, sub_index, isMirrored, quantity);
         siblings.push_back({child, isMirrored, childRow});
         ++row;
 
