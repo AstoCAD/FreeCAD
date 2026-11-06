@@ -295,6 +295,7 @@ def parse(pathobj):
     out = ""
     # print(pathobj.Path.toGCode())
     lastcommand = None
+    lastoutputcommand = None  # the last command word written, the machine's modal one
     precision_string = "." + str(PRECISION) + "f"  # 'g' instead of 'f' removes trailing zeroes
     currLocation = {}  # keep track for no doubles
 
@@ -410,10 +411,12 @@ def parse(pathobj):
                 else:
                     outstring.append(command)
 
-            # if modal: suppress the command if it is the same as the last one
+            # if modal: suppress the command if it is the same as the last one. A move
+            # filtered out above writes no command, so it does not change the modal one.
+            writes_command = command in outstring
             if MODAL is True:
-                if command == lastcommand:
-                    outstring.pop(0)
+                if writes_command and command == lastcommand == lastoutputcommand:
+                    outstring.remove(command)
 
             if c.Name.startswith("(") and not OUTPUT_COMMENTS:  # command is a comment
                 continue
@@ -439,6 +442,8 @@ def parse(pathobj):
 
             # store the latest command
             lastcommand = command
+            if writes_command:
+                lastoutputcommand = command
             currLocation.update(c.Parameters)
 
             # Check for Tool Change:
