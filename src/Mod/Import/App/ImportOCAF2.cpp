@@ -579,6 +579,9 @@ App::DocumentObject* ImportOCAF2::loadShapes()
             objNames.emplace_back(obj->getDocument(), obj->getNameInDocument());
         }
         for (auto& v : objNames) {
+            if (auto obj = v.first->getObject(v.second.c_str())) {
+                removingObject(obj);
+            }
             v.first->removeObject(v.second.c_str());
         }
         ret = feature;
@@ -885,4 +888,12 @@ ImportOCAFExt::ImportOCAFExt(Handle(TDocStd_Document) hStdDoc, App::Document* do
 void ImportOCAFExt::applyFaceColors(Part::Feature* part, const std::vector<Base::Color>& colors)
 {
     partColors[part] = colors;
+}
+
+void ImportOCAFExt::removingObject(App::DocumentObject* obj)
+{
+    // partColors must not keep a pointer to an object that is about to be deleted
+    if (auto part = freecad_cast<Part::Feature*>(obj)) {
+        partColors.erase(part);
+    }
 }

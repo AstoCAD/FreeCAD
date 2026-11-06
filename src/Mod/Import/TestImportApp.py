@@ -471,3 +471,34 @@ class ImportCompoundWithoutSolidsTest(unittest.TestCase):
         wire = Part.Wire(Part.makePolygon([(0, 0, 0), (1, 0, 0), (1, 1, 0)]))
         fileName = self._export(wire, "step")
         self.assertEqual(self._import(fileName, False), [(0, 2, 0.0)])
+
+
+class StepMergeLinkGroupTest(unittest.TestCase):
+    """Merging an imported link group must not leave dangling objects in the color list."""
+
+    def setUp(self):
+        self.doc = App.newDocument()
+        self.fileName = os.path.join(tempfile.gettempdir(), "StepMergeLinkGroupTest.step")
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+        if os.path.exists(self.fileName):
+            os.remove(self.fileName)
+
+    def testMergeTwoFreeShapes(self):
+        box = self.doc.addObject("Part::Box", "Box")
+        cylinder = self.doc.addObject("Part::Cylinder", "Cylinder")
+        cylinder.Placement.Base = App.Vector(20, 0, 0)
+        self.doc.recompute()
+        Import.export([box, cylinder], self.fileName)
+
+        doc = App.newDocument()
+        try:
+            colors = Import.insert(self.fileName, doc.Name, merge=True, useLinkGroup=True)
+            features = [o for o in doc.Objects if o.isDerivedFrom("Part::Feature")]
+            self.assertEqual(len(features), 1)
+            self.assertEqual(len(features[0].Shape.Solids), 2)
+            for feature, _ in colors or []:
+                self.assertEqual(feature.Name, features[0].Name)
+        finally:
+            App.closeDocument(doc.Name)

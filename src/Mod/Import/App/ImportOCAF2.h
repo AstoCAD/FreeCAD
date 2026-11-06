@@ -186,6 +186,9 @@ private:
     {}
     virtual void applyLinkColor(App::DocumentObject*, int /*index*/, Base::Color)
     {}
+    /// Called before an object created by this importer is removed again (merge mode)
+    virtual void removingObject(App::DocumentObject*)
+    {}
 
 private:
     class ImportLegacy: public ImportOCAF
@@ -231,6 +234,7 @@ public:
 
 private:
     void applyFaceColors(Part::Feature* part, const std::vector<Base::Color>& colors) override;
+    void removingObject(App::DocumentObject* obj) override;
 };
 
 struct ImportExport ExportOCAFOptions
