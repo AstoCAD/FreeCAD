@@ -312,6 +312,35 @@ class TestArchIfc(TestArchBase.TestArchBase):
         self.assertFalse(walls[0].Shape.isNull())
         self.assertAlmostEqual(walls[0].Shape.Volume, 5000 * 3000 * 200, delta=1)
 
+    def test_export_wall_on_single_edge_base(self):
+        """A wall whose base shape is a single edge (e.g. a Draft arc) must export its
+        axis; scaling the read-only base shape used to raise ReferenceError."""
+        import Arch
+        import Draft
+        from importers import exportIFC
+
+        arc = Draft.make_circle(2000, startangle=0, endangle=90)
+        wall = Arch.makeWall(arc, width=200, height=3000)
+        site = Arch.makeSite([Arch.makeBuilding([Arch.makeFloor([wall])])])
+        self.document.recompute()
+        self.assertEqual(arc.Shape.ShapeType, "Edge")
+
+        path = os.path.join(tempfile.mkdtemp(), "arc_wall.ifc")
+        exportIFC.export([site], path)
+        ifcfile = ifcopenshell.open(path)
+        walls = ifcfile.by_type("IfcWall")
+        self.assertEqual(len(walls), 1)
+        reps = walls[0].Representation.Representations
+        axes = [r for r in reps if r.RepresentationIdentifier == "Axis"]
+        self.assertEqual(len(axes), 1)
+        curve = axes[0].Items[0]
+        self.assertTrue(curve.is_a("IfcCompositeCurve"))
+        circle = curve.Segments[0].ParentCurve.BasisCurve
+        self.assertTrue(circle.is_a("IfcCircle"))
+        # the axis is scaled to meters, the base arc itself is untouched
+        self.assertAlmostEqual(circle.Radius, 2.0, places=6)
+        self.assertAlmostEqual(arc.Shape.Curve.Radius, 2000, places=6)
+
     def test_legacy_import_multicore(self):
         """The legacy (non-native) IFC importer must work with IfcOpenShell 0.8.
         https://github.com/FreeCAD/FreeCAD/issues/33854"""

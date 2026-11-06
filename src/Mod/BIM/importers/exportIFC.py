@@ -1903,6 +1903,8 @@ def createCurveWithArcs(ifcfile, wire, scaling=1.0):
         edges = Part.__sortEdges__(wire.Edges)
     for e in edges:
         if scaling not in (0, 1):
+            # e can be the read-only shape of the exported object's base
+            e = e.copy()
             e.scale(scaling)
         if isinstance(e.Curve, Part.Circle):
             xaxis = e.Curve.XAxis
