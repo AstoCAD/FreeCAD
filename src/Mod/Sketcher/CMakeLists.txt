@@ -45,6 +45,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestRemoveAxesAlignment.py
     SketcherTests/TestSketchNormal.py
     SketcherTests/TestSketchSplitTrimConstraints.py
+    SketcherTests/TestSketchSymmetricCopy.py
 )
 
 if(BUILD_GUI)
