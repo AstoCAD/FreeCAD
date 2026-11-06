@@ -85,6 +85,27 @@ class TestQuantityReflectedPower(unittest.TestCase):
         self.assertEqual(squared.Unit, App.Units.Quantity("1 mm^2").Unit)
         self.assertAlmostEqual(squared.Value, 4, places=12)
 
+    def test_pow_function_fractional_exponent_of_unit(self):
+        # pow() accepts a fractional exponent of a unit when it gives whole unit
+        # exponents, like the ^ operator. Its own check only rejected a fraction
+        # above the next lower integer: pow(8 mm^3; 1/3) failed, pow(4 mm^2; 0.5) worked.
+        for expression, expected, unit in (
+            ("pow(4 mm^2; 0.5)", 2, "mm"),
+            ("pow(8 mm^3; 1/3)", 2, "mm"),
+            ("pow(16 mm^4; 0.25)", 2, "mm"),
+            ("pow(8 mm^3; 2/3)", 4, "mm^2"),
+            ("pow(4 mm^2; -0.5)", 0.5, "mm^-1"),
+            ("(8 mm^3) ^ (1/3)", 2, "mm"),
+        ):
+            with self.subTest(expression=expression):
+                actual = self._must_succeed(lambda: self.owner.evalExpression(expression), expression)
+                self.assertEqual(actual.Unit, App.Units.Quantity("1 " + unit).Unit)
+                self.assertAlmostEqual(actual.Value, expected, places=12)
+        for expression in ("pow(2 mm; 2.4)", "pow(2 mm; 2.6)", "pow(2 mm; -1.5)", "pow(2 mm; 0.5)"):
+            with self.subTest(expression=expression):
+                with self.assertRaises(Exception):
+                    self.owner.evalExpression(expression)
+
     def test_dimensionful_exponent_remains_rejected(self):
         for base in (2, 2.0, App.Units.Quantity(2), App.Units.Quantity("2 mm")):
             with self.subTest(base=repr(base)):
