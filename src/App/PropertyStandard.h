@@ -388,6 +388,9 @@ public:
 
     PyObject* getPyObject() override;
 
+    /// An item path ('.Counts[1]') takes a number like PropertyInteger::setPathValue()
+    void setPathValue(const ObjectIdentifier& path, const boost::any& value) override;
+
     void Save(Base::Writer& writer) const override;
     void Restore(Base::XMLReader& reader) override;
 
@@ -758,6 +761,9 @@ public:
     }
 
     PyObject* getPyObject() override;
+
+    /// An item path ('.Values[1]') takes a number like PropertyFloat::setPathValue()
+    void setPathValue(const ObjectIdentifier& path, const boost::any& value) override;
 
     void Save(Base::Writer& writer) const override;
     void Restore(Base::XMLReader& reader) override;
