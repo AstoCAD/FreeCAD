@@ -109,6 +109,8 @@ public:
 
     void fillRight(const App::Range& range);
 
+    void sortRows(const App::Range& range, int column, bool ascending = true);
+
     Cell* getCell(App::CellAddress address);
     const Cell* getCell(App::CellAddress address) const;
 
