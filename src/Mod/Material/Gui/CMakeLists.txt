@@ -43,7 +43,6 @@ set(MatGui_UIC_SRCS
     DlgDisplayProperties.ui
     DlgInspectAppearance.ui
     DlgInspectMaterial.ui
-    DlgMaterial.ui
     DlgSettingsDefaultMaterial.ui
     DlgSettingsMaterial.ui
     ImageEdit.ui
@@ -89,9 +88,6 @@ SET(MatGui_SRCS
     DlgInspectMaterial.cpp
     DlgInspectMaterial.h
     DlgInspectMaterial.ui
-    DlgMaterialImp.cpp
-    DlgMaterialImp.h
-    DlgMaterial.ui
     DlgSettingsDefaultMaterial.cpp
     DlgSettingsDefaultMaterial.h
     DlgSettingsDefaultMaterial.ui
@@ -127,8 +123,6 @@ SET(MatGui_SRCS
     TextEdit.cpp
     TextEdit.h
     TextEdit.ui
-    Workbench.cpp
-    Workbench.h
     WorkbenchManipulator.cpp
     WorkbenchManipulator.h
 )
