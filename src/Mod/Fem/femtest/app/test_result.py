@@ -214,6 +214,32 @@ class TestResult(unittest.TestCase):
             reset.assert_called_once_with(res)
 
     # ********************************************************************************************
+    def test_z88_disp_import_directory_with_o2(self):
+        # the mesh file z88i1.txt is read next to z88o2.txt, also when "o2" is in the directory
+        import shutil
+        import Fem
+        from feminout import importZ88Mesh
+        from feminout import importZ88O2Results
+
+        work_dir = testtools.get_fem_test_tmp_dir("z88_o2_import")
+        self.addCleanup(shutil.rmtree, work_dir, True)
+        mesh = Fem.FemMesh()
+        for i, p in enumerate([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)], 1):
+            mesh.addNode(*p, i)
+        mesh.addVolume([1, 2, 3, 4], 1)
+        importZ88Mesh.write(mesh, join(work_dir, "z88i1.txt"))
+        disp_file = join(work_dir, "z88o2.txt")
+        with open(disp_file, "w") as f:
+            f.write("header\n" * 5)
+            for node in range(1, 5):
+                f.write(f"{node} 0.0 0.0 {node * 0.25}\n")
+
+        res = importZ88O2Results.import_z88_disp(disp_file)
+        self.assertIsNotNone(res)
+        self.assertEqual(res.Mesh.FemMesh.NodeCount, 4)
+        self.assertAlmostEqual(max(res.DisplacementLengths), 1.0)
+
+    # ********************************************************************************************
     def test_frd_import_close_eigenfrequencies(self):
         # https://github.com/FreeCAD/FreeCAD/issues/23083
         # frequencies of the rigid body modes of an unconstrained model differ only after the second
