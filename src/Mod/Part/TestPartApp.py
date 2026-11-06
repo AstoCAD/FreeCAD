@@ -1135,6 +1135,31 @@ class PartBOPTestContainer(unittest.TestCase):
         for child in children:
             self.assertEqual(len(child.Shape.Solids), 1)
 
+    def testCutoutOfCompoundBase(self):
+        # Each solid of a compound base is cut out on its own (largest piece kept).
+        boxes = []
+        for x in (0, 20):
+            box = Part.makeBox(10, 10, 10)
+            box.translate(FreeCAD.Vector(x, 0, 0))
+            boxes.append(box)
+        base = self.Doc.addObject("Part::Feature", "Base")
+        base.Shape = Part.makeCompound(boxes)
+        tool = self.Doc.addObject("Part::Box", "Tool")
+        tool.Length = 40
+        tool.Width = 1
+        tool.Height = 20
+        tool.Placement.Base = FreeCAD.Vector(-5, 7, -5)
+        from BOPTools import JoinFeatures
+
+        FreeCAD.setActiveDocument(self.Doc.Name)
+        cutout = JoinFeatures.makeCutout(name="Cutout")
+        cutout.Base = base
+        cutout.Tool = tool
+        self.Doc.recompute()
+        self.assertTrue(cutout.isValid(), cutout.getStatusString())
+        self.assertEqual(len(cutout.Shape.Solids), 2)
+        self.assertAlmostEqual(cutout.Shape.Volume, 2 * 700, places=6)
+
     def tearDown(self):
         FreeCAD.closeDocument(self.Doc.Name)
 
