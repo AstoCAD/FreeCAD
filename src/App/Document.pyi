@@ -423,6 +423,16 @@ class Document(PropertyContainer):
         """
         ...
 
+    def addRecomputeObject(self, obj: DocumentObject, /) -> None:
+        """
+        Ask for an object of this document to be recomputed after a restore.
+
+        For use while the document is restoring, e.g. from a Python feature's
+        onDocumentRestored(): the object stays touched after the restore and the
+        document is flagged as needing a recompute. Has no effect otherwise.
+        """
+        ...
+
     def getObject(self, name: str | int, /) -> DocumentObject | None:
         """
         Return the object with the given name or ID, or None if it does not exist.
