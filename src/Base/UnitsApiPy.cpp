@@ -152,7 +152,7 @@ PyObject* UnitsApi::sToNumber(PyObject* /*self*/, PyObject* args)
 {
     double value {};
     const char* format = "g";
-    int decimals {};
+    int decimals {-1};  // documented default: the user's number of decimals
     do {
         PyObject* py {};
         if (PyArg_ParseTuple(args, "O!|si", &(QuantityPy::Type), &py, &format, &decimals)) {
