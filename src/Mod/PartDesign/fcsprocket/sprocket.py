@@ -115,10 +115,10 @@ def CreateSprocket(w, P, N, Dr):
         w.arc(rotate(p1, alpha * n), E, 1)
         w.arc(rotate(p0, alpha * n), R, 1)
 
-        # rising gullet slope
+        # rising gullet slope (same segments as the mirrored first tooth above)
         w.arc(rotate(p5, alpha * n), R, 1)
-        w.line(rotate(p6, alpha * n))
-        w.arc(rotate(p7, alpha * n), E, 0)
+        w.arc(rotate(p6, alpha * n), E, 1)
+        w.line(rotate(p7, alpha * n))
         w.arc(rotate(p8, alpha * n), F, 0)
 
     w.close()
