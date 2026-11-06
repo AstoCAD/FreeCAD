@@ -29,6 +29,7 @@ from OpenSCADTest.app.test_importCSGIntersection import TestCsgNestedUncomputedC
 from OpenSCADTest.app.test_exportCSG import TestExportCSGBooleanPlacement as OpenSCADTestExportCSGBooleanPlacement
 from OpenSCADTest.app.test_importCSGFrustum import TestCsgFrustum as OpenSCADTestCsgFrustum
 from OpenSCADTest.app.test_importCSGPolygon import TestCsgPolygonPaths as OpenSCADTestCsgPolygonPaths
+from OpenSCADTest.app.test_importCSGResize import TestCsgResize as OpenSCADTestCsgResize
 
 # dummy usage to get flake8 and lgtm quiet
 False if OpenSCADTestImportCSG.__name__ else True
@@ -37,3 +38,4 @@ False if OpenSCADTestCsgNestedUncomputedChildren.__name__ else True
 False if OpenSCADTestExportCSGBooleanPlacement.__name__ else True
 False if OpenSCADTestCsgFrustum.__name__ else True
 False if OpenSCADTestCsgPolygonPaths.__name__ else True
+False if OpenSCADTestCsgResize.__name__ else True
