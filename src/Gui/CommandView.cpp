@@ -80,6 +80,7 @@
 #include "Navigation/NavigationStyle.h"
 #include "OverlayParams.h"
 #include "OverlayManager.h"
+#include "Render/RenderSettings.h"
 #include "SceneInspector.h"
 #include "Selection.h"
 #include "Selection/BoxSelection.h"
@@ -958,6 +959,366 @@ bool StdCmdDrawStyle::isActive()
 {
     return Gui::Application::Instance->activeDocument();
 }
+
+//===========================================================================
+// Rendering quality (Std_RenderEnhanced and the Enhanced options)
+//
+// The commands only write the View preferences that the preference page writes too. The
+// observer of every 3D view (View3DSettings) pushes them into Render::RenderSettings and redraws
+// the views, so a change shows at once in all open views and in the preference page.
+//===========================================================================
+
+namespace
+{
+
+ParameterGrp::handle renderParameters()
+{
+    static ParameterGrp::handle group = App::GetApplication().GetParameterGroupByPath(
+        Render::RenderSettings::parameterPath
+    );
+    return group;
+}
+
+bool isEnhancedRequested()
+{
+    const long quality = renderParameters()->GetInt(
+        Render::RenderSettings::qualityKey,
+        Render::parameterFromQuality(Render::defaultQuality)
+    );
+    return Render::qualityFromParameter(quality) == Render::Quality::Enhanced;
+}
+
+}  // namespace
+
+/// A checkable command that switches one rendering preference on or off.
+class StdCmdRenderOption: public Gui::Command
+{
+public:
+    explicit StdCmdRenderOption(const char* name)
+        : Command(name)
+    {
+        sGroup = "View";
+        eType = Alter3DView;
+    }
+    const char* className() const override
+    {
+        return "StdCmdRenderOption";
+    }
+
+protected:
+    /// The current value of the preference.
+    virtual bool value() const = 0;
+    virtual void setValue(bool on) = 0;
+    /// Enhanced-only options are disabled while the Classic quality is selected.
+    virtual bool isAvailable() const
+    {
+        return isEnhancedRequested();
+    }
+
+    void activated(int iMsg) override
+    {
+        const bool on = iMsg != 0;
+        if (on != value()) {
+            setValue(on);
+        }
+        if (_pcAction) {
+            _pcAction->setBlockedChecked(on);
+        }
+    }
+
+    bool isActive() override
+    {
+        // Follow changes made elsewhere (preference page, macros).
+        if (_pcAction) {
+            const bool on = value();
+            if (_pcAction->isChecked() != on) {
+                _pcAction->setBlockedChecked(on);
+            }
+        }
+        return isAvailable();
+    }
+
+    Gui::Action* createAction() override
+    {
+        Gui::Action* pcAction = Command::createAction();
+        pcAction->setCheckable(true);
+        pcAction->setBlockedChecked(value());
+        return pcAction;
+    }
+};
+
+/// A rendering option stored as a boolean preference.
+class StdCmdRenderBoolOption: public StdCmdRenderOption
+{
+public:
+    StdCmdRenderBoolOption(const char* name, const char* key, bool defaultValue)
+        : StdCmdRenderOption(name)
+        , key(key)
+        , defaultValue(defaultValue)
+    {}
+    const char* className() const override
+    {
+        return "StdCmdRenderBoolOption";
+    }
+
+protected:
+    bool value() const override
+    {
+        return renderParameters()->GetBool(key, defaultValue);
+    }
+    void setValue(bool on) override
+    {
+        renderParameters()->SetBool(key, on);
+    }
+
+private:
+    const char* key;
+    bool defaultValue;
+};
+
+//===========================================================================
+// Std_RenderEnhanced
+//===========================================================================
+class StdCmdRenderEnhanced: public StdCmdRenderOption
+{
+public:
+    StdCmdRenderEnhanced()
+        : StdCmdRenderOption("Std_RenderEnhanced")
+    {
+        sMenuText = QT_TR_NOOP("&Enhanced");
+        sToolTipText = QT_TR_NOOP(
+            "Switches between the 'Classic' and the 'Enhanced' rendering quality of the 3D views"
+        );
+        sStatusTip = sToolTipText;
+        sWhatsThis = "Std_RenderEnhanced";
+    }
+    const char* className() const override
+    {
+        return "StdCmdRenderEnhanced";
+    }
+
+protected:
+    bool value() const override
+    {
+        return isEnhancedRequested();
+    }
+    void setValue(bool on) override
+    {
+        renderParameters()->SetInt(
+            Render::RenderSettings::qualityKey,
+            Render::parameterFromQuality(on ? Render::Quality::Enhanced : Render::Quality::Classic)
+        );
+    }
+    bool isAvailable() const override
+    {
+        return true;
+    }
+};
+
+//===========================================================================
+// Std_RenderShadows
+//===========================================================================
+class StdCmdRenderShadows: public StdCmdRenderBoolOption
+{
+public:
+    StdCmdRenderShadows()
+        : StdCmdRenderBoolOption("Std_RenderShadows", Render::RenderSettings::shadowsKey, false)
+    {
+        sMenuText = QT_TR_NOOP("&Shadows");
+        sToolTipText = QT_TR_NOOP(
+            "Soft shadows cast by a fixed light above the model ('Enhanced' rendering quality only)"
+        );
+        sStatusTip = sToolTipText;
+        sWhatsThis = "Std_RenderShadows";
+    }
+    const char* className() const override
+    {
+        return "StdCmdRenderShadows";
+    }
+};
+
+//===========================================================================
+// Std_RenderAmbientOcclusion
+//===========================================================================
+class StdCmdRenderAmbientOcclusion: public StdCmdRenderBoolOption
+{
+public:
+    StdCmdRenderAmbientOcclusion()
+        : StdCmdRenderBoolOption(
+              "Std_RenderAmbientOcclusion",
+              Render::RenderSettings::ambientOcclusionKey,
+              false
+          )
+    {
+        sMenuText = QT_TR_NOOP("&Ambient Occlusion");
+        sToolTipText = QT_TR_NOOP(
+            "Darkens creases, corners and contact areas of faces ('Enhanced' rendering quality only)"
+        );
+        sStatusTip = sToolTipText;
+        sWhatsThis = "Std_RenderAmbientOcclusion";
+    }
+    const char* className() const override
+    {
+        return "StdCmdRenderAmbientOcclusion";
+    }
+};
+
+//===========================================================================
+// Std_RenderFxaa
+//===========================================================================
+class StdCmdRenderFxaa: public StdCmdRenderBoolOption
+{
+public:
+    StdCmdRenderFxaa()
+        : StdCmdRenderBoolOption("Std_RenderFxaa", Render::RenderSettings::fxaaKey, true)
+    {
+        sMenuText = QT_TR_NOOP("Smooth &Edges (FXAA)");
+        sToolTipText = QT_TR_NOOP(
+            "Smooths jagged edges with FXAA when multisampling is off ('Enhanced' rendering "
+            "quality only)"
+        );
+        sStatusTip = sToolTipText;
+        sWhatsThis = "Std_RenderFxaa";
+    }
+    const char* className() const override
+    {
+        return "StdCmdRenderFxaa";
+    }
+};
+
+//===========================================================================
+// Std_RenderFixedKeyLight
+//===========================================================================
+class StdCmdRenderFixedKeyLight: public StdCmdRenderOption
+{
+public:
+    StdCmdRenderFixedKeyLight()
+        : StdCmdRenderOption("Std_RenderFixedKeyLight")
+    {
+        sMenuText = QT_TR_NOOP("&Fixed Key Light");
+        sToolTipText = QT_TR_NOOP(
+            "Lights the model from a fixed sun above it instead of the headlight that follows the "
+            "view ('Enhanced' rendering quality only)"
+        );
+        sStatusTip = sToolTipText;
+        sWhatsThis = "Std_RenderFixedKeyLight";
+    }
+    const char* className() const override
+    {
+        return "StdCmdRenderFixedKeyLight";
+    }
+
+protected:
+    bool value() const override
+    {
+        const long keyLight = renderParameters()->GetInt(
+            Render::RenderSettings::keyLightKey,
+            static_cast<long>(Render::defaultKeyLight)
+        );
+        return Render::keyLightFromParameter(keyLight) == Render::KeyLight::Sun;
+    }
+    void setValue(bool on) override
+    {
+        const auto keyLight = on ? Render::KeyLight::Sun : Render::KeyLight::Headlight;
+        renderParameters()->SetInt(Render::RenderSettings::keyLightKey, static_cast<long>(keyLight));
+    }
+};
+
+//===========================================================================
+// Std_RenderEnvironment
+//===========================================================================
+class StdCmdRenderEnvironment: public Gui::Command
+{
+public:
+    StdCmdRenderEnvironment()
+        : Command("Std_RenderEnvironment")
+    {
+        sGroup = "View";
+        sMenuText = QT_TR_NOOP("E&nvironment Lighting");
+        sToolTipText = QT_TR_NOOP(
+            "Selects the soft environment light of the 'Enhanced' rendering quality"
+        );
+        sStatusTip = sToolTipText;
+        sWhatsThis = "Std_RenderEnvironment";
+        eType = Alter3DView;
+    }
+    const char* className() const override
+    {
+        return "StdCmdRenderEnvironment";
+    }
+
+    void languageChange() override
+    {
+        Command::languageChange();
+        auto pcAction = qobject_cast<Gui::ActionGroup*>(_pcAction);
+        if (!pcAction) {
+            return;
+        }
+        const QList<QAction*> actions = pcAction->actions();
+        actions[0]->setText(QCoreApplication::translate("Std_RenderEnvironment", "Studio"));
+        actions[0]->setToolTip(
+            QCoreApplication::translate("Std_RenderEnvironment", "Studio environment lighting")
+        );
+        actions[1]->setText(QCoreApplication::translate("Std_RenderEnvironment", "Neutral"));
+        actions[1]->setToolTip(
+            QCoreApplication::translate("Std_RenderEnvironment", "Neutral environment lighting")
+        );
+        actions[2]->setText(QCoreApplication::translate("Std_RenderEnvironment", "Interior"));
+        actions[2]->setToolTip(
+            QCoreApplication::translate("Std_RenderEnvironment", "Interior environment lighting")
+        );
+    }
+
+protected:
+    static int currentPreset()
+    {
+        const long preset = renderParameters()->GetInt(
+            Render::RenderSettings::environmentKey,
+            static_cast<long>(Render::defaultEnvironmentPreset)
+        );
+        return static_cast<int>(Render::environmentFromParameter(preset));
+    }
+
+    Gui::Action* createAction() override
+    {
+        auto pcAction = new Gui::ActionGroup(this, Gui::getMainWindow());
+        pcAction->setDropDownMenu(true);
+        pcAction->setIsMode(true);
+        applyCommandData(this->className(), pcAction);
+        // In the order of Render::EnvironmentPreset.
+        for (const char* name : {
+                 "Std_RenderEnvironmentStudio",
+                 "Std_RenderEnvironmentNeutral",
+                 "Std_RenderEnvironmentInterior",
+             }) {
+            QAction* action = pcAction->addAction(QString());
+            action->setCheckable(true);
+            action->setObjectName(QString::fromLatin1(name));
+            action->setWhatsThis(QString::fromUtf8(getWhatsThis()));
+        }
+        _pcAction = pcAction;
+        languageChange();
+        pcAction->setCheckedAction(currentPreset());
+        return pcAction;
+    }
+
+    void activated(int iMsg) override
+    {
+        const Render::EnvironmentPreset preset = Render::environmentFromParameter(iMsg);
+        renderParameters()->SetInt(Render::RenderSettings::environmentKey, static_cast<long>(preset));
+    }
+
+    bool isActive() override
+    {
+        if (auto pcAction = qobject_cast<Gui::ActionGroup*>(_pcAction)) {
+            const int preset = currentPreset();
+            if (pcAction->checkedAction() != preset) {
+                pcAction->setCheckedAction(preset);
+            }
+        }
+        return isEnhancedRequested();
+    }
+};
 
 //===========================================================================
 // Std_ToggleVisibility
@@ -4343,6 +4704,12 @@ void CreateViewStdCommands()
     rcCmdMgr.addCommand(new StdPerspectiveCamera());
     rcCmdMgr.addCommand(new StdCmdToggleClipPlane());
     rcCmdMgr.addCommand(new StdCmdDrawStyle());
+    rcCmdMgr.addCommand(new StdCmdRenderEnhanced());
+    rcCmdMgr.addCommand(new StdCmdRenderShadows());
+    rcCmdMgr.addCommand(new StdCmdRenderAmbientOcclusion());
+    rcCmdMgr.addCommand(new StdCmdRenderFxaa());
+    rcCmdMgr.addCommand(new StdCmdRenderFixedKeyLight());
+    rcCmdMgr.addCommand(new StdCmdRenderEnvironment());
     rcCmdMgr.addCommand(new StdCmdViewSaveCamera());
     rcCmdMgr.addCommand(new StdCmdViewRestoreCamera());
     rcCmdMgr.addCommand(new StdCmdFreezeViews());

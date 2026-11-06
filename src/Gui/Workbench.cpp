@@ -603,6 +603,7 @@ std::list<std::string> Workbench::listCommandbars() const
     qApp->translate("Workbench", "&Stereo");
     qApp->translate("Workbench", "&Zoom");
     qApp->translate("Workbench", "V&isibility");
+    qApp->translate("Workbench", "&Rendering");
     qApp->translate("Workbench", "&View");
     qApp->translate("Workbench", "&Tools");
     qApp->translate("Workbench", "&Macro");
@@ -649,8 +650,15 @@ void StdWorkbench::setupContextMenu(const char* recipient, MenuItem* item) const
                   << "Std_ViewRear" << "Std_ViewBottom" << "Std_ViewLeft"
                   << "Separator" << "Std_ViewRotateLeft" << "Std_ViewRotateRight";
 
+        auto rendering = new MenuItem;
+        rendering->setCommand("&Rendering");
+        *rendering << "Std_RenderEnhanced" << "Separator" << "Std_RenderShadows"
+                   << "Std_RenderAmbientOcclusion" << "Std_RenderFixedKeyLight"
+                   << "Std_RenderEnvironment" << "Std_RenderFxaa";
+
         *item << "Std_ViewFitAll" << "Std_ViewFitSelection" << "Std_AlignToSelection"
-              << "Separator" << StdViews << "Separator" << "Std_DrawStyle" << "Part_SelectFilter"
+              << "Separator" << StdViews << "Separator" << rendering << "Std_DrawStyle"
+              << "Part_SelectFilter"
               << "Std_ViewDockUndockFullscreen";
 
         if (!sels.empty()) {
