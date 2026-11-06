@@ -2883,6 +2883,40 @@ class DocumentPropertyCases(unittest.TestCase):
         fea = Feature(obj)
         obj.Test = "test"
 
+    def testMovePropertyWithExpressionOnListItem(self):
+        # An expression bound to one item of a list moves with the list. The moved list must
+        # hold its items before the binding is checked on it, otherwise the move stopped
+        # halfway: binding lost, the list on both objects and the move could not be undone.
+        source = self.Doc.addObject("App::VarSet", "Source")
+        target = self.Doc.addObject("App::VarSet", "Target")
+        source.addProperty("App::PropertyFloatList", "Values")
+        source.Values = [1.0, 2.0, 3.0]
+        source.setExpression(".Values[1]", "7")
+        self.Doc.recompute()
+        self.Doc.UndoMode = 1
+
+        self.Doc.openTransaction("Move property")
+        source.moveProperty("Values", target)
+        self.Doc.commitTransaction()
+
+        self.assertFalse(hasattr(source, "Values"))
+        self.assertEqual(target.Values, [1.0, 7.0, 3.0])
+        self.assertEqual(source.ExpressionEngine, [])
+        self.assertEqual(target.ExpressionEngine, [(".Values[1]", "7")])
+
+        self.Doc.undo()
+        self.assertFalse(hasattr(target, "Values"))
+        self.assertEqual(source.Values, [1.0, 7.0, 3.0])
+        self.assertEqual(source.ExpressionEngine, [(".Values[1]", "7")])
+        self.assertEqual(target.ExpressionEngine, [])
+
+        self.Doc.redo()
+        self.assertFalse(hasattr(source, "Values"))
+        self.assertEqual(target.ExpressionEngine, [(".Values[1]", "7")])
+        target.Values = [1.0, 2.0, 3.0]
+        self.Doc.recompute()
+        self.assertEqual(target.Values, [1.0, 7.0, 3.0])
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PropertyTests")
