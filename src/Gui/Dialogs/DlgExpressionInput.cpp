@@ -38,6 +38,7 @@
 #include <App/UserParameters.h>
 #include <App/VarSet.h>
 #include <Base/Console.h>
+#include <Base/StringUtils.h>
 #include <Base/Tools.h>
 #include <regex>
 
@@ -712,7 +713,13 @@ void DlgExpressionInput::acceptWithVarSet()
             Gui::cmdAppObjectArgs(obj, "%s = %d", prop->getName(), std::lround(ne->getValue()));
         }
         else {
-            Gui::cmdAppObjectArgs(obj, "%s = %f", prop->getName(), ne->getValue());
+            // all digits: "%f" keeps only 6 decimals (0.0000001 became 0.0)
+            Gui::cmdAppObjectArgs(
+                obj,
+                "%s = %s",
+                prop->getName(),
+                Base::StringUtils::formatDouble(ne->getValue())
+            );
         }
     }
     else if (const StringExpression* se = toStringExpr(expr)) {
