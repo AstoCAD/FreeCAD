@@ -252,3 +252,61 @@ class TestSketchTransformExpressionsGui(SketcherGuiTestCase):
 
     def testRotateCopyBackslashExpression(self):
         self.checkCopy("Rotate", r"Path\name", r"<<Path\\name>>.Span")
+
+    # https://github.com/FreeCAD/FreeCAD/issues/34161: Rotate cloned distances to geometry it
+    # does not rotate. A distance from the circle centre to the X axis dragged the rotated copy
+    # off its position, and with "Apply equal constraints" each such distance (and a DistanceY
+    # locking the centre) became a second Equal next to the one made from the radius.
+    def testRotateCopyDropsDistanceToAxis(self):
+        self.checkRotateCopyPosition(
+            Sketcher.Constraint("Distance", 0, 3, -1, 14), False,
+            ["Radius", "Distance", "Radius"])
+
+    def testRotateCopyEqualIgnoresDistanceToAxis(self):
+        self.checkRotateCopyPosition(
+            Sketcher.Constraint("Distance", 0, 3, -1, 14), True,
+            ["Radius", "Distance", "Equal"])
+
+    def testRotateCopyEqualIgnoresLockedCoordinate(self):
+        self.checkRotateCopyPosition(
+            Sketcher.Constraint("DistanceY", 0, 3, 14), True,
+            ["Radius", "DistanceY", "Equal"])
+
+    def checkRotateCopyPosition(self, positionConstraint, applyEqual, expectedTypes):
+        self.sketch.addConstraint(positionConstraint)
+        self.doc.recompute()
+        self.assertTrue(Gui.activeDocument().setEdit(self.sketch.Name))
+        view = Gui.activeDocument().activeView()
+        view.setNavigationType("Gui::CADNavigationStyle")
+        view.setCamera(
+            "#Inventor V2.1 ascii\nOrthographicCamera { position 0 0 100 "
+            "orientation 0 0 1 0 focalDistance 100 height 100 }"
+        )
+        self.flush_gui(150)
+        viewport = view.graphicsView().viewport()
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(self.sketch, "Edge1")
+        Gui.runCommand("Sketcher_Rotate")
+        self.flush_gui(150)
+        if applyEqual:
+            # "Apply equal constraints" is not stored in the preferences.
+            checkbox = Gui.getMainWindow().findChild(QtWidgets.QCheckBox, "checkBoxTS1")
+            self.assertIsNotNone(checkbox)
+            checkbox.setChecked(True)
+            self.flush_gui(50)
+        for index, (x, y) in enumerate([(0, 0), (20, 0), (0, 20)]):
+            point = self.viewport_to_qpoint(
+                view, viewport, view.getPointOnScreen(App.Vector(x, y, 0))
+            )
+            self.move(viewport, point)
+            self.click(viewport, point)
+            if index == 0:
+                self.key_click(viewport, QtCore.Qt.Key_U, "u")
+        self.flush_gui(150)
+        self.assertEqual(self.modal_messages, [])
+        self.assertEqual(self.sketch.GeometryCount, 2)
+        self.assertEqual([c.Type for c in self.sketch.Constraints], expectedTypes)
+        self.assertEqual(self.sketch.solve(), 0)
+        self.assertLess((self.sketch.Geometry[0].Center - self.original_center).Length, 1e-6)
+        # 90 degrees about the origin: (12, 14) -> (-14, 12)
+        self.assertLess((self.sketch.Geometry[1].Center - App.Vector(-14, 12, 0)).Length, 1e-6)
