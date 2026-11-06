@@ -853,11 +853,11 @@ void DlgAddProperty::onNameChanged([[maybe_unused]] const QString& text)
 
 void DlgAddProperty::onGroupFinished()
 {
-    if (isGroupValid() && propertyItem) {
+    if (isGroupValid()) {
         std::string group = comboBoxGroup.currentText().toStdString();
         std::string doc = ui->lineEditToolTip->text().toStdString();
-        if (App::Property* prop = propertyItem->getFirstProperty();
-            prop && prop->getGroup() != group) {
+        // also for a type without an editor, which has no property item
+        if (App::Property* prop = getCreatedProperty(); prop && prop->getGroup() != group) {
             container->changeDynamicProperty(prop, group.c_str(), doc.c_str());
         }
     }
@@ -1048,12 +1048,8 @@ void DlgAddProperty::addDocumentation()
     std::string group = comboBoxGroup.currentText().toStdString();
     std::string doc = ui->lineEditToolTip->text().toStdString();
 
-    if (!propertyItem) {
-        // If there is no property item, we cannot add documentation.
-        return;
-    }
-
-    App::Property* prop = propertyItem->getFirstProperty();
+    // also for a type without an editor, which has no property item
+    App::Property* prop = getCreatedProperty();
     if (!prop) {
         return;
     }

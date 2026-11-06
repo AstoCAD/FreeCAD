@@ -184,6 +184,16 @@ class TestAddPropertyGui(unittest.TestCase):
         self.assertIn("Pairs", self.varset.PropertiesList)
         self.assertNotIn("Pa", self.varset.PropertiesList)
 
+    def testTypeWithoutEditorGetsGroupAndToolTip(self):
+        # The group and the tooltip were only applied through the property item
+        self.prepareProperty("App::PropertyIntPairList", "Pairs")
+        self.widget(QtWidgets.QComboBox, "comboBoxGroup").setCurrentText("PairGroup")
+        self.widget(QtWidgets.QLineEdit, "lineEditToolTip").setText("Pairs of numbers")
+        Gui.updateGui()
+        self.addProperty()
+        self.assertEqual(self.varset.getGroupOfProperty("Pairs"), "PairGroup")
+        self.assertEqual(self.varset.getDocumentationOfProperty("Pairs"), "Pairs of numbers")
+
     def testCancelDiscardsTypeWithoutEditor(self):
         self.prepareProperty("App::PropertyIntPairList", "PendingPairs")
         self.assertIn("PendingPairs", self.varset.PropertiesList)
