@@ -121,6 +121,78 @@ class BRepConversionTest(unittest.TestCase):
                 self.assertEqual(form.Shape.Tag, form.ID)
                 self.assertEqual(source.Shape.Tag, source.ID)
 
+    def _save_and_reopen_partdesign_form(self, editing):
+        """Save a Body with Box, additive Form and Cut, reopen it and count
+        the Form executions done while opening. Returns the reopened document,
+        the Body volume before saving and the execution count."""
+        from Forms.additive import PartDesignFormProxy
+
+        document = App.newDocument("FormsTestPartDesignReopen")
+        body = document.addObject("PartDesign::Body", "Body")
+        box = body.newObject("PartDesign::AdditiveBox", "Box")
+        box.Length = 20
+        box.Width = 20
+        box.Height = 5
+        document.recompute()
+        form = create_additive_form(body, box, "Box", name="Form")
+        cut = body.newObject("PartDesign::SubtractiveCylinder", "Cut")
+        cut.Radius = 2
+        cut.Height = 50
+        document.recompute()
+        expected_volume = body.Shape.Volume
+        if editing:
+            # What the Form view provider does when edit mode starts
+            form.EditingForm = True
+            document.recompute()
+            self.assertNotAlmostEqual(body.Shape.Volume, expected_volume, places=3)
+        self.assertFalse(document.isTouched())
+
+        executions = []
+        original_execute = PartDesignFormProxy.execute
+
+        def counting_execute(proxy, obj):
+            executions.append(obj.Name)
+            return original_execute(proxy, obj)
+
+        handle, path = tempfile.mkstemp(suffix=".FCStd")
+        os.close(handle)
+        try:
+            document.saveAs(path)
+            App.closeDocument(document.Name)
+            PartDesignFormProxy.execute = counting_execute
+            try:
+                document = App.openDocument(path)
+            finally:
+                PartDesignFormProxy.execute = original_execute
+            self.addCleanup(App.closeDocument, document.Name)
+        finally:
+            os.remove(path)
+        return document, expected_volume, len(executions)
+
+    def test_partdesign_form_open_does_not_recompute(self):
+        document, expected_volume, executions = self._save_and_reopen_partdesign_form(False)
+
+        self.assertEqual(executions, 0)
+        self.assertFalse(document.isTouched())
+        self.assertFalse(document.Form.EditingForm)
+        self.assertAlmostEqual(document.Body.Shape.Volume, expected_volume, places=6)
+        self.assertEqual(document.recompute(), 0)
+
+    def test_partdesign_form_saved_while_editing_recomputes_body(self):
+        document, expected_volume, executions = self._save_and_reopen_partdesign_form(True)
+
+        # Opening recomputes nothing but leaves the stale preview-based
+        # features scheduled for a recompute.
+        self.assertEqual(executions, 0)
+        self.assertFalse(document.Form.EditingForm)
+        self.assertIn("Touched", document.Form.State)
+        self.assertTrue(document.isTouched())
+
+        document.recompute()
+        self.assertFalse(document.isTouched())
+        self.assertAlmostEqual(document.Body.Shape.Volume, expected_volume, places=6)
+        self.assertAlmostEqual(document.Cut.Shape.Volume, expected_volume, places=6)
+
     def test_default_cage_produces_valid_solid(self):
         vertices, faces = box_control_cage(20, 20, 20)
         solid, deviation, level = cage_to_solid(vertices, faces, 0.05, 3)
