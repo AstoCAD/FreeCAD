@@ -653,6 +653,12 @@ static const App::OperatorExpression* toUnitNumberExpr(const App::Expression* ex
     return nullptr;
 }
 
+// A Python string literal holding text: its quotes, backslashes and line breaks are escaped.
+static std::string toPythonString(const std::string& text)
+{
+    return Base::Tools::quoted(Base::Tools::escapeEncodeString(text));
+}
+
 void DlgExpressionInput::createBindingVarSet(App::Property* propVarSet, App::DocumentObject* varSet)
 {
     ObjectIdentifier varSetId(*propVarSet);
@@ -711,12 +717,12 @@ void DlgExpressionInput::acceptWithVarSet()
     }
     else if (const StringExpression* se = toStringExpr(expr)) {
         // the value is a string: directly assign it to the property.
-        std::string text = Base::Tools::quoted(se->getText());
+        std::string text = toPythonString(se->getText());
         Gui::cmdAppObjectArgs(obj, "%s = %s", prop->getName(), text);
     }
     else if (const OperatorExpression* une = toUnitNumberExpr(expr)) {
         // the value is a unit number: directly assign it to the property.
-        std::string text = Base::Tools::quoted(une->toString());
+        std::string text = toPythonString(une->toString());
         Gui::cmdAppObjectArgs(obj, "%s = %s", prop->getName(), text);
     }
     else {
