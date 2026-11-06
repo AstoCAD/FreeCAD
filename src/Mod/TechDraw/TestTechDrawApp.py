@@ -36,6 +36,7 @@ from TDTest.DrawViewRemovalTest import DrawViewRemovalTest  # noqa: F401
 from TDTest.DrawViewDimensionSavedGeometryTest import DrawViewDimensionSavedGeometryTest  # noqa: F401
 from TDTest.DrawCosmeticCircleRadiusTest import DrawCosmeticCircleRadiusTest  # noqa: F401
 from TDTest.DrawCosmeticVertex3dTest import DrawCosmeticVertex3dTest  # noqa: F401
+from TDTest.DrawCosmeticArcTest import DrawCosmeticArcTest  # noqa: F401
 from TDTest.DrawViewWrapperIdentityTest import DrawViewWrapperIdentityTest  # noqa: F401
 from TDTest.DrawDistanceDim3dTest import DrawDistanceDim3dTest  # noqa: F401
 from TDTest.DrawCosmeticEdgeLineNumberTest import DrawCosmeticEdgeLineNumberTest  # noqa: F401
