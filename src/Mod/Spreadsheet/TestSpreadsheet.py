@@ -802,6 +802,29 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(other.get("C1"), "z")
         self.assertEqual(other.get("A2"), "y")
 
+    def testExportKeepsAllDigitsOfNumbers(self):
+        """CSV export writes numbers with all their digits, not 6 significant ones."""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "=1/3")
+        sheet.set("B1", "1234567.891")
+        sheet.set("C1", "0.1")
+        sheet.set("D1", "12.3456789 mm")
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "digits.csv")
+            self.assertTrue(sheet.exportFile(path, ",", '"', "\\"))
+            with open(path) as csv_file:
+                self.assertEqual(
+                    csv_file.read().strip(), "0.3333333333333333,1234567.891,0.1,12.3456789"
+                )
+            other = self.doc.addObject("Spreadsheet::Sheet", "Imported")
+            self.assertTrue(other.importFile(path, ",", '"', "\\"))
+        self.doc.recompute()
+        self.assertEqual(other.get("A1"), 1 / 3)
+        self.assertEqual(other.get("B1"), 1234567.891)
+        self.assertEqual(other.get("C1"), 0.1)
+        self.assertEqual(other.get("D1"), 12.3456789)
+
     def testNumericLiteralIsStableAcrossSaveRestore(self):
         """Numeric literals retain their value and type across save and restore."""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
