@@ -207,6 +207,7 @@ SET(TDTest_SRCS
     TDTest/DrawDimensionAngleReferenceTest.py
     TDTest/DrawDimensionCircleAlignmentTest.py
     TDTest/DrawDimensionAreaToleranceTest.py
+    TDTest/DrawDxfLinearDimBlockTest.py
     TDTest/DrawCreationDocumentTest.py
     TDTest/DrawSpreadsheetLabelXmlTest.py
     TDTest/DrawBoltCircleTest.py
