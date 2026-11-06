@@ -405,9 +405,10 @@ void MaterialProperty::setQuantity(const Base::Quantity& value)
     if (quantity.isDimensionless()) {
         // Assign the default units when none are provided.
         //
-        // This needs to be parsed rather than just setting units. Otherwise we get mm->m conversion
-        // errors, etc
-        quantity = Base::Quantity::parse(quantity.getUserString() + getUnits().toStdString());
+        // The units must be parsed (with their factor) rather than just set. Otherwise we get
+        // mm->m conversion errors, etc. Scale the value itself: going through the rounded user
+        // string turned small values such as 1.2e-05 into 0.
+        quantity = Base::Quantity(quantity.getValue(), getUnits().toStdString());
     }
     else {
         auto propertyUnit = Base::Quantity::parse(getUnits().toStdString()).getUnit();

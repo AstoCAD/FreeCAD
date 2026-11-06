@@ -170,6 +170,27 @@ class MaterialCreationTestCases(unittest.TestCase):
         self.assertIsNotNone(self.MaterialManager.getMaterial(uuid))
 
 
+class MaterialValueTestCases(unittest.TestCase):
+    """
+    Values set on a material in memory (no library, no files)
+    """
+
+    def testQuantityWithoutUnitsKeepsItsValue(self):
+        """A value given without units gets the property units without being rounded"""
+        uuids = Materials.UUIDs()
+        material = Materials.Material()
+        material.addPhysicalModel(uuids.Thermal)
+        material.addPhysicalModel(uuids.Density)
+
+        material.setPhysicalValue("ThermalExpansionCoefficient", "0.0000123")
+        value = material.getPhysicalValue("ThermalExpansionCoefficient")
+        self.assertAlmostEqual(value.getValueAs("1/K").Value, 1.23e-5, delta=1e-12)
+
+        material.setPhysicalValue("Density", "7850.123")
+        value = material.getPhysicalValue("Density")
+        self.assertAlmostEqual(value.getValueAs("kg/m^3").Value, 7850.123, delta=1e-6)
+
+
 class MaterialSaveTestCases(unittest.TestCase):
     """
     Saving into temporary libraries: a writable custom one and a read-only module one
