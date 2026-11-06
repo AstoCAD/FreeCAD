@@ -253,6 +253,27 @@ class TestHole(unittest.TestCase):
         self.Hole.ThreadType = "ISOMetricProfile"
         self.assertEqual(self.Hole.ThreadSize, "M1x0.25")
 
+    def testMetricThreadDiameterMatchesDesignation(self):
+        """Every metric thread size has the major diameter its name states"""
+        self.Hole.Threaded = True
+        for threadType in ("ISOMetricProfile", "ISOMetricFineProfile"):
+            self.Hole.ThreadType = threadType
+            for size in self.Hole.getEnumerationsOfProperty("ThreadSize"):
+                self.Hole.ThreadSize = size
+                expected = float(size[1:].split("x")[0])
+                self.assertAlmostEqual(self.Hole.ThreadDiameter.Value, expected, msg=size)
+
+    def testFineThreadSizeKeptOnThreadTypeReassign(self):
+        """M27x1.0 and M39x1.5 must not turn into M26x1.5 and M38x1.5"""
+        self.Hole.Threaded = True
+        self.Hole.ThreadType = "ISOMetricFineProfile"
+        for size in ("M27x1.0", "M39x1.5", "M26x1.5", "M38x1.5"):
+            self.Hole.ThreadSize = size
+            # the task panel writes ThreadType back on accept, which re-runs the
+            # closest designation search based on ThreadDiameter and the pitch
+            self.Hole.ThreadType = "ISOMetricFineProfile"
+            self.assertEqual(self.Hole.ThreadSize, size)
+
     def testThreadEnums(self):
         """Test thread enums for correct order"""
         # Due to the savefile use of indexes and not strings
