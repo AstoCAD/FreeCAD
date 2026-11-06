@@ -542,6 +542,10 @@ def TemplateAttributes(stock, includeExtent=True, includePlacement=True):
                 attrs["radius"] = "%s" % stock.Radius
                 attrs["height"] = "%s" % stock.Height
 
+        # the axis is part of the cylinder's definition, the extent and the placement depend on it
+        if stockType == StockType.CreateCylinder:
+            attrs["axis"] = stock.Axis
+
         if includePlacement:
             pos = stock.Placement.Base
             attrs["posX"] = pos.x
@@ -667,7 +671,11 @@ def CreateFromTemplate(job, template):
                     Path.Log.error(
                         "Corrupted or incomplete size for creating a stock cylinder - ignoring size"
                     )
-                return CreateCylinder(job, radius, height, placement)
+                axis = template.get("axis")
+                if axis not in (None, "X", "Y", "Z"):
+                    Path.Log.error("Unsupported axis for creating a stock cylinder - ignoring axis")
+                    axis = None
+                return CreateCylinder(job, radius, height, placement, axis)
 
             Path.Log.error(
                 translate("PathStock", "Unsupported stock type named {}").format(stockType)
