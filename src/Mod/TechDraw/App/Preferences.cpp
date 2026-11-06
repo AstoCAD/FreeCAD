@@ -197,7 +197,7 @@ int Preferences::balloonShape()
 QString Preferences::defaultTemplate()
 {
     std::string defaultDir = App::Application::getResourceDir() + "Mod/TechDraw/Templates/";
-    std::string defaultFileName = defaultDir + "Default_Template_A4_Landscape.svg";
+    std::string defaultFileName = defaultDir + "Blank/A4/landscape/A4_blank_landscape.svg";
     std::string prefFileName = getPreferenceGroup("Files")->GetASCII("TemplateFile", defaultFileName.c_str());
     if (prefFileName.empty()) {
         prefFileName = defaultFileName;
