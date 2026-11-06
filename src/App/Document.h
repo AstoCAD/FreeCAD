@@ -725,6 +725,9 @@ public:
      * ignore searching for the label.
      *
      *@return A vector of objects matching the given criteria.
+     *
+     * @throws boost::regex_error if @p objname or @p label is not a valid
+     * regular expression.
      */
     std::vector<DocumentObject*>
     findObjects(const Base::Type& typeId, const char* objname, const char* label) const;
