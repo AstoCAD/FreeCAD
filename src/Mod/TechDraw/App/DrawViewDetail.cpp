@@ -46,6 +46,7 @@
 #include <gp_Dir.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
+#include <set>
 #include <sstream>
 
 
@@ -69,6 +70,36 @@
 
 using namespace TechDraw;
 using DU = DrawUtil;
+
+namespace
+{
+
+//! true if following BaseView from this detail through other details and sections
+//! reaches a view a second time. Details and sections recompute the views based on
+//! them when their computation finishes, so along such a loop they would recompute
+//! each other forever.
+bool baseViewChainLoops(const DrawViewDetail* detail)
+{
+    std::set<const App::DocumentObject*> visited;
+    const App::DocumentObject* current = detail;
+    while (current) {
+        if (!visited.insert(current).second) {
+            return true;
+        }
+        if (current->isDerivedFrom<DrawViewDetail>()) {
+            current = static_cast<const DrawViewDetail*>(current)->BaseView.getValue();
+        }
+        else if (current->isDerivedFrom<DrawViewSection>()) {
+            current = static_cast<const DrawViewSection*>(current)->BaseView.getValue();
+        }
+        else {
+            break;
+        }
+    }
+    return false;
+}
+
+}  // namespace
 
 //===========================================================================
 // DrawViewDetail
@@ -207,6 +238,10 @@ App::DocumentObjectExecReturn* DrawViewDetail::execute()
         return DrawView::execute();
     }
 
+    if (baseViewChainLoops(this)) {
+        return new App::DocumentObjectExecReturn("BaseView chain leads back to a view in it");
+    }
+
     DrawViewPart* dvp = static_cast<DrawViewPart*>(baseObj);
     TopoDS_Shape shape3d = dvp->getShapeForDetail();
     DrawViewSection* dvs = nullptr;
@@ -288,8 +323,9 @@ void DrawViewDetail::makeDetailShape(const TopoDS_Shape& shape3d, DrawViewPart* 
     Base::Vector3d shapeCenter = Base::Vector3d(gpCenter.X(), gpCenter.Y(), gpCenter.Z());
     m_saveCentroid = shapeCenter;//centroid of original shape
 
-    if (!dvs) {
-        //section cutShape should already be on origin
+    //the shape of a section (its cut shape) or of a detail (its detail shape) is
+    //already centred on the origin of that view
+    if (!dvs && !dvp->isDerivedFrom<DrawViewDetail>()) {
         copyShape = ShapeUtils::moveShape(copyShape,//centre shape on origin
                                         -shapeCenter);
     }
@@ -427,6 +463,7 @@ void DrawViewDetail::makeDetailShape(const TopoDS_Shape& shape3d, DrawViewPart* 
     m_saveCentroid += centroid;//center of massaged shape
     //align shape with detail anchor
     TopoDS_Shape centeredShape = ShapeUtils::moveShape(m_detailShape, anchor * -1.0);
+    m_centeredShape = centeredShape;
     m_scaledShape = ShapeUtils::scaleShape(centeredShape, getScale());
 
     if (debugDetail()) {
@@ -472,15 +509,55 @@ TopoDS_Shape DrawViewDetail::getShapeForGeometryBuild() const
     return m_scaledShape;
 }
 
+//! deliver a shape for making a detail view based on this view: the area shown by this
+//! detail, unscaled and centred on its anchor like the view itself, so that the
+//! AnchorPoint of a detail of this detail is read in this detail's coordinates.
+//! While the detail shape is being made there is none; the views based on this one
+//! are recomputed when it is ready (postDetailTasks).
+TopoDS_Shape DrawViewDetail::getShapeForDetail() const
+{
+    if (waitingForDetail() || m_centeredShape.IsNull()) {
+        return {};
+    }
+    gp_Ax2 viewAxis = getProjectionCS();
+    TopoDS_Shape shape = ShapeUtils::rotateShape(m_centeredShape, viewAxis, Rotation.getValue());
+    Bnd_Box bbx;
+    BRepBndLib::AddOptimal(shape, bbx, true, false);
+    if (bbx.IsVoid()) {
+        return {};
+    }
+    //makeDetailShape expects a shape around the origin, as it centres the shape of a plain
+    //view. Centre this one along the view direction too: that leaves its projection,
+    //and so the coordinates of this view, unchanged.
+    gp_Vec center(ShapeUtils::findCentroid(shape, viewAxis).XYZ());
+    gp_Vec viewDir(viewAxis.Direction());
+    double depth = center.Dot(viewDir);
+    return ShapeUtils::moveShape(shape, Base::convertTo<Base::Vector3d>(viewDir) * -depth);
+}
+
 //continue processing after makeDetailShape thread is finished
 void DrawViewDetail::onMakeDetailFinished(void)
 {
     waitingForDetail(false);
     QObject::disconnect(connectDetailWatcher);
 
+    postDetailTasks();
+
     m_tempGeometryObject = buildGeometryObject(getShapeForGeometryBuild(), m_viewAxis);
     if (!DU::isGuiUp()) {
         onHlrFinished();
+    }
+}
+
+// activities that depend on a valid detail shape
+void DrawViewDetail::postDetailTasks()
+{
+    std::vector<App::DocumentObject*> children = getInList();
+    for (auto& c : children) {
+        if (c->isDerivedFrom<DrawViewPart>()) {
+            // details or sections of this need the detail shape
+            c->recomputeFeature();
+        }
     }
 }
 

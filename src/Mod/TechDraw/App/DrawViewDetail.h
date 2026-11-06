@@ -97,6 +97,7 @@ public:
 
     std::vector<DrawViewDetail*> getDetailRefs() const override;
     TopoDS_Shape getDetailShape() const { return m_detailShape; }
+    TopoDS_Shape getShapeForDetail() const override;
 
     Base::Vector3d mapPoint3dToDetail(const Base::Vector3d& inPoint) const;
 
@@ -107,9 +108,11 @@ protected:
     TopoDS_Shape getShapeForGeometryBuild() const override;
 
     void getParameters(void);
+    void postDetailTasks();
     double m_fudge;
     bool debugDetail() const;
 
+    TopoDS_Shape m_centeredShape;   // detail shape centred on the anchor, not scaled or rotated
     TopoDS_Shape m_scaledShape;
     gp_Ax2 m_viewAxis;
 
