@@ -88,6 +88,9 @@ public:
 
     PyObject* getPyObject() override;
     void setPyObject(PyObject*) override;
+    /// Convert a Vector or a tuple of three numbers, the values setPyObject() accepts,
+    /// without rejecting NaN (e.g. for bulk data). Throws Base::TypeError for other types.
+    static Base::Vector3d vectorFromPy(PyObject* value);
 
     void Save(Base::Writer& writer) const override;
     void Restore(Base::XMLReader& reader) override;

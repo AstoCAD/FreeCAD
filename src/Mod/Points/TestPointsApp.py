@@ -20,6 +20,7 @@
 #                                                                         *
 # **************************************************************************
 
+import math
 import os
 import tempfile
 import unittest
@@ -98,6 +99,49 @@ class PointsLoadTest(unittest.TestCase):
             self.assertNotIn("Access violation", str(cm.exception))
         finally:
             FreeCAD.closeDocument(doc.Name)
+
+
+class PointsNormalTest(unittest.TestCase):
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("TestPointsAppNormal")
+        self.fileNames = []
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+        for fileName in self.fileNames:
+            if os.path.exists(fileName):
+                os.remove(fileName)
+
+    def testNormalListKeepsNaN(self):
+        """The normals of a structured cloud's invalid points are NaN and can be set back"""
+        # A list or tuple was converted through a temporary App::PropertyVector, which
+        # rejects NaN as "property ?", while a single Vector was accepted.
+        fd, fileName = tempfile.mkstemp(suffix=".pcd")
+        with os.fdopen(fd, "w") as f:
+            f.write(
+                "VERSION 0.7\nFIELDS x y z normal_x normal_y normal_z\nSIZE 4 4 4 4 4 4\n"
+                "TYPE F F F F F F\nCOUNT 1 1 1 1 1 1\nWIDTH 3\nHEIGHT 1\nPOINTS 3\n"
+                "DATA ascii\n0 0 0 0 0 1\nnan nan nan nan nan nan\n0 1 0 0 0 1\n"
+            )
+        self.fileNames.append(fileName)
+        Points.insert(fileName, self.doc.Name)
+        cloud = self.doc.Objects[-1]
+        normals = cloud.Normal
+        self.assertEqual(len(normals), 3)
+        self.assertTrue(math.isnan(normals[1].x))
+        cloud.Normal = normals
+        self.assertEqual(len(cloud.Normal), 3)
+        self.assertTrue(math.isnan(cloud.Normal[1].z))
+
+        nan = float("nan")
+        cloud.Normal = [(0, 0, 1), (nan, nan, nan), FreeCAD.Vector(0, 0, 1)]
+        self.assertTrue(math.isnan(cloud.Normal[1].y))
+        cloud.Normal = (nan, 0, 1)
+        self.assertTrue(math.isnan(cloud.Normal[0].x))
+        with self.assertRaises(TypeError):
+            cloud.Normal = ["a"]
+        with self.assertRaises(TypeError):
+            cloud.Normal = [("a", 0, 1)]
 
 
 class PointsSegmentTest(unittest.TestCase):

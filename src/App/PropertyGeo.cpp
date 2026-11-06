@@ -123,8 +123,9 @@ std::optional<double> numberFromAny(const boost::any& value)
     }
     return std::nullopt;
 }
+}  // namespace
 
-Base::Vector3d vectorFromPy(PyObject* value)
+Base::Vector3d PropertyVector::vectorFromPy(PyObject* value)
 {
     if (PyObject_TypeCheck(value, &(Base::VectorPy::Type))) {
         Base::VectorPy* pcObject = static_cast<Base::VectorPy*>(value);
@@ -172,7 +173,6 @@ Base::Vector3d vectorFromPy(PyObject* value)
     error += value->ob_type->tp_name;
     throw Base::TypeError(error);
 }
-}  // namespace
 
 void PropertyVector::setPyObject(PyObject* value)
 {
@@ -353,7 +353,7 @@ PyObject* PropertyVectorList::getPyObject()
 
 Base::Vector3d PropertyVectorList::getPyValue(PyObject* item) const
 {
-    Base::Vector3d vec = vectorFromPy(item);
+    Base::Vector3d vec = PropertyVector::vectorFromPy(item);
     checkNotNaN(vec);
     return vec;
 }
