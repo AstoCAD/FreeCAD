@@ -168,6 +168,7 @@ def offset(edge, vector, trim=False):
         curve.Radius = App.Vector.add(rad, vector).Length
         if trim:
             return Part.ArcOfCircle(curve, edge.FirstParameter, edge.LastParameter).toShape()
+        return curve.toShape()
     elif geomType(edge) == "Ellipse":
         rad = edge.Vertexes[0].Point.sub(edge.Curve.Center)
         curve = edge.Curve.copy()
