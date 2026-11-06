@@ -195,6 +195,25 @@ class TestResult(unittest.TestCase):
         )
 
     # ********************************************************************************************
+    def test_show_result_types(self):
+        # show_result passes the values of the requested result type to the coloring helper,
+        # and for "None" resets the colors of the result object
+        from unittest import mock
+        import ObjectsFem
+        from femresult import resulttools
+
+        res = ObjectsFem.makeResultMechanical(self.document, "Result")
+        res.DisplacementVectors = [FreeCAD.Vector(1, 2, 3), FreeCAD.Vector(4, 5, 6)]
+        with mock.patch.object(resulttools, "show_color_by_scalar_with_cutoff") as show:
+            for result_type, expected in (("U1", [1, 4]), ("U2", [2, 5]), ("U3", [3, 6])):
+                resulttools.show_result(res, result_type)
+                self.assertEqual(show.call_args.args[0], res)
+                self.assertEqual(list(show.call_args.args[1]), expected, result_type)
+        with mock.patch.object(resulttools, "reset_mesh_color") as reset:
+            resulttools.show_result(res, "None")
+            reset.assert_called_once_with(res)
+
+    # ********************************************************************************************
     def test_frd_import_close_eigenfrequencies(self):
         # https://github.com/FreeCAD/FreeCAD/issues/23083
         # frequencies of the rigid body modes of an unconstrained model differ only after the second

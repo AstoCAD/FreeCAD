@@ -168,7 +168,7 @@ def show_result(resultobj, result_type="Sabs", limit=None):
     """
 
     if result_type == "None":
-        reset_mesh_color(resultobj.Mesh)
+        reset_mesh_color(resultobj)
         return
     if resultobj:
         if result_type == "Sabs":
@@ -178,7 +178,7 @@ def show_result(resultobj, result_type="Sabs", limit=None):
         # TODO: the result object does have more result types to show, implement them
         else:
             match = {"U1": 0, "U2": 1, "U3": 2}
-            d = zip(*resultobj.DisplacementVectors)
+            d = list(zip(*resultobj.DisplacementVectors))
             values = list(d[match[result_type]])
         show_color_by_scalar_with_cutoff(resultobj, values, limit)
     else:
