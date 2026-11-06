@@ -261,3 +261,139 @@ class TestSketchCarbonCopyReverseMappingPlaced(unittest.TestCase):
             FreeCAD.Placement(FreeCAD.Vector(0, 0, -5), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 180)),
         )
         self._checkSameProjection(src, dst)
+
+
+class TestSketchCarbonCopyReverseMappingArcs(unittest.TestCase):
+    """A flipped carbon copy keeps arcs and the constraints on their end points.
+
+    With exactly one flipped axis the copy is mirrored: the start point of an arc, as the
+    sketcher sees it (counter-clockwise), is the image of the end point of the source arc.
+    """
+
+    FLIPS = {
+        "AboutX": FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 180),
+        "AboutY": FreeCAD.Rotation(FreeCAD.Vector(0, 1, 0), 180),
+        "AboutNormal": FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 180),
+    }
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("CarbonCopyReverseMappingArcs")
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.Doc.Name)
+
+    @staticmethod
+    def _arcs():
+        import Part
+
+        V = FreeCAD.Vector
+        hyperbola = Part.Hyperbola(V(4, 1, 0), V(1, 3, 0), V(1, 1, 0))
+        parabola = Part.Parabola(V(3, 2, 0), V(1, 2, 0), V(0, 0, 1))
+        return {
+            "ArcOfCircle": Part.ArcOfCircle(Part.Circle(V(5, 5, 0), V(0, 0, 1), 3), 0.2, 2.0),
+            "ArcOfEllipse": Part.ArcOfEllipse(Part.Ellipse(V(5, 5, 0), 4, 2), 0.3, 2.0),
+            "ArcOfHyperbola": Part.ArcOfHyperbola(hyperbola, 0.2, 1.1),
+            "ArcOfParabola": Part.ArcOfParabola(parabola, 0.5, 2.5),
+        }
+
+    def _copy(self, src, flip):
+        dst = self.Doc.addObject("Sketcher::SketchObject", "Target")
+        dst.Placement = FreeCAD.Placement(FreeCAD.Vector(0, 0, 3), self.FLIPS[flip])
+        dst.setAllowUnaligned(False)
+        self.Doc.recompute()
+        dst.carbonCopy(src.Name, False)
+        self.Doc.recompute()
+        return dst
+
+    def _checkSameProjection(self, src, dst):
+        """Every copied curve lies over its source curve, as seen along the normal."""
+        import Part
+
+        normal = dst.Placement.Rotation.multVec(FreeCAD.Vector(0, 0, 1))
+        self.assertEqual(dst.GeometryCount, src.GeometryCount)
+        for i in range(src.GeometryCount):
+            source = src.Geometry[i].toShape()
+            source.Placement = src.Placement
+            copy = dst.Geometry[i].toShape()
+            copy.Placement = dst.Placement
+            first, last = copy.ParameterRange[0], copy.ParameterRange[1]
+            for k in range(9):
+                point = copy.valueAt(first + k * (last - first) / 8)
+                distance = source.distToShape(Part.Vertex(point - normal * normal.dot(point)))[0]
+                self.assertAlmostEqual(distance, 0, places=6, msg="geometry %d" % i)
+
+    def _source(self, arc):
+        src = self.Doc.addObject("Sketcher::SketchObject", "Source")
+        src.addGeometry(arc)
+        return src
+
+    def _checkCopies(self, src):
+        self.Doc.recompute()
+        for flip in self.FLIPS:
+            with self.subTest(flip=flip):
+                dst = self._copy(src, flip)
+                self.assertEqual(dst.solve(), 0)
+                self._checkSameProjection(src, dst)
+                self.Doc.removeObject(dst.Name)
+
+    def test_CoincidentAtTheArcEnds(self):
+        import Part
+        import Sketcher
+
+        for name, arc in self._arcs().items():
+            for pos in (1, 2):
+                with self.subTest(arc=name, pos=pos):
+                    src = self._source(arc)
+                    point = src.getPoint(0, pos)
+                    src.addGeometry(Part.LineSegment(point, point + FreeCAD.Vector(3, 1, 0)))
+                    src.addConstraint(Sketcher.Constraint("Coincident", 0, pos, 1, 1))
+                    self._checkCopies(src)
+                    self.Doc.removeObject(src.Name)
+
+    def test_TangentAtTheArcEnd(self):
+        import Part
+        import Sketcher
+
+        for name, arc in self._arcs().items():
+            with self.subTest(arc=name):
+                src = self._source(arc)
+                end = src.getPoint(0, 2)
+                curve = src.Geometry[0]
+                direction = curve.tangent(curve.parameter(end))[0]
+                src.addGeometry(Part.LineSegment(end, end + direction * 4))
+                src.addConstraint(Sketcher.Constraint("Tangent", 0, 2, 1, 1))
+                self._checkCopies(src)
+                self.Doc.removeObject(src.Name)
+
+    def test_PerpendicularLinesAtTheirEnds(self):
+        import Part
+        import Sketcher
+
+        V = FreeCAD.Vector
+        src = self.Doc.addObject("Sketcher::SketchObject", "Source")
+        src.addGeometry(Part.LineSegment(V(1, 1, 0), V(6, 3, 0)))
+        src.addGeometry(Part.LineSegment(V(6, 3, 0), V(5, 5.5, 0)))
+        src.addConstraint(Sketcher.Constraint("Perpendicular", 0, 2, 1, 1))
+        self._checkCopies(src)
+
+    def test_AngleAtAPointBetweenAnArcAndALine(self):
+        import Part
+        import Sketcher
+
+        for name, arc in self._arcs().items():
+            with self.subTest(arc=name):
+                src = self._source(arc)
+                end = src.getPoint(0, 2)
+                src.addGeometry(Part.LineSegment(end, end + FreeCAD.Vector(2, 3, 0)))
+                src.addConstraint(Sketcher.Constraint("Coincident", 0, 2, 1, 1))
+                angle = src.calculateAngleViaPoint(0, 1, end.x, end.y)
+                src.addConstraint(Sketcher.Constraint("AngleViaPoint", 0, 1, 1, 1, angle))
+                self._checkCopies(src)
+                self.Doc.removeObject(src.Name)
+
+    def test_AngleOfAnArc(self):
+        import Sketcher
+
+        src = self._source(self._arcs()["ArcOfCircle"])
+        src.addConstraint(Sketcher.Constraint("Angle", 0, 1.8))
+        self._checkCopies(src)
