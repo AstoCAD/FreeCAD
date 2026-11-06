@@ -22,6 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <memory>
+#include <vector>
+
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Surface.hxx>
@@ -35,6 +38,7 @@
 #include <BRepPrimAPI_MakeHalfSpace.hxx>
 #include <BRepTopAdaptor_FClass2d.hxx>
 #include <Geom_ConicalSurface.hxx>
+#include <Geom_Curve.hxx>
 #include <Geom_CylindricalSurface.hxx>
 #include <Geom_Plane.hxx>
 #include <Geom_RectangularTrimmedSurface.hxx>
@@ -51,6 +55,7 @@
 #include <GProp_GProps.hxx>
 #include <GProp_PrincipalProps.hxx>
 #include <Poly_Triangulation.hxx>
+#include <Precision.hxx>
 #include <ShapeAnalysis.hxx>
 #include <ShapeFix_Face.hxx>
 #include <ShapeFix_Shape.hxx>
@@ -112,11 +117,133 @@ const TopoDS_Face& getTopoDSFace(const TopoShapeFacePy* theFace)
     return f;
 }
 
+// The state of a wire relative to a single-wire face, classified the way
+// ShapeFix_Face::FixOrientation() does it: the middle of each edge's pcurve, IN or OUT when
+// the classified points agree, UNKNOWN otherwise.
+TopAbs_State classifyWire(const TopoDS_Wire& wire,
+                          const TopoDS_Face& face,
+                          const BRepTopAdaptor_FClass2d& classifier)
+{
+    TopAbs_State state = TopAbs_UNKNOWN;
+    for (TopoDS_Iterator it(wire); it.More(); it.Next()) {
+        double first {};
+        double last {};
+        Handle(Geom2d_Curve) pcurve =
+            BRep_Tool::CurveOnSurface(TopoDS::Edge(it.Value()), face, first, last);
+        if (pcurve.IsNull()) {
+            continue;
+        }
+        TopAbs_State edgeState = classifier.Perform(pcurve->Value((first + last) / 2.), false);
+        if (edgeState != TopAbs_IN && edgeState != TopAbs_OUT) {
+            continue;
+        }
+        if (state == TopAbs_UNKNOWN) {
+            state = edgeState;
+        }
+        else if (state != edgeState) {
+            return TopAbs_UNKNOWN;
+        }
+    }
+    return state;
+}
+
+// True when ShapeFix_Face::FixOrientation() has nothing to change on this planar face: exactly
+// one wire is oriented as an outer bound, every other wire is oriented as a hole, lies inside
+// the outer wire and has the outer wire outside it. This is linear in the number of wires, while
+// BRepCheck_Analyzer on a face grows with the square of its holes. Anything else (other
+// surfaces, where FixOrientation also shifts pcurves by the period or adds natural bounds,
+// internal wires, vertices, null-length wires it drops) answers false and takes the full path.
+bool holesOrientedInsideOuter(const TopoDS_Face& face)
+{
+    Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+    if (surface.IsNull() || surface->DynamicType() != STANDARD_TYPE(Geom_Plane)) {
+        return false;
+    }
+
+    std::vector<TopoDS_Wire> wires;
+    for (TopoDS_Iterator it(face, false); it.More(); it.Next()) {
+        const TopoDS_Shape& child = it.Value();
+        if (child.ShapeType() != TopAbs_WIRE
+            || (child.Orientation() != TopAbs_FORWARD && child.Orientation() != TopAbs_REVERSED)) {
+            return false;
+        }
+        TopoDS_Iterator edges(child, false);
+        if (!edges.More()) {
+            return false;
+        }
+        TopoDS_Edge edge = TopoDS::Edge(edges.Value());
+        edges.Next();
+        if (!edges.More()) {
+            // FixOrientation() drops a one-edge wire of (nearly) null length
+            double first {};
+            double last {};
+            Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+            if (curve.IsNull()) {
+                return false;
+            }
+            double length = 0.0;
+            gp_Pnt previous = curve->Value(first);
+            const int samples = 10;
+            for (int i = 1; i < samples; i++) {
+                double param = ((samples - 1 - i) * first + i * last) / (samples - 1);
+                gp_Pnt current = curve->Value(param);
+                length += previous.Distance(current);
+                previous = current;
+            }
+            if (length <= 1000.0 * Precision::Confusion()) {
+                return false;
+            }
+        }
+        wires.push_back(TopoDS::Wire(child));
+    }
+    if (wires.size() < 2) {
+        return false;
+    }
+
+    BRep_Builder builder;
+    std::vector<std::unique_ptr<BRepTopAdaptor_FClass2d>> classifiers;
+    classifiers.reserve(wires.size());
+    std::size_t outer = wires.size();
+    for (std::size_t i = 0; i < wires.size(); i++) {
+        TopoDS_Face single = TopoDS::Face(face.EmptyCopied());
+        single.Orientation(TopAbs_FORWARD);
+        builder.Add(single, wires[i]);
+        classifiers.push_back(
+            std::make_unique<BRepTopAdaptor_FClass2d>(single, Precision::PConfusion()));
+        if (classifiers.back()->PerformInfinitePoint() == TopAbs_OUT) {
+            if (outer != wires.size()) {
+                return false;
+            }
+            outer = i;
+        }
+    }
+    if (outer == wires.size()) {
+        return false;
+    }
+
+    for (std::size_t i = 0; i < wires.size(); i++) {
+        if (i == outer) {
+            continue;
+        }
+        if (classifiers[i]->PerformInfinitePoint() != TopAbs_IN
+            || classifyWire(wires[i], face, *classifiers[outer]) != TopAbs_IN
+            || classifyWire(wires[outer], face, *classifiers[i]) != TopAbs_IN) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // BRepBuilderAPI_MakeFace::Add() takes the hole wires as they are. A hole wire oriented
 // like the outer wire gives an invalid face that bounds the wrong side of the hole:
 // re-orient the wires. A valid face is returned unchanged.
 TopoDS_Face fixHoleOrientation(const TopoDS_Face& face)
 {
+    // the common case, correctly oriented holes: FixOrientation() would not change the face,
+    // so the expensive validity check is not needed to decide
+    if (holesOrientedInsideOuter(face)) {
+        return face;
+    }
     BRepCheck_Analyzer aChecker(face);
     if (!aChecker.IsValid()) {
         ShapeFix_Face fix(face);
