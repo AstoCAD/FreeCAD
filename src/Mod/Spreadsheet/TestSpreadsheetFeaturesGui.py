@@ -73,6 +73,48 @@ class TestSpreadsheetFeaturesGui(unittest.TestCase):
         self.doc.recompute()
         self.assertEqual([self.sheet.get(f"B{row}") for row in range(1, 4)], [3, 2, 1])
 
+    def _findDialog(self, table):
+        self._action(table, "Find and Replace…").trigger()
+        self._process()
+        for widget in QtWidgets.QApplication.topLevelWidgets():
+            if widget.objectName() == "SpreadsheetFindReplace" and widget.isVisible():
+                self.addCleanup(widget.close)
+                return widget
+        self.fail("the find dialog was not opened")
+
+    def testFindAndReplaceDialog(self):
+        self.sheet.set("A1", "apple")
+        self.sheet.set("B2", "Apple pie")
+        self.sheet.set("C3", "pear")
+        self.doc.recompute()
+        table = self._tableView()
+        self._select(table, 0, 0, 0, 0)
+        dialog = self._findDialog(table)
+        dialog.findChild(QtWidgets.QLineEdit, "findText").setText("apple")
+        dialog.findChild(QtWidgets.QPushButton, "findNext").click()
+        self.assertEqual((table.currentIndex().row(), table.currentIndex().column()), (1, 1))
+        # Wraps around
+        dialog.findChild(QtWidgets.QPushButton, "findNext").click()
+        self.assertEqual((table.currentIndex().row(), table.currentIndex().column()), (0, 0))
+        dialog.findChild(QtWidgets.QPushButton, "findPrevious").click()
+        self.assertEqual((table.currentIndex().row(), table.currentIndex().column()), (1, 1))
+        # Replace acts on the current match, then moves to the next one
+        dialog.findChild(QtWidgets.QLineEdit, "replaceText").setText("plum")
+        dialog.findChild(QtWidgets.QPushButton, "replace").click()
+        self.assertEqual(self.sheet.getContents("B2"), "'plum pie")
+        self.assertEqual(self.sheet.getContents("A1"), "'apple")
+        # Replace All is one undo step
+        dialog.findChild(QtWidgets.QLineEdit, "findText").setText("p")
+        dialog.findChild(QtWidgets.QLineEdit, "replaceText").setText("P")
+        dialog.findChild(QtWidgets.QCheckBox, "matchCase").setChecked(True)
+        dialog.findChild(QtWidgets.QPushButton, "replaceAll").click()
+        self.assertEqual(self.sheet.getContents("A1"), "'aPPle")
+        self.assertEqual(self.sheet.getContents("C3"), "'Pear")
+        self.doc.undo()
+        self.assertEqual(self.sheet.getContents("A1"), "'apple")
+        self.assertEqual(self.sheet.getContents("C3"), "'pear")
+        self.assertEqual(self.sheet.getContents("B2"), "'plum pie")
+
 
 if __name__ == "__main__":
     unittest.main()

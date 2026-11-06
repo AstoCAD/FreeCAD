@@ -350,6 +350,64 @@ PyObject* SheetPy::sortRows(PyObject* args)
     Py_Return;
 }
 
+PyObject* SheetPy::findCells(PyObject* args)
+{
+    const char* text;
+    int matchCase = 0;
+    int wholeCell = 0;
+    int values = 0;
+
+    if (!PyArg_ParseTuple(args, "s|ppp:findCells", &text, &matchCase, &wholeCell, &values)) {
+        return nullptr;
+    }
+
+    PY_TRY
+    {
+        Py::List list;
+        for (const auto& address :
+             getSheetPtr()->findCells(text, matchCase != 0, wholeCell != 0, values != 0)) {
+            list.append(Py::String(address.toString()));
+        }
+        return Py::new_reference_to(list);
+    }
+    PY_CATCH;
+}
+
+PyObject* SheetPy::replaceCells(PyObject* args)
+{
+    const char* text;
+    const char* replacement;
+    int matchCase = 0;
+    int wholeCell = 0;
+    const char* range = nullptr;
+
+    if (!PyArg_ParseTuple(
+            args,
+            "ss|ppz:replaceCells",
+            &text,
+            &replacement,
+            &matchCase,
+            &wholeCell,
+            &range
+        )) {
+        return nullptr;
+    }
+
+    try {
+        std::vector<Range> ranges;
+        if (range) {
+            ranges.emplace_back(range, true);
+        }
+        int count = getSheetPtr()
+                        ->replaceCells(text, replacement, matchCase != 0, wholeCell != 0, ranges);
+        return Py::new_reference_to(Py::Long(count));
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+}
+
 PyObject* SheetPy::insertColumns(PyObject* args)
 {
     const char* column;
