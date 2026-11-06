@@ -1418,7 +1418,7 @@ def export(exportList, filename):
     miny += margin
 
     # Use the native Python open which was saved as `pyopen`
-    svg = pyopen(filename, "w")
+    svg = pyopen(filename, "w", encoding="utf-8")
 
     # Write header.
     # We specify the SVG width and height in FreeCAD's physical units (mm),
@@ -1456,8 +1456,7 @@ def export(exportList, filename):
             svg.write('<g id="%s" transform="scale(1,-1)">\n' % ob.Name)
 
         svg.write(get_svg(ob, override=False))
-        _label_enc = str(ob.Label.encode("utf8"))
-        _label = _label_enc.replace("<", "&lt;").replace(">", "&gt;")
+        _label = ob.Label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         # replace('"', "&quot;")
         svg.write("<title>%s</title>\n" % _label)
         svg.write("</g>\n")
