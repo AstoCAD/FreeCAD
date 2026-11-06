@@ -280,6 +280,18 @@ void ImportOCAF::createShape(
     task_group g;
 #endif
 
+    // The compound handling below takes its solids and shells apart (or merges
+    // them). A compound without any, e.g. the free faces of a surface model or
+    // of an IGES file written in face mode, or a set of wires, would lose its
+    // faces or be dropped entirely: keep it as one shape instead.
+    if (!aShape.IsNull() && aShape.ShapeType() == TopAbs_COMPOUND
+        && TopExp_Explorer(aShape, TopAbs_VERTEX).More()
+        && !TopExp_Explorer(aShape, TopAbs_SOLID).More()
+        && !TopExp_Explorer(aShape, TopAbs_SHELL).More()) {
+        createShape(aShape, loc, name, lValue);
+        return;
+    }
+
     if (!aShape.IsNull() && aShape.ShapeType() == TopAbs_COMPOUND) {
         TopExp_Explorer xp;
         int ctSolids = 0, ctShells = 0, ctVertices = 0, ctEdges = 0;
