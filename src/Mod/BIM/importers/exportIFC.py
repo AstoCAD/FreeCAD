@@ -1711,6 +1711,7 @@ def getPropertyData(key, value, preferences):
     # in 0.19, key = name;;pset, value = ptype;;value (because there can be several props with same name)
 
     pset = None
+    ptype = None
     pname = key
     if ";;" in pname:
         pname = key.split(";;")[0]
