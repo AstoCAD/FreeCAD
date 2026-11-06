@@ -39,6 +39,7 @@ void SheetParameter::setup()
     addParameter("NegativeNumberColor", String {"#000000"});
     addParameter("DisplayAliasFormatString", String {"%V = %A"});
     addParameter("showAliasName", Bool {false});
+    addParameter("AlternatingRowColors", Bool {false});
     addParameter("SwitchToWB", Bool {true});
     addParameter("DefaultZoomLevel", Int {100});
     addParameter("MaximumRowCount", Int {1024});
@@ -81,6 +82,16 @@ bool SheetParameter::getShowAliasName() const
 void SheetParameter::setShowAliasName(bool v)
 {
     setValue("showAliasName", v);
+}
+
+bool SheetParameter::getAlternatingRowColors() const
+{
+    return getValue<bool>("AlternatingRowColors");
+}
+
+void SheetParameter::setAlternatingRowColors(bool v)
+{
+    setValue("AlternatingRowColors", v);
 }
 
 bool SheetParameter::getSwitchToWorkbench() const
