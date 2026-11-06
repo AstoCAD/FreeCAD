@@ -116,7 +116,7 @@ class StartMigrator2024:
         self.start_prefs.Clear()
         self.start_prefs.SetBool("ShowOnStartup", show_on_startup)
         self.start_prefs.SetBool("ShowExamples", show_examples)
-        self.start_prefs.SetBool("CloseStart", close_start)
+        self.start_prefs.SetBool("closeStart", close_start)
         # ShowCustomFolder renamed to CustomFolder in 1.1
         self.start_prefs.SetString("CustomFolder", custom_folder)
 
