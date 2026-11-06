@@ -416,10 +416,10 @@ int SketchObject::carbonCopy(App::DocumentObject* pObj, bool construction)
     newVals.reserve(vals.size() + svals.size());
     newcVals.reserve(cvals.size() + scvals.size());
 
-    const Base::Vector3d& origin = this->Placement.getValue().getPosition();
-    const Base::Rotation& rotation = this->Placement.getValue().getRotation();
-    const Base::Vector3d axisH = rotation.multVec(Base::Vector3d::UnitX);
-    const Base::Vector3d axisV = rotation.multVec(Base::Vector3d::UnitY);
+    // The geometry is mirrored in the sketch's own coordinates, not in global ones.
+    const Base::Vector3d origin(0, 0, 0);
+    const Base::Vector3d axisH = Base::Vector3d::UnitX;
+    const Base::Vector3d axisV = Base::Vector3d::UnitY;
 
     std::map<int, int> extMap;
     if (psObj->ExternalGeo.getSize() > 1) {
