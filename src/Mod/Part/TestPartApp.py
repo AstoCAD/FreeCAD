@@ -1287,6 +1287,39 @@ class PartAttachNestedLCS(unittest.TestCase):
         self.assertNotIn("sketch", doc.lower())
         self.assertIn("curve", doc)
 
+    def testTwoPointLineOnCoincidentPointsReportsError(self):
+        # A line through two coincident points is undefined. Setting the map mode must not
+        # raise an OCC "gp_Dir() zero norm" error, and recompute must report it as a
+        # normal attachment error, like the three-point plane modes do.
+        box = self.Doc.addObject("Part::Box", "Box")
+        self.Doc.recompute()
+        feat = self.Doc.addObject("Part::Feature", "Attached")
+        feat.addExtension("Part::AttachExtensionPython")
+        feat.AttacherEngine = "Engine Line"
+        feat.AttachmentSupport = [(box, "Vertex1"), (box, "Vertex1")]
+        feat.MapMode = "TwoPointLine"
+        self.Doc.recompute()
+        self.assertIn("Invalid", feat.State)
+        feat.AttachmentSupport = [(box, "Vertex1"), (box, "Vertex2")]
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", feat.State)
+
+    def testIntersectionLineOnNonFacesReportsError(self):
+        # The intersection line mode needs two faces; other references must give an
+        # attachment error, not an OCC "TopoDS::Face" type mismatch raised to Python.
+        box = self.Doc.addObject("Part::Box", "Box")
+        self.Doc.recompute()
+        feat = self.Doc.addObject("Part::Feature", "Attached")
+        feat.addExtension("Part::AttachExtensionPython")
+        feat.AttacherEngine = "Engine Line"
+        feat.AttachmentSupport = [(box, "Edge1"), (box, "Edge2")]
+        feat.MapMode = "IntersectionLine"
+        self.Doc.recompute()
+        self.assertIn("Invalid", feat.State)
+        feat.AttachmentSupport = [(box, "Face1"), (box, "Face3")]
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", feat.State)
+
     def tearDown(self):
         FreeCAD.closeDocument(self.Doc.Name)
 

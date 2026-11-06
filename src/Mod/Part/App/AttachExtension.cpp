@@ -446,6 +446,8 @@ bool AttachExtension::isAttacherActive() const
         }
         catch (Base::Exception&) {
         }
+        catch (Standard_Failure&) {
+        }
     }
     return _active != 0;
 }
