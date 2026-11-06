@@ -1155,12 +1155,6 @@ class ViewProviderAngularDimension(ViewProviderDimensionBase):
         self.textpos.translation.setValue([self.tbase.x, self.tbase.y, self.tbase.z])
         self.textpos.rotation = coin.SbRotation(q[0], q[1], q[2], q[3])
 
-        # Set the angle property
-        _round_1 = round(obj.Angle, utils.precision())
-        _round_2 = round(angle, utils.precision())
-        if _round_1 != _round_2:
-            obj.Angle = angle
-
     def onChanged(self, vobj, prop):
         """Execute when a view property is changed."""
         super().onChanged(vobj, prop)
