@@ -23,6 +23,7 @@ set(Measure_Scripts
     TestMeasurementAxisAngle.py
     TestMeasurementLength.py
     TestMeasureLinkElement.py
+    TestMeasureAngleDirection.py
 )
 
 if(BUILD_GUI)
