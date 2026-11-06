@@ -85,6 +85,9 @@ MODULE_DEFAULTS = (
     # ViewProviderPartExt::loadParameter(), ViewProviderCurveNet, CAM PathSegmentWalker
     ("PartGui", "PartGui::DlgSettings3DViewPart", "maxDeviation",
      "Mod/Part", "Float", "MeshDeviation", 0.2),
+    # SketcherGui::useSystemDecimals()
+    ("SketcherGui", "SketcherGui::SketcherSettingsDisplay", "checkBoxUseSystemDecimals",
+     "Mod/Sketcher", "Bool", "UseSystemDecimals", True),
 )
 
 

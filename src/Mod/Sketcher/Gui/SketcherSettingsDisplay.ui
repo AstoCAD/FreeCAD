@@ -455,6 +455,9 @@ Supports all unit systems except 'US customary' and 'Building US/Euro'.</string>
         <property name="text">
          <string>Use system decimals setting for cursor coordinates</string>
         </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
         <property name="prefEntry" stdset="0">
          <cstring>UseSystemDecimals</cstring>
         </property>
