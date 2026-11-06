@@ -162,7 +162,7 @@ void BomObject::generateBOM()
 
     auto* assembly = getAssembly();
     if (assembly) {
-        addObjectChildrenToBom(assembly->getOutList(), row, "");
+        addObjectChildrenToBom(assembly->Group.getValues(), row, "");
     }
     else {
         addObjectChildrenToBom(getDocument()->getRootObjectsIgnoreLinks(), row, "");
@@ -284,7 +284,9 @@ void BomObject::addObjectChildrenToBom(
         else if ((child->isDerivedFrom<AssemblyObject>() && detailSubAssemblies.getValue())
             || (!child->isDerivedFrom<AssemblyObject>() && child->isDerivedFrom<App::Part>()
                 && detailParts.getValue())) {
-            addObjectChildrenToBom(child->getOutList(), row, sub_index);
+            // The components of the sub-assembly or part, not every object it depends on
+            // (getOutList() also holds the objects used by its expressions).
+            addObjectChildrenToBom(static_cast<App::Part*>(child)->Group.getValues(), row, sub_index);
         }
     }
 }
