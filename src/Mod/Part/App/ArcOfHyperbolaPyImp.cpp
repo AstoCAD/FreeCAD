@@ -22,6 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <cmath>
+
 #include <GC_MakeArcOfHyperbola.hxx>
 #include <Geom_Hyperbola.hxx>
 #include <Geom_TrimmedCurve.hxx>
@@ -88,6 +90,11 @@ int ArcOfHyperbolaPy::PyInit(PyObject* args, PyObject* /*kwds*/)
     if (
         PyArg_ParseTuple(args, "O!dd|O!", &(Part::HyperbolaPy::Type), &o, &u1, &u2, &PyBool_Type, &sense)
     ) {
+        // NaN passes the range checks of the trimmed curve and the arc crashes when used
+        if (std::isnan(u1) || std::isnan(u2)) {
+            PyErr_SetString(PyExc_ValueError, "Curve parameter must not be NaN");
+            return -1;
+        }
         try {
             Handle(Geom_Hyperbola) hyperbola = Handle(Geom_Hyperbola)::DownCast(
                 static_cast<HyperbolaPy*>(o)->getGeomHyperbolaPtr()->handle()
