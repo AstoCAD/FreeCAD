@@ -1130,6 +1130,17 @@ SketchSolveStatus SketchObject::trim(int GeoId, const Base::Vector3d& point, boo
         return SketchSolveStatus::SolverError;
     }
 
+    // The first piece keeps GeoId and the constraints of the start point, and ends at the first
+    // cut. The cuts and pieces above follow the parameter direction of the curve, but the sketch
+    // takes the start point of a reversed (clockwise) arc of conic at its last parameter (emulated
+    // CCW arc): order them from the start point of the arc in the sketch, as for a CCW arc.
+    if (geoAsCurve->isDerivedFrom<Part::GeomArcOfConic>()
+        && static_cast<const Part::GeomArcOfConic*>(geoAsCurve)->isReversed()) {
+        std::ranges::reverse(paramsOfNewGeos);
+        std::swap(cuttingGeoIds[0], cuttingGeoIds[1]);
+        std::swap(cutPoints[0], cutPoints[1]);
+    }
+
     //******************* Step B => Creation of new geometries
     //****************************************//
     std::vector<int> newIds;
