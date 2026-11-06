@@ -85,3 +85,26 @@ class TestStartDraftButton(unittest.TestCase):
         expected = FreeCAD.Vector(-1, 0, 0)
         direction = self._viewDirectionAfterClick(3, expected)
         self.assertTrue(direction.isEqual(expected, 1e-6), "view direction {}".format(direction))
+
+
+class TestStartMigrator2024(unittest.TestCase):
+    """The 2024 migration must keep "Close Start after opening a file" (read as closeStart)."""
+
+    GROUP = "StartMigratorTest"
+
+    def setUp(self):
+        from StartMigrator import StartMigrator2024
+
+        self.migrator = StartMigrator2024()
+        # work on a scratch group, never on the user's Start preferences
+        self.prefs = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/" + self.GROUP)
+        self.migrator.start_prefs = self.prefs
+        self.addCleanup(
+            lambda: FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod").RemGroup(self.GROUP)
+        )
+
+    def testCloseStartIsKept(self):
+        self.prefs.SetBool("closeStart", True)
+        self.migrator._remove_deprecated_parameters()
+        # StartView.cpp and DlgStartPreferences.ui use "closeStart"
+        self.assertTrue(self.prefs.GetBool("closeStart", False))
