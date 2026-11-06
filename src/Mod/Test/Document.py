@@ -4325,3 +4325,35 @@ class DocumentXLinkStampCases(unittest.TestCase):
         owner = FreeCAD.openDocument(str(owner_file))
         self.assertEqual(owner.Link.LinkedObject, source.Target)
         self.assertIn("Touched", owner.Link.State)
+
+    def test_recompute_after_closing_document_used_by_expression(self):
+        # Closing a document used by an expression of another document left the
+        # property dependencies of that expression pointing to the destroyed
+        # objects; the next recompute of the other document read them (access
+        # violation).
+        source = FreeCAD.newDocument("CloseXLinkSource")
+        source.saveAs(str(self.directory / "CloseXLinkSource.FCStd"))
+        varset = source.addObject("App::VarSet", "VarSet")
+        varset.addProperty("App::PropertyLength", "L")
+        varset.L = 20
+        source.save()
+        owner = FreeCAD.newDocument("CloseXLinkOwner")
+        owner.saveAs(str(self.directory / "CloseXLinkOwner.FCStd"))
+        user = owner.addObject("App::VarSet", "User")
+        user.addProperty("App::PropertyLength", "Length")
+        user.setExpression("Length", "CloseXLinkSource#VarSet.L")
+        owner.recompute()
+        self.assertEqual(user.Length, 20)
+
+        FreeCAD.closeDocument(source.Name)
+        self.assertEqual(user.OutList, [])
+        owner.recompute()
+
+        # Reopening the document restores the dependency
+        source = FreeCAD.openDocument(str(self.directory / "CloseXLinkSource.FCStd"))
+        self.assertIn(source.VarSet, user.OutList)
+        source.VarSet.L = 30
+        source.recompute()
+        user.touch()
+        owner.recompute()
+        self.assertEqual(user.Length, 30)
