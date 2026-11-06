@@ -569,6 +569,21 @@ class TestPad(unittest.TestCase):
         self.Doc.recompute()
         self.assertIn("Invalid", pocket.State)
 
+    def testPadNaNCustomDirectionFails(self):
+        # NaN passed the null vector check of the custom direction and crashed the prism
+        pad = self._makeLengthFeature("PartDesign::Pad")
+        pad.UseCustomVector = True
+        pad.Direction = Base.Vector(float("nan"), 0, 1)
+        self.Doc.recompute()
+        self.assertIn("Invalid", pad.State)
+
+    def testPocketNaNCustomDirectionFails(self):
+        pocket = self._makeLengthFeature("PartDesign::Pocket")
+        pocket.UseCustomVector = True
+        pocket.Direction = Base.Vector(float("nan"), 0, 1)
+        self.Doc.recompute()
+        self.assertIn("Invalid", pocket.State)
+
     def testConstructionOnlySketchMessage(self):
         # A sketch holding only construction geometry has no shape; the error must say why
         body = self.Doc.addObject("PartDesign::Body", "Body")

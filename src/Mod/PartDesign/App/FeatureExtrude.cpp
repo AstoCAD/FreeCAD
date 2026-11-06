@@ -540,6 +540,14 @@ App::DocumentObjectExecReturn* FeatureExtrude::buildExtrusion(ExtrudeOptions opt
 
         Base::Vector3d paddingDirection = computeDirection(SketchVector, inverseDirection);
 
+        // NaN passes the null vector check of a custom direction and crashes the prism
+        if (!std::isfinite(paddingDirection.x) || !std::isfinite(paddingDirection.y)
+            || !std::isfinite(paddingDirection.z)) {
+            return new App::DocumentObjectExecReturn(
+                QT_TRANSLATE_NOOP("Exception", "Direction must be a finite vector")
+            );
+        }
+
         // create vector in padding direction with length 1
         gp_Dir dir(paddingDirection.x, paddingDirection.y, paddingDirection.z);
 
