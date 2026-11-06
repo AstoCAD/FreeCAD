@@ -159,6 +159,8 @@ bool WriterOBJ::Save(std::ostream& out)
     }
     // Export normals
     MeshFacetIterator clIter(_kernel), clEnd(_kernel);
+    // the normals must follow the transformed vertices
+    clIter.Transform(this->_transform);
     const MeshGeomFacet* pclFacet {};
 
     clIter.Begin();

@@ -974,6 +974,33 @@ class MeshDumpContent(unittest.TestCase):
         self.assertIsInstance(self.mesh.Mesh.dumpContent(3), bytearray)
 
 
+class MeshExportObjNormals(unittest.TestCase):
+    """The normals of an OBJ file must match its vertices for a placed mesh"""
+
+    def testRotatedMesh(self):
+        mesh = Mesh.createBox(1.0, 2.0, 3.0)
+        mesh.Placement = Base.Placement(Base.Vector(10, 0, 0), Base.Rotation(Base.Vector(1, 1, 0), 90))
+        with tempfile.TemporaryDirectory() as tmpDir:
+            fileName = os.path.join(tmpDir, "rotated_box.obj")
+            mesh.write(fileName)
+            with open(fileName) as f:
+                lines = f.read().splitlines()
+
+        def values(prefix):
+            return [[float(v) for v in line.split()[1:4]] for line in lines if line.startswith(prefix)]
+
+        vertices = [Base.Vector(*v) for v in values("v ")]
+        normals = [Base.Vector(*v) for v in values("vn ")]
+        faces = [line.split()[1:] for line in lines if line.startswith("f ")]
+        self.assertEqual(len(faces), mesh.CountFacets)
+        for face in faces:
+            points = [vertices[int(item.split("/")[0]) - 1] for item in face]
+            normal = normals[int(face[0].split("/")[2]) - 1]
+            expected = (points[1] - points[0]).cross(points[2] - points[0])
+            expected.normalize()
+            self.assertAlmostEqual((normal - expected).Length, 0.0, places=4)
+
+
 class MeshProperty(unittest.TestCase):
     def setUp(self):
         self.doc = FreeCAD.newDocument("MeshTest")
