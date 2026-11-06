@@ -111,6 +111,46 @@ class TestPropertyEditorStrings(PropertyEditorGuiTestCase):
         self.assertEqual(measure.Label, expected)
 
 
+class TestPropertyEditorFileStrings(PropertyEditorGuiTestCase):
+    """File, path and font names were written into the Python command unescaped:
+    a quote broke the command and a backslash started an escape sequence."""
+
+    def setUp(self):
+        super().setUp()
+        self.obj = self.doc.addObject("App::FeaturePython", "FileObject")
+        for kind in ("File", "Path", "Font"):
+            self.obj.addProperty("App::Property" + kind, kind, "IssueAudit")
+            setattr(self.obj, kind, "initial")
+        self.doc.recompute()
+
+    def check_round_trip(self, name, value):
+        model, index = self.property_model(self.obj, name)
+        self.assertTrue(model.setData(index, value, QtCore.Qt.EditRole))
+        Gui.updateGui()
+        self.assertEqual(getattr(self.obj, name), value)
+
+    def test_plain_names(self):
+        self.check_round_trip("File", "/tmp/model.step")
+        self.check_round_trip("Path", "/tmp/models")
+        self.check_round_trip("Font", "DejaVu Sans")
+
+    def test_quotes(self):
+        self.check_round_trip("File", "/tmp/Bob's \"best\" model.step")
+        self.check_round_trip("Path", "/tmp/Bob's \"models\"")
+        self.check_round_trip("Font", "Bob's \"font\"")
+
+    def test_backslash(self):
+        self.check_round_trip("File", "folder\\new\\table.csv")
+        self.check_round_trip("Font", "fonts\\new.ttf")
+
+    def test_map_keeps_multiline_values(self):
+        self.obj.addProperty("App::PropertyMap", "Map", "IssueAudit")
+        self.obj.Map = {"note": "First line\nSecond line", "quote": "Bob's \"map\""}
+        value = dict(self.obj.Map)
+        value["path"] = "C:\\new\\tool"
+        self.check_round_trip("Map", value)
+
+
 class TestPropertyEditorEnums(PropertyEditorGuiTestCase):
     def setUp(self):
         super().setUp()
