@@ -2889,6 +2889,28 @@ class DocumentGroupCases(unittest.TestCase):
         self.assertEqual(Asm.getSubObject("AsmSub.SubQ.QF.", retType=1), QF)
         self.Doc.recompute()
         self.assertFalse([o.Name for o in self.Doc.Objects if "Touched" in o.State])
+    def testAddObjectsAddsEachObjectOnce(self):
+        # addObjects() checked membership against Group, which it only updates at the
+        # end, so an object listed twice, or a base shared by two added objects (moved
+        # along into a Part), ended up twice in Group.
+        G = self.Doc.addObject("App::DocumentObjectGroup", "G")
+        f = self.Doc.addObject("App::FeaturePython", "f")
+        self.assertEqual(G.addObjects([f, f]), [f])
+        self.assertEqual(G.Group, [f])
+        self.assertEqual(G.setObjects([f, f]), [f])
+        self.assertEqual(G.Group, [f])
+
+        P = self.Doc.addObject("App::Part", "P")
+        base = self.Doc.addObject("App::FeaturePython", "Base")
+        users = []
+        for name in ("User1", "User2"):
+            user = self.Doc.addObject("App::FeaturePython", name)
+            user.addProperty("App::PropertyLink", "Source")
+            user.Source = base
+            users.append(user)
+        P.addObjects(users + [users[0]])
+        self.assertEqual(sorted(o.Name for o in P.Group), ["Base", "User1", "User2"])
+        self.Doc.recompute()
     def testRestoreCyclicGroup(self):
         # an old file with a cyclic group still opens with its Group as saved
         A = self.Doc.addObject("App::DocumentObjectGroup", "A")
