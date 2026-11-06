@@ -879,6 +879,38 @@ class TestOpenSBPPost(PathTestUtils.PathTestBase):
             f"expected 2 (identical) CG's, because the Z is relative, saw:\n{as_text}\n---",
         )  # doesn't remove duplicate arc
 
+    def test_arcs_with_k_word(self):
+        """
+        Path.Area writes K0 on every arc; on an XY arc it is the word along
+        the plane's normal and is dropped, not refused.
+
+        BEFORE: CAMValueError "Only ... allowed for G2, saw ['K']"
+        AFTER:  G2 ... I5.000 J0.000 (no K), and a CG for the helix
+        """
+        self.post._machine.output.comments.enabled = False
+        self.post._machine.output.output_header = False
+        self.post.apply_configuration_bundle()
+
+        self.profile_op.Path = Path.Path(
+            [
+                Path.Command("G0", {"X": 0.0, "Y": 0.0, "Z": 5.0}),
+                Path.Command("G1", {"X": 0.0, "Y": 0.0, "Z": -1.0, "F": 5.0}),
+                Path.Command(
+                    "G2", {"X": 10.0, "Y": 0.0, "Z": -1.0, "I": 5.0, "J": 0.0, "K": 0.0, "F": 10.0}
+                ),
+                Path.Command(
+                    "G3", {"X": 0.0, "Y": 0.0, "Z": -2.0, "I": -5.0, "J": 0.0, "K": 0.0, "F": 10.0}
+                ),
+            ]
+        )
+        lines = self.post.export2()[0][1].splitlines()
+
+        arcs = [l for l in lines if l.startswith("G2 ")]
+        self.assertEqual(1, len(arcs), f"Expected one G2 in\n{eol.join(lines)}\n---")
+        self.assertIn("I5.000 J0.000", arcs[0])
+        self.assertEqual(1, len([l for l in lines if l.startswith("CG,")]), eol.join(lines))
+        self.assertEqual([], [l for l in lines if " K" in l], eol.join(lines))
+
     def test_G0_and_G1(self):
         """
         G0 and G1 are passed through
