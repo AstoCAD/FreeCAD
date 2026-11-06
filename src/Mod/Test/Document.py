@@ -1556,6 +1556,15 @@ class SaveRestoreSpecialGroupViewProvider:
         pass
 
 
+# class must be defined in global scope to allow it to be reloaded on document open
+class SaveRestoreRecomputeRequest:
+    def __init__(self, obj):
+        obj.Proxy = self
+
+    def onDocumentRestored(self, obj):
+        obj.Document.addRecomputeObject(obj)
+
+
 class DocumentSaveRestoreCases(unittest.TestCase):
     def setUp(self):
         self.Doc = FreeCAD.newDocument("SaveRestoreTests")
@@ -1675,6 +1684,31 @@ class DocumentSaveRestoreCases(unittest.TestCase):
             self.assertTrue(hasattr(Doc.Extension_2.ViewObject.Proxy, "testFunction"))
 
         FreeCAD.closeDocument("SaveRestoreExtensions")
+
+    def testAddRecomputeObjectOnRestore(self):
+        SaveName = self.TempPath + os.sep + "SaveRestoreRecompute.FCStd"
+        Doc = FreeCAD.newDocument("SaveRestoreRecompute")
+        obj = Doc.addObject("App::FeaturePython", "Requested")
+        SaveRestoreRecomputeRequest(obj)
+        Proxy(Doc.addObject("App::FeaturePython", "Other"))
+        Doc.recompute()
+        # Outside a restore the request has no effect
+        Doc.addRecomputeObject(obj)
+        self.assertFalse(Doc.isTouched())
+        with self.assertRaises(ValueError):
+            Doc.addRecomputeObject(self.Doc.Label_1)
+
+        Doc.saveAs(SaveName)
+        FreeCAD.closeDocument("SaveRestoreRecompute")
+        Doc = FreeCAD.open(SaveName)
+        try:
+            # Touch flags set in onDocumentRestored() are normally purged
+            self.assertIn("Touched", Doc.Requested.State)
+            self.assertNotIn("Touched", Doc.Other.State)
+            self.assertEqual(Doc.recompute(), 1)
+            self.assertFalse(Doc.isTouched())
+        finally:
+            FreeCAD.closeDocument(Doc.Name)
 
     def testPersistenceContentDump(self):
         # test smallest level... property
