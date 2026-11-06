@@ -546,9 +546,10 @@ void MaterialLoader::dereference(const std::shared_ptr<Material>& material)
 
 void MaterialLoader::loadLibrary(const std::shared_ptr<MaterialLibraryLocal>& library)
 {
-    if (_materialEntryMap == nullptr) {
-        _materialEntryMap = std::make_unique<std::map<QString, std::shared_ptr<MaterialEntry>>>();
-    }
+    // Only the cards of this library, as found on disk now. The entries used to be kept across
+    // libraries and loads, so a refresh brought back deleted cards and the cards of libraries no
+    // longer configured (and every card was added again for each later library).
+    _materialEntryMap = std::make_unique<std::map<QString, std::shared_ptr<MaterialEntry>>>();
 
     QDirIterator it(library->getDirectory(), QDirIterator::Subdirectories);
     while (it.hasNext()) {
