@@ -79,6 +79,21 @@ class Sheet(DocumentObject):
         """
         ...
 
+    def sortRows(self, range: str, column: str, ascending: bool = True, /) -> None:
+        """
+        Sort the rows of the range by the computed values of the given column
+        (a column name such as 'B', inside the range). Numbers come before
+        text, text is compared without case, empty cells always come last and
+        equal rows keep their order. Only the cells of the range move, with
+        their formatting. References in the moved cells keep referring to the
+        same data; references from other cells keep pointing to the same
+        position, as in other spreadsheets. Raises ValueError for ranges with
+        merged cells or aliases, and when a moved cell references a range only
+        partly inside the sorted rows. Recompute the document first so that
+        the values are current, and afterwards to update them.
+        """
+        ...
+
     def insertColumns(self, column: str, count: int, /) -> None:
         """Insert a given number of columns into the spreadsheet."""
 

@@ -330,6 +330,26 @@ PyObject* SheetPy::fillRight(PyObject* args)
     Py_Return;
 }
 
+PyObject* SheetPy::sortRows(PyObject* args)
+{
+    const char* range;
+    const char* column;
+    int ascending = 1;
+
+    if (!PyArg_ParseTuple(args, "ss|p:sortRows", &range, &column, &ascending)) {
+        return nullptr;
+    }
+
+    try {
+        getSheetPtr()->sortRows(Range(range, true), decodeColumn(column), ascending != 0);
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+    Py_Return;
+}
+
 PyObject* SheetPy::insertColumns(PyObject* args)
 {
     const char* column;

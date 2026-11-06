@@ -231,6 +231,8 @@ SheetTableView::SheetTableView(QWidget* parent)
             cmd->addTo(&contextMenu);
         }
     }
+    actionSortAscending = createAction("", tr("Sort Ascending"), &SheetTableView::sortAscending);
+    actionSortDescending = createAction("", tr("Sort Descending"), &SheetTableView::sortDescending);
 
     // "Document window" submenu, so an undocked sheet can be docked again without a shortcut
     if (auto* cmd = Gui::Application::Instance->commandManager().getCommandByName(
@@ -619,6 +621,8 @@ bool SheetTableView::event(QEvent* event)
         actionPaste->setText(tr("Paste"));
         actionCut->setText(tr("Cut"));
         actionDel->setText(tr("Delete"));
+        actionSortAscending->setText(tr("Sort Ascending"));
+        actionSortDescending->setText(tr("Sort Descending"));
         actionBind->setText(tr("Bind…"));
     }
     return QTableView::event(event);
@@ -815,6 +819,50 @@ void SheetTableView::fillSelection(bool down)
             down ? tr("Fill Down Failed") : tr("Fill Right Failed"),
             QString::fromUtf8(e.what())
         );
+    }
+}
+
+void SheetTableView::sortAscending()
+{
+    sortSelection(true);
+}
+
+void SheetTableView::sortDescending()
+{
+    sortSelection(false);
+}
+
+void SheetTableView::sortSelection(bool ascending)
+{
+    auto ranges = selectedRanges();
+    if (ranges.size() != 1 || ranges.front().rowCount() < 2) {
+        return;
+    }
+    const Range& range = ranges.front();
+    // Sort by the column of the current cell, or by the first column of the range.
+    int column = currentIndex().column();
+    if (column < range.from().col() || column > range.to().col()) {
+        column = range.from().col();
+    }
+
+    App::AutoTransaction committer(sheet->getDocument()->openTransaction(
+        ascending ? QT_TRANSLATE_NOOP("Command", "Sort Ascending")
+                  : QT_TRANSLATE_NOOP("Command", "Sort Descending")
+    ));
+    try {
+        Gui::cmdAppObjectArgs(
+            sheet,
+            "sortRows('%s', '%s', %s)",
+            range.rangeString(),
+            columnName(column),
+            ascending ? "True" : "False"
+        );
+        Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
+    }
+    catch (Base::Exception& e) {
+        committer.close(App::TransactionCloseMode::Abort);
+        e.reportException();
+        QMessageBox::critical(Gui::getMainWindow(), tr("Sort Failed"), QString::fromUtf8(e.what()));
     }
 }
 
@@ -1167,6 +1215,8 @@ void SheetTableView::contextMenuEvent(QContextMenuEvent*)
             cmd->testActive();
         }
     }
+    actionSortAscending->setEnabled(ranges.size() == 1 && ranges.back().rowCount() > 1);
+    actionSortDescending->setEnabled(ranges.size() == 1 && ranges.back().rowCount() > 1);
 
     contextMenu.exec(QCursor::pos());
 }

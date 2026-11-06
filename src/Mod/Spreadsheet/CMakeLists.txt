@@ -14,7 +14,7 @@ set(Spreadsheet_Scripts
 
 if(BUILD_GUI)
     list (APPEND Spreadsheet_Scripts InitGui.py TestSpreadsheetContextMenuGui.py
-        TestSpreadsheetEditMenuGui.py)
+        TestSpreadsheetEditMenuGui.py TestSpreadsheetFeaturesGui.py)
 endif(BUILD_GUI)
 
 add_custom_target(SpreadsheetScripts ALL
