@@ -25,6 +25,10 @@
 
 #pragma once
 
+#include <cstddef>
+#include <string>
+#include <vector>
+
 #include <Base/Color.h>
 
 namespace App
@@ -165,6 +169,77 @@ public:
 
 private:
     MaterialType _matType;
+};
+
+/** Appearance overrides on top of the look of the physical material
+ *
+ * The look of a shape follows the appearance of its physical material unless it is overridden.
+ * The view providers save the overrides as a list of names: objectName() when the look of the
+ * whole object is overridden and faceName() for a face with its own look. Other kinds of names
+ * (feature overrides, mapped element names) can be added later: names that are not understood are
+ * kept as they are.
+ *
+ * The appearance is a list with one entry for the whole object or one entry per face. The
+ * functions are pure so that the rules can be tested without a GUI.
+ */
+class AppExport AppearanceOverrides
+{
+public:
+    /// The name that marks the look of the whole object as overridden
+    static const char* objectName();
+    /// The name of the face with the zero-based @a index ("Face1" for 0)
+    static std::string faceName(std::size_t index);
+    /// The zero-based index of a face name, or -1 if @a name is not a face name
+    static int faceIndex(const std::string& name);
+
+    /** Whether both looks are the same, regardless of the card (UUID) they come from and of the
+     * transparency: the transparency is set on its own and is kept when the material changes.
+     */
+    static bool sameLook(const Material& first, const Material& second);
+    /// Whether a material look has an appearance of its own (Air for example has none)
+    static bool hasLook(const Material& materialLook);
+
+    /** The overrides after something other than the material replaced the appearance
+     * @a before by @a after: an appearance that differs from the material look is an override.
+     */
+    static std::vector<std::string> afterChange(
+        const std::vector<std::string>& overrides,
+        const std::vector<Material>& before,
+        const std::vector<Material>& after,
+        const Material& materialLook
+    );
+
+    /** The appearance after the material look changed to @a materialLook: every face that is not
+     * overridden takes the new look and keeps its transparency. Returns false if the appearance
+     * does not change.
+     */
+    static bool followMaterial(
+        const std::vector<std::string>& overrides,
+        const std::vector<Material>& appearance,
+        const Material& materialLook,
+        std::vector<Material>& result
+    );
+
+    /** Clears the overrides of @a faces (zero-based), or all overrides if @a faces is empty, and
+     * gives these faces the look they inherit: the object override if there is one, else
+     * @a materialLook. The faces keep their transparency.
+     */
+    static void reset(
+        std::vector<std::string>& overrides,
+        std::vector<Material>& appearance,
+        const Material& materialLook,
+        const std::vector<std::size_t>& faces = {}
+    );
+
+    /** The overrides of an appearance saved before they were recorded. A look that equals the
+     * material look or one of the default looks follows the material, anything else is an
+     * override.
+     */
+    static std::vector<std::string> guess(
+        const std::vector<Material>& appearance,
+        const Material& materialLook,
+        const Material& defaultLook
+    );
 };
 
 }  // namespace App
