@@ -139,6 +139,35 @@ class DraftSVGImportRegression(test_base.DraftTestCaseDoc):
         # 'r' itself and its valid use
         self.assertEqual(result.count("<rect"), 2)
 
+    def test_read_svg_rect_corner_radius_clamped(self):
+        """rx/ry larger than half the width/height must be clamped to half of it (SVG spec)."""
+        body = (
+            '<rect id="clamped" x="0" y="0" width="10" height="10" rx="8" fill="none" stroke="black"/>'
+            '<rect id="clampedy" x="20" y="0" width="10" height="4" ry="3" fill="none" stroke="black"/>'
+        )
+        svg = (
+            '<?xml version="1.0"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="100mm" height="100mm" viewBox="0 0 100 100">' + body + "</svg>\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "rounded_rect.svg")
+            with open(in_file, "w", encoding="utf-8") as svg_file:
+                svg_file.write(svg)
+            importSVG.insert(in_file, self.doc.Name)
+        # rx = ry = 8 on a 10 x 10 rect is clamped to 5: a circle of radius 5
+        shape = self.doc.getObject("clamped").Shape
+        self.assertAlmostEqual(shape.Length, 10 * math.pi, places=3)
+        self.assertAlmostEqual(shape.BoundBox.XLength, 10, places=3)
+        self.assertAlmostEqual(shape.BoundBox.YLength, 10, places=3)
+        # ry = 3 (and rx = ry) on a 10 x 4 rect: ry is clamped to 2, rx stays 3,
+        # giving elliptical corners and two 4 mm straight edges
+        shape = self.doc.getObject("clampedy").Shape
+        ellipse = Part.Ellipse(App.Vector(), 3, 2).toShape()
+        self.assertAlmostEqual(shape.Length, 2 * 4 + ellipse.Length, places=3)
+        self.assertAlmostEqual(shape.BoundBox.XLength, 10, places=3)
+        self.assertAlmostEqual(shape.BoundBox.YLength, 4, places=3)
+
 
 class DraftSVGExportRegression(test_base.DraftTestCaseDoc):
     """Regression tests for SVG export edge cases."""
