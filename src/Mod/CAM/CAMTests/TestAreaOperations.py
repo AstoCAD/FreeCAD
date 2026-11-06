@@ -616,6 +616,19 @@ class TestAreaOperations(unittest.TestCase):
 
         self.assertEqual(a.num_curves(), 1, format_area(a, "Result"))
 
+    def test_first_last_vertex_of_empty_curve(self):
+        """FirstVertex/LastVertex of an empty curve raise instead of reading past the list."""
+        c = area.Curve()
+        with self.assertRaises(IndexError):
+            c.FirstVertex()
+        with self.assertRaises(IndexError):
+            c.LastVertex()
+
+        c.append(area.Point(1, 2))
+        c.append(area.Point(3, 4))
+        self.assertEqual((c.FirstVertex().p.x, c.FirstVertex().p.y), (1, 2))
+        self.assertEqual((c.LastVertex().p.x, c.LastVertex().p.y), (3, 4))
+
 
 if __name__ == "__main__":
     # Allow running this test file directly
