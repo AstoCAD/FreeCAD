@@ -26,7 +26,9 @@ import FreeCAD
 
 import Path
 import CAMTests.PathTestUtils as PathTestUtils
+from CAMTests import PostTestMocks
 from Path.Post.Processor import PostProcessorFactory
+from Machine.models.machine import Machine, Toolhead, ToolheadType, OutputUnits
 
 Path.Log.setLevel(Path.Log.Level.DEBUG, Path.Log.thisModule())
 Path.Log.trackModule(Path.Log.thisModule())
@@ -333,3 +335,48 @@ M99
         result = gcode.splitlines()[14]
         expected = ";comment"
         self.assertEqual(result, expected)
+
+
+class TestCentroidPostMachine(PathTestUtils.PathTestBase):
+    """The Centroid post with a machine (export2)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.job, cls.profile_op, cls.tool_controller = (
+            PostTestMocks.create_default_job_with_operation()
+        )
+        cls.job.Machine = "centroid"
+        cls.post = PostProcessorFactory.get_post_processor(cls.job, "centroid")
+
+    def setUp(self):
+        machine = Machine.create_3axis_config()
+        machine.name = "Test Centroid"
+        machine.output.units = OutputUnits.METRIC
+        machine.output.output_header = False
+        machine.output.comments.enabled = False
+        machine.processing.tool_change = True
+        machine.toolheads = [
+            Toolhead(
+                name="Spindle",
+                toolhead_type=ToolheadType.ROTARY,
+                min_rpm=0,
+                max_rpm=12000,
+                max_power_kw=10.0,
+            )
+        ]
+        self.post._machine = machine
+        self.post.apply_configuration_bundle()
+
+    def test_spindle_stays_on_after_the_tool_change(self):
+        """Spindle off, retract and offset cancel end the program, as with the
+        legacy arguments; they do not follow the tool change."""
+        self.profile_op.Path = Path.Path(
+            [Path.Command("G0 X0 Y0 Z5"), Path.Command("G1 X10 Y0 Z-1 F5")]
+        )
+        lines = [line for line in self.post.export2()[0][1].splitlines() if line]
+
+        cut = next(i for i, line in enumerate(lines) if line.startswith("G1 X10"))
+        for block in ("M5", "M25", "G49 H0"):
+            self.assertIn(block, lines)
+            self.assertGreater(lines.index(block), cut, "\n".join(lines))
+        self.assertEqual("M99", lines[-1])
