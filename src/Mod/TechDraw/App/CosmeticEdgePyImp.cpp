@@ -24,6 +24,11 @@
 
 
 # include <BRepBuilderAPI_MakeEdge.hxx>
+# include <BRepBuilderAPI_Transform.hxx>
+# include <gp_Pnt.hxx>
+# include <gp_Trsf.hxx>
+# include <gp_Vec.hxx>
+# include <TopoDS.hxx>
 
 #include <Base/PyWrapParseTupleAndKeywords.h>
 
@@ -258,6 +263,18 @@ void CosmeticEdgePy::setRadius(Py::Float arg)
     if (!(r > 0.0)) {
         throw Py::ValueError("Radius must be greater than zero");
     }
+    if (gt == GeomType::ARCOFCIRCLE) {
+        // keep the arc: scale it about its center instead of replacing it with a full circle
+        TechDraw::CirclePtr oldArc =
+            std::static_pointer_cast<TechDraw::Circle>(getCosmeticEdgePtr()->m_geometry);
+        gp_Trsf scale;
+        scale.SetScale(gp_Pnt(oldArc->center.x, oldArc->center.y, oldArc->center.z),
+                       r / oldArc->radius);
+        TopoDS_Shape newArc = BRepBuilderAPI_Transform(oldArc->getOCCEdge(), scale, true).Shape();
+        getCosmeticEdgePtr()->m_geometry = TechDraw::BaseGeom::baseFactory(TopoDS::Edge(newArc), true);
+        getCosmeticEdgePtr()->permaRadius = r;
+        return;
+    }
     getCosmeticEdgePtr()->permaRadius = r;
 //    auto oldGeom = getCosmeticEdgePtr()->m_geometry;
     getCosmeticEdgePtr()->m_geometry =
@@ -297,6 +314,16 @@ void CosmeticEdgePy::setCenter(Py::Vector arg)
     getCosmeticEdgePtr()->permaStart = pNew;
     getCosmeticEdgePtr()->permaEnd = pNew;
     getCosmeticEdgePtr()->permaRadius = oldCircle->radius;
+    if (gt == GeomType::ARCOFCIRCLE) {
+        // keep the arc: move it instead of replacing it with a full circle
+        gp_Trsf move;
+        move.SetTranslation(gp_Vec(pNew.x - oldCircle->center.x,
+                                   pNew.y - oldCircle->center.y,
+                                   pNew.z - oldCircle->center.z));
+        TopoDS_Shape newArc = BRepBuilderAPI_Transform(oldCircle->getOCCEdge(), move, true).Shape();
+        getCosmeticEdgePtr()->m_geometry = TechDraw::BaseGeom::baseFactory(TopoDS::Edge(newArc), true);
+        return;
+    }
     getCosmeticEdgePtr()->m_geometry =
             std::make_shared<TechDraw::Circle> (getCosmeticEdgePtr()->permaStart, oldCircle->radius);
 //    delete oldGeom;
