@@ -1220,7 +1220,6 @@ def p_circle_action(p) :
         Draft._Circle(mycircle)
         mycircle.Radius = r
         mycircle.MakeFace = True
-        mycircle = Draft.make_circle(r, face=True)
         FreeCAD.ActiveDocument.recompute()
     else :
         mycircle = FreeCAD.ActiveDocument.addObject("Part::Part2DObjectPython",'polygon')
