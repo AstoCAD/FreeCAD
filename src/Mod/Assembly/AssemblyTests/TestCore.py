@@ -724,6 +724,31 @@ class TestCore(AssemblyTestBase):
         self.doc.recompute()
         self.assertFalse(local_array.ElementList[1].Suppressed)
 
+    def test_flexible_assembly_link_places_new_component(self):
+        """A placed part moved into a sub-assembly that is used as a flexible sub-assembly
+        starts at its position in the sub-assembly, not at the origin. (The link is created
+        when the part joins the Group; later moves of the source are not followed, the
+        parent assembly owns the placements of a flexible sub-assembly.)"""
+        first = self.assembly.newObject("Part::Box", "First")
+        first.Placement = App.Placement(App.Vector(30, 0, 0), App.Rotation(20, 0, 0))
+        parent = self.doc.addObject("Assembly::AssemblyObject", "ParentAssembly")
+        instance = parent.newObject("Assembly::AssemblyLink", "Instance")
+        instance.LinkedObject = self.assembly
+        self.doc.recompute()
+        instance.Rigid = False
+        self.doc.recompute()
+
+        added = self.doc.addObject("Part::Box", "Added")
+        added.Placement = App.Placement(App.Vector(0, 60, 0), App.Rotation(0, 0, 45))
+        self.assembly.addObject(added)
+        self.doc.recompute()
+
+        local = {obj.LinkedObject: obj for obj in instance.Group if obj.TypeId == "App::Link"}
+        self.assertTrue(local[first].Placement.isSame(first.Placement, 1e-9))
+        self.assertTrue(
+            local[added].Placement.isSame(added.Placement, 1e-9), str(local[added].Placement)
+        )
+
     def test_assembly_link_rejects_cyclic_link(self):
         """An assembly link to an object that depends on it (its own parent assembly, or a
         link back to itself) used to crash on recompute or hang forever."""

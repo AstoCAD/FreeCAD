@@ -564,6 +564,21 @@ void AssemblyLink::synchronizeComponents()
                 newLink->Label.setValue(obj->Label.getValue());
                 addObject(newLink);
                 link = newLink;
+
+                // A rigid link synchronizes every placement below. A flexible link leaves
+                // the placements of its components to the parent assembly, but a component
+                // it gains starts where it is in the sub-assembly, like the elements of a
+                // link array above, not at the origin.
+                if (!isRigid()) {
+                    syncPlacements(obj, newLink);
+                    auto* propPlc =
+                        static_cast<App::DocumentObject*>(newLink)->getPlacementProperty();
+                    if (shouldScale && propPlc) {
+                        Base::Placement plc = propPlc->getValue();
+                        plc.setPosition(plc.getPosition() * currentScale);
+                        propPlc->setValue(plc);
+                    }
+                }
             }
         }
 
