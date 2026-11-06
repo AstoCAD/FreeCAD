@@ -714,7 +714,7 @@ class FineGrainedRecomputeCases(unittest.TestCase):
         # assert
         depEdges = [(cube, "ExpressionEngine", varSet, "Length")]
         self.assertDep(cube.OutListProp, depEdges)
-        self.assertEqual(cube.OutList, [varSet, varSet])
+        self.assertEqual(cube.OutList, [varSet])
         self.assertDep(varSet.InListProp, depEdges)
         self.assertEqual(varSet.InList, [cube])
 
@@ -734,6 +734,6 @@ class FineGrainedRecomputeCases(unittest.TestCase):
 
         # assert
         self.assertDep(cube.OutListProp, depEdges)
-        self.assertEqual(cube.OutList, [varSet, varSet])
+        self.assertEqual(cube.OutList, [varSet])
         self.assertDep(varSet.InListProp, depEdges)
         self.assertEqual(varSet.InList, [cube])
