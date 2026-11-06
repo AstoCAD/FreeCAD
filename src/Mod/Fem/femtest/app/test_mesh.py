@@ -247,6 +247,26 @@ class TestMeshCommon(unittest.TestCase):
         self.assertIn(5, nodes)
 
     # ********************************************************************************************
+    def test_compact_mesh_element_ids(self):
+        # compact_mesh numbers nodes and elements (edges, faces, volumes) from 1 without gaps
+        from femmesh import meshtools
+
+        mesh = Fem.FemMesh()
+        for i, p in enumerate([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0), (0, 0, 1)]):
+            mesh.addNode(*p, 10 * (i + 1))
+        mesh.addEdge([10, 20], 7)
+        mesh.addFace([10, 20, 30], 15)
+        mesh.addFace([10, 30, 40], 16)
+        mesh.addVolume([10, 20, 40, 50], 30)
+        new_mesh, node_map, elem_map = meshtools.compact_mesh(mesh)
+        self.assertEqual(node_map, {10: 1, 20: 2, 30: 3, 40: 4, 50: 5})
+        self.assertEqual(elem_map, {7: 1, 15: 2, 16: 3, 30: 4})
+        self.assertEqual(list(new_mesh.Edges), [1])
+        self.assertEqual(list(new_mesh.Faces), [2, 3])
+        self.assertEqual(list(new_mesh.Volumes), [4])
+        self.assertEqual(list(new_mesh.getElementNodes(3)), [1, 3, 4])
+
+    # ********************************************************************************************
     def test_volume_of_linear_elements(self):
         # FemMesh.Volume only summed up 10-node tetrahedra, it was 0 for every other element type
         def volume(points):
