@@ -281,8 +281,9 @@ void TaskCosmeticCircle::updateCosmeticCircle(void)
                                              ui->qsbEndAngle->value().getValue());
     }
     m_ce->m_geometry = bg->inverted();
-    m_ce->permaStart = p0;
-    m_ce->permaEnd = p0;
+    // the perma points are Y inverted like m_geometry (see CosmeticEdge and setUiEdit)
+    m_ce->permaStart = DU::invertY(p0);
+    m_ce->permaEnd = m_ce->permaStart;
 }
 
 //******************************************************************************
