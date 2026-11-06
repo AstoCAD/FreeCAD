@@ -496,8 +496,13 @@ void PropertyEnumeration::setPyObject(PyObject* value)
             throw Py::Exception();
         }
         if (_enum.isValid()) {
+            // Set the index on a copy first: an index out of range throws here,
+            // before aboutToSetValue() signals a change and records it for undo
+            Enumeration newEnum(_enum);
+            newEnum.setValue(val, true);
+
             aboutToSetValue();
-            _enum.setValue(val, true);
+            _enum = newEnum;
             hasSetValue();
         }
         return;
@@ -537,11 +542,17 @@ void PropertyEnumeration::setPyObject(PyObject* value)
                 values[i] = Py::Object(seq[i].ptr()).as_string();
             }
 
-            aboutToSetValue();
-            _enum.setEnums(values);
+            // Build the new enumeration first: an index out of range throws here,
+            // before anything is changed (it used to leave the new items set, without
+            // hasSetValue())
+            Enumeration newEnum(_enum);
+            newEnum.setEnums(values);
             if (idx >= 0) {
-                _enum.setValue(idx, true);
+                newEnum.setValue(idx, true);
             }
+
+            aboutToSetValue();
+            _enum = newEnum;
             hasSetValue();
             return;
         }
