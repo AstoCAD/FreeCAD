@@ -1404,7 +1404,7 @@ void Hole::onChanged(const App::Property* prop)
 
         std::string holeCutTypeStr;
         if (HoleCutType.isValid()) {
-            std::string holeCutTypeStr = HoleCutType.getValueAsString();
+            holeCutTypeStr = HoleCutType.getValueAsString();
         }
         if (holeCutTypeStr == "None") {
             HoleCutCustomValues.setReadOnly(true);
