@@ -73,11 +73,17 @@ static unsigned int num_vertices(const CCurve& curve)
 
 static CVertex FirstVertex(const CCurve& curve)
 {
+    if (curve.m_vertices.empty()) {
+        throw py::index_error("curve has no vertices");
+    }
     return curve.m_vertices.front();
 }
 
 static CVertex LastVertex(const CCurve& curve)
 {
+    if (curve.m_vertices.empty()) {
+        throw py::index_error("curve has no vertices");
+    }
     return curve.m_vertices.back();
 }
 
