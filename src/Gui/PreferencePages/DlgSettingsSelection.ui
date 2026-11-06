@@ -206,6 +206,9 @@ A larger value makes it easier to select elements, but may prevent selection of 
         <property name="toolTip">
          <string>Selecting an item in the Tree View automatically activates its document and switches to its 3D view.</string>
         </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
         <property name="prefEntry" stdset="0">
          <cstring>SyncView</cstring>
         </property>
@@ -222,6 +225,9 @@ A larger value makes it easier to select elements, but may prevent selection of 
         <property name="toolTip">
          <string>Locates and reveals the selected object within the tree hierarchy. Prevents manual scrolling in deep, complex document structures.</string>
         </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
         <property name="prefEntry" stdset="0">
          <cstring>SyncSelection</cstring>
         </property>
@@ -237,6 +243,9 @@ A larger value makes it easier to select elements, but may prevent selection of 
         </property>
         <property name="toolTip">
          <string>Enables selection history. Use 'Back' and 'Forward' navigation to toggle between previously selected objects without re-searching the tree.</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
         </property>
         <property name="prefEntry" stdset="0">
          <cstring>RecordSelection</cstring>
