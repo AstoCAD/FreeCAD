@@ -85,6 +85,8 @@ public:
 
     void
     addToTree(std::shared_ptr<std::map<QString, std::shared_ptr<Material>>> materialMap) override;
+    // The material described by the card, without adding it to a library
+    std::shared_ptr<Material> createMaterial() const;
 
     const YAML::Node& getModel() const
     {
@@ -126,6 +128,8 @@ public:
     getMaterialFromYAML(const std::shared_ptr<MaterialLibraryLocal>& library,
                         YAML::Node& yamlroot,
                         const QString& path);
+    // A material read from the text of a card that is not part of a library
+    static std::shared_ptr<Material> materialFromYAML(const std::string& yaml);
 
 private:
     MaterialLoader();

@@ -33,6 +33,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import zipfile
 
 import FreeCAD
 import Materials
@@ -42,6 +43,7 @@ UUIDInvalidCard = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e11"
 UUIDInvalidCard2 = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e12"
 UUIDTestModel = "34d0583d-f999-49ba-99e6-aa40bd5c3a6b"
 UUIDDefaultMaterial = "7f9fd73b-50c9-41d8-b7b2-575a030c1eeb"
+UUIDSteel = "92589471-a6cb-4bbc-b748-d425a17dea7d"  # CalculiX-Steel, a System card
 UUIDModel = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e01"
 UUIDMissingModel = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0eff"
 
@@ -298,3 +300,85 @@ class DefaultMaterialTestCases(unittest.TestCase):
         self.doc.recompute()
         self.assertEqual(box.ShapeMaterial.UUID, UUIDDefaultMaterial)
         self.assertEqual(box.ShapeMaterial.Name, "Default")
+
+
+@unittest.skipUnless("BUILD_PART" in FreeCAD.__cmake__, "requires the Part module")
+class EmbeddedMaterialTestCases(unittest.TestCase):
+    """
+    A material that is not in a library is kept with the document
+    """
+
+    def setUp(self):
+        self.MaterialManager = Materials.MaterialManager()
+        self.uuids = Materials.UUIDs()
+        self.tmpdir = tempfile.mkdtemp(prefix="fc_material_embedded_")
+        self.addCleanup(shutil.rmtree, self.tmpdir, True)
+        self.documents = []
+
+    def tearDown(self):
+        for name in self.documents:
+            if name in FreeCAD.listDocuments():
+                FreeCAD.closeDocument(name)
+
+    def saveAndReopen(self, doc):
+        path = os.path.join(self.tmpdir, doc.Name + ".FCStd")
+        doc.saveAs(path)
+        FreeCAD.closeDocument(doc.Name)
+        reopened = FreeCAD.openDocument(path)
+        self.documents.append(reopened.Name)
+        return reopened
+
+    def newDocument(self):
+        doc = FreeCAD.newDocument()
+        self.documents.append(doc.Name)
+        return doc
+
+    def testScriptMaterialSurvivesSaveAndReopen(self):
+        """A material built in a script comes back with its properties"""
+        material = Materials.Material()
+        material.Name = "Script steel"
+        material.Description = 'A "custom" material'
+        material.addPhysicalModel(self.uuids.LinearElastic)
+        material.addAppearanceModel(self.uuids.BasicRendering)
+        material.setPhysicalValue("Density", "7850 kg/m^3")
+        material.setPhysicalValue("YoungsModulus", "210 GPa")
+        material.setPhysicalValue("PoissonRatio", "0.3")
+        material.setAppearanceValue("DiffuseColor", "(0.2, 0.4, 0.6, 1.0)")
+        self.assertFalse(material.UUID in self.MaterialManager.Materials)
+
+        doc = self.newDocument()
+        box = doc.addObject("Part::Box", "Box")
+        box.ShapeMaterial = material
+        doc.recompute()
+
+        doc = self.saveAndReopen(doc)
+        restored = doc.getObject("Box").ShapeMaterial
+        self.assertEqual(restored.UUID, material.UUID)
+        self.assertEqual(restored.Name, "Script steel")
+        self.assertEqual(restored.Description, 'A "custom" material')
+        self.assertTrue(restored.hasPhysicalModel(self.uuids.LinearElastic))
+        self.assertAlmostEqual(
+            restored.getPhysicalValue("Density").getValueAs("kg/m^3").Value, 7850.0
+        )
+        self.assertAlmostEqual(
+            restored.getPhysicalValue("YoungsModulus").getValueAs("GPa").Value, 210.0
+        )
+        self.assertAlmostEqual(restored.getPhysicalValue("PoissonRatio"), 0.3, places=6)
+        self.assertEqual(restored.getAppearanceValue("DiffuseColor"), "(0.2, 0.4, 0.6, 1.0)")
+
+    def testLibraryMaterialIsNotEmbedded(self):
+        """A library material is still saved as its UUID only and comes from the library"""
+        steel = self.MaterialManager.getMaterial(UUIDSteel)
+        doc = self.newDocument()
+        box = doc.addObject("Part::Box", "Box")
+        box.ShapeMaterial = steel
+        doc.recompute()
+
+        doc = self.saveAndReopen(doc)
+        restored = doc.getObject("Box").ShapeMaterial
+        self.assertEqual(restored.UUID, UUIDSteel)
+        self.assertEqual(restored.LibraryName, steel.LibraryName)
+
+        with zipfile.ZipFile(doc.FileName) as archive:
+            xml = archive.read("Document.xml").decode("utf-8")
+        self.assertIn('<PropertyMaterial uuid="{}"/>'.format(UUIDSteel), xml)

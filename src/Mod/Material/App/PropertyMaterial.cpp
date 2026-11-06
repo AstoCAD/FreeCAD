@@ -22,6 +22,7 @@
  **************************************************************************/
 
 #include <QMetaType>
+#include <QTextStream>
 #include <QUuid>
 
 
@@ -30,6 +31,9 @@
 #include <Base/Writer.h>
 #include <Gui/MetaTypes.h>
 
+#include <Base/Console.h>
+
+#include "MaterialLoader.h"
 #include "MaterialManager.h"
 #include "MaterialPy.h"
 #include "PropertyMaterial.h"
@@ -80,10 +84,41 @@ void PropertyMaterial::setPyObject(PyObject* value)
     }
 }
 
+std::string PropertyMaterial::embeddedCard() const
+{
+    // Only a material that is not in a library (e.g. built by a script) is embedded: the UUID
+    // alone would not bring it back when the document is opened again
+    if (MaterialManager::getManager().exists(_material.getUUID())) {
+        return {};
+    }
+
+    try {
+        // Save a copy: saving may change the material (UUID, format flags)
+        Material material(_material);
+        QString card;
+        QTextStream stream(&card);
+        material.save(stream, true, false, false);
+        stream.flush();
+        return card.toStdString();
+    }
+    catch (const Base::Exception& e) {
+        Base::Console().warning("Material '{}' is saved without its properties: {}\n",
+                                _material.getName().toStdString(),
+                                e.what());
+    }
+    return {};
+}
+
 void PropertyMaterial::Save(Base::Writer& writer) const
 {
     writer.Stream() << writer.ind() << "<PropertyMaterial uuid=\""
-                    << _material.getUUID().toStdString() << "\"/>" << std::endl;
+                    << _material.getUUID().toStdString() << "\"";
+    // Older versions read the UUID only and ignore the card
+    auto card = embeddedCard();
+    if (!card.empty()) {
+        writer.Stream() << " card=\"" << encodeAttribute(card) << "\"";
+    }
+    writer.Stream() << "/>" << std::endl;
 }
 
 void PropertyMaterial::Restore(Base::XMLReader& reader)
@@ -91,9 +126,30 @@ void PropertyMaterial::Restore(Base::XMLReader& reader)
     // read my Element
     reader.readElement("PropertyMaterial");
     // get the value of my Attribute
-    auto uuid = reader.getAttribute<const char*>("uuid");
+    auto uuid = QString::fromLatin1(reader.getAttribute<const char*>("uuid"));
 
-    setValue(*MaterialManager::getManager().getMaterial(QString::fromLatin1(uuid)));
+    auto& manager = MaterialManager::getManager();
+    // A library material wins; the embedded card is for a material no library has
+    if (reader.hasAttribute("card") && !manager.exists(uuid)) {
+        try {
+            auto material =
+                MaterialLoader::materialFromYAML(reader.getAttribute<const char*>("card"));
+            setValue(*material);
+            return;
+        }
+        catch (const Base::Exception& e) {
+            Base::Console().error("Unable to read the embedded material '{}': {}\n",
+                                  uuid.toStdString(),
+                                  e.what());
+        }
+        catch (const std::exception& e) {
+            Base::Console().error("Unable to read the embedded material '{}': {}\n",
+                                  uuid.toStdString(),
+                                  e.what());
+        }
+    }
+
+    setValue(*manager.getMaterial(uuid));
 }
 
 const char* PropertyMaterial::getEditorName() const
