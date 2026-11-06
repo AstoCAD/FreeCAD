@@ -209,6 +209,25 @@ class Sheet(DocumentObject):
     def getRowHeight(self, row: str, /) -> int:
         """Get given spreadsheet row height"""
 
+    def getColumnWidths(self) -> dict[str, int]:
+        """
+        Get the columns whose width was set, as a dictionary from column name
+        to width. The other columns have the default width.
+        """
+        ...
+
+    def getRowHeights(self) -> dict[str, int]:
+        """
+        Get the rows whose height was set, as a dictionary from row number
+        (a string, like the row argument of setRowHeight) to height. The other
+        rows have the default height.
+        """
+        ...
+
+    def getMergedCells(self) -> list[str]:
+        """Get the merged cells, as ranges like 'A1:B3', row by row"""
+        ...
+
     def touchCells(self, address: str, address_to: str | None = None, /) -> None:
         """touch cells in the given range"""
 

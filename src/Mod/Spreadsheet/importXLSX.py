@@ -671,7 +671,11 @@ def handleWorkBook(theBook, theBookRels, sheetDict, Doc):
             # print("aliasRef: ", aliasRef)
             # print('Sheet Name: ', refList[0])
             # print('Address: ', addressList[0] + addressList[1])
-            actSheet, sheetFile = sheetDict[refList[0]]
+            sheetName = refList[0]
+            if len(sheetName) > 1 and sheetName[0] == "'" and sheetName[-1] == "'":
+                # Quoted sheet name, like '2024' or 'My sheet'
+                sheetName = sheetName[1:-1].replace("''", "'")
+            actSheet, sheetFile = sheetDict[sheetName]
             actSheet.setAlias(addressList[0] + addressList[1], aliasName)
 
 
@@ -767,3 +771,461 @@ def insert(nameXLSX, docname):
     theDoc.recompute()
     theDoc.recompute()
     theDoc.recompute()
+
+
+# ---------------------------------------------------------------------------
+# XLSX export
+#
+# Writes one worksheet per spreadsheet with the computed values, the formulas
+# that Excel computes the same way, aliases (as defined names), bold, italic,
+# underline, colors, alignment, per-cell decimals, column widths, custom row
+# heights and merged cells. Kept simple on purpose:
+# - quantities with a unit are written as text with their unit ("10 mm"),
+#   dimensionless ones as numbers;
+# - a formula is written only if it uses cell references, ranges, aliases of
+#   the same sheet, numbers, + - * / and the functions of exportFunctions, and
+#   every cell it refers to holds a plain number; otherwise only its value is
+#   written. Excel recomputes the formulas when it opens the file.
+# ---------------------------------------------------------------------------
+
+import math
+from xml.sax.saxutils import escape as _xmlEscape, quoteattr as _xmlQuote
+
+# FreeCAD function -> Excel function (same arguments and results)
+exportFunctions = {
+    "abs": "ABS",
+    "sqrt": "SQRT",
+    "exp": "EXP",
+    "sum": "SUM",
+    "min": "MIN",
+    "max": "MAX",
+    "average": "AVERAGE",
+    "count": "COUNT",
+    "pow": "POWER",
+}
+
+_mainNS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+_relNS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_pkgRelNS = "http://schemas.openxmlformats.org/package/2006/relationships"
+_xmlHeader = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+
+_formulaToken = re.compile(
+    r"\s+|(?P<ref>\$?[A-Z]{1,3}\$?[0-9]+)(?![A-Za-z0-9_(])"
+    r"|(?P<num>[0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?|\.[0-9]+(?:[eE][+-]?[0-9]+)?)(?![A-Za-z_])"
+    r"|(?P<name>[A-Za-z_][A-Za-z0-9_]*)"
+    # No '^': FreeCAD and Excel do not give it the same precedence and associativity
+    r"|(?P<op>[-+*/(),:;])"
+)
+
+
+def _xmlText(text):
+    """Escapes text for XML, dropping the characters XML cannot hold."""
+    text = "".join(ch for ch in str(text) if ch in "\t\n\r" or ord(ch) >= 0x20)
+    return _xmlEscape(text)
+
+
+def _cellNumbers(ref):
+    """(column, row), 1-based, of a reference like "$B$3"."""
+    return splitCellRef(ref.replace("$", ""))
+
+
+def _isPlainNumber(value):
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return True
+    if isinstance(value, App.Units.Quantity):
+        return value.Unit == App.Units.Unit()
+    return False
+
+
+def _cellValue(sheet, address):
+    try:
+        return sheet.get(address)
+    except Exception:
+        return None
+
+
+def _excelFormula(sheet, expression, aliases):
+    """The Excel formula of a FreeCAD expression (without '='), or None if Excel
+    would not compute it the same way."""
+    tokens = list(_formulaToken.finditer(expression))
+    if not tokens or sum(len(m.group(0)) for m in tokens) != len(expression):
+        return None  # characters no token accepts: units, strings, comparisons, ...
+    out = []
+    for index, match in enumerate(tokens):
+        text = match.group(0)
+        if text.isspace():
+            continue
+        if match.group("ref") or match.group("num"):
+            out.append(text)
+        elif match.group("name"):
+            following = next((t.group(0) for t in tokens[index + 1 :] if not t.group(0).isspace()), "")
+            if following == "(" and text in exportFunctions:
+                out.append(exportFunctions[text])
+            elif following != "(" and text in aliases:
+                out.append(text)
+            else:
+                return None  # units, other objects, functions Excel computes differently
+        else:
+            out.append("," if text == ";" else text)
+    formula = "".join(out)
+
+    # Every referenced cell must hold a plain number (or be empty)
+    for cells in _rangesOf(formula, aliases):
+        if cells is None:
+            return None
+        for address in cells:
+            value = _cellValue(sheet, address)
+            if value is None or _isPlainNumber(value):
+                continue
+            if isinstance(value, str) and value == "":
+                continue
+            return None
+    return formula
+
+
+def _rangesOf(formula, aliases):
+    """The cells referenced by an exported formula, as lists of addresses."""
+    names = "|".join(re.escape(name) for name in aliases)
+    refPattern = r"\$?[A-Z]{1,3}\$?[0-9]+"
+    if names:
+        refPattern = r"(?:%s|(?<![A-Za-z0-9_])(?:%s)(?![A-Za-z0-9_(]))" % (refPattern, names)
+    pattern = re.compile(r"(%s)(?::(%s))?" % (refPattern, refPattern))
+    for match in pattern.finditer(formula):
+        first = aliases.get(match.group(1), match.group(1))
+        last = aliases.get(match.group(2), match.group(2)) if match.group(2) else first
+        col1, row1 = _cellNumbers(first)
+        col2, row2 = _cellNumbers(last)
+        if (abs(col2 - col1) + 1) * (abs(row2 - row1) + 1) > 100000:
+            yield None  # too large to check
+            continue
+        yield [
+            columnName(c) + str(r)
+            for r in range(min(row1, row2), max(row1, row2) + 1)
+            for c in range(min(col1, col2), max(col1, col2) + 1)
+        ]
+
+
+def _hexColor(color):
+    r, g, b = (max(0, min(255, int(round(c * 255)))) for c in color[:3])
+    return "FF%02X%02X%02X" % (r, g, b)
+
+
+class _Styles:
+    """Collects the cell formats into the font, fill, number format and cellXfs
+    tables of xl/styles.xml."""
+
+    def __init__(self):
+        self.fonts = [""]  # the default font
+        self.fills = ['<patternFill patternType="none"/>', '<patternFill patternType="gray125"/>']
+        self.numFmts = []
+        self.xfs = [None]  # the default format
+        self.index = {}
+
+    def _add(self, table, item):
+        if item not in table:
+            table.append(item)
+        return table.index(item)
+
+    def cellStyle(self, sheet, address):
+        style = sheet.getStyle(address) or set()
+        foreground = sheet.getForeground(address)
+        background = sheet.getBackground(address)
+        alignment = sheet.getAlignment(address) or set()
+        decimals = sheet.getDecimals(address) if hasattr(sheet, "getDecimals") else None
+
+        font = ""
+        if "bold" in style:
+            font += "<b/>"
+        if "italic" in style:
+            font += "<i/>"
+        if "underline" in style:
+            font += "<u/>"
+        if foreground:
+            font += '<color rgb="%s"/>' % _hexColor(foreground)
+        fill = None
+        if background:
+            fill = (
+                '<patternFill patternType="solid"><fgColor rgb="%s"/>'
+                '<bgColor indexed="64"/></patternFill>' % _hexColor(background)
+            )
+        horizontal = next((a for a in ("left", "center", "right") if a in alignment), None)
+        vertical = {"top": "top", "vcenter": "center", "bottom": "bottom"}
+        vertical = next((vertical[a] for a in ("top", "vcenter", "bottom") if a in alignment), None)
+        if "himplied" in alignment:
+            horizontal = None
+        if "vimplied" in alignment:
+            vertical = None
+
+        key = (font, fill, horizontal, vertical, decimals)
+        if key == ("", None, None, None, None):
+            return 0
+        if key in self.index:
+            return self.index[key]
+
+        fontId = self._add(self.fonts, font)
+        fillId = self._add(self.fills, fill) if fill else 0
+        numFmtId = 0
+        if decimals is not None:
+            code = "0." + "0" * decimals if decimals > 0 else "0"
+            numFmtId = 164 + self._add(self.numFmts, code)
+        align = ""
+        if horizontal or vertical:
+            align = "<alignment%s%s/>" % (
+                ' horizontal="%s"' % horizontal if horizontal else "",
+                ' vertical="%s"' % vertical if vertical else "",
+            )
+        xf = '<xf numFmtId="%d" fontId="%d" fillId="%d" borderId="0" xfId="0"%s%s%s%s>%s</xf>' % (
+            numFmtId,
+            fontId,
+            fillId,
+            ' applyNumberFormat="1"' if numFmtId else "",
+            ' applyFont="1"' if fontId else "",
+            ' applyFill="1"' if fillId else "",
+            ' applyAlignment="1"' if align else "",
+            align,
+        )
+        self.xfs.append(xf)
+        self.index[key] = len(self.xfs) - 1
+        return self.index[key]
+
+    def xml(self):
+        parts = [_xmlHeader, '<styleSheet xmlns="%s">' % _mainNS]
+        if self.numFmts:
+            parts.append('<numFmts count="%d">' % len(self.numFmts))
+            for i, code in enumerate(self.numFmts):
+                parts.append('<numFmt numFmtId="%d" formatCode=%s/>' % (164 + i, _xmlQuote(code)))
+            parts.append("</numFmts>")
+        parts.append('<fonts count="%d">' % len(self.fonts))
+        for font in self.fonts:
+            parts.append('<font>%s<sz val="11"/><name val="Calibri"/><family val="2"/></font>' % font)
+        parts.append('</fonts><fills count="%d">' % len(self.fills))
+        for fill in self.fills:
+            parts.append("<fill>%s</fill>" % fill)
+        parts.append(
+            '</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border>'
+            '</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
+            '</cellStyleXfs><cellXfs count="%d">' % len(self.xfs)
+        )
+        for xf in self.xfs:
+            parts.append(xf or '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>')
+        parts.append(
+            '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/>'
+            "</cellStyles></styleSheet>"
+        )
+        return "".join(parts)
+
+
+def _isExcelReference(name):
+    """True if Excel reads the name as a cell reference, in A1 or R1C1 style."""
+    return bool(
+        re.match(r"^[A-Za-z]{1,3}[0-9]+$", name) or re.match(r"^[Rr]?[0-9]*[Cc]?[0-9]*$", name)
+    )
+
+
+def _sheetReference(name):
+    """The worksheet name as written in a formula: quoted when Excel would not
+    read it as a name (it starts with a digit or looks like a cell reference)."""
+    if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name) and not _isExcelReference(name):
+        return name
+    return "'%s'" % name.replace("'", "''")
+
+
+def _excelAliases(sheet, used):
+    """{alias: address} of the aliases that are valid Excel names (not like a
+    cell reference, unique without case)."""
+    aliases = {}
+    lower = {}
+    for address in used:
+        alias = sheet.getAlias(address)
+        if not alias or _isExcelReference(alias):
+            continue
+        aliases[alias] = address
+        lower.setdefault(alias.lower(), []).append(alias)
+    for names in lower.values():
+        if len(names) > 1:
+            for name in names:
+                del aliases[name]
+    return aliases
+
+
+def _worksheetXml(sheet, styles):
+    used = sheet.getUsedCells()
+    aliases = _excelAliases(sheet, used)
+
+    cells = {}
+    for address in used:
+        col, row = _cellNumbers(address)
+        cells.setdefault(row, []).append((col, address))
+
+    lastCol = max([col for row in cells.values() for col, _ in row] or [0])
+    # Only the sizes set in FreeCAD: the others are the default of each application
+    widths = sheet.getColumnWidths()
+    heights = sheet.getRowHeights()
+
+    parts = [_xmlHeader, '<worksheet xmlns="%s" xmlns:r="%s">' % (_mainNS, _relNS)]
+    cols = []
+    for col in range(1, lastCol + 1):
+        width = widths.get(columnName(col))
+        if width is not None:
+            cols.append(
+                '<col min="%d" max="%d" width="%s" customWidth="1"/>' % (col, col, repr(width / 7.0))
+            )
+    if cols:
+        parts.append("<cols>%s</cols>" % "".join(cols))
+
+    parts.append("<sheetData>")
+    for row in sorted(cells):
+        height = heights.get(str(row))
+        rowAttrs = ' r="%d"' % row
+        if height is not None:
+            rowAttrs += ' ht="%s" customHeight="1"' % repr(height * 72.0 / 96.0)
+        parts.append("<row%s>" % rowAttrs)
+        for col, address in sorted(cells[row]):
+            parts.append(_cellXml(sheet, address, styles.cellStyle(sheet, address), aliases))
+        parts.append("</row>")
+    parts.append("</sheetData>")
+
+    merged = sheet.getMergedCells()
+    if merged:
+        parts.append('<mergeCells count="%d">' % len(merged))
+        for ref in merged:
+            parts.append('<mergeCell ref="%s"/>' % ref)
+        parts.append("</mergeCells>")
+    parts.append("</worksheet>")
+    return "".join(parts), aliases
+
+
+def _cellXml(sheet, address, style, aliases):
+    attrs = ' r="%s"' % address
+    if style:
+        attrs += ' s="%d"' % style
+    content = sheet.getContents(address)
+    if not content:
+        return "<c%s/>" % attrs
+    value = _cellValue(sheet, address)
+
+    formula = None
+    if content.startswith("="):
+        formula = _excelFormula(sheet, content[1:], aliases)
+    formulaXml = "<f>%s</f>" % _xmlText(formula) if formula else ""
+
+    if _isPlainNumber(value):
+        number = float(value.Value if isinstance(value, App.Units.Quantity) else value)
+        if math.isfinite(number):
+            return "<c%s>%s<v>%s</v></c>" % (attrs, formulaXml, repr(number))
+    if value is None:
+        text = content  # not computed (error): keep what was typed
+    elif isinstance(value, App.Units.Quantity):
+        text = _quantityText(value)
+    else:
+        text = str(value)
+    if formula:
+        return '<c%s t="str">%s<v>%s</v></c>' % (attrs, formulaXml, _xmlText(text))
+    return '<c%s t="inlineStr"><is><t xml:space="preserve">%s</t></is></c>' % (attrs, _xmlText(text))
+
+
+def _quantityText(quantity):
+    """A quantity as text in the user's preferred unit, at full precision and
+    with a '.' decimal point whatever the locale ("0.3333333333333333 mm"), so
+    that it reads back as the same quantity; UserString is rounded to the
+    decimals of the preferences and uses the locale's separator."""
+    try:
+        _, factor, unit = quantity.getUserPreferred()
+        if factor and unit:
+            return "%s %s" % (repr(quantity.Value / factor), unit)
+    except Exception:
+        pass
+    return quantity.UserString
+
+
+def _sheetName(label, taken):
+    name = re.sub(r"[^A-Za-z0-9_]", "_", label)[:31] or "Sheet"
+    candidate = name
+    number = 1
+    while candidate.lower() in taken:
+        number += 1
+        suffix = "_%d" % number
+        candidate = name[: 31 - len(suffix)] + suffix
+    taken.add(candidate.lower())
+    return candidate
+
+
+def exportSheets(sheets, filename):
+    """Writes the spreadsheets to an XLSX file, one worksheet each."""
+    styles = _Styles()
+    worksheets = []
+    taken = set()
+    definedNames = []
+    for sheet in sheets:
+        name = _sheetName(sheet.Label, taken)
+        sheetXml, aliases = _worksheetXml(sheet, styles)
+        # Aliases belong to their sheet: sheet-scoped names, so that sheets
+        # may use the same alias (workbook names must be unique)
+        for alias, address in sorted(aliases.items()):
+            col, row = _cellNumbers(address)
+            definedNames.append(
+                '<definedName name=%s localSheetId="%d">%s!$%s$%d</definedName>'
+                % (_xmlQuote(alias), len(worksheets), _sheetReference(name), columnName(col), row)
+            )
+        worksheets.append((name, sheetXml))
+
+    contentTypes = [
+        _xmlHeader,
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
+        '<Default Extension="xml" ContentType="application/xml"/>',
+        '<Override PartName="/xl/workbook.xml" ContentType="application/'
+        'vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>',
+        '<Override PartName="/xl/styles.xml" ContentType="application/'
+        'vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>',
+    ]
+    workbookRels = [_xmlHeader, '<Relationships xmlns="%s">' % _pkgRelNS]
+    workbook = [
+        _xmlHeader,
+        '<workbook xmlns="%s" xmlns:r="%s"><sheets>' % (_mainNS, _relNS),
+    ]
+    for i, (name, _) in enumerate(worksheets, start=1):
+        contentTypes.append(
+            '<Override PartName="/xl/worksheets/sheet%d.xml" ContentType="application/'
+            'vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' % i
+        )
+        workbookRels.append(
+            '<Relationship Id="rId%d" Type="%s/worksheet" Target="worksheets/sheet%d.xml"/>'
+            % (i, _relNS, i)
+        )
+        workbook.append('<sheet name=%s sheetId="%d" r:id="rId%d"/>' % (_xmlQuote(name), i, i))
+    contentTypes.append("</Types>")
+    workbookRels.append(
+        '<Relationship Id="rId%d" Type="%s/styles" Target="styles.xml"/></Relationships>'
+        % (len(worksheets) + 1, _relNS)
+    )
+    workbook.append("</sheets>")
+    if definedNames:
+        workbook.append("<definedNames>%s</definedNames>" % "".join(definedNames))
+    # Excel recomputes the formulas when it opens the file
+    workbook.append('<calcPr fullCalcOnLoad="1"/></workbook>')
+
+    rootRels = (
+        _xmlHeader + '<Relationships xmlns="%s"><Relationship Id="rId1" Type="%s/officeDocument" '
+        'Target="xl/workbook.xml"/></Relationships>' % (_pkgRelNS, _relNS)
+    )
+
+    with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", "".join(contentTypes))
+        z.writestr("_rels/.rels", rootRels)
+        z.writestr("xl/workbook.xml", "".join(workbook))
+        z.writestr("xl/_rels/workbook.xml.rels", "".join(workbookRels))
+        z.writestr("xl/styles.xml", styles.xml())
+        for i, (_, sheetXml) in enumerate(worksheets, start=1):
+            z.writestr("xl/worksheets/sheet%d.xml" % i, sheetXml)
+
+
+def export(exportList, filename):
+    """Exports the spreadsheets among the given objects to an XLSX file."""
+    sheets = [obj for obj in exportList if obj.isDerivedFrom("Spreadsheet::Sheet")]
+    if not sheets:
+        App.Console.PrintError("XLSX export: select one or more spreadsheets\n")
+        return
+    exportSheets(sheets, filename)
