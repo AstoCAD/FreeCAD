@@ -2046,12 +2046,6 @@ class PartCompoundFilterTests(unittest.TestCase):
             boxes.append(box)
         self.base = self.Doc.addObject("Part::Feature", "Base")
         self.base.Shape = Part.makeCompound(boxes)
-class PartPrismNaNTests(unittest.TestCase):
-    """NaN passed the height and angle checks of Prism and Cylinder; the prism built
-    along the NaN vector crashed FreeCAD (segmentation fault) when it was used."""
-
-    def setUp(self):
-        self.Doc = FreeCAD.newDocument("PartPrismNaN")
 
     def tearDown(self):
         FreeCAD.closeDocument(self.Doc.Name)
@@ -2077,6 +2071,53 @@ class PartPrismNaNTests(unittest.TestCase):
         self.assertEqual(self._filter("1:3", True), [0, 6, 8])
         self.assertEqual(self._filter("::2", True), [2, 6])
         self.assertEqual(self._filter("4;0:2", True), [4, 6])
+
+
+class PartGroupCycleShapeTests(unittest.TestCase):
+    """A group that contains itself can be made by assigning Group directly;
+    Part.getShape() recursed into its children until the stack overflowed."""
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("PartGroupCycleShape")
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.Doc.Name)
+
+    def testSelfContainingPart(self):
+        part = self.Doc.addObject("App::Part", "Part")
+        part.Group = [part]
+        self.assertTrue(Part.getShape(part).isNull())
+
+    def testMutuallyContainingParts(self):
+        part1 = self.Doc.addObject("App::Part", "Part1")
+        part2 = self.Doc.addObject("App::Part", "Part2")
+        box = self.Doc.addObject("Part::Box", "Box")
+        self.Doc.recompute()
+        part1.Group = [part2, box]
+        part2.Group = [part1]
+        Part.getShape(part1)
+        Part.getShape(part2)
+
+    def testNestedPartsStillWork(self):
+        part1 = self.Doc.addObject("App::Part", "Part1")
+        part2 = part1.newObject("App::Part", "Part2")
+        box = part2.newObject("Part::Box", "Box")
+        self.Doc.recompute()
+        shape = Part.getShape(part1)
+        self.assertFalse(shape.isNull())
+        self.assertAlmostEqual(shape.Volume, box.Shape.Volume)
+
+
+class PartPrismNaNTests(unittest.TestCase):
+    """NaN passed the height and angle checks of Prism and Cylinder; the prism built
+    along the NaN vector crashed FreeCAD (segmentation fault) when it was used."""
+
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("PartPrismNaN")
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.Doc.Name)
+
     def testNaNHeightOrAngleFails(self):
         nan = float("nan")
         for typeName, prop in (
