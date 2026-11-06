@@ -3265,6 +3265,100 @@ class DocumentExpressionCases(unittest.TestCase):
             FreeCAD.Matrix(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16),
         )
 
+    def _addValueObject(self, name):
+        obj = self.Doc.addObject("App::FeaturePython", name)
+        obj.addProperty("App::PropertyFloat", "Value")
+        return obj
+
+    def testUndoDeleteRestoresExpressionDependencies(self):
+        # undoing the deletion of an object holding an expression restored its
+        # property back links only: its OutList and the InList of the referenced
+        # object stayed empty
+        self.Doc.UndoMode = 1
+        source = self._addValueObject("Source")
+        dependent = self._addValueObject("Dependent")
+        dependent.setExpression("Value", "Source.Value")
+        self.Doc.recompute()
+        # the expression engine is listed twice in OutList (as a link property
+        # and as the expression engine), so compare with the state before deletion
+        outList = [o.Name for o in dependent.OutList]
+        self.assertIn("Source", outList)
+        self.assertEqual([o.Name for o in source.InList], ["Dependent"])
+        self.assertEqual(len(source.InListProp), 1)
+        self.Doc.openTransaction("Delete dependent")
+        self.Doc.removeObject("Dependent")
+        self.Doc.commitTransaction()
+        self.assertEqual(source.InList, [])
+
+        for redo in (True, False):
+            self.Doc.undo()
+            dependent = self.Doc.getObject("Dependent")
+            self.assertEqual([o.Name for o in dependent.OutList], outList)
+            self.assertEqual([o.Name for o in source.InList], ["Dependent"])
+            self.assertEqual(len(source.InListProp), 1)
+            if redo:
+                self.Doc.redo()
+                self.assertIsNone(self.Doc.getObject("Dependent"))
+                self.assertEqual(source.InList, [])
+                self.assertEqual(source.InListProp, [])
+
+        source.Value = 3.5
+        self.Doc.recompute()
+        self.assertEqual(dependent.Value, 3.5)
+
+    def testUndoDeleteThenClearExpressionLeavesNoBackLink(self):
+        # undo registered the back links of the restored object twice (from a
+        # stale out-list and again from the restored expression); removing the
+        # expression dropped only one, and destroying the object left dangling
+        # pointers in the InList of the referenced object (access violation)
+        self.Doc.UndoMode = 1
+        source = self._addValueObject("Source")
+        dependent = self._addValueObject("Dependent")
+        dependent.setExpression("Value", "Source.Value * 2")
+        self.Doc.recompute()
+        self.Doc.openTransaction("Delete dependent")
+        self.Doc.removeObject("Dependent")
+        self.Doc.commitTransaction()
+        self.Doc.undo()
+        dependent = self.Doc.getObject("Dependent")
+        self.assertEqual([o.Name for o in source.InList], ["Dependent"])
+        self.assertEqual(len(source.InListProp), 1)
+
+        dependent.setExpression("Value", None)
+        self.Doc.recompute()
+        self.assertEqual(source.InList, [])
+        self.assertEqual(source.InListProp, [])
+
+        self.Doc.UndoMode = 0
+        self.Doc.removeObject("Dependent")
+        self.assertEqual(source.InList, [])
+        self.assertEqual(source.InListProp, [])
+
+    def testUndoDeleteAfterExpressionDependencyDestroyed(self):
+        # the deleted object kept pointers to the objects its expression used:
+        # once such an object was destroyed outside any transaction, undoing the
+        # deletion accessed the destroyed object (access violation)
+        self.Doc.UndoMode = 1
+        self._addValueObject("Source")
+        dependent = self._addValueObject("Dependent")
+        dependent.setExpression("Value", "Source.Value")
+        self.Doc.recompute()
+        self.Doc.openTransaction("Delete dependent")
+        self.Doc.removeObject("Dependent")
+        self.Doc.commitTransaction()
+        # no transaction is open: the object is destroyed at once
+        self.Doc.removeObject("Source")
+        # reuse the freed memory
+        names = [self._addValueObject("Other%d" % i).Name for i in range(300)]
+        for name in names:
+            self.Doc.removeObject(name)
+
+        self.Doc.undo()
+        dependent = self.Doc.getObject("Dependent")
+        self.assertEqual(dependent.OutList, [])
+        self.assertEqual(dependent.OutListProp, [])
+        self.assertIn(("Value", "Source.Value"), dependent.ExpressionEngine)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument(self.Doc.Name)
