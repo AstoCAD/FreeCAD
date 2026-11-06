@@ -81,6 +81,15 @@ class CommandCreateSnapshot:
             Gui.ActiveDocument.commitCommand()
 
 
+# Component names of a snapshot just before its Components list changes, kept outside
+# the proxy so that they are never saved with the document.
+_componentsBeforeChange = {}
+
+
+def _snapshotKey(snapshot_obj):
+    return (snapshot_obj.Document.Name, snapshot_obj.Name)
+
+
 class Snapshot:
     """
     The Python proxy for the Snapshot App::FeaturePython object.
@@ -96,6 +105,38 @@ class Snapshot:
     def execute(self, snapshot_obj):
         """Called on recompute. A snapshot is static, so we do nothing."""
         pass
+
+    def onBeforeChange(self, snapshot_obj, prop):
+        if prop == "Components" and hasattr(snapshot_obj, "Components"):
+            _componentsBeforeChange[_snapshotKey(snapshot_obj)] = [
+                obj.Name for obj in snapshot_obj.Components
+            ]
+
+    def onChanged(self, snapshot_obj, prop):
+        if prop != "Components":
+            return
+        old_names = _componentsBeforeChange.pop(_snapshotKey(snapshot_obj), None)
+        if App.isRestoring() or not old_names:
+            return
+
+        # Deleting a captured component removes it from the Components link list.
+        # Drop its placement and visibility too, so the lists stay aligned.
+        new_names = [obj.Name for obj in snapshot_obj.Components]
+        if len(new_names) >= len(old_names):
+            return
+        kept = []
+        for i, name in enumerate(old_names):
+            if len(kept) < len(new_names) and name == new_names[len(kept)]:
+                kept.append(i)
+        if len(kept) != len(new_names):
+            return  # Not a removal: the lists were replaced, e.g. by captureState.
+
+        placements = snapshot_obj.Placements
+        if len(placements) == len(old_names):
+            snapshot_obj.Placements = [placements[i] for i in kept]
+        visibilities = snapshot_obj.Visibilities
+        if len(visibilities) == len(old_names):
+            snapshot_obj.Visibilities = [visibilities[i] for i in kept]
 
     def onDocumentRestored(self, snapshot_obj):
         """Called when a document containing a snapshot is loaded."""

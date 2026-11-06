@@ -562,6 +562,37 @@ class TestCore(AssemblyTestBase):
         self.doc.recompute()
         self.assertEqual(int(float(bom.get("B2"))), 7)
 
+    def test_snapshot_restores_remaining_components_after_deletion(self):
+        """Deleting a captured component must not shift the other captured states."""
+        import CommandCreateSnapshot
+
+        boxes = []
+        for i in range(3):
+            box = self.assembly.newObject("Part::Box", "Box")
+            box.Placement = App.Placement(App.Vector(10 * (i + 1), 0, 0), App.Rotation())
+            boxes.append(box)
+        self.doc.recompute()
+        group = UtilsAssembly.getSnapshotGroup(self.assembly)
+        snapshot = group.newObject("App::FeaturePython", "Snapshot")
+        CommandCreateSnapshot.Snapshot(snapshot)
+        snapshot.SolveOnActivation = False
+        self.assertEqual(len(snapshot.Components), 3)
+        captured = {box.Name: App.Placement(box.Placement) for box in boxes}
+
+        for box in boxes:
+            box.Placement = App.Placement(App.Vector(0, 0, 100), App.Rotation())
+        boxes[2].Visibility = False
+        self.doc.removeObject(boxes[0].Name)
+        self.assertEqual(len(snapshot.Components), 2)
+        self.assertEqual(len(snapshot.Placements), 2)
+        self.assertEqual(len(snapshot.Visibilities), 2)
+
+        snapshot.Proxy.restoreState(snapshot)
+        for box in boxes[1:]:
+            with self.subTest(box=box.Name):
+                self.assertTrue(box.Placement.isSame(captured[box.Name], 1e-6))
+        self.assertTrue(boxes[2].Visibility)
+
     def test_component_count_for_link_array(self):
         source = self.doc.addObject("Part::Box", "ArraySource")
         array = self.assembly.newObject("App::Link", "Array")
