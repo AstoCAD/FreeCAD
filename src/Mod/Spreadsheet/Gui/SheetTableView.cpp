@@ -205,6 +205,14 @@ SheetTableView::SheetTableView(QWidget* parent)
     actionCopy = createAction(":/icons/edit-copy.svg", tr("Copy"), &SheetTableView::copySelection);
     actionPaste = createAction(":/icons/edit-paste.svg", tr("Paste"), &SheetTableView::pasteClipboard);
     actionDel = createAction(":/icons/edit-delete.svg", tr("Delete"), &SheetTableView::deleteSelection);
+    contextMenu.addSeparator();
+    actionFillDown = createAction("", tr("Fill Down"), &SheetTableView::fillDown);
+    actionFillRight = createAction("", tr("Fill Right"), &SheetTableView::fillRight);
+    // The keys are handled in event(); the menu only shows them.
+    actionFillDown->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
+    actionFillDown->setShortcutContext(Qt::WidgetShortcut);
+    actionFillRight->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
+    actionFillRight->setShortcutContext(Qt::WidgetShortcut);
 
     // "Document window" submenu, so an undocked sheet can be docked again without a shortcut
     if (auto* cmd = Gui::Application::Instance->commandManager().getCommandByName(
@@ -516,6 +524,14 @@ bool SheetTableView::event(QEvent* event)
             pasteClipboard();
             return true;
         }
+        else if (kevent->modifiers() == Qt::ControlModifier && kevent->key() == Qt::Key_D) {
+            fillDown();
+            return true;
+        }
+        else if (kevent->modifiers() == Qt::ControlModifier && kevent->key() == Qt::Key_R) {
+            fillRight();
+            return true;
+        }
     }
     else if (event && event->type() == QEvent::ShortcutOverride) {
         QKeyEvent* kevent = static_cast<QKeyEvent*>(event);
@@ -567,6 +583,10 @@ bool SheetTableView::event(QEvent* event)
         else if (kevent->matches(QKeySequence::Paste)) {
             kevent->accept();
         }
+        else if (kevent->modifiers() == Qt::ControlModifier
+                 && (kevent->key() == Qt::Key_D || kevent->key() == Qt::Key_R)) {
+            kevent->accept();
+        }
     }
     else if (event && event->type() == QEvent::LanguageChange) {
         actionProperties->setText(tr("Properties…"));
@@ -578,6 +598,8 @@ bool SheetTableView::event(QEvent* event)
         actionPaste->setText(tr("Paste"));
         actionCut->setText(tr("Cut"));
         actionDel->setText(tr("Delete"));
+        actionFillDown->setText(tr("Fill Down"));
+        actionFillRight->setText(tr("Fill Right"));
         actionBind->setText(tr("Bind…"));
     }
     return QTableView::event(event);
@@ -732,6 +754,49 @@ void SheetTableView::pasteClipboard()
         return;
     }
     clearSelection();
+}
+
+void SheetTableView::fillDown()
+{
+    fillSelection(true);
+}
+
+void SheetTableView::fillRight()
+{
+    fillSelection(false);
+}
+
+void SheetTableView::fillSelection(bool down)
+{
+    auto ranges = selectedRanges();
+    if (ranges.size() != 1) {
+        return;
+    }
+    const Range& range = ranges.front();
+    if ((down && range.rowCount() < 2) || (!down && range.colCount() < 2)) {
+        return;
+    }
+
+    App::AutoTransaction committer(sheet->getDocument()->openTransaction(
+        down ? QT_TRANSLATE_NOOP("Command", "Fill Down") : QT_TRANSLATE_NOOP("Command", "Fill Right")
+    ));
+    try {
+        Gui::cmdAppObjectArgs(
+            sheet,
+            down ? "fillDown('%s')" : "fillRight('%s')",
+            range.rangeString()
+        );
+        Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
+    }
+    catch (Base::Exception& e) {
+        committer.close(App::TransactionCloseMode::Abort);
+        e.reportException();
+        QMessageBox::critical(
+            Gui::getMainWindow(),
+            down ? tr("Fill Down Failed") : tr("Fill Right Failed"),
+            QString::fromUtf8(e.what())
+        );
+    }
 }
 
 void SheetTableView::finishEditWithMove(int keyPressed, Qt::KeyboardModifiers modifiers, bool handleTabMotion)
@@ -1077,6 +1142,8 @@ void SheetTableView::contextMenuEvent(QContextMenuEvent*)
     auto ranges = selectedRanges();
     actionBind->setEnabled(!ranges.empty() && ranges.size() <= 2);
     actionConf->setEnabled(ranges.size() == 1 && ranges.back().size() > 1);
+    actionFillDown->setEnabled(ranges.size() == 1 && ranges.back().rowCount() > 1);
+    actionFillRight->setEnabled(ranges.size() == 1 && ranges.back().colCount() > 1);
 
     contextMenu.exec(QCursor::pos());
 }

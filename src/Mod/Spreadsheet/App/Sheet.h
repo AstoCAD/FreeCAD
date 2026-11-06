@@ -108,6 +108,10 @@ public:
 
     void splitCell(App::CellAddress address);
 
+    void fillDown(const App::Range& range);
+
+    void fillRight(const App::Range& range);
+
     Cell* getCell(App::CellAddress address);
     const Cell* getCell(App::CellAddress address) const;
 

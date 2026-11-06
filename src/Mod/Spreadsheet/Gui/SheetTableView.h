@@ -78,6 +78,8 @@ public Q_SLOTS:
     void copySelection();
     void cutSelection();
     void pasteClipboard();
+    void fillDown();
+    void fillRight();
     void finishEditWithMove(int keyPressed, Qt::KeyboardModifiers modifiers, bool handleTabMotion = false);
     void ModifyBlockSelection(int targetRow, int targetColumn);
 
@@ -104,6 +106,7 @@ protected:
     void contextMenuEvent(QContextMenuEvent* e) override;
 
     void _copySelection(const std::vector<App::Range>& ranges, bool copy);
+    void fillSelection(bool down);
 
     QModelIndex currentEditIndex;
     Spreadsheet::Sheet* sheet;
@@ -120,6 +123,8 @@ protected:
     QAction* actionPaste;
     QAction* actionCut;
     QAction* actionDel;
+    QAction* actionFillDown;
+    QAction* actionFillRight;
     QAction* actionBind;
 
     QTimer timer;
