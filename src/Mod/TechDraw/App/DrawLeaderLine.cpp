@@ -297,7 +297,8 @@ Base::Vector3d DrawLeaderLine::getTailPoint() const
 Base::Vector3d DrawLeaderLine::lastSegmentDirection() const
 {
     std::vector<Base::Vector3d> wp = getTransformedWayPoints();
-    if (wp.empty()) {
+    if (wp.size() < 2) {
+        // no segment: same default as for an empty leader
         return Base::Vector3d(1,0,0);
     }
     // this direction is in conventional coords? Y+ up?
