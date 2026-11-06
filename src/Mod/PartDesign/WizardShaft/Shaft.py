@@ -113,12 +113,12 @@ class Shaft:
             if self.segments[i].constraintType != "Fixed":
                 continue
             if i == len(self.segments) - 1:
-                self.segments[index].constraint.References = [
-                    (self.feature.feature, "Face%u" % (2 * (index + 1) + 1))
+                self.segments[i].constraint.References = [
+                    (self.feature.feature, "Face%u" % (2 * (i + 1) + 1))
                 ]
             else:
                 # Remove reference since it is now in the middle of the shaft (which is not allowed)
-                self.segments[index].constraint.References = [(None, "")]
+                self.segments[i].constraint.References = [(None, "")]
 
     def updateSegment(self, index, length=None, diameter=None, innerdiameter=None):
         oldLength = self.segments[index].length
