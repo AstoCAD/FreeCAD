@@ -24,6 +24,8 @@
 
 #include <FCConfig.h>
 
+#include <cmath>
+
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
@@ -215,6 +217,10 @@ ExtrusionParameters Extrusion::computeFinalParameters()
         default:
             throw Base::ValueError("Unexpected enum value");
     }
+    // NaN passes the zero length check, and a NaN direction crashes the prism
+    if (!std::isfinite(dir.x) || !std::isfinite(dir.y) || !std::isfinite(dir.z)) {
+        throw Base::ValueError("Direction must be a finite vector");
+    }
     if (dir.Length() < Precision::Confusion()) {
         throw Base::ValueError("Direction is zero-length");
     }
@@ -225,6 +231,10 @@ ExtrusionParameters Extrusion::computeFinalParameters()
 
     result.lengthFwd = this->LengthFwd.getValue();
     result.lengthRev = this->LengthRev.getValue();
+    // NaN passes the zero length checks, and a NaN or infinite length crashes the prism
+    if (!std::isfinite(result.lengthFwd) || !std::isfinite(result.lengthRev)) {
+        throw Base::ValueError("Length must be a finite number");
+    }
     if (fabs(result.lengthFwd) < Precision::Confusion()
         && fabs(result.lengthRev) < Precision::Confusion()) {
         result.lengthFwd = dir.Length();
