@@ -189,6 +189,34 @@ class DraftSVGImportRegression(test_base.DraftTestCaseDoc):
         self.assertAlmostEqual(shapes[0].BoundBox.XLength, 25.4, places=3)
         self.assertAlmostEqual(shapes[0].BoundBox.YLength, 12.7, places=3)
 
+    def test_read_svg_path_arc_compact_flags(self):
+        """Arc flags written without separators ("a5 5 0 0010 0") are parsed."""
+        import SVGPath
+
+        cases = {
+            "compact": "M0 0a5 5 0 0010 0",
+            "compact_large_sweep": "M0 0a5 5 0 1110 0",
+            "spaced": "M0 0 a5 5 0 0 0 10 0",
+            "commas": "M0,0 a5,5,0,0,0,10,0",
+            "float_flags": "M0 0 a5 5 0 0.0 1.0 10 0",
+        }
+        expected = {
+            "compact": [5, 5, 0, 0, 0, 10, 0],
+            "compact_large_sweep": [5, 5, 0, 1, 1, 10, 0],
+            "spaced": [5, 5, 0, 0, 0, 10, 0],
+            "commas": [5, 5, 0, 0, 0, 10, 0],
+            "float_flags": [5, 5, 0, 0, 1, 10, 0],
+        }
+        for name, d in cases.items():
+            with self.subTest(name=name):
+                parser = SVGPath.SvgPathParser({"d": [d]}, name)
+                parser.parse()
+                edges = [e for edges in parser.shapes for e in edges]
+                self.assertEqual(len(edges), 1)
+                self.assertAlmostEqual(edges[0].Length, 5 * math.pi, places=6)
+                arcs = [args for cmd, args in parser.commands if cmd in "Aa"]
+                self.assertEqual(parser.arc_args(arcs[0]), expected[name])
+
     def test_read_svg_transform_list_with_matrix_and_skew(self):
         """matrix/skewX/skewY in a transform list must be applied in SVG order."""
         transforms = {
