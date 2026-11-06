@@ -351,9 +351,6 @@ If unchecked, they will be sorted by their name.</string>
         <property name="text">
          <string>Show legacy files</string>
         </property>
-        <property name="checked">
-         <bool>true</bool>
-        </property>
         <property name="prefEntry" stdset="0">
          <cstring>ShowLegacy</cstring>
         </property>
