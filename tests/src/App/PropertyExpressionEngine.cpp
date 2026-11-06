@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
+#include <algorithm>
+
 #include <gtest/gtest.h>
 
 #include "Base/Quantity.h"
@@ -10,6 +12,7 @@
 #include "App/Expression.h"
 #include "App/ObjectIdentifier.h"
 #include "App/PropertyExpressionEngine.h"
+#include "App/PropertyLinks.h"
 #include "App/PropertyStandard.h"
 
 #include "src/App/InitApplication.h"
@@ -210,4 +213,30 @@ TEST_F(ExpressionDependencyLifetimeTest, DeletionRemovesEveryReferencedProperty)
 
     EXPECT_TRUE(source->getInList().empty());
     EXPECT_TRUE(source->getInListProp().empty());
+}
+
+// The out list holds one entry per link, as the in list holds one back link per link. The
+// expression engine, itself a link property, was listed a second time.
+TEST_F(ExpressionDependencyLifetimeTest, OutListListsExpressionLinksOnce)
+{
+    auto* dependent = addDependent("Dependent");
+    auto countSource = [this](const std::vector<App::DocumentObject*>& list) {
+        return std::ranges::count(list, source);
+    };
+    EXPECT_EQ(countSource(dependent->getOutList()), 1);
+    EXPECT_EQ(source->getInList().size(), 1);
+
+    auto* link = dynamic_cast<App::PropertyLink*>(
+        dependent->addDynamicProperty("App::PropertyLink", "Base")
+    );
+    ASSERT_NE(link, nullptr);
+    link->setValue(source);
+
+    EXPECT_EQ(countSource(dependent->getOutList()), 2);
+    EXPECT_EQ(source->getInList().size(), 2);
+    EXPECT_EQ(countSource(dependent->getOutList(App::DocumentObject::OutListNoHidden)), 2);
+    // only the link property is left without the expression engine
+    EXPECT_EQ(countSource(dependent->getOutList(App::DocumentObject::OutListNoExpression)), 1);
+    link->setValue(nullptr);
+    EXPECT_TRUE(dependent->getOutList(App::DocumentObject::OutListNoExpression).empty());
 }
