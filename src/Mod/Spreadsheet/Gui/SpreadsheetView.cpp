@@ -46,6 +46,7 @@
 #include <Gui/PreferencePages/DlgSettingsPDF.h>
 
 #include <Mod/Spreadsheet/App/Sheet.h>
+#include <Mod/Spreadsheet/App/SheetParameter.h>
 #include <Mod/Spreadsheet/App/SheetPy.h>
 
 #include "LineEdit.h"
@@ -138,8 +139,11 @@ SheetView::SheetView(Gui::Document* pcDocument, App::DocumentObject* docObj, QWi
 
     QPalette palette = ui->cells->palette();
     palette.setColor(QPalette::Base, QColor(255, 255, 255));
+    palette.setColor(QPalette::AlternateBase, QColor(242, 242, 242));
     palette.setColor(QPalette::Text, QColor(0, 0, 0));
     ui->cells->setPalette(palette);
+    // Cells with their own background color keep it
+    ui->cells->setAlternatingRowColors(SheetParameter::instance()->getAlternatingRowColors());
 
     // Set document object to create auto completer
     ui->cellContent->setDocumentObject(sheet);

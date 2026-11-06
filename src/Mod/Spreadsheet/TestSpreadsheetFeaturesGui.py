@@ -236,6 +236,14 @@ class TestSpreadsheetFeaturesGui(unittest.TestCase):
         self._clickCell(table, 2, 2)
         self.assertEqual((table.currentIndex().row(), table.currentIndex().column()), (2, 2))
 
+    def testAlternatingRowColorsPreference(self):
+        param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Spreadsheet")
+        had = param.GetBool("AlternatingRowColors", False)
+        self.addCleanup(param.SetBool, "AlternatingRowColors", had)
+        param.SetBool("AlternatingRowColors", True)
+        table = self._tableView()
+        self.assertTrue(table.alternatingRowColors())
+
 
 if __name__ == "__main__":
     unittest.main()
