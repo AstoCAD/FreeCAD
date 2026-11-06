@@ -66,6 +66,9 @@ public:
     bool getShowAliasName() const;
     void setShowAliasName(bool v);
 
+    bool getAlternatingRowColors() const;
+    void setAlternatingRowColors(bool v);
+
     bool getSwitchToWorkbench() const;
     void setSwitchToWorkbench(bool v);
 
