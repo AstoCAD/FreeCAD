@@ -449,16 +449,14 @@ class CAMSanity:
         for TC in obj.Tools.Group:
             if not hasattr(TC.Tool, "BitBody"):
                 data["squawkData"].append(
-                    data["squawkData"].append(
-                        self.squawk(
-                            "CAMSanity",
-                            translate(
-                                "CAM_Sanity",
-                                "Tool number {} is a legacy tool. Legacy tools not \
+                    self.squawk(
+                        "CAMSanity",
+                        translate(
+                            "CAM_Sanity",
+                            "Tool number {} is a legacy tool. Legacy tools not \
                     supported by Path-Sanity",
-                            ).format(TC.ToolNumber),
-                            squawkType="WARNING",
-                        )
+                        ).format(TC.ToolNumber),
+                        squawkType="WARNING",
                     )
                 )
                 continue  # skip old-style tools
