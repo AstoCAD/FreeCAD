@@ -57,6 +57,7 @@ std::atomic<bool> fxaaFallback {false};
 std::atomic<bool> ambientOcclusion {false};
 std::atomic<bool> ambientOcclusionFallback {false};
 std::atomic<int> exportSupersamplingFactor {1};
+std::atomic<KeyLight> keyLightSetting {defaultKeyLight};
 std::atomic<int> classicOverride {0};
 
 std::mutex& reasonMutex()
@@ -109,6 +110,27 @@ EnvironmentPreset environmentFromParameter(long value)
     }
 }
 
+KeyLight keyLightFromParameter(long value)
+{
+    switch (value) {
+        case static_cast<long>(KeyLight::Headlight):
+            return KeyLight::Headlight;
+        case static_cast<long>(KeyLight::Sun):
+            return KeyLight::Sun;
+        default:
+            return defaultKeyLight;
+    }
+}
+
+int sunKeyLightIndex(KeyLight mode, int headlightIndex, int registeredLights, int glLights)
+{
+    if (mode != KeyLight::Sun || headlightIndex < 0 || registeredLights != glLights
+        || headlightIndex >= glLights) {
+        return -1;
+    }
+    return headlightIndex;
+}
+
 bool environmentForcesClassic(const char* value)
 {
     if (!value) {
@@ -135,13 +157,21 @@ Quality resolveQuality(Quality requestedQuality, bool forcedClassic, bool fallba
     return requestedQuality;
 }
 
-unsigned visibleRenderState(Quality effective, EnvironmentPreset preset, bool shadowsOn, bool fxaaOn, bool aoOn)
+unsigned visibleRenderState(
+    Quality effective,
+    EnvironmentPreset preset,
+    bool shadowsOn,
+    bool fxaaOn,
+    bool aoOn,
+    KeyLight keyLightMode
+)
 {
     if (effective != Quality::Enhanced) {
         return 0U;
     }
     return visibleStateEnhancedBit | (static_cast<unsigned>(preset) & 0x3U) << 1U
-        | (shadowsOn ? 1U << 3U : 0U) | (fxaaOn ? 1U << 4U : 0U) | (aoOn ? 1U << 5U : 0U);
+        | (shadowsOn ? 1U << 3U : 0U) | (fxaaOn ? 1U << 4U : 0U) | (aoOn ? 1U << 5U : 0U)
+        | (keyLightMode == KeyLight::Sun ? 1U << 6U : 0U);
 }
 
 void RenderSettings::loadFromParameters()
@@ -155,6 +185,7 @@ void RenderSettings::loadFromParameters()
     setFxaaEnabled(group->GetBool(fxaaKey, true));
     setAmbientOcclusionEnabled(group->GetBool(ambientOcclusionKey, false));
     setExportSupersampling(int(group->GetInt(exportSupersamplingKey, 1)));
+    setKeyLight(keyLightFromParameter(group->GetInt(keyLightKey, static_cast<long>(defaultKeyLight))));
 }
 
 void RenderSettings::setRequestedQuality(Quality quality)
@@ -382,6 +413,18 @@ int RenderSettings::exportSupersampling()
     return exportSupersamplingFactor.load();
 }
 
+void RenderSettings::setKeyLight(KeyLight mode)
+{
+    if (keyLightSetting.exchange(mode) != mode) {
+        ++settingsGeneration;
+    }
+}
+
+KeyLight RenderSettings::keyLight()
+{
+    return keyLightSetting.load();
+}
+
 unsigned RenderSettings::generation()
 {
     return settingsGeneration.load();
@@ -394,7 +437,8 @@ unsigned RenderSettings::visibleState()
         environmentPreset(),
         shadowsActive(),
         fxaaActive(),
-        ambientOcclusionActive()
+        ambientOcclusionActive(),
+        keyLight()
     );
 }
 
