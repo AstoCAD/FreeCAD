@@ -1334,7 +1334,7 @@ anglePoints DrawViewDimension::getAnglePointsTwoEdges(ReferenceVector references
         if (geom1->getGeomType() != GeomType::GENERIC) {
             std::stringstream ssMessage;
             ssMessage << getNameInDocument() << " second 2d reference is a "
-                      << geom0->geomTypeName();
+                      << geom1->geomTypeName();
             throw Base::RuntimeError(ssMessage.str());
         }
         auto generic0 = std::static_pointer_cast<TechDraw::Generic>(geom0);

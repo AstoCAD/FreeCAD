@@ -203,6 +203,7 @@ SET(TDTest_SRCS
     TDTest/DrawDimensionShapeNameTest.py
     TDTest/DrawDimensionEdgeVertexTest.py
     TDTest/DrawDimensionBSplineCircle3dTest.py
+    TDTest/DrawDimensionAngleReferenceTest.py
     TDTest/DrawCreationDocumentTest.py
     TDTest/DrawSpreadsheetLabelXmlTest.py
     TDTest/DrawBoltCircleTest.py
