@@ -46,6 +46,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketchSplitTrimConstraints.py
     SketcherTests/TestSketchSymmetricCopy.py
     SketcherTests/TestSketchMoveUndo.py
+    SketcherTests/TestSketchExtendUndo.py
 )
 
 if(BUILD_GUI)
