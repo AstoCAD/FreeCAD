@@ -50,6 +50,7 @@ from TDTest.DrawCosmeticEdgeLineNumberTest import DrawCosmeticEdgeLineNumberTest
 from TDTest.DrawDecorateLineInvalidEdgeTest import DrawDecorateLineInvalidEdgeTest  # noqa: F401
 from TDTest.DrawCosmeticRefreshNoGeometryTest import DrawCosmeticRefreshNoGeometryTest  # noqa: F401
 from TDTest.DrawCosmeticRemoveUndoTest import DrawCosmeticRemoveUndoTest  # noqa: F401
+from TDTest.DrawCenterLineFlipRestoreTest import DrawCenterLineFlipRestoreTest  # noqa: F401
 from TDTest.DrawEdgeWalkerNullEdgeTest import DrawEdgeWalkerNullEdgeTest  # noqa: F401
 from TDTest.DrawNearestFractionTest import DrawNearestFractionTest  # noqa: F401
 from TDTest.DrawMakeCanonicalPointTest import DrawMakeCanonicalPointTest  # noqa: F401

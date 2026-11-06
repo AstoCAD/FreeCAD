@@ -192,6 +192,7 @@ SET(TDTest_SRCS
     TDTest/DrawDecorateLineInvalidEdgeTest.py
     TDTest/DrawCosmeticRefreshNoGeometryTest.py
     TDTest/DrawCosmeticRemoveUndoTest.py
+    TDTest/DrawCenterLineFlipRestoreTest.py
     TDTest/DrawEdgeWalkerNullEdgeTest.py
     TDTest/DrawNearestFractionTest.py
     TDTest/DrawMakeCanonicalPointTest.py
