@@ -78,6 +78,56 @@ class TestArchImporters(TestArchBase.TestArchBase):
         self.assertIn((0.0, 0.0, 1000.0), verts)
         self.assertIn((110.0, 10.0, 1010.0), verts)
 
+    def test_dae_import_empty_primitives(self):
+        """A DAE file with empty triangle sets or polylists imports the other geometry."""
+        from importers import importDAE
+
+        if not importDAE.import_collada():
+            self.skipTest("pycollada is not installed")
+        import collada
+        import numpy as np
+
+        box = self.document.addObject("Part::Box", "Box")
+        line = self.document.addObject("Part::Line", "Line")
+        self.document.recompute()
+        filename = os.path.join(self.tmpdir, "test.dae")
+        # The edge-only line is written as an empty triangle set.
+        importDAE.export([box, line], filename)
+        importDAE.insert(filename, self.document.Name)
+        meshes = [o for o in self.document.Objects if o.isDerivedFrom("Mesh::Feature")]
+        self.assertEqual(len(meshes), 1)
+        self.assertEqual(meshes[0].Mesh.CountFacets, 12)
+
+        # The same for an empty polylist written by another application.
+        for mesh in meshes:
+            self.document.removeObject(mesh.Name)
+        col = collada.Collada()
+        geoms = []
+        for i, (vcounts, indices) in enumerate((([], []), ([3], [0, 1, 2]))):
+            verts = collada.source.FloatSource(
+                f"verts{i}", np.array([0, 0, 0, 1, 0, 0, 0, 1, 0.0]), ("X", "Y", "Z")
+            )
+            geom = collada.geometry.Geometry(col, f"geom{i}", f"geom{i}", [verts])
+            inputs = collada.source.InputList()
+            inputs.addInput(0, "VERTEX", f"#verts{i}")
+            geom.primitives.append(
+                geom.createPolylist(
+                    np.array(indices, dtype=np.int64),
+                    np.array(vcounts, dtype=np.int64),
+                    inputs,
+                    "mat",
+                )
+            )
+            col.geometries.append(geom)
+            geoms.append(collada.scene.GeometryNode(geom, []))
+        col.scenes.append(collada.scene.Scene("scene", [collada.scene.Node("node", geoms)]))
+        col.scene = col.scenes[0]
+        col.write(filename)
+        importDAE.insert(filename, self.document.Name)
+        meshes = [o for o in self.document.Objects if o.isDerivedFrom("Mesh::Feature")]
+        self.assertEqual(len(meshes), 1)
+        self.assertEqual(meshes[0].Mesh.CountFacets, 1)
+
     def test_json_export_names_and_groups(self):
         """The JSON exporter writes plain labels and skips objects without geometry."""
         import json
