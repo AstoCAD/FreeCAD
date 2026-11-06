@@ -267,6 +267,8 @@ class _Fence(ArchComponent.Component):
         return newShape.removeSplitter()
 
     def calculatePathWire(self, obj):
+        import Part
+
         if hasattr(obj.Path.Shape, "Wires") and obj.Path.Shape.Wires:
             return obj.Path.Shape.Wires[0]
         elif obj.Path.Shape.Edges:
