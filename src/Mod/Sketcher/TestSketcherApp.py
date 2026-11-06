@@ -31,6 +31,7 @@ from SketcherTests.TestPerpendicularArcProjection import TestPerpendicularArcPro
 from SketcherTests.TestPerpendicularPointPointLine import TestPerpendicularPointPointLine
 from SketcherTests.TestDrivenAngleConstraints import TestDrivenAngleConstraints
 from SketcherTests.TestDrivenConstraintEvaluation import TestDrivenConstraintEvaluation
+from SketcherTests.TestSketchJoinCurves import TestSketchJoinCurves
 from SketcherTests.TestSketchInvalidConstraintList import TestSketchInvalidConstraintList
 from SketcherTests.TestSketchInternalFaces import TestSketchInternalFaces
 from SketcherTests.TestSketcherEllipse import TestSketcherEllipse
@@ -73,6 +74,7 @@ __all__ = [
     "TestPerpendicularPointPointLine",
     "TestDrivenAngleConstraints",
     "TestDrivenConstraintEvaluation",
+    "TestSketchJoinCurves",
     "TestSketchInvalidConstraintList",
     "TestSketchInternalFaces",
     "TestSketcherEllipse",
