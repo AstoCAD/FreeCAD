@@ -2700,7 +2700,14 @@ Base::Placement AttachEngineLine::_calculateAttachedPlacement(
                 gp_Pnt p0 = points[0];
                 gp_Pnt p1 = points[1];
 
-                LineDir = gp_Dir(gp_Vec(p0, p1));
+                gp_Vec vec01(p0, p1);
+                if (vec01.Magnitude() < Precision::Confusion()) {
+                    throw Base::ValueError(
+                        "AttachEngineLine::calculateAttachedPlacement: the 2 "
+                        "points are coincident. Can't make a line"
+                    );
+                }
+                LineDir = gp_Dir(vec01);
                 LineBasePoint = p0;
 
             } break;
@@ -2804,6 +2811,13 @@ Base::Placement AttachEngineLine::_calculateAttachedPlacement(
                 if (shapes[0]->isNull() || shapes[1]->isNull()) {
                     throw Base::ValueError(
                         "Null shape in AttachEngineLine::calculateAttachedPlacement()!"
+                    );
+                }
+                if (shapes[0]->getShape().ShapeType() != TopAbs_FACE
+                    || shapes[1]->getShape().ShapeType() != TopAbs_FACE) {
+                    throw Base::ValueError(
+                        "AttachEngineLine::calculateAttachedPlacement: Intersection mode requires "
+                        "two faces"
                     );
                 }
 
