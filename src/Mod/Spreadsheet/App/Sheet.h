@@ -114,6 +114,21 @@ public:
 
     void sortRows(const App::Range& range, int column, bool ascending = true);
 
+    std::vector<App::CellAddress> findCells(
+        const std::string& text,
+        bool matchCase = false,
+        bool wholeCell = false,
+        bool values = false
+    );
+
+    int replaceCells(
+        const std::string& text,
+        const std::string& replacement,
+        bool matchCase = false,
+        bool wholeCell = false,
+        const std::vector<App::Range>& ranges = {}
+    );
+
     Cell* getCell(App::CellAddress address);
     const Cell* getCell(App::CellAddress address) const;
 

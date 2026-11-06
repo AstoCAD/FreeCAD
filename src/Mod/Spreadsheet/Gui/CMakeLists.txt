@@ -79,6 +79,8 @@ SET(SpreadsheetGui_SRCS
     PropertiesDialog.cpp
     DlgBindSheet.h
     DlgBindSheet.cpp
+    DlgFindReplace.h
+    DlgFindReplace.cpp
     DlgSheetConf.h
     DlgSheetConf.cpp
     ZoomableView.h

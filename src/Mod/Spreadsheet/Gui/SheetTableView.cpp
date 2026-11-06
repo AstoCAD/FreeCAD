@@ -51,6 +51,7 @@
 #include <Mod/Spreadsheet/App/SheetParameter.h>
 
 #include "DlgBindSheet.h"
+#include "DlgFindReplace.h"
 #include "DlgSheetConf.h"
 #include "PropertiesDialog.h"
 #include "SheetTableView.h"
@@ -215,6 +216,11 @@ SheetTableView::SheetTableView(QWidget* parent)
     actionFillRight->setShortcutContext(Qt::WidgetShortcut);
     actionSortAscending = createAction("", tr("Sort Ascending"), &SheetTableView::sortAscending);
     actionSortDescending = createAction("", tr("Sort Descending"), &SheetTableView::sortDescending);
+    contextMenu.addSeparator();
+    actionFind = createAction("", tr("Find and Replace…"), &SheetTableView::findReplace);
+    // The key is handled in event(); the menu only shows it.
+    actionFind->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_F));
+    actionFind->setShortcutContext(Qt::WidgetShortcut);
 
     // "Document window" submenu, so an undocked sheet can be docked again without a shortcut
     if (auto* cmd = Gui::Application::Instance->commandManager().getCommandByName(
@@ -534,6 +540,10 @@ bool SheetTableView::event(QEvent* event)
             fillRight();
             return true;
         }
+        else if (kevent->modifiers() == Qt::ControlModifier && kevent->key() == Qt::Key_F) {
+            findReplace();
+            return true;
+        }
     }
     else if (event && event->type() == QEvent::ShortcutOverride) {
         QKeyEvent* kevent = static_cast<QKeyEvent*>(event);
@@ -586,7 +596,8 @@ bool SheetTableView::event(QEvent* event)
             kevent->accept();
         }
         else if (kevent->modifiers() == Qt::ControlModifier
-                 && (kevent->key() == Qt::Key_D || kevent->key() == Qt::Key_R)) {
+                 && (kevent->key() == Qt::Key_D || kevent->key() == Qt::Key_R
+                     || kevent->key() == Qt::Key_F)) {
             kevent->accept();
         }
     }
@@ -604,6 +615,7 @@ bool SheetTableView::event(QEvent* event)
         actionFillRight->setText(tr("Fill Right"));
         actionSortAscending->setText(tr("Sort Ascending"));
         actionSortDescending->setText(tr("Sort Descending"));
+        actionFind->setText(tr("Find and Replace…"));
         actionBind->setText(tr("Bind…"));
     }
     return QTableView::event(event);
@@ -811,6 +823,22 @@ void SheetTableView::sortAscending()
 void SheetTableView::sortDescending()
 {
     sortSelection(false);
+}
+
+void SheetTableView::findReplace()
+{
+    auto dialog = qobject_cast<DlgFindReplace*>(findDialog.data());
+    if (!dialog) {
+        dialog = new DlgFindReplace(this, sheet);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        // The dialog is a child of the main window (the table sits in a
+        // graphics proxy), so close it with the view.
+        connect(this, &QObject::destroyed, dialog, &QWidget::close);
+        findDialog = dialog;
+    }
+    dialog->show();
+    dialog->raise();
+    dialog->activateWindow();
 }
 
 void SheetTableView::sortSelection(bool ascending)

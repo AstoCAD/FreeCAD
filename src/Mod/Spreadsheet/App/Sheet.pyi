@@ -105,6 +105,40 @@ class Sheet(DocumentObject):
         """
         ...
 
+    def findCells(
+        self,
+        text: str,
+        matchCase: bool = False,
+        wholeCell: bool = False,
+        values: bool = False,
+        /,
+    ) -> list[str]:
+        """
+        Return the addresses, row by row, of the cells whose contents contain
+        the text (or are the text, with wholeCell). Text cells are matched
+        without their leading apostrophe. With values, the formatted values
+        are searched instead of the contents.
+        """
+        ...
+
+    def replaceCells(
+        self,
+        text: str,
+        replacement: str,
+        matchCase: bool = False,
+        wholeCell: bool = False,
+        range: str | None = None,
+        /,
+    ) -> int:
+        """
+        Replace the text in the contents of the matching cells (see findCells),
+        or their whole contents with wholeCell, optionally only in the given
+        cell or range. Text cells stay text; bare user parameter names in new
+        formulas are qualified as when typed. Returns the number of cells
+        changed. Recompute the document to update the values.
+        """
+        ...
+
     def insertColumns(self, column: str, count: int, /) -> None:
         """Insert a given number of columns into the spreadsheet."""
         ...
