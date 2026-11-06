@@ -122,13 +122,10 @@ def findIntersection(
             except Part.OCCError:
                 return []
             norm3 = vec1.cross(vec2)
-            denom = norm3.x + norm3.y + norm3.z
-            if not DraftVecUtils.isNull(norm3) and denom != 0:
-                k = (
-                    (pt3.z - pt1.z) * (vec2.x - vec2.y)
-                    + (pt3.y - pt1.y) * (vec2.z - vec2.x)
-                    + (pt3.x - pt1.x) * (vec2.y - vec2.z)
-                ) / denom
+            if not DraftVecUtils.isNull(norm3):
+                # pt1 + k * vec1 = pt3 + s * vec2, crossed with vec2:
+                # k * norm3 = (pt3 - pt1) x vec2
+                k = pt3.sub(pt1).cross(vec2).dot(norm3) / norm3.dot(norm3)
                 vec1.scale(k, k, k)
                 intp = pt1.add(vec1)
 
@@ -228,8 +225,11 @@ def findIntersection(
             else:
                 return [pt2]
 
-        if DraftVecUtils.isNull(pt1.sub(center).cross(pt2.sub(center)).cross(arc.Curve.Axis)):
+        if DraftVecUtils.isNull(
+            pt1.sub(center).cross(pt2.sub(center)).cross(arc.Curve.Axis)
+        ) and round(dirVec.dot(arc.Curve.Axis), precision()) == 0:
             # Line and Arc are on same plane
+            # (the 2nd test is needed for a line through the center)
 
             dOnLine = center.sub(pt1).dot(dirVec)
             onLine = App.Vector(dirVec)
@@ -252,15 +252,10 @@ def findIntersection(
         else:
             # Line isn't on Arc's plane
             if dirVec.dot(arc.Curve.Axis) != 0:
-                toPlane = App.Vector(arc.Curve.Axis)
-                toPlane.normalize()
-                d = pt1.dot(toPlane)
-                if not d:
-                    return []
-                dToPlane = center.sub(pt1).dot(toPlane)
-                toPlane = App.Vector(pt1)
-                toPlane.scale(dToPlane / d, dToPlane / d, dToPlane / d)
-                ptOnPlane = toPlane.add(pt1)
+                # point where the line pierces the plane of the arc
+                axis = arc.Curve.Axis
+                k = center.sub(pt1).dot(axis) / dirVec.dot(axis)
+                ptOnPlane = pt1.add(App.Vector(dirVec).multiply(k))
                 if round(ptOnPlane.sub(center).Length - arc.Curve.Radius, precision()) == 0:
                     int = [ptOnPlane]
                 else:
@@ -325,12 +320,15 @@ def findIntersection(
             axis2.normalize()
             U = axis1.cross(axis2)
             V = axis1.cross(U)
+            # point on the intersection line of both planes:
+            # cent1 + k * V, with (cent1 + k * V - cent2) . axis2 = 0
             dToPlane = c2c.dot(axis2)
-            d = V.add(cent1).dot(axis2)
+            d = V.dot(axis2)
             V.scale(dToPlane / d, dToPlane / d, dToPlane / d)
             PtOn2Planes = V.add(cent1)
             planeIntersectionVector = U.add(PtOn2Planes)
-            intTemp = findIntersection(planeIntersectionVector, edge1, True, True)
+            planeIntersectionLine = Part.LineSegment(PtOn2Planes, planeIntersectionVector).toShape()
+            intTemp = findIntersection(planeIntersectionLine, edge1, True, True)
             int = []
             for pt in intTemp:
                 if round(pt.sub(cent2).Length - rad2, precision()) == 0:
