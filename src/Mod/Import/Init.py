@@ -34,7 +34,6 @@ translate = FreeCAD.Qt.translate
 # FreeCAD.addImportType("STEP 214 (*.step *.stp)","ImportGui")
 # FreeCAD.addExportType("STEP 214 (*.step *.stp)","ImportGui")
 # FreeCAD.addExportType("IGES files (*.iges *.igs)","ImportGui")
-FreeCAD.addImportType("PLMXML files (*.plmxml *.PLMXML)", "PlmXmlParser")
 FreeCAD.addImportType("STEPZ Zip File Type (*.stpZ *.stpz *.STPZ)", "stepZ")
 FreeCAD.addImportType("glTF (*.gltf *.GLTF *.glb *.GLB)", "ImportGui")
 FreeCAD.addTranslatableExportType(
