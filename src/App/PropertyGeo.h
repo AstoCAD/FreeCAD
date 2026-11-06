@@ -97,6 +97,7 @@ public:
         return sizeof(Base::Vector3d);
     }
 
+    void setPathValue(const ObjectIdentifier& path, const boost::any& value) override;
     const boost::any getPathValue(const ObjectIdentifier& path) const override;
 
     bool getPyPathValue(const ObjectIdentifier& path, Py::Object& res) const override;
@@ -293,6 +294,8 @@ public:
     {
         return sizeof(Base::Matrix4D);
     }
+
+    void setPathValue(const ObjectIdentifier& path, const boost::any& value) override;
 
     bool isSame(const Property& other) const override
     {

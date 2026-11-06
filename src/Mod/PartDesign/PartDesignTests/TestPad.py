@@ -575,14 +575,14 @@ class TestPad(unittest.TestCase):
         # NaN passed the null vector check of the custom direction and crashed the prism
         pad = self._makeLengthFeature("PartDesign::Pad")
         pad.UseCustomVector = True
-        pad.Direction = Base.Vector(float("nan"), 0, 1)
+        restoreValueAsFromFile(pad, "Direction", Base.Vector(float("nan"), 0, 1))
         self.Doc.recompute()
         self.assertIn("Invalid", pad.State)
 
     def testPocketNaNCustomDirectionFails(self):
         pocket = self._makeLengthFeature("PartDesign::Pocket")
         pocket.UseCustomVector = True
-        pocket.Direction = Base.Vector(float("nan"), 0, 1)
+        restoreValueAsFromFile(pocket, "Direction", Base.Vector(float("nan"), 0, 1))
         self.Doc.recompute()
         self.assertIn("Invalid", pocket.State)
 
