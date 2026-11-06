@@ -529,7 +529,14 @@ int SketchObject::carbonCopy(App::DocumentObject* pObj, bool construction)
         }
     };
 
-    for (const auto& geoOld : svals) {
+    // A mirror (exactly one flipped axis) reverses the orientation of the geometry. Arcs are
+    // kept counter-clockwise, as the sketcher creates them, so their start and end points swap:
+    // the start point of the copy is the image of the end point of the source.
+    const bool mirrored = xinv != yinv;
+    std::vector<bool> isStartEndInverted(svals.size(), false);
+
+    for (std::size_t i = 0; i < svals.size(); ++i) {
+        const Part::Geometry* geoOld = svals[i];
         Part::Geometry* geoNew = geoOld->copy();
         // Imported geometry belongs to the destination's active layer; source IDs are local.
         GeometryFacade::getFacade(geoNew)->setGeometryLayerId(
@@ -538,6 +545,18 @@ int SketchObject::carbonCopy(App::DocumentObject* pObj, bool construction)
             // corrections for flipped geometry
             applyGeometryFlipCorrection(geoNew);
         }
+        if (mirrored && geoNew->isDerivedFrom<Part::GeomArcOfConic>()) {
+            geoNew->reverseIfReversed();
+            Base::Vector3d startImage = getPoint(geoOld, PointPos::start);
+            if (xinv) {
+                startImage.x = -startImage.x;
+            }
+            if (yinv) {
+                startImage.y = -startImage.y;
+            }
+            isStartEndInverted[i] = (getPoint(geoNew, PointPos::end) - startImage).Length()
+                < (getPoint(geoNew, PointPos::start) - startImage).Length();
+        }
         generateId(geoNew);
         if (construction && !geoNew->is<Part::GeomPoint>()) {
             GeometryFacade::setConstruction(geoNew, true);
@@ -545,9 +564,85 @@ int SketchObject::carbonCopy(App::DocumentObject* pObj, bool construction)
         newVals.push_back(geoNew);
     }
 
-    auto applyConstraintFlipCorrection = [xinv, yinv](Sketcher::Constraint* newConstr) {
+    auto normalizeAngle = [](double angle) {
+        while (angle > pi) {
+            angle -= pi * 2.0;
+        }
+        while (angle <= -pi) {
+            angle += pi * 2.0;
+        }
+        return angle;
+    };
+
+    // The solver measures the angle at a point between the normals of two curves. A line or a
+    // B-spline takes its normal from its direction, which the flip carries over (except for the
+    // target's own axes, which keep their direction), so with a mirror its normal ends up on the
+    // other side. A conic takes its normal from its shape, which the flip carries over.
+    auto isNormalReversed = [psObj, xinv, yinv, mirrored](int geoId) {
+        const Part::Geometry* geo = psObj->getGeometry(geoId);
+        if (!geo || !(geo->is<Part::GeomLineSegment>() || geo->is<Part::GeomBSplineCurve>())) {
+            return false;
+        }
+        bool axisReversed = (geoId == GeoEnum::HAxis && xinv) || (geoId == GeoEnum::VAxis && yinv);
+        return mirrored != axisReversed;
+    };
+
+    // Angle between the normals of the two curves of the constraint, at its point.
+    auto flipAngleAtPoint = [&](const Sketcher::Constraint* constr, double angle) {
+        if (mirrored) {
+            angle = -angle;
+        }
+        if (isNormalReversed(constr->First) != isNormalReversed(constr->Second)) {
+            angle += pi;
+        }
+        return normalizeAngle(angle);
+    };
+
+    // Angle constraint between two curves at a point
+    auto isAngleAtPoint = [](const Sketcher::Constraint* constr) {
+        return constr->Third != GeoEnum::GeoUndef;
+    };
+
+    // Angle constraint on a single arc: its angular span
+    auto isArcAngle = [psObj](const Sketcher::Constraint* constr) {
+        const Part::Geometry* geo = psObj->getGeometry(constr->First);
+        return constr->Second == GeoEnum::GeoUndef && geo && geo->is<Part::GeomArcOfCircle>();
+    };
+
+    auto applyConstraintFlipCorrection = [&](const Sketcher::Constraint* constr,
+                                             Sketcher::Constraint* newConstr) {
         if (!xinv && !yinv) {
             return;
+        }
+
+        // Points of the arcs whose start and end swapped
+        auto swapStartEnd = [&isStartEndInverted](int geoId, PointPos& pos) {
+            if (geoId >= 0 && geoId < static_cast<int>(isStartEndInverted.size())
+                && isStartEndInverted[geoId]) {
+                if (pos == PointPos::start) {
+                    pos = PointPos::end;
+                }
+                else if (pos == PointPos::end) {
+                    pos = PointPos::start;
+                }
+            }
+        };
+        swapStartEnd(constr->First, newConstr->FirstPos);
+        swapStartEnd(constr->Second, newConstr->SecondPos);
+        swapStartEnd(constr->Third, newConstr->ThirdPos);
+
+        // Tangent, Perpendicular at a point, with their locked angle
+        if ((newConstr->Type == Sketcher::Tangent || newConstr->Type == Sketcher::Perpendicular)
+            && newConstr->getValue() != 0.0
+            && (newConstr->FirstPos != PointPos::none || newConstr->Third != GeoEnum::GeoUndef)) {
+            // The locked value is the angle offset by -pi/2 for a tangency (see
+            // AutoLockTangencyAndPerpty), and kept in the same range.
+            const double offset = newConstr->Type == Sketcher::Tangent ? -pi / 2 : 0.0;
+            double value = flipAngleAtPoint(constr, newConstr->getValue() - offset) + offset;
+            if (newConstr->Type == Sketcher::Perpendicular && value < 0) {
+                value += pi * 2.0;
+            }
+            newConstr->setValue(value);
         }
 
         // DistanceX, DistanceY
@@ -563,17 +658,13 @@ int SketchObject::carbonCopy(App::DocumentObject* pObj, bool construction)
 
         // Angle
         if (newConstr->Type == Sketcher::Angle) {
-            auto normalizeAngle = [](double angleDeg) {
-                while (angleDeg > pi) {
-                    angleDeg -= pi * 2.0;
-                }
-                while (angleDeg <= -pi) {
-                    angleDeg += pi * 2.0;
-                }
-                return angleDeg;
-            };
-
-            if (xinv && yinv) {  // rotation 180 degrees around normal axis
+            if (isAngleAtPoint(constr)) {
+                newConstr->setValue(flipAngleAtPoint(constr, newConstr->getValue()));
+            }
+            else if (isArcAngle(constr)) {
+                // the angle of an arc is kept by the flip
+            }
+            else if (xinv && yinv) {  // rotation 180 degrees around normal axis
                 if (newConstr->First == -1 || newConstr->Second == -1 || newConstr->First == -2
                     || newConstr->Second == -2 || newConstr->Second == GeoEnum::GeoUndef) {
                     // angle to horizontal or vertical axis
@@ -632,7 +723,7 @@ int SketchObject::carbonCopy(App::DocumentObject* pObj, bool construction)
 
         if (xinv || yinv) {
             // corrections for flipped constraints
-            applyConstraintFlipCorrection(newConstr);
+            applyConstraintFlipCorrection(constr, newConstr);
         }
 
         newcVals.push_back(newConstr);
@@ -650,7 +741,7 @@ int SketchObject::carbonCopy(App::DocumentObject* pObj, bool construction)
     Geometry.touch();
 
     auto makeCorrectedExpressionString =
-        [xinv, yinv](const Sketcher::Constraint* constr, const std::string expr) -> std::string {
+        [&](const Sketcher::Constraint* constr, const std::string expr) -> std::string {
         if (!xinv && !yinv) {
             return expr;
         }
@@ -668,7 +759,20 @@ int SketchObject::carbonCopy(App::DocumentObject* pObj, bool construction)
 
         // Angle
         if (constr->Type == Sketcher::Angle) {
-            if (xinv && yinv) {  // rotation 180 degrees around normal axis
+            if (isAngleAtPoint(constr)) {
+                // as flipAngleAtPoint()
+                bool normalReversed =
+                    isNormalReversed(constr->First) != isNormalReversed(constr->Second);
+                if (mirrored) {
+                    return normalReversed ? "180 deg - (" + expr + ")" : "-(" + expr + ")";
+                }
+                return normalReversed ? "(" + expr + ") + 180 deg" : expr;
+            }
+            else if (isArcAngle(constr)) {
+                // the angle of an arc is kept by the flip
+                return expr;
+            }
+            else if (xinv && yinv) {  // rotation 180 degrees around normal axis
                 if (constr->First == -1 || constr->Second == -1 || constr->First == -2
                     || constr->Second == -2 || constr->Second == GeoEnum::GeoUndef) {
                     // angle to horizontal or vertical axis
