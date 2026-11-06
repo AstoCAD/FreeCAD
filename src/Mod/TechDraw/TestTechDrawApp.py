@@ -57,6 +57,7 @@ from TDTest.DrawViewSectionCycleTest import DrawViewSectionCycleTest  # noqa: F4
 from TDTest.DrawLeaderParentLoopTest import DrawLeaderParentLoopTest  # noqa: F401
 from TDTest.DrawViewDetailConsoleTest import DrawViewDetailConsoleTest  # noqa: F401
 from TDTest.DrawDxfLinearDimBlockTest import DrawDxfLinearDimBlockTest  # noqa: F401
+from TDTest.DrawViewDetailOfDetailTest import DrawViewDetailOfDetailTest  # noqa: F401
 
 
 from TDTest.SketchAnnotationsTest import SketchAnnotationsTest  # noqa: F401
