@@ -568,6 +568,33 @@ class TestCore(AssemblyTestBase):
             nested=True, same_source=True, root_count=2, detail_parts=False
         )
 
+    def test_bom_counts_link_array_elements(self):
+        """Every element of a link array is one occurrence of the linked object."""
+        source = self.doc.addObject("Part::Box", "ArraySource")
+        source.Label = "Rod"
+        group = self.assembly.newObject("App::Link", "LinkGroup")
+        group.LinkedObject = source
+        group.ElementCount = 3
+        generated = self.assembly.newObject("Part::LinkArrayLinear", "Generated")
+        generated.LinkedObject = source
+        generated.Occurrences = 4
+        single = self.assembly.newObject("App::Link", "Single")
+        single.LinkedObject = source
+        self.doc.recompute()
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Name", "Quantity"]
+        self.doc.recompute()
+        self.assertNotIn("Invalid", bom.State)
+        self.assertEqual(generated.ElementCount, 4)
+        self.assertEqual(bom.get("A2"), source.Label)
+        self.assertEqual(int(float(bom.get("B2"))), 8)
+        self.assertNotIn("A3", bom.getNonEmptyCells())
+
+        group.ElementList[1].Suppressed = True
+        bom.touch()
+        self.doc.recompute()
+        self.assertEqual(int(float(bom.get("B2"))), 7)
+
     def test_component_count_for_link_array(self):
         source = self.doc.addObject("Part::Box", "ArraySource")
         array = self.assembly.newObject("App::Link", "Array")
