@@ -1438,6 +1438,8 @@ def export(exportList, filename):
         svg.write(' viewBox="%f %f %f %f"' % (minx, -maxy, sizex, sizey))
 
     svg.write(' xmlns="http://www.w3.org/2000/svg" version="1.1"')
+    # get_svg writes freecad:skip, freecad:basepoint1, ... attributes
+    svg.write(' xmlns:freecad="https://www.freecad.org/wiki/index.php?title=Svg_Namespace"')
     svg.write(">\n")
 
     # Write paths
