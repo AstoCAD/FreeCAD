@@ -267,6 +267,50 @@ class MaterialSaveTestCases(unittest.TestCase):
         self.MaterialManager.save("Custom", Materials.Material(), "/Custom/Prefixed.FCMat")
         self.assertTrue(os.path.isfile(os.path.join(self.libDir, "Prefixed.FCMat")))
 
+    def testSaveChildOfParentWithSpecialName(self):
+        """A card inheriting from a card named with YAML special characters can be read back"""
+        uuids = Materials.UUIDs()
+        parent = Materials.Material()
+        parent.addPhysicalModel(uuids.Density)
+        parent.setPhysicalValue("Density", "1000 kg/m^3")
+        self.MaterialManager.save("Custom", parent, "Steel #1.FCMat", overwrite=True)
+        self.MaterialManager.refresh()
+        parent = self.MaterialManager.getMaterialByPath("Steel #1.FCMat", "Custom")
+
+        child = self.MaterialManager.inheritMaterial(parent.UUID)
+        child.addPhysicalModel(uuids.Thermal)
+        child.setPhysicalValue("ThermalConductivity", "1 W/m/K")
+        self.MaterialManager.save(
+            "Custom", child, "Child.FCMat", overwrite=True, saveInherited=True
+        )
+        self.MaterialManager.refresh()
+
+        child = self.MaterialManager.getMaterialByPath("Child.FCMat", "Custom")
+        self.assertEqual(child.Parent, parent.UUID)
+        self.assertAlmostEqual(
+            child.getPhysicalValue("Density").getValueAs("kg/m^3").Value, 1000.0
+        )
+
+    def testSaveTagsWithQuotes(self):
+        """Tags with quotes and backslashes are saved so that they can be read back"""
+        uuid = "4a1d5c0e-7b2f-4e3a-9c8d-1f2e3d4c5b6a"
+        with open(os.path.join(self.libDir, "Tagged.FCMat"), "w", encoding="utf-8") as f:
+            f.write(
+                '---\nGeneral:\n  UUID: "{}"\n  Name: "Tagged"\n'
+                "  Tags:\n    - 'say \"hi\"'\n    - 'back\\slash'\n".format(uuid)
+            )
+        self.MaterialManager.refresh()
+        material = self.MaterialManager.getMaterial(uuid)
+        self.assertEqual(sorted(material.Tags), ["back\\slash", 'say "hi"'])
+
+        self.MaterialManager.save(
+            "Custom", material, "Copy.FCMat", overwrite=True, saveAsCopy=True
+        )
+        os.remove(os.path.join(self.libDir, "Tagged.FCMat"))
+        self.MaterialManager.refresh()
+        copy = self.MaterialManager.getMaterialByPath("Copy.FCMat", "Custom")
+        self.assertEqual(sorted(copy.Tags), ["back\\slash", 'say "hi"'])
+
     def testSaveIntoReadOnlyLibraryRaises(self):
         """A read-only library (as the System one) does not accept saves"""
         with self.assertRaises(FreeCAD.Base.FreeCADError):
