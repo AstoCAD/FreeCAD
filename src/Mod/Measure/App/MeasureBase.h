@@ -114,15 +114,10 @@ public:
     static Part::MeasureInfoPtr getMeasureInfo(App::SubObjectT& subObjT)
     {
 
-        // Resolve App::Link
-        App::DocumentObject* sub = subObjT.getSubObject();
+        // Resolve App::Link and link array elements
+        App::DocumentObject* sub = App::MeasureManager::getMeasuredObject(subObjT);
         if (!sub) {
             return nullptr;
-        }
-
-        if (sub->isDerivedFrom<App::Link>()) {
-            auto link = static_cast<App::Link*>(sub);
-            sub = link->getLinkedObject(true);
         }
 
         // Get the Geometry handler based on the module
