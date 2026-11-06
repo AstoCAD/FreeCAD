@@ -329,6 +329,18 @@ def transformCopyShape(shape, m):
     return shape.transformGeometry(m)
 
 
+def get_numbers(text):
+    """Return the numbers of an SVG list of numbers as floats.
+
+    Numbers need no separator when the next one starts with a sign or a
+    decimal point, so "10-5.5.5" is 10, -5.5 and 0.5.
+    """
+    return [float(number) for number in _NUMBER_RE.findall(text)]
+
+
+_NUMBER_RE = re.compile("[-+]?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?")
+
+
 def getsize(length, mode="discard", base=1):
     """Parse the length string containing number and unit.
 
@@ -947,7 +959,7 @@ class svgHandler(xml.sax.ContentHandler):
             # points beforehand.
             if not pathname:
                 pathname = "Polyline"
-            points = [float(d) for d in data["points"]]
+            points = get_numbers(" ".join(data["points"]))
             lenpoints = len(points)
             if lenpoints >= 4 and lenpoints % 2 == 0:
                 lastvec = Vector(points[0], -points[1], 0)
@@ -1142,8 +1154,7 @@ class svgHandler(xml.sax.ContentHandler):
         transformre = re.compile(_transf, re.DOTALL)
         m = FreeCAD.Matrix()
         for transformation, arguments in reversed(transformre.findall(tr)):
-            _args_rep = arguments.replace(",", " ").split()
-            argsplit = [float(arg) for arg in _args_rep]
+            argsplit = get_numbers(arguments)
             # m.multiply(FreeCAD.Matrix(1, 0, 0, 0, 0, -1))
             # print('%s:%s %s %d' % (transformation, arguments,
             #                        argsplit, len(argsplit)))
