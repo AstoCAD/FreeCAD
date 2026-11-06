@@ -267,6 +267,18 @@ class TestMeshCommon(unittest.TestCase):
         self.assertEqual(list(new_mesh.getElementNodes(3)), [1, 3, 4])
 
     # ********************************************************************************************
+    def test_read_z88_mesh_of_solver(self):
+        # the Z88 solver writes z88i1.txt without KFLAG in the first line
+        from feminout import importZ88Mesh
+
+        mesh_file = join(
+            testtools.get_fem_test_home_dir(), "z88", "ccx_cantilever_faceload", "z88i1.txt"
+        )
+        mesh = importZ88Mesh.read(mesh_file)
+        self.assertEqual(mesh.NodeCount, 235)
+        self.assertEqual(mesh.VolumeCount, 100)
+
+    # ********************************************************************************************
     def test_volume_of_linear_elements(self):
         # FemMesh.Volume only summed up 10-node tetrahedra, it was 0 for every other element type
         def volume(points):
