@@ -2816,3 +2816,133 @@ class SpreadsheetEditing(unittest.TestCase):
         self.doc.recompute()
         self.assertEqual(sheet.getContents("A3"), "")
         self.assertEqual(sheet.getContents("A1"), "=1 + 1")
+
+    def _sortSample(self):
+        sheet = self.sheet
+        sheet.set("A1", "name")
+        for row, (key, value) in enumerate(
+            [("pear", "3"), ("Apple", "1"), ("", "2"), ("5", "4"), ("banana", "6")], start=2
+        ):
+            if key:
+                sheet.set(f"A{row}", key)
+            sheet.set(f"B{row}", value)
+        sheet.setStyle("B3", "bold")
+        sheet.set("C2", "outside")
+        self.doc.recompute()
+
+    def testSortRowsAscending(self):
+        sheet = self.sheet
+        self._sortSample()
+        sheet.sortRows("A2:B6", "A")
+        self.doc.recompute()
+        # Numbers, then text without case, then empty cells
+        self.assertEqual(
+            [sheet.getContents(f"A{row}") for row in range(1, 7)],
+            ["'name", "5", "'Apple", "'banana", "'pear", ""],
+        )
+        self.assertEqual([sheet.get(f"B{row}") for row in range(2, 7)], [4, 1, 6, 3, 2])
+        # Formatting moves with the cells; cells outside the range stay
+        self.assertEqual(sheet.getStyle("B3"), {"bold"})
+        self.assertIsNone(sheet.getStyle("B2"))
+        self.assertEqual(sheet.getContents("C2"), "'outside")
+
+    def testSortRowsDescending(self):
+        sheet = self.sheet
+        self._sortSample()
+        sheet.sortRows("B6:A2", "A", False)
+        self.doc.recompute()
+        # Empty cells stay last
+        self.assertEqual([sheet.get(f"B{row}") for row in range(2, 7)], [3, 6, 1, 4, 2])
+        sheet.sortRows("A2:B6", "B", False)
+        self.doc.recompute()
+        self.assertEqual([sheet.get(f"B{row}") for row in range(2, 7)], [6, 4, 3, 2, 1])
+
+    def testSortRowsBeforeRecompute(self):
+        """Typed numbers and quantities sort by value even before a recompute"""
+        sheet = self.sheet
+        sheet.set("A1", "10")
+        sheet.set("A2", "9")
+        sheet.set("A3", "1 m")
+        sheet.set("A4", "5 mm")
+        sheet.set("A5", "abc")
+        sheet.sortRows("A1:A5", "A")
+        self.assertEqual(
+            [sheet.getContents(f"A{row}") for row in range(1, 6)],
+            ["=5 mm", "9", "10", "=1 m", "'abc"],
+        )
+
+    def testSortRowsReferences(self):
+        sheet = self.sheet
+        sheet.set("A1", "100")
+        sheet.set("A2", "3")
+        sheet.set("A3", "1")
+        sheet.set("A4", "2")
+        sheet.set("B2", "=A2 * 10")  # same row
+        sheet.set("B3", "=A3 + A1")  # outside the range
+        sheet.set("B4", "=$A$2")  # another sorted row
+        sheet.set("C2", "=sum(A2:B2)")  # range in one sorted row
+        sheet.set("C3", "=sum(A2:A4)")  # range over all sorted rows
+        sheet.set("D1", "=A2")  # outside: keeps its position
+        sheet.set("D2", "=sum(A2:A4)")
+        self.doc.recompute()
+        self.assertEqual(sheet.C2, 33)
+
+        sheet.sortRows("A2:C4", "A")
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("B2"), "=A2 + A1")
+        self.assertEqual(sheet.getContents("B3"), "=$A$4")
+        self.assertEqual(sheet.getContents("B4"), "=A4 * 10")
+        self.assertEqual(sheet.getContents("C4"), "=sum(A4:B4)")
+        self.assertEqual(sheet.getContents("C2"), "=sum(A2:A4)")
+        self.assertEqual([sheet.get(f"B{row}") for row in range(2, 5)], [101, 3, 30])
+        self.assertEqual(sheet.C4, 33)
+        self.assertEqual(sheet.C2, 6)
+        self.assertEqual(sheet.getContents("D1"), "=A2")
+        self.assertEqual(sheet.D1, 1)
+        self.assertEqual(sheet.D2, 6)
+
+    def testSortRowsRejectsPartialRangesAliasesAndMerges(self):
+        sheet = self.sheet
+        sheet.set("A2", "2")
+        sheet.set("A3", "1")
+        sheet.set("A4", "0")
+        sheet.set("B2", "=sum(A2:A3)")
+        self.doc.recompute()
+        with self.assertRaises(ValueError):
+            sheet.sortRows("A2:B4", "A")
+        # Nothing changed
+        self.assertEqual(sheet.getContents("A2"), "2")
+        self.assertEqual(sheet.getContents("B2"), "=sum(A2:A3)")
+        # Sorting only column A is fine: B2 is outside the range
+        sheet.sortRows("A2:A4", "A")
+        self.assertEqual(sheet.getContents("A2"), "0")
+        self.assertEqual(sheet.getContents("B2"), "=sum(A2:A3)")
+        with self.assertRaises(ValueError):
+            sheet.sortRows("A2:A4", "B")
+        sheet.setAlias("A3", "middle")
+        with self.assertRaises(ValueError):
+            sheet.sortRows("A2:A4", "A", False)
+        sheet.setAlias("A3", "")
+        sheet.mergeCells("C3:D3")
+        with self.assertRaises(ValueError):
+            sheet.sortRows("A2:D4", "A")
+        self.assertEqual(sheet.getContents("A2"), "0")
+
+    def testSortRowsUndo(self):
+        sheet = self.sheet
+        self.doc.UndoMode = 1
+        sheet.set("A1", "2")
+        sheet.set("A2", "1")
+        sheet.set("B1", "=A1 * 2")
+        self.doc.recompute()
+        self.doc.openTransaction("Sort")
+        sheet.sortRows("A1:B2", "A")
+        self.doc.commitTransaction()
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("B2"), "=A2 * 2")
+        self.assertEqual(sheet.B2, 4)
+        self.doc.undo()
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("A1"), "2")
+        self.assertEqual(sheet.getContents("B1"), "=A1 * 2")
+        self.assertEqual(sheet.getContents("B2"), "")

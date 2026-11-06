@@ -207,6 +207,8 @@ public:
 
     void removeColumns(int col, int count);
 
+    void permuteRows(const App::Range& block, const std::vector<int>& order);
+
     unsigned int getMemSize() const override;
 
     bool mergeCells(App::CellAddress from, App::CellAddress to);
