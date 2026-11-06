@@ -642,6 +642,12 @@ App::DocumentObjectExecReturn* MeasureAngle::execute()
         return executeAxisCase(s1, s2, s1Axis, s2Axis);
     }
 
+    // The origin and the arc are built from the element directions, as in executeAxisCase
+    if (vector1().Magnitude() < Precision::Confusion()
+        || vector2().Magnitude() < Precision::Confusion()) {
+        return new App::DocumentObjectExecReturn("Could not get element directions");
+    }
+
     if (s1.ShapeType() == TopAbs_FACE && s2.ShapeType() == TopAbs_FACE) {
         mCase = MeasurementCase::FaceFace;
     }
