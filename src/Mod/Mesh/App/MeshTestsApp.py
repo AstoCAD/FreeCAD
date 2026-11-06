@@ -998,6 +998,77 @@ class MeshExportObjNormals(unittest.TestCase):
             self.assertAlmostEqual((normal - expected).Length, 0.0, places=4)
 
 
+class MeshExportPlacement(unittest.TestCase):
+    """The IDTF and MGL writers must apply the placement of the mesh like the other formats"""
+
+    def setUp(self):
+        self.mesh = Mesh.createBox(1.0, 2.0, 3.0)
+        self.mesh.Placement = Base.Placement(
+            Base.Vector(10, 20, 30), Base.Rotation(Base.Vector(0, 0, 1), 90)
+        )
+        # centred 1 x 2 x 3 box turned by 90 degrees around Z, then moved
+        self.expected = Base.BoundBox(9, 19.5, 28.5, 11, 20.5, 31.5)
+
+    def _read(self, ext):
+        with tempfile.TemporaryDirectory() as tmpDir:
+            fileName = os.path.join(tmpDir, "placed_box." + ext)
+            self.mesh.write(fileName)
+            with open(fileName) as f:
+                return f.read()
+
+    def _checkPoints(self, points):
+        self.assertEqual(len(points), self.mesh.CountPoints)
+        box = Base.BoundBox()
+        for p in points:
+            box.add(p)
+        for a, b in zip(
+            (box.XMin, box.YMin, box.ZMin, box.XMax, box.YMax, box.ZMax),
+            (
+                self.expected.XMin,
+                self.expected.YMin,
+                self.expected.ZMin,
+                self.expected.XMax,
+                self.expected.YMax,
+                self.expected.ZMax,
+            ),
+        ):
+            self.assertAlmostEqual(a, b, places=2)
+
+    def testIDTF(self):
+        text = self._read("idtf")
+        lines = [line.strip() for line in text.splitlines()]
+
+        def block(name):
+            start = lines.index(name + " {") + 1
+            end = lines.index("}", start)
+            return [[float(v) for v in line.split()] for line in lines[start:end]]
+
+        self._checkPoints([Base.Vector(*v) for v in block("MODEL_POSITION_LIST")])
+
+    def testIDTFNormals(self):
+        # A quarter turn only swaps the side normals of a box, so turn it by 30 degrees: the
+        # normals must follow the rotation, i.e. no side normal stays along the X axis.
+        self.mesh.Placement = Base.Placement(
+            Base.Vector(10, 20, 30), Base.Rotation(Base.Vector(0, 0, 1), 30)
+        )
+        lines = [line.strip() for line in self._read("idtf").splitlines()]
+        start = lines.index("MODEL_NORMAL_LIST {") + 1
+        end = lines.index("}", start)
+        normals = [Base.Vector(*[float(v) for v in line.split()]) for line in lines[start:end]]
+        turned = Base.Vector(math.cos(math.radians(30)), math.sin(math.radians(30)), 0)
+        self.assertTrue(any((n - turned).Length < 1e-4 for n in normals))
+        self.assertFalse(any((n - Base.Vector(1, 0, 0)).Length < 1e-4 for n in normals))
+
+    def testMGL(self):
+        lists = {}
+        for line in self._read("mgl").splitlines():
+            items = line.split()
+            if len(items) > 2 and items[0] == "list" and items[1] in ("xt", "yt", "zt"):
+                lists[items[1]] = [float(v) for v in items[2:]]
+        points = [Base.Vector(*v) for v in zip(lists["xt"], lists["yt"], lists["zt"])]
+        self._checkPoints(points)
+
+
 class MeshProperty(unittest.TestCase):
     def setUp(self):
         self.doc = FreeCAD.newDocument("MeshTest")
