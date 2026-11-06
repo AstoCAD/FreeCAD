@@ -111,6 +111,21 @@ public:
 
     void sortRows(const App::Range& range, int column, bool ascending = true);
 
+    std::vector<App::CellAddress> findCells(
+        const std::string& text,
+        bool matchCase = false,
+        bool wholeCell = false,
+        bool values = false
+    );
+
+    int replaceCells(
+        const std::string& text,
+        const std::string& replacement,
+        bool matchCase = false,
+        bool wholeCell = false,
+        const std::vector<App::Range>& ranges = {}
+    );
+
     Cell* getCell(App::CellAddress address);
     const Cell* getCell(App::CellAddress address) const;
 
@@ -285,6 +300,8 @@ protected:
     App::Property* getProperty(App::CellAddress key) const;
 
     App::Property* getProperty(const char* addr) const;
+
+    App::Property* getComputedProperty(App::CellAddress key);
 
     std::string getCanonicalPropertyName(const char* name) const override;
 

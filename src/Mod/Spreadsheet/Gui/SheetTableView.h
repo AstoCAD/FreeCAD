@@ -21,7 +21,9 @@
 
 #pragma once
 
+#include <QDialog>
 #include <QHeaderView>
+#include <QPointer>
 #include <QTableView>
 #include <QTimer>
 #include <QMenu>
@@ -79,6 +81,7 @@ public Q_SLOTS:
     void fillRight();
     void sortAscending();
     void sortDescending();
+    void findReplace();
     void finishEditWithMove(int keyPressed, Qt::KeyboardModifiers modifiers, bool handleTabMotion = false);
     void ModifyBlockSelection(int targetRow, int targetColumn);
 
@@ -125,7 +128,9 @@ protected:
     QAction* actionDel;
     QAction* actionSortAscending;
     QAction* actionSortDescending;
+    QAction* actionFind;
     QAction* actionBind;
+    QPointer<QDialog> findDialog;
 
     QTimer timer;
 
