@@ -571,7 +571,21 @@ void MaterialLoader::loadLibrary(const std::shared_ptr<MaterialLibraryLocal>& li
     }
 
     for (auto& it : *_materialEntryMap) {
-        it.second->addToTree(_materialMap);
+        // A card with invalid contents (e.g. a model without its UUID) is skipped like a card
+        // that can't be parsed, instead of aborting the load of every library
+        try {
+            it.second->addToTree(_materialMap);
+        }
+        catch (const Base::Exception& e) {
+            Base::Console().error("Material card ignored: '{}'\n\t'{}'\n",
+                                  it.second->getDirectory().toStdString(),
+                                  e.what());
+        }
+        catch (const std::exception& e) {
+            Base::Console().error("Material card ignored: '{}'\n\t'{}'\n",
+                                  it.second->getDirectory().toStdString(),
+                                  e.what());
+        }
     }
 }
 
