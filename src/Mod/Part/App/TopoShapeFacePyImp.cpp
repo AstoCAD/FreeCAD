@@ -60,6 +60,7 @@
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Face.hxx>
+#include <TopoDS_Iterator.hxx>
 #include <TopoDS_Wire.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
@@ -109,6 +110,21 @@ const TopoDS_Face& getTopoDSFace(const TopoShapeFacePy* theFace)
         throw Py::ValueError("Face is null");
     }
     return f;
+}
+
+// BRepBuilderAPI_MakeFace::Add() takes the hole wires as they are. A hole wire oriented
+// like the outer wire gives an invalid face that bounds the wrong side of the hole:
+// re-orient the wires. A valid face is returned unchanged.
+TopoDS_Face fixHoleOrientation(const TopoDS_Face& face)
+{
+    BRepCheck_Analyzer aChecker(face);
+    if (!aChecker.IsValid()) {
+        ShapeFix_Face fix(face);
+        if (fix.FixOrientation()) {
+            return fix.Face();
+        }
+    }
+    return face;
 }
 }  // namespace
 
@@ -196,7 +212,13 @@ int TopoShapeFacePy::PyInit(PyObject* args, PyObject* /*kwd*/)
                 PyErr_SetString(PartExceptionOCCError, "Failed to create face from wire");
                 return -1;
             }
-            getTopoShapePtr()->setShape(mkFace.Face());
+            // the wire is added to the wires of the support face: a hole if it has some
+            if (TopoDS_Iterator(supportFace).More()) {
+                getTopoShapePtr()->setShape(fixHoleOrientation(mkFace.Face()));
+            }
+            else {
+                getTopoShapePtr()->setShape(mkFace.Face());
+            }
             getTopoShapePtr()->mapSubElement(f);
             getTopoShapePtr()->mapSubElement(w);
             return 0;
@@ -285,7 +307,12 @@ int TopoShapeFacePy::PyInit(PyObject* args, PyObject* /*kwd*/)
                 }
             }
 
-            getTopoShapePtr()->setShape(mkFace.Face());
+            if (wires.size() > 1) {
+                getTopoShapePtr()->setShape(fixHoleOrientation(mkFace.Face()));
+            }
+            else {
+                getTopoShapePtr()->setShape(mkFace.Face());
+            }
             getTopoShapePtr()->mapSubElement(wires);
             return 0;
         }
@@ -340,7 +367,12 @@ int TopoShapeFacePy::PyInit(PyObject* args, PyObject* /*kwd*/)
                 for (std::size_t i = 1; i < wires.size(); i++) {
                     mkFace.Add(TopoDS::Wire(wires[i].getShape()));
                 }
-                getTopoShapePtr()->setShape(mkFace.Face());
+                if (wires.size() > 1) {
+                    getTopoShapePtr()->setShape(fixHoleOrientation(mkFace.Face()));
+                }
+                else {
+                    getTopoShapePtr()->setShape(mkFace.Face());
+                }
                 getTopoShapePtr()->mapSubElement(wires);
                 return 0;
             }
@@ -853,18 +885,7 @@ PyObject* TopoShapeFacePy::cutHoles(PyObject* args)
                     }
                 }
 
-                TopoDS_Face face = mkFace.Face();
-                // A hole wire oriented like the outer wire gives an invalid face
-                // that bounds the wrong side of the hole: re-orient the wires.
-                BRepCheck_Analyzer aChecker(face);
-                if (!aChecker.IsValid()) {
-                    ShapeFix_Face fix(face);
-                    if (fix.FixOrientation()) {
-                        face = fix.Face();
-                    }
-                }
-
-                getTopoShapePtr()->setShape(face);
+                getTopoShapePtr()->setShape(fixHoleOrientation(mkFace.Face()));
                 Py_Return;
             }
             else {
