@@ -760,6 +760,46 @@ class TestCore(AssemblyTestBase):
     def test_assembly_link_maps_generated_array_whole_element_joint(self):
         self._check_generated_array_joint("")
 
+    def test_assembly_link_rigid_toggle_undo_redo(self):
+        """Undoing or redoing a Rigid toggle must not create the joint copies a second time
+        (they were duplicated and orphan objects were left in the document)."""
+        sub = self.doc.addObject("Assembly::AssemblyObject", "Sub")
+        joints = sub.newObject("Assembly::JointGroup", "SubJoints")
+        box1 = sub.newObject("Part::Box", "SubBox1")
+        box2 = sub.newObject("Part::Box", "SubBox2")
+        box2.Placement.Base = App.Vector(0, 0, 10)
+        joint = joints.newObject("App::FeaturePython", "SubJoint")
+        JointObject.Joint(joint, 0)
+        joint.Reference1 = (box1, ["Face6", "Vertex6"])
+        joint.Reference2 = (box2, ["Face5", "Vertex5"])
+        instance = self.assembly.newObject("Assembly::AssemblyLink", "Instance")
+        instance.LinkedObject = sub
+        self.doc.recompute()
+        self.doc.UndoMode = 1
+
+        def state():
+            return instance.Rigid, sorted(obj.Name for obj in self.doc.Objects)
+
+        rigid = state()
+        for value in (False, True):
+            self.doc.openTransaction("Toggle Rigid")
+            instance.Rigid = value
+            self.doc.commitTransaction()
+            self.doc.recompute()
+            if not value:
+                flexible = state()
+        self.assertEqual(state(), rigid)
+
+        self.doc.undo()
+        self.doc.recompute()
+        self.assertEqual(state(), flexible)
+        self.doc.undo()
+        self.doc.recompute()
+        self.assertEqual(state(), rigid)
+        self.doc.redo()
+        self.doc.recompute()
+        self.assertEqual(state(), flexible)
+
     def test_flexible_assembly_link_synchronizes_joint_angle(self):
         """A flexible assembly link copies the joints of its sub-assembly. The Angle of an
         Angle joint was not kept in sync, so the parent assembly solved with a stale angle."""
