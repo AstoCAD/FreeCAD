@@ -311,6 +311,12 @@ using FaceEdgePriority = std::pair<float, FaceEdge>;
 
 void MeshTopoAlgorithm::OptimizeTopology()
 {
+    // When both diagonals of a quad give the same maximum angle (e.g. the isosceles
+    // trapezoids of a sphere) the computed benefit of either swap is only rounding noise
+    // and can be positive in both directions, so the edge would be swapped back and forth
+    // forever. Only swap edges with a real benefit.
+    constexpr float minBenefit = 1.0e-5F;
+
     // Find all edges that can be swapped and insert them into a
     // priority queue
     const MeshFacetArray& faces = _rclMesh.GetFacets();
@@ -319,7 +325,7 @@ void MeshTopoAlgorithm::OptimizeTopology()
     for (FacetIndex i = 0; i < nf; i++) {
         for (int j = 0; j < 3; j++) {
             float b = SwapEdgeBenefit(i, j);
-            if (b > 0.0F) {
+            if (b > minBenefit) {
                 todo.push(std::make_pair(b, std::make_pair(i, j)));
             }
         }
@@ -331,7 +337,7 @@ void MeshTopoAlgorithm::OptimizeTopology()
         int e = todo.top().second.second;
         todo.pop();
         // Check again if the swap should still be done
-        if (SwapEdgeBenefit(f, e) <= 0.0F) {
+        if (!(SwapEdgeBenefit(f, e) > minBenefit)) {
             continue;
         }
         // OK, swap the edge
@@ -340,13 +346,13 @@ void MeshTopoAlgorithm::OptimizeTopology()
         // Insert new edges into queue, if necessary
         for (int j = 0; j < 3; j++) {
             float b = SwapEdgeBenefit(f, j);
-            if (b > 0.0F) {
+            if (b > minBenefit) {
                 todo.push(std::make_pair(b, std::make_pair(f, j)));
             }
         }
         for (int j = 0; j < 3; j++) {
             float b = SwapEdgeBenefit(f2, j);
-            if (b > 0.0F) {
+            if (b > minBenefit) {
                 todo.push(std::make_pair(b, std::make_pair(f2, j)));
             }
         }
