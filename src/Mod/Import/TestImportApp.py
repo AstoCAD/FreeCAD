@@ -418,3 +418,56 @@ class DxfExportDegenerateEdgeTest(unittest.TestCase):
                         Import.writeDXFShape([feature.Shape], self.fileName, version, polyline)
                     except Exception:
                         pass
+
+
+class ImportCompoundWithoutSolidsTest(unittest.TestCase):
+    """The legacy importer (no link groups) dropped compounds without solids or shells"""
+
+    def setUp(self):
+        self.doc = App.newDocument()
+        self.files = []
+        self.igesParam = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Part/IGES")
+        self.brepMode = self.igesParam.GetBool("BrepMode", False)
+        # write IGES in face mode: a solid becomes a group of free faces
+        self.igesParam.SetBool("BrepMode", False)
+
+    def tearDown(self):
+        self.igesParam.SetBool("BrepMode", self.brepMode)
+        App.closeDocument(self.doc.Name)
+        for fileName in self.files:
+            if os.path.exists(fileName):
+                os.remove(fileName)
+
+    def _export(self, shape, ext):
+        feature = self.doc.addObject("Part::Feature", "Shape")
+        feature.Shape = shape
+        self.doc.recompute()
+        fileName = os.path.join(tempfile.gettempdir(), "ImportCompoundWithoutSolidsTest." + ext)
+        self.files.append(fileName)
+        Import.export([feature], fileName)
+        return fileName
+
+    def _import(self, fileName, merge):
+        doc = App.newDocument()
+        try:
+            Import.insert(fileName, doc.Name, useLinkGroup=False, merge=merge)
+            shapes = [o.Shape for o in doc.Objects if o.isDerivedFrom("Part::Feature")]
+            return [(len(s.Faces), len(s.Edges), round(s.Area, 6)) for s in shapes]
+        finally:
+            App.closeDocument(doc.Name)
+
+    def testIgesFaces(self):
+        import Part
+
+        fileName = self._export(Part.makeBox(1, 2, 3), "iges")
+        for merge in (False, True):
+            with self.subTest(merge=merge):
+                self.assertEqual(self._import(fileName, merge), [(6, 24, 22.0)])
+
+    def testStepWire(self):
+        import Part
+
+        # STEP stores a wire as a compound of its edges
+        wire = Part.Wire(Part.makePolygon([(0, 0, 0), (1, 0, 0), (1, 1, 0)]))
+        fileName = self._export(wire, "step")
+        self.assertEqual(self._import(fileName, False), [(0, 2, 0.0)])
