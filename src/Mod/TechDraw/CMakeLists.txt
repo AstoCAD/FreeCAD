@@ -253,6 +253,7 @@ SET(TDTest_SRCS
     TDTest/DrawTaskUndoGuiTest.py
     TDTest/DrawSectionTabOrderGuiTest.py
     TDTest/DrawLeaderOptionsGuiTest.py
+    TDTest/DrawWeldSymbolOnePointLeaderGuiTest.py
     TDTest/DrawCtrlClickJitterGuiTest.py
     TDTest/DrawCompositeHitShapeGuiTest.py
     TDTest/DrawLineDecorRejectGuiTest.py
