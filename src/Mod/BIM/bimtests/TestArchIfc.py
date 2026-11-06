@@ -441,6 +441,30 @@ class TestArchIfc(TestArchBase.TestArchBase):
         # the wire: one curve set with one curve; the compound: its wire, then its loose edge
         self.assertEqual(curve_counts, {wire.Label: [1], loose.Label: [1, 1]})
 
+    def test_export_skips_malformed_ifc_property(self):
+        """An IfcProperties value that is not "type;;value" or "pset;;type;;value" is
+        skipped; it used to raise UnboundLocalError and abort the whole export."""
+        import Arch
+        import Draft
+        from importers import exportIFC
+
+        wall = Arch.makeWall(Draft.make_line(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1000, 0, 0)))
+        wall.IfcProperties = {
+            "Good;;Pset_Custom": "IfcLabel;;ok",
+            "Untyped;;Pset_Custom": "no type",
+        }
+        site = Arch.makeSite([Arch.makeBuilding([Arch.makeFloor([wall])])])
+        self.document.recompute()
+
+        path = os.path.join(tempfile.mkdtemp(), "malformed_property.ifc")
+        exportIFC.export([site], path)
+        ifcfile = ifcopenshell.open(path)
+        psets = {
+            p.Name: sorted(prop.Name for prop in p.HasProperties)
+            for p in ifcfile.by_type("IfcPropertySet")
+        }
+        self.assertEqual(psets.get("Pset_Custom"), ["Good"])
+
     def test_legacy_import_multicore(self):
         """The legacy (non-native) IFC importer must work with IfcOpenShell 0.8.
         https://github.com/FreeCAD/FreeCAD/issues/33854"""
