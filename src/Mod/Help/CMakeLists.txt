@@ -12,6 +12,7 @@ SET(Help_SRCS
     InitGui.py
     default.css
     Help.py
+    TestHelpGui.py
     dlgPreferencesHelp.ui
 )
 
