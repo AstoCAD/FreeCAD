@@ -367,6 +367,52 @@ TEST_F(RenameProperty, withExpression)
     EXPECT_EQ(prop->getValue(), value + 1);
 }
 
+// Tests that a failed rename keeps the expression bound to the property
+TEST_F(RenameProperty, failedRenameKeepsExpression)
+{
+    // Arrange
+    varSet->addDynamicProperty("App::PropertyInteger", "Variable2", "Variables");
+    App::ObjectIdentifier path(*prop);
+    std::shared_ptr<App::Expression> expr(App::Expression::parse(varSet, "1 + 1"));
+    varSet->setExpression(path, expr);
+
+    // Act / Assert
+    EXPECT_THROW(varSet->renameDynamicProperty(prop, "Variable2"), Base::NameError);
+    EXPECT_THROW(varSet->renameDynamicProperty(prop, "0Variable"), Base::NameError);
+
+    // Assert
+    EXPECT_STREQ(varSet->getPropertyName(prop), "Variable");
+    auto expressions = varSet->ExpressionEngine.getExpressions();
+    ASSERT_EQ(expressions.size(), 1);
+    EXPECT_EQ(expressions.begin()->first.toString(), "Variable");
+    EXPECT_EQ(expressions.begin()->second->toString(), "1 + 1");
+}
+
+// Tests that expressions bound below the renamed property keep their sub-path
+TEST_F(RenameProperty, keepsSubPathOfExpression)
+{
+    // Arrange
+    App::Property* placement =
+        varSet->addDynamicProperty("App::PropertyPlacement", "Pos", "Variables");
+    App::ObjectIdentifier pathX = App::ObjectIdentifier::parse(varSet, ".Pos.Base.x");
+    App::ObjectIdentifier pathY = App::ObjectIdentifier::parse(varSet, ".Pos.Base.y");
+    std::shared_ptr<App::Expression> exprX(App::Expression::parse(varSet, "5 mm"));
+    std::shared_ptr<App::Expression> exprY(App::Expression::parse(varSet, "7 mm"));
+    varSet->setExpression(pathX, exprX);
+    varSet->setExpression(pathY, exprY);
+
+    // Act
+    bool isRenamed = varSet->renameDynamicProperty(placement, "NewPos");
+
+    // Assert
+    EXPECT_TRUE(isRenamed);
+    std::vector<std::string> paths;
+    for (const auto& [id, expression] : varSet->ExpressionEngine.getExpressions()) {
+        paths.push_back(id.toString() + " = " + expression->toString());
+    }
+    EXPECT_EQ(paths, (std::vector<std::string> {".NewPos.Base.x = 5 mm", ".NewPos.Base.y = 7 mm"}));
+}
+
 // Tests whether we can rename a property and undo it
 TEST_F(RenameProperty, undo)
 {
