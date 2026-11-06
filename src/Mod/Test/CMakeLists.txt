@@ -52,6 +52,7 @@ SET(Test_SRCS
     TestExpressionCompleterGui.py
     TestStatusTipGui.py
     TestRenderingCommandsGui.py
+    TestPrefWidgetsWheelGui.py
     TestPySideUic.py
     UnicodeTests.py
     UnitTests.py
