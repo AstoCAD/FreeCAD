@@ -456,6 +456,11 @@ App::DocumentObject* DrawProjGroup::addProjection(const char* viewProjType)
                               getNameInDocument());
 
     if (checkViewProjType(viewProjType) && !hasProjection(viewProjType)) {
+        // a secondary projection takes its directions from the anchor, so refuse it before
+        // creating anything rather than leave a half-built item in the group
+        if (strcmp(viewProjType, "Front") != 0 && !getAnchor()) {
+            throw Base::RuntimeError("Projection group is missing its anchor view");
+        }
         std::string FeatName = getDocument()->getUniqueObjectName("ProjItem");
         view = getDocument()->addObject<TechDraw::DrawProjGroupItem>(FeatName.c_str());
         if (!view) {

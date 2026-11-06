@@ -50,6 +50,23 @@ class DrawProjectionGroupTest(unittest.TestCase):
         right.Y = 34
         self.assertEqual(group.getXYPosition("Right"), FreeCAD.Vector(12, 34, 0))
 
+    def testSecondaryProjectionWithoutAnchor(self):
+        """A secondary projection is refused, without leaving an item behind, when there is no Front"""
+        group = self.document.addObject("TechDraw::DrawProjGroup", "ProjGroup")
+        self.page.addView(group)
+        group.Source = [self.fusion]
+        objectCount = len(self.document.Objects)
+        with self.assertRaises(RuntimeError):
+            group.addProjection("Top")
+        self.assertEqual(group.Views, [])
+        self.assertEqual(len(self.document.Objects), objectCount)
+
+        # the group is still usable once it has its anchor
+        group.addProjection("Front")
+        top = group.addProjection("Top")
+        self.assertEqual([view.Type for view in group.Views], ["Front", "Top"])
+        self.assertNotEqual(top.Direction, group.Anchor.Direction)
+
     def testMakeProjectionGroup(self):
         """Tests if a projection group can be added to view1"""
         # make projection group
