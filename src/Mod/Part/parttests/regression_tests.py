@@ -400,6 +400,30 @@ class RegressionTests(unittest.TestCase):
         smallest = min(math.hypot(p.x, p.y) for p in cone.discretize(100))
         self.assertLess(smallest, radius - 0.1)
 
+    def test_bezier_constructor_takes_poles(self):
+        "Part.BezierCurve(poles) and Geom2d.BezierCurve2d(poles) silently ignored the poles"
+        poles = [Vector(0, 0, 0), Vector(1, 2, 0), Vector(3, 2, 1), Vector(4, 0, 0)]
+        for curve in (Part.BezierCurve(poles), Part.BezierCurve(poles=poles)):
+            self.assertEqual(curve.Degree, 3)
+            self.assertEqual(curve.getPoles(), poles)
+        poles2d = [Base.Vector2d(0, 0), Base.Vector2d(1, 2), Base.Vector2d(3, 0)]
+        curve2d = Part.Geom2d.BezierCurve2d(poles2d)
+        self.assertEqual(curve2d.Degree, 2)
+        self.assertEqual([(p.x, p.y) for p in curve2d.getPoles()], [(0, 0), (1, 2), (3, 0)])
+        # no argument still gives the default curve, bad arguments raise instead of being ignored
+        self.assertEqual(Part.BezierCurve().Degree, 1)
+        self.assertEqual(Part.Geom2d.BezierCurve2d().Degree, 1)
+        for cls in (Part.BezierCurve, Part.Geom2d.BezierCurve2d):
+            with self.subTest(cls=cls.__name__):
+                with self.assertRaises(TypeError):
+                    cls(poles, 1)
+                with self.assertRaises(TypeError):
+                    cls(knots=[0, 1])
+                with self.assertRaises(Exception):
+                    cls(5)
+                with self.assertRaises(Part.OCCError):
+                    cls([poles[0]] if cls is Part.BezierCurve else [poles2d[0]])
+
     def tearDown(self):
         """Clean up our test, optionally preserving the test document"""
         # This flag allows doing something like this:

@@ -20,6 +20,8 @@ class BezierCurve2d(Curve2d):
         -- a non-rational Bezier curve is defined by a table of poles (also called control points)
         -- a rational Bezier curve is defined by a table of poles with varying weights
 
+    Constructor takes no arguments, or a list of poles (same as setPoles()).
+
     Author: Werner Mayer (wmayer@users.sourceforge.net)
     Licence: LGPL
     """

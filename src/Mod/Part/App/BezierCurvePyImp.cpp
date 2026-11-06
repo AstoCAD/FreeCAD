@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <array>
 #include <BSplCLib.hxx>
 #include <Geom_BezierCurve.hxx>
 #include <gp_Pnt.hxx>
@@ -32,6 +33,7 @@
 
 
 #include <Base/GeometryPyCXX.h>
+#include <Base/PyWrapParseTupleAndKeywords.h>
 #include <Base/VectorPy.h>
 
 #include "BezierCurvePy.h"
@@ -54,8 +56,25 @@ PyObject* BezierCurvePy::PyMake(struct _typeobject*, PyObject*, PyObject*)  // P
 }
 
 // constructor method
-int BezierCurvePy::PyInit(PyObject* /*args*/, PyObject* /*kwd*/)
+int BezierCurvePy::PyInit(PyObject* args, PyObject* kwd)
 {
+    // BezierCurve() or BezierCurve(poles): the poles were silently ignored before
+    static const std::array<const char*, 2> kwlist {"poles", nullptr};
+    PyObject* poles = nullptr;
+    if (!Base::Wrapped_ParseTupleAndKeywords(args, kwd, "|O", kwlist, &poles)) {
+        return -1;
+    }
+    if (!poles) {
+        return 0;
+    }
+
+    Py::Tuple setPolesArgs(1);
+    setPolesArgs.setItem(0, Py::Object(poles));
+    PyObject* result = setPoles(setPolesArgs.ptr());
+    if (!result) {
+        return -1;
+    }
+    Py_DECREF(result);
     return 0;
 }
 

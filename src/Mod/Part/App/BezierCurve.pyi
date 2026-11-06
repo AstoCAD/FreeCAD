@@ -21,7 +21,7 @@ class BezierCurve(BoundedCurve):
     -- a non-rational Bezier curve is defined by a table of poles (also called control points)
     -- a rational Bezier curve is defined by a table of poles with varying weights
 
-    Constructor takes no arguments.
+    Constructor takes no arguments, or a list of poles (same as setPoles()).
 
     Example usage:
         p1 = Base.Vector(-1, 0, 0)
@@ -31,6 +31,7 @@ class BezierCurve(BoundedCurve):
 
         bc = BezierCurve()
         bc.setPoles([p1, p2, p3, p4])
+        # or: bc = BezierCurve([p1, p2, p3, p4])
         curveShape = bc.toShape()
     """
 
