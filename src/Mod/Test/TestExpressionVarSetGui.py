@@ -312,6 +312,26 @@ class TestExpressionVarSetGui(unittest.TestCase):
         self.assertEqual(self.variables.StoredText, "Updated text")
         self.assertEqual(source.Text, "Updated text")
 
+    def testStringLiteralWithQuotesAndBackslash(self):
+        # the value is assigned by a recorded Python command: it must survive quoting
+        source = self.valueSource("Text", "App::PropertyString", "Initial")
+        self.doc.recompute()
+        editor = self.stringEditor(source)
+        expected = 'say "hi" \'x\' \\ \n end'
+        actual = self.store(source, "Text", "", '<<say "hi" \'x\' \\\\ \\n end>>', "StoredText",
+                            editor=editor)
+        self.assertEqual(actual, expected)
+        self.assertNotIn("StoredText", dict(self.variables.ExpressionEngine))
+        self.doc.recompute()
+        self.assertEqual(source.Text, expected)
+
+    def testInchLiteralImmediate(self):
+        # the inch unit is a double quote: 2" was recorded as V.Inches = "2 ""
+        source = self.valueSource("Distance", "App::PropertyLength", 5)
+        self.doc.recompute()
+        self.assertAlmostEqual(self.store(source, "Distance", "mm", '2"', "Inches"), 50.8)
+        self.assertNotIn("Inches", dict(self.variables.ExpressionEngine))
+
     def testCancelPreservesExistingBinding(self):
         source = self.valueSource()
         source.setExpression("Scale", "<<Variables>>.Factor * 1.5")
