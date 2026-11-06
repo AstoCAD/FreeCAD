@@ -58,6 +58,14 @@ public:
             return;
         }
 
+        // A face lists any number of vertices, each written as v, v/vt, v//vn or v/vt/vn.
+        // Count the vertices before the slashes are split off, as the number of tokens
+        // after splitting cannot tell e.g. a hexagon from a triangle with texture indices.
+        if (MatchFace(line)) {
+            LoadFace(line);
+            return;
+        }
+
         boost::char_separator<char> sep(" /\t");
         boost::tokenizer<boost::char_separator<char>> tokens(line, sep);
         token_results.assign(tokens.begin(), tokens.end());
@@ -79,12 +87,6 @@ public:
         }
         else if (MatchUseMaterial(token_results)) {
             LoadUseMaterial(token_results);
-        }
-        else if (MatchFace(token_results)) {
-            LoadFace(token_results);
-        }
-        else if (MatchQuad(token_results)) {
-            LoadQuad(token_results);
         }
     }
 
@@ -212,84 +214,40 @@ private:
         countMaterialFacets = 0;
     }
 
-    bool MatchFace(const string_list& tokens) const
+    bool MatchFace(const std::string& line) const
     {
-        // NOLINTBEGIN
-        const auto num = tokens.size();
-        return tokens[0] == "f" && (num == 4 || num == 7 || num == 10);
-        // NOLINTEND
+        return line.size() > 1 && line[0] == 'f' && (line[1] == ' ' || line[1] == '\t');
     }
 
-    void LoadFace(const string_list& tokens)
+    void LoadFace(const std::string& line)
     {
+        boost::char_separator<char> sep(" \t");
+        boost::tokenizer<boost::char_separator<char>> tokens(line, sep);
+        auto it = tokens.begin();
+        ++it;  // skip the 'f'
+
+        // the vertex index is the part before the first slash
+        std::vector<int> indices;
+        for (; it != tokens.end(); ++it) {
+            if (it->front() == '#') {
+                break;  // trailing comment
+            }
+            int index = std::stoi(*it);
+            indices.push_back(index > 0 ? index - 1 : index + static_cast<int>(meshPoints.size()));
+        }
+
+        if (indices.size() < 3) {
+            return;
+        }
+
         StartNewSegment();
 
-        // NOLINTBEGIN
-        int index1 = 1;
-        int index2 = 2;
-        int index3 = 3;
-        if (tokens.size() == 7) {
-            index2 = 3;
-            index3 = 5;
+        // split a polygon into a triangle fan, the first triangles of a
+        // quad being (1, 2, 3) and (3, 4, 1)
+        AddFace(indices[0], indices[1], indices[2]);
+        for (std::size_t i = 3; i < indices.size(); i++) {
+            AddFace(indices[i - 1], indices[i], indices[0]);
         }
-        else if (tokens.size() == 10) {
-            index2 = 4;
-            index3 = 7;
-        }
-        // NOLINTEND
-
-        // 3-vertex face
-        int i1 = std::stoi(tokens[index1]);
-        i1 = i1 > 0 ? i1 - 1 : i1 + static_cast<int>(meshPoints.size());
-        int i2 = std::stoi(tokens[index2]);
-        i2 = i2 > 0 ? i2 - 1 : i2 + static_cast<int>(meshPoints.size());
-        int i3 = std::stoi(tokens[index3]);
-        i3 = i3 > 0 ? i3 - 1 : i3 + static_cast<int>(meshPoints.size());
-
-        AddFace(i1, i2, i3);
-    }
-
-    bool MatchQuad(const string_list& tokens) const
-    {
-        // NOLINTBEGIN
-        const auto num = tokens.size();
-        return tokens[0] == "f" && (num == 5 || num == 9 || num == 13);
-        // NOLINTEND
-    }
-
-    void LoadQuad(const string_list& tokens)
-    {
-        StartNewSegment();
-
-        // NOLINTBEGIN
-        int index1 = 1;
-        int index2 = 2;
-        int index3 = 3;
-        int index4 = 4;
-        if (tokens.size() == 9) {
-            index2 = 3;
-            index3 = 5;
-            index4 = 7;
-        }
-        else if (tokens.size() == 13) {
-            index2 = 4;
-            index3 = 7;
-            index4 = 10;
-        }
-        // NOLINTEND
-
-        // 4-vertex face
-        int i1 = std::stoi(tokens[index1]);
-        i1 = i1 > 0 ? i1 - 1 : i1 + static_cast<int>(meshPoints.size());
-        int i2 = std::stoi(tokens[index2]);
-        i2 = i2 > 0 ? i2 - 1 : i2 + static_cast<int>(meshPoints.size());
-        int i3 = std::stoi(tokens[index3]);
-        i3 = i3 > 0 ? i3 - 1 : i3 + static_cast<int>(meshPoints.size());
-        int i4 = std::stoi(tokens[index4]);
-        i4 = i4 > 0 ? i4 - 1 : i4 + static_cast<int>(meshPoints.size());
-
-        AddFace(i1, i2, i3);
-        AddFace(i3, i4, i1);
     }
 
     void StartNewSegment()
