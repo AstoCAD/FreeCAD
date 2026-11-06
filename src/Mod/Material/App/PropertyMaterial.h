@@ -94,6 +94,9 @@ public:
     }
 
 private:
+    // The card of a material that is not in a library, empty otherwise
+    std::string embeddedCard() const;
+
     Material _material;
 };
 

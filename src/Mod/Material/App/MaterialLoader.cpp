@@ -164,8 +164,7 @@ std::shared_ptr<Array3D> MaterialYamlEntry::read3DArray(const YAML::Node& node, 
     return array3d;
 }
 
-void MaterialYamlEntry::addToTree(
-    std::shared_ptr<std::map<QString, std::shared_ptr<Material>>> materialMap)
+std::shared_ptr<Material> MaterialYamlEntry::createMaterial() const
 {
     std::set<QString> exclude;
     exclude.insert(QStringLiteral("General"));
@@ -359,8 +358,36 @@ void MaterialYamlEntry::addToTree(
         }
     }
 
-    QString path = QDir(directory).absolutePath();
-    (*materialMap)[uuid] = library->addMaterial(finalModel, path);
+    return finalModel;
+}
+
+void MaterialYamlEntry::addToTree(
+    std::shared_ptr<std::map<QString, std::shared_ptr<Material>>> materialMap)
+{
+    auto material = createMaterial();
+    QString path = QDir(getDirectory()).absolutePath();
+    (*materialMap)[getUUID()] = getLibrary()->addMaterial(material, path);
+}
+
+//===
+
+std::shared_ptr<Material> MaterialLoader::materialFromYAML(const std::string& yaml)
+{
+    // A card kept outside of any library, e.g. embedded in a document. May throw
+    // YAML::Exception like a card file that can't be read.
+    YAML::Node yamlroot = YAML::Load(yaml);
+    auto uuid = yamlroot["General"]["UUID"].as<std::string>();
+    std::string name;
+    if (yamlroot["General"]["Name"]) {
+        name = yamlroot["General"]["Name"].as<std::string>();
+    }
+
+    MaterialYamlEntry entry(nullptr,
+                            QString::fromStdString(name),
+                            QString(),
+                            QString::fromStdString(uuid),
+                            yamlroot);
+    return entry.createMaterial();
 }
 
 //===
