@@ -79,7 +79,7 @@ private:
         m_factors[eCentimeters] = 10.0;
         m_factors[eMeters] = 1000.0;
         m_factors[eKilometers] = 1000000.0;
-        m_factors[eMicroinches] = 25.4 / 1000.0;
+        m_factors[eMicroinches] = 25.4 / 1000000.0;
         m_factors[eMils] = 25.4 / 1000.0;
         m_factors[eYards] = 3 * 12 * 25.4;
         m_factors[eAngstroms] = 0.0000001;

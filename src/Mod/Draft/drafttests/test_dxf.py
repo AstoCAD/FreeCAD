@@ -138,6 +138,50 @@ class DraftDXF(test_base.DraftTestCaseDoc):
                 hGrp.SetBool("dxfUseLegacyImporter", wasUseLegacyImporter)
                 hGrp.SetInt("DxfImportMode", wasImportMode)
 
+    def test_read_dxf_microinches(self):
+        """$INSUNITS 8 (microinches) must scale by 25.4e-6 mm per unit."""
+
+        class Header:
+            data = [[9, "$INSUNITS"], [70, 8]]
+
+        with self.subTest(importer="legacy"):
+            self.assertAlmostEqual(importDXF.getScaleFromDXF(Header()), 25.4e-6, places=12)
+
+        # C++ importer: a line of 1e6 microinches is 25.4 mm long
+        lines = ["0", "SECTION", "2", "HEADER", "9", "$INSUNITS", "70", "8", "0", "ENDSEC"]
+        lines += ["0", "SECTION", "2", "ENTITIES"]
+        lines += ["0", "LINE", "8", "0", "10", "0", "20", "0", "30", "0"]
+        lines += ["11", "1000000", "21", "0", "31", "0"]
+        lines += ["0", "ENDSEC", "0", "EOF"]
+
+        hGrp = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Draft")
+        wasShowDialog = hGrp.GetBool("dxfShowDialog", True)
+        wasUseLegacyImporter = hGrp.GetBool("dxfUseLegacyImporter", False)
+        wasImportMode = hGrp.GetInt("DxfImportMode", 2)
+        wasScaling = hGrp.GetFloat("dxfScaling", 1.0)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "microinches.dxf")
+            with open(in_file, "w", encoding="utf-8") as dxf_file:
+                dxf_file.write("\n".join(lines) + "\n")
+            doc = None
+            try:
+                hGrp.SetBool("dxfShowDialog", False)
+                hGrp.SetBool("dxfUseLegacyImporter", False)
+                hGrp.SetInt("DxfImportMode", 2)
+                hGrp.SetFloat("dxfScaling", 1.0)
+                doc = importDXF.open(in_file)
+                edges = [e for o in doc.Objects if hasattr(o, "Shape") for e in o.Shape.Edges]
+                with self.subTest(importer="C++"):
+                    self.assertEqual(len(edges), 1)
+                    self.assertAlmostEqual(edges[0].Length, 25.4, places=6)
+            finally:
+                hGrp.SetBool("dxfShowDialog", wasShowDialog)
+                hGrp.SetBool("dxfUseLegacyImporter", wasUseLegacyImporter)
+                hGrp.SetInt("DxfImportMode", wasImportMode)
+                hGrp.SetFloat("dxfScaling", wasScaling)
+                if doc:
+                    App.closeDocument(doc.Name)
+
     def test_legacy_draw_invalid_ellipse(self):
         """The legacy importer reports an invalid ellipse instead of raising."""
         from unittest import mock
