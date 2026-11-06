@@ -644,10 +644,36 @@ bool SketchObject::seekTrimPoints(
         return false;
     }
 
-    auto geos = getCompleteGeometry();  // this includes the axes as GeomBoundedCurve
+    auto completeGeos = getCompleteGeometry();  // this includes the axes as GeomBoundedCurve
+
+    // The internal geometry of a B-spline (pole circles, control polygon, knot points) describes
+    // the curve, it is not another geometry: it must not cut the curve. The internal geometry of
+    // a conic (axes, foci) still stops a trim, as it always did.
+    std::set<int> ownInternalGeoIds;
+    if (getGeometry(GeoId)->is<Part::GeomBSplineCurve>()) {
+        for (const auto* constr : Constraints.getValues()) {
+            if (constr->Type == InternalAlignment && constr->Second == GeoId
+                && constr->First >= 0) {
+                ownInternalGeoIds.insert(constr->First);
+            }
+        }
+    }
 
     // remove the axes since they aren't infinite lines and not all intersections will count
-    geos.resize(geos.size() - 2);
+    std::vector<Part::Geometry*> geos;
+    std::vector<int> completeIndices;  // complete geometry index of each entry of geos
+    int localGeoId = -1;
+    for (int index = 0; index < static_cast<int>(completeGeos.size()) - 2; ++index) {
+        // normal geometry comes first in the complete geometry, so its index is its GeoId
+        if (ownInternalGeoIds.count(index)) {
+            continue;
+        }
+        if (index == GeoId) {
+            localGeoId = static_cast<int>(geos.size());
+        }
+        geos.push_back(completeGeos[index]);
+        completeIndices.push_back(index);
+    }
 
     Part::GeomLine hAxis;
     Part::GeomLine vAxis;
@@ -668,9 +694,15 @@ bool SketchObject::seekTrimPoints(
 
     // Not found in will be returned as -1, not as GeoUndef, Part WB is agnostic to the concept
     // of GeoUndef
-    if (
-        !Part2DObject::seekTrimPoints(geos, GeoId, point, localindex1, intersect1, localindex2, intersect2)
-    ) {
+    if (!Part2DObject::seekTrimPoints(
+            geos,
+            localGeoId,
+            point,
+            localindex1,
+            intersect1,
+            localindex2,
+            intersect2
+        )) {
         return false;
     }
 
@@ -682,7 +714,8 @@ bool SketchObject::seekTrimPoints(
         if (includeSketchAxes && index == vAxisIndex) {
             return Part::Part2DObject::V_Axis;
         }
-        return getGeoIdFromCompleteGeometryIndex(index);
+        bool found = index >= 0 && index < static_cast<int>(completeIndices.size());
+        return getGeoIdFromCompleteGeometryIndex(found ? completeIndices[index] : -1);
     };
 
     GeoId1 = getGeoIdForIndex(localindex1);

@@ -122,3 +122,68 @@ class TestSketchSplitTrimConstraints(unittest.TestCase):
         ]
         self.assertEqual(lengths, [(0, 1, 1, 2)])
         self._assertSolveKeepsGeometry()
+
+    def _bspline(self):
+        poles = [V(-10, 0, 0), V(-5, 6, 0), V(0, 6, 0), V(5, 6, 0), V(10, 0, 0)]
+        curve = Part.BSplineCurve()
+        curve.buildFromPolesMultsKnots(poles, [4, 1, 4], [0, 0.5, 1], False, 3)
+        return curve
+
+    def _trimBSplineStart(self, expose):
+        curve = self._bspline()
+        self.sketch.addGeometry(curve)  # 0
+        self.sketch.addGeometry(Part.LineSegment(V(0, -20, 0), V(0, 20, 0)))  # 1
+        if expose:
+            self.sketch.exposeInternalGeometry(0)
+        self.doc.recompute()
+
+        # remove the part of the spline left of the vertical line
+        self.sketch.trim(0, curve.value(curve.parameter(V(-8, 2.5, 0))))
+
+        splines = [g for g in self.sketch.Geometry if isinstance(g, Part.BSplineCurve)]
+        self.assertEqual(len(splines), 1)
+        self.assertAlmostEqual(splines[0].StartPoint.x, 0.0)
+        self.assertLess((splines[0].EndPoint - V(10, 0, 0)).Length, 1e-6)
+        self.assertEqual(self.sketch.solve(), 0)
+
+    def testTrimBSplineIsNotCutByItsControlPolygon(self):
+        # the circles of the poles must not stop the trim
+        self._trimBSplineStart(True)
+
+    def testTrimBSplineWithoutInternalGeometry(self):
+        # control
+        self._trimBSplineStart(False)
+
+    def testTrimEllipseStopsAtItsAxes(self):
+        # unlike the poles of a B-spline, the axes of an ellipse still stop a trim
+        self.sketch.addGeometry(Part.Ellipse(V(0, 0, 0), 12, 6))  # 0
+        self.sketch.addGeometry(Part.LineSegment(V(5, -20, 0), V(5, 20, 0)))  # 1
+        self.sketch.exposeInternalGeometry(0)
+        self.doc.recompute()
+        internal = len(self.sketch.Geometry) - 2
+        majorAxis = [
+            c.First
+            for c in self.sketch.Constraints
+            if c.Type == "InternalAlignment" and c.Second == 0 and c.FirstPos == 0
+            and abs(self.sketch.Geometry[c.First].StartPoint.y) < 1e-6
+            and abs(self.sketch.Geometry[c.First].EndPoint.y) < 1e-6
+        ]
+        self.assertEqual(len(majorAxis), 1)
+
+        # remove the piece between the vertical line and the end of the major axis
+        self.sketch.trim(0, V(12 * math.cos(0.2), 6 * math.sin(0.2), 0))
+
+        arc = self.sketch.Geometry[0]
+        self.assertIsInstance(arc, Part.ArcOfEllipse)
+        self.assertLess((arc.StartPoint - V(5, 6 * math.sqrt(1 - (5 / 12) ** 2), 0)).Length, 1e-6)
+        self.assertLess((arc.EndPoint - V(12, 0, 0)).Length, 1e-6)
+        self.assertEqual(len(self.sketch.Geometry), 2 + internal)
+        alignments = [c for c in self.sketch.Constraints if c.Type == "InternalAlignment"]
+        self.assertEqual(len(alignments), internal)
+        coincident = [
+            c
+            for c in self.sketch.Constraints
+            if c.Type == "Coincident" and {c.First, c.Second} == {0, majorAxis[0]}
+        ]
+        self.assertEqual(len(coincident), 1)
+        self._assertSolveKeepsGeometry()
