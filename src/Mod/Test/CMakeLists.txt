@@ -51,6 +51,7 @@ SET(Test_SRCS
     TestTreeLinkDeletionGui.py
     TestExpressionCompleterGui.py
     TestStatusTipGui.py
+    TestRenderingCommandsGui.py
     TestPySideUic.py
     UnicodeTests.py
     UnitTests.py
