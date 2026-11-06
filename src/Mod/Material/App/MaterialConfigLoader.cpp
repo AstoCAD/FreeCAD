@@ -103,11 +103,19 @@ bool MaterialConfigLoader::readFile(const QString& path, QMap<QString, QString>&
                 }
             }
             else {
+                // "key = value", but the spaces around '=' are optional (as for QSettings and
+                // the Python reader). Only one space is dropped from the value, so the
+                // indentation of multi-line render values is kept.
                 auto separator = line.indexOf(QLatin1Char('='));
-                if (separator > 2) {
-                    auto left = line.mid(0, separator - 1);
-                    auto right = line.mid(separator + 2);
-                    map[prefix + left] = right;
+                if (separator > 0) {
+                    auto left = line.left(separator).trimmed();
+                    auto right = line.mid(separator + 1);
+                    if (right.startsWith(QLatin1Char(' '))) {
+                        right.remove(0, 1);
+                    }
+                    if (!left.isEmpty()) {
+                        map[prefix + left] = right;
+                    }
                 }
             }
         }
