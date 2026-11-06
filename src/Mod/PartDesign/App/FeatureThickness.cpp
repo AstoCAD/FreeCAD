@@ -272,6 +272,14 @@ App::DocumentObjectExecReturn* Thickness::execute()
     else {
         result = shapes.front();
     }
+    // OCC can report success yet return a broken thick solid (for instance an
+    // inside-out one with negative volume). Refuse to store it.
+    if (!shapes.empty()
+        && (result.isNull() || !result.countSubShapes(TopAbs_SOLID) || !result.isValid())) {
+        return new App::DocumentObjectExecReturn(
+            QT_TRANSLATE_NOOP("Exception", "Thickness operation produced an invalid solid")
+        );
+    }
     // store shape before refinement
     this->rawShape = result;
     result = refineShapeIfActive(result);
