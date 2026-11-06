@@ -69,15 +69,22 @@ MeasureHandler MeasureManager::getMeasureHandler(const char* module)
     return empty;
 }
 
+App::DocumentObject* MeasureManager::getMeasuredObject(const App::SubObjectT& subject)
+{
+    App::DocumentObject* sub = subject.getSubObject();
+
+    // Resolve App::Link and the elements of link arrays
+    if (sub && (sub->isDerivedFrom<App::Link>() || sub->isDerivedFrom<App::LinkElement>())) {
+        sub = sub->getLinkedObject(true);
+    }
+    return sub;
+}
+
 MeasureHandler MeasureManager::getMeasureHandler(const App::MeasureSelectionItem& selectionItem)
 {
-    auto objT = selectionItem.object;
-
-    // Resolve App::Link
-    App::DocumentObject* sub = objT.getSubObject();
-    if (sub->isDerivedFrom<App::Link>()) {
-        auto link = static_cast<App::Link*>(sub);
-        sub = link->getLinkedObject(true);
+    App::DocumentObject* sub = getMeasuredObject(selectionItem.object);
+    if (!sub) {
+        return {};
     }
 
     const auto className = sub->getTypeId().getName();
