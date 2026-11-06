@@ -417,6 +417,18 @@ class TestDraftGeomUtils(test_base.DraftTestCaseNoDoc):
         geom = DraftGeomUtils.orientEdge(curve.toShape(), Vector(0, 0, 1))
         self.assertAlmostEqual(geom.toShape().Length, curve.toShape().Length, places=6)
 
+    def test_offset_circle(self):
+        """offset of a circular edge returns the complete offset circle unless trim is True."""
+        arc = Part.ArcOfCircle(Part.Circle(Vector(1, 2, 0), Vector(0, 0, 1), 5), 0, 1).toShape()
+        new = DraftGeomUtils.offset(arc, Vector(2, 0, 0))
+        self.assertIsNotNone(new)
+        self.assertTrue(new.isClosed())
+        self.assertAlmostEqual(new.Curve.Radius, 7, places=6)
+        self.assertTrue(new.Curve.Center.isEqual(Vector(1, 2, 0), 1e-9))
+        new = DraftGeomUtils.offset(arc, Vector(2, 0, 0), trim=True)
+        self.assertFalse(new.isClosed())
+        self.assertAlmostEqual(new.Curve.Radius, 7, places=6)
+
 
 # suite = unittest.defaultTestLoader.loadTestsFromTestCase(TestDraftGeomUtils)
 # unittest.TextTestRunner().run(suite)
