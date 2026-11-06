@@ -85,10 +85,7 @@ App::DocumentObjectExecReturn* Fillet::execute()
                 fullErrMsg.append("Missing edge link: ");
                 fullErrMsg.append(ref);
                 fullErrMsg.append("\n");
-
-                auto removeIt = std::remove(edges.begin(), edges.end(), info);
-                edges.erase(removeIt, edges.end());
-
+                // 'edges' is only stored when no link is missing, so nothing is removed here
                 continue;
             }
 
@@ -98,6 +95,9 @@ App::DocumentObjectExecReturn* Fillet::execute()
             //                edge = baseTopoShape.getSubShape(ref.c_str());
             //            }catch(...){}
             auto id = Data::IndexedName(Data::oldElementName(ref.c_str()).c_str()).getIndex();
+            if (id < 1 || id > mapOfEdges.Extent()) {
+                return new App::DocumentObjectExecReturn("Invalid edge link: " + ref);
+            }
             const TopoDS_Edge& edge = TopoDS::Edge(mapOfEdges.FindKey(id));
 
             if (edge.IsNull()) {
