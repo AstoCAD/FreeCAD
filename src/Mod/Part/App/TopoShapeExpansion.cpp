@@ -4919,6 +4919,10 @@ TopoShape& TopoShape::makeElementRevolve(
     if (base.isNull()) {
         FC_THROWM(NullShapeException, "Null shape");
     }
+    // BRepPrimAPI_MakeRevol never returns for an infinite angle
+    if (!std::isfinite(d)) {
+        FC_THROWM(Base::ValueError, "Revolution angle must be a finite number");
+    }
     if (face_maker && !base.hasSubShape(TopAbs_FACE)) {
         if (!base.hasSubShape(TopAbs_WIRE)) {
             base = base.makeElementWires();
