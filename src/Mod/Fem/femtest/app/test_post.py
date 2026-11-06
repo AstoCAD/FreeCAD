@@ -79,6 +79,27 @@ class TestPostGroups(unittest.TestCase):
             pipeline.writeVTK(path)
         self.assertFalse(os.path.exists(path))
 
+    def test_import_vtk_result_pipeline(self):
+        # importing a VTK file as result pipeline set the view display mode unconditionally
+        # and failed without GUI, leaving a pipeline that was never recomputed
+        import os
+        import tempfile
+        from feminout import importVTKResults
+
+        mesh = Fem.FemMesh()
+        for i, point in enumerate([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]):
+            mesh.addNode(*point, i + 1)
+        mesh.addVolume([1, 2, 3, 4], 1)
+        path = os.path.join(tempfile.gettempdir(), "fem_post_import_result.vtu")
+        mesh.write(path)
+        try:
+            FreeCAD.setActiveDocument(self.document.Name)
+            pipeline = importVTKResults.importVtkVtkResult(path, "ImportedResult")
+        finally:
+            os.remove(path)
+        self.assertEqual(pipeline.TypeId, "Fem::FemPostPipeline")
+        self.assertTrue(pipeline.isValid())
+
     def test_multistep_without_data(self):
         # a multistep pipeline from a file VTK can't read or from results without a mesh crashed
         import os
