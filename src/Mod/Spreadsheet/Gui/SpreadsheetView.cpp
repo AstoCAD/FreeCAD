@@ -148,6 +148,8 @@ SheetView::SheetView(Gui::Document* pcDocument, App::DocumentObject* docObj, QWi
     ui->cellAlias->setDocumentObject(sheet);
 
     ui->cellContent->setPrefix('=');
+    // Clicking cells while a formula is typed in the formula bar inserts their address
+    ui->cells->setFormulaBar(ui->cellContent);
 }
 
 SheetView::~SheetView()

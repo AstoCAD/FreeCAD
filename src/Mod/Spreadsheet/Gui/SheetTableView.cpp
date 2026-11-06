@@ -28,6 +28,9 @@
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QGraphicsProxyWidget>
+#include <QGraphicsScene>
+#include <QGraphicsView>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMessageBox>
@@ -494,7 +497,16 @@ bool SheetTableView::edit(const QModelIndex& index, EditTrigger trigger, QEvent*
            | QAbstractItemView::EditKeyPressed)) {
         currentEditIndex = index;
     }
-    return QTableView::edit(index, trigger, event);
+    if (!QTableView::edit(index, trigger, event)) {
+        return false;
+    }
+    // Click-to-reference: see the editor's focus loss before its delegate does (the
+    // filter installed last runs first). The editor is not a child of the viewport:
+    // LineEdit embeds itself in the graphics scene of the view.
+    if (auto* editor = qobject_cast<QLineEdit*>(indexWidget(index))) {
+        editor->installEventFilter(this);
+    }
+    return true;
 }
 
 bool SheetTableView::event(QEvent* event)
@@ -1198,7 +1210,236 @@ void SheetTableView::closeEditor(QWidget* editor, QAbstractItemDelegate::EndEdit
 void SheetTableView::mousePressEvent(QMouseEvent* event)
 {
     tabCounter = 0;
+    if (referencePress(event)) {
+        return;
+    }
     QTableView::mousePressEvent(event);
+}
+
+void SheetTableView::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    const QModelIndex index = indexAt(event->pos());
+    if (event->button() == Qt::LeftButton && index.isValid() && index == referenceLast
+        && referenceEditor) {
+        // Double clicking a cell edits it, as without a formula being typed:
+        // take back the reference the first click inserted, then move there.
+        // Moving the current cell commits and closes a held cell editor.
+        pendingReferenceEditor = nullptr;
+        QLineEdit* editor = referenceEditor.data();
+        const QString text = editor->text();
+        if (text.mid(referenceStart, referenceText.size()) == referenceText) {
+            editor->setSelection(referenceStart, referenceText.size());
+            editor->del();
+        }
+        referenceEditor = nullptr;
+        referenceLast = QModelIndex();
+        referenceDragging = false;
+        setCurrentIndex(index);
+        edit(index);
+        event->accept();
+        return;
+    }
+    releaseHeldEditor();
+    QTableView::mouseDoubleClickEvent(event);
+}
+
+void SheetTableView::mouseMoveEvent(QMouseEvent* event)
+{
+    if (referenceDragging) {
+        if (event->buttons() & Qt::LeftButton) {
+            const QModelIndex index = indexAt(event->pos());
+            if (index.isValid() && index != referenceLast) {
+                insertReference(index, true);
+            }
+        }
+        event->accept();
+        return;
+    }
+    QTableView::mouseMoveEvent(event);
+}
+
+void SheetTableView::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (referenceDragging) {
+        referenceDragging = false;
+        event->accept();
+        return;
+    }
+    QTableView::mouseReleaseEvent(event);
+}
+
+bool SheetTableView::expectsReference(const QLineEdit* editor) const
+{
+    if (!editor || !editor->isModified()) {
+        return false;
+    }
+    const QString text = editor->text();
+    if (!text.startsWith(QLatin1Char('='))) {
+        return false;
+    }
+    const int pos = editor->cursorPosition();
+    // Right after the reference inserted by the previous click: replace it
+    if (editor == referenceEditor && referenceStart >= 0
+        && pos == referenceStart + referenceText.size()
+        && text.mid(referenceStart, referenceText.size()) == referenceText) {
+        return true;
+    }
+    // Where an operand goes: after '=', an operator, '(' or a separator
+    const QString before = text.left(pos).trimmed();
+    if (before.isEmpty()) {
+        return false;
+    }
+    static const QString operandStarts = QStringLiteral("=+-*/^(,;:<>&|!%?");
+    return operandStarts.contains(before.back());
+}
+
+/// \a editor lost the focus to a click on this table that may insert a reference into it.
+/// Qt moves the focus before it delivers the press, within the same event, so the press
+/// arrives next: referencePress() takes the editor; releaseHeldEditor(), queued, ends the
+/// edit as usual if the press went elsewhere (a header, the corner button, ...).
+void SheetTableView::holdForReference(QLineEdit* editor)
+{
+    if (!pendingReferenceEditor) {
+        QMetaObject::invokeMethod(this, &SheetTableView::releaseHeldEditor, Qt::QueuedConnection);
+    }
+    pendingReferenceEditor = editor;
+}
+
+/// The click did not insert a reference into the editor that lost the focus to it: a cell
+/// editor gets the focus loss it was spared, so it is committed and closed like after any
+/// other click. The formula bar got its focus loss already and keeps its text.
+void SheetTableView::releaseHeldEditor()
+{
+    QPointer<QLineEdit> editor = pendingReferenceEditor;
+    pendingReferenceEditor = nullptr;
+    if (!editor || editor == formulaBar || editor->hasFocus() || !editor->isVisible()) {
+        // Nothing held, the editor took the focus back or was closed meanwhile
+        return;
+    }
+    releasingEditor = true;
+    QFocusEvent focusOut(QEvent::FocusOut, Qt::MouseFocusReason);
+    QCoreApplication::sendEvent(editor, &focusOut);
+    releasingEditor = false;
+}
+
+/// Whether \a widget getting the focus means a click on this table: the table
+/// itself, or the graphics view that hosts it (ZoomableView).
+bool SheetTableView::takesFocusForClick(const QWidget* widget) const
+{
+    if (!widget) {
+        return false;
+    }
+    if (widget == this) {
+        return true;
+    }
+    const QGraphicsProxyWidget* proxy = graphicsProxyWidget();
+    if (proxy && proxy->scene()) {
+        const auto views = proxy->scene()->views();
+        return std::find(views.begin(), views.end(), widget) != views.end();
+    }
+    return false;
+}
+
+void SheetTableView::setFormulaBar(QLineEdit* bar)
+{
+    if (formulaBar) {
+        formulaBar->removeEventFilter(this);
+    }
+    formulaBar = bar;
+    if (formulaBar) {
+        formulaBar->installEventFilter(this);
+    }
+}
+
+bool SheetTableView::eventFilter(QObject* object, QEvent* event)
+{
+    // The formula bar and the cell editors (see edit()) losing the focus to a
+    // click on the table while a formula is typed: the click may insert a
+    // reference. A cell editor would be committed and closed by its delegate
+    // (this filter runs first), so its focus loss is held until the click is
+    // handled; the formula bar keeps its text anyway.
+    if (event->type() == QEvent::FocusOut && !releasingEditor) {
+        auto* editor = qobject_cast<QLineEdit*>(object);
+        const auto* focusEvent = static_cast<QFocusEvent*>(event);
+        if (editor && focusEvent->reason() == Qt::MouseFocusReason
+            && takesFocusForClick(QApplication::focusWidget()) && expectsReference(editor)) {
+            holdForReference(editor);
+            return editor != formulaBar;
+        }
+    }
+    return QTableView::eventFilter(object, event);
+}
+
+/// Handle a press while a formula is being typed; returns true if it inserted a reference.
+bool SheetTableView::referencePress(QMouseEvent* event)
+{
+    QLineEdit* editor = pendingReferenceEditor.data();
+    if (!editor && referenceEditor && referenceEditor->hasFocus() && expectsReference(referenceEditor)) {
+        editor = referenceEditor;
+    }
+    const QModelIndex index = indexAt(event->pos());
+    if (!editor || event->button() != Qt::LeftButton || !index.isValid() || index == currentIndex()) {
+        // Not a reference (another button, the edited cell itself, outside the
+        // cells): end a held edit before the press is handled, as without a
+        // formula being typed.
+        releaseHeldEditor();
+        return false;
+    }
+    pendingReferenceEditor = editor;
+    // The alias of the cell if it has one, its address with Shift
+    insertReference(index, false, !(event->modifiers() & Qt::ShiftModifier));
+    referenceDragging = true;
+    event->accept();
+    return true;
+}
+
+void SheetTableView::insertReference(const QModelIndex& index, bool extend, bool useAlias)
+{
+    QLineEdit* editor = extend ? referenceEditor.data() : pendingReferenceEditor.data();
+    pendingReferenceEditor = nullptr;
+    if (!editor) {
+        return;
+    }
+
+    CellAddress address(index.row(), index.column());
+    if (sheet->isMergedCell(address)) {
+        address = sheet->getAnchor(address);
+    }
+    QString reference = QString::fromStdString(address.toString());
+    std::string alias;
+    if (useAlias && !extend) {
+        if (const Cell* cell = sheet->getCell(address); cell && cell->getAlias(alias)) {
+            reference = QString::fromStdString(alias);
+        }
+    }
+    int start = editor->cursorPosition();
+    int length = 0;
+    if (extend) {
+        const Range range(CellAddress(referenceAnchor.row(), referenceAnchor.column()), address, true);
+        if (range.from() != range.to()) {
+            reference = QString::fromStdString(range.rangeString());
+        }
+        start = referenceStart;
+        length = referenceText.size();
+    }
+    else {
+        if (editor == referenceEditor && referenceStart >= 0
+            && start == referenceStart + referenceText.size()
+            && editor->text().mid(referenceStart, referenceText.size()) == referenceText) {
+            // A new click replaces the reference of the previous one
+            start = referenceStart;
+            length = referenceText.size();
+        }
+        referenceAnchor = index;
+    }
+
+    editor->setSelection(start, length);
+    editor->insert(reference);
+    referenceEditor = editor;
+    referenceStart = start;
+    referenceText = reference;
+    referenceLast = index;
+    editor->setFocus();
 }
 
 void SheetTableView::selectionChanged(const QItemSelection& selected, const QItemSelection& deselected)
