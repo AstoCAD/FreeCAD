@@ -95,7 +95,10 @@ class CAMSanity:
 
         return data
 
-    def squawk(self, operator, note, date=datetime.now(), squawkType="NOTE"):
+    def squawk(self, operator, note, date=None, squawkType="NOTE"):
+        if date is None:
+            # A default of datetime.now() would be evaluated once, at import
+            date = datetime.now()
         squawkType = squawkType if squawkType in ("NOTE", "WARNING", "CAUTION", "TIP") else "NOTE"
 
         if squawkType == "TIP":
