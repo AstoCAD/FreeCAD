@@ -452,11 +452,11 @@ void DlgSettingsGeneral::loadThemes()
         "User parameter:BaseApp/Preferences/MainWindow"
     );
 
-    QString currentTheme = QString::fromLatin1(hGrp->GetASCII("Theme", "").c_str());
+    QString currentTheme = QString::fromStdString(hGrp->GetASCII("Theme", ""));
 
     Application::Instance->prefPackManager()->rescan();
     auto packs = Application::Instance->prefPackManager()->preferencePacks();
-    QString currentStyleSheet = QString::fromLatin1(hGrp->GetASCII("StyleSheet", "").c_str());
+    QString currentStyleSheet = QString::fromStdString(hGrp->GetASCII("StyleSheet", ""));
     QFileInfo fi(currentStyleSheet);
     currentStyleSheet = fi.baseName();
     QString themeClassic = QStringLiteral("classic");  // handle the upcoming name change
@@ -479,11 +479,11 @@ void DlgSettingsGeneral::loadThemes()
         if (!currentStyleSheet.isEmpty() && !similarTheme.isEmpty()) {  // a user upgrading from
                                                                         // 0.21 or earlier
             hGrp->SetASCII("Theme", similarTheme.toStdString());
-            currentTheme = QString::fromLatin1(hGrp->GetASCII("Theme", "").c_str());
+            currentTheme = QString::fromStdString(hGrp->GetASCII("Theme", ""));
         }
         else {  // a brand new user
             hGrp->SetASCII("Theme", themeClassic.toStdString());
-            currentTheme = QString::fromLatin1(hGrp->GetASCII("Theme", "").c_str());
+            currentTheme = QString::fromStdString(hGrp->GetASCII("Theme", ""));
         }
     }
 
