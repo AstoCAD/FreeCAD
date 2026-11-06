@@ -414,6 +414,30 @@ class TestCore(AssemblyTestBase):
         )
         self.assertNotIn("Invalid", bom.State)
 
+    def test_bom_keeps_component_labels_as_text(self):
+        """Labels that look like numbers, quantities or formulas must be listed verbatim,
+        and the custom column text of their rows must survive a BOM refresh."""
+        labels = ["007", "1/2", "10 mm", "=1+1", "'quoted"]
+        for i, label in enumerate(labels):
+            box = self.assembly.newObject("Part::Box", f"Component{i}")
+            box.Label = label
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Name", "Notes"]
+        self.doc.recompute()
+
+        names = [bom.getContents(f"A{row}") for row in range(2, 2 + len(labels))]
+        self.assertEqual(names, ["'" + label for label in labels])
+        for row in range(2, 2 + len(labels)):
+            bom.set(f"B{row}", f"note {row}")
+        bom.touch()
+        self.doc.recompute()
+
+        names = [bom.getContents(f"A{row}") for row in range(2, 2 + len(labels))]
+        self.assertEqual(names, ["'" + label for label in labels])
+        notes = [bom.get(f"B{row}") for row in range(2, 2 + len(labels))]
+        self.assertEqual(notes, [f"note {row}" for row in range(2, 2 + len(labels))])
+        self.assertNotIn("Invalid", bom.State)
+
     def _check_bom_scale_vector_grouping(self, scale, mirrored, previous_scalar=None):
         source = self.doc.addObject("Part::Box", "VectorScaleComponent")
         source.Label = "Vector scale component"
