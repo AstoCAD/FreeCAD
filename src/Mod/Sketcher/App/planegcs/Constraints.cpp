@@ -850,12 +850,24 @@ double ConstraintP2PAngle::maxStep(MAP_pD_D& dir, double lim)
     }
     return lim;
 }
+// The value of a driven angle is only known up to a multiple of 2*pi. Return the one closest to
+// its current value, as solving the driven parameter used to do, so that e.g. a 250 degree arc
+// angle does not become -110 degrees when its constraint is switched to reference.
+static double closestAngle(double angle, double current)
+{
+    constexpr double twoPi = 2 * std::numbers::pi;
+    if (!std::isfinite(current)) {
+        return angle;
+    }
+    return angle + twoPi * std::round((current - angle) / twoPi);
+}
+
 void ConstraintP2PAngle::evaluate()
 {
     double dx = (*p2x() - *p1x());
     double dy = (*p2y() - *p1y());
 
-    *angle() = atan2(dy, dx) - da;
+    *angle() = closestAngle(atan2(dy, dx) - da, *angle());
 }
 
 // --------------------------------------------------------
@@ -1436,7 +1448,7 @@ void ConstraintL2LAngle::evaluate()
     double dy1 = (*l1p2y() - *l1p1y());
     double dx2 = (*l2p2x() - *l2p1x());
     double dy2 = (*l2p2y() - *l2p1y());
-    *angle() = vectorAngleHelper(dx1, dy1, dx2, dy2);
+    *angle() = closestAngle(vectorAngleHelper(dx1, dy1, dx2, dy2), *angle());
 }
 
 
@@ -2519,7 +2531,7 @@ void ConstraintAngleViaTwoPoints::evaluate()
     DeriVector2 n1 = crv1->CalculateNormal(poa1);
     DeriVector2 n2 = crv2->CalculateNormal(poa2);
 
-    *angle() = vectorAngleHelper(n1.x, n1.y, n2.x, n2.y);
+    *angle() = closestAngle(vectorAngleHelper(n1.x, n1.y, n2.x, n2.y), *angle());
 }
 
 // --------------------------------------------------------
@@ -2613,7 +2625,7 @@ void ConstraintAngleViaPointAndParam::evaluate()
     DeriVector2 n1 = crv1->CalculateNormal(cparam());
     DeriVector2 n2 = crv2->CalculateNormal(poa);
 
-    *angle() = vectorAngleHelper(n1.x, n1.y, n2.x, n2.y);
+    *angle() = closestAngle(vectorAngleHelper(n1.x, n1.y, n2.x, n2.y), *angle());
 }
 
 
@@ -2711,7 +2723,7 @@ void ConstraintAngleViaPointAndTwoParams::evaluate()
     DeriVector2 n1 = crv1->CalculateNormal(cparam1());
     DeriVector2 n2 = crv2->CalculateNormal(cparam2());
 
-    *angle() = vectorAngleHelper(n1.x, n1.y, n2.x, n2.y);
+    *angle() = closestAngle(vectorAngleHelper(n1.x, n1.y, n2.x, n2.y), *angle());
 }
 
 
