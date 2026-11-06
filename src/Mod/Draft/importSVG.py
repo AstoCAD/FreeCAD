@@ -1171,10 +1171,10 @@ class svgHandler(xml.sax.ContentHandler):
                     m.move(Vector(cx, -cy, 0))  # Reverse repositioning
             elif transformation == "skewX":
                 _m = FreeCAD.Matrix(1, -math.tan(math.radians(argsplit[0])))
-                m = m.multiply(_m)
+                m = _m.multiply(m)
             elif transformation == "skewY":
                 _m = FreeCAD.Matrix(1, 0, 0, 0, -math.tan(math.radians(argsplit[0])))
-                m = m.multiply(_m)
+                m = _m.multiply(m)
             elif transformation == "matrix":
                 # transformation matrix:
                 #    FreeCAD                 SVG
@@ -1190,7 +1190,7 @@ class svgHandler(xml.sax.ContentHandler):
                                     -argsplit[1], argsplit[3],
                                     0, -argsplit[5])
                 # fmt: on
-                m = m.multiply(_m)
+                m = _m.multiply(m)
             # else:
             #    print('SKIPPED %s' % transformation)
             # print("m = ", m)

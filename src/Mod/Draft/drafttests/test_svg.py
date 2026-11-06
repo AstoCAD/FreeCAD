@@ -139,6 +139,39 @@ class DraftSVGImportRegression(test_base.DraftTestCaseDoc):
         # 'r' itself and its valid use
         self.assertEqual(result.count("<rect"), 2)
 
+    def test_read_svg_transform_list_with_matrix_and_skew(self):
+        """matrix/skewX/skewY in a transform list must be applied in SVG order."""
+        transforms = {
+            # name: (transform, expected center of a circle at the origin, in FreeCAD coordinates)
+            "scale": ("scale(2) translate(10,5)", App.Vector(20, -10, 0)),
+            "matrix_first": ("matrix(2,0,0,2,0,0) translate(10,5)", App.Vector(20, -10, 0)),
+            "matrix_last": ("translate(10,5) matrix(2,0,0,2,0,0)", App.Vector(10, -5, 0)),
+            "skewx": ("skewX(45) translate(10,5)", App.Vector(15, -5, 0)),
+            "skewy": ("skewY(45) translate(10,5)", App.Vector(10, -15, 0)),
+        }
+        body = "".join(
+            '<circle id="{}" cx="0" cy="0" r="1" transform="{}"/>'.format(name, tr)
+            for name, (tr, _) in transforms.items()
+        )
+        svg = (
+            '<?xml version="1.0"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="100mm" height="100mm" viewBox="0 0 100 100">' + body + "</svg>\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "transform_list.svg")
+            with open(in_file, "w", encoding="utf-8") as svg_file:
+                svg_file.write(svg)
+            importSVG.insert(in_file, self.doc.Name)
+        for name, (_, expected) in transforms.items():
+            with self.subTest(transform=name):
+                # the imported circle faces are approximated (about 0.01 off even
+                # for a plain scale); a wrong transform order is 5 to 10 mm off
+                center = self.doc.getObject(name).Shape.Faces[0].CenterOfMass
+                self.assertTrue(
+                    center.isEqual(expected, 0.05), "{}: {} != {}".format(name, center, expected)
+                )
+
     def test_read_svg_rect_corner_radius_clamped(self):
         """rx/ry larger than half the width/height must be clamped to half of it (SVG spec)."""
         body = (
