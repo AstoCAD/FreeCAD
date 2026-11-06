@@ -2770,6 +2770,18 @@ class PostProcessor:
                 return None, None  # no-edit, result not used
 
             else:
+                # The F of a rapid that _convert_move will not output must not
+                # reach the suppression: it would count as the modal feed, and
+                # a rapid stripped of its G0 no longer tells _convert_move to
+                # drop it.
+                if (
+                    cmd.Name in Constants.GCODE_MOVE_RAPID
+                    and "F" in cmd.Parameters
+                    and (not self.values["F_FOR_RAPID_MOVES"] or cmd.Parameters["F"] == 0.0)
+                ):
+                    params = cmd.Parameters
+                    del params["F"]
+                    cmd = Path.Command(cmd.Name, params, cmd.Annotations)
 
                 # Modal Axis always runs on the original command, so "previous"
                 # accumulates the axis state under the command's real name.

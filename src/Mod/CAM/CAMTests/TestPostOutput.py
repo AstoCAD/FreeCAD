@@ -804,7 +804,26 @@ class TestExport2Integration(unittest.TestCase):
         gcode = post.convert_command_to_gcode(cmd)
         self.assertNotIn(" F", gcode)
 
-    def test003_arc_center_words_follow_the_plane(self):
+    def test002a_g0_feed_with_modal_output(self):
+        """No G0 F with duplicate commands and parameters suppressed either, and
+        the dropped rapid feed is not taken for the feed of the next cut."""
+        machine = self._create_machine()
+        machine.output.duplicates.commands = False
+        machine.output.duplicates.parameters = False
+        with self._modify_operation_path(
+            [
+                Path.Command("G0", {"X": 0.0, "Y": 0.0, "Z": 5.0}),
+                Path.Command("G1", {"X": 10.0, "F": 10.0}),
+                Path.Command("G0", {"Z": 20.0, "F": 50.0}),
+                Path.Command("G0", {"X": 0.0, "F": 50.0}),
+                # a cut at the rapids' rate: its F must be output
+                Path.Command("G1", {"Z": 5.0, "F": 50.0}),
+            ]
+        ):
+            gcode = self._get_all_gcode(self._run_export2(machine))
+
+        lines = gcode.splitlines()
+        self.assertEqual([l for l in lines if "F3000" in l], ["G1 Z5.000 F3000.000"], gcode)
         """K is dropped under G17, J under G18, I under G19. A plane word in a
         block the post writes as-is, such as a '!' command, is read too."""
         commands = [
