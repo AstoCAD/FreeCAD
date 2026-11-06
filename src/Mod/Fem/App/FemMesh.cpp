@@ -33,6 +33,7 @@
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <SMDS_MeshGroup.hxx>
+#include <SMDS_VolumeTool.hxx>
 #include <SMESHDS_Group.hxx>
 #include <SMESHDS_GroupBase.hxx>
 #include <SMESHDS_Mesh.hxx>
@@ -2636,6 +2637,8 @@ Base::Quantity FemMesh::getVolume() const
         const SMDS_MeshVolume* aVol = aVolIter->next();
 
         if (aVol->NbNodes() != 10) {
+            // other volume types: split into tetrahedra by SMESH
+            volume += std::fabs(SMDS_VolumeTool(aVol).GetSize());
             continue;
         }
 
