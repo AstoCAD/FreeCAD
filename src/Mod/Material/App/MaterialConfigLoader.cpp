@@ -1058,9 +1058,19 @@ MaterialConfigLoader::getMaterialFromPath(const std::shared_ptr<MaterialLibraryL
         filepath.fileName().remove(QStringLiteral(".FCMat"), Qt::CaseInsensitive);
     QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
-    QString description = value(fcmat, "Description", "");
-    QString sourceReference = value(fcmat, "ReferenceSource", "");
-    QString sourceURL = value(fcmat, "SourceURL", "");
+    // readFile() prefixes the keys with their section, e.g. "General/Description"
+    auto general = [&fcmat](const std::string& key) {
+        QString result = value(fcmat, "General/" + key, "");
+        if (result.isEmpty()) {
+            // A key before any section has no prefix
+            result = value(fcmat, key, "");
+        }
+        return result;
+    };
+
+    QString description = general("Description");
+    QString sourceReference = general("ReferenceSource");
+    QString sourceURL = general("SourceURL");
 
     auto baseLibrary = std::static_pointer_cast<Materials::MaterialLibrary>(library);
     std::shared_ptr<Material> finalModel =
@@ -1072,7 +1082,7 @@ MaterialConfigLoader::getMaterialFromPath(const std::shared_ptr<MaterialLibraryL
     finalModel->setReference(sourceReference);
     finalModel->setURL(sourceURL);
 
-    QString father = value(fcmat, "Father", "");
+    QString father = general("Father");
     if (!father.isEmpty()) {
         finalModel->addPhysical(ModelUUIDs::ModelUUID_Legacy_Father);
 
@@ -1080,10 +1090,10 @@ MaterialConfigLoader::getMaterialFromPath(const std::shared_ptr<MaterialLibraryL
         setPhysicalValue(finalModel, "Father", father);
     }
 
-    QString kindOfMaterial = value(fcmat, "KindOfMaterial", "");
-    QString materialNumber = value(fcmat, "MaterialNumber", "");
-    QString norm = value(fcmat, "Norm", "");
-    QString standardCode = value(fcmat, "StandardCode", "");
+    QString kindOfMaterial = general("KindOfMaterial");
+    QString materialNumber = general("MaterialNumber");
+    QString norm = general("Norm");
+    QString standardCode = general("StandardCode");
     if (kindOfMaterial.length() + materialNumber.length() + norm.length() + standardCode.length()
         > 0) {
         finalModel->addPhysical(ModelUUIDs::ModelUUID_Legacy_MaterialStandard);

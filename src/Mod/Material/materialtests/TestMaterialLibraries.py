@@ -241,6 +241,22 @@ class MaterialLibraryTestCases(unittest.TestCase):
             material.getPhysicalValue("ShearModulus").getValueAs("MPa").Value, 81000.0
         )
 
+    def testLegacyCardGeneralSection(self):
+        """The [General] section of a legacy card fills the description and its models"""
+        path = os.path.join(os.path.dirname(self.cardPath), "LegacyGeneral.FCMat")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "; LegacyGeneral\n; Author\n\n[General]\nName = LegacyGeneral\n"
+                "Description = A legacy card\nReferenceSource = A book\nFather = Metal\n"
+                "KindOfMaterial = Solid\n\n[Mechanical]\nDensity = 7900 kg/m^3\n"
+            )
+        self.MaterialManager.refresh()
+        material = self.MaterialManager.getMaterialByPath("LegacyGeneral.FCMat", "Custom")
+        self.assertEqual(material.Description, "A legacy card")
+        self.assertEqual(material.Reference, "A book")
+        self.assertEqual(material.getPhysicalValue("Father"), "Metal")
+        self.assertEqual(material.getPhysicalValue("KindOfMaterial"), "Solid")
+
 
 @unittest.skipUnless("BUILD_PART" in FreeCAD.__cmake__, "requires the Part module")
 class DefaultMaterialTestCases(unittest.TestCase):

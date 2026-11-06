@@ -68,7 +68,9 @@ private:
                                  const std::string& name,
                                  const QString& value)
     {
-        if (!value.isEmpty()) {
+        // The property is missing when its model is not installed. The value is then kept
+        // as a legacy property (see addLegacy()).
+        if (!value.isEmpty() && finalModel->hasPhysicalProperty(QString::fromStdString(name))) {
             finalModel->setPhysicalValue(QString::fromStdString(name), value);
         }
     }
