@@ -1879,7 +1879,10 @@ private:
     }
     Py::Object makeLongHelix(const Py::Tuple& args)
     {
-        double pitch, height, radius, angle = -1.0;
+        // Unlike makeHelix(), TopoShape::makeLongHelix() builds a conical helix
+        // for any non-zero angle, a negative one included: so the default must
+        // be 0 to get the documented cylindrical helix.
+        double pitch, height, radius, angle = 0.0;
         PyObject* pleft = Py_False;
         if (
             !PyArg_ParseTuple(args.ptr(), "ddd|dO!", &pitch, &height, &radius, &angle, &(PyBool_Type), &pleft)
