@@ -2167,7 +2167,7 @@ def getScaleFromDXF(header):
         return 1000000.0
     if insunits == 8:
         # Microinches
-        return 25.4 / 1000.0
+        return 25.4 / 1000000.0
     if insunits == 9:
         # Mils
         return 25.4 / 1000.0
