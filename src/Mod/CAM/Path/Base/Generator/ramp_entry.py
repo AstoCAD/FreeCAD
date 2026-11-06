@@ -634,9 +634,23 @@ class AnnotatedGCode:
                 self.end_point[1] - self.center_xy[1],
                 self.end_point[0] - self.center_xy[0],
             )
-            if self.command.Name in Path.Geom.CmdMoveCCW and self.end_angle < self.start_angle:
+            # An arc ending where it starts is a full circle, as in G-code
+            # and Path.Geom.edgeForCmd, not an arc of length zero.
+            full_circle = pointsCoincide(start_point[:2], self.end_point[:2])
+            if full_circle:
+                # atan2() puts two coinciding points on either side of the -X axis
+                # 2pi apart: take the end angle next to the start angle, the turn
+                # is added below.
+                self.end_angle = self.start_angle + math.remainder(
+                    self.end_angle - self.start_angle, 2 * math.pi
+                )
+            if self.command.Name in Path.Geom.CmdMoveCCW and (
+                self.end_angle < self.start_angle or full_circle
+            ):
                 self.end_angle += 2 * math.pi
-            if self.command.Name in Path.Geom.CmdMoveCW and self.end_angle > self.start_angle:
+            if self.command.Name in Path.Geom.CmdMoveCW and (
+                self.end_angle > self.start_angle or full_circle
+            ):
                 self.end_angle -= 2 * math.pi
             self.radius = (
                 (start_point[0] - self.center_xy[0]) ** 2

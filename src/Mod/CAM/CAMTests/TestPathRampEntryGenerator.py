@@ -26,7 +26,7 @@ from CAMTests.TestPathAdaptive import getGcodeMoves
 
 import math
 
-from Path.Base.Generator.ramp_entry import RampEntry
+from Path.Base.Generator.ramp_entry import AnnotatedGCode, RampEntry
 
 
 def _resetArgs():
@@ -296,3 +296,42 @@ class TestPathRampEntryGenerator(PathTestUtils.PathTestBase):
             result = RampEntry(**args).generate()
             links = [c for c in result if c.Annotations.get("type") == "linking"]
             self.assertEqual(len(links), 3, f"linking annotations lost by method {method}")
+
+    def test21(self):
+        """Verify a plunge into a full circle is ramped along the circle by every method"""
+        # A full circle is one command, as Path.Geom.cmdsForEdge writes a circle edge
+        # (e.g. the Engrave operation on a circle).
+        commands = [
+            Path.Command("G0", {"X": 10, "Y": 0, "Z": 5}),
+            Path.Command("G1", {"X": 10, "Y": 0, "Z": -2, "F": 1}),
+            Path.Command("G2", {"X": 10, "Y": 0, "Z": -2, "I": -10, "J": 0, "F": 2}),
+            Path.Command("G0", {"Z": 5}),
+        ]
+        for method in range(5):
+            result = RampEntry(commands, method=method, angle_rad=math.radians(10)).generate()
+            pos = FreeCAD.Vector(0, 0, 0)
+            reached = False
+            for cmd in result:
+                end = Path.Geom.commandEndPoint(cmd, pos)
+                if cmd.Name in Path.Geom.CmdMoveMill and Path.Geom.isRoughly(end.z, -2):
+                    reached = True
+                if cmd.Name in Path.Geom.CmdMoveStraight and end.z < pos.z - 1e-6:
+                    self.assertFalse(
+                        Path.Geom.pointsCoincide(Path.Geom.xy(end), Path.Geom.xy(pos)),
+                        f"plunge left in place by method {method}: {cmd}",
+                    )
+                pos = end
+            self.assertTrue(reached, f"cut depth not reached by method {method}")
+
+    def test22(self):
+        """Verify a full circle starting on the -X side of its center is one turn long"""
+        # atan2() gives the start and the end of such a circle angles near +pi and -pi
+        # when their Y differ by rounding, e.g. "Y-0.000" after "Y0.000".
+        radius = 10
+        for name in ("G2", "G3"):
+            for startY, endY in ((1e-9, -1e-9), (-1e-9, 1e-9), (0.0, -0.0)):
+                cmd = Path.Command(name, {"X": -radius, "Y": endY, "Z": 0, "I": radius, "J": 0})
+                edge = AnnotatedGCode(cmd, (-radius, startY, 0))
+                self.assertRoughly(edge.xy_length, 2 * math.pi * radius)
+                turn = edge.end_angle - edge.start_angle
+                self.assertRoughly(turn, -2 * math.pi if name == "G2" else 2 * math.pi)
