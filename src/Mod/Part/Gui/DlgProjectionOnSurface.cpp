@@ -788,6 +788,8 @@ void PartGui::DlgProjectionOnSurface::higlight_object(
             colors.at(index - 1) = defaultColor;
         }
         if (currentShapeType == TopAbs_FACE) {
+            // The highlight of the picked face is no appearance override
+            Gui::ViewProviderGeometryObject::TemporaryAppearance temporary(vp);
             vp->ShapeAppearance.setDiffuseColors(colors);
         }
         else if (currentShapeType == TopAbs_EDGE) {

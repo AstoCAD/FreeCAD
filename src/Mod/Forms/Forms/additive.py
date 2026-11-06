@@ -342,7 +342,12 @@ class ViewProviderPartDesignForm(ViewProviderFormBox):
         self._transparency_before_edit = int(view_object.Transparency)
         self._shape_color_before_edit = tuple(view_object.ShapeColor)[:3]
         preview_color = tuple(getattr(view_object, "PreviewColor", view_object.ShapeColor))
-        view_object.ShapeColor = preview_color[:3]
+        # The preview color is no appearance override of the feature
+        view_object.beginTemporaryAppearance()
+        try:
+            view_object.ShapeColor = preview_color[:3]
+        finally:
+            view_object.endTemporaryAppearance()
         # The standard Part Design preview is intentionally unpickable and very
         # transparent. Forms instead displays the real tool shape so its faces,
         # edges, and vertices remain available to the editor.
@@ -364,7 +369,11 @@ class ViewProviderPartDesignForm(ViewProviderFormBox):
                 view_object.Transparency = self._transparency_before_edit
                 del self._transparency_before_edit
             if hasattr(self, "_shape_color_before_edit"):
-                view_object.ShapeColor = self._shape_color_before_edit
+                view_object.beginTemporaryAppearance()
+                try:
+                    view_object.ShapeColor = self._shape_color_before_edit
+                finally:
+                    view_object.endTemporaryAppearance()
                 del self._shape_color_before_edit
         super()._restore_body_feature_visibility()
 

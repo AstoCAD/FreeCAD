@@ -62,6 +62,8 @@ public:
     // Display properties
     App::PropertyPercent Transparency;
     App::PropertyMaterialList ShapeAppearance;  // May be different from material
+    /// Elements whose look overrides the physical material (see App::AppearanceOverrides)
+    App::PropertyStringList AppearanceOverrides;
     App::PropertyBool BoundingBox;
     App::PropertyBool Selectable;
 
@@ -70,6 +72,62 @@ public:
      */
     void attach(App::DocumentObject* pcObject) override;
     void updateData(const App::Property*) override;
+    void finishRestoring() override;
+
+    /** @name Temporary appearance
+     * Between begin and end, changes of 'ShapeAppearance' are temporary (the highlight of a tool,
+     * restored afterwards): they neither record nor clear appearance overrides. Calls can nest.
+     */
+    //@{
+    void beginTemporaryAppearance();
+    void endTemporaryAppearance();
+
+    /// Scoped temporary change of the appearance
+    class TemporaryAppearance
+    {
+    public:
+        explicit TemporaryAppearance(ViewProviderGeometryObject* viewProvider)
+            : vp(viewProvider)
+        {
+            if (vp) {
+                vp->beginTemporaryAppearance();
+            }
+        }
+        ~TemporaryAppearance()
+        {
+            if (vp) {
+                vp->endTemporaryAppearance();
+            }
+        }
+        TemporaryAppearance(const TemporaryAppearance&) = delete;
+        TemporaryAppearance& operator=(const TemporaryAppearance&) = delete;
+        TemporaryAppearance(TemporaryAppearance&&) = delete;
+        TemporaryAppearance& operator=(TemporaryAppearance&&) = delete;
+
+    private:
+        ViewProviderGeometryObject* vp;
+    };
+    //@}
+
+    /** @name Look of the physical material
+     * The look follows the appearance of the physical material ('ShapeMaterial' of the object)
+     * unless it is overridden. Any change of 'ShapeAppearance' other than by the material is an
+     * override, of the whole object or of single faces.
+     */
+    //@{
+    /// Whether the object has a physical material that can give its look
+    bool hasPhysicalMaterial() const;
+    /// The look of the physical material
+    App::Material getMaterialLook() const;
+    /** Whether the look comes from the physical material: of the whole object if @a element is
+     * empty, else of the face @a element ("Face1" ...).
+     */
+    bool isLookFromMaterial(const std::string& element = {}) const;
+    /** Clears the overrides of @a faces ("Face1" ...), or all of them if @a faces is empty, so
+     * that their look comes from the physical material again.
+     */
+    void resetToMaterial(const std::vector<std::string>& faces = {});
+    //@}
 
     bool isSelectable() const override
     {
@@ -107,6 +165,7 @@ public:
 protected:
     /// get called by the container whenever a property has been changed
     void onChanged(const App::Property* prop) override;
+    void onBeforeChange(const App::Property* prop) override;
     void setSelectable(bool Selectable = true);
 
     virtual unsigned long getBoundColor() const;
@@ -122,6 +181,9 @@ protected:
 
 private:
     bool isSelectionEnabled() const;
+    bool isLoadingOrUndoing() const;
+    void followMaterial();
+    void setAppearanceFromMaterial(const std::vector<App::Material>& values);
 
 protected:
     SoMaterial* pcShapeMaterial {nullptr};
@@ -131,7 +193,17 @@ protected:
     SoPickStyle* pickStyle {nullptr};
     SoNodeSensor* pcSwitchSensor {nullptr};
 
-    App::Material materialAppearance;
+private:
+    /// The look before anything was loaded, only used while a file is loaded
+    App::Material initialAppearance;
+    /// The appearance before its current change
+    std::vector<App::Material> appearanceBefore;
+    /// The material is changing the appearance: this is no override
+    bool settingFromMaterial {false};
+    /// Nesting depth of temporary appearance changes: they are no override
+    int temporaryAppearance {0};
+    /// The overrides were read from the file
+    bool overridesRestored {false};
 };
 
 }  // namespace Gui

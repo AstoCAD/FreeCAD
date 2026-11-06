@@ -22,6 +22,8 @@
  **************************************************************************/
 
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include <App/GeoFeature.h>
 #include <App/MaterialPy.h>
@@ -68,6 +70,84 @@ PyObject* ViewProviderGeometryObjectPy::getUserDefinedMaterial()
 {
     App::Material mat = App::Material::getDefaultAppearance();
     return new App::MaterialPy(new App::Material(mat));
+}
+
+PyObject* ViewProviderGeometryObjectPy::beginTemporaryAppearance(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    getViewProviderGeometryObjectPtr()->beginTemporaryAppearance();
+    Py_Return;
+}
+
+PyObject* ViewProviderGeometryObjectPy::endTemporaryAppearance(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+    getViewProviderGeometryObjectPtr()->endTemporaryAppearance();
+    Py_Return;
+}
+
+namespace
+{
+/// Reads a sequence of face names ("Face1" ...); sets a Python error and returns false if it is none
+bool getFaceNames(PyObject* pyFaces, std::vector<std::string>& faces)
+{
+    if (!PySequence_Check(pyFaces) || PyUnicode_Check(pyFaces)) {
+        PyErr_SetString(PyExc_TypeError, "Expect a list of face names");
+        return false;
+    }
+    Py::Sequence sequence(pyFaces);
+    for (Py_ssize_t i = 0; i < sequence.size(); ++i) {
+        PyObject* item = sequence[i].ptr();
+        const char* name = PyUnicode_Check(item) ? PyUnicode_AsUTF8(item) : nullptr;
+        if (!name) {
+            if (!PyErr_Occurred()) {
+                PyErr_SetString(PyExc_TypeError, "Expect a list of face names");
+            }
+            return false;
+        }
+        faces.emplace_back(name);
+    }
+    return true;
+}
+}  // namespace
+
+PyObject* ViewProviderGeometryObjectPy::isLookFromMaterial(PyObject* args) const
+{
+    const char* element = "";
+    if (!PyArg_ParseTuple(args, "|s", &element)) {
+        return nullptr;
+    }
+    bool fromMaterial = getViewProviderGeometryObjectPtr()->isLookFromMaterial(element);
+    return Py::new_reference_to(Py::Boolean(fromMaterial));
+}
+
+PyObject* ViewProviderGeometryObjectPy::resetToMaterial(PyObject* args)
+{
+    PyObject* pyFaces = Py_None;
+    if (!PyArg_ParseTuple(args, "|O", &pyFaces)) {
+        return nullptr;
+    }
+
+    std::vector<std::string> faces;
+    if (pyFaces != Py_None) {
+        if (!getFaceNames(pyFaces, faces)) {
+            return nullptr;
+        }
+        if (faces.empty()) {
+            Py_Return;  // nothing to reset, unlike no argument at all
+        }
+    }
+
+    PY_TRY
+    {
+        getViewProviderGeometryObjectPtr()->resetToMaterial(faces);
+        Py_Return;
+    }
+    PY_CATCH
 }
 
 int ViewProviderGeometryObjectPy::setCustomAttributes(const char* attr, PyObject* obj)

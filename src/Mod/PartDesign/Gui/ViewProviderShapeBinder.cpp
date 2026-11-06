@@ -155,6 +155,8 @@ void ViewProviderShapeBinder::highlightReferences(bool on)
                 svp->LineColorArray.setValues(lineColors);
             }
             if (auto* svp = source->get<PartGui::ViewProviderPart>()) {
+                // The highlight is no appearance override
+                Gui::ViewProviderGeometryObject::TemporaryAppearance temporary(svp);
                 svp->ShapeAppearance.setValues(faceAppearance);
             }
         }
@@ -224,6 +226,9 @@ void ViewProviderShapeBinder::highlightReferences(bool on)
                 if (auto* currentSource =
                         currentOwner->highlightedSource->get<PartGui::ViewProviderPart>()) {
                     if (currentSource == svp) {
+                        Gui::ViewProviderGeometryObject::TemporaryAppearance temporary(
+                            currentSource
+                        );
                         currentSource->ShapeAppearance.setValues(fcolors);
                     }
                 }
