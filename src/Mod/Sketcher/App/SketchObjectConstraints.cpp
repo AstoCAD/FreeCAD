@@ -1760,6 +1760,16 @@ bool SketchObject::deriveConstraintsForPieces(
         case DistanceY:
         case Coincident:
         case PointOnObject: {
+            if (con->Type == Distance && con->FirstPos == PointPos::none
+                && con->SecondPos == PointPos::none && con->Second != GeoEnum::GeoUndef) {
+                // Edge to edge distance (circle or arc to line, circle or arc to circle or arc).
+                // The solver measures it on the underlying circle or infinite line, which every
+                // piece lies on, so keep it, in the same order, on the first piece.
+                Constraint* trans = con->copy();
+                trans->substituteIndex(oldId, newIds.front());
+                newConstraints.push_back(trans);
+                return true;
+            }
             if (con->FirstPos == PointPos::none && con->SecondPos == PointPos::none
                 && newIds.size() > 1) {
                 Constraint* dist = con->copy();
