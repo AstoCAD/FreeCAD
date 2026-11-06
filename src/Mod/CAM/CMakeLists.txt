@@ -604,6 +604,7 @@ SET(Tests_SRCS
     CAMTests/TestGrblPost.py
     CAMTests/TestHaasPost.py
     CAMTests/TestHeidenhainPost.py
+    CAMTests/TestHeidenhainLegacyPost.py
     CAMTests/TestEstlCamPost.py
     CAMTests/TestKineticNCBeamicon2LegacyPost.py
     CAMTests/TestLinuxCNCPost.py
