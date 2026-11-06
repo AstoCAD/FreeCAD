@@ -699,6 +699,31 @@ class TestCore(AssemblyTestBase):
     def test_assembly_link_maps_generated_array_whole_element_joint(self):
         self._check_generated_array_joint("")
 
+    def test_flexible_assembly_link_synchronizes_joint_angle(self):
+        """A flexible assembly link copies the joints of its sub-assembly. The Angle of an
+        Angle joint was not kept in sync, so the parent assembly solved with a stale angle."""
+        box1 = self.assembly.newObject("Part::Box", "Box1")
+        box2 = self.assembly.newObject("Part::Box", "Box2")
+        box2.Placement.Base = App.Vector(0, 0, 20)
+        joint = self.jointgroup.newObject("App::FeaturePython", "Joint")
+        JointObject.Joint(joint, JointObject.JointTypes.index("Angle"))
+        joint.Reference1 = (box1, ["Face6", "Vertex6"])
+        joint.Reference2 = (box2, ["Face6", "Vertex6"])
+        joint.Angle = 30
+        parent = self.doc.addObject("Assembly::AssemblyObject", "ParentAssembly")
+        instance = parent.newObject("Assembly::AssemblyLink", "Instance")
+        instance.LinkedObject = self.assembly
+        instance.Rigid = False
+        self.doc.recompute()
+        local_group = next(obj for obj in instance.Group if obj.TypeId == "Assembly::JointGroup")
+        local_joint = local_group.Group[0]
+        self.assertAlmostEqual(local_joint.Angle.Value, 30)
+
+        joint.Angle = 60
+        instance.touch()
+        self.doc.recompute()
+        self.assertAlmostEqual(local_joint.Angle.Value, 60)
+
     def _check_generated_array_joint(self, sub):
         source = self.doc.addObject("Part::Box", "ArraySource")
         array = self.assembly.newObject("Part::LinkArrayLinear", "Array")
