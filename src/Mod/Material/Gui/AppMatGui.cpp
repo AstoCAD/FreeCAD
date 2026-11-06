@@ -31,7 +31,6 @@
 
 #include "DlgSettingsDefaultMaterial.h"
 #include "DlgSettingsMaterial.h"
-#include "Workbench.h"
 #include "WorkbenchManipulator.h"
 #include "MaterialTreeWidget.h"
 #include "MaterialTreeWidgetPy.h"
@@ -95,7 +94,6 @@ PyMOD_INIT_FUNC(MatGui)
 
     Base::Console().log("Loading GUI of Material module… done\n");
 
-    MatGui::Workbench ::init();
     auto manip = std::make_shared<MatGui::WorkbenchManipulator>();
     Gui::WorkbenchManipulator::installManipulator(manip);
 
