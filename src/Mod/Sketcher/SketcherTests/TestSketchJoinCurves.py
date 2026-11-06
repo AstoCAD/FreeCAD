@@ -166,6 +166,55 @@ class TestSketchJoinCurves(unittest.TestCase):
         self.assertTrue(poles)
         self._assertValid()
 
+    def _joinArcAndLine(self, arc, arcFirst):
+        # the sketch end point of the arc (geometry 0) is joined to a line going down from it
+        self.sketch.addGeometry(arc)  # 0
+        start = self.sketch.getPoint(0, 1)
+        end = self.sketch.getPoint(0, 2)
+        lineEnd = V(end.x, end.y - 5, 0)
+        if arcFirst:
+            self._line((end.x, end.y, 0), (lineEnd.x, lineEnd.y, 0))  # 1
+            self.sketch.addConstraint(Sketcher.Constraint("Coincident", 0, 2, 1, 1))
+        else:
+            self._line((lineEnd.x, lineEnd.y, 0), (end.x, end.y, 0))  # 1
+            self.sketch.addConstraint(Sketcher.Constraint("Coincident", 1, 2, 0, 2))
+        self.doc.recompute()
+        length = arc.length() + 5
+
+        if arcFirst:
+            self.sketch.join(0, 2, 1, 1)
+            expectedStart, expectedEnd = start, lineEnd
+        else:
+            self.sketch.join(1, 2, 0, 2)
+            expectedStart, expectedEnd = lineEnd, start
+
+        splines = [g for g in self.sketch.Geometry if isinstance(g, Part.BSplineCurve)]
+        self.assertEqual(len(splines), 1)
+        spline = splines[0]
+        self.assertLess((spline.StartPoint - expectedStart).Length, 1e-6)
+        self.assertLess((spline.EndPoint - expectedEnd).Length, 1e-6)
+        self.assertAlmostEqual(spline.length(), length, places=4)
+        self._assertValid()
+
+    def testJoinClockwiseArcOfCircle(self):
+        arc = Part.ArcOfCircle(Part.Circle(V(0, 0, 0), V(0, 0, -1), 5), 0.3, 2.5)
+        self._joinArcAndLine(arc, True)
+
+    def testJoinLineToClockwiseArcOfCircle(self):
+        arc = Part.ArcOfCircle(Part.Circle(V(0, 0, 0), V(0, 0, -1), 5), 0.3, 2.5)
+        self._joinArcAndLine(arc, False)
+
+    def testJoinClockwiseArcOfEllipse(self):
+        arc = Part.ArcOfEllipse(Part.Ellipse(V(0, 0, 0), 6, 3), 0.3, 2.5)
+        arc.mirror(V(0, 0, 0), V(1, 0, 0))
+        self.assertLess(arc.Axis.z, 0)
+        self._joinArcAndLine(arc, True)
+
+    def testJoinCounterClockwiseArcOfCircle(self):
+        # control
+        arc = Part.ArcOfCircle(Part.Circle(V(0, 0, 0), V(0, 0, 1), 5), 0.3, 2.5)
+        self._joinArcAndLine(arc, True)
+
 
 if __name__ == "__main__":
     unittest.main()
