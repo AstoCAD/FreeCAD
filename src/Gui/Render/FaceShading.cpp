@@ -41,12 +41,15 @@
 #include <Inventor/elements/SoGLLightIdElement.h>
 #include <Inventor/elements/SoGLShaderProgramElement.h>
 #include <Inventor/elements/SoLazyElement.h>
+#include <Inventor/elements/SoLightElement.h>
 #include <Inventor/elements/SoMultiTextureEnabledElement.h>
 #include <Inventor/elements/SoOverrideElement.h>
 #include <Inventor/elements/SoProjectionMatrixElement.h>
 #include <Inventor/elements/SoViewingMatrixElement.h>
 #include <Inventor/elements/SoViewportRegionElement.h>
+#include <Inventor/lists/SoNodeList.h>
 #include <Inventor/misc/SoState.h>
+#include <Inventor/nodes/SoNode.h>
 
 #include "AmbientOcclusion.h"
 #include "FaceShading.h"
@@ -103,6 +106,11 @@ struct ContextProgram
     int eyeToEnvironmentLocation = -1;
     SbMatrix lastEnvironmentView = SbMatrix::identity();
     bool environmentViewSet = false;
+    // Fixed key light: the light index aimed at the sun (-1: none) and the eye-space sun direction
+    // (uploaded with the environment rotation).
+    int keyLightIndexLocation = -1;
+    int keyLightDirectionLocation = -1;
+    int lastKeyLightIndex = -1;
 };
 
 /// What the face shading left bound on one of its texture units (6 and 7 belong to the
@@ -256,6 +264,7 @@ void uploadSettingsUniforms(QOpenGLShaderProgram* program)
     program->setUniformValue("fc_shadowMap", GLint(shadowTextureUnit));
     program->setUniformValue("fc_shadowRadius", GLfloat(shadowFilterRadiusTexels));
     program->setUniformValue("fc_sunDirection", QVector3D(0.0F, 0.0F, 1.0F));
+    program->setUniformValue("fc_keyLightIndex", GLint(-1));
 }
 
 /// The face program of the current context, created on first use. Returns nullptr (and switches
@@ -286,6 +295,8 @@ ContextProgram* acquireProgram(QOpenGLContext* context)
         entry.tintModeLocation = entry.program->uniformLocation("fc_tintMode");
         entry.tintLocation = entry.program->uniformLocation("fc_tint");
         entry.eyeToEnvironmentLocation = entry.program->uniformLocation("fc_eyeToEnvironment");
+        entry.keyLightIndexLocation = entry.program->uniformLocation("fc_keyLightIndex");
+        entry.keyLightDirectionLocation = entry.program->uniformLocation("fc_keyLightDirection");
         entry.maxLights = maxLightsFor();
         QObject::connect(
             context,
@@ -339,6 +350,42 @@ void bindEnvironment(ContextProgram& entry, SoState* state)
         eyeToEnvironment(2, column) = -world[1];
     }
     entry.program->setUniformValue(entry.eyeToEnvironmentLocation, eyeToEnvironment);
+    // The fixed key light comes from the sun of the shadows, so lit sides and shadows agree.
+    const Vec3 sun = defaultSunDirection();
+    SbVec3f sunEye;
+    view.multDirMatrix(SbVec3f(sun[0], sun[1], sun[2]), sunEye);
+    sunEye.normalize();
+    entry.program->setUniformValue(entry.keyLightDirectionLocation, QVector3D(sunEye[0], sunEye[1], sunEye[2]));
+}
+
+/// The position of the viewer's headlight among the active lights, or -1 (off or not found).
+int headlightIndex(SoState* state)
+{
+    static const SbName name(headlightNodeName);
+    const SoNodeList& lights = SoLightElement::getLights(state);
+    for (int i = 0; i < lights.getLength(); ++i) {
+        if (lights[i] && lights[i]->getName() == name) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/// Aim the headlight at the sun when the fixed key light is selected. Program bound.
+void bindKeyLight(ContextProgram& entry, SoState* state, int glLights)
+{
+    int index = -1;
+    if (RenderSettings::keyLight() == KeyLight::Sun) {
+        const int registered = SoLightElement::getLights(state).getLength();
+        index = sunKeyLightIndex(KeyLight::Sun, headlightIndex(state), registered, glLights);
+        if (index >= entry.maxLights) {
+            index = -1;  // not evaluated by the shader anyway
+        }
+    }
+    if (entry.lastKeyLightIndex != index) {
+        entry.program->setUniformValue(entry.keyLightIndexLocation, GLint(index));
+        entry.lastKeyLightIndex = index;
+    }
 }
 
 /// Set the camera-dependent shadow uniforms (program bound) and bind the shadow map on its
@@ -509,8 +556,10 @@ FaceShadingScope::FaceShadingScope(SoGLRenderAction* action, const SbColor* tint
         entry->lastAoMode = 0;      // uploadSettingsUniforms() set it to 0
         entry->lastAoViewport = QVector4D();
         entry->lastTintMode = 0;    // same
+        entry->lastKeyLightIndex = -1;  // same
     }
-    const int lights = std::clamp(int(SoGLLightIdElement::get(state)) + 1, 0, entry->maxLights);
+    const int glLights = std::max(int(SoGLLightIdElement::get(state)) + 1, 0);
+    const int lights = std::min(glLights, entry->maxLights);
     if (entry->lastNumLights != lights) {
         entry->program->setUniformValue(entry->numLightsLocation, GLint(lights));
         entry->lastNumLights = lights;
@@ -538,6 +587,7 @@ FaceShadingScope::FaceShadingScope(SoGLRenderAction* action, const SbColor* tint
         entry->program->setUniformValue(entry->tintLocation, QVector3D(tintColor[0], tintColor[1], tintColor[2]));
     }
     bindEnvironment(*entry, state);
+    bindKeyLight(*entry, state, glLights);
     if (RenderSettings::shadowsActive()) {
         bindShadows(context, *entry, state);
     }

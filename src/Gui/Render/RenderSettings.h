@@ -52,6 +52,29 @@ enum class EnvironmentPreset
 
 constexpr EnvironmentPreset defaultEnvironmentPreset = EnvironmentPreset::Studio;
 
+/// Where the direct light of the enhanced shading comes from.
+/// Headlight: Coin's headlight, which follows the view (the classic behaviour).
+/// Sun: the headlight's colour and intensity, but from the world-fixed sun direction that the
+/// shadows use (defaultSunDirection()), so the lighting does not change while orbiting.
+enum class KeyLight
+{
+    Headlight = 0,
+    Sun = 1,
+};
+
+constexpr KeyLight defaultKeyLight = KeyLight::Headlight;
+
+/// Map the integer stored in the preferences to a key light. Unknown values give the default.
+GuiExport KeyLight keyLightFromParameter(long value);
+
+/// Name given to the viewers' headlight node, so the enhanced shading can find it among the lights.
+constexpr const char* headlightNodeName = "headlight";
+
+/// The OpenGL light index whose direction the shader replaces by the sun, or -1 for none.
+/// headlightIndex is the position of the headlight among the registered lights (-1 if it is off or
+/// not found). The index is only trusted when the registered lights match the OpenGL lights.
+GuiExport int sunKeyLightIndex(KeyLight keyLight, int headlightIndex, int registeredLights, int glLights);
+
 /// Map the integer stored in the preferences to a quality. Unknown values give Classic.
 GuiExport Quality qualityFromParameter(long value);
 GuiExport long parameterFromQuality(Quality quality);
@@ -78,7 +101,8 @@ GuiExport unsigned visibleRenderState(
     EnvironmentPreset preset,
     bool shadows,
     bool fxaa,
-    bool ambientOcclusion
+    bool ambientOcclusion,
+    KeyLight keyLight = defaultKeyLight
 );
 
 /**
@@ -163,6 +187,12 @@ public:
     /// Image export supersampling factor (1 to 4, Enhanced only, default 1).
     static void setExportSupersampling(int factor);
     static int exportSupersampling();
+
+    static constexpr const char* keyLightKey = "RenderKeyLight";
+
+    /// Direct light of the enhanced shading (default: the headlight, following the view).
+    static void setKeyLight(KeyLight keyLight);
+    static KeyLight keyLight();
 
 private:
     friend class ScopedClassicRendering;

@@ -64,6 +64,12 @@ uniform float fc_shadowBias;    // constant depth bias, see Gui::Render::shadowD
 uniform float fc_shadowRadius;  // filter radius in texels
 uniform vec3 fc_sunDirection;   // towards the sun, eye space
 
+// Fixed key light (Gui::Render::KeyLight::Sun): light fc_keyLightIndex (the headlight) keeps its
+// colour and intensity but shines from fc_keyLightDirection, the world-fixed sun of the shadows
+// (eye space, towards the light). -1: every light is used as Coin set it.
+uniform int fc_keyLightIndex;
+uniform vec3 fc_keyLightDirection;
+
 // Screen-space ambient occlusion (Gui::Render::SoFCAmbientOcclusionPass). fc_aoMode 0: none.
 // fc_aoViewport = (x, y, 1 / width, 1 / height) of the viewport the AO map was computed for.
 uniform int fc_aoMode;
@@ -354,7 +360,10 @@ void main()
         vec4 position = gl_LightSource[i].position;
         vec3 l;
         float attenuation = 1.0;
-        if (position.w == 0.0) {
+        if (i == fc_keyLightIndex) {
+            l = fc_keyLightDirection;
+        }
+        else if (position.w == 0.0) {
             l = normalize(position.xyz);
         }
         else {
