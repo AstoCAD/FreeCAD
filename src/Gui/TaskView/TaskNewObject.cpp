@@ -26,6 +26,7 @@
 #endif
 
 #include <App/Document.h>
+#include <Base/Tools.h>
 
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
@@ -94,13 +95,15 @@ bool TaskBoxNewObject::accept()
         guiDoc->openCommand(QT_TRANSLATE_NOOP("Command", "Create new assembly"));
     }
 
+    // The name is typed by the user and goes into Python string literals
+    const std::string pyName = Base::Tools::escapeEncodeString(name);
     Command::doCommand(
         Command::Doc,
         "obj = App.ActiveDocument.addObject('%s', '%s')",
         type.c_str(),
-        name.c_str()
+        pyName.c_str()
     );
-    Command::doCommand(Command::Doc, "obj.Label = '%s'", name.c_str());
+    Command::doCommand(Command::Doc, "obj.Label = '%s'", pyName.c_str());
 
     if (type == "App::Part") {
         Command::doCommand(Gui::Command::Gui, "Gui.activeView().setActiveObject('%s', obj)", PARTKEY);
