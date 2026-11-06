@@ -665,8 +665,9 @@ class _Wall(ArchComponent.Component):
             if not math.isclose(l, obj.Length.Value, rel_tol=0, abs_tol=1e-7):
                 obj.Length = l
 
-        # set the Area property
-        obj.Area = obj.Length.Value * obj.Height.Value
+        # set the Area property, with the height inherited from the Level when Height is 0
+        height = obj.Height.Value or self.getParentHeight(obj)
+        obj.Area = obj.Length.Value * height
 
     def onChanged(self, obj, prop):
         """Method called when the object has a property changed.

@@ -734,3 +734,21 @@ class TestArchWall(TestArchBase.TestArchBase):
             delta=1e-6,
             msg="Length expression of wall did not correctly update line",
         )
+
+    def test_wall_area_uses_level_height(self):
+        """A wall with Height 0 takes the height of its Level, also for its Area."""
+        self.printTestMessage("Checking wall area with the height of its level")
+
+        line = Draft.make_line(App.Vector(0, 0, 0), App.Vector(4000, 0, 0))
+        wall = Arch.makeWall(line, width=200)
+        wall.Height = 0
+        level = Arch.makeFloor([wall])
+        level.Height = 3000
+        self.document.recompute()
+
+        self.assertAlmostEqual(wall.Shape.Volume, 4000 * 200 * 3000, delta=1e-3)
+        self.assertAlmostEqual(wall.Area.Value, 4000 * 3000, delta=1e-3)
+
+        level.Height = 2500
+        self.document.recompute()
+        self.assertAlmostEqual(wall.Area.Value, 4000 * 2500, delta=1e-3)
