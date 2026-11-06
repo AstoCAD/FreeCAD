@@ -2053,22 +2053,22 @@ Base::Placement AttachEngine3D::_calculateAttachedPlacement(
             }
 
             // extract the four lines
-            const TopoDS_Edge* edges[4];
+            TopoDS_Edge edges[4];
             BRepAdaptor_Curve adapts[4];
             gp_Lin lines[4];
             for (int i = 0; i < 4; i++) {
                 try {
-                    edges[i] = &TopoDS::Edge(shapes[i]->getShape());
+                    edges[i] = TopoDS::Edge(shapes[i]->getShape());
                 }
                 catch (...) {
                 }
-                if (edges[i]->IsNull()) {
+                if (edges[i].IsNull()) {
                     throw Base::ValueError(
                         "Null edge in AttachEngine3D::calculateAttachedPlacement()!"
                     );
                 }
 
-                adapts[i] = BRepAdaptor_Curve(*(edges[i]));
+                adapts[i] = BRepAdaptor_Curve(edges[i]);
                 if (adapts[i].GetType() != GeomAbs_Line) {
                     throw Base::ValueError(
                         "AttachEngine3D::calculateAttachedPlacement: Folding - non-straight edge."

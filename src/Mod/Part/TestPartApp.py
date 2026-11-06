@@ -1320,6 +1320,20 @@ class PartAttachNestedLCS(unittest.TestCase):
         self.Doc.recompute()
         self.assertNotIn("Invalid", feat.State)
 
+    def testFoldingOnNonEdgeReportsError(self):
+        # Folding needs four edges. A vertex or face among the references used to
+        # dereference an uninitialized pointer (access violation / segfault).
+        box = self.Doc.addObject("Part::Box", "Box")
+        self.Doc.recompute()
+        for first in ("Vertex1", "Face1"):
+            feat = self.Doc.addObject("Part::Feature", "Attached")
+            feat.addExtension("Part::AttachExtensionPython")
+            feat.AttachmentSupport = [(box, first), (box, "Edge2"), (box, "Edge3"), (box, "Edge4")]
+            feat.MapMode = "Folding"
+            self.Doc.recompute()
+            self.assertIn("Invalid", feat.State)
+            self.assertIn("Null edge", feat.getStatusString())
+
     def tearDown(self):
         FreeCAD.closeDocument(self.Doc.Name)
 
