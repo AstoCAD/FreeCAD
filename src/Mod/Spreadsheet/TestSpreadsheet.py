@@ -2979,3 +2979,60 @@ class SpreadsheetEditing(unittest.TestCase):
         self.assertEqual(sheet.getContents("A1"), "2")
         self.assertEqual(sheet.getContents("B1"), "=A1 * 2")
         self.assertEqual(sheet.getContents("B2"), "")
+
+    def _findSample(self):
+        sheet = self.sheet
+        sheet.set("B1", "Apple pie")
+        sheet.set("A2", "apple")
+        sheet.set("C1", "=A3 * 2")
+        sheet.set("A3", "21")
+        sheet.set("A4", "pear")
+        self.doc.recompute()
+
+    def testFindCells(self):
+        sheet = self.sheet
+        self._findSample()
+        # Row by row, without case, in contents
+        self.assertEqual(sheet.findCells("apple"), ["B1", "A2"])
+        self.assertEqual(sheet.findCells("apple", True), ["A2"])
+        self.assertEqual(sheet.findCells("apple", False, True), ["A2"])
+        self.assertEqual(sheet.findCells("A3"), ["C1"])
+        self.assertEqual(sheet.findCells(""), [])
+        self.assertEqual(sheet.findCells("'"), [])
+        # In values
+        self.assertEqual(sheet.findCells("42", False, False, True), ["C1"])
+        self.assertEqual(sheet.findCells("A3", False, False, True), [])
+
+    def testReplaceCells(self):
+        sheet = self.sheet
+        self._findSample()
+        sheet.setStyle("A4", "bold")
+        self.assertEqual(sheet.replaceCells("APPLE", "Cherry"), 2)
+        self.assertEqual(sheet.getContents("B1"), "'Cherry pie")
+        self.assertEqual(sheet.getContents("A2"), "'Cherry")
+        # Formulas are edited as text and stay formulas
+        self.assertEqual(sheet.replaceCells("A3", "A2"), 1)
+        self.assertEqual(sheet.getContents("C1"), "=A2 * 2")
+        # Text that looks like a number stays text
+        sheet.set("D1", "x")
+        self.assertEqual(sheet.replaceCells("x", "12", True, True), 1)
+        self.assertEqual(sheet.getContents("D1"), "'12")
+        # Limited to a range; an empty result keeps the formatting
+        self.assertEqual(sheet.replaceCells("pear", "", False, True, "A1:A3"), 0)
+        self.assertEqual(sheet.replaceCells("pear", "", False, True, "A4"), 1)
+        self.assertEqual(sheet.getContents("A4"), "")
+        self.assertEqual(sheet.getStyle("A4"), {"bold"})
+        with self.assertRaises(ValueError):
+            sheet.replaceCells("", "x")
+
+    def testReplaceCellsUndo(self):
+        sheet = self.sheet
+        self.doc.UndoMode = 1
+        self._findSample()
+        self.doc.openTransaction("Replace All")
+        sheet.replaceCells("apple", "plum")
+        self.doc.commitTransaction()
+        self.assertEqual(sheet.getContents("A2"), "'plum")
+        self.doc.undo()
+        self.assertEqual(sheet.getContents("A2"), "'apple")
+        self.assertEqual(sheet.getContents("B1"), "'Apple pie")
