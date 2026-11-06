@@ -294,6 +294,42 @@ PyObject* SheetPy::splitCell(PyObject* args)
     Py_Return;
 }
 
+PyObject* SheetPy::fillDown(PyObject* args)
+{
+    const char* range;
+
+    if (!PyArg_ParseTuple(args, "s:fillDown", &range)) {
+        return nullptr;
+    }
+
+    try {
+        getSheetPtr()->fillDown(Range(range, true));
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+    Py_Return;
+}
+
+PyObject* SheetPy::fillRight(PyObject* args)
+{
+    const char* range;
+
+    if (!PyArg_ParseTuple(args, "s:fillRight", &range)) {
+        return nullptr;
+    }
+
+    try {
+        getSheetPtr()->fillRight(Range(range, true));
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+    Py_Return;
+}
+
 PyObject* SheetPy::insertColumns(PyObject* args)
 {
     const char* column;

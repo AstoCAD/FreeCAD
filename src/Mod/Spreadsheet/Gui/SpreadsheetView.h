@@ -111,6 +111,10 @@ public:
 
     void deleteSelection();
 
+    /// Copy the first row (column) of the selected cells into its other rows (columns)
+    void fillDown();
+    void fillRight();
+
     PyObject* getPyObject() override;
 
     void deleteSelf() override;

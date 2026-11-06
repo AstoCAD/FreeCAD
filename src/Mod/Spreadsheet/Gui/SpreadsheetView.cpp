@@ -572,6 +572,16 @@ void SheetView::deleteSelection()
     ui->cells->deleteSelection();
 }
 
+void SheetView::fillDown()
+{
+    ui->cells->fillDown();
+}
+
+void SheetView::fillRight()
+{
+    ui->cells->fillRight();
+}
+
 QModelIndex SheetView::currentIndex() const
 {
     return ui->cells->currentIndex();

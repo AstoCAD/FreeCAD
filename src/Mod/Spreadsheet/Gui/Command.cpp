@@ -179,6 +179,84 @@ bool CmdSpreadsheetSplitCell::isActive()
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+// Whether the selection is one range with more than one row (down) or column
+static bool canFillSelection(bool down)
+{
+    auto* sheetView = freecad_cast<SpreadsheetGui::SheetView*>(Gui::getMainWindow()->activeWindow());
+    if (!sheetView) {
+        return false;
+    }
+    const std::vector<Range> ranges = sheetView->selectedRanges();
+    if (ranges.size() != 1) {
+        return false;
+    }
+    return (down ? ranges.front().rowCount() : ranges.front().colCount()) > 1;
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetFillDown)
+
+CmdSpreadsheetFillDown::CmdSpreadsheetFillDown()
+    : Command("Spreadsheet_FillDown")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("Fill &Down");
+    sToolTipText = QT_TR_NOOP(
+        "Copies the first row of the selected cells into the other selected rows"
+    );
+    sWhatsThis = "Spreadsheet_FillDown";
+    sStatusTip = sToolTipText;
+    sAccel = "Ctrl+D";
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetFillDown::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    auto* sheetView = freecad_cast<SpreadsheetGui::SheetView*>(Gui::getMainWindow()->activeWindow());
+    if (sheetView) {
+        sheetView->fillDown();
+    }
+}
+
+bool CmdSpreadsheetFillDown::isActive()
+{
+    return getActiveGuiDocument() && canFillSelection(true);
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetFillRight)
+
+CmdSpreadsheetFillRight::CmdSpreadsheetFillRight()
+    : Command("Spreadsheet_FillRight")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("Fill &Right");
+    sToolTipText = QT_TR_NOOP(
+        "Copies the first column of the selected cells into the other selected columns"
+    );
+    sWhatsThis = "Spreadsheet_FillRight";
+    sStatusTip = sToolTipText;
+    sAccel = "Ctrl+R";
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetFillRight::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    auto* sheetView = freecad_cast<SpreadsheetGui::SheetView*>(Gui::getMainWindow()->activeWindow());
+    if (sheetView) {
+        sheetView->fillRight();
+    }
+}
+
+bool CmdSpreadsheetFillRight::isActive()
+{
+    return getActiveGuiDocument() && canFillSelection(false);
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 DEF_STD_CMD_A(CmdSpreadsheetImport)
 
 CmdSpreadsheetImport::CmdSpreadsheetImport()
@@ -1000,6 +1078,9 @@ void CreateSpreadsheetCommands()
 
     rcCmdMgr.addCommand(new CmdSpreadsheetMergeCells());
     rcCmdMgr.addCommand(new CmdSpreadsheetSplitCell());
+
+    rcCmdMgr.addCommand(new CmdSpreadsheetFillDown());
+    rcCmdMgr.addCommand(new CmdSpreadsheetFillRight());
 
     rcCmdMgr.addCommand(new CmdSpreadsheetImport());
     rcCmdMgr.addCommand(new CmdSpreadsheetExport());
