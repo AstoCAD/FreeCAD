@@ -38,6 +38,9 @@ import FreeCAD
 import Materials
 
 UUIDCard = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e10"
+UUIDInvalidCard = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e11"
+UUIDInvalidCard2 = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e12"
+UUIDTestModel = "34d0583d-f999-49ba-99e6-aa40bd5c3a6b"
 UUIDModel = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0e01"
 UUIDMissingModel = "5b0f8c7e-1d2a-4c3b-9e4f-6a7b8c9d0eff"
 
@@ -193,3 +196,25 @@ class MaterialLibraryTestCases(unittest.TestCase):
         param.SetBool("UseMaterialsFromCustomDir", False)
         self.MaterialManager.refresh()
         self.assertFalse(UUIDCard in self.MaterialManager.Materials)
+
+    def testInvalidCardIsSkipped(self):
+        """A card with invalid contents is skipped; the other cards are still loaded"""
+        cards = {
+            # A model without its UUID
+            "NoModelUUID.FCMat": '---\nGeneral:\n  UUID: "{}"\n  Name: "NoModelUUID"\n'
+            'Models:\n  Density:\n    Density: "1 kg/m^3"\n'.format(UUIDInvalidCard),
+            # A boolean that is not one
+            "BadBoolean.FCMat": '---\nGeneral:\n  UUID: "{}"\n  Name: "BadBoolean"\n'
+            'Models:\n  Test:\n    UUID: "{}"\n    TestBoolean: "yes"\n'.format(
+                UUIDInvalidCard2, UUIDTestModel
+            ),
+        }
+        for fileName, text in cards.items():
+            path = os.path.join(os.path.dirname(self.cardPath), fileName)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+        self.MaterialManager.refresh()
+        materials = self.MaterialManager.Materials
+        self.assertIn(UUIDCard, materials)
+        self.assertFalse(UUIDInvalidCard in materials)
+        self.assertFalse(UUIDInvalidCard2 in materials)
