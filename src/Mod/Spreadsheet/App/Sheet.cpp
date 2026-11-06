@@ -50,6 +50,7 @@
 #include <Base/FileInfo.h>
 #include <Base/Reader.h>
 #include <Base/Stream.h>
+#include <Base/StringUtils.h>
 #include <Base/Writer.h>
 
 #include "Sheet.h"
@@ -355,11 +356,13 @@ bool Sheet::exportToFile(const std::string& filename, char delimiter, char quote
 
         std::stringstream field;
 
+        // Write numbers with all their digits (the stream default of 6 significant digits
+        // would round e.g. 1234567.891 to 1.23457e+06), so that the file reads back exactly
         if (auto p = freecad_cast<PropertyQuantity*>(prop)) {
-            field << p->getValue();
+            field << Base::StringUtils::formatDouble(p->getValue());
         }
         else if (auto p = freecad_cast<PropertyFloat*>(prop)) {
-            field << p->getValue();
+            field << Base::StringUtils::formatDouble(p->getValue());
         }
         else if (auto p = freecad_cast<PropertyInteger*>(prop)) {
             field << p->getValue();
