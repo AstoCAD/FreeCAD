@@ -365,6 +365,44 @@ class TestArchIfc(TestArchBase.TestArchBase):
         corners = sorted(set((round(c[0], 6), round(c[1], 6)) for c in coords))
         self.assertEqual(corners, [(0.0, 0.0), (0.0, 0.5), (1.0, 0.0), (1.0, 0.5)])
 
+    def test_export_2d_linework_edges_once(self):
+        """The edges of a 2D object are exported once, in the curve set of its wires,
+        and only edges outside any wire are added as separate curves."""
+        import Arch
+        import Draft
+        import Part
+        from importers import exportIFC
+
+        wire = Draft.make_wire(
+            [FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1000, 0, 0), FreeCAD.Vector(1000, 500, 0)]
+        )
+        loose = self.document.addObject("Part::Feature", "Loose")
+        loose.Shape = Part.makeCompound(
+            [
+                Part.makePolygon([FreeCAD.Vector(0, 1000, 0), FreeCAD.Vector(500, 1000, 0)]),
+                Part.makeLine(FreeCAD.Vector(0, 2000, 0), FreeCAD.Vector(500, 2000, 0)),
+            ]
+        )
+        site = Arch.makeSite([Arch.makeBuilding([Arch.makeFloor([wire, loose])])])
+        self.document.recompute()
+
+        preferences = exportIFC.getPreferences()
+        preferences["EXPORT_2D"] = True
+        path = os.path.join(tempfile.mkdtemp(), "linework.ifc")
+        exportIFC.export([site], path, preferences=preferences)
+        ifcfile = ifcopenshell.open(path)
+        curve_counts = {}
+        for anno in ifcfile.by_type("IfcAnnotation"):
+            sets = [
+                item
+                for rep in anno.Representation.Representations
+                for item in rep.Items
+                if item.is_a("IfcGeometricCurveSet")
+            ]
+            curve_counts[anno.Name] = [len(s.Elements) for s in sets]
+        # the wire: one curve set with one curve; the compound: its wire, then its loose edge
+        self.assertEqual(curve_counts, {wire.Label: [1], loose.Label: [1, 1]})
+
     def test_legacy_import_multicore(self):
         """The legacy (non-native) IFC importer must work with IfcOpenShell 0.8.
         https://github.com/FreeCAD/FreeCAD/issues/33854"""
