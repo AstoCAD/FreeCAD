@@ -328,7 +328,10 @@ PythonConverter::SingleGeometry PythonConverter::process(const Part::Geometry* g
              SingleGeometry sg;
              auto center = aoh->getCenter();
              auto majAxisPoint = center + aoh->getMajorAxisDir() * aoh->getMajorRadius();
-             auto minAxisPoint = center + aoh->getMinorAxisDir() * aoh->getMinorRadius();
+             // The range is the one of the counter-clockwise arc in the XY plane, so the minor
+             // axis point is taken counter-clockwise from the major axis, also for a reversed arc.
+             auto minorDir = Base::Vector3d(0.0, 0.0, 1.0) % aoh->getMajorAxisDir();
+             auto minAxisPoint = center + minorDir * aoh->getMinorRadius();
              sg.creation = boost::str(
                  boost::format(
                      "Part.ArcOfHyperbola(Part.Hyperbola(App.Vector(%.8f, %.8f, %.8f), "

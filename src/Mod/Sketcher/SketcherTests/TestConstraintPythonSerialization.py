@@ -319,3 +319,69 @@ class TestReversedArcPythonRoundTrip(unittest.TestCase):
 
     def test_arc_of_ellipse_control(self):
         self._replay(self._arcOfEllipse(), False)
+
+
+class TestReversedConicArcPythonRoundTrip(unittest.TestCase):
+    """Writing a clockwise (-Z) arc of hyperbola or parabola as Python leaves the arc alone,
+    and the commands rebuild the same curve."""
+
+    def setUp(self):
+        self.doc = App.newDocument("ReversedConicArcRoundTrip")
+        self.addCleanup(App.closeDocument, self.doc.Name)
+
+    @staticmethod
+    def _samples(curve):
+        first, last = curve.FirstParameter, curve.LastParameter
+        return [curve.value(first + k * (last - first) / 8) for k in range(9)]
+
+    def _check(self, geometry, reverse):
+        if reverse:
+            # Mirroring about an in-plane axis turns the arc clockwise (axis -Z).
+            geometry.mirror(App.Vector(0, 0, 0), App.Vector(1, 0, 0))
+        source = self.doc.addObject("Sketcher::SketchObject", "Source")
+        source.addGeometry(geometry, False)
+        axis = source.Geometry[0].Axis
+        samples = self._samples(source.Geometry[0])
+        commands = tuple(source.toPythonCommands())
+
+        # The source arc is not changed by reading its range.
+        self.assertAlmostEqual((source.Geometry[0].Axis - axis).Length, 0, places=9)
+        for before, after in zip(samples, self._samples(source.Geometry[0])):
+            self.assertAlmostEqual((before - after).Length, 0, places=6)
+
+        target = self.doc.addObject("Sketcher::SketchObject", "Target")
+        scope = {"App": App, "Part": Part, "Sketcher": Sketcher, "ActiveSketch": target}
+        for command in commands:
+            exec(command, scope)
+        self.assertEqual(target.GeometryCount, 1)
+        copy = target.Geometry[0].toShape()
+        for point in samples:
+            self.assertAlmostEqual(
+                copy.distToShape(Part.Vertex(point))[0], 0, places=6, msg=repr(commands)
+            )
+        ends = {(round(p.x, 6), round(p.y, 6)) for p in (samples[0], samples[-1])}
+        copyEnds = {
+            (round(p.x, 6), round(p.y, 6))
+            for p in (target.Geometry[0].StartPoint, target.Geometry[0].EndPoint)
+        }
+        self.assertEqual(ends, copyEnds)
+
+    def _arcOfHyperbola(self):
+        hyperbola = Part.Hyperbola(App.Vector(4, 1, 0), App.Vector(1, 3, 0), App.Vector(1, 1, 0))
+        return Part.ArcOfHyperbola(hyperbola, 0.2, 1.1)
+
+    def _arcOfParabola(self):
+        parabola = Part.Parabola(App.Vector(3, 2, 0), App.Vector(1, 2, 0), App.Vector(0, 0, 1))
+        return Part.ArcOfParabola(parabola, 0.5, 2.5)
+
+    def test_reversed_arc_of_hyperbola(self):
+        self._check(self._arcOfHyperbola(), True)
+
+    def test_reversed_arc_of_parabola(self):
+        self._check(self._arcOfParabola(), True)
+
+    def test_arc_of_hyperbola_control(self):
+        self._check(self._arcOfHyperbola(), False)
+
+    def test_arc_of_parabola_control(self):
+        self._check(self._arcOfParabola(), False)
