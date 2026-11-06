@@ -211,7 +211,9 @@ class Snapshot:
             App.Console.PrintWarning("Could not find parent assembly for snapshot.\n")
             return
 
-        components = UtilsAssembly.getMovablePartsWithin(assembly, partsAsSolid=True)
+        # The components the solver moves: the parts of flexible sub-assemblies are
+        # captured one by one, rigid sub-assemblies and parts as a whole.
+        components = assembly.getComponents()
 
         captured_objs = []
         captured_placements = []

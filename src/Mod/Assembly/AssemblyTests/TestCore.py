@@ -626,6 +626,34 @@ class TestCore(AssemblyTestBase):
                 self.assertTrue(box.Placement.isSame(captured[box.Name], 1e-6))
         self.assertTrue(boxes[2].Visibility)
 
+    def test_snapshot_restores_parts_of_flexible_sub_assembly(self):
+        """The parts of a flexible sub-assembly move independently, so a snapshot must
+        capture them one by one, not the assembly link as a whole."""
+        import CommandCreateSnapshot
+
+        sub = self.doc.addObject("Assembly::AssemblyObject", "Sub")
+        sub.newObject("Part::Box", "SubBox1")
+        sub.newObject("Part::Box", "SubBox2")
+        instance = self.assembly.newObject("Assembly::AssemblyLink", "Instance")
+        instance.LinkedObject = sub
+        instance.Rigid = False
+        self.doc.recompute()
+        parts = [obj for obj in instance.Group if obj.isDerivedFrom("App::Link")]
+        self.assertEqual(len(parts), 2)
+
+        group = UtilsAssembly.getSnapshotGroup(self.assembly)
+        snapshot = group.newObject("App::FeaturePython", "Snapshot")
+        CommandCreateSnapshot.Snapshot(snapshot)
+        snapshot.SolveOnActivation = False
+        captured = [App.Placement(part.Placement) for part in parts]
+
+        for part in parts:
+            part.Placement = App.Placement(App.Vector(50, 0, 0), App.Rotation())
+        snapshot.Proxy.restoreState(snapshot)
+        for part, placement in zip(parts, captured):
+            with self.subTest(part=part.Name):
+                self.assertTrue(part.Placement.isSame(placement, 1e-6), part.Placement)
+
     def test_component_count_for_link_array(self):
         source = self.doc.addObject("Part::Box", "ArraySource")
         array = self.assembly.newObject("App::Link", "Array")
