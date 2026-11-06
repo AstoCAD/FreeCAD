@@ -227,3 +227,36 @@ class TestSketchSplitTrimConstraints(unittest.TestCase):
         self._assertSolveKeepsGeometry()
         self.assertEqual(self.sketch.RedundantConstraints, [])
         self.assertEqual(self.sketch.PartiallyRedundantConstraints, [])
+
+    def _splitArc(self, arc, splitParameter):
+        self.sketch.addGeometry(arc)  # 0
+        self.doc.recompute()
+        start = self.sketch.getPoint(0, 1)
+        end = self.sketch.getPoint(0, 2)
+        cut = arc.value(splitParameter)
+
+        self.sketch.split(0, cut)
+
+        self.assertEqual(len(self.sketch.Geometry), 2)
+        self._assertSolveKeepsGeometry()
+        self.assertAlmostEqual(
+            self.sketch.Geometry[0].length() + self.sketch.Geometry[1].length(), arc.length()
+        )
+        # the first piece keeps the start point, the second one the end point
+        for geoId, pos, point in ((0, 1, start), (0, 2, cut), (1, 1, cut), (1, 2, end)):
+            self.assertLess((self.sketch.getPoint(geoId, pos) - point).Length, 1e-6)
+
+    def testSplitClockwiseArcOfCircle(self):
+        arc = Part.ArcOfCircle(Part.Circle(V(1, 2, 0), V(0, 0, -1), 5), 0.3, 2.5)
+        self._splitArc(arc, 1.2)
+
+    def testSplitClockwiseArcOfEllipse(self):
+        arc = Part.ArcOfEllipse(Part.Ellipse(V(0, 0, 0), 6, 3), 0.3, 2.5)
+        arc.mirror(V(0, 0, 0), V(1, 0, 0))
+        self.assertLess(arc.Axis.z, 0)
+        self._splitArc(arc, 1.2)
+
+    def testSplitCounterClockwiseArcOfCircle(self):
+        # control
+        arc = Part.ArcOfCircle(Part.Circle(V(1, 2, 0), V(0, 0, 1), 5), 0.3, 2.5)
+        self._splitArc(arc, 1.2)
