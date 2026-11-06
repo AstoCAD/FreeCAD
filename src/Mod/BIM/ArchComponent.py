@@ -1268,7 +1268,7 @@ class Component(ArchIFC.IfcProduct):
                     return False
                 if obj.Normal == FreeCAD.Vector(0, 0, 0):
                     return True
-                elif len(obj.Base.Shape.Wires) == 1:
+                elif obj.Base and len(obj.Base.Shape.Wires) == 1:
                     import DraftGeomUtils
 
                     n = DraftGeomUtils.getNormal(obj.Base.Shape)
