@@ -915,29 +915,46 @@ void DocumentObject::moveExpressionTargetingProp(Property* prop,
                                                  Property* newProp,
                                                  DocumentObject* targetObj)
 {
-    ObjectIdentifier propId = ObjectIdentifier(*prop);
-    ObjectIdentifier newPropId = ObjectIdentifier(*newProp);
-
-    boost::any pathValue = ExpressionEngine.getPathValue(propId);
-    if (pathValue.empty()) {
-        return;
+    // Collect the expressions bound to the property itself or below it (e.g. '.Placement.Base.x')
+    std::vector<std::pair<ObjectIdentifier, ObjectIdentifier>> pathsToMove;
+    for (const auto& [id, expr] : ExpressionEngine.getExpressions()) {
+        if (id.getProperty() != prop) {
+            continue;
+        }
+        int propertyIndex = 0;
+        id.getPropertyComponent(0, &propertyIndex);
+        ObjectIdentifier newPropId = ObjectIdentifier(*newProp);
+        const auto& components = id.getComponents();
+        for (std::size_t i = propertyIndex + 1; i < components.size(); ++i) {
+            newPropId.addComponent(components[i]);
+        }
+        pathsToMove.emplace_back(id, newPropId);
     }
 
-    auto info = boost::any_cast<PropertyExpressionEngine::ExpressionInfo>(pathValue);
-    std::shared_ptr<Expression> expression = info.expression;
-
-    setExpression(propId, std::shared_ptr<Expression>());
-    targetObj->setExpression(newPropId, expression);
-
-    // force identifiers in the expression to use the document name
+    // force identifiers in the expressions to use the document name
     std::map<ObjectIdentifier, ObjectIdentifier> paths;
-    std::map<ObjectIdentifier, bool> ids = expression->getIdentifiers();
-    for (const auto& [id, _] : ids) {
-        ObjectIdentifier newOne = ObjectIdentifier(id);
-        newOne.setDocumentObjectName(this, true);
-        paths.emplace(id, newOne);
+    for (const auto& [propId, newPropId] : pathsToMove) {
+        boost::any pathValue = ExpressionEngine.getPathValue(propId);
+        if (pathValue.empty()) {
+            continue;
+        }
+
+        auto info = boost::any_cast<PropertyExpressionEngine::ExpressionInfo>(pathValue);
+        std::shared_ptr<Expression> expression = info.expression;
+
+        setExpression(propId, std::shared_ptr<Expression>());
+        targetObj->setExpression(newPropId, expression);
+
+        std::map<ObjectIdentifier, bool> ids = expression->getIdentifiers();
+        for (const auto& [id, _] : ids) {
+            ObjectIdentifier newOne = ObjectIdentifier(id);
+            newOne.setDocumentObjectName(this, true);
+            paths.emplace(id, newOne);
+        }
     }
-    targetObj->ExpressionEngine.renameObjectIdentifiers(paths);
+    if (!paths.empty()) {
+        targetObj->ExpressionEngine.renameObjectIdentifiers(paths);
+    }
 }
 
 void DocumentObject::arrangeMoveProperty(Property* toBeMovedProp,
@@ -954,14 +971,20 @@ void DocumentObject::arrangeMoveProperty(Property* toBeMovedProp,
         targetObj->_pDoc->arrangeMovePropertyOfObject(targetObj, toBeMovedProp, targetObj, newProp);
     }
 
-    // Phase 2: Move an expression that targets the current property
+    {
+        // do not record the paste since we are defining a transaction
+        auto guard = targetObj->_pDoc->setDefiningTransaction();
+
+        // Phase 2: Paste the property. This comes before moving the expressions bound to it:
+        // binding an expression checks its path on the value, e.g. the index of '.Values[1]'.
+        newProp->Paste(*toBeMovedProp);
+    }
+
+    // Phase 3: Move the expressions that target the current property
     moveExpressionTargetingProp(toBeMovedProp, newProp, targetObj);
 
     // do not record the following changes since we are defining a transaction
     auto guard = targetObj->_pDoc->setDefiningTransaction();
-
-    // Phase 3: Paste the property
-    newProp->Paste(*toBeMovedProp);
 
     // Phase 4: Rewrite expressions that reference the property to be moved
     GetApplication().signalMoveDynamicProperty(*toBeMovedProp, *targetObj);

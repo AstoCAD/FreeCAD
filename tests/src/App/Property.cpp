@@ -719,6 +719,30 @@ TEST_F(MoveProperty, updateExpressionMovedProp)
     EXPECT_STREQ(expressions.begin()->second->toString().c_str(), "VarSet.Variable2");
 }
 
+// Tests whether expressions bound below the moved property move with it
+TEST_F(MoveProperty, updateSubPathExpressionMovedProp)
+{
+    // Arrange
+    App::Property* placement =
+        varSet1Doc1->addDynamicProperty("App::PropertyPlacement", "Pos", "Variables");
+    App::ObjectIdentifier pathX = App::ObjectIdentifier::parse(varSet1Doc1, ".Pos.Base.x");
+    std::shared_ptr<App::Expression> expr(App::Expression::parse(varSet1Doc1, "5 mm"));
+    varSet1Doc1->setExpression(pathX, expr);
+
+    // Act
+    App::Property* movedProp = varSet1Doc1->moveDynamicProperty(placement, varSet2Doc1);
+
+    // Assert
+    ASSERT_TRUE(movedProp != nullptr);
+    EXPECT_EQ(varSet1Doc1->ExpressionEngine.getExpressions().size(), 0);
+    std::map<App::ObjectIdentifier, const App::Expression*> expressions
+        = varSet2Doc1->ExpressionEngine.getExpressions();
+    ASSERT_EQ(expressions.size(), 1);
+    EXPECT_EQ(expressions.begin()->first.getProperty(), movedProp);
+    EXPECT_EQ(expressions.begin()->first.toString(), ".Pos.Base.x");
+    EXPECT_EQ(expressions.begin()->second->toString(), "5 mm");
+}
+
 void MoveProperty::testUndoProperty(App::DocumentObject* target)
 {
     // Act
