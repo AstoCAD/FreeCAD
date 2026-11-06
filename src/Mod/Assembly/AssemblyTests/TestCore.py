@@ -843,6 +843,29 @@ class TestCore(AssemblyTestBase):
 
         self.assertTrue(box.Placement.isSame(box2.Placement, 1e-6), "'{}'".format(operation))
 
+    def test_presolve_keeps_joint_suppressed(self):
+        """Changing an offset of a suppressed joint must not unsuppress it."""
+        box = self.assembly.newObject("Part::Box", "Box")
+        box2 = self.assembly.newObject("Part::Box", "Box")
+        box2.Placement = App.Placement(App.Vector(40, 50, 60), App.Rotation())
+        self.doc.recompute()
+        ground = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+        JointObject.GroundedJoint(ground, box2)
+        joint = self.jointgroup.newObject("App::FeaturePython", "testJoint")
+        JointObject.Joint(joint, JointObject.JointTypes.index("Fixed"))
+        joint.Proxy.setJointConnectors(
+            joint, [[box2, ["Face6", "Vertex7"]], [box, ["Face6", "Vertex7"]]]
+        )
+        self.assertTrue(box.Placement.isSame(box2.Placement, 1e-6))
+        self.assertFalse(joint.Suppressed)
+
+        joint.Suppressed = True
+        joint.Offset1 = App.Placement(App.Vector(0, 0, 5), App.Rotation())
+        self.assertTrue(joint.Suppressed)
+
+        joint.Proxy.flipOnePart(joint)
+        self.assertTrue(joint.Suppressed)
+
     def test_grounded_rigid_group_preserves_member_placements_on_solve(self):
         representative = self.assembly.newObject("Part::Box", "ARepresentative")
         grounded = self.assembly.newObject("Part::Box", "ZGrounded")
