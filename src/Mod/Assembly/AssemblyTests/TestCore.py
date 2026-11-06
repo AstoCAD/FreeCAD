@@ -1059,6 +1059,33 @@ class TestCore(AssemblyTestBase):
         joint.Proxy.flipOnePart(joint)
         self.assertTrue(joint.Suppressed)
 
+    def test_clearing_second_reference_restores_presolved_part(self):
+        """Removing the second reference while a joint is edited puts back the part the
+        reference selection moved, also for Angle and Perpendicular joints, whose
+        references are first tilted out of parallel."""
+        for joint_type in ("Fixed", "Angle", "Perpendicular"):
+            with self.subTest(joint_type=joint_type):
+                grounded = self.assembly.newObject("Part::Box", "Grounded")
+                moving = self.assembly.newObject("Part::Box", "Moving")
+                moving.Placement = App.Placement(App.Vector(40, 50, 60), App.Rotation())
+                self.doc.recompute()
+                ground = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+                JointObject.GroundedJoint(ground, grounded)
+                joint = self.jointgroup.newObject("App::FeaturePython", joint_type)
+                JointObject.Joint(joint, JointObject.JointTypes.index(joint_type))
+                if joint_type == "Angle":
+                    joint.Angle = 30
+                before = App.Placement(moving.Placement)
+                first = [grounded, ["Face6", "Vertex7"]]
+
+                joint.Proxy.setJointConnectors(joint, [first, [moving, ["Face6", "Vertex7"]]])
+                self.assertFalse(moving.Placement.isSame(before, 1e-6))
+                joint.Proxy.setJointConnectors(joint, [first])
+
+                self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
+                for obj in (joint, ground, moving, grounded):
+                    self.doc.removeObject(obj.Name)
+
     def test_grounded_rigid_group_preserves_member_placements_on_solve(self):
         representative = self.assembly.newObject("Part::Box", "ARepresentative")
         grounded = self.assembly.newObject("Part::Box", "ZGrounded")

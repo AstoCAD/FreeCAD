@@ -894,7 +894,7 @@ class Joint:
 
         if prop == "Angle" and joint.JointType == "Angle":
             if joint.Angle != 0.0:
-                self.preventParallel(joint)
+                self.preventParallel(joint, False)
             solveIfAllowed(self.getAssembly(joint))
 
     def execute(self, joint):
@@ -929,7 +929,6 @@ class Joint:
         else:
             joint.Reference1 = None
             joint.Placement1 = App.Placement()
-            self.partMovedByPresolved = None
 
         if len(refs) >= 2:
             joint.Reference2 = refs[1]
@@ -1083,7 +1082,7 @@ class Joint:
             if joint.ViewObject:
                 joint.ViewObject.Proxy.redrawJointPlacements(joint)
 
-    def preventParallel(self, joint):
+    def preventParallel(self, joint, savePlc=True):
         # Angle and perpendicular joints in the solver cannot handle the situation where both JCS are Parallel
         parallel = self.areJcsZParallel(joint)
         if not parallel:
@@ -1103,8 +1102,9 @@ class Joint:
             part2ConnectedByJoint = True
 
         if part2ConnectedByJoint:
-            self.partMovedByPresolved = part2
-            self.presolveBackupPlc = part2.Placement
+            # Recorded like preSolve() does, so that undoPreSolve() puts the part back.
+            if savePlc:
+                self.partsMovedByPresolved = {part2: part2.Placement}
 
             # Get the global JCS placement to find a suitable rotation axis (its own X-axis)
             globalJcsPlc = UtilsAssembly.getJcsGlobalPlc(joint.Placement2, joint.Reference2)
@@ -1116,8 +1116,8 @@ class Joint:
             )
 
         elif part1ConnectedByJoint:
-            self.partMovedByPresolved = part1
-            self.presolveBackupPlc = part1.Placement
+            if savePlc:
+                self.partsMovedByPresolved = {part1: part1.Placement}
 
             # Get the global JCS placement to find a suitable rotation axis (its own X-axis)
             globalJcsPlc = UtilsAssembly.getJcsGlobalPlc(joint.Placement1, joint.Reference1)
