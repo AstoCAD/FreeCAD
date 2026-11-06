@@ -22,6 +22,7 @@ set(Measure_Scripts
     TestMeasurementMissingElement.py
     TestMeasurementAxisAngle.py
     TestMeasurementLength.py
+    TestMeasureLinkElement.py
 )
 
 if(BUILD_GUI)

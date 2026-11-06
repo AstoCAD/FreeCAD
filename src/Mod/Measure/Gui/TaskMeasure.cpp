@@ -425,12 +425,12 @@ void TaskMeasure::tryUpdate()
 
     // Reset selection if the selected object is not valid
     for (auto sel : Gui::Selection().getSelection()) {
-        App::DocumentObject* ob = sel.pObject;
-        App::DocumentObject* sub = ob->getSubObject(sel.SubName);
-
-        // Resolve App::Link
-        if (auto link = freecad_cast<App::Link*>(sub)) {
-            sub = link->getLinkedObject(true);
+        // Resolve App::Link and link array elements
+        App::DocumentObject* sub =
+            App::MeasureManager::getMeasuredObject(App::SubObjectT(sel.pObject, sel.SubName));
+        if (!sub) {
+            clearSelection();
+            return;
         }
 
         std::string mod = Base::Type::getModuleName(sub->getTypeId().getName());
