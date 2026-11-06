@@ -1985,6 +1985,63 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.C3, 100)
         self.assertEqual(sheet.E1, 11)
 
+    def testImportXLSXLayout(self):
+        """Column widths, custom row heights and merged cells of an XLSX file
+        are imported"""
+        import zipfile
+        import importXLSX
+
+        main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        workbook = (
+            f'<workbook xmlns="{main}" xmlns:r="{rels}"><sheets>'
+            '<sheet name="Layout" sheetId="1" r:id="rId1"/></sheets></workbook>'
+        )
+        workbookRels = (
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'<Relationship Id="rId1" Type="{rels}/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>"
+        )
+        worksheet = (
+            f'<worksheet xmlns="{main}">'
+            '<cols><col min="1" max="1" width="9.140625" customWidth="1"/>'
+            '<col min="3" max="4" width="20" customWidth="1"/>'
+            '<col min="700" max="16384" width="5"/></cols>'
+            "<sheetData>"
+            '<row r="1"><c r="A1"><v>1</v></c></row>'
+            '<row r="2" ht="30" customHeight="1"><c r="A2"><v>2</v></c></row>'
+            '<row r="3" ht="45"><c r="A3"><v>3</v></c></row>'
+            "</sheetData>"
+            '<mergeCells count="2"><mergeCell ref="A3:B4"/><mergeCell ref="C1:C2"/></mergeCells>'
+            "</worksheet>"
+        )
+        filename = os.path.join(self.TempPath, "SpreadsheetLayout.xlsx")
+        with zipfile.ZipFile(filename, "w") as z:
+            z.writestr("xl/workbook.xml", workbook)
+            z.writestr("xl/_rels/workbook.xml.rels", workbookRels)
+            z.writestr("xl/worksheets/sheet1.xml", worksheet)
+        defaultWidth = self.doc.addObject("Spreadsheet::Sheet", "Default").getColumnWidth("B")
+        defaultHeight = self.doc.Default.getRowHeight("3")
+        importXLSX.insert(filename, self.doc.Name)
+        sheet = self.doc.getObject("Layout")
+
+        self.assertEqual(sheet.getColumnWidth("A"), 64)
+        self.assertEqual(sheet.getColumnWidth("B"), defaultWidth)
+        self.assertEqual(sheet.getColumnWidth("C"), 140)
+        self.assertEqual(sheet.getColumnWidth("D"), 140)
+        self.assertEqual(sheet.getColumnWidth("ZZ"), 35)
+        self.assertEqual(sheet.getRowHeight("2"), 40)
+        # Heights without customHeight are computed by Excel, not set by the user
+        self.assertEqual(sheet.getRowHeight("3"), defaultHeight)
+        self.assertEqual(sheet.A3, 3)
+        sheet.set("B4", "hidden")
+        sheet.set("C2", "hidden")
+        self.doc.recompute()
+        with self.assertRaises(AttributeError):
+            sheet.B4
+        with self.assertRaises(AttributeError):
+            sheet.C2
+
     def testRemoveRowsAliasReuseName(self):
         """Regression test for issue 4492; deleted aliases remains in database"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")

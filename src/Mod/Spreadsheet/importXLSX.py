@@ -46,6 +46,7 @@ Features:
 - set cross table references
 - strings are imported
 - references to cells with strings are working
+- column widths, custom row heights and merged cells
 
 known issues:
 - units are not imported
@@ -320,6 +321,62 @@ def handleWorkSheet(theDom, actSheet, strList):
     sharedFormulas = {}
     for row in rows:
         handleCells(row.getElementsByTagName("c"), actSheet, strList, sharedFormulas)
+    handleLayout(theDom, actSheet)
+
+
+# FreeCAD spreadsheets have the columns A to ZZ
+maxColumns = 26 * 26 + 26
+
+
+def excelWidthToPixels(width):
+    """Converts an Excel column width (in widths of the digit "0" of the default
+    font, padding included) to pixels, for the default 7 pixel wide digit."""
+    digitWidth = 7
+    return int(((256 * width + int(128 / digitWidth)) / 256) * digitWidth)
+
+
+def handleLayout(theDom, actSheet):
+    """Imports the column widths, custom row heights and merged cells of a worksheet."""
+    for col in theDom.getElementsByTagName("col"):
+        width = col.getAttribute("width")
+        first = col.getAttribute("min")
+        last = col.getAttribute("max")
+        if not (width and first and last):
+            continue
+        try:
+            pixels = excelWidthToPixels(float(width))
+            first = int(first)
+            last = min(int(last), maxColumns)
+        except ValueError:
+            continue
+        if pixels <= 0:
+            continue
+        for column in range(first, last + 1):
+            actSheet.setColumnWidth(columnName(column), pixels)
+
+    for row in theDom.getElementsByTagName("row"):
+        if row.getAttribute("customHeight") not in ("1", "true"):
+            continue
+        try:
+            number = int(row.getAttribute("r"))
+            # Heights are in points
+            pixels = int(round(float(row.getAttribute("ht")) * 96 / 72))
+        except ValueError:
+            continue
+        if pixels > 0:
+            try:
+                actSheet.setRowHeight(str(number), pixels)
+            except ValueError:
+                pass
+
+    for merge in theDom.getElementsByTagName("mergeCell"):
+        ref = merge.getAttribute("ref")
+        if ":" not in ref:
+            continue
+        try:
+            actSheet.mergeCells(ref)
+        except Exception as e:
+            print(f"Cannot merge cells {ref}: {e}")
 
 
 # A cell reference like A1, $A1, A$1 or $A$1, not part of a longer name and
