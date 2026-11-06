@@ -1289,3 +1289,35 @@ class MeshProperty(unittest.TestCase):
             mesh.Normal = ["a"]
         with self.assertRaises(TypeError):
             mesh.Normal = [("a", 0, 1)]
+
+    def testDocumentOpenAtExit(self):
+        """FreeCADCmd exits cleanly with a document open whose mesh was read from Python"""
+        # The documents still open at exit are closed without the GIL held, and releasing
+        # the cached Python wrapper of the mesh property crashed with an access violation.
+        import shutil
+        import subprocess
+
+        exe = None
+        bindir = os.path.join(FreeCAD.getHomePath(), "bin")
+        for name in ("FreeCADCmd.exe", "FreeCADCmd", "freecadcmd"):
+            if os.path.isfile(os.path.join(bindir, name)):
+                exe = os.path.join(bindir, name)
+                break
+        if not exe:
+            self.skipTest("FreeCADCmd executable not found")
+        tmpdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmpdir, True)
+        script = os.path.join(tmpdir, "mesh_open_at_exit.py")
+        with open(script, "w") as f:
+            f.write(
+                "import FreeCAD, Mesh\n"
+                "doc = FreeCAD.newDocument('OpenAtExit')\n"
+                "feature = doc.addObject('Mesh::Feature', 'Box')\n"
+                "feature.Mesh = Mesh.createBox(1.0, 1.0, 1.0)\n"
+                "mesh = feature.Mesh\n"
+                "assert mesh.CountFacets == 12\n"
+                "del mesh\n"
+            )
+        cmd = [exe, "--user-cfg", os.path.join(tmpdir, "user.cfg"), script]
+        result = subprocess.run(cmd, cwd=tmpdir, capture_output=True, timeout=300)
+        self.assertEqual(result.returncode, 0, result.stdout.decode(errors="replace")[-2000:])
