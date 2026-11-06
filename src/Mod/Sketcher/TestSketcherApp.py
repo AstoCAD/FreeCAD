@@ -29,7 +29,10 @@ from SketcherTests.TestSketchFillet import TestSketchFillet
 from SketcherTests.TestSketchExpression import TestSketchExpression
 from SketcherTests.TestSketchUserParameters import TestSketchUserParameters
 from SketcherTests.TestSketchValidateCoincidents import TestSketchValidateCoincidents
-from SketcherTests.TestSketchCarbonCopyReverseMapping import TestSketchCarbonCopyReverseMapping
+from SketcherTests.TestSketchCarbonCopyReverseMapping import (
+    TestSketchCarbonCopyReverseMapping,
+    TestSketchCarbonCopyReverseMappingPlaced,
+)
 from SketcherTests.TestPerpendicularArcProjection import TestPerpendicularArcProjection
 from SketcherTests.TestPerpendicularPointPointLine import TestPerpendicularPointPointLine
 from SketcherTests.TestDrivenAngleConstraints import TestDrivenAngleConstraints
@@ -76,6 +79,7 @@ __all__ = [
     "TestSketchUserParameters",
     "TestSketchValidateCoincidents",
     "TestSketchCarbonCopyReverseMapping",
+    "TestSketchCarbonCopyReverseMappingPlaced",
     "TestPerpendicularArcProjection",
     "TestPerpendicularPointPointLine",
     "TestDrivenAngleConstraints",
