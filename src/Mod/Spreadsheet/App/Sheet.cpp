@@ -24,6 +24,8 @@
 
 #include <boost/tokenizer.hpp>
 #include <boost/regex.hpp>
+#include <algorithm>
+#include <cmath>
 #include <deque>
 #include <memory>
 #include <sstream>
@@ -473,6 +475,138 @@ void Sheet::fillDown(const Range& range)
 void Sheet::fillRight(const Range& range)
 {
     fillRange(this, cells, range, false);
+}
+
+/**
+ * The sort key of a cell expression without references (a typed number,
+ * quantity or text), evaluated as the recompute would: \a kind 0 with
+ * \a number, or 1 with \a text. Returns false for other expressions.
+ */
+
+static bool constantSortKey(const Expression* expression, int& kind, double& number, QString& text)
+{
+    if (!expression || !expression->getIdentifiers().empty()) {
+        return false;
+    }
+    try {
+        const std::unique_ptr<Expression> value = expression->eval();
+        if (auto* constant = freecad_cast<ConstantExpression*>(value.get());
+            constant && !constant->isNumber()) {
+            return false;
+        }
+        if (auto* result = freecad_cast<NumberExpression*>(value.get())) {
+            kind = 0;
+            number = result->getValue();
+            return true;
+        }
+        if (auto* result = freecad_cast<StringExpression*>(value.get())) {
+            kind = 1;
+            text = QString::fromStdString(result->getText());
+            return true;
+        }
+    }
+    catch (const Base::Exception&) {
+        // Not computable: sorted by its contents
+    }
+    return false;
+}
+
+/**
+ * Sort the rows of \a range by the computed values of \a column, which must be
+ * a column of the range. Numbers (and quantities, by value) come before text,
+ * text is compared without case, empty cells always come last, and rows with
+ * equal keys keep their order. Descending order reverses all but the empty
+ * cells, like other spreadsheets.
+ *
+ * Only the cells of the range move, with their formatting. Their references
+ * keep referring to the same data, and references from outside the range keep
+ * pointing to the same position (see PropertySheet::permuteRows). Ranges with
+ * merged cells or aliases, and formulas in the range that reference a range
+ * only partly inside the sorted rows, are rejected with Base::ValueError.
+ * All changes are one property change, so one undo step. Recompute the
+ * document to update the values.
+ */
+
+void Sheet::sortRows(const Range& range, int column, bool ascending)
+{
+    if (column < range.from().col() || column > range.to().col()) {
+        throw Base::ValueError("The sort column must be a column of the range");
+    }
+    if (range.rowCount() < 2) {
+        return;
+    }
+
+    struct Key
+    {
+        int kind;  // 0: number, 1: text, 2: empty
+        double number;
+        QString text;
+    };
+    std::vector<Key> keys;
+    for (int row = range.from().row(); row <= range.to().row(); ++row) {
+        Key key {2, 0.0, QString()};
+        const CellAddress address(row, column);
+        const Cell* cell = getCell(address);
+        if (cell && cell->getExpression()) {
+            const Property* prop = getProperty(address);
+            if (prop && prop->isDerivedFrom<App::PropertyFloat>()) {
+                key = {0, static_cast<const App::PropertyFloat*>(prop)->getValue(), QString()};
+            }
+            else if (prop && prop->isDerivedFrom<App::PropertyInteger>()) {
+                key = {
+                    0,
+                    static_cast<double>(static_cast<const App::PropertyInteger*>(prop)->getValue()),
+                    QString()
+                };
+            }
+            else if (prop && prop->isDerivedFrom<App::PropertyString>()) {
+                key = {
+                    1,
+                    0.0,
+                    QString::fromUtf8(static_cast<const App::PropertyString*>(prop)->getValue())
+                };
+            }
+            else if (!prop && constantSortKey(cell->getExpression(), key.kind, key.number, key.text)) {
+                // Not computed yet (no recompute since it was set): a constant
+                // such as "10" or "5 mm" sorts by its value, not its text
+            }
+            else {
+                std::string content;
+                cell->getStringContent(content);
+                key = {1, 0.0, QString::fromStdString(content)};
+            }
+            if (key.kind == 0 && std::isnan(key.number)) {
+                key = {1, 0.0, QStringLiteral("nan")};
+            }
+        }
+        keys.push_back(key);
+    }
+
+    std::vector<int> order;
+    for (int i = 0; i < static_cast<int>(keys.size()); ++i) {
+        order.push_back(i);
+    }
+    std::stable_sort(order.begin(), order.end(), [&keys, ascending](int a, int b) {
+        const Key& ka = keys[a];
+        const Key& kb = keys[b];
+        if (ka.kind == 2 || kb.kind == 2) {
+            return ka.kind != 2 && kb.kind == 2;
+        }
+        const Key& x = ascending ? ka : kb;
+        const Key& y = ascending ? kb : ka;
+        if (x.kind != y.kind) {
+            return x.kind < y.kind;
+        }
+        if (x.kind == 0) {
+            return x.number < y.number;
+        }
+        return QString::compare(x.text, y.text, Qt::CaseInsensitive) < 0;
+    });
+
+    for (int& row : order) {
+        row += range.from().row();
+    }
+    cells.permuteRows(range, order);
 }
 
 /**

@@ -1309,6 +1309,249 @@ void PropertySheet::removeColumns(int col, int count)
     signaller.tryInvoke();
 }
 
+namespace
+{
+
+/*
+ * Rewrites the cell references of the cells of a block whose rows are being
+ * permuted (see PropertySheet::permuteRows). A reference to a cell of the block
+ * follows that cell to its new row; a range that lies in one row of the block
+ * follows that row; references outside the block, and ranges that cover all
+ * rows of the block (the same set of cells after the permutation), are kept.
+ * Any other range is only partly inside the moved rows and cannot be rewritten:
+ * it is reported by error(). With apply == false the visitor only checks.
+ */
+class PermuteRowsExpressionVisitor: public ExpressionModifier<PropertySheet>
+{
+public:
+    PermuteRowsExpressionVisitor(
+        PropertySheet& prop,
+        const App::DocumentObject* sheet,
+        const Range& block,
+        const std::map<int, int>& newRows,
+        bool apply
+    )
+        : ExpressionModifier<PropertySheet>(prop)
+        , sheet(sheet)
+        , firstRow(block.from().row())
+        , lastRow(block.to().row())
+        , firstCol(block.from().col())
+        , lastCol(block.to().col())
+        , newRows(newRows)
+        , apply(apply)
+    {}
+
+    void visit(Expression& node) override
+    {
+        if (auto* var = dynamic_cast<VariableExpression*>(&node)) {
+            visitVariable(*var);
+        }
+        else if (auto* range = dynamic_cast<RangeExpression*>(&node)) {
+            visitRange(*range);
+        }
+    }
+
+    const std::string& error() const
+    {
+        return errorText;
+    }
+
+private:
+    enum class Kind
+    {
+        Keep,
+        Move,
+        Invalid
+    };
+
+    Kind classify(int row0, int col0, int row1, int col1, int& newRow) const
+    {
+        if (row1 < firstRow || row0 > lastRow || col1 < firstCol || col0 > lastCol) {
+            return Kind::Keep;
+        }
+        if (row0 <= firstRow && row1 >= lastRow) {
+            return Kind::Keep;
+        }
+        if (row0 == row1 && col0 >= firstCol && col1 <= lastCol) {
+            auto it = newRows.find(row0);
+            if (it == newRows.end()) {
+                return Kind::Invalid;
+            }
+            newRow = it->second;
+            return newRow == row0 ? Kind::Keep : Kind::Move;
+        }
+        return Kind::Invalid;
+    }
+
+    void visitVariable(VariableExpression& node)
+    {
+        ObjectIdentifier path = node.getPath();
+        if (path.hasDocumentObjectName(true) && path.getDocumentObject() != sheet) {
+            return;
+        }
+        int idx = 0;
+        CellAddress addr = stringToAddress(path.getPropertyComponent(0, &idx).getName().c_str(), true);
+        if (!addr.isValid()) {
+            return;
+        }
+        int newRow = addr.row();
+        if (classify(addr.row(), addr.col(), addr.row(), addr.col(), newRow) != Kind::Move || !apply) {
+            return;
+        }
+        aboutToChange();
+        addr.setRow(newRow);
+        path.setComponent(idx, ObjectIdentifier::SimpleComponent(addr.toString()));
+        node.setPath(path);
+    }
+
+    void visitRange(RangeExpression& node)
+    {
+        Range range(CellAddress(0, 0), CellAddress(0, 0));
+        try {
+            range = node.getRange();
+        }
+        catch (Base::Exception&) {
+            // An unresolvable alias: the expression is already broken, leave it.
+            return;
+        }
+        const int row0 = std::min(range.from().row(), range.to().row());
+        const int row1 = std::max(range.from().row(), range.to().row());
+        const int col0 = std::min(range.from().col(), range.to().col());
+        const int col1 = std::max(range.from().col(), range.to().col());
+        int newRow = row0;
+        const Kind kind = classify(row0, col0, row1, col1, newRow);
+        if (kind == Kind::Invalid) {
+            if (errorText.empty()) {
+                errorText = node.toString();
+            }
+            return;
+        }
+        if (kind == Kind::Keep || !apply) {
+            return;
+        }
+        // Both ends are cells of the same row of the block, which have no
+        // alias, so they are written as addresses (possibly with '$').
+        std::map<ObjectIdentifier, ObjectIdentifier> paths;
+        for (int col : {col0, col1}) {
+            for (int flags = 0; flags < 4; ++flags) {
+                const bool absRow = (flags & 1) != 0;
+                const bool absCol = (flags & 2) != 0;
+                paths[ObjectIdentifier(node.getOwner(), CellAddress(row0, col, absRow, absCol).toString())]
+                    = ObjectIdentifier(
+                        node.getOwner(),
+                        CellAddress(newRow, col, absRow, absCol).toString()
+                    );
+            }
+        }
+        renameObjectIdentifier(node, paths, ObjectIdentifier());
+    }
+
+    const App::DocumentObject* sheet;
+    const int firstRow;
+    const int lastRow;
+    const int firstCol;
+    const int lastCol;
+    const std::map<int, int>& newRows;
+    const bool apply;
+    std::string errorText;
+};
+
+}  // namespace
+
+/**
+ * Permute the rows of \a block: row block.from().row() + i receives the cells
+ * of row \a order[i] (sheet rows, a permutation of the rows of the block). Only
+ * the columns of the block move. The moved cells keep their formatting, and
+ * their references are rewritten by PermuteRowsExpressionVisitor, so they keep
+ * referring to the same data. References from cells outside the block are not
+ * changed: like in other spreadsheets they keep pointing to the same position.
+ *
+ * Throws Base::ValueError, before changing anything, if the block contains
+ * merged cells or aliases, or if a moved cell references a range that is only
+ * partly inside the moved rows.
+ */
+void PropertySheet::permuteRows(const Range& block, const std::vector<int>& order)
+{
+    const int firstRow = block.from().row();
+    const int lastRow = block.to().row();
+    const int firstCol = block.from().col();
+    const int lastCol = block.to().col();
+
+    std::map<int, int> newRows;
+    for (std::size_t i = 0; i < order.size(); ++i) {
+        newRows[order[i]] = firstRow + static_cast<int>(i);
+    }
+    if (static_cast<int>(order.size()) != block.rowCount() || newRows.size() != order.size()
+        || newRows.begin()->first != firstRow || newRows.rbegin()->first != lastRow) {
+        throw Base::ValueError("The row order is not a permutation of the rows of the range");
+    }
+
+    auto inBlock = [&](const CellAddress& address) {
+        return address.row() >= firstRow && address.row() <= lastRow && address.col() >= firstCol
+            && address.col() <= lastCol;
+    };
+    for (const auto& merged : mergedCells) {
+        if (inBlock(merged.first)) {
+            throw Base::ValueError("Cannot sort a range that contains merged cells");
+        }
+    }
+    std::vector<Cell*> blockCells;
+    for (const auto& entry : data) {
+        if (!inBlock(entry.first)) {
+            continue;
+        }
+        std::string alias;
+        if (entry.second->getAlias(alias)) {
+            throw Base::ValueError(
+                "Cannot sort a range that contains a cell with an alias ("
+                + entry.first.toString() + ": " + alias + ")"
+            );
+        }
+        blockCells.push_back(entry.second);
+    }
+
+    {
+        PermuteRowsExpressionVisitor check(*this, owner, block, newRows, false);
+        for (Cell* cell : blockCells) {
+            cell->visit(check);
+            if (!check.error().empty()) {
+                throw Base::ValueError(
+                    "Cannot sort: cell " + cell->getAddress().toString() + " refers to "
+                    + check.error() + ", which is only partly inside the sorted rows"
+                );
+            }
+        }
+    }
+
+    bool identity = true;
+    for (const auto& entry : newRows) {
+        identity = identity && entry.first == entry.second;
+    }
+    if (identity) {
+        return;
+    }
+
+    AtomicPropertyChange signaller(*this);
+    PermuteRowsExpressionVisitor visitor(*this, owner, block, newRows, true);
+    for (Cell* cell : blockCells) {
+        const CellAddress address = cell->getAddress();
+        removeDependencies(address);
+        data.erase(address);
+        setDirty(address);
+        cell->visit(visitor);
+    }
+    for (Cell* cell : blockCells) {
+        const CellAddress oldAddress = cell->getAddress();
+        const CellAddress address(newRows[oldAddress.row()], oldAddress.col());
+        cell->moveAbsolute(address);
+        data[address] = cell;
+        addDependencies(address);
+        setDirty(address);
+    }
+    owner->rangeUpdated(block);
+    signaller.tryInvoke();
+}
+
 unsigned int PropertySheet::getMemSize() const
 {
     return sizeof(*this);
