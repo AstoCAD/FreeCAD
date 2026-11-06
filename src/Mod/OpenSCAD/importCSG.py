@@ -1307,9 +1307,9 @@ def p_polygon_action_plus_path(p) :
     v = convert_points_list_to_vector(p[6])
     if printverbose: print("Path Set List")
     if printverbose: print(p[12])
+    faces = []
     for i in p[12] :
         if printverbose: print(i)
-        mypolygon = doc.addObject('Part::Feature','wire')
         path_list = []
         for j in i :
             j = int(j)
@@ -1320,9 +1320,17 @@ def p_polygon_action_plus_path(p) :
         if printverbose: print('Path List')
         if printverbose: print(path_list)
         wire = Part.makePolygon(path_list)
-        mypolygon.Shape = Part.Face(wire)
-        p[0] = [mypolygon]
-#       This only pushes last polygon
+        faces.append(Part.Face(wire))
+    mypolygon = doc.addObject('Part::Feature','wire')
+    if len(faces) == 1:
+        mypolygon.Shape = faces[0]
+    else:
+        # All paths make up one polygon, filled with the even-odd rule like
+        # OpenSCAD does: a path inside another one is a hole, the overlapping
+        # part of two paths is removed.
+        from OpenSCAD2Dgeom import evenoddfaces
+        mypolygon.Shape = evenoddfaces(faces)
+    p[0] = [mypolygon]
 
 def make_face(v1,v2,v3):
     wire = Part.makePolygon([v1,v2,v3,v1])
