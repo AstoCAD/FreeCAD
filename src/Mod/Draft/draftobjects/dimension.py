@@ -598,7 +598,7 @@ class AngularDimension(DimensionBase):
     def execute(self, obj):
         """Execute when the object is created or recomputed.
 
-        Nothing is actually done here, except update the viewprovider,
+        The 'Angle' is calculated here and the viewprovider is updated,
         as the lines and text are created in the viewprovider.
         """
         # TODO: introduce the calculation of 'Angle' by taking a pair of
@@ -614,11 +614,19 @@ class AngularDimension(DimensionBase):
         #      obj.LastAngle) = measure_two_obj_angles(obj.LinkedGeometry[0],
         #                                              obj.LinkedGeometry[1])
 
-        # TODO: move the calculation of 'Angle' from the viewprovider
-        # to this object class.
-        # The viewprovider should modify visual properties only, not real
-        # properties. It can react to real properties by using the 'updateData'
-        # method.
+        # Update the angle property by comparing the floats
+        # with the precision, like the distance of a linear dimension.
+        # The arc is drawn counter-clockwise from 'FirstAngle' to 'LastAngle'.
+        if obj.LastAngle.Value > obj.FirstAngle.Value:
+            angle = obj.LastAngle.Value - obj.FirstAngle.Value
+        else:
+            angle = (360 - obj.FirstAngle.Value) + obj.LastAngle.Value
+        rounded_1 = round(obj.Angle.Value, utils.precision())
+        rounded_2 = round(angle, utils.precision())
+
+        if rounded_1 != rounded_2:
+            obj.Angle = angle
+
         if App.GuiUp and obj.ViewObject:
             obj.ViewObject.update()
 

@@ -225,6 +225,24 @@ class DraftCreation(test_base.DraftTestCaseDoc):
         obj = Draft.make_angular_dimension(center, [angle1, angle2], dim_line)
         self.assertTrue(obj, "'{}' failed".format(operation))
 
+    def test_dimension_angular_angle_value(self):
+        """The Angle of an angular dimension is computed by the object itself,
+        also without the GUI (it used to be set by the view provider only)."""
+        operation = "Draft Dimension Angular Angle value"
+        _msg("  Test '{}'".format(operation))
+        center = Vector(0, 0, 0)
+        dim_line = Vector(3, 1, 0)
+        cases = [([20, 70], 50), ([300, 30], 90), ([-30, 30], 60)]
+        for angles, expected in cases:
+            with self.subTest(angles=angles):
+                obj = Draft.make_angular_dimension(center, angles, dim_line)
+                self.doc.recompute()
+                self.assertAlmostEqual(obj.Angle.Value, expected, places=6)
+        # The value follows a change of the angles
+        obj.LastAngle = 120
+        self.doc.recompute()
+        self.assertAlmostEqual(obj.Angle.Value, 150, places=6)
+
     def test_bspline(self):
         """Create a BSpline of three points."""
         operation = "Draft BSpline"
