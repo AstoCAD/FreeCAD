@@ -240,7 +240,6 @@ private:
     QMetaObject::Connection connLineEditNameTextChanged;
 
     std::unique_ptr<MacroManager::MacroRedirector> setValueRedirector;
-    std::string addCommand;
     std::string setValueCommand;
 };
 
