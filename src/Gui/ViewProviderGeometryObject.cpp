@@ -21,6 +21,8 @@
  ***************************************************************************/
 
 
+#include <algorithm>
+
 #include <Inventor/SoPickedPoint.h>
 #include <Inventor/actions/SoRayPickAction.h>
 #include <Inventor/actions/SoSearchAction.h>
@@ -36,7 +38,9 @@
 #include <Inventor/nodes/SoSwitch.h>
 #include <Inventor/sensors/SoNodeSensor.h>
 
+#include <App/Document.h>
 #include <App/GeoFeature.h>
+#include <App/Material.h>
 #include <App/PropertyGeo.h>
 
 #include "Application.h"
@@ -75,6 +79,13 @@ ViewProviderGeometryObject::ViewProviderGeometryObject()
     Transparency.setConstraints(&intPercent);
 
     ADD_PROPERTY_TYPE(ShapeAppearance, (mat), osgroup, App::Prop_None, "Shape appearance");
+    ADD_PROPERTY_TYPE(
+        AppearanceOverrides,
+        (),
+        osgroup,
+        App::Prop_Hidden,
+        "Elements whose appearance overrides the look of the physical material"
+    );
     ADD_PROPERTY_TYPE(BoundingBox, (false), dogroup, App::Prop_None, "Display object bounding box");
     ADD_PROPERTY_TYPE(
         Selectable,
@@ -94,7 +105,7 @@ ViewProviderGeometryObject::ViewProviderGeometryObject()
     setCoinAppearance(mat);
     pcShapeMaterial->ref();
     pcShapeMaterial->setName("ShapeMaterial");
-    materialAppearance = mat;
+    initialAppearance = mat;
 
     sPixmap = "Feature";
 }
@@ -155,6 +166,26 @@ void ViewProviderGeometryObject::onChanged(const App::Property* prop)
             const App::Material& Mat = ShapeAppearance[0];
             setCoinAppearance(Mat);
         }
+        // An appearance set by anything but the material overrides the material look. Loading
+        // and undo restore the saved overrides together with the appearance.
+        if (!appearanceBefore.empty() && !settingFromMaterial && temporaryAppearance == 0
+            && !isLoadingOrUndoing() && hasPhysicalMaterial()) {
+            auto names = App::AppearanceOverrides::afterChange(
+                AppearanceOverrides.getValues(),
+                appearanceBefore,
+                ShapeAppearance.getValues(),
+                getMaterialLook()
+            );
+            if (names != AppearanceOverrides.getValues()) {
+                AppearanceOverrides.setValues(names);
+            }
+        }
+        appearanceBefore.clear();
+    }
+    else if (prop == &AppearanceOverrides) {
+        if (isRestoring()) {
+            overridesRestored = true;
+        }
     }
     else if (prop == &BoundingBox) {
         showBoundingBox(BoundingBox.getValue());
@@ -173,29 +204,151 @@ void ViewProviderGeometryObject::updateData(const App::Property* prop)
     if (prop->isDerivedFrom<App::PropertyComplexGeoData>()) {
         updateBoundingBox();
     }
-    else if (std::string(prop->getName()) == "ShapeMaterial") {
-        // Set the appearance from the material
-        if (auto geometry = getObject<App::GeoFeature>()) {
+    else if (prop->getName() && std::string(prop->getName()) == "ShapeMaterial") {
+        auto doc = getObject() ? getObject()->getDocument() : nullptr;
+        if (!doc || doc->isPerformingTransaction()) {
+            // Undo and redo restore the appearance together with the material
+        }
+        else if (isLoadingOrUndoing()) {
             /*
-             * Change the appearance only if the appearance hasn't been set explicitly. A cached
-             * material appearance is used to see if the current appearance matches the last
-             * material. It is also compared against an empty material to see if the saved
-             * material value has been initialized.
+             * While a file is loaded the saved appearance and overrides are read after the
+             * material. Until then show the material look on a still untouched appearance, as
+             * files written without a GUI have no saved appearance.
              */
             App::Material defaultMaterial;
-            auto material = geometry->getMaterialAppearance();
+            auto material = getMaterialLook();
             App::Material strippedMaterial = material;
             strippedMaterial.uuid.clear();  // Prevent equal UUID from always meaning equal material
             if ((ShapeAppearance.getSize() == 1)
-                && (ShapeAppearance[0] == defaultMaterial || ShapeAppearance[0] == materialAppearance)
+                && (ShapeAppearance[0] == defaultMaterial || ShapeAppearance[0] == initialAppearance)
                 && (material != defaultMaterial) && (ShapeAppearance[0] != strippedMaterial)) {
-                ShapeAppearance.setValue(material);
-                materialAppearance = material;
+                setAppearanceFromMaterial({material});
             }
+        }
+        else {
+            followMaterial();
         }
     }
 
     ViewProviderDragger::updateData(prop);
+}
+
+void ViewProviderGeometryObject::onBeforeChange(const App::Property* prop)
+{
+    if (prop == &ShapeAppearance) {
+        appearanceBefore = ShapeAppearance.getValues();
+    }
+    ViewProviderDragger::onBeforeChange(prop);
+}
+
+void ViewProviderGeometryObject::finishRestoring()
+{
+    // A file written before the overrides were saved, or by a version that does not know them
+    if (!overridesRestored && hasPhysicalMaterial()) {
+        auto names = App::AppearanceOverrides::guess(
+            ShapeAppearance.getValues(),
+            getMaterialLook(),
+            App::Material::getDefaultAppearance()
+        );
+        if (names != AppearanceOverrides.getValues()) {
+            AppearanceOverrides.setValues(names);
+        }
+    }
+    overridesRestored = false;
+    ViewProviderDragger::finishRestoring();
+}
+
+bool ViewProviderGeometryObject::isLoadingOrUndoing() const
+{
+    auto obj = getObject();
+    auto doc = obj ? obj->getDocument() : nullptr;
+    if (!doc || testStatus(Gui::isRestoring) || obj->isRestoring()) {
+        return true;
+    }
+    return doc->testStatus(App::Document::Restoring) || doc->isPerformingTransaction();
+}
+
+void ViewProviderGeometryObject::beginTemporaryAppearance()
+{
+    ++temporaryAppearance;
+}
+
+void ViewProviderGeometryObject::endTemporaryAppearance()
+{
+    if (temporaryAppearance > 0) {
+        --temporaryAppearance;
+    }
+}
+
+bool ViewProviderGeometryObject::hasPhysicalMaterial() const
+{
+    auto obj = getObject();
+    return obj && obj->getPropertyByName("ShapeMaterial");
+}
+
+App::Material ViewProviderGeometryObject::getMaterialLook() const
+{
+    if (auto geometry = getObject<App::GeoFeature>()) {
+        return geometry->getMaterialAppearance();
+    }
+    return App::Material(App::Material::DEFAULT);
+}
+
+bool ViewProviderGeometryObject::isLookFromMaterial(const std::string& element) const
+{
+    const auto& names = AppearanceOverrides.getValues();
+    auto has = [&names](const std::string& name) {
+        return std::find(names.begin(), names.end(), name) != names.end();
+    };
+    if (element.empty()) {
+        return names.empty();
+    }
+    return !has(App::AppearanceOverrides::objectName()) && !has(element);
+}
+
+void ViewProviderGeometryObject::resetToMaterial(const std::vector<std::string>& faces)
+{
+    std::vector<std::size_t> indices;
+    for (const auto& name : faces) {
+        int index = App::AppearanceOverrides::faceIndex(name);
+        if (index >= 0) {
+            indices.push_back(static_cast<std::size_t>(index));
+        }
+    }
+    if (!faces.empty() && indices.empty()) {
+        return;
+    }
+
+    App::Material look = getMaterialLook();
+    if (!App::AppearanceOverrides::hasLook(look)) {
+        look = App::Material::getDefaultAppearance();
+    }
+    auto names = AppearanceOverrides.getValues();
+    auto values = ShapeAppearance.getValues();
+    App::AppearanceOverrides::reset(names, values, look, indices);
+    setAppearanceFromMaterial(values);
+    if (names != AppearanceOverrides.getValues()) {
+        AppearanceOverrides.setValues(names);
+    }
+}
+
+void ViewProviderGeometryObject::followMaterial()
+{
+    std::vector<App::Material> values;
+    if (App::AppearanceOverrides::followMaterial(
+            AppearanceOverrides.getValues(),
+            ShapeAppearance.getValues(),
+            getMaterialLook(),
+            values
+        )) {
+        setAppearanceFromMaterial(values);
+    }
+}
+
+void ViewProviderGeometryObject::setAppearanceFromMaterial(const std::vector<App::Material>& values)
+{
+    Base::FlagToggler<> flag(settingFromMaterial, false);
+    ShapeAppearance.setValues(values);
 }
 
 void ViewProviderGeometryObject::updateBoundingBox()
