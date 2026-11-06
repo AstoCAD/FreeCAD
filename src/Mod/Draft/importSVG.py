@@ -870,9 +870,9 @@ class svgHandler(xml.sax.ContentHandler):
                 rx = data.get("rx")
                 ry = data.get("ry") or rx
                 rx = rx or ry
-                if rx > 2 * data["width"]:
+                if rx > data["width"] / 2.0:
                     rx = data["width"] / 2.0
-                if ry > 2 * data["height"]:
+                if ry > data["height"] / 2.0:
                     ry = data["height"] / 2.0
 
                 p1 = Vector(data["x"] + rx, -data["y"] - data["height"] + ry, 0)
