@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 
+#include <App/PropertyGeo.h>
 #include <Base/Converter.h>
 #include <Base/Exception.h>
 #include <Base/Reader.h>
@@ -92,6 +93,16 @@ PyObject* PropertyNormalList::getPyObject()
     return list;
 }
 
+namespace
+{
+// Normals are bulk data like the points and the normals read from or written to files:
+// a NaN component is kept as it is (as by setValues() and on restore), not rejected.
+Base::Vector3f normalFromPy(PyObject* item)
+{
+    return Base::convertTo<Base::Vector3f>(App::PropertyVector::vectorFromPy(item));
+}
+}  // namespace
+
 void PropertyNormalList::setPyObject(PyObject* value)
 {
     if (PyList_Check(value)) {
@@ -100,23 +111,14 @@ void PropertyNormalList::setPyObject(PyObject* value)
         values.resize(nSize);
 
         for (Py_ssize_t i = 0; i < nSize; ++i) {
-            PyObject* item = PyList_GetItem(value, i);
-            App::PropertyVector val;
-            val.setPyObject(item);
-            values[i] = Base::convertTo<Base::Vector3f>(val.getValue());
+            values[i] = normalFromPy(PyList_GetItem(value, i));
         }
 
         setValues(values);
     }
-    else if (PyObject_TypeCheck(value, &(Base::VectorPy::Type))) {
-        Base::VectorPy* pcObject = static_cast<Base::VectorPy*>(value);
-        Base::Vector3d* val = pcObject->getVectorPtr();
-        setValue(Base::convertTo<Base::Vector3f>(*val));
-    }
-    else if (PyTuple_Check(value) && PyTuple_Size(value) == 3) {
-        App::PropertyVector val;
-        val.setPyObject(value);
-        setValue(Base::convertTo<Base::Vector3f>(val.getValue()));
+    else if (PyObject_TypeCheck(value, &(Base::VectorPy::Type))
+             || (PyTuple_Check(value) && PyTuple_Size(value) == 3)) {
+        setValue(normalFromPy(value));
     }
     else {
         std::string error = std::string("type must be 'Vector' or list of 'Vector', not ");
