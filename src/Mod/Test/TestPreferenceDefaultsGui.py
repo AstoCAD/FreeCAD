@@ -88,6 +88,9 @@ MODULE_DEFAULTS = (
     # SketcherGui::useSystemDecimals()
     ("SketcherGui", "SketcherGui::SketcherSettingsDisplay", "checkBoxUseSystemDecimals",
      "Mod/Sketcher", "Bool", "UseSystemDecimals", True),
+    # Materials::MaterialFilterOptions (material editor)
+    ("MatGui", "MatGui::DlgSettingsMaterial", "cb_show_legacy_editor",
+     "Mod/Material/Editor", "Bool", "ShowLegacy", False),
 )
 
 
