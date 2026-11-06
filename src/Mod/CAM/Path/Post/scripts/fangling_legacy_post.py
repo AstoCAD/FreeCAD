@@ -412,7 +412,8 @@ def parse(pathobj):
 
             # if modal: suppress the command if it is the same as the last one
             if MODAL is True:
-                if command == lastcommand:
+                # (a filtered-out move left nothing to suppress)
+                if command == lastcommand and outstring:
                     outstring.pop(0)
 
             if c.Name.startswith("(") and not OUTPUT_COMMENTS:  # command is a comment
