@@ -47,6 +47,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketchSymmetricCopy.py
     SketcherTests/TestSketchMoveUndo.py
     SketcherTests/TestSketchExtendUndo.py
+    SketcherTests/TestSketchReversedConicArcs.py
 )
 
 if(BUILD_GUI)

@@ -225,10 +225,10 @@ Base::Vector3d GeoListModel<T>::getPoint(const Part::Geometry* geo, Sketcher::Po
     else if (geo->is<Part::GeomArcOfHyperbola>()) {
         const Part::GeomArcOfHyperbola* aoh = static_cast<const Part::GeomArcOfHyperbola*>(geo);
         if (pos == PointPos::start) {
-            return aoh->getStartPoint();
+            return aoh->getStartPoint(/*emulateCCW=*/true);
         }
         else if (pos == PointPos::end) {
-            return aoh->getEndPoint();
+            return aoh->getEndPoint(/*emulateCCW=*/true);
         }
         else if (pos == PointPos::mid) {
             return aoh->getCenter();
@@ -237,10 +237,10 @@ Base::Vector3d GeoListModel<T>::getPoint(const Part::Geometry* geo, Sketcher::Po
     else if (geo->is<Part::GeomArcOfParabola>()) {
         const Part::GeomArcOfParabola* aop = static_cast<const Part::GeomArcOfParabola*>(geo);
         if (pos == PointPos::start) {
-            return aop->getStartPoint();
+            return aop->getStartPoint(/*emulateCCW=*/true);
         }
         else if (pos == PointPos::end) {
-            return aop->getEndPoint();
+            return aop->getEndPoint(/*emulateCCW=*/true);
         }
         else if (pos == PointPos::mid) {
             return aop->getCenter();
