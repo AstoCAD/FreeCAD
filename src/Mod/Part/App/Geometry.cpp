@@ -4139,24 +4139,23 @@ void GeomArcOfHyperbola::setMajorAxisDir(Base::Vector3d newdir)
     }
 }
 
+/*!
+ * \brief GeomArcOfHyperbola::getRange
+ * \param u [out] start parameter of the arc.
+ * \param v [out] end parameter of the arc.
+ * \param emulateCCWXY: if true, the range is the one of the same arc made counter-clockwise in
+ * the XY plane, as setRange() with emulateCCWXY makes it. The arc itself is not changed.
+ */
 void GeomArcOfHyperbola::getRange(double& u, double& v, bool emulateCCWXY) const
 {
-    try {
-        if (emulateCCWXY) {
-            if (isReversed()) {
-                Handle(Geom_Hyperbola) c = Handle(Geom_Hyperbola)::DownCast(myCurve->BasisCurve());
-                assert(!c.IsNull());
-                c->Reverse();
-            }
-        }
-    }
-    catch (Standard_Failure& e) {
-
-        THROWM(Base::CADKernelError, e.GetMessageString())
-    }
-
     u = myCurve->FirstParameter();
     v = myCurve->LastParameter();
+    if (emulateCCWXY && isReversed()) {
+        // reversing the hyperbola maps the parameter t to -t
+        std::swap(u, v);
+        u = -u;
+        v = -v;
+    }
 }
 
 void GeomArcOfHyperbola::setRange(double u, double v, bool emulateCCWXY)
@@ -4511,24 +4510,23 @@ Base::Vector3d GeomArcOfParabola::getFocus() const
     return Base::Vector3d(gp.X(), gp.Y(), gp.Z());
 }
 
+/*!
+ * \brief GeomArcOfParabola::getRange
+ * \param u [out] start parameter of the arc.
+ * \param v [out] end parameter of the arc.
+ * \param emulateCCWXY: if true, the range is the one of the same arc made counter-clockwise in
+ * the XY plane, as setRange() with emulateCCWXY makes it. The arc itself is not changed.
+ */
 void GeomArcOfParabola::getRange(double& u, double& v, bool emulateCCWXY) const
 {
-    try {
-        if (emulateCCWXY) {
-            if (isReversed()) {
-                Handle(Geom_Parabola) c = Handle(Geom_Parabola)::DownCast(myCurve->BasisCurve());
-                assert(!c.IsNull());
-                c->Reverse();
-            }
-        }
-    }
-    catch (Standard_Failure& e) {
-
-        THROWM(Base::CADKernelError, e.GetMessageString())
-    }
-
     u = myCurve->FirstParameter();
     v = myCurve->LastParameter();
+    if (emulateCCWXY && isReversed()) {
+        // reversing the parabola maps the parameter t to -t
+        std::swap(u, v);
+        u = -u;
+        v = -v;
+    }
 }
 
 void GeomArcOfParabola::setRange(double u, double v, bool emulateCCWXY)
