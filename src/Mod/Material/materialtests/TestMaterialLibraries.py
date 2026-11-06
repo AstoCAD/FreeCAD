@@ -220,6 +220,27 @@ class MaterialLibraryTestCases(unittest.TestCase):
         self.assertFalse(UUIDInvalidCard in materials)
         self.assertFalse(UUIDInvalidCard2 in materials)
 
+    def testLegacyCardWithoutSpacesAroundEquals(self):
+        """Legacy (ini style) cards may omit the spaces around '='"""
+        path = os.path.join(os.path.dirname(self.cardPath), "Legacy.FCMat")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "; Legacy\n; Author\n\n[Mechanical]\nDensity=7900 kg/m^3\n"
+                "YoungsModulus =210000 MPa\nPoissonRatio= 0.3\nShearModulus = 81000 MPa\n"
+            )
+        self.MaterialManager.refresh()
+        material = self.MaterialManager.getMaterialByPath("Legacy.FCMat", "Custom")
+        self.assertAlmostEqual(
+            material.getPhysicalValue("Density").getValueAs("kg/m^3").Value, 7900.0
+        )
+        self.assertAlmostEqual(
+            material.getPhysicalValue("YoungsModulus").getValueAs("MPa").Value, 210000.0
+        )
+        self.assertAlmostEqual(material.getPhysicalValue("PoissonRatio"), 0.3, places=6)
+        self.assertAlmostEqual(
+            material.getPhysicalValue("ShearModulus").getValueAs("MPa").Value, 81000.0
+        )
+
 
 @unittest.skipUnless("BUILD_PART" in FreeCAD.__cmake__, "requires the Part module")
 class DefaultMaterialTestCases(unittest.TestCase):
