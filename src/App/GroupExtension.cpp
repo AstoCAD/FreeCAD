@@ -95,7 +95,8 @@ std::vector<DocumentObject*> GroupExtension::addObjects(std::vector<DocumentObje
             continue;
         }
 
-        if (hasObject(obj)) {
+        // Group is only updated after the loop: also skip an object listed twice in objs
+        if (hasObject(obj) || std::ranges::find(added, obj) != added.end()) {
             continue;
         }
 
