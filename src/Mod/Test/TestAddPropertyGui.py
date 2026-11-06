@@ -171,6 +171,27 @@ class TestAddPropertyGui(unittest.TestCase):
         self.assertEqual(args[:2], ["App::PropertyIntPairList", "Pairs"])
         self.assertEqual(args[2], self.varset.getGroupOfProperty("Pairs"))
 
+    def testRenameTypeWithoutEditorKeepsOneProperty(self):
+        # Without a property item the property of the previous name was left behind,
+        # one per keystroke of the name
+        self.prepareProperty("App::PropertyIntPairList", "Pa")
+        self.assertIn("Pa", self.varset.PropertiesList)
+        self.widget(QtWidgets.QLineEdit, "lineEditName").setText("Pairs")
+        Gui.updateGui()
+        self.assertNotIn("Pa", self.varset.PropertiesList)
+        self.assertIn("Pairs", self.varset.PropertiesList)
+        self.addProperty()
+        self.assertIn("Pairs", self.varset.PropertiesList)
+        self.assertNotIn("Pa", self.varset.PropertiesList)
+
+    def testCancelDiscardsTypeWithoutEditor(self):
+        self.prepareProperty("App::PropertyIntPairList", "PendingPairs")
+        self.assertIn("PendingPairs", self.varset.PropertiesList)
+        self.dialog.reject()
+        self.dialog = None
+        Gui.updateGui()
+        self.assertNotIn("PendingPairs", self.varset.PropertiesList)
+
     def testStringExpressionSurvivesAdd(self):
         self.prepareProperty("App::PropertyString", "ExpressionWords")
         expression = "<<Bound text>>"

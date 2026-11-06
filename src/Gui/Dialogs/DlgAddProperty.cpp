@@ -810,6 +810,7 @@ bool DlgAddProperty::clearBoundProperty()
         propertyItem->removeProperty(prop);
         container->removeDynamicProperty(prop->getName());
         closeTransaction(TransactionOption::Abort);
+        createdPropertyName.clear();
     }
     return valueNeedsReset;
 }
@@ -817,6 +818,8 @@ bool DlgAddProperty::clearBoundProperty()
 bool DlgAddProperty::clear(FieldChange fieldChange)
 {
     if (!propertyItem) {
+        // A type without an editor has no property item, but its property was created as well
+        removeCreatedProperty();
         return true;
     }
 
@@ -972,7 +975,12 @@ App::Property* DlgAddProperty::createProperty()
 
     try {
         // The macro command is recorded in accept(): the group and the tooltip can still change
-        return container->addDynamicProperty(type, name.c_str(), group.c_str(), doc.c_str());
+        App::Property* prop
+            = container->addDynamicProperty(type, name.c_str(), group.c_str(), doc.c_str());
+        if (prop) {
+            createdPropertyName = prop->getName();
+        }
+        return prop;
     }
     catch (Base::Exception& e) {
         e.reportException();
@@ -983,6 +991,24 @@ App::Property* DlgAddProperty::createProperty()
         );
         return nullptr;
     }
+}
+
+App::Property* DlgAddProperty::getCreatedProperty() const
+{
+    if (createdPropertyName.empty()) {
+        return nullptr;
+    }
+    return container->getDynamicPropertyByName(createdPropertyName.c_str());
+}
+
+void DlgAddProperty::removeCreatedProperty()
+{
+    // Also for a type without a property item, whose property is not known by propertyItem
+    if (App::Property* prop = getCreatedProperty()) {
+        container->removeDynamicProperty(prop->getName());
+        closeTransaction(TransactionOption::Abort);
+    }
+    createdPropertyName.clear();
 }
 
 void DlgAddProperty::closeTransaction(TransactionOption option)
@@ -1053,12 +1079,10 @@ void DlgAddProperty::accept()
 
     setValueRedirector = nullptr;
     // Record the property as it is now: its group and tooltip may have changed since it was
-    // created. A type without an editor has no property item: find the property by its name.
-    App::Property* prop = propertyItem ? propertyItem->getFirstProperty() : nullptr;
-    if (!prop) {
-        std::string name = ui->lineEditName->text().toStdString();
-        prop = container->getDynamicPropertyByName(name.c_str());
-    }
+    // created. A type without an editor has no property item.
+    App::Property* prop = getCreatedProperty();
+    // the property is added: a later change of the fields must not remove it
+    createdPropertyName.clear();
     if (prop) {
         const char* propGroup = prop->getGroup();
         const char* propDoc = prop->getDocumentation();
@@ -1093,8 +1117,11 @@ void DlgAddProperty::reject()
             App::PropertyContainer* container = prop->getContainer();
             container->removeDynamicProperty(prop->getName());
             closeTransaction(TransactionOption::Abort);
+            createdPropertyName.clear();
         }
     }
+    // A type without an editor has no property item
+    removeCreatedProperty();
     disconnect(connComboBoxGroup);
     disconnect(connComboBoxType);
     disconnect(connLineEditNameTextChanged);
