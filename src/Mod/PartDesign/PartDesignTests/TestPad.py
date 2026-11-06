@@ -28,6 +28,7 @@ import FreeCAD
 import Part
 from FreeCAD import Base
 import TestSketcherApp
+from TestPropertyFloatNaN import restoreValueAsFromFile
 
 
 class TestPad(unittest.TestCase):
@@ -546,7 +547,8 @@ class TestPad(unittest.TestCase):
     def testPadNaNLengthFails(self):
         # NaN passed the zero length check and crashed while making the prism
         pad = self._makeLengthFeature("PartDesign::Pad")
-        pad.Length = float("nan")
+        # assigning NaN raises: it can only come from a file
+        restoreValueAsFromFile(pad, "Length", float("nan"))
         self.Doc.recompute()
         self.assertIn("Invalid", pad.State)
 
@@ -559,13 +561,13 @@ class TestPad(unittest.TestCase):
     def testPadNaNSecondLengthFails(self):
         pad = self._makeLengthFeature("PartDesign::Pad")
         pad.SideType = "Two sides"
-        pad.Length2 = float("nan")
+        restoreValueAsFromFile(pad, "Length2", float("nan"))
         self.Doc.recompute()
         self.assertIn("Invalid", pad.State)
 
     def testPocketNaNLengthFails(self):
         pocket = self._makeLengthFeature("PartDesign::Pocket")
-        pocket.Length = float("nan")
+        restoreValueAsFromFile(pocket, "Length", float("nan"))
         self.Doc.recompute()
         self.assertIn("Invalid", pocket.State)
 
