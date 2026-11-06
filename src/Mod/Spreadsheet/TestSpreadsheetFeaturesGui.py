@@ -136,6 +136,78 @@ class TestSpreadsheetFeaturesGui(unittest.TestCase):
         text = table.model().data(table.model().index(1, 0))
         self.assertEqual(text.count("0"), max(decimals - 1, 0))
 
+    def _clickCell(self, table, row, col):
+        """Click a cell through the graphics view that hosts the table, like a user."""
+        try:
+            from PySide6 import QtTest
+        except ImportError:
+            from PySide2 import QtTest
+        rect = table.visualRect(table.model().index(row, col))
+        point = table.viewport().mapTo(table, rect.center())
+        proxy = table.graphicsProxyWidget()
+        view = proxy.scene().views()[0]
+        target = view.mapFromScene(proxy.mapToScene(QtCore.QPointF(point)))
+        QtTest.QTest.mouseClick(
+            view.viewport(), QtCore.Qt.LeftButton, QtCore.Qt.NoModifier, target
+        )
+        self._process()
+
+    def testClickToReferenceInCellEditor(self):
+        try:
+            from PySide6 import QtTest
+        except ImportError:
+            from PySide2 import QtTest
+        table = self._tableView()
+        index = table.model().index(0, 0)
+        table.setCurrentIndex(index)
+        table.edit(index)
+        self._process()
+        editors = table.viewport().findChildren(QtWidgets.QLineEdit)
+        self.assertTrue(editors, "no cell editor")
+        editor = editors[0]
+        QtTest.QTest.keyClicks(editor, "=2*")
+        self._clickCell(table, 2, 2)
+        self.assertEqual(editor.text(), "=2*C3")
+        # A second click replaces the reference
+        self._clickCell(table, 1, 1)
+        self.assertEqual(editor.text(), "=2*B2")
+        self.assertEqual(table.currentIndex().row(), 0)
+        QtTest.QTest.keyClick(editor, QtCore.Qt.Key_Return)
+        self._process()
+        self.doc.recompute()
+        self.assertEqual(self.sheet.getContents("A1"), "=2 * B2")
+
+    def testClickToReferenceInFormulaBar(self):
+        try:
+            from PySide6 import QtTest
+        except ImportError:
+            from PySide2 import QtTest
+        table = self._tableView()
+        table.setCurrentIndex(table.model().index(0, 0))
+        self._process()
+        bar = None
+        for widget in QtWidgets.QApplication.allWidgets():
+            if widget.objectName() == "cellContent" and widget.isVisible():
+                bar = widget
+        self.assertIsNotNone(bar, "no formula bar")
+        self.sheet.set("B2", "3")
+        self.sheet.setAlias("B2", "width")
+        self.doc.recompute()
+        bar.setFocus()
+        QtTest.QTest.keyClicks(bar, "=1+")
+        # A cell with an alias is referenced by its alias
+        self._clickCell(table, 1, 1)
+        self.assertEqual(bar.text(), "=1+width")
+        self.assertEqual(table.currentIndex().row(), 0)
+        QtTest.QTest.keyClick(bar, QtCore.Qt.Key_Return)
+        self._process()
+        self.doc.recompute()
+        self.assertEqual(self.sheet.getContents("A1"), "=1 + width")
+        self.assertEqual(self.sheet.A1, 4)
+        # Not after an operator: a click moves the selection as usual
+        self._clickCell(table, 2, 2)
+        self.assertEqual((table.currentIndex().row(), table.currentIndex().column()), (2, 2))
+
 
 if __name__ == "__main__":
     unittest.main()

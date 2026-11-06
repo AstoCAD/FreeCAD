@@ -57,6 +57,9 @@ public:
 Q_SIGNALS:
     void finishedWithKey(int key, Qt::KeyboardModifiers modifiers);
 
+protected:
+    bool eventFilter(QObject* object, QEvent* event) override;
+
 private:
     void onEditorFinishedWithKey(int key, Qt::KeyboardModifiers modifiers);
 

@@ -25,6 +25,8 @@
  ***************************************************************************/
 
 
+#include <QApplication>
+#include <QFocusEvent>
 #include <QLineEdit>
 #include <QPainter>
 
@@ -34,6 +36,7 @@
 #include <Mod/Spreadsheet/App/Sheet.h>
 
 #include "LineEdit.h"
+#include "SheetTableView.h"
 #include "SpreadsheetDelegate.h"
 
 
@@ -96,6 +99,26 @@ void SpreadsheetDelegate::setModelData(
 void SpreadsheetDelegate::onEditorFinishedWithKey(int key, Qt::KeyboardModifiers modifiers)
 {
     Q_EMIT finishedWithKey(key, modifiers);
+}
+
+bool SpreadsheetDelegate::eventFilter(QObject* object, QEvent* event)
+{
+    // A click on a cell while a formula is typed inserts the cell's address
+    // (see SheetTableView::expectsReference): the editor must not be closed
+    // and committed when that click takes the focus.
+    if (event->type() == QEvent::FocusOut
+        && static_cast<QFocusEvent*>(event)->reason() == Qt::MouseFocusReason) {
+        auto* editor = qobject_cast<QLineEdit*>(object);
+        QWidget* viewport = editor ? editor->parentWidget() : nullptr;
+        auto* view = qobject_cast<SheetTableView*>(viewport ? viewport->parentWidget() : nullptr);
+        if (view && viewport == view->viewport()
+            && view->takesFocusForClick(QApplication::focusWidget())
+            && view->expectsReference(editor)) {
+            view->setPendingReferenceEditor(editor);
+            return true;
+        }
+    }
+    return QStyledItemDelegate::eventFilter(object, event);
 }
 
 static inline void drawBorder(

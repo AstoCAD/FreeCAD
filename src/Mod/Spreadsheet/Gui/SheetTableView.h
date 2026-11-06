@@ -25,7 +25,9 @@
 #pragma once
 
 #include <QDialog>
+#include <QElapsedTimer>
 #include <QHeaderView>
+#include <QLineEdit>
 #include <QPointer>
 #include <QTableView>
 #include <QTimer>
@@ -72,6 +74,15 @@ public:
     QModelIndexList selectedIndexesRaw() const;
     QString toHtml() const;
 
+    /* Click-to-reference: while a formula is typed in a cell editor or in the
+     * formula bar and the cursor is where an operand goes, clicking (or
+     * dragging over) cells inserts their address (or range) at the cursor
+     * instead of moving the selection. */
+    bool expectsReference(const QLineEdit* editor) const;
+    bool takesFocusForClick(const QWidget* widget) const;
+    void setPendingReferenceEditor(QLineEdit* editor);
+    void setFormulaBar(QLineEdit* formulaBar);
+
 public Q_SLOTS:
     void selectAll() override;
     void mergeCells();
@@ -106,6 +117,12 @@ protected:
     bool event(QEvent* event) override;
     void closeEditor(QWidget* editor, QAbstractItemDelegate::EndEditHint hint) override;
     void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
+    bool eventFilter(QObject* object, QEvent* event) override;
+    bool referencePress(QMouseEvent* event);
+    void insertReference(const QModelIndex& index, bool extend, bool useAlias = false);
     void selectionChanged(const QItemSelection& selected, const QItemSelection& deselected) override;
 
     void contextMenuEvent(QContextMenuEvent* e) override;
@@ -136,6 +153,16 @@ protected:
     QAction* actionFind;
     QAction* actionBind;
     QPointer<QDialog> findDialog;
+
+    QPointer<QLineEdit> formulaBar;
+    QPointer<QLineEdit> pendingReferenceEditor;  // lost focus to a click on the table
+    QElapsedTimer pendingReferenceTimer;
+    QPointer<QLineEdit> referenceEditor;         // where the last reference was inserted
+    int referenceStart {-1};
+    QString referenceText;
+    QModelIndex referenceAnchor;
+    QModelIndex referenceLast;
+    bool referenceDragging {false};
 
     QTimer timer;
 
