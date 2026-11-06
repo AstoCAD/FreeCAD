@@ -46,6 +46,14 @@ class TestArchStructure(TestArchBase.TestArchBase):
         structure = Arch.makeStructure(length=2, width=3, height=5)
         self.assertTrue(structure, "BIM Structure failed")
 
+    def test_isStandardCase_baseless_structure_with_normal(self):
+        """A baseless structure with a custom Normal must not break isStandardCase (IFC export)."""
+        beam = Arch.makeStructure(length=1000, width=200, height=300)
+        beam.Normal = Vector(1, 0, 1)
+        self.document.recompute()
+        self.assertIsNone(beam.Base)
+        self.assertFalse(beam.Proxy.isStandardCase(beam))
+
     #  Dimensions
     def test_makeStructure_explicit_dimensions(self):
         """Explicit length/width/height are stored on the object."""
