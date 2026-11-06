@@ -70,6 +70,7 @@ SET(Test_SRCS
     TestMDIView.py
     TestPythonEditorTitleGui.py
     TestPythonEditorExecuteGui.py
+    TestPreferenceDefaultsGui.py
     TestActivateViewGui.py
     TestRecomputeAllGui.py
     TestPropertyGroupIndicatorGui.py
