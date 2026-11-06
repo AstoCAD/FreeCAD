@@ -617,6 +617,69 @@ class TestCore(AssemblyTestBase):
                 self.assertTrue(box.Placement.isSame(captured[box.Name], 1e-6))
         self.assertTrue(boxes[2].Visibility)
 
+    def test_snapshot_restores_parts_of_flexible_sub_assembly(self):
+        """The parts of a flexible sub-assembly move independently, so a snapshot must
+        capture them one by one, not the assembly link as a whole."""
+        import CommandCreateSnapshot
+
+        sub = self.doc.addObject("Assembly::AssemblyObject", "Sub")
+        sub.newObject("Part::Box", "SubBox1")
+        sub.newObject("Part::Box", "SubBox2")
+        instance = self.assembly.newObject("Assembly::AssemblyLink", "Instance")
+        instance.LinkedObject = sub
+        instance.Rigid = False
+        self.doc.recompute()
+        parts = [obj for obj in instance.Group if obj.isDerivedFrom("App::Link")]
+        self.assertEqual(len(parts), 2)
+
+        group = UtilsAssembly.getSnapshotGroup(self.assembly)
+        snapshot = group.newObject("App::FeaturePython", "Snapshot")
+        CommandCreateSnapshot.Snapshot(snapshot)
+        snapshot.SolveOnActivation = False
+        captured = [App.Placement(part.Placement) for part in parts]
+
+        for part in parts:
+            part.Placement = App.Placement(App.Vector(50, 0, 0), App.Rotation())
+        snapshot.Proxy.restoreState(snapshot)
+        for part, placement in zip(parts, captured):
+            with self.subTest(part=part.Name):
+                self.assertTrue(part.Placement.isSame(placement, 1e-6), part.Placement)
+
+    def test_snapshot_links_parts_of_flexible_sub_assembly_globally(self):
+        """The parts of a flexible sub-assembly are in its coordinate system, not in the
+        one of the snapshot: a local link list reports them as links out of scope at each
+        recompute. Snapshots link their components globally, older ones are migrated."""
+        import CommandCreateSnapshot
+
+        sub = self.doc.addObject("Assembly::AssemblyObject", "Sub")
+        sub.newObject("Part::Box", "SubBox")
+        instance = self.assembly.newObject("Assembly::AssemblyLink", "Instance")
+        instance.LinkedObject = sub
+        instance.Rigid = False
+        self.assembly.newObject("Part::Box", "TopBox")
+        self.doc.recompute()
+        group = UtilsAssembly.getSnapshotGroup(self.assembly)
+
+        snapshot = group.newObject("App::FeaturePython", "Snapshot")
+        CommandCreateSnapshot.Snapshot(snapshot)
+        self.assertEqual(
+            snapshot.getTypeIdOfProperty("Components"), "App::PropertyLinkListGlobal"
+        )
+        names = [obj.Name for obj in snapshot.Components]
+        self.assertEqual(len(names), 2)
+
+        # A snapshot saved before the change has a local link list.
+        legacy = group.newObject("App::FeaturePython", "LegacySnapshot")
+        legacy.addProperty("App::PropertyLinkList", "Components", "Snapshot")
+        CommandCreateSnapshot.Snapshot(legacy)
+        placements = list(legacy.Placements)
+        legacy.Proxy.onDocumentRestored(legacy)
+        self.assertEqual(legacy.getTypeIdOfProperty("Components"), "App::PropertyLinkListGlobal")
+        self.assertEqual([obj.Name for obj in legacy.Components], names)
+        self.assertEqual(len(legacy.Placements), len(placements))
+        for placement, expected in zip(legacy.Placements, placements):
+            self.assertTrue(placement.isSame(expected, 1e-9))
+
     def test_component_count_for_link_array(self):
         source = self.doc.addObject("Part::Box", "ArraySource")
         array = self.assembly.newObject("App::Link", "Array")

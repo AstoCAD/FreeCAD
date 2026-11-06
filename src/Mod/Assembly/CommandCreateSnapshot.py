@@ -140,16 +140,33 @@ class Snapshot:
 
     def onDocumentRestored(self, snapshot_obj):
         """Called when a document containing a snapshot is loaded."""
+        self.migrateComponentsScope(snapshot_obj)
         self.ensureProperties(snapshot_obj)
         # Check if the document contains legacy JSON snapshot data and migrate it
         if hasattr(snapshot_obj, "CapturedState") and snapshot_obj.CapturedState:
             self.migrateFromJSON(snapshot_obj)
 
+    def migrateComponentsScope(self, snapshot_obj):
+        """Older snapshots hold their components in a local link list, which reports
+        the parts of flexible sub-assemblies as links out of scope."""
+        if (
+            not hasattr(snapshot_obj, "Components")
+            or snapshot_obj.getTypeIdOfProperty("Components") != "App::PropertyLinkList"
+        ):
+            return
+        components = snapshot_obj.Components
+        snapshot_obj.removeProperty("Components")
+        self.ensureProperties(snapshot_obj)
+        snapshot_obj.Components = components
+        snapshot_obj.purgeTouched()
+
     def ensureProperties(self, snapshot_obj):
         """Ensures that the required properties are added to the object."""
         if not hasattr(snapshot_obj, "Components"):
+            # The components of flexible sub-assemblies are in their own coordinate
+            # system, like the objects grounded by a joint: the links are global.
             snapshot_obj.addProperty(
-                "App::PropertyLinkList",
+                "App::PropertyLinkListGlobal",
                 "Components",
                 "Snapshot",
                 QT_TRANSLATE_NOOP(
@@ -211,7 +228,9 @@ class Snapshot:
             App.Console.PrintWarning("Could not find parent assembly for snapshot.\n")
             return
 
-        components = UtilsAssembly.getMovablePartsWithin(assembly, partsAsSolid=True)
+        # The components the solver moves: the parts of flexible sub-assemblies are
+        # captured one by one, rigid sub-assemblies and parts as a whole.
+        components = assembly.getComponents()
 
         captured_objs = []
         captured_placements = []
