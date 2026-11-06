@@ -32,6 +32,7 @@
 #include <mutex>
 #include <QApplication>
 #include <QCheckBox>
+#include <QDateTime>
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QOpenGLWidget>
@@ -118,6 +119,10 @@ struct DocumentP
     std::map<SoSeparator*, ViewProviderDocumentObject*> _CoinMap;
     std::map<std::string, ViewProvider*> _ViewProviderMapAnnotation;
     std::list<ViewProviderDocumentObject*> _redoViewProviders;
+    // The project file as this session last read or wrote it, to detect
+    // changes made to it outside of this session before overwriting it
+    std::string _diskFileName;
+    QDateTime _diskFileTime;
 
     using Connection = fastsignals::connection;
     using AdvancedConnection = fastsignals::advanced_connection;
@@ -130,6 +135,7 @@ struct DocumentP
     Connection connectRestDocument;
     Connection connectStartLoadDocument;
     Connection connectFinishLoadDocument;
+    Connection connectFinishSaveDocument;
     Connection connectShowHidden;
     Connection connectFinishRestoreDocument;
     Connection connectFinishRestoreObject;
@@ -231,6 +237,44 @@ struct DocumentP
         }
 
         return svp;
+    }
+
+    static QDateTime diskFileTime(const std::string& fileName)
+    {
+        QFileInfo fi(QString::fromStdString(fileName));
+        return fi.exists() ? fi.lastModified() : QDateTime();
+    }
+
+    void rememberDiskFile(const std::string& fileName)
+    {
+        _diskFileName = fileName;
+        _diskFileTime = diskFileTime(fileName);
+    }
+
+    // Ask before overwriting a project file that was changed on disk after this
+    // session last read or wrote it, e.g. by another FreeCAD instance.
+    bool confirmOverwriteIfChangedOnDisk() const
+    {
+        const std::string fileName = _pcDocument->FileName.getStrValue();
+        if (fileName.empty() || fileName != _diskFileName || !_diskFileTime.isValid()) {
+            return true;
+        }
+        const QDateTime current = diskFileTime(fileName);
+        if (!current.isValid() || current == _diskFileTime) {
+            return true;
+        }
+        int ret = QMessageBox::warning(
+            getMainWindow(),
+            QObject::tr("File changed on disk"),
+            QObject::tr(
+                "The file '%1' has been modified outside of this session since it was "
+                "opened or last saved.\n\nDo you want to overwrite it?"
+            )
+                .arg(QString::fromStdString(fileName)),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::No
+        );
+        return ret == QMessageBox::Yes;
     }
 
     void setParentViewProvider(ViewProviderDocumentObject* vp)
@@ -509,6 +553,14 @@ Document::Document(App::Document* pcDocument, Application* app)
     d->connectFinishLoadDocument = App::GetApplication().signalFinishRestoreDocument.connect(
         std::bind(&Gui::Document::slotFinishRestoreDocument, this, sp::_1)
     );
+    d->connectFinishSaveDocument = pcDocument->signalFinishSave.connect(
+        [this](const App::Document& doc, const std::string& fileName) {
+            // Save Copy writes another file: keep the time of the project file
+            if (doc.FileName.getStrValue() == fileName) {
+                d->rememberDiskFile(fileName);
+            }
+        }
+    );
     d->connectShowHidden = App::GetApplication().signalShowHidden.connect(
         std::bind(&Gui::Document::slotShowHidden, this, sp::_1)
     );
@@ -586,6 +638,7 @@ Document::~Document()
     d->connectRestDocument.disconnect();
     d->connectStartLoadDocument.disconnect();
     d->connectFinishLoadDocument.disconnect();
+    d->connectFinishSaveDocument.disconnect();
     d->connectShowHidden.disconnect();
     d->connectFinishRestoreObject.disconnect();
     d->connectExportObjects.disconnect();
@@ -1635,6 +1688,10 @@ bool Document::save()
             return false;
         }
 
+        if (!d->confirmOverwriteIfChangedOnDisk()) {
+            return false;
+        }
+
         try {
             std::vector<App::Document*> docs;
             std::map<App::Document*, bool> dmap;
@@ -1690,6 +1747,11 @@ bool Document::save()
             Gui::WaitCursor wc;
             // save all documents
             for (auto doc : docs) {
+                auto gdoc = Application::Instance->getDocument(doc);
+                if (gdoc && gdoc != this && !gdoc->d->confirmOverwriteIfChangedOnDisk()) {
+                    continue;
+                }
+
                 // Changed 'mustExecute' status may be triggered by saving external document
                 if (!dmap[doc] && doc->mustExecute()) {
                     App::AutoTransaction trans(doc, "Recompute");
@@ -1701,7 +1763,6 @@ bool Document::save()
                 }
 
                 Command::doCommand(Command::Doc, "App.getDocument(\"%s\").save()", doc->getName());
-                auto gdoc = Application::Instance->getDocument(doc);
                 if (gdoc) {
                     gdoc->setModified(false);
                 }
@@ -1835,6 +1896,9 @@ void Document::saveAll()
             if (!gdoc->saveAs()) {
                 break;
             }
+        }
+        else if (!gdoc->d->confirmOverwriteIfChangedOnDisk()) {
+            continue;
         }
         Gui::WaitCursor wc;
 
@@ -2082,6 +2146,7 @@ void Document::slotFinishRestoreDocument(const App::Document& doc)
     if (d->_pcDocument != &doc) {
         return;
     }
+    d->rememberDiskFile(doc.FileName.getStrValue());
     d->connectActObjectBlocker.unblock();
     App::DocumentObject* act = doc.getActiveObject();
     if (act) {
