@@ -104,7 +104,8 @@ def importVtkVtkResult(filename, resultname):
     vtk_result_obj.read(filename)
     # set display mode to "Surface" like for any other new pipeline to assure the user sees
     # something after the import was done
-    vtk_result_obj.ViewObject.DisplayMode = "Surface"
+    if FreeCAD.GuiUp:
+        vtk_result_obj.ViewObject.DisplayMode = "Surface"
     vtk_result_obj.touch()
     FreeCAD.ActiveDocument.recompute()
     return vtk_result_obj
