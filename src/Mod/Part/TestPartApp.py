@@ -143,6 +143,46 @@ class PartTestCases(unittest.TestCase):
         # a single wire is unchanged
         self.assertAlmostEqual(Part.Face([Part.makePolygon(outer + [outer[0]])]).Area, 600.0)
 
+    def testThicknessNeverStoresInvalidSolid(self):
+        # Part::Thickness stored whatever OCC returned, even a broken solid (stock OCC 8.0
+        # returns invalid solids for these filleted shapes, a patched one an inside-out solid
+        # for the plate). Which case OCC handles depends on its version, so check the
+        # contract: either a valid solid or an error.
+        box = Part.makeBox(20, 20, 10)
+        filletedBox = box.makeFillet(2, box.Edges)
+        plate = Part.makeBox(40, 40, 10)
+        for i in range(4):
+            for j in range(4):
+                plate = plate.cut(Part.makeCylinder(2, 20, App.Vector(5 + 10 * i, 5 + 10 * j, -5)))
+        plate = plate.makeFillet(
+            0.5,
+            [e for e in plate.Edges if isinstance(e.Curve, Part.Circle) and e.BoundBox.ZMin > 9.99],
+        )
+        for name, shape, value in (
+            ("FilletedBoxIn", filletedBox, -0.5),
+            ("FilletedBoxOut", filletedBox, 0.5),
+            ("FilletedPlate", plate, -1.0),
+        ):
+            with self.subTest(name):
+                source = self.Doc.addObject("Part::Feature", "Source" + name)
+                source.Shape = shape
+                thickness = self.Doc.addObject("Part::Thickness", "Thickness" + name)
+                thickness.Faces = (
+                    source,
+                    [
+                        "Face" + str(index)
+                        for index, face in enumerate(shape.Faces, 1)
+                        if isinstance(face.Surface, Part.Plane) and face.BoundBox.ZMin > 9.99
+                    ],
+                )
+                thickness.Value = value
+                self.Doc.recompute()
+                if thickness.isValid():
+                    self.assertTrue(thickness.Shape.isValid())
+                    self.assertGreater(thickness.Shape.Volume, 0.0)
+                else:
+                    self.assertNotEqual(thickness.getStatusString(), "Valid")
+
     def testDeprecatedInsertWarningDoesNotCreateDocument(self):
         document_name = "DeprecatedPartInsertTest"
         try:
