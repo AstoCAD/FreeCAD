@@ -4046,12 +4046,14 @@ Document::findObjects(const Base::Type& typeId, const char* objname, const char*
     boost::regex rx_name;
     boost::regex rx_label;
 
+    // assign() throws boost::regex_error for an invalid expression; set_expression() does not
+    // throw and leaves the regex empty, which would match every object.
     if (objname) {
-        rx_name.set_expression(objname);
+        rx_name.assign(objname);
     }
 
     if (label) {
-        rx_label.set_expression(label);
+        rx_label.assign(label);
     }
 
     std::vector<DocumentObject*> Objects;
