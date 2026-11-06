@@ -330,6 +330,31 @@ class TestDraftGeomUtils(test_base.DraftTestCaseNoDoc):
         straight.interpolate([Vector(0, 0, 0), Vector(5, 0, 0), Vector(10, 0, 0)])
         self.assertIsNone(DraftGeomUtils.get_spline_normal(straight.toShape()))
 
+    def _assert_circles(self, circles, expected):
+        """Compare (center, radius) of circles with the expected ones, in any order."""
+        self.assertIsNotNone(circles)
+        found = sorted(
+            (round(c.Center.x, 6), round(c.Center.y, 6), round(c.Radius, 6)) for c in circles
+        )
+        self.assertEqual(found, sorted(expected))
+
+    def test_circle_from_line_and_two_points(self):
+        """circlefrom1Line2Points returns both circles through 2 points tangent to a line."""
+        edge = Part.LineSegment(Vector(0, 0, 0), Vector(10, 0, 0)).toShape()
+        circles = DraftGeomUtils.circlefrom1Line2Points(edge, Vector(0, 2, 0), Vector(0, 8, 0))
+        self._assert_circles(circles, [(-4.0, 5.0, 5.0), (4.0, 5.0, 5.0)])
+
+    def test_circle_from_point_line_radius(self):
+        """circleFromPointLineRadius also works for a point on the line."""
+        edge = Part.LineSegment(Vector(0, 0, 0), Vector(10, 0, 0)).toShape()
+        circles = DraftGeomUtils.circleFromPointLineRadius(Vector(5, 0, 0), edge, 3)
+        self._assert_circles(circles, [(5.0, -3.0, 3.0), (5.0, 3.0, 3.0)])
+        circles = DraftGeomUtils.circleFromPointLineRadius(Vector(5, 2, 0), edge, 3)
+        offset = 8**0.5
+        self._assert_circles(
+            circles, [(round(5 - offset, 6), 3.0, 3.0), (round(5 + offset, 6), 3.0, 3.0)]
+        )
+
 
 # suite = unittest.defaultTestLoader.loadTestsFromTestCase(TestDraftGeomUtils)
 # unittest.TextTestRunner().run(suite)
