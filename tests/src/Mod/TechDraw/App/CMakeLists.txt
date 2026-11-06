@@ -3,4 +3,5 @@
 add_executable(TechDraw_tests_run
         LineFormat.cpp
         ViewPlacement.cpp
+        DefaultTemplate.cpp
 )
