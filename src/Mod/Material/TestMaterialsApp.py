@@ -32,6 +32,7 @@ from materialtests.TestModels import ModelTestCases
 from materialtests.TestMaterials import MaterialTestCases
 from materialtests.TestMaterialCreation import MaterialCreationTestCases
 from materialtests.TestMaterialCreation import MaterialSaveTestCases
+from materialtests.TestMaterialCreation import MaterialValueTestCases
 from materialtests.TestMaterialFilter import MaterialFilterTestCases
 from materialtests.TestMaterialInheritance import MaterialInheritanceTestCases
 from materialtests.TestMaterialLibraries import ModelLibraryTestCases
