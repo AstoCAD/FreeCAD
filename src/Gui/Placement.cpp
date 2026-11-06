@@ -24,6 +24,7 @@
 #include <QClipboard>
 #include <QDockWidget>
 #include <QKeyEvent>
+#include <QLocale>
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QSignalMapper>
@@ -1103,6 +1104,13 @@ Base::Placement Placement::getPlacementData() const
     return plm;
 }
 
+// The shortest text that reads back as the same double: QString::arg(double) keeps only
+// 6 significant digits, which rounds e.g. 12345.67 to 12345.7 in the command.
+static QString toPythonNumber(double value)
+{
+    return QString::number(value, 'g', QLocale::FloatingPointShortest);
+}
+
 QString Placement::getPlacementFromEulerAngles() const
 {
     Base::Vector3d pos = getPositionData();
@@ -1111,15 +1119,15 @@ QString Placement::getPlacementFromEulerAngles() const
     return QStringLiteral(
                "App.Placement(App.Vector(%1,%2,%3), App.Rotation(%4,%5,%6), App.Vector(%7,%8,%9))"
     )
-        .arg(pos.x)
-        .arg(pos.y)
-        .arg(pos.z)
-        .arg(ypr.x)
-        .arg(ypr.y)
-        .arg(ypr.z)
-        .arg(cnt.x)
-        .arg(cnt.y)
-        .arg(cnt.z);
+        .arg(toPythonNumber(pos.x))
+        .arg(toPythonNumber(pos.y))
+        .arg(toPythonNumber(pos.z))
+        .arg(toPythonNumber(ypr.x))
+        .arg(toPythonNumber(ypr.y))
+        .arg(toPythonNumber(ypr.z))
+        .arg(toPythonNumber(cnt.x))
+        .arg(toPythonNumber(cnt.y))
+        .arg(toPythonNumber(cnt.z));
 }
 
 QString Placement::getPlacementFromAxisWithAngle() const
@@ -1129,16 +1137,16 @@ QString Placement::getPlacementFromAxisWithAngle() const
     Base::Vector3d dir = getDirection();
     double angle = ui->angle->value().getValue();
     return QStringLiteral("App.Placement(App.Vector(%1,%2,%3), App.Rotation(App.Vector(%4,%5,%6),%7), App.Vector(%8,%9,%10))")
-        .arg(pos.x)
-        .arg(pos.y)
-        .arg(pos.z)
-        .arg(dir.x)
-        .arg(dir.y)
-        .arg(dir.z)
-        .arg(angle)
-        .arg(cnt.x)
-        .arg(cnt.y)
-        .arg(cnt.z);
+        .arg(toPythonNumber(pos.x))
+        .arg(toPythonNumber(pos.y))
+        .arg(toPythonNumber(pos.z))
+        .arg(toPythonNumber(dir.x))
+        .arg(toPythonNumber(dir.y))
+        .arg(toPythonNumber(dir.z))
+        .arg(toPythonNumber(angle))
+        .arg(toPythonNumber(cnt.x))
+        .arg(toPythonNumber(cnt.y))
+        .arg(toPythonNumber(cnt.z));
 }
 
 QString Placement::getPlacementString() const
