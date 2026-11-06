@@ -232,7 +232,7 @@ void DlgSettingsEditor::saveSettings()
         hGrp->SetUnsigned(textType.toLatin1(), col);
     }
     hGrp->SetInt("FontSize", ui->fontSize->value());
-    hGrp->SetASCII("Font", ui->fontFamily->currentText().toLatin1());
+    hGrp->SetASCII("Font", ui->fontFamily->currentText().toUtf8());
 
     setEditorTabWidth(ui->tabSize->value());
 }
@@ -278,7 +278,7 @@ void DlgSettingsEditor::loadSettings()
     ui->fontSize->setValue(10);
     ui->fontSize->setValue(hGrp->GetInt("FontSize", ui->fontSize->value()));
 
-    QByteArray defaultMonospaceFont = getMonospaceFont().family().toLatin1();
+    QByteArray defaultMonospaceFont = getMonospaceFont().family().toUtf8();
     QStringList familyNames = QFontDatabase::families(QFontDatabase::Any);
     QStringList fixedFamilyNames;
     for (const auto& name : familyNames) {
@@ -298,7 +298,7 @@ void DlgSettingsEditor::loadSettings()
     ui->fontFamily->setProperty("doNotSearch", true);
 
     int index = fixedFamilyNames.indexOf(
-        QString::fromLatin1(hGrp->GetASCII("Font", defaultMonospaceFont).c_str())
+        QString::fromStdString(hGrp->GetASCII("Font", defaultMonospaceFont))
     );
     if (index < 0) {
         index = 0;
