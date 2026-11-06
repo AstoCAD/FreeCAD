@@ -185,7 +185,7 @@ std::string DimensionFormatter::formatValue(const qreal value,
 
     double factor{1.0};
     std::string unitText{""};
-    if (distanceMeasure && !isDim && !m_dimension->Arbitrary.getValue()) {
+    if ((distanceMeasure || areaMeasure) && !isDim && !m_dimension->Arbitrary.getValue()) {
         // Numeric tolerances share the nominal dimension's unit, including
         // when an adaptive schema would select a smaller unit for the tolerance.
         Base::Quantity nominalQuantity {m_dimension->getDimValue(), unit};
