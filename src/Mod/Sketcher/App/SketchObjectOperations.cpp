@@ -2638,7 +2638,10 @@ int SketchObject::addCopy(
                 generateId(geocopy);
             }
             else {
-                geocopy = newgeoVals[*it];
+                // Move a clone: the geometry belongs to the Geometry property, changing it in
+                // place would also change the old value that setValues() below saves for undo.
+                geocopy = newgeoVals[*it]->clone();
+                newgeoVals[*it] = geocopy;
             }
 
             // Handle Geometry
