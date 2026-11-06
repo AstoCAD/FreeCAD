@@ -186,9 +186,26 @@ std::shared_ptr<Material> MaterialManager::defaultMaterial()
     MaterialManager manager;
 
     auto mat = defaultAppearance();
-    auto material = getManager().getMaterial(defaultMaterialUUID());
-    if (!material) {
-        material = getManager().getMaterial(QStringLiteral("7f9fd73b-50c9-41d8-b7b2-575a030c1eeb"));
+    // getMaterial() throws rather than returning null. The preferred card may have been deleted
+    // or its library disabled, and the built-in materials can be disabled too. Every Part
+    // feature is constructed with the default material, so this must not fail.
+    const QString builtInDefault = QStringLiteral("7f9fd73b-50c9-41d8-b7b2-575a030c1eeb");
+    std::shared_ptr<Material> material;
+    try {
+        material = getManager().getMaterial(defaultMaterialUUID());
+    }
+    catch (const MaterialNotFound&) {
+        try {
+            material = getManager().getMaterial(builtInDefault);
+        }
+        catch (const MaterialNotFound&) {
+            // A stand-in for the built-in card, so that documents still refer to it
+            material = std::make_shared<Material>(nullptr,
+                                                  QString(),
+                                                  builtInDefault,
+                                                  QStringLiteral("Default"));
+            material->addAppearance(ModelUUIDs::ModelUUID_Rendering_Basic);
+        }
     }
     if (material->hasAppearanceModel(ModelUUIDs::ModelUUID_Rendering_Basic)) {
         material->getAppearanceProperty(QStringLiteral("DiffuseColor"))
