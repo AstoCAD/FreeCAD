@@ -174,12 +174,7 @@ private:
             Py::Sequence l(pts);
             data.reserve(l.size());
             for (Py::Sequence::iterator it = l.begin(); it != l.end(); ++it) {
-                Py::Tuple t(*it);
-                data.emplace_back(
-                    Py::Float(t.getItem(0)),
-                    Py::Float(t.getItem(1)),
-                    Py::Float(t.getItem(2))
-                );
+                data.push_back(Py::Vector(*it).toVector());
             }
         }
 
@@ -395,12 +390,7 @@ private:
                 Py::Sequence l(o);
                 pts.reserve(l.size());
                 for (Py::Sequence::iterator it = l.begin(); it != l.end(); ++it) {
-                    Py::Tuple t(*it);
-                    pts.emplace_back(
-                        Py::Float(t.getItem(0)),
-                        Py::Float(t.getItem(1)),
-                        Py::Float(t.getItem(2))
-                    );
+                    pts.push_back(Base::convertTo<Base::Vector3f>(Py::Vector(*it).toVector()));
                 }
             }
 
