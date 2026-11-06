@@ -958,6 +958,28 @@ static TopoShape _getTopoShape(
         return shape;
     }
 
+    // _getTopoShape() calls itself for the children of a group. A group that contains
+    // itself (directly or through a subgroup, possible by assigning Group directly) was
+    // recursed into until the stack overflowed, so stop at the link depth limit.
+    // An acyclic hierarchy never nests deeper than the number of objects.
+    static thread_local int recursionDepth = 0;
+    if (!App::GetApplication().checkLinkDepth(recursionDepth, App::MessageOption::Error)) {
+        return shape;
+    }
+    struct DepthGuard
+    {
+        DepthGuard()
+        {
+            ++recursionDepth;
+        }
+        ~DepthGuard()
+        {
+            --recursionDepth;
+        }
+        DepthGuard(const DepthGuard&) = delete;
+        DepthGuard& operator=(const DepthGuard&) = delete;
+    } depthGuard;
+
     PyObject* pyobj = nullptr;
     Base::Matrix4D mat;
     if (powner) {
