@@ -284,8 +284,9 @@ void CosmeticEdge::Restore(Base::XMLReader &reader)
         aoc->Restore(reader);
         aoc->setOCCEdge(GeometryUtils::edgeFromCircleArc(aoc));
         m_geometry = aoc->inverted();
-        permaStart = aoc->center;
-        permaEnd   = aoc->center;
+        // the arc is saved uninverted, but the perma points are Y inverted like m_geometry
+        permaStart = DU::invertY(aoc->center);
+        permaEnd   = permaStart;
         permaRadius = aoc->radius;
     } else {
         Base::Console().warning("CE::Restore - unimplemented geomType: {}\n", static_cast<int>(gType));
