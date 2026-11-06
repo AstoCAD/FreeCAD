@@ -150,6 +150,27 @@ PyObject* ViewProviderGeometryObjectPy::resetToMaterial(PyObject* args)
     PY_CATCH
 }
 
+PyObject* ViewProviderGeometryObjectPy::setFaceAppearance(PyObject* args)
+{
+    PyObject* pyFaces = nullptr;
+    PyObject* pyLook = nullptr;
+    if (!PyArg_ParseTuple(args, "OO!", &pyFaces, &App::MaterialPy::Type, &pyLook)) {
+        return nullptr;
+    }
+    std::vector<std::string> faces;
+    if (!getFaceNames(pyFaces, faces)) {
+        return nullptr;
+    }
+
+    PY_TRY
+    {
+        const App::Material& look = *static_cast<App::MaterialPy*>(pyLook)->getMaterialPtr();
+        getViewProviderGeometryObjectPtr()->setFaceAppearance(faces, look);
+        Py_Return;
+    }
+    PY_CATCH
+}
+
 int ViewProviderGeometryObjectPy::setCustomAttributes(const char* attr, PyObject* obj)
 {
     ViewProviderGeometryObject* vp = getViewProviderGeometryObjectPtr();

@@ -50,3 +50,13 @@ class ViewProviderGeometryObject(ViewProviderDocumentObject):
             Face names like 'Face1' whose override is cleared. If omitted, all overrides of
             the object and of its faces are cleared.
         """
+
+    def setFaceAppearance(self, faces: List[str], appearance: object, /) -> None:
+        """
+        Gives an appearance to some faces: an override of the look of the material.
+
+        faces : list of str
+            Face names like 'Face1'.
+        appearance : App.Material
+            The look of these faces.
+        """
