@@ -87,6 +87,26 @@ class TestSurfacePattern(PathTestUtils.PathTestBase):
         )
         self.face_with_hole = Part.makeFace([outer, inner])
 
+    def test_missing_cpp_module_raises_import_error(self):
+        """Without the C++ module, importing surface_pattern re-raises the ImportError."""
+        import importlib.util
+        import sys
+
+        origin = importlib.util.find_spec("Path.Base.Generator.surface_pattern").origin
+        spec = importlib.util.spec_from_file_location("_surface_pattern_without_cpp", origin)
+        module = importlib.util.module_from_spec(spec)
+        missing = object()
+        saved = sys.modules.get("surface_generator", missing)
+        sys.modules["surface_generator"] = None  # makes "import surface_generator" fail
+        try:
+            with self.assertRaises(ImportError):
+                spec.loader.exec_module(module)
+        finally:
+            if saved is missing:
+                del sys.modules["surface_generator"]
+            else:
+                sys.modules["surface_generator"] = saved
+
     # -- Feature Selection and Grouping Tests --
 
     def test00_split_features(self):
