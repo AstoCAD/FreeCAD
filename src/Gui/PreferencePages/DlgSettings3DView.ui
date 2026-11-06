@@ -688,7 +688,7 @@ The environment variable FC_RENDER_CLASSIC=1 always forces 'Classic'.</string>
           </property>
           <property name="toolTip">
            <string>Soft environment light used by the 'Enhanced' rendering quality.
-It follows the camera, like the headlight.</string>
+It is fixed to the model (Z up): rotating the view does not change it.</string>
           </property>
           <property name="prefEntry" stdset="0">
            <cstring>RenderEnvironment</cstring>
@@ -713,7 +713,49 @@ It follows the camera, like the headlight.</string>
           </item>
          </widget>
         </item>
-        <item row="9" column="0" colspan="2">
+        <item row="9" column="0">
+         <widget class="QLabel" name="renderKeyLightLabel">
+          <property name="text">
+           <string>Direct light</string>
+          </property>
+         </widget>
+        </item>
+        <item row="9" column="1">
+         <widget class="Gui::PrefComboBox" name="comboRenderKeyLight">
+          <property name="minimumSize">
+           <size>
+            <width>120</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Where the direct light of the 'Enhanced' rendering quality comes from.
+'Headlight' follows the view, like the 'Classic' lighting: the faces turned towards
+the camera are the brightest.
+'Fixed key light' shines from a fixed sun above the model, the one that casts the
+shadows: the lighting stays the same while the view is rotated, and the lit sides
+match the shadows. It keeps the headlight color and intensity (Light Sources page),
+and is off when the headlight is off. Other light sources are not changed.</string>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>RenderKeyLight</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+          <item>
+           <property name="text">
+            <string>Headlight (follows the view)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Fixed key light (sun)</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="10" column="0" colspan="2">
          <widget class="Gui::PrefCheckBox" name="CheckBox_RenderShadows">
           <property name="toolTip">
            <string>Soft shadows cast by a fixed light above the model ('Enhanced' rendering quality only).
@@ -731,7 +773,7 @@ textures, and are switched off automatically when the graphics driver cannot pro
           </property>
          </widget>
         </item>
-        <item row="10" column="0" colspan="2">
+        <item row="11" column="0" colspan="2">
          <widget class="Gui::PrefCheckBox" name="CheckBox_RenderFxaa">
           <property name="toolTip">
            <string>Smooth jagged edges with FXAA ('Enhanced' rendering quality only).
@@ -752,14 +794,14 @@ hardware anti-aliasing is kept unchanged.</string>
           </property>
          </widget>
         </item>
-        <item row="11" column="0">
+        <item row="12" column="0">
          <widget class="QLabel" name="renderSupersamplingLabel">
           <property name="text">
            <string>Image export supersampling</string>
           </property>
          </widget>
         </item>
-        <item row="11" column="1">
+        <item row="12" column="1">
          <widget class="Gui::PrefSpinBox" name="SpinBox_RenderExportSupersampling">
           <property name="toolTip">
            <string>'Enhanced' rendering quality only: saved images are rendered this many times
@@ -785,7 +827,7 @@ larger and filtered down, for smoother edges. Lines and markers get thinner by t
           </property>
          </widget>
         </item>
-        <item row="12" column="0" colspan="2">
+        <item row="13" column="0" colspan="2">
          <widget class="Gui::PrefCheckBox" name="CheckBox_RenderAmbientOcclusion">
           <property name="toolTip">
            <string>Darken creases, corners and contact areas of faces with screen-space ambient
@@ -803,7 +845,7 @@ moving, and left out while rotating, panning or zooming.</string>
           </property>
          </widget>
         </item>
-        <item row="13" column="0" colspan="2">
+        <item row="14" column="0" colspan="2">
          <widget class="QLabel" name="renderQualityStatus">
           <property name="text">
            <string notr="true"/>

@@ -104,6 +104,7 @@ void View3DSettings::applySettings()
     OnChange(*hGrp, "RenderFxaa");
     OnChange(*hGrp, "RenderAmbientOcclusion");
     OnChange(*hGrp, "RenderExportSupersampling");
+    OnChange(*hGrp, "RenderKeyLight");
     OnChange(*hGrp, "MaxFrameRate");
     OnChange(*hGrp, "Orthographic");
     OnChange(*hGrp, "NavigationStyle");
@@ -447,7 +448,8 @@ void View3DSettings::OnChange(ParameterGrp::SubjectType& rCaller, ParameterGrp::
     else if (strcmp(Reason, "RenderQuality") == 0 || strcmp(Reason, "RenderEnvironment") == 0
              || strcmp(Reason, "RenderShadows") == 0 || strcmp(Reason, "RenderFxaa") == 0
              || strcmp(Reason, "RenderExportSupersampling") == 0
-             || strcmp(Reason, "RenderAmbientOcclusion") == 0) {
+             || strcmp(Reason, "RenderAmbientOcclusion") == 0
+             || strcmp(Reason, "RenderKeyLight") == 0) {
         Render::RenderSettings::setRequestedQuality(Render::qualityFromParameter(
             rGrp.GetInt(Render::RenderSettings::qualityKey, Render::parameterFromQuality(Render::defaultQuality))
         ));
@@ -463,6 +465,9 @@ void View3DSettings::OnChange(ParameterGrp::SubjectType& rCaller, ParameterGrp::
         Render::RenderSettings::setExportSupersampling(
             int(rGrp.GetInt(Render::RenderSettings::exportSupersamplingKey, 1))
         );
+        Render::RenderSettings::setKeyLight(Render::keyLightFromParameter(
+            rGrp.GetInt(Render::RenderSettings::keyLightKey, static_cast<long>(Render::defaultKeyLight))
+        ));
         // The settings are process wide, but every observer owns other viewers, so each observer
         // compares with what it applied last. Nothing happens unless the views show something
         // else (Classic ignores every Enhanced option, and rewriting equal values changes nothing).
