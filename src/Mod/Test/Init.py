@@ -38,6 +38,7 @@ FreeCAD.__unit_test__ += [
     "TestPropertyMatrixIntegerOverflow",
     "TestPropertyFloatIntegerConversion",
     "TestFloatConstraintQuantityIntegerConversion",
+    "TestPropertyFloatNaN",
     "TestHelpFallback",
     "TestProjectUtility",
     "TestUserParameters",
