@@ -2055,6 +2055,43 @@ class SpreadsheetCases(unittest.TestCase):
         self.doc.recompute()
         self.assertEqual(sheet.getContents("D1"), "1")
 
+    def testInsertRemoveRowsColumnsWithAliasRange(self):
+        """Inserting or removing rows/columns moves the aliases before their cells. A range
+        made of aliases (sum(first:last)) in a cell moved in between could then not be
+        resolved: the operation stopped half-way with "Invalid cell address 'last'" and left
+        the sheet half-moved"""
+        ops = [
+            # operation, formula cells after it, alias cells after it
+            (lambda s: s.insertRows("1", 1), ("B3", "D7"), ("C4", "C6")),
+            (lambda s: s.removeRows("1", 1), ("B1", "D5"), ("C2", "C4")),
+            (lambda s: s.insertColumns("A", 1), ("C2", "E6"), ("D3", "D5")),
+            (lambda s: s.removeColumns("A", 1), ("A2", "C6"), ("B3", "B5")),
+        ]
+        for index, (op, formulas, aliases) in enumerate(ops):
+            sheet = self.doc.addObject("Spreadsheet::Sheet", "Sheet%d" % index)
+            sheet.set("C3", "1")
+            sheet.set("C4", "2")
+            sheet.set("C5", "3")
+            sheet.setAlias("C3", "first")
+            sheet.setAlias("C5", "last")
+            sheet.set("B2", "=sum(first:last)")  # above/left of the aliases
+            sheet.set("D6", "=sum(first:last)")  # below/right of the aliases
+            self.doc.recompute()
+            op(sheet)
+            self.doc.recompute()
+            self.assertEqual(
+                (sheet.getCellFromAlias("first"), sheet.getCellFromAlias("last")), aliases, index
+            )
+            for cell in formulas:
+                self.assertEqual(sheet.getContents(cell), "=sum(first:last)", (index, cell))
+                self.assertEqual(sheet.get(cell), 6, (index, cell))
+            self.assertEqual(len(sheet.getNonEmptyCells()), 5, index)
+            # The dependencies follow the moved range
+            sheet.set(aliases[0], "11")
+            self.doc.recompute()
+            for cell in formulas:
+                self.assertEqual(sheet.get(cell), 16, (index, cell))
+
     def testImportXLSXSharedFormulas(self):
         """Issue #20299: cells using a shared formula (formula dragged down
         or across in Excel) must be imported"""
