@@ -212,6 +212,7 @@ SET(TDTest_SRCS
     TDTest/DrawDimensionFilledAreaTest.py
     TDTest/DrawDxfRadialDimTest.py
     TDTest/DrawDxfAngle3PtDimTest.py
+    TDTest/DrawViewScaledLinkTest.py
     TDTest/DrawDimensionAreaToleranceTest.py
     TDTest/DrawDxfLinearDimBlockTest.py
     TDTest/DrawCreationDocumentTest.py

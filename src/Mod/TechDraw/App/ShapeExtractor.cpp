@@ -283,6 +283,14 @@ TopoDS_Shape ShapeExtractor::getShapeFromXLink(const App::Link* xLink)
         //ts might be garbage now, better check
         try {
             if (!ts.isNull()) {
+                if (!linkScale.isUnity()) {
+                    // scale in the linked object's own coordinates, then place it like the link.
+                    // Copy first as getXShapes does (avoids "non-orthogonal GTrsf" errors).
+                    ts.setPlacement(Base::Placement());
+                    BRepBuilderAPI_Copy copier(ts.getShape());
+                    ts = Part::TopoShape(copier.Shape());
+                    ts.transformGeometry(linkScale);
+                }
                 ts.setPlacement(xLinkPlacement);
             }
         }
