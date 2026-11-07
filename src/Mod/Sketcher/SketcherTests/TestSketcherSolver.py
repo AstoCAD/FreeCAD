@@ -1880,6 +1880,50 @@ class TestSketcherSolver(unittest.TestCase):
         self.assertNotIn("Negative", message)
         self.assertIn("Cannot set the datum", message)
 
+    def _checkEndpointAngleToBSpline(self, constraintType, curve, bsplineFirst):
+        # A Tangent/Perpendicular between an end of a curve and an end of a B-spline must work
+        # whichever of the two is given first.
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "EndpointAngleBSpline")
+        if curve == "line":
+            other = sketch.addGeometry(Part.LineSegment(vec(-8, 0), vec(-3, 2)))
+        else:
+            other = sketch.addGeometry(
+                Part.ArcOfCircle(Part.Circle(vec(-6, 0), App.Vector(0, 0, 1), 3), 0.2, 1.4)
+            )
+        spline = Part.BSplineCurve()
+        spline.buildFromPoles([vec(4, 3), vec(6, 6), vec(8, 2), vec(10, 5)], False, 3)
+        bspline = sketch.addGeometry(spline)
+        if bsplineFirst:
+            sketch.addConstraint(Sketcher.Constraint(constraintType, bspline, 1, other, 2))
+        else:
+            sketch.addConstraint(Sketcher.Constraint(constraintType, other, 2, bspline, 1))
+        self.assertSuccessfulSolve(sketch)
+        self.assertEqual(sketch.ConflictingConstraints, [])
+        self.assertVectorAlmostEqual(sketch.getPoint(other, 2), sketch.getPoint(bspline, 1))
+        otherEdge = sketch.Geometry[other].toShape()
+        splineEdge = sketch.Geometry[bspline].toShape()
+        t1 = otherEdge.tangentAt(otherEdge.LastParameter)
+        t2 = splineEdge.tangentAt(splineEdge.FirstParameter)
+        if constraintType == "Tangent":
+            self.assertAlmostEqual(t1.cross(t2).Length, 0.0, places=6)
+        else:
+            self.assertAlmostEqual(t1.dot(t2), 0.0, places=6)
+
+    def testEndpointTangentLineToBSpline(self):
+        self._checkEndpointAngleToBSpline("Tangent", "line", bsplineFirst=False)
+
+    def testEndpointTangentArcToBSpline(self):
+        self._checkEndpointAngleToBSpline("Tangent", "arc", bsplineFirst=False)
+
+    def testEndpointPerpendicularLineToBSpline(self):
+        self._checkEndpointAngleToBSpline("Perpendicular", "line", bsplineFirst=False)
+
+    def testEndpointTangentBSplineToLine(self):
+        self._checkEndpointAngleToBSpline("Tangent", "line", bsplineFirst=True)
+
+    def testEndpointTangentBSplineToArc(self):
+        self._checkEndpointAngleToBSpline("Tangent", "arc", bsplineFirst=True)
+
     def assertSuccessfulSolve(self, sketch, msg=None):
         status = sketch.solve()
         # TODO: can we get the solver's messages somehow to improve the message?
