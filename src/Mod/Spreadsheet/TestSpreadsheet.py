@@ -1265,6 +1265,41 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.A5, Units.Quantity("2 1/mm"))
         self.assertEqual(sheet.A6, Units.Quantity("2 mm/s"))
 
+    def testSignedQuantitiesAndFractionsAsNumbers(self):
+        """A sign in front of a quantity or a simple fraction is part of it, as for plain
+        numbers: "-12 mm" and "-1/2" were stored as text"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "-12 mm")
+        sheet.set("A2", "+1mm")
+        sheet.set("A3", "-1/2")
+        sheet.set("A4", "-4mm/2")
+        sheet.set("A5", "-6mm/3s")
+        sheet.set("A6", "-2/mm")
+        # Still text: more than one sign, a sign in the denominator, or no number after it
+        sheet.set("B1", "--12 mm")
+        sheet.set("B2", "1/-2")
+        sheet.set("B3", "- 3")
+        sheet.set("B4", "-12 mm + 1")
+        self.doc.recompute()
+        self.assertEqual(sheet.A1, Units.Quantity("-12 mm"))
+        self.assertEqual(sheet.A2, Units.Quantity("1 mm"))
+        self.assertEqual(sheet.A3, -0.5)
+        self.assertEqual(sheet.A4, Units.Quantity("-2 mm"))
+        self.assertEqual(sheet.A5, Units.Quantity("-2 mm/s"))
+        self.assertEqual(sheet.A6, Units.Quantity("-2 1/mm"))
+        for cell, text in (("B1", "--12 mm"), ("B2", "1/-2"), ("B3", "- 3"), ("B4", "-12 mm + 1")):
+            self.assertEqual(sheet.getContents(cell), "'" + text)
+        # The signed quantity is kept across save and restore
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "signed.FCStd")
+            self.doc.saveAs(path)
+            FreeCAD.closeDocument(self.doc.Name)
+            self.doc = FreeCAD.openDocument(path)
+        sheet = self.doc.getObject("Spreadsheet")
+        self.doc.recompute()
+        self.assertEqual(sheet.A1, Units.Quantity("-12 mm"))
+        self.assertEqual(sheet.A3, -0.5)
+
     def testRemoveRows(self):
         """Removing rows -- check renaming of internal cells"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
