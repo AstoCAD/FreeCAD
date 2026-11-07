@@ -147,18 +147,20 @@ void Trajectory::deleteLast(unsigned int n)
         delete (*vpcWaypoints.rbegin());
         vpcWaypoints.pop_back();
     }
+    // the motion must follow the remaining waypoints
+    generateTrajectory();
 }
 
 void Trajectory::generateTrajectory()
 {
+    // delete the old one, also when there are no waypoints left
+    delete pcTrajectory;
+    pcTrajectory = nullptr;
+
     if (vpcWaypoints.empty()) {
         return;
     }
 
-    // delete the old and create a new one
-    if (pcTrajectory) {
-        delete (pcTrajectory);
-    }
     pcTrajectory = new KDL::Trajectory_Composite();
 
     // pointer to the pieces while iterating
