@@ -68,9 +68,13 @@ def split_open_wire(wire, newPoint, edgeIndex):
     wire2Points = []
     for index, point in enumerate(wire.Points):
         if index == edgeIndex:
-            wire1Points.append(splitPoint)
+            # A split point on a vertex of the edge must not duplicate that
+            # vertex: the point indices would no longer match the edges.
+            if not splitPoint.isEqual(wire1Points[-1], 1e-7):
+                wire1Points.append(splitPoint)
             wire2Points.append(splitPoint)
-            wire2Points.append(point)
+            if not splitPoint.isEqual(point, 1e-7):
+                wire2Points.append(point)
         elif index < edgeIndex:
             wire1Points.append(point)
         elif index > edgeIndex:
