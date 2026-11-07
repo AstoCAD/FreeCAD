@@ -855,7 +855,7 @@ private:
                                 type = 2;
                             }
                             writer.exportLinearDim(textLocn, lineLocn, extLine1Start, extLine2Start, dimText, type);
-                        } else if (dvd->Type.isValue("Angle")) {
+                        } else if (dvd->Type.isValue("Angle") || dvd->Type.isValue("Angle3Pt")) {
                             Base::Vector3d textLocn(dvd->X.getValue() + parentX, dvd->Y.getValue() + parentY, 0.0);
                             Base::Vector3d lineLocn(dvd->X.getValue() + parentX, dvd->Y.getValue() + parentY, 0.0);
                             anglePoints pts = dvd->getAnglePoints();
