@@ -42,6 +42,7 @@ from TDTest.DrawDimensionAngleReferenceTest import DrawDimensionAngleReferenceTe
 from TDTest.DrawDimensionCircleAlignmentTest import DrawDimensionCircleAlignmentTest  # noqa: F401
 from TDTest.DrawDimension3dReferenceViewTest import DrawDimension3dReferenceViewTest  # noqa: F401
 from TDTest.DrawDimensionFilledAreaTest import DrawDimensionFilledAreaTest  # noqa: F401
+from TDTest.DrawDxfRadialDimTest import DrawDxfRadialDimTest  # noqa: F401
 from TDTest.DrawDimensionAreaToleranceTest import DrawDimensionAreaToleranceTest  # noqa: F401
 from TDTest.DrawViewWrapperIdentityTest import DrawViewWrapperIdentityTest  # noqa: F401
 from TDTest.DrawPageAddViewTypeTest import DrawPageAddViewTypeTest  # noqa: F401
