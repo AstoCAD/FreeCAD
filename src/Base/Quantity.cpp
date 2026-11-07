@@ -527,6 +527,18 @@ const Quantity Quantity::Gon                    ( 360.0 / 400.0         , Unit::
 // NOLINTNEXTLINE
 Quantity QuantResult;
 
+// A compound quantity like -10' 5" (feet and inches) has one sign for the whole value, as the
+// Building US schema writes it: a part without a minus sign of its own takes the sign of the
+// leading part. A part with its own sign (-10' -5", -1' 2" - 1/4") adds as written. The sign of
+// the leading part as written decides, not the running total (1' -14" 3" is 1"). A written -0
+// counts as negative (the DMS schema writes -0.01° as -0°0′36″), so the signs are tested, not
+// the values.
+static Quantity addCompoundPart(const Quantity& lead, const Quantity& total, const Quantity& part)
+{
+    return std::signbit(lead.getValue()) && !std::signbit(part.getValue()) ? total - part
+                                                                            : total + part;
+}
+
 /* helper function for tuning number strings with groups in a locale agnostic way... */
 // NOLINTBEGIN
 double num_change(char* yytext, char dez_delim, char grp_delim)

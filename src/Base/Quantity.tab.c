@@ -1258,13 +1258,13 @@ yyreduce:
 
   case 6: /* input: quantity quantity  */
 #line 50 "Quantity.y"
-                                                { QuantResult = yyvsp[-1] + yyvsp[0];        }
+                                                { QuantResult = addCompoundPart(yyvsp[-1], yyvsp[-1], yyvsp[0]);        }
 #line 1260 "Quantity.tab.c"
     break;
 
   case 7: /* input: quantity quantity quantity  */
 #line 51 "Quantity.y"
-                                                { QuantResult = yyvsp[-2] + yyvsp[-1] + yyvsp[0];	}
+                                                { QuantResult = addCompoundPart(yyvsp[-2], addCompoundPart(yyvsp[-2], yyvsp[-2], yyvsp[-1]), yyvsp[0]);	}
 #line 1266 "Quantity.tab.c"
     break;
 

@@ -406,6 +406,48 @@ class UnitBasicCases(unittest.TestCase):
         self.assertEqual(FreeCAD.Units.Quantity("1 kg/m^3").Unit, FreeCAD.Units.Density)
         self.assertEqual(FreeCAD.Units.Quantity("−1 mm").Value, -1)
 
+    def testNegativeFeetAndInches(self):
+        # -10' 5" means minus (10 feet 5 inches), as the Building US schema writes it,
+        # but was read as -10' + 5"
+        q = FreeCAD.Units.Quantity
+        for text, inches in (
+            ("-10' 5\"", -125),
+            ("-10'5\"", -125),
+            ("-10 ft 5 in", -125),
+            ("-10' -5\"", -125),
+            ("-1' 2\" - 1/4\"", -14.25),
+            ("-2\" - 1/2\"", -2.5),
+            ("10' 5\"", 125),
+            ("1' 2\" + 1/4\"", 14.25),
+            ("2' -4\"", 20),
+            # the leading part decides the sign, not the running total
+            ("1' -14\" 3\"", 1),
+            ("-1' -2\" 3\"", -17),
+        ):
+            with self.subTest(text=text):
+                self.assertAlmostEqual(q(text).getValueAs("in"), inches)
+        # the schema's own output reads back
+        schemas = FreeCAD.Units.listSchemas()
+        building = schemas.index("ImperialBuilding")
+        for mm in (-2540.0, -390.525, -85.725, -317.5, 390.525):
+            with self.subTest(mm=mm):
+                text = FreeCAD.Units.schemaTranslate(q(mm, FreeCAD.Units.Length), building)[0]
+                self.assertAlmostEqual(q(text).Value, mm, msg=text)
+
+    def testNegativeDegreesMinutesSeconds(self):
+        # The same rule for degrees, minutes and seconds: -10°30′ is -(10°30′). The Civil
+        # schema wrote -10.5° as -11°30′ (-11° + 30′), which now read back as -11.5°.
+        q = FreeCAD.Units.Quantity
+        self.assertAlmostEqual(q("-10°30′").Value, -10.5)
+        self.assertAlmostEqual(q("-0°15′").Value, -0.25)
+        self.assertAlmostEqual(q("-0°0′36″").Value, -0.01)
+        civil = FreeCAD.Units.listSchemas().index("ImperialCivil")
+        for degrees in (10.5, -10.5, -0.25, -0.01, -45.11, -30.0, 0.0):
+            with self.subTest(degrees=degrees):
+                angle = q(degrees, FreeCAD.Units.Angle)
+                text = FreeCAD.Units.schemaTranslate(angle, civil)[0]
+                self.assertAlmostEqual(q(text).Value, degrees, msg=text)
+
     def testLongNumberLiteral(self):
         # A number of 40 characters or more overflowed the lexer's buffer and read as 0
         digits = "0." + "1" * 45

@@ -47,8 +47,8 @@
             |   num                             { QuantResult = $1;             }
             |   unit                            { QuantResult = $1;             }
             |   quantity                        { QuantResult = $1;             }
-            |   quantity quantity               { QuantResult = $1 + $2;        }
-            |   quantity quantity quantity      { QuantResult = $1 + $2 + $3;	}
+            |   quantity quantity               { QuantResult = addCompoundPart($1, $1, $2);    }
+            |   quantity quantity quantity      { QuantResult = addCompoundPart($1, addCompoundPart($1, $1, $2), $3);	}
 ;
     num:        NUM                             { $$ = $1; }
             |   ONE                             { $$ = $1; }
