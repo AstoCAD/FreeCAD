@@ -403,9 +403,10 @@ App::DocumentObjectExecReturn* Transformed::execute()
 
     std::vector<DocumentObject*> originals = getOriginals();
 
-    if (mode == Mode::Features && originals.empty()) {
-        return App::DocumentObject::StdReturn;
-    }
+    // Originals is not empty here (see isMultiTransformChild()), so every original is suppressed:
+    // there is nothing to transform and the support passes through, like a feature without
+    // transformations below. Returning early would keep the shape of the previous recompute.
+    const bool allOriginalsSuppressed = mode == Mode::Features && originals.empty();
 
     if (!this->BaseFeature.getValue()) {
         if (auto body = getFeatureBody()) {
@@ -418,7 +419,10 @@ App::DocumentObjectExecReturn* Transformed::execute()
     // get transformations from subclass by calling virtual method
     std::vector<gp_Trsf> transformations;
     try {
-        std::list<gp_Trsf> t_list = getTransformations(originals);
+        std::list<gp_Trsf> t_list;
+        if (!allOriginalsSuppressed) {
+            t_list = getTransformations(originals);
+        }
         transformations.insert(transformations.end(), t_list.begin(), t_list.end());
     }
     catch (Base::Exception& e) {
@@ -476,7 +480,8 @@ App::DocumentObjectExecReturn* Transformed::execute()
     resultShape.setTransform(Base::Matrix4D());
 
     if (transformations.empty()) {
-        // No transformation at all (e.g. every transformation was removed from a MultiTransform):
+        // No transformation at all (e.g. every transformation was removed from a MultiTransform,
+        // or every original is suppressed):
         // the result is the unchanged support, not the shape left by the previous recompute.
         resultShape = refineShapeIfActive(resultShape);
         this->Shape.setValue(getSolid(resultShape));
