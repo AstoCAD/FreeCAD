@@ -489,6 +489,7 @@ def export(exportList, filename, colors=None, preferences=None):
         []
     )  # store used UIDs to avoid reuse (some FreeCAD objects might have same IFC UID, ex. copy/pasted objects
     classifications = {}  # {Name:IfcEntity, ... }
+    classificationrefs = {}  # {(Name, Code):IfcEntity, ... }
     curvestyles = {}
 
     # build clones table
@@ -1132,20 +1133,25 @@ def export(exportList, filename, colors=None, preferences=None):
 
         classification = getattr(obj, "StandardCode", "")
         if classification:
-            name, code = classification.split(" ", 1)
+            # "System Code", or a bare code when it was given without its system
+            if " " in classification:
+                name, code = classification.split(" ", 1)
+            else:
+                name, code = None, classification
+            system = None
             if name in classifications:
                 system = classifications[name]
-            else:
+            elif name:
                 system = ifcfile.createIfcClassification(None, None, None, name)
                 classifications[name] = system
-            for ref in getattr(system, "HasReferences", []):
-                if code.startswith(ref.Name):
-                    break
-            else:
+            # objects with the same code share one reference
+            ref = classificationrefs.get((name, code))
+            if ref is None:
                 ref = ifcfile.createIfcClassificationReference(None, code, None, system)
+                classificationrefs[(name, code)] = ref
             if getattr(ref, "ClassificationRefForObjects", None):
                 rel = ref.ClassificationRefForObjects[0]
-                rel.RelatedObjects = rel.RelatedObjects + [product]
+                rel.RelatedObjects = list(rel.RelatedObjects) + [product]
             else:
                 rel = ifcfile.createIfcRelAssociatesClassification(
                     ifcopenshell.guid.new(),
