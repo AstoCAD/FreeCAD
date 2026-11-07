@@ -278,6 +278,65 @@ class TestResult(unittest.TestCase):
         self.assertEqual(len(frames), 2, f"unexpected frames: {frames}")
 
     # ********************************************************************************************
+    def test_frd_import_multistep_node_number_gap(self):
+        # the result mesh of the first result set was compacted (node numbers from 1 without
+        # gaps), the meshes of the next result sets were not, but got the compacted NodeNumbers
+        import ObjectsFem
+        from feminout import importCcxFrdResults
+
+        frd_file = join(testtools.get_fem_test_home_dir(), "calculix", "box_frequency.frd")
+        with open(frd_file) as f:
+            lines = f.read().splitlines()
+        first_step = next(i for i, ln in enumerate(lines) if ln[4:10] == "1PSTEP")
+        mesh_part = lines[:first_step]
+        mode_part = lines[first_step:-1]
+
+        # node numbers from 100 on get an offset of 1000: a gap in the node numbers
+        def renumber(node):
+            return node + 1000 if node >= 100 else node
+
+        block = None
+
+        def with_gap(ln):
+            nonlocal block
+            if ln.startswith("    2C"):
+                block = "nodes"
+            elif ln.startswith("    3C"):
+                block = "elements"
+            elif ln.startswith("  100C"):
+                block = "results"
+            elif ln.startswith(" -3"):
+                block = None
+            elif ln.startswith(" -1") and block in ("nodes", "results"):
+                return ln[:3] + f"{renumber(int(ln[3:13])):10d}" + ln[13:]
+            elif ln.startswith(" -2") and block == "elements":
+                nodes = [int(ln[i : i + 10]) for i in range(3, len(ln), 10)]
+                return " -2" + "".join(f"{renumber(n):10d}" for n in nodes)
+            return ln
+
+        frd_lines = [with_gap(ln) for ln in mesh_part]
+        for mode, freq in ((1, "1.00000E-03"), (2, "2.00000E-03")):
+            for ln in mode_part:
+                if ln[5:10] == "PMODE":
+                    ln = ln[:30] + f"{mode:6d}" + ln[36:]
+                elif ln[2:7] == "100CL":
+                    ln = ln[:13] + freq + ln[24:]
+                frd_lines.append(with_gap(ln))
+        frd_lines.append(lines[-1])
+        test_frd = join(testtools.get_fem_test_tmp_dir("result_frd_gap"), "box_frequency.frd")
+        with open(test_frd, "w") as f:
+            f.write("\n".join(frd_lines) + "\n")
+
+        analysis = ObjectsFem.makeAnalysis(self.document, "Analysis")
+        importCcxFrdResults.importFrd(test_frd, analysis, "", "frequency")
+        results = [o for o in analysis.Group if o.isDerivedFrom("Fem::FemResultObject")]
+        self.assertEqual(len(results), 2)
+        for res in results:
+            mesh_nodes = res.Mesh.FemMesh.Nodes
+            self.assertEqual(max(mesh_nodes), len(mesh_nodes), res.Name)
+            self.assertTrue(all(n in mesh_nodes for n in res.NodeNumbers), res.Name)
+
+    # ********************************************************************************************
     def test_vtk_result_read_write_bad_input(self):
         # Fem.readResult(file) without an object name, a file VTK could not read and
         # Fem.writeResult with an object without a FEM mesh crashed
