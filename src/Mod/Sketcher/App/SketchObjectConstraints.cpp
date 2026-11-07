@@ -2526,22 +2526,47 @@ double SketchObject::calculateAngleViaPoint(int GeoId1, int GeoId2, double px, d
         throw Base::ValueError("Null geometry in calculateAngleViaPoint");
 }
 
+// The sketch's own expressions may spell a constraint path with the local property dot
+// ('.Constraints[2]'). ObjectIdentifier keeps that spelling, so it does not compare equal to the
+// 'Constraints[2]' paths that PropertyConstraintList signals. Returns the dotted spelling.
+static App::ObjectIdentifier localPropertySpelling(const App::ObjectIdentifier& path)
+{
+    App::ObjectIdentifier local(path.getOwner(), true);
+    for (const auto& component : path.getComponents()) {
+        local << component;
+    }
+    return local;
+}
+
 void SketchObject::constraintsRenamed(
     const std::map<App::ObjectIdentifier, App::ObjectIdentifier>& renamed)
 {
-    ExpressionEngine.renameExpressions(renamed);
+    // The new paths are canonical for the new constraint list, but Constraints still holds the
+    // old list while it signals the renames. Document::renameObjectIdentifiers() canonicalizes
+    // both sides against the current list, which would turn a new 'Constraints[i]' into the name
+    // of the old constraint i. Only the old paths are canonicalized here, in both spellings.
+    std::map<App::ObjectIdentifier, App::ObjectIdentifier> paths;
+    for (const auto& [oldPath, newPath] : renamed) {
+        paths[oldPath.canonicalPath()] = newPath;
+    }
+    for (const auto& [oldPath, newPath] : renamed) {
+        paths.emplace(localPropertySpelling(oldPath).canonicalPath(),
+                      localPropertySpelling(newPath));
+    }
 
-    for (auto doc : App::GetApplication().getDocuments())
-        doc->renameObjectIdentifiers(renamed);
+    ExpressionEngine.renameExpressions(paths);
+    for (auto doc : App::GetApplication().getDocuments()) {
+        for (auto obj : doc->getObjects()) {
+            obj->renameObjectIdentifiers(paths);
+        }
+    }
 }
 
 void SketchObject::constraintsRemoved(const std::set<App::ObjectIdentifier>& removed)
 {
-    auto i = removed.begin();
-
-    while (i != removed.end()) {
-        ExpressionEngine.setValue(*i, std::shared_ptr<App::Expression>());
-        ++i;
+    for (const auto& path : removed) {
+        ExpressionEngine.setValue(path, std::shared_ptr<App::Expression>());
+        ExpressionEngine.setValue(localPropertySpelling(path), std::shared_ptr<App::Expression>());
     }
 }
 
