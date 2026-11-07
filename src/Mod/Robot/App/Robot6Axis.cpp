@@ -203,15 +203,13 @@ void Robot6Axis::Restore(Base::XMLReader& reader)
         Temp.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::RotZ), toFrame(Tip)));
 
 
+        // Save() writes these attributes from the same members
         if (reader.hasAttribute("rotDir")) {
-            Velocity[i] = reader.getAttribute<double>("rotDir");
-        }
-        else {
-            Velocity[i] = 1.0;
+            RotDir[i] = reader.getAttribute<double>("rotDir");
         }
         // read the axis constraints
-        Min(i) = Base::toRadians<double>(reader.getAttribute<double>("maxAngle"));
-        Max(i) = Base::toRadians<double>(reader.getAttribute<double>("minAngle"));
+        Max(i) = Base::toRadians<double>(reader.getAttribute<double>("maxAngle"));
+        Min(i) = Base::toRadians<double>(reader.getAttribute<double>("minAngle"));
         if (reader.hasAttribute("AxisVelocity")) {
             Velocity[i] = reader.getAttribute<double>("AxisVelocity");
         }
