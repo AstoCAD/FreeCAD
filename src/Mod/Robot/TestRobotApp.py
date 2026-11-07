@@ -71,6 +71,22 @@ class TestRobotTrajectory(unittest.TestCase):
         trac = Robot.Trajectory([_waypoint(i) for i in range(5)])
         self.assertEqual(len(trac.deleteLast(0).Waypoints), 4)
 
+    def test_delete_last_updates_the_motion(self):
+        """deleteLast() changes the trajectory in place: its duration and path must follow."""
+        trac = Robot.Trajectory([_waypoint(x) for x in (0, 100, 200, 300)])
+        trac.deleteLast(1)
+        remaining = trac.Waypoints
+        self.assertGreaterEqual(len(remaining), 2)
+        self.assertLess(len(remaining), 4)
+        shorter = Robot.Trajectory(remaining)
+        self.assertAlmostEqual(trac.Length, shorter.Length)
+        self.assertAlmostEqual(trac.Duration, shorter.Duration)
+        self.assertTrue(trac.position(trac.Duration).Base.isEqual(remaining[-1].Pos.Base, 1e-7))
+        trac.deleteLast(5)
+        self.assertEqual(len(trac.Waypoints), 0)
+        self.assertEqual(trac.Length, 0.0)
+        self.assertEqual(trac.Duration, 0.0)
+
 
 class TestRobotAttributeErrors(unittest.TestCase):
     """Errors raised by attribute setters used to surface as 'Unknown exception'."""
