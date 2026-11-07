@@ -947,6 +947,33 @@ class DraftModification(test_base.DraftTestCaseDoc):
         self.assertAlmostEqual(obj.Length, newLen, delta=1e-6, msg="'{}' failed".format(operation))
         self.assertAlmostEqual(obj.Height, newHgt, delta=1e-6, msg="'{}' failed".format(operation))
 
+    def test_scale_rectangle_mirrored(self):
+        """Scale rectangles with mirroring factors or negative sides."""
+        cen = Vector(1.0, 2.0, 3.0)
+        places = [
+            App.Placement(Vector(3.5, 2.5, 0.0), App.Rotation()),
+            App.Placement(Vector(1.0, 2.0, 3.0), App.Rotation(Vector(1, 0, 0), 90)),
+        ]
+        for place in places:
+            for length, height in ((4.0, 3.0), (-4.0, 3.0), (4.0, -3.0)):
+                for sca in (Vector(-1, 1, 1), Vector(-2, -2, -2), Vector(2, 2, 2)):
+                    obj = Draft.make_rectangle(length, height, placement=place)
+                    self.doc.recompute()
+                    mtx = App.Matrix()
+                    mtx.move(-cen)
+                    mtx.scale(sca)
+                    mtx.move(cen)
+                    expected = [mtx.multVec(v.Point) for v in obj.Shape.Vertexes]
+                    new = Draft.scale(obj, sca, cen, copy=True)
+                    self.doc.recompute()
+                    msg = "{} {} {} {}".format(place, length, height, sca)
+                    self.assertEqual(utils.get_type(new), "Rectangle", msg)
+                    self.assertEqual(len(new.Shape.Vertexes), 4, msg)
+                    for vec in new.Shape.Vertexes:
+                        self.assertTrue(
+                            any(vec.Point.isEqual(exp, 1e-6) for exp in expected), msg
+                        )
+
     def test_scale_spline(self):
         """Create and scale a spline."""
         operation = "Draft Scale spline"
