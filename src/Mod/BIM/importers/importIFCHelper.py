@@ -51,27 +51,39 @@ DEBUG_prod_colors = False
 
 
 def dd2dms(dd):
-    """Convert decimal degrees to degrees, minutes, seconds.
+    """Convert decimal degrees to an IfcCompoundPlaneAngleMeasure.
+
+    Returns degrees, minutes, seconds and millionths of a second, all with
+    the sign of the angle. Whole seconds alone are up to 30 m off on the ground.
 
     Used in export.
     """
     sign = 1 if dd >= 0 else -1
-    dd = abs(dd)
-    minutes, seconds = divmod(dd * 3600, 60)
+    microseconds = round(abs(dd) * 3600e6)
+    seconds, microseconds = divmod(microseconds, 1000000)
+    minutes, seconds = divmod(seconds, 60)
     degrees, minutes = divmod(minutes, 60)
 
-    if dd < 0:
-        degrees = -degrees
+    return (
+        int(degrees) * sign,
+        int(minutes) * sign,
+        int(seconds) * sign,
+        int(microseconds) * sign,
+    )
 
-    return (int(degrees) * sign, int(minutes) * sign, int(seconds) * sign)
 
-
-def dms2dd(degrees, minutes, seconds, milliseconds=0):
-    """Convert degrees, minutes, seconds to decimal degrees.
+def dms2dd(degrees, minutes, seconds, microseconds=0):
+    """Convert an IfcCompoundPlaneAngleMeasure (degrees, minutes, seconds and
+    optional millionths of a second) to decimal degrees.
 
     Used in import.
     """
-    dd = float(degrees) + float(minutes) / 60 + float(seconds) / 3600
+    dd = (
+        float(degrees)
+        + float(minutes) / 60
+        + float(seconds) / 3600
+        + float(microseconds) / 3600e6
+    )
     return dd
 
 
