@@ -62,6 +62,25 @@ class TestExportCSGShapes(unittest.TestCase):
         obj.Shape = Part.makeBox(1, 2, 3)
         self._roundtrip(obj)
 
+    def test_placed_shape_feature(self):
+        """The mesh is made of the placed shape: its Placement must not be applied twice."""
+        obj = self.doc.addObject("Part::Feature", "Feature")
+        obj.Shape = Part.makeBox(1, 2, 3)
+        obj.Placement = App.Placement(App.Vector(10, 0, 0), App.Rotation(App.Vector(0, 0, 1), 30))
+        self._roundtrip(obj)
+
+    def test_shape_feature_in_boolean(self):
+        box = self.doc.addObject("Part::Box", "Box")
+        box.Length = box.Width = box.Height = 4
+        feat = self.doc.addObject("Part::Feature", "Feature")
+        # the tool reaches 1 into the box only where it is placed
+        feat.Shape = Part.makeBox(1, 1, 3)
+        feat.Placement = App.Placement(App.Vector(1, 1, -2), App.Rotation())
+        cut = self.doc.addObject("Part::Cut", "Cut")
+        cut.Base = box
+        cut.Tool = feat
+        self._roundtrip(cut)
+
     def test_partial_torus(self):
         obj = self.doc.addObject("Part::Torus", "Torus")
         obj.Radius1 = 10
