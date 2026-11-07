@@ -110,7 +110,9 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
     def getRadius(obj, delta):
         """returns a new radius for a regular polygon"""
         an = math.pi / obj.FacesNumber
-        nr = DraftVecUtils.rotate(delta, -an)
+        # rotate in the plane of the polygon, which need not be the XY plane
+        normal = obj.Placement.Rotation.multVec(App.Vector(0, 0, 1))
+        nr = DraftVecUtils.rotate(delta, -an, normal)
         nr.multiply(1 / math.cos(an))
         nr = obj.Shape.Vertexes[0].Point.add(nr)
         nr = nr.sub(obj.Placement.Base)
