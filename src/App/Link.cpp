@@ -1965,12 +1965,24 @@ void LinkBaseExtension::update(App::DocumentObject* parent, const Property* prop
         }
     }
     else if (prop == _getElementCountProperty()) {
+        // Undo and redo restore the elements and the lists that this branch derives from the
+        // count. Deriving them again during the rollback would change restored elements (their
+        // placement, scale and visibility) without any transaction recording it.
+        if (parent->getDocument()->isPerformingTransaction()) {
+            return;
+        }
+
         size_t elementCount = getElementCountValue() < 0 ? 0 : (size_t)getElementCountValue();
 
         auto propVis = getVisibilityListProperty();
         if (propVis) {
             if (propVis->getSize() > (int)elementCount) {
-                propVis->setSize(getElementCountValue(), true);
+                // set the value (not only the size) so that undo can restore the hidden elements
+                auto vis = propVis->getValues();
+                vis.resize(elementCount);
+                propVis->setStatus(Property::User3, true);
+                propVis->setValue(vis);
+                propVis->setStatus(Property::User3, false);
             }
         }
 
