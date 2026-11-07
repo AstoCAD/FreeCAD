@@ -2092,8 +2092,18 @@ Py::Object FunctionExpression::evalAggregate(
         }
         else {
             Quantity q;
-            if(pyToQuantity(q,arg->getPyValue()))
+            Py::Object value = arg->getPyValue();
+            if (pyToQuantity(q, value)) {
                 c->collect(q);
+            }
+            else if (PyList_Check(value.ptr()) || PyTuple_Check(value.ptr())) {
+                // the items of a list or tuple, e.g. a list property or list(...)
+                Py::Sequence items(value);
+                for (Py_ssize_t i = 0; i < items.size(); ++i) {
+                    if (pyToQuantity(q, items.getItem(i)))
+                        c->collect(q);
+                }
+            }
         }
     }
 
