@@ -45,6 +45,7 @@ SET(OpenSCADTestsApp_SRCS
     OpenSCADTest/app/test_importCSGCircle.py
     OpenSCADTest/app/test_importCSGRotateExtrude.py
     OpenSCADTest/app/test_importCSGPolyhedron.py
+    OpenSCADTest/app/test_exportCSGShapes.py
 )
 
 SET(OpenSCADTestsGui_SRCS
