@@ -310,15 +310,25 @@ const std::string& ObjectIdentifier::toString() const
         s << documentObjectName.toString() << '.';
     }
     else if (result.propertyIndex > 0) {
-        components[0].toString(s);
-        s << '.';
+        // The first component names the object: quote a label that is not an identifier
+        // as <<My Object>>, not with the map syntax of the property components
+        s << components[0].name.toString() << '.';
     }
 
     if (!subObjectName.getString().empty()) {
         s << subObjectName.toString() << '.';
     }
 
-    s << components[result.propertyIndex].getName();
+    const Component& property = components[result.propertyIndex];
+    if (result.propertyIndex == 0 && components.size() > 1 && property.isSimple()
+        && property.name.isRealString()) {
+        // <<My Object>>.Length with no object of that label (e.g. deleted, or not created
+        // yet): keep the label quoted, or the expression no longer parses
+        s << property.name.toString();
+    }
+    else {
+        s << property.getName();
+    }
     getSubPathStr(s, result);
     const_cast<ObjectIdentifier*>(this)->_cache = s.str();
     return _cache;
@@ -364,8 +374,8 @@ std::string ObjectIdentifier::toPersistentString() const
         s << documentObjectName.toString() << '.';
     }
     else if (result.propertyIndex > 0) {
-        components[0].toString(s);
-        s << '.';
+        // See toString()
+        s << components[0].name.toString() << '.';
     }
 
     if (!subObjectName.getString().empty()) {
@@ -379,7 +389,15 @@ std::string ObjectIdentifier::toPersistentString() const
           << '.';
     }
 
-    s << components[result.propertyIndex].getName();
+    const Component& property = components[result.propertyIndex];
+    if (result.propertyIndex == 0 && components.size() > 1 && property.isSimple()
+        && property.name.isRealString()) {
+        // See toString()
+        s << property.name.toString();
+    }
+    else {
+        s << property.getName();
+    }
     getSubPathStr(s, result);
     return s.str();
 }
