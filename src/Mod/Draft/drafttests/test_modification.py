@@ -203,6 +203,24 @@ class DraftModification(test_base.DraftTestCaseDoc):
         self.assertTrue(obj.Shape.isValid())
         self.assertTrue(obj.Shape.Edges)
 
+    def test_offset_bspline_with_placement(self):
+        """Offset copies of a moved BSpline are made where the BSpline is."""
+        points = [Vector(0, 0, 0), Vector(10, 5, 0), Vector(20, 0, 0)]
+        place = App.Placement(Vector(1, 2, 3), App.Rotation(Vector(1, 0, 0), 90))
+        spline = Draft.make_bspline(points, placement=place)
+        self.doc.recompute()
+
+        new_points = [point.add(Vector(0, 1, 0)) for point in points]
+        copy = Draft.offset(spline, new_points, copy=True)
+        self.doc.recompute()
+        self.assertEqual(utils.get_type(copy), "BSpline")
+        # An offset in place moves the points within the same placement.
+        Draft.offset(spline, new_points, copy=False)
+        self.doc.recompute()
+        for vec_copy, vec in zip(copy.Shape.Vertexes, spline.Shape.Vertexes):
+            self.assertTrue(vec_copy.Point.isEqual(vec.Point, 1e-6))
+        self.assertTrue(copy.Shape.Vertexes[0].Point.isEqual(Vector(1, 2, 4), 1e-6))
+
     def test_offset_rectangle_with_face(self):
         """Create a rectangle with a face, then produce an offset copy."""
         # Regression test for:

@@ -221,7 +221,8 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
             newobj.DrawMode = obj.DrawMode
             newobj.Placement = pl
         elif utils.get_type(obj) == "BSpline":
-            newobj = make_bspline(delta)
+            # delta holds the new Points, in the coordinates of obj
+            newobj = make_bspline(delta, placement=obj.Placement)
             newobj.Closed = obj.Closed
         else:
             # try to offset anyway
