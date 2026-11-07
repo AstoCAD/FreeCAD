@@ -925,7 +925,8 @@ pointPair DrawViewDimension::getPointsTwoCircles(const TopoDS_Edge& edge0, const
     BRepAdaptor_Curve adapt0(edge0);
     BRepAdaptor_Curve adapt1(edge1);
 
-    gp_Ax2 projectionCS = getViewPart()->getProjectionCS();
+    // the X and Y directions of the (rotated) view on the paper
+    gp_Ax2 projectionCS = getViewPart()->getRotatedCS();
     if (!is3d) {
         // edges are on the XY plane already so use OXYZ as the projectionCS
         projectionCS = gp_Ax2();
