@@ -253,7 +253,8 @@ void PointKernel::load(const char* file)
 void PointKernel::save(std::ostream& out) const
 {
     out << "# ASCII" << std::endl;
-    for (const auto& pnt : _Points) {
+    // write the transformed points, as returned by getPoint() and expected by load()
+    for (const auto& pnt : *this) {
         out << pnt.x << " " << pnt.y << " " << pnt.z << std::endl;
     }
 }

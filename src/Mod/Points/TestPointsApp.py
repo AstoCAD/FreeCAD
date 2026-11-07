@@ -155,3 +155,67 @@ class PointsSegmentTest(unittest.TestCase):
         self.assertEqual(segment.Points[0], FreeCAD.Vector(1, 0, 0))
         with self.assertRaises(TypeError):
             kernel.fromSegment([0, "x"])
+
+
+class PointsWriteTest(unittest.TestCase):
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("TestPointsAppWrite")
+        self.fileNames = []
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+        for fileName in self.fileNames:
+            if os.path.exists(fileName):
+                os.remove(fileName)
+
+    def tempFile(self, suffix):
+        fd, fileName = tempfile.mkstemp(suffix=suffix)
+        os.close(fd)
+        self.fileNames.append(fileName)
+        return fileName
+
+    def readPoints(self, fileName):
+        with open(fileName) as f:
+            rows = [line.split() for line in f if not line.startswith("#")]
+        return [FreeCAD.Vector(*map(float, row)) for row in rows if row]
+
+    def testWriteTransformedPoints(self):
+        """write() wrote the untransformed points, which read() then took as transformed ones"""
+        cloud = self.doc.addObject("Points::Feature", "Cloud")
+        cloud.Points = Points.Points([FreeCAD.Vector(1, 2, 3), FreeCAD.Vector(4, 5, 6)])
+        cloud.Placement = FreeCAD.Placement(
+            FreeCAD.Vector(10, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 90)
+        )
+        kernel = cloud.Points.copy()
+        expected = kernel.Points
+
+        fileName = self.tempFile(".asc")
+        kernel.write(fileName)
+        self.assertEqual(len(self.readPoints(fileName)), 2)
+        for written, point in zip(self.readPoints(fileName), expected):
+            self.assertTrue(written.isEqual(point, 1e-5), f"{written} != {point}")
+
+        # reading the file back gives the same points
+        kernel.read(fileName)
+        for read, point in zip(kernel.Points, expected):
+            self.assertTrue(read.isEqual(point, 1e-5), f"{read} != {point}")
+
+        # and the same as exporting the feature
+        exported = self.tempFile(".asc")
+        Points.export([cloud], exported)
+        for written, point in zip(self.readPoints(exported), expected):
+            self.assertTrue(written.isEqual(point, 1e-5), f"{written} != {point}")
+
+    def testExportInContainer(self):
+        """Export writes the points with the global placement, once"""
+        part = self.doc.addObject("App::Part", "Part")
+        part.Placement.Base = FreeCAD.Vector(0, 0, 100)
+        cloud = self.doc.addObject("Points::Feature", "Cloud")
+        cloud.Points = Points.Points([FreeCAD.Vector(1, 2, 3)])
+        part.addObject(cloud)
+        cloud.Placement.Base = FreeCAD.Vector(10, 0, 0)
+        exported = self.tempFile(".asc")
+        Points.export([cloud], exported)
+        written = self.readPoints(exported)
+        self.assertEqual(len(written), 1)
+        self.assertTrue(written[0].isEqual(FreeCAD.Vector(11, 2, 103), 1e-5), str(written[0]))
