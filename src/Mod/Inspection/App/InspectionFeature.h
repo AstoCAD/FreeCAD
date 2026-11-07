@@ -155,6 +155,7 @@ public:
 private:
     const Points::PointKernel& _rKernel;
     Points::PointsGrid* _pGrid;
+    double _searchRadius;
 };
 
 class InspectionExport InspectNominalShape: public InspectNominalGeometry
