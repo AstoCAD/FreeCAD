@@ -350,7 +350,23 @@ void Cell::setContent(const char* value)
                 try {
                     ExpressionPtr parsedExpr(App::ExpressionParser::parse(sheet, value));
 
-                    if (const auto fraction = freecad_cast<OperatorExpression*>(parsedExpr.get())) {
+                    // One sign in front of the value ("-12 mm", "-1/2") belongs to it, as for
+                    // plain numbers. It parses as a negation of the quantity, or of the
+                    // numerator of the fraction.
+                    bool hasSign = false;
+                    auto withoutSign = [&hasSign](Expression* expr) {
+                        const auto sign = freecad_cast<OperatorExpression*>(expr);
+                        if (!hasSign && sign
+                            && (sign->getOperator() == OperatorExpression::NEG
+                                || sign->getOperator() == OperatorExpression::POS)) {
+                            hasSign = true;
+                            return sign->getLeft();
+                        }
+                        return expr;
+                    };
+                    Expression* typed = withoutSign(parsedExpr.get());
+
+                    if (const auto fraction = freecad_cast<OperatorExpression*>(typed)) {
                         if (fraction->getOperator() == OperatorExpression::UNIT) {
                             const auto left = freecad_cast<NumberExpression*>(fraction->getLeft());
                             const auto right = freecad_cast<UnitExpression*>(fraction->getRight());
@@ -362,16 +378,16 @@ void Cell::setContent(const char* value)
                             // only the following types of fractions are ok:
                             //     1/2, 1m/2, 1/2s, 1m/2s, 1/m
 
+                            Expression* nominator = withoutSign(fraction->getLeft());
+
                             // check for numbers in (de)nominator
-                            const bool isNumberNom = freecad_cast<NumberExpression*>(
-                                fraction->getLeft()
-                            );
+                            const bool isNumberNom = freecad_cast<NumberExpression*>(nominator);
                             const bool isNumberDenom = freecad_cast<NumberExpression*>(
                                 fraction->getRight()
                             );
 
                             // check for numbers with units in (de)nominator
-                            const auto opNom = freecad_cast<OperatorExpression*>(fraction->getLeft());
+                            const auto opNom = freecad_cast<OperatorExpression*>(nominator);
                             const auto opDenom = freecad_cast<OperatorExpression*>(
                                 fraction->getRight()
                             );
@@ -391,7 +407,7 @@ void Cell::setContent(const char* value)
                             }
                         }
                     }
-                    else if (freecad_cast<NumberExpression*>(parsedExpr.get())) {
+                    else if (freecad_cast<NumberExpression*>(typed)) {
                         // NumbersExpressions can accept more than can be parsed with strtod.
                         //   Example: 12.34 and 12,34 are both valid NumberExpressions
                         newExpr = std::move(parsedExpr);
