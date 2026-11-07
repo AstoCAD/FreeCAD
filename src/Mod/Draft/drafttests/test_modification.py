@@ -358,6 +358,24 @@ class DraftModification(test_base.DraftTestCaseDoc):
         self.assertEqual(len(wire_1.Shape.Faces), 1)
         self.assertAlmostEqual(wire_1.Shape.Area, 20.0, places=6)
 
+    def test_join_closed_wire(self):
+        """A closed wire has no end points and is not joined."""
+        a = Vector(0, 0, 0)
+        b = Vector(4, 0, 0)
+        c = Vector(4, 4, 0)
+        d = Vector(8, 8, 0)
+        for closed_first in (True, False):
+            closed = Draft.make_wire([a, b, c], closed=True)
+            line = Draft.make_line(c, d)
+            self.doc.recompute()
+            wires = [closed, line] if closed_first else [line, closed]
+            self.assertFalse(Draft.join_two_wires(*wires))
+            self.assertEqual(len(Draft.join_wires(wires)), 2)
+            self.doc.recompute()
+            self.assertEqual(closed.Points, [a, b, c])
+            self.assertEqual(line.Points, [c, d])
+            self.assertTrue(closed.Shape.isValid())
+
     def test_split(self):
         """Split a Draft Wire into two Draft Wires."""
         operation = "Draft_Split"

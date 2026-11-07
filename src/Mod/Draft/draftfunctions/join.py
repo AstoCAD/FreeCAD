@@ -59,6 +59,10 @@ def join_two_wires(wire1, wire2):
     """join_two_wires(object, object): joins two wires if they share a common
     point as a start or an end.
     """
+    if wire1.Closed or wire2.Closed:
+        # A closed wire has no start or end: its first and last points are
+        # joined by its closing edge, which would be lost or cross the result.
+        return False
     wire1AbsPoints = [wire1.Placement.multVec(point) for point in wire1.Points]
     wire2AbsPoints = [wire2.Placement.multVec(point) for point in wire2.Points]
     if (
