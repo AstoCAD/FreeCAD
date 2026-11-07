@@ -772,7 +772,13 @@ void LinkBaseExtension::setupCopyOnChange(DocumentObject* parent, bool checkSour
         return;
     }
 
-    if (checkSource && !pauseCopyOnChange) {
+    // Undo and redo restore the source, the private copy and the mode recorded by the transaction.
+    // Deriving them again here would overwrite the restored source and make a copy that no
+    // transaction records.
+    const bool transacting = parent && parent->getDocument()
+        && parent->getDocument()->isPerformingTransaction();
+
+    if (checkSource && !pauseCopyOnChange && !transacting) {
         PropertyLink* source = getLinkCopyOnChangeSourceProperty();
         if (source) {
             source->setValue(linked);
@@ -783,7 +789,8 @@ void LinkBaseExtension::setupCopyOnChange(DocumentObject* parent, bool checkSour
     }
 
     hasCopyOnChange = setupCopyOnChange(parent, linked, &copyOnChangeConns, hasCopyOnChange);
-    if (hasCopyOnChange && getLinkCopyOnChangeValue() == CopyOnChangeOwned && getLinkedObjectValue()
+    if (!transacting && hasCopyOnChange && getLinkCopyOnChangeValue() == CopyOnChangeOwned
+        && getLinkedObjectValue()
         && getLinkedObjectValue() == getLinkCopyOnChangeSourceValue()) {
         makeCopyOnChange();
     }
