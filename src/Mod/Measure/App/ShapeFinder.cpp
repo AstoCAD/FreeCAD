@@ -119,26 +119,45 @@ TopoDS_Shape ShapeFinder::getLocatedShape(const App::DocumentObject& rootObject,
         }
     }
 
-    ResolveResult resolved = resolveSelection(rootObject, leafSub);
-    App::DocumentObject* target = &resolved.getTarget();
-    std::string shortSub = resolved.getShortSub();
-    if (!target) {
-        return {};
+    // Resolve the object path from the root so that Part applies every placement and link scale
+    // along it exactly once, as it does for the 3d view. Re-applying a transform on top of the
+    // shape of the resolved object would count the transform of a link twice, as that shape
+    // already carries the link's placement and scale.
+    auto cleanSub = removeTnpInfo(leafSub);
+    std::string objectPath;
+    std::string shortSub {cleanSub};
+    auto lastDot = cleanSub.rfind('.');
+    if (lastDot != std::string::npos) {
+        objectPath = cleanSub.substr(0, lastDot + 1);
+        shortSub = cleanSub.substr(lastDot + 1);
     }
 
     TopoDS_Shape shape = Part::Feature::getShape(
-        target,
-        Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform
+        &rootObject,
+        Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform,
+        objectPath.c_str()
     );
     if (isShapeReallyNull(shape)) {
         return {};
     }
 
-    auto cleanSub = removeTnpInfo(leafSub);
-    auto transform = getGlobalTransform(rootObject, cleanSub);
-
-    shape = transformShape(shape, transform.first, transform.second);
     Part::TopoShape tShape {shape};
+    if (tShape.isInfinite()) {
+        tShape = Part::TopoShape(stripInfiniteShapes(shape));
+    }
+
+    // The root's own placement is part of the shape; add the placement of the groups that
+    // contain it, as App::GeoFeature::globalPlacement() does. As before, a link-like root is
+    // placed by its own placement only.
+    if (rootObject.isDerivedFrom<App::GeoFeature>() && !isLinkLike(&rootObject)) {
+        auto group = App::GeoFeatureGroupExtension::getGroupOfObject(&rootObject);
+        if (group) {
+            auto groupExtension = group->getExtensionByType<App::GeoFeatureGroupExtension>();
+            Base::Placement groupPlacement = groupExtension->globalGroupPlacement();
+            tShape.setPlacement(groupPlacement * tShape.getPlacement());
+        }
+    }
+
     if (!shortSub.empty()) {
         return tShape.getSubTopoShape(shortSub.c_str()).getShape();
     }
