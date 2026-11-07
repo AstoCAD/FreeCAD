@@ -534,10 +534,8 @@ Quantity QuantResult;
 // NOLINTBEGIN
 double num_change(char* yytext, char dez_delim, char grp_delim)
 {
-    double ret_val {};
-    const int num = 40;
-    std::array<char, num> temp {};
-    int iter = 0;
+    // no fixed-size buffer: a literal of 40 characters or more used to read as 0
+    std::string temp;
     for (char* ch = yytext; *ch != '\0'; ch++) {
         // skip group delimiter
         if (*ch == grp_delim) {
@@ -545,21 +543,14 @@ double num_change(char* yytext, char dez_delim, char grp_delim)
         }
         // check for a dez delimiter other then dot
         if (*ch == dez_delim && dez_delim != '.') {
-            temp[iter++] = '.';
+            temp += '.';
         }
         else {
-            temp[iter++] = *ch;
-        }
-        // check buffer overflow
-        if (iter >= num) {
-            return 0.0;
+            temp += *ch;
         }
     }
 
-    temp[iter] = '\0';
-
-    ret_val = atof(temp.data());
-    return ret_val;
+    return atof(temp.c_str());
 }
 // NOLINTEND
 

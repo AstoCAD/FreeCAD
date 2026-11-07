@@ -3535,6 +3535,15 @@ class DocumentExpressionCases(unittest.TestCase):
                 written = dict(obj.ExpressionEngine)["Value"]
                 self.assertEqual(obj.evalExpression(written), expected, written)
 
+    def testLongNumberLiteral(self):
+        # A decimal number of 40 characters or more overflowed the lexer's buffer
+        # and read as 0
+        obj = self.Doc.addObject("App::FeaturePython", "Obj")
+        digits = "0." + "1" * 45
+        self.assertAlmostEqual(obj.evalExpression(digits), float(digits))
+        self.assertAlmostEqual(obj.evalExpression(digits + " mm").Value, float(digits))
+        self.assertAlmostEqual(obj.evalExpression("1" + "0" * 45 + ".5"), 1e45)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument(self.Doc.Name)
