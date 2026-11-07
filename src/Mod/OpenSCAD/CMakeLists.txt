@@ -43,6 +43,7 @@ SET(OpenSCADTestsApp_SRCS
     OpenSCADTest/app/test_importCSGResize.py
     OpenSCADTest/app/test_exportCSGPrimitives.py
     OpenSCADTest/app/test_importCSGCircle.py
+    OpenSCADTest/app/test_importCSGRotateExtrude.py
 )
 
 SET(OpenSCADTestsGui_SRCS

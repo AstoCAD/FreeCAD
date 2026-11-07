@@ -466,9 +466,10 @@ class PrismaticToroid:
         if fp.Base and fp.Angle and fp.Segments and fp.Base.Shape.isValid():
             solids = []
             min_sweep_angle_per_segment = 360.0 / fp.Segments # This is how OpenSCAD defines $fn
-            num_segments = math.floor(abs(fp.Angle) / min_sweep_angle_per_segment)
+            # like OpenSCAD, sweep angles smaller than one $fn step still get one segment
+            num_segments = max(1, math.floor(abs(fp.Angle) / min_sweep_angle_per_segment))
             num_ribs = num_segments + 1
-            sweep_angle_per_segment = fp.Angle / num_segments # Always >= min_sweep_angle_per_segment
+            sweep_angle_per_segment = fp.Angle / num_segments
 
             # From the OpenSCAD documentation:
             # The 2D shape must lie completely on either the right (recommended) or the left side of the Y-axis.
