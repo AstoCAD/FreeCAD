@@ -3608,24 +3608,20 @@ void ExpressionParser_yyerror(const char *errorinfo)
 double num_change(char* yytext,char dez_delim,char grp_delim)
 {
     double ret_val;
-    char temp[40];
-    int i = 0;
+    // no fixed-size buffer: a literal of 40 characters or more used to read as 0
+    std::string temp;
     for(char* c=yytext;*c!='\0';c++){
         // skip group delimiter
         if(*c==grp_delim) continue;
         // check for a dez delimiter other then dot
         if(*c==dez_delim && dez_delim !='.')
-             temp[i++] = '.';
+             temp += '.';
         else
-            temp[i++] = *c;
-        // check buffer overflow
-        if (i>39)
-            return 0.0;
+            temp += *c;
     }
-    temp[i] = '\0';
 
     errno = 0;
-    ret_val = strtod( temp, nullptr );
+    ret_val = strtod( temp.c_str(), nullptr );
     if (ret_val == 0 && errno == ERANGE)
         throw Base::UnderflowError("Number underflow.");
     if (ret_val == HUGE_VAL || ret_val == -HUGE_VAL)
