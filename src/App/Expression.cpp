@@ -3512,30 +3512,80 @@ bool RangeExpression::_renameObjectIdentifier(
     return touched;
 }
 
+// Moves the lower and upper row (or column) of a range when count rows are inserted at pos
+// (count > 0), or removed up to and including pos (count < 0). A bound inside the removed rows
+// moves to the nearest remaining row of the range, so that the range keeps the cells it still
+// has and takes in no others. A null bound is an alias, which moves with its cell.
+static void moveRangeBounds(int *lower, int *upper, int pos, int count)
+{
+    if (count >= 0) {
+        for (int *bound : {lower, upper}) {
+            if (bound && *bound >= pos) {
+                *bound += count;
+            }
+        }
+        return;
+    }
+    const int first = pos + count + 1;
+    if (lower && upper && *lower >= first && *upper <= pos) {
+        // All the rows of the range are removed: no cell is left to point at. Leave the range
+        // alone rather than making an invalid address, which would abort the removal half-way.
+        return;
+    }
+    if (lower) {
+        if (*lower > pos) {
+            *lower += count;
+        }
+        else if (*lower >= first) {
+            *lower = first;
+        }
+    }
+    if (upper) {
+        if (*upper > pos) {
+            *upper += count;
+        }
+        else if (*upper >= first) {
+            *upper = first - 1;
+        }
+    }
+}
+
 void RangeExpression::_moveCells(const CellAddress &address,
         int rowCount, int colCount, ExpressionVisitor &v)
 {
-    CellAddress addr = stringToAddress(begin.c_str(),true);
-    if(addr.isValid()) {
-        int thisRow = addr.row();
-        int thisCol = addr.col();
-        if (thisRow >= address.row() || thisCol >= address.col()) {
-            v.aboutToChange();
-            addr.setRow(thisRow+rowCount);
-            addr.setCol(thisCol+colCount);
-            begin = addr.toString();
-        }
+    CellAddress from = stringToAddress(begin.c_str(),true);
+    CellAddress to = stringToAddress(end.c_str(),true);
+    if (!from.isValid() && !to.isValid()) {
+        return;
     }
-    addr = stringToAddress(end.c_str(),true);
-    if(addr.isValid()) {
-        int thisRow = addr.row();
-        int thisCol = addr.col();
-        if (thisRow >= address.row() || thisCol >= address.col()) {
-            v.aboutToChange();
-            addr.setRow(thisRow + rowCount);
-            addr.setCol(thisCol + colCount);
-            end = addr.toString();
+
+    int fromRow = from.row();
+    int fromCol = from.col();
+    int toRow = to.row();
+    int toCol = to.col();
+    // The bounds of a range may be written in either order
+    auto bounds = [&](int &fromValue, int &toValue) -> std::pair<int *, int *> {
+        if (from.isValid() && to.isValid() && fromValue > toValue) {
+            return {&toValue, &fromValue};
         }
+        return {from.isValid() ? &fromValue : nullptr, to.isValid() ? &toValue : nullptr};
+    };
+    auto rows = bounds(fromRow, toRow);
+    moveRangeBounds(rows.first, rows.second, address.row(), rowCount);
+    auto cols = bounds(fromCol, toCol);
+    moveRangeBounds(cols.first, cols.second, address.col(), colCount);
+
+    if (from.isValid() && (fromRow != from.row() || fromCol != from.col())) {
+        v.aboutToChange();
+        from.setRow(fromRow);
+        from.setCol(fromCol);
+        begin = from.toString();
+    }
+    if (to.isValid() && (toRow != to.row() || toCol != to.col())) {
+        v.aboutToChange();
+        to.setRow(toRow);
+        to.setCol(toCol);
+        end = to.toString();
     }
 }
 
