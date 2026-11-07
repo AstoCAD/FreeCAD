@@ -510,6 +510,25 @@ class TestArchIfc(TestArchBase.TestArchBase):
         }
         self.assertEqual(psets.get("Pset_Custom"), ["Good"])
 
+    def test_export_site_geolocation_keeps_fractions_of_seconds(self):
+        """The site latitude and longitude keep the millionths of seconds of
+        IfcCompoundPlaneAngleMeasure; whole seconds put the site up to 30 m off."""
+        import Arch
+        from importers import exportIFC, importIFCHelper
+
+        site = Arch.makeSite([Arch.makeBuilding([Arch.makeFloor()])])
+        site.Latitude = 48.858370
+        site.Longitude = -2.294481
+        self.document.recompute()
+
+        path = os.path.join(tempfile.mkdtemp(), "geolocation.ifc")
+        exportIFC.export([site], path)
+        ifcsite = ifcopenshell.open(path).by_type("IfcSite")[0]
+        self.assertEqual(tuple(ifcsite.RefLatitude), (48, 51, 30, 132000))
+        self.assertEqual(tuple(ifcsite.RefLongitude), (-2, -17, -40, -131600))
+        self.assertAlmostEqual(importIFCHelper.dms2dd(*ifcsite.RefLatitude), 48.858370, places=9)
+        self.assertAlmostEqual(importIFCHelper.dms2dd(*ifcsite.RefLongitude), -2.294481, places=9)
+
     def test_legacy_import_multicore(self):
         """The legacy (non-native) IFC importer must work with IfcOpenShell 0.8.
         https://github.com/FreeCAD/FreeCAD/issues/33854"""
