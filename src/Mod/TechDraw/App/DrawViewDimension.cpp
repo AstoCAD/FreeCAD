@@ -34,6 +34,7 @@
 
 #include <BRepGProp.hxx>
 #include <GProp_GProps.hxx>
+#include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepTools.hxx>
 #include <BRepAdaptor_Curve.hxx>
@@ -49,7 +50,6 @@
 #include <Geom_Plane.hxx>
 #include <Geom2d_Curve.hxx>
 #include <Geom2dAPI_ProjectPointOnCurve.hxx>
-#include <ShapeAnalysis.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS_Edge.hxx>
@@ -1535,13 +1535,17 @@ double DrawViewDimension::getActualArea(const TopoDS_Face& face)
 //! returns the "gross" area of a face (area of the face's outer boundary)
 double DrawViewDimension::getFilledArea(const TopoDS_Face& face)
 {
-    TopoDS_Wire outerwire = ShapeAnalysis::OuterWire(face);
+    TopoDS_Face forwardFace = TopoDS::Face(face.Oriented(TopAbs_FORWARD));
+    TopoDS_Wire outerwire = BRepTools::OuterWire(forwardFace);
     if (outerwire.IsNull()) {
         return 0.0;
     }
 
-    double area = ShapeAnalysis::ContourArea(outerwire);
-    return area;
+    // the face without its holes: the same surface bounded by the outer wire only
+    TopoDS_Face filledFace = TopoDS::Face(forwardFace.EmptyCopied());
+    BRep_Builder builder;
+    builder.Add(filledFace, outerwire);
+    return getActualArea(filledFace);
 }
 
 
