@@ -440,8 +440,9 @@ float InspectNominalFastMesh::getDistance(const Base::Vector3f& point) const
 
 // ----------------------------------------------------------------
 
-InspectNominalPoints::InspectNominalPoints(const Points::PointKernel& Kernel, float /*offset*/)
+InspectNominalPoints::InspectNominalPoints(const Points::PointKernel& Kernel, float offset)
     : _rKernel(Kernel)
+    , _searchRadius(std::max<double>(offset, 0.0))
 {
     int uGridPerAxis = 50;  // totally 125.000 grid elements
     this->_pGrid = new Points::PointsGrid(Kernel, uGridPerAxis);
@@ -454,12 +455,19 @@ InspectNominalPoints::~InspectNominalPoints()
 
 float InspectNominalPoints::getDistance(const Base::Vector3f& point) const
 {
-    // TODO: Make faster
-    std::set<unsigned long> indices;
-    unsigned long x, y, z;
+    // The nearest point may lie in a neighbour grid element, so search all grid elements
+    // within the search radius around the point (farther points are not inspected anyway)
     Base::Vector3d pointd(point.x, point.y, point.z);
-    _pGrid->Position(pointd, x, y, z);
-    _pGrid->GetElements(x, y, z, indices);
+    Base::BoundBox3d box(
+        pointd.x - _searchRadius,
+        pointd.y - _searchRadius,
+        pointd.z - _searchRadius,
+        pointd.x + _searchRadius,
+        pointd.y + _searchRadius,
+        pointd.z + _searchRadius
+    );
+    std::vector<unsigned long> indices;
+    _pGrid->InSide(box, indices, false);
 
     double fMinDist = std::numeric_limits<double>::max();
     for (unsigned long it : indices) {
