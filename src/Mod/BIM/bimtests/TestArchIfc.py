@@ -510,6 +510,57 @@ class TestArchIfc(TestArchBase.TestArchBase):
         }
         self.assertEqual(psets.get("Pset_Custom"), ["Good"])
 
+    def test_export_length_attributes_in_file_units(self):
+        """Length IFC attributes (OverallHeight, OverallWidth...) are written in the file's
+        length unit like the geometry, not in millimeters."""
+        import Arch
+        import Draft
+        from importers import exportIFC
+
+        wall = Arch.makeWall(Draft.make_line(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(4000, 0, 0)))
+        placement = FreeCAD.Placement(
+            FreeCAD.Vector(1000, 0, 800), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90)
+        )
+        window = Arch.makeWindowPreset(
+            "Fixed", 1000, 1200, 50, 50, 50, 100, 50, 0, 50, placement=placement
+        )
+        window.Hosts = [wall]
+        level = Arch.makeFloor([wall, window])
+        level.Placement.Base.z = 3000
+        site = Arch.makeSite([Arch.makeBuilding([level])])
+        self.document.recompute()
+
+        for unit, scale in (("metre", 0.001), ("foot", 0.00328084)):
+            with self.subTest(unit=unit):
+                preferences = exportIFC.getPreferences()
+                preferences["IFC_UNIT"] = unit
+                preferences["SCALE_FACTOR"] = scale
+                path = os.path.join(tempfile.mkdtemp(), "attributes_%s.ifc" % unit)
+                exportIFC.export([site], path, preferences=preferences)
+                ifcfile = ifcopenshell.open(path)
+                ifcwindow = ifcfile.by_type("IfcWindow")[0]
+                self.assertAlmostEqual(ifcwindow.OverallHeight, 1200 * scale, places=6)
+                self.assertAlmostEqual(ifcwindow.OverallWidth, 1000 * scale, places=6)
+                storey = ifcfile.by_type("IfcBuildingStorey")[0]
+                self.assertAlmostEqual(storey.Elevation, 3000 * scale, places=6)
+
+        import Part
+
+        sketch = self.document.addObject("Sketcher::SketchObject", "RebarSketch")
+        sketch.addGeometry(
+            Part.LineSegment(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(500, 0, 0)), False
+        )
+        self.document.recompute()
+        rebar = Arch.makeRebar(sketch=sketch, diameter=6)
+        self.document.recompute()
+        for writer in (exportIFC.exportIfcAttributes, exportIFC.exportIFC2X3Attributes):
+            with self.subTest(writer=writer.__name__):
+                attributes = writer(rebar, {}, 0.001)
+                self.assertAlmostEqual(attributes["NominalDiameter"], 0.006, places=9)
+                self.assertAlmostEqual(
+                    attributes["BarLength"], rebar.Length.Value * 0.001, places=9
+                )
+
     def test_export_site_geolocation_keeps_fractions_of_seconds(self):
         """The site latitude and longitude keep the millionths of seconds of
         IfcCompoundPlaneAngleMeasure; whole seconds put the site up to 30 m off."""
