@@ -255,9 +255,8 @@ def process_object(csg,ob):
 
     elif ob.isDerivedFrom('Part::Feature'):
         print("Part::Feature")
-        mm = check_multmatrix(csg,ob,0,0,0)
+        # the mesh is made of the placed shape: no multmatrix on top of it
         csg.write('%s\n' % shape2polyhedron(ob.Shape))
-        if mm == 1 : csg.write("}\n")
 
 def export(exportList, filename):
     "called when FreeCAD exports a file"
