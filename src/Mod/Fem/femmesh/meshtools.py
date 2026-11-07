@@ -761,7 +761,7 @@ def get_force_obj_vertex_nodeload_table(femmesh, frc_obj):
     for o, elem_tup in frc_obj.References:
         node_count = len(elem_tup)
         for elem in elem_tup:
-            ref_node = o.Shape.getElement(elem)
+            ref_node = sub_shape_at_global_placement(o, elem)
             FreeCAD.Console.PrintMessage(
                 "    "
                 "ReferenceShape ... Type: {}, "
@@ -799,7 +799,7 @@ def get_force_obj_edge_nodeload_table(femmesh, femelement_table, femnodes_mesh, 
     sum_node_load = 0  # for debugging
     for o, elem_tup in frc_obj.References:
         for elem in elem_tup:
-            ref_edge = o.Shape.getElement(elem)
+            ref_edge = sub_shape_at_global_placement(o, elem)
             FreeCAD.Console.PrintMessage(
                 "    "
                 "ReferenceShape ... Type: {}, "
@@ -813,7 +813,7 @@ def get_force_obj_edge_nodeload_table(femmesh, femelement_table, femnodes_mesh, 
         force_per_sum_ref_edge_length = force_quantity / sum_ref_edge_length
     for o, elem_tup in frc_obj.References:
         for elem in elem_tup:
-            ref_edge = o.Shape.getElement(elem)
+            ref_edge = sub_shape_at_global_placement(o, elem)
 
             # edge_table:
             #     { meshedgeID : ( nodeID, ... , nodeID ) }
