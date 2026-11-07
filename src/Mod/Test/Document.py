@@ -3584,6 +3584,25 @@ class DocumentExpressionCases(unittest.TestCase):
         self.Doc.recompute()
         self.assertEqual(obj.Value, 2)
 
+    def testConditionalAsConditionKeepsParentheses(self):
+        # A conditional used as the condition of another one lost its parentheses
+        # when written back, and "?" is right-associative: "(1 ? 2 : 3) ? 4 : 5" was
+        # saved as "1 ? 2 : 3 ? 4 : 5", which reads back as "1 ? 2 : (3 ? 4 : 5)"
+        obj = self.Doc.addObject("App::FeaturePython", "Obj")
+        obj.addProperty("App::PropertyFloat", "Value")
+        for expr, expected in (
+            ("(1 ? 0 : 1) ? 4 : 5", 5),
+            ("(1 ? 2 : 3) ? 4 : 5", 4),
+            ("1 ? 2 : 3 ? 4 : 5", 2),
+            ("0 ? 2 : (0 ? 4 : 5)", 5),
+        ):
+            with self.subTest(expr=expr):
+                obj.setExpression("Value", expr)
+                self.Doc.recompute()
+                self.assertEqual(obj.Value, expected)
+                written = dict(obj.ExpressionEngine)["Value"]
+                self.assertEqual(obj.evalExpression(written), expected, written)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument(self.Doc.Name)
