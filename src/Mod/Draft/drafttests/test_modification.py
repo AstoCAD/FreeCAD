@@ -227,6 +227,33 @@ class DraftModification(test_base.DraftTestCaseDoc):
         )
         self.assertTrue(obj_is_ok, "'{}' failed".format(operation))
 
+    def test_offset_polygon_rotated(self):
+        """Offset a polygon that does not lie in the XY plane."""
+        rotations = [
+            App.Rotation(),
+            App.Rotation(Vector(1, 0, 0), 90),
+            App.Rotation(Vector(1, 0, 0), 180),
+        ]
+        for rot in rotations:
+            for inscribed in (True, False):
+                place = App.Placement(Vector(1, 2, 3), rot)
+                poly = Draft.make_polygon(6, 10, inscribed=inscribed, placement=place)
+                self.doc.recompute()
+                # Offset by 1 outwards, perpendicular to the first edge.
+                edge = poly.Shape.Edges[0]
+                delta = edge.CenterOfMass.sub(place.Base)
+                apothem = delta.Length
+                delta.normalize()
+                for copy in (True, False):
+                    new = Draft.offset(poly, delta, copy=copy)
+                    self.doc.recompute()
+                    edge = new.Shape.Edges[0]
+                    msg = "{} inscribed={} copy={}".format(rot.getYawPitchRoll(), inscribed, copy)
+                    self.assertAlmostEqual(
+                        edge.CenterOfMass.distanceToPoint(place.Base), apothem + 1, 6, msg
+                    )
+                    self.assertEqual(new.DrawMode, poly.DrawMode)
+
     def test_trim(self):
         """Trim a line. NOT IMPLEMENTED."""
         operation = "Draft Trimex trim"
