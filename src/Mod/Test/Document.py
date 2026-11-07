@@ -2341,6 +2341,52 @@ class UndoRedoCases(unittest.TestCase):
         self.assertEqual(copies(), [])
         self.assertEqual(link.LinkedObject, src)
 
+    def testUndoRedoLinkArrayElementCount(self):
+        """Undo/redo of a link array's element count restores its elements as they were."""
+        src = self.Doc.addObject("App::FeaturePython", "Src")
+        array = self.Doc.addObject("App::Link", "Array")
+        array.LinkedObject = src
+        array.ElementCount = 3
+        elements = array.ElementList
+        elements[1].Placement = FreeCAD.Placement(FreeCAD.Vector(20, 0, 0), FreeCAD.Rotation())
+        elements[2].ScaleVector = FreeCAD.Vector(1, 2, 3)
+        array.setElementVisible(elements[1].Name, False)
+
+        def state():
+            return (
+                [e.Name for e in array.ElementList],
+                list(array.VisibilityList),
+                [e.Visibility for e in array.ElementList],
+                [e.Placement.Base.x for e in array.ElementList],
+                [tuple(e.ScaleVector) for e in array.ElementList],
+            )
+
+        before = state()
+        self.assertEqual(before[1], [True, False, True])
+
+        self.Doc.openTransaction("Shrink")
+        array.ElementCount = 1
+        self.Doc.commitTransaction()
+        shrunk = state()
+        self.assertEqual(shrunk[0], [elements[0].Name])
+        self.assertEqual(shrunk[1], [True])
+
+        self.Doc.undo()
+        self.assertEqual(state(), before)
+        self.assertEqual(array.ElementCount, 3)
+        self.Doc.redo()
+        self.assertEqual(state(), shrunk)
+        self.Doc.undo()
+        self.assertEqual(state(), before)
+
+        self.Doc.openTransaction("Grow")
+        array.ElementCount = 4
+        self.Doc.commitTransaction()
+        self.assertEqual(len(array.ElementList), 4)
+        self.Doc.undo()
+        self.assertEqual(state(), before)
+        self.assertEqual(array.ElementCount, 3)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("UndoTest")
