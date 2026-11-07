@@ -448,6 +448,20 @@ class UnitBasicCases(unittest.TestCase):
                 text = FreeCAD.Units.schemaTranslate(angle, civil)[0]
                 self.assertAlmostEqual(q(text).Value, degrees, msg=text)
 
+    def testQuantityFromNonFiniteOrLargestFloat(self):
+        # The float constructor took the largest double as "no argument": inf, nan and
+        # the largest double itself silently gave 0 (and dropped the unit exponents)
+        q = FreeCAD.Units.Quantity
+        big = 1.7976931348623157e308
+        self.assertEqual(q(float("inf")).Value, float("inf"))
+        self.assertEqual(q(float("-inf")).Value, float("-inf"))
+        self.assertTrue(math.isnan(q(float("nan")).Value))
+        self.assertEqual(q(big).Value, big)
+        self.assertEqual(q(big, 1).Unit, FreeCAD.Units.Length)
+        self.assertEqual(q(5.0, 1).Value, 5.0)
+        self.assertEqual(q().Value, 0.0)
+        self.assertEqual(q().Unit, FreeCAD.Units.Unit())
+
     def testLongNumberLiteral(self):
         # A number of 40 characters or more overflowed the lexer's buffer and read as 0
         digits = "0." + "1" * 45
