@@ -314,6 +314,45 @@ class TestMeshCommon(unittest.TestCase):
         self.assertAlmostEqual(volume(hexa8), 6)
 
     # ********************************************************************************************
+    def test_force_nodeloads_of_placed_container(self):
+        # the mesh of a shape in a container with a placement is in global coordinates, edge and
+        # vertex forces searched their nodes with the local shape: no node found, force lost
+        import ObjectsFem
+        from femmesh import meshtools
+
+        part = self.document.addObject("App::Part", "Part")
+        box = self.document.addObject("Part::Box", "Box")
+        part.addObject(box)
+        part.Placement.Base = FreeCAD.Vector(100, 0, 0)
+        self.document.recompute()
+        mesh = Fem.FemMesh()
+        corners = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        corners += [(0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)]
+        for i, p in enumerate(corners, 1):
+            mesh.addNode(100 + 10 * p[0], 10 * p[1], 10 * p[2], i)
+        tets = [(1, 2, 3, 7), (1, 3, 4, 7), (1, 4, 8, 7), (1, 8, 5, 7), (1, 5, 6, 7), (1, 6, 2, 7)]
+        for i, t in enumerate(tets, 1):
+            mesh.addVolume(list(t), i)
+        force = ObjectsFem.makeConstraintForce(self.document, "Force")
+        force.Force = "10 N"
+
+        # Edge1 of the box is the edge from node 1 to node 5
+        force.References = [(box, "Edge1")]
+        table = meshtools.get_force_obj_edge_nodeload_table(
+            mesh, meshtools.get_femelement_table(mesh), mesh.Nodes, force
+        )
+        loads = {n: float(v) for _, node_loads in table for n, v in node_loads.items()}
+        self.assertEqual(sorted(loads), [1, 5])
+        self.assertAlmostEqual(sum(loads.values()), 10)
+
+        # Vertex1 of the box is node 5
+        force.References = [(box, "Vertex1")]
+        table = meshtools.get_force_obj_vertex_nodeload_table(mesh, force)
+        loads = {n: float(v) for _, node_loads in table for n, v in node_loads.items()}
+        self.assertEqual(sorted(loads), [5])
+        self.assertAlmostEqual(loads[5], 10)
+
+    # ********************************************************************************************
     def test_stl_save_load(self):
         # the binary STL reader assembled every float in a one-byte bool,
         # so the nodes of a mesh written to STL read back as garbage
