@@ -3293,7 +3293,14 @@ ExpressionPtr ConditionalExpression::simplify() const
 
 void ConditionalExpression::_toString(std::ostream &ss, bool persistent,int) const
 {
-    condition->toString(ss,persistent);
+    // '?' is right-associative: "a ? b : c ? d : e" reads back as "a ? b : (c ? d : e)",
+    // so a conditional used as the condition must keep its parentheses.
+    if (freecad_cast<ConditionalExpression*>(condition)) {
+        ss << '(';
+        condition->toString(ss,persistent);
+        ss << ')';
+    } else
+        condition->toString(ss,persistent);
     ss << " ? ";
     if (trueExpr->priority() <= priority()) {
         ss << '(';
