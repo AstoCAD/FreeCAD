@@ -100,6 +100,7 @@ public:
     TopoDS_Shape getShapeForDetail() const override;
 
     Base::Vector3d mapPoint3dToDetail(const Base::Vector3d& inPoint) const;
+    gp_Ax2 getRotatedCS(Base::Vector3d basePoint = Base::Vector3d(0.0, 0.0, 0.0)) const override;
 
 public Q_SLOTS:
     void onMakeDetailFinished(void);
