@@ -1835,7 +1835,9 @@ def exportIFC2X3Attributes(obj, kwargs, scale=0.001):
             }
         )
     elif ifctype == "IfcReinforcingBar":
-        kwargs.update({"NominalDiameter": obj.Diameter.Value, "BarLength": obj.Length.Value})
+        kwargs.update(
+            {"NominalDiameter": obj.Diameter.Value * scale, "BarLength": obj.Length.Value * scale}
+        )
     elif ifctype == "IfcBuildingStorey":
         kwargs.update({"Elevation": obj.Placement.Base.z * scale})
     return kwargs
@@ -1848,9 +1850,11 @@ def exportIfcAttributes(obj, kwargs, scale=0.001):
         if obj.getGroupOfProperty(property) == "IFC Attributes" and obj.getPropertyByName(property):
             value = obj.getPropertyByName(property)
             if isinstance(value, FreeCAD.Units.Quantity):
-                value = float(value)
-                if "Elevation" in property:
-                    value = value * scale  # some properties must be changed to meters
+                if value.Unit == FreeCAD.Units.Length:
+                    # lengths (Elevation, OverallHeight, NominalDiameter...) in file units
+                    value = value.Value * scale
+                else:
+                    value = float(value)
             if (ifctype == "IfcFurnishingElement") and (property == "PredefinedType"):
                 pass  # IFC2x3 Furniture objects get converted to IfcFurnishingElement and have no PredefinedType anymore
             else:
