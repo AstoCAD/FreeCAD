@@ -99,6 +99,33 @@ def shape2polyhedron(shape):
         Deflection = params.GetFloat('meshdeflection', 0.0)))
 
 
+def plane_extrusion_height(ob):
+    '''Height of a Part::Extrusion of a Part::Plane if linear_extrude() of a
+    square at the origin gives the same solid (straight up along +Z, no taper,
+    nothing placed), else None. Same length rules as Part::Extrusion.'''
+    if not (ob.Placement.isIdentity() and ob.Base.Placement.isIdentity()):
+        return None
+    if ob.TaperAngle.Value != 0 or ob.TaperAngleRev.Value != 0:
+        return None
+    if ob.Dir.Length < 1e-7:
+        return None
+    direction = FreeCAD.Vector(ob.Dir).normalize() # on a copy, not on the property
+    if ob.Reversed:
+        direction = direction * -1
+    if (direction - FreeCAD.Vector(0, 0, 1)).Length > 1e-9:
+        return None
+    forward = ob.LengthFwd.Value
+    backward = ob.LengthRev.Value
+    if forward == 0 and backward == 0:
+        forward = ob.Dir.Length
+    if not ob.Symmetric and backward != 0:
+        return None
+    # a negative length extrudes downwards: linear_extrude() needs a positive height
+    if forward <= 0:
+        return None
+    return forward
+
+
 def process_object(csg,ob):
     print("Placement")
     print("Pos   : "+str(ob.Placement.Base))
@@ -196,15 +223,16 @@ def process_object(csg,ob):
                 csg.write(vertexs2polygon(ob.Base.Shape.Vertexes))
                 if mm == 1: csg.write("}\n")
 
-        elif ob.Base.isDerivedFrom('Part::Plane'):
-            mm = check_multmatrix(csg,ob,0,0,0)
-            csg.write("linear_extrude(height = "+str(ob.Dir[2])+", center = true, "+convexity+", twist = 0, slices = 2, $fn = 0, "+fafs+")\n{\n")
-            csg.write("square (size = ["+str(ob.Base.Length.Value)+", "+str(ob.Base.Width.Value)+"], center = "+center(mm)+");\n}\n")
-            if mm == 1: csg.write("}\n")
+        elif ob.Base.isDerivedFrom('Part::Plane') and \
+                plane_extrusion_height(ob) is not None:
+            height = plane_extrusion_height(ob)
+            csg.write("linear_extrude(height = "+str(height)+", center = "+("true" if ob.Symmetric else "false")+", "+convexity+", twist = 0, slices = 2, $fn = 0, "+fafs+")\n{\n")
+            csg.write("square (size = ["+str(ob.Base.Length.Value)+", "+str(ob.Base.Width.Value)+"], center = false);\n}\n")
         elif ob.Base.Name.startswith('this_is_a_bad_idea'):
             pass
         else:
-            pass # There should be a fallback solution
+            # anything linear_extrude can't describe: export the placed shape
+            csg.write('%s\n' % shape2polyhedron(ob.Shape))
 
     # The Placement of a boolean feature is applied on top of the result of
     # its operands, so it has to be exported as an enclosing multmatrix.
