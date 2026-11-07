@@ -80,7 +80,8 @@ def mesh2polyhedron(mesh):
     trianglestr = ','.join(['[%d,%d,%d]' % tuple(tri) for tri in mesh.Topology[1]])
     #avoid deprecation warning by changing triangles to faces
     #return 'polyhedron ( points = [%s], triangles = [%s]);' % (pointstr, trianglestr)
-    return 'polyhedron ( points = [%s], faces = [%s]);' % (pointstr, trianglestr)
+    # convexity like OpenSCAD writes it: the CSG importer expects the argument
+    return 'polyhedron ( points = [%s], faces = [%s], %s);' % (pointstr, trianglestr, convexity)
 
 
 def vector2d(v):
