@@ -44,6 +44,7 @@ from TDTest.DrawDimension3dReferenceViewTest import DrawDimension3dReferenceView
 from TDTest.DrawDimensionFilledAreaTest import DrawDimensionFilledAreaTest  # noqa: F401
 from TDTest.DrawDxfRadialDimTest import DrawDxfRadialDimTest  # noqa: F401
 from TDTest.DrawDxfAngle3PtDimTest import DrawDxfAngle3PtDimTest  # noqa: F401
+from TDTest.DrawViewScaledLinkTest import DrawViewScaledLinkTest  # noqa: F401
 from TDTest.DrawDimensionAreaToleranceTest import DrawDimensionAreaToleranceTest  # noqa: F401
 from TDTest.DrawViewWrapperIdentityTest import DrawViewWrapperIdentityTest  # noqa: F401
 from TDTest.DrawPageAddViewTypeTest import DrawPageAddViewTypeTest  # noqa: F401
