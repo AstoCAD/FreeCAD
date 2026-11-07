@@ -63,13 +63,22 @@ def write_meshdata_constraint(f, femobj, rb_obj, ccxwriter):
         f.write(f"{n},\n")
 
 
+def get_rigidbody_node_ids(rb_obj, ccxwriter):
+    # the reference and rotation nodes are numbered after the highest node number of the mesh,
+    # the node count is not enough if the node numbers of the mesh have gaps
+    if not ccxwriter.femnodes_mesh:
+        ccxwriter.femnodes_mesh = ccxwriter.femmesh.Nodes
+    max_node_id = max(ccxwriter.femnodes_mesh, default=0)
+    rb_obj_idx = ccxwriter.analysis.Group.index(rb_obj)
+    # factor 2 is to prevent conflict with other rigid body constraint
+    ref_node_idx = max_node_id + 2 * rb_obj_idx + 1
+    rot_node_idx = max_node_id + 2 * rb_obj_idx + 2
+    return ref_node_idx, rot_node_idx
+
+
 def write_constraint(f, femobj, rb_obj, ccxwriter):
 
-    rb_obj_idx = ccxwriter.analysis.Group.index(rb_obj)
-    node_count = ccxwriter.mesh_object.FemMesh.NodeCount
-    # factor 2 is to prevent conflict with other rigid body constraint
-    ref_node_idx = node_count + 2 * rb_obj_idx + 1
-    rot_node_idx = node_count + 2 * rb_obj_idx + 2
+    ref_node_idx, rot_node_idx = get_rigidbody_node_ids(rb_obj, ccxwriter)
 
     f.write("*NODE\n")
     f.write("{},{},{},{}\n".format(ref_node_idx, *rb_obj.ReferenceNode))
