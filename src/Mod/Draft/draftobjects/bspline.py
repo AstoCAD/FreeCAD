@@ -105,9 +105,12 @@ class BSpline(DraftObject):
 
         self.assureProperties(obj)
 
-        self.knotSeq = self.parameterization(obj.Points, obj.Parameterization, obj.Closed)
+        # Two points cannot make a periodic spline: they are interpolated
+        # as an open one, so the knots must be those of an open spline.
+        closed = obj.Closed and (len(obj.Points) > 2)
+        self.knotSeq = self.parameterization(obj.Points, obj.Parameterization, closed)
         plm = obj.Placement
-        if obj.Closed and (len(obj.Points) > 2):
+        if closed:
             if obj.Points[0] == obj.Points[-1]:  # should not occur, but OCC will crash
                 _err = QT_TRANSLATE_NOOP(
                     "Draft",
