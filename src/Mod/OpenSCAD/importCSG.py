@@ -1208,14 +1208,15 @@ def p_circle_action(p) :
     r = float(p[3]['r'])
     # Avoid zero radius
     if r == 0 : r = 0.00001
-    n = int(p[3]['$fn'])
+    # $fn may be fractional; below 3 no polygon can be made (same as cylinder)
+    n = int(round(float(p[3]['$fn'])))
     fnmax = FreeCAD.ParamGet(\
         "User parameter:BaseApp/Preferences/Mod/OpenSCAD").\
         GetInt('useMaxFN',16)
     # Alter Max polygon to control if polygons are circles or polygons
     # in the modules preferences
     import Draft
-    if n == 0 or fnmax != 0 and n >= fnmax:
+    if n < 3 or fnmax != 0 and n >= fnmax:
         mycircle = FreeCAD.ActiveDocument.addObject("Part::Part2DObjectPython",'circle')
         Draft._Circle(mycircle)
         mycircle.Radius = r
