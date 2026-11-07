@@ -255,6 +255,15 @@ class DraftCreation(test_base.DraftTestCaseDoc):
         obj = Draft.make_bspline([a, b, c])
         self.assertTrue(obj, "'{}' failed".format(operation))
 
+    def test_bspline_closed_two_points(self):
+        """A closed BSpline of two points is computed like an open one."""
+        obj = Draft.make_bspline([Vector(0, 0, 0), Vector(10, 5, 0)])
+        obj.Closed = True
+        self.doc.recompute()
+        self.assertNotIn("Invalid", obj.State)
+        self.assertFalse(obj.Shape.isNull())
+        self.assertAlmostEqual(obj.Shape.Length, math.hypot(10, 5), places=6)
+
     def test_point(self):
         """Create a point."""
         operation = "Draft Point"
