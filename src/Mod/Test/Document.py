@@ -2360,6 +2360,49 @@ class UndoRedoCases(unittest.TestCase):
         self.Doc.undo()
         self.assertTrue(self.Doc.recompute() >= 0)
 
+    def testUndoRedoLinkCopyOnChange(self):
+        """Undo/redo of a change that made a link's private copy restores the recorded state."""
+        src = self.Doc.addObject("App::FeaturePython", "Src")
+        src.addProperty("App::PropertyFloat", "Size")
+        src.Size = 1
+        src.setPropertyStatus("Size", "CopyOnChange")
+        link = self.Doc.addObject("App::Link", "Lnk")
+        link.LinkedObject = src
+        link.LinkCopyOnChange = "Enabled"
+        self.Doc.recompute()
+
+        def copies():
+            return [o for o in self.Doc.Objects if o.Name.startswith("Src") and o != src]
+
+        self.Doc.openTransaction("Change")
+        link.Size = 5
+        self.Doc.commitTransaction()
+        self.assertEqual(len(copies()), 1)
+        self.assertEqual(link.LinkedObject, copies()[0])
+        self.assertEqual(link.LinkCopyOnChange, "Owned")
+
+        self.Doc.undo()
+        self.assertEqual(copies(), [])
+        self.assertIsNone(link.LinkCopyOnChangeGroup)
+        self.assertEqual(link.LinkedObject, src)
+        self.assertEqual(link.LinkCopyOnChangeSource, src)
+        self.assertEqual(link.LinkCopyOnChange, "Enabled")
+        self.assertEqual(link.Size, 1)
+
+        self.Doc.redo()
+        self.assertEqual(len(copies()), 1)
+        copy = copies()[0]
+        self.assertEqual(link.LinkedObject, copy)
+        self.assertEqual(link.LinkCopyOnChangeSource, src)
+        self.assertEqual(link.LinkCopyOnChange, "Owned")
+        self.assertEqual(link.LinkCopyOnChangeGroup.ElementList, [copy])
+        self.assertEqual(copy.Size, 5)
+        self.assertEqual(src.Size, 1)
+
+        self.Doc.undo()
+        self.assertEqual(copies(), [])
+        self.assertEqual(link.LinkedObject, src)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("UndoTest")
