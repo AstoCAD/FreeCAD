@@ -54,6 +54,7 @@
 #include <App/Document.h>
 #include <Base/Console.h>
 #include <Base/Parameter.h>
+#include <Base/Tools.h>
 #include <Base/UnitsApi.h>
 
 #include "DrawComplexSection.h"
@@ -590,7 +591,9 @@ TopoDS_Shape DrawViewDetail::projectEdgesOntoFace(TopoDS_Shape& edgeShape, TopoD
     return TopoDS_Shape(std::move(edges));
 }
 
-//! given a 3d point, find the corresponding point in this view.
+//! given a 3d point, find the corresponding point in this view (unscaled).
+//! The detail is cut from the base view's shape for detail, which is rotated by the base
+//! view's Rotation, around the AnchorPoint and is then rotated by this view's Rotation.
 Base::Vector3d DrawViewDetail::mapPoint3dToDetail(const Base::Vector3d& inPoint) const
 {
     auto baseObj = BaseView.getValue();
@@ -599,9 +602,11 @@ Base::Vector3d DrawViewDetail::mapPoint3dToDetail(const Base::Vector3d& inPoint)
         throw Base::RuntimeError("Detail has no BaseView");
     }
     auto pointOnBase = baseDvp->projectPoint(inPoint, false);
+    pointOnBase.RotateZ(Base::toRadians(baseDvp->Rotation.getValue()));
     auto detailCenter = AnchorPoint.getValue();
-    auto pointOnDetail = DU::invertY(pointOnBase - detailCenter);
-    return pointOnDetail;
+    auto pointOnDetail = pointOnBase - detailCenter;
+    pointOnDetail.RotateZ(Base::toRadians(Rotation.getValue()));
+    return DU::invertY(pointOnDetail);
 }
 
 //we don't want to paint detail highlights on top of detail views,

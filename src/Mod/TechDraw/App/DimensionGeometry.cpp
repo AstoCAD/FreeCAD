@@ -40,6 +40,23 @@
 using namespace TechDraw;
 using DU = DrawUtil;
 
+namespace
+{
+//! project a 3d point (relative to the view's centroid) onto the dvp's paper plane, in the
+//! coordinates of the view's 2d geometry: scaled, rotated by the view's Rotation and with Y
+//! inverted.
+Base::Vector3d projectToView(const DrawViewPart* dvp, const Base::Vector3d& point)
+{
+    auto detailView = dynamic_cast<const DrawViewDetail*>(dvp);
+    if (detailView) {
+        return detailView->mapPoint3dToDetail(point) * detailView->getScale();
+    }
+    Base::Vector3d result = dvp->projectPoint(point, false) * dvp->getScale();
+    result.RotateZ(Base::toRadians(dvp->Rotation.getValue()));
+    return DU::invertY(result);
+}
+}  // namespace
+
 pointPair::pointPair(const pointPair& pp)
 {
     first(pp.first());
@@ -75,18 +92,10 @@ void pointPair::scale(double factor)
 // project the points onto the dvp's paper plane.
 void pointPair::project(const DrawViewPart* dvp)
 {
-    auto detailView = dynamic_cast<const DrawViewDetail*>(dvp);
-    if (detailView) {
-        m_first = detailView->mapPoint3dToDetail(m_first) * detailView->getScale();
-        m_second = detailView->mapPoint3dToDetail(m_second) * detailView->getScale();
-        m_overrideFirst = detailView->mapPoint3dToDetail(m_overrideFirst) * detailView->getScale();
-        m_overrideSecond = detailView->mapPoint3dToDetail(m_overrideSecond) * detailView->getScale();
-        return;
-    }
-    m_first = dvp->projectPoint(m_first) * dvp->getScale();
-    m_second = dvp->projectPoint(m_second) * dvp->getScale();
-    m_overrideFirst = dvp->projectPoint(m_overrideFirst) * dvp->getScale();
-    m_overrideSecond = dvp->projectPoint(m_overrideSecond) * dvp->getScale();
+    m_first = projectToView(dvp, m_first);
+    m_second = projectToView(dvp, m_second);
+    m_overrideFirst = projectToView(dvp, m_overrideFirst);
+    m_overrideSecond = projectToView(dvp, m_overrideSecond);
 }
 
 // map the points onto the dvp's XY coordinate system
@@ -183,7 +192,7 @@ void anglePoints::move(const Base::Vector3d& offset)
 void anglePoints::project(const DrawViewPart* dvp)
 {
     m_ends.project(dvp);
-    m_vertex = dvp->projectPoint(m_vertex) * dvp->getScale();
+    m_vertex = projectToView(dvp, m_vertex);
 }
 
 // map the points onto the dvp's XY coordinate system
@@ -277,12 +286,12 @@ void arcPoints::move(const Base::Vector3d& offset)
 void arcPoints::project(const DrawViewPart* dvp)
 {
     radius = radius * dvp->getScale();
-    center = dvp->projectPoint(center) * dvp->getScale();
-    onCurve.first(dvp->projectPoint(onCurve.first()) * dvp->getScale());
-    onCurve.second(dvp->projectPoint(onCurve.second()) * dvp->getScale());
-    arcEnds.first(dvp->projectPoint(arcEnds.first()) * dvp->getScale());
-    arcEnds.second(dvp->projectPoint(arcEnds.second()) * dvp->getScale());
-    midArc = dvp->projectPoint(midArc) * dvp->getScale();
+    center = projectToView(dvp, center);
+    onCurve.first(projectToView(dvp, onCurve.first()));
+    onCurve.second(projectToView(dvp, onCurve.second()));
+    arcEnds.first(projectToView(dvp, arcEnds.first()));
+    arcEnds.second(projectToView(dvp, arcEnds.second()));
+    midArc = projectToView(dvp, midArc);
 }
 
 // obsolete. see above
@@ -386,7 +395,7 @@ void areaPoint::move(const Base::Vector3d& offset)
 
 void areaPoint::project(const DrawViewPart* dvp)
 {
-    center = dvp->projectPoint(center) * dvp->getScale();
+    center = projectToView(dvp, center);
 }
 
 void areaPoint::invertY()
