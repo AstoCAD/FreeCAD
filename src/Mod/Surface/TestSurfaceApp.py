@@ -23,4 +23,5 @@
 
 # Unit test for the Surface module
 from SurfaceTests.TestBlendCurve import TestBlendCurve
+from SurfaceTests.TestFilling import TestFilling
 from SurfaceTests.TestIntersectionCurve import TestIntersectionCurve

@@ -36,6 +36,23 @@
 
 using namespace Surface;
 
+namespace
+{
+// True if the links reference exactly one edge and this edge is closed (e.g. a circle)
+bool isSingleClosedEdge(const App::PropertyLinkSubList& edges)
+{
+    const auto objs = edges.getValues();
+    const auto subs = edges.getSubValues();
+    if (objs.size() != 1 || subs.size() != 1 || !objs[0]
+        || !objs[0]->isDerivedFrom<Part::Feature>()) {
+        return false;
+    }
+    const Part::TopoShape& shape = static_cast<Part::Feature*>(objs[0])->Shape.getShape();
+    TopoDS_Shape edge = shape.getSubShape(subs[0].c_str(), true);
+    return !edge.IsNull() && edge.ShapeType() == TopAbs_EDGE && BRep_Tool::IsClosed(edge);
+}
+}  // namespace
+
 PROPERTY_SOURCE(Surface::Filling, Part::Spline)
 
 // Initial values
@@ -314,8 +331,8 @@ App::DocumentObjectExecReturn* Filling::execute()
             addConstraints(builder, Points);
         }
 
-        // Build the face
-        if (numBoundaries > 1) {
+        // Build the face: a single boundary edge can only bound it if it is closed
+        if (numBoundaries > 1 || isSingleClosedEdge(BoundaryEdges)) {
             builder.Build();
         }
         if (!builder.IsDone()) {
