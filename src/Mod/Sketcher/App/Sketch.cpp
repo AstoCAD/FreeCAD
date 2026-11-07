@@ -3513,6 +3513,13 @@ int Sketch::addAngleAtPointConstraint(
         p2 = &(Points[pointId]);
     }
 
+    // A B-spline has a normal only at its own end points (see GCS::BSpline::CalculateNormal), so
+    // an endpoint-to-endpoint angle with a B-spline as second curve is taken at the B-spline's
+    // point. Both points are made coincident below.
+    GCS::Point& pAngle = (e2e && Geoms[geoId2].type == BSpline && Geoms[geoId1].type != BSpline)
+        ? *p2
+        : p;
+
     double* angle = value;
 
     // For tangency/perpendicularity, we don't just copy the angle.
@@ -3539,7 +3546,7 @@ int Sketch::addAngleAtPointConstraint(
         }
 
         if (*value == 0.0) {  // autodetect tangency internal/external (and same for perpendicularity)
-            double angleErr = GCSsys.calculateAngleViaPoint(*crv1, *crv2, p) - angleDesire;
+            double angleErr = GCSsys.calculateAngleViaPoint(*crv1, *crv2, pAngle) - angleDesire;
             // bring angleErr to -pi..pi
             if (angleErr > pi) {
                 angleErr -= pi * 2;
@@ -3599,7 +3606,7 @@ int Sketch::addAngleAtPointConstraint(
             GCSsys.addConstraintAngleViaTwoPoints(*crv1, *crv2, p, *p2, angle, tag, driving);
         }
         else {
-            GCSsys.addConstraintAngleViaPoint(*crv1, *crv2, p, angle, tag, driving);
+            GCSsys.addConstraintAngleViaPoint(*crv1, *crv2, pAngle, angle, tag, driving);
         }
     }
     if (avp) {
