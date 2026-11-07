@@ -271,11 +271,13 @@ TEST(BaseQuantity, TestPowQuantityExponentOutOfRange)
     EXPECT_THROW(mm.pow(Quantity {256.0}), Base::OverflowError);
     EXPECT_THROW(mm.pow(Quantity {1e300}), Base::OverflowError);
     EXPECT_THROW(mm.pow(Quantity {-200.0}), Base::UnderflowError);
-    // in range and fractional exponents are unchanged (the unit takes the truncated exponent)
+    // in range exponents are unchanged
     EXPECT_EQ(mm.pow(Quantity {7.0}).getUnit(), Unit(7));
     EXPECT_EQ(mm.pow(Quantity {-8.0}).getUnit(), Unit(-8));
-    EXPECT_EQ(mm.pow(Quantity {2.5}).getUnit(), Unit::Area);
-    EXPECT_EQ(mm.pow(Quantity {-0.5}).getUnit(), Unit::One);
+    // the unit takes the exact exponent, as with a double exponent (it was truncated)
+    EXPECT_THROW(mm.pow(Quantity {2.5}), UnitsMismatchError);
+    EXPECT_THROW(mm.pow(Quantity {-0.5}), UnitsMismatchError);
+    EXPECT_EQ(Quantity(4.0, Unit::Area).pow(Quantity {0.5}), Quantity(2.0, Unit::Length));
     // dimensionless bases take any exponent
     EXPECT_EQ(Quantity {2.0}.pow(Quantity {1000.0}).getUnit(), Unit::One);
 }

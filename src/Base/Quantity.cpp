@@ -197,13 +197,10 @@ Quantity Quantity::pow(const Quantity& other) const
         throw Base::UnitsMismatchError("Quantity::pow(): exponent must not have a unit");
     }
 
-    // The unit takes the exponent truncated towards zero, as the former cast to
-    // signed char did. Unit::pow range-checks it: the cast was undefined behaviour
-    // (and wrapped) for exponents beyond the signed char range.
-    return Quantity(
-        std::pow(myValue, other.myValue),
-        myUnit.pow(std::trunc(other.myValue))
-    );
+    // the same as a plain number exponent: the unit takes the exact exponent (Unit::pow
+    // rejects a fractional unit exponent), not a truncated one that gave the value of
+    // (4 mm^2)^0.5 with no unit and (1 mm)^2.5 in mm^2
+    return pow(other.myValue);
 }
 
 Quantity Quantity::pow(double exp) const
