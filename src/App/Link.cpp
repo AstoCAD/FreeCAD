@@ -2058,7 +2058,7 @@ void LinkBaseExtension::update(App::DocumentObject* parent, const Property* prop
                         obj->Placement.setValue(pla);
                     }
                     if (scaleProp && scaleProp->getSize() > (int)i) {
-                        obj->Scale.setValue(scaleProp->getValues()[i].x);
+                        obj->ScaleVector.setValue(scaleProp->getValues()[i]);
                     }
                     else {
                         obj->Scale.setValue(1);

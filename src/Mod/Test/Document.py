@@ -962,6 +962,28 @@ class DocumentBasicCases(unittest.TestCase):
         with self.assertRaises(ValueError):
             link.getLinkPropertyInfo("NoSuchProperty")
 
+    def testLinkArrayKeepsNonUniformScaleWhenShowingElements(self):
+        # Hiding the elements stores their scale vectors in ScaleList, but showing them
+        # again gave each element only the x factor.
+        src = self.Doc.addObject("App::FeaturePython", "Src")
+        array = self.Doc.addObject("App::Link", "Array")
+        array.LinkedObject = src
+        array.ShowElement = False
+        array.ElementCount = 2
+        array.ScaleList = [FreeCAD.Vector(2, 1, 3), FreeCAD.Vector(1, 1, 1)]
+        array.ShowElement = True
+        self.assertEqual(
+            [tuple(e.ScaleVector) for e in array.ElementList], [(2, 1, 3), (1, 1, 1)]
+        )
+        self.assertEqual(array.ElementList[1].Scale, 1)
+        array.ElementList[1].ScaleVector = FreeCAD.Vector(1, 4, 1)
+        array.ShowElement = False
+        self.assertEqual([tuple(v) for v in array.ScaleList], [(2, 1, 3), (1, 4, 1)])
+        array.ShowElement = True
+        self.assertEqual(
+            [tuple(e.ScaleVector) for e in array.ElementList], [(2, 1, 3), (1, 4, 1)]
+        )
+
     def testNoProxy(self):
         test = self.Doc.addObject("App::DocumentObject", "Object")
         test.addProperty("App::PropertyPythonObject", "Dictionary")
