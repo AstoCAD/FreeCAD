@@ -67,3 +67,27 @@ class TestInspectionFeature(unittest.TestCase):
         self.assertEqual(len(insp.Distances), len(cand))
         for dist in insp.Distances:
             self.assertAlmostEqual(dist, d, places=3)
+
+    def test_nominal_points_in_neighbour_grid_elements(self):
+        """The nearest nominal point used to be searched only in the grid element of the point."""
+        nominal = self.doc.addObject("Points::Feature", "Nominal")
+        nominal.Points = Points.Points([App.Vector(x, 0, 0) for x in range(0, 101, 10)])
+        cand = [App.Vector(5, 0, 0), App.Vector(9.99, 0, 0), App.Vector(-3, 0, 0)]
+        expected = [5.0, 0.01, 3.0]
+        actual = self.doc.addObject("Points::Feature", "Actual")
+        actual.Points = Points.Points(cand)
+        insp = self.doc.addObject("Inspection::Feature", "Inspection")
+        insp.SearchRadius = 6.0
+        insp.Actual = actual
+        insp.Nominals = [nominal]
+        self.doc.recompute()
+        self.assertTrue(insp.isValid())
+        self.assertEqual(len(insp.Distances), len(cand))
+        for dist, exp in zip(insp.Distances, expected):
+            self.assertAlmostEqual(dist, exp, places=3)
+
+        # beyond the search radius the distance is still not inspected
+        insp.SearchRadius = 4.0
+        self.doc.recompute()
+        self.assertGreater(insp.Distances[0], 1e30)
+        self.assertAlmostEqual(insp.Distances[2], 3.0, places=3)
