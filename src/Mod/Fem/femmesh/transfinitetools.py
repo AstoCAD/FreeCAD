@@ -457,6 +457,8 @@ def _get_reference_elements(shape, obj):
                         "One element of the mesh refinement {} could not be found "
                         "in the Part to mesh. It will be ignored.\n".format(obj.Name)
                     )
+                    # its name belongs to another shape, the Part to mesh has no such element
+                    continue
             if not element in elements:
                 elements.append(element)
 

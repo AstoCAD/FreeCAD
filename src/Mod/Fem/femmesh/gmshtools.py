@@ -558,6 +558,8 @@ class GmshTools(ObjectTools):
                             "One element of the mesh refinement {} could not be found "
                             "in the Part to mesh. It will be ignored.\n".format(mr_obj.Name)
                         )
+                        # its name belongs to another shape, the Part to mesh has no such element
+                        continue
                 if not element in elements:
                     elements.append(element)
 
@@ -712,6 +714,8 @@ class GmshTools(ObjectTools):
                                             "not be found in the Part to mesh. "
                                             "It will be ignored.\n".format(mr_obj.Name)
                                         )
+                                        # its name belongs to another shape
+                                        continue
                                 # print(elems)  # element
                                 if elems not in self.bl_boundary_list:
                                     # fetch settings in DocumentObject

@@ -369,6 +369,33 @@ class TestGMSHRefinements(TestGMSHBase):
         )
 
     # ********************************************************************************************
+    def test_GMSHReferenceNotInShape(self):
+        # a refinement element of another object that is not found in the Part to mesh was
+        # reported as ignored but its name was used: Face1 of the cylinder refined Face1 of the box
+        import ObjectsFem
+
+        doc = self.document
+        box = doc.addObject("Part::Box", "Box")
+        cylinder = doc.addObject("Part::Cylinder", "Cylinder")
+        cylinder.Placement.Base = FreeCAD.Vector(100, 0, 0)
+        doc.recompute()
+        mesh = ObjectsFem.makeMeshGmsh(doc, "Mesh")
+        mesh.Shape = box
+        region = ObjectsFem.makeMeshRegion(doc, mesh, 1.0, "Region")
+        region.References = [(cylinder, "Face1"), (box, "Face2")]
+        layer = ObjectsFem.makeMeshBoundaryLayer(doc, mesh, "BoundaryLayer")
+        layer.MinimumThickness = 0.5
+        layer.References = [(cylinder, "Face3"), (box, "Face4")]
+        doc.recompute()
+
+        tool = gmshtools.GmshTools(mesh)
+        tool.update_mesh_data()
+        self.assertEqual(len(tool.size_field_list), 1)
+        self.assertEqual(tool.size_field_list[0]["Option"]["SurfacesList"], "{ 2 }")
+        self.assertEqual(len(tool.bl_setting_list), 1)
+        self.assertEqual(tool.bl_setting_list[0]["CurvesList"], ["Face4"])
+
+    # ********************************************************************************************
     @unittest.skipUnless(_has_ccx_binary(), "CalculiX binary not found")
     def test_GMSHAdaptiv(self):
 
