@@ -254,6 +254,27 @@ class TestCore(AssemblyTestBase):
     def test_linked_body_grounding_control(self):
         self._check_ordinary_component_grounding(linked=True)
 
+    def test_undo_of_deleting_grounded_primitive_keeps_it_grounded(self):
+        """Undo restores the attachment properties of a deleted Part primitive. That must
+        not unlock its placement, or the next solve deletes the grounded joint."""
+        self.doc.UndoMode = 1
+        grounded = self.assembly.newObject("Part::Box", "GroundedBox")
+        self.doc.recompute()
+        ground = self.jointgroup.newObject("App::FeaturePython", "Ground")
+        JointObject.GroundedJoint(ground, grounded)
+        ground_name = ground.Name
+
+        self.doc.openTransaction("Delete grounded part")
+        self.doc.removeObject(grounded.Name)
+        self.doc.commitTransaction()
+        self.doc.undo()
+
+        grounded = self.doc.getObject("GroundedBox")
+        self.assertIn("ReadOnly", grounded.getPropertyStatus("Placement"))
+        self.assertEqual(self.assembly.solve(), 0)
+        self.assertIsNotNone(self.doc.getObject(ground_name))
+        self.assertTrue(self.assembly.isPartGrounded(grounded))
+
     def test_body_contained_bare_coordinate_system_is_not_root_grounded(self):
         body = self._make_grounding_body("Component")
         datum = body.newObject("App::LocalCoordinateSystem", "BodyLCS")

@@ -1391,6 +1391,26 @@ class PartAttachNestedLCS(unittest.TestCase):
         self.Doc.recompute()
         self.assertNotIn("Invalid", feat.State)
 
+    def testAttacherReleasesOnlyItsOwnPlacementLock(self):
+        # The attacher locks the placement of an attached object and releases it on
+        # detaching. It must not release a lock it did not set (e.g. the one of a grounded
+        # assembly component) when an attachment property of an unattached object changes,
+        # as undo does when it restores a deleted object.
+        support = self.Doc.addObject("Part::Box", "Support")
+        box = self.Doc.addObject("Part::Box", "Box")
+        self.Doc.recompute()
+        box.setPropertyStatus("Placement", "ReadOnly")
+        box.AttachmentOffset = FreeCAD.Placement(FreeCAD.Vector(0, 0, 1), FreeCAD.Rotation())
+        box.AttachmentSupport = [(support, "Face6")]
+        box.MapMode = "Deactivated"
+        self.assertIn("ReadOnly", box.getPropertyStatus("Placement"))
+
+        box.setPropertyStatus("Placement", "-ReadOnly")
+        box.MapMode = "FlatFace"
+        self.assertIn("ReadOnly", box.getPropertyStatus("Placement"))
+        box.MapMode = "Deactivated"
+        self.assertNotIn("ReadOnly", box.getPropertyStatus("Placement"))
+
     def testFoldingOnNonEdgeReportsError(self):
         # Folding needs four edges. A vertex or face among the references used to
         # dereference an uninitialized pointer (access violation / segfault).

@@ -763,7 +763,9 @@ void AttachExtension::onExtendedDocumentRestored()
             changeAttacherType(_baseProps.attacherType->getValue(), true);
         }
         _active = -1;
-        updatePropertyStatus(isAttacherActive());
+        // The restored status of the placement may come from an attachment that no
+        // longer holds: take the lock over from the file.
+        updatePropertyStatus(isAttacherActive(), false, true);
 
         restoreAttacherEngine(this);
 
@@ -773,7 +775,7 @@ void AttachExtension::onExtendedDocumentRestored()
 
         bool bAttached = positionBySupport();
 
-        updateSinglePropertyStatus(bAttached);
+        updateSinglePropertyStatus(bAttached, false, true);
     }
     catch (Base::Exception&) {
     }
@@ -781,7 +783,7 @@ void AttachExtension::onExtendedDocumentRestored()
     }
 }
 
-void AttachExtension::updateSinglePropertyStatus(bool bAttached, bool base)
+void AttachExtension::updateSinglePropertyStatus(bool bAttached, bool base, bool force)
 {
     auto& props = base ? this->_baseProps : this->_props;
     if (!props.mapMode) {
@@ -810,17 +812,24 @@ void AttachExtension::updateSinglePropertyStatus(bool bAttached, bool base)
         this->AttachmentOffset.setStatus(App::Property::Status::Hidden, !bAttached);
         if (getExtendedContainer()) {
             // for mmTranslate, orientation should remain editable even when attached.
-            getPlacement().setReadOnly(bAttached && mmode != mmTranslate);
+            const bool lock = bAttached && mmode != mmTranslate;
+            // Release only a lock set here: something else, such as the grounding of an
+            // assembly component, may have made the placement of an unattached object
+            // read-only.
+            if (force || lock || _placementLocked) {
+                getPlacement().setReadOnly(lock);
+                _placementLocked = lock;
+            }
         }
     }
 }
 
-void AttachExtension::updatePropertyStatus(bool bAttached, bool base)
+void AttachExtension::updatePropertyStatus(bool bAttached, bool base, bool force)
 {
-    updateSinglePropertyStatus(bAttached, base);
+    updateSinglePropertyStatus(bAttached, base, force);
 
     if (!base) {
-        updateSinglePropertyStatus(bAttached, true);
+        updateSinglePropertyStatus(bAttached, true, force);
     }
 }
 
