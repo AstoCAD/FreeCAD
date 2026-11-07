@@ -229,6 +229,48 @@ class TestLinearPattern(unittest.TestCase):
         self.assertEqual(pattern.SuppressedIndices, [])
         self.assertAlmostEqual(pattern.Shape.Volume, 9000)
 
+    def testPatternOfSuppressedOriginalPassesSupportThrough(self):
+        # With every original suppressed there is nothing to pattern: the result is the support.
+        # It used to keep the shape of the previous recompute, with the copies of the original.
+        for typeName in ("LinearPattern", "PolarPattern", "Mirrored", "MultiTransform"):
+            with self.subTest(typeName=typeName):
+                body = self.Doc.addObject("PartDesign::Body", "Body")
+                box = body.newObject("PartDesign::AdditiveBox", "Box")
+                box.Length = box.Width = 20
+                box.Height = 10
+                box.Placement.Base = FreeCAD.Vector(-10, -10, 0)
+                cut = body.newObject("PartDesign::SubtractiveBox", "Cut")
+                cut.Length = cut.Width = 2
+                cut.Height = 10
+                origin = {f.Role: f for f in body.Origin.OriginFeatures}
+                pattern = body.newObject("PartDesign::" + typeName, typeName)
+                pattern.Originals = [cut]
+                if typeName == "LinearPattern":
+                    pattern.Direction = (origin["X_Axis"], [""])
+                    pattern.Length = 5
+                    pattern.Occurrences = 2
+                elif typeName == "PolarPattern":
+                    pattern.Axis = (origin["Z_Axis"], [""])
+                    pattern.Angle = 90
+                    pattern.Occurrences = 2
+                elif typeName == "Mirrored":
+                    pattern.MirrorPlane = (origin["YZ_Plane"], [""])
+                else:
+                    helper = body.newObject("PartDesign::LinearPattern", "Helper")
+                    helper.Direction = (origin["Y_Axis"], [""])
+                    helper.Length = 5
+                    helper.Occurrences = 2
+                    pattern.Transformations = [helper]
+                self.Doc.recompute()
+                self.assertAlmostEqual(pattern.Shape.Volume, 3920)
+                cut.Suppressed = True
+                self.Doc.recompute()
+                self.assertNotIn("Invalid", pattern.State)
+                self.assertAlmostEqual(pattern.Shape.Volume, 4000)
+                cut.Suppressed = False
+                self.Doc.recompute()
+                self.assertAlmostEqual(pattern.Shape.Volume, 3920)
+
     def testXAxisLinearPattern(self):
         self.Body = self.Doc.addObject("PartDesign::Body", "Body")
         self.Box = self.Doc.addObject("PartDesign::AdditiveBox", "Box")
