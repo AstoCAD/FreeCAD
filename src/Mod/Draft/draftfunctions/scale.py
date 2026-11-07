@@ -251,6 +251,14 @@ def scale(selection, scale, center=App.Vector(0, 0, 0), copy=False, clone=False,
             y_vec = pts[3] - pts[0]
             ang = x_vec.getAngle(y_vec)
             if math.isclose(ang % math.pi / 2, math.pi / 4, abs_tol=1e-6):
+                # Orient the rectangle along its scaled sides. The placement of
+                # the scaled matrix cannot represent a mirroring scale, and the
+                # sides run against the axes if Length or Height is negative.
+                length = math.copysign(x_vec.Length, obj.Length.Value)
+                height = math.copysign(y_vec.Length, obj.Height.Value)
+                x_dir = x_vec if length > 0 else x_vec.negative()
+                y_dir = y_vec if height > 0 else y_vec.negative()
+                pla = App.Placement(pts[0], App.Rotation(x_dir, y_dir, App.Vector(), "XYZ"))
                 if copy:
                     newobj = make_copy.make_copy(obj)
                     newobj.Placement = pla
@@ -260,8 +268,8 @@ def scale(selection, scale, center=App.Vector(0, 0, 0), copy=False, clone=False,
                         newobj.Placement = pla
                     else:
                         newobj.Placement = parent_place.inverse() * pla
-                newobj.Length = x_vec.Length
-                newobj.Height = y_vec.Length
+                newobj.Length = length
+                newobj.Height = height
             else:
                 newobj = make_wire.make_wire(pts, closed=True, placement=pla, face=obj.MakeFace)
                 gui_utils.format_object(newobj, obj)
