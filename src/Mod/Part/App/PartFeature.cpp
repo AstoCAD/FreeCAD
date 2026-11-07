@@ -1262,6 +1262,11 @@ static TopoShape _getTopoShape(
                 if (subLink && subLink->getTrueLinkedObject(false) != linked) {
                     doGetShape = true;
                 }
+                // The scale of an element is private to it: resolve() leaves it out of
+                // 'mat', so the shared base shape would come out unscaled.
+                else if (subLink && subLink->getScaleVector() != Base::Vector3d(1, 1, 1)) {
+                    doGetShape = true;
+                }
             }
             if (doGetShape) {
                 shape = _getTopoShape(

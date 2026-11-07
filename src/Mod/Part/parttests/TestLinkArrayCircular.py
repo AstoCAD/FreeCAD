@@ -194,6 +194,26 @@ class TestLinkArrayCircular(unittest.TestCase):
                 for index, volume in enumerate(volumes):
                     self.assertAlmostEqual(volume, 4000 if index == 1 else 1000)
 
+    def testScaledElementKeepsItsScale(self):
+        # The shared base shape of the elements left out the scale of each element.
+        source = self.doc.addObject("Part::Box", "ScaleSource")
+        for kind in ("Part::LinkArrayPolar", "App::Link"):
+            with self.subTest(kind=kind):
+                array = self.doc.addObject(kind, "ScaleArray")
+                if kind == "App::Link":
+                    array.ElementCount = 3
+                array.LinkedObject = source
+                array.ShowElement = True
+                self.doc.recompute()
+                array.ElementList[1].Scale = 2
+                array.ElementList[2].ScaleVector = App.Vector(1, 2, 3)
+                self.doc.recompute()
+                self.assertAlmostEqual(Part.getShape(array, "1.").Volume, 8000)
+                volumes = [solid.Volume for solid in Part.getShape(array).Solids]
+                self.assertEqual(len(volumes), len(array.ElementList))
+                for index, volume in enumerate(volumes):
+                    self.assertAlmostEqual(volume, [1000, 8000, 6000][index] if index < 3 else 1000)
+
     def testSymmetricPolarKeepsOneInstancePerPosition(self):
         # From half a turn on, the two sides of a symmetric polar pattern put instances on top
         # of each other.
