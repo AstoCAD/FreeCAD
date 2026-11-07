@@ -1142,7 +1142,8 @@ def export(exportList, filename, colors=None, preferences=None):
             if name in classifications:
                 system = classifications[name]
             elif name:
-                system = ifcfile.createIfcClassification(None, None, None, name)
+                # by keyword: IFC2X3 refuses None for its mandatory Source and Edition
+                system = ifcfile.create_entity("IfcClassification", Name=name)
                 classifications[name] = system
             # objects with the same code share one reference
             ref = classificationrefs.get((name, code))

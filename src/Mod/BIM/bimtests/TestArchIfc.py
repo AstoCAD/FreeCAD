@@ -599,6 +599,28 @@ class TestArchIfc(TestArchBase.TestArchBase):
             },
         )
 
+    def test_export_classification_ifc2x3(self):
+        """A classified object does not abort an IFC2X3 export."""
+        import Arch
+        from importers import exportIFC
+
+        wall = Arch.makeWall(None, 1000, 200, 3000)
+        wall.StandardCode = "Uniclass Ss_20_05"
+        site = Arch.makeSite([Arch.makeBuilding([Arch.makeFloor([wall])])])
+        self.document.recompute()
+
+        preferences = exportIFC.getPreferences()
+        preferences["SCHEMA"] = "IFC2X3"
+        path = os.path.join(tempfile.mkdtemp(), "classification_ifc2x3.ifc")
+        exportIFC.export([site], path, preferences=preferences)
+        ifcfile = ifcopenshell.open(path)
+        self.assertEqual(ifcfile.schema, "IFC2X3")
+        refs = ifcfile.by_type("IfcClassificationReference")
+        self.assertEqual(
+            [(r.ItemReference, r.ReferencedSource.Name) for r in refs], [("Ss_20_05", "Uniclass")]
+        )
+        self.assertEqual(len(ifcfile.by_type("IfcRelAssociatesClassification")), 1)
+
     def test_export_site_geolocation_keeps_fractions_of_seconds(self):
         """The site latitude and longitude keep the millionths of seconds of
         IfcCompoundPlaneAngleMeasure; whole seconds put the site up to 30 m off."""
