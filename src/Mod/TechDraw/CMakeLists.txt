@@ -211,6 +211,7 @@ SET(TDTest_SRCS
     TDTest/DrawDimension3dReferenceViewTest.py
     TDTest/DrawDimensionFilledAreaTest.py
     TDTest/DrawDxfRadialDimTest.py
+    TDTest/DrawDxfAngle3PtDimTest.py
     TDTest/DrawDimensionAreaToleranceTest.py
     TDTest/DrawDxfLinearDimBlockTest.py
     TDTest/DrawCreationDocumentTest.py
