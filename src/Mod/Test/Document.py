@@ -3535,6 +3535,35 @@ class DocumentExpressionCases(unittest.TestCase):
                 written = dict(obj.ExpressionEngine)["Value"]
                 self.assertEqual(obj.evalExpression(written), expected, written)
 
+    def testAggregateFunctionsOverLists(self):
+        # Aggregate functions skipped a list argument: sum(FL) and sum(list(1; 2; 3))
+        # gave 0, average(FL) nan
+        obj = self.Doc.addObject("App::FeaturePython", "Obj")
+        obj.addProperty("App::PropertyFloatList", "FL").FL = [1, 2, 3, 4]
+        obj.addProperty("App::PropertyIntegerList", "IL").IL = [5, 6]
+        obj.addProperty("App::PropertyFloat", "Value")
+        for expr, expected in (
+            ("sum(FL)", 10),
+            ("sum(IL)", 11),
+            ("sum(FL; IL; 1)", 22),
+            ("average(FL)", 2.5),
+            ("min(FL)", 1),
+            ("max(FL)", 4),
+            ("count(FL)", 4),
+            ("sum(list(1; 2; 3))", 6),
+            ("sum(tuple(1; 2))", 3),
+            ("and(list(1; 0))", 0),
+            ("or(list(0; 1))", 1),
+            ("sum(FL[1:])", 9),
+        ):
+            with self.subTest(expr=expr):
+                self.assertAlmostEqual(obj.evalExpression(expr), expected)
+        self.assertAlmostEqual(obj.evalExpression("stddev(FL)"), math.sqrt(5 / 3))
+        self.assertEqual(obj.evalExpression("max(list(1 mm; 2 cm))"), FreeCAD.Units.Quantity("2 cm"))
+        obj.setExpression("Value", "sum(FL)")
+        self.Doc.recompute()
+        self.assertEqual(obj.Value, 10)
+
     def testLongNumberLiteral(self):
         # A decimal number of 40 characters or more overflowed the lexer's buffer
         # and read as 0
