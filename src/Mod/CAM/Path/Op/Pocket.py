@@ -200,7 +200,9 @@ class ObjectPocket(PathPocketBase.ObjectPocket):
                             base[0].Shape, subshape=shape, depthparams=self.depthparams
                         )
                         rawRemovalShape = env.cut(base[0].Shape)
-                        faceExtrusions = [f.extrude(FreeCAD.Vector(0.0, 0.0, 1.0)) for f in Faces]
+                        faceExtrusions = [
+                            _extrudeFaceUp(f, self.depthparams.final_depth) for f in Faces
+                        ]
                         obj.removalshape = _identifyRemovalSolids(rawRemovalShape, faceExtrusions)
                         removalshapes.append(
                             (obj.removalshape, False, "3DPocket")
@@ -217,7 +219,7 @@ class ObjectPocket(PathPocketBase.ObjectPocket):
                             base[0].Shape, subshape=shape, depthparams=self.depthparams
                         )
                         rawRemovalShape = env.cut(base[0].Shape)
-                        faceExtrusions = [shape.extrude(FreeCAD.Vector(0.0, 0.0, 1.0))]
+                        faceExtrusions = [_extrudeFaceUp(shape, self.depthparams.final_depth)]
                         obj.removalshape = _identifyRemovalSolids(rawRemovalShape, faceExtrusions)
                         removalshapes.append((obj.removalshape, False, "3DPocket"))
 
@@ -849,6 +851,15 @@ class ObjectPocket(PathPocketBase.ObjectPocket):
             if f.BoundBox.ZMax > zmax:
                 zmax = f.BoundBox.ZMax
         return (zmin, zmax)
+
+
+def _extrudeFaceUp(face, finalDepth):
+    """_extrudeFaceUp(face, finalDepth)
+    Returns the face extruded upward far enough to reach 1.0 mm into the removal envelope.
+    The envelope starts at finalDepth, which is above the face when the pocket is cut
+    shallower than its floor; a fixed 1.0 mm extrusion would then miss the envelope."""
+    height = 1.0 + max(0.0, finalDepth - face.BoundBox.ZMin)
+    return face.extrude(FreeCAD.Vector(0.0, 0.0, height))
 
 
 def _identifyRemovalSolids(sourceShape, commonShapes):
