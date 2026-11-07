@@ -81,6 +81,51 @@ class TestExportCSGShapes(unittest.TestCase):
         cut.Tool = feat
         self._roundtrip(cut)
 
+    def test_extruded_plane(self):
+        plane = self.doc.addObject("Part::Plane", "Plane")
+        plane.Length = 4
+        plane.Width = 3
+        ext = self.doc.addObject("Part::Extrusion", "Extrusion")
+        ext.Base = plane
+        ext.Dir = App.Vector(0, 0, 5)
+        text = self._roundtrip(ext)
+        self.assertIn("linear_extrude", text)
+        self.assertEqual(ext.Dir, App.Vector(0, 0, 5))
+
+    def test_symmetric_extruded_plane(self):
+        plane = self.doc.addObject("Part::Plane", "Plane")
+        plane.Length = 4
+        plane.Width = 3
+        ext = self.doc.addObject("Part::Extrusion", "Extrusion")
+        ext.Base = plane
+        ext.Dir = App.Vector(0, 0, 1)
+        ext.LengthFwd = 6
+        ext.Symmetric = True
+        text = self._roundtrip(ext)
+        self.assertIn("linear_extrude", text)
+
+    def test_placed_extruded_plane(self):
+        """linear_extrude() can't describe this one: it is exported as a polyhedron."""
+        plane = self.doc.addObject("Part::Plane", "Plane")
+        plane.Length = 4
+        plane.Width = 3
+        plane.Placement = App.Placement(App.Vector(5, 0, 0), App.Rotation(App.Vector(1, 0, 0), 90))
+        ext = self.doc.addObject("Part::Extrusion", "Extrusion")
+        ext.Base = plane
+        ext.DirMode = "Normal"
+        ext.LengthFwd = 2
+        self._roundtrip(ext)
+
+    def test_extruded_circle(self):
+        """Extrusions of other profiles used to be left out of the file."""
+        circle = self.doc.addObject("Part::Circle", "Circle")
+        circle.Radius = 2
+        ext = self.doc.addObject("Part::Extrusion", "Extrusion")
+        ext.Base = circle
+        ext.Dir = App.Vector(0, 0, 5)
+        ext.Solid = True
+        self._roundtrip(ext, rel_volume=0.05)
+
     def test_partial_torus(self):
         obj = self.doc.addObject("Part::Torus", "Torus")
         obj.Radius1 = 10
