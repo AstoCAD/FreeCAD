@@ -183,116 +183,41 @@ std::vector<TopoDS_Shape> ShapeExtractor::getXShapes(const App::Link* xLink)
         return xSourceShapes;
     }
 
-    bool needsTransform = false;
-    std::vector<App::DocumentObject*> children = xLink->getLinkedChildren();
-    Base::Placement xLinkPlacement;  // default constructor is an identity placement, i.e. no rotation nor translation
-    if (xLink->hasPlacement()) {
-        xLinkPlacement = xLink->getLinkPlacementProperty()->getValue();
-        needsTransform = true;
-    }
-    Base::Matrix4D linkScale;  // default constructor is an identity matrix, possibly scale it with link's scale
-    if(xLink->getScaleProperty() || xLink->getScaleVectorProperty()) {
-        linkScale.scale(xLink->getScaleVector());
-        needsTransform = true;
-    }
-
-    Base::Matrix4D netTransform;
-    if (!children.empty()) {
-        // this link points to other links???
-        for (auto& l:children) {
-            bool childNeedsTransform = false;
-            Base::Placement childPlm;
-            Base::Matrix4D childScale;
-            if (l->isDerivedFrom<App::LinkElement>()) {
-                App::LinkElement* cLinkElem = static_cast<App::LinkElement*>(l);
-                if (cLinkElem->hasPlacement()) {
-                    childPlm = cLinkElem->getLinkPlacementProperty()->getValue();
-                    childNeedsTransform = true;
-                }
-                if(cLinkElem->getScaleProperty() || cLinkElem->getScaleVectorProperty()) {
-                    childScale.scale(cLinkElem->getScaleVector());
-                    childNeedsTransform = true;
-                }
-            }
-            // TODO:  getTopoShape() ?
-            auto shape = Part::Feature::getShape(l, Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform);
-            Part::TopoShape ts(shape);
-            if (ts.isInfinite()) {
-                shape = ShapeFinder::stripInfiniteShapes(shape);
-            }
-            if (!checkShape(l, shape)) {
-                continue;
-            }
-            // copying the shape prevents "non-orthogonal GTrsf" errors in some versions
-            // of OCC.  Something to do with triangulation of shape??
-            // it may be that incremental mesh would work here too.
-            BRepBuilderAPI_Copy copier(shape);
-            ts = Part::TopoShape(copier.Shape());
-            if(!ts.isNull()) {
-                if (needsTransform || childNeedsTransform) {
-                    // Multiplication is associative, but the braces show the idea of combining the two transforms:
-                    // ( link placement and scale ) combined to ( child placement and scale )
-                    netTransform = (xLinkPlacement.toMatrix() * linkScale) * (childPlm.toMatrix() * childScale);
-                    ts.transformGeometry(netTransform);
-                    shape = ts.getShape();
-                }
-                xSourceShapes.push_back(shape);
-            } else {
-                Base::Console().message("SE::getXShapes - no shape from getXShape\n");
-            }
-        }
-    } else {
-        // link points to a regular object, not another link? no sublinks?
-        TopoDS_Shape xLinkShape = getShapeFromXLink(xLink);
-        if (!xLinkShape.IsNull() &&
-            checkShape(xLink, xLinkShape)) {
-            // copying the shape prevents "non-orthogonal GTrsf" errors in some versions
-            // of OCC.  Something to do with triangulation of shape??
-            BRepBuilderAPI_Copy copier(xLinkShape);
-            xSourceShapes.push_back(copier.Shape());
-        }
+    // The shape of a link array with visible elements (ElementList) is the compound of its
+    // elements, each with its own placement and scale, as the 3d view shows it.
+    TopoDS_Shape xLinkShape = getShapeFromXLink(xLink);
+    if (!xLinkShape.IsNull() &&
+        checkShape(xLink, xLinkShape)) {
+        // copying the shape prevents "non-orthogonal GTrsf" errors in some versions
+        // of OCC.  Something to do with triangulation of shape??
+        BRepBuilderAPI_Copy copier(xLinkShape);
+        xSourceShapes.push_back(copier.Shape());
     }
     return xSourceShapes;
 }
 
-// get the located shape for a single childless App::Link
+// get the located shape for an App::Link
 TopoDS_Shape ShapeExtractor::getShapeFromXLink(const App::Link* xLink)
 {
-    Base::Placement xLinkPlacement;
-    if (xLink->hasPlacement()) {
-        xLinkPlacement = xLink->getLinkPlacementProperty()->getValue();
+    // Let Part resolve the link as it does for the 3d view: the link's placement (combined
+    // with the linked object's own placement when LinkTransform is set), its scale and the
+    // elements of a link array.
+    TopoDS_Shape shape;
+    try {
+        shape = Part::Feature::getShape(xLink, Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform);
     }
-    Base::Matrix4D linkScale;  // default constructor is an identity matrix, possibly scale it with link's scale
-    if(xLink->getScaleProperty() || xLink->getScaleVectorProperty()) {
-        linkScale.scale(xLink->getScaleVector());
+    catch (...) {
+        Base::Console().error("ShapeExtractor failed to retrieve shape from {}\n", xLink->getNameInDocument());
+        return TopoDS_Shape();
     }
-    int depth = 0;   //0 is default value, related to recursion of Links???
-    App::DocumentObject* linkedObject = xLink->getLink(depth);
-    if (linkedObject) {
-        // have a linked object, get the shape
-        TopoDS_Shape shape = Part::Feature::getShape(linkedObject, Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform);
-        if (shape.IsNull()) {
-            // this is where we need to parse the target for objects with a shape??
-            return TopoDS_Shape();
-        }
-        Part::TopoShape ts(shape);
-        if (ts.isInfinite()) {
-            shape = ShapeFinder::stripInfiniteShapes(shape);
-            ts = Part::TopoShape(shape);
-        }
-        //ts might be garbage now, better check
-        try {
-            if (!ts.isNull()) {
-                ts.setPlacement(xLinkPlacement);
-            }
-        }
-        catch (...) {
-            Base::Console().error("ShapeExtractor failed to retrieve shape from {}\n", xLink->getNameInDocument());
-            return TopoDS_Shape();
-        }
-        if (checkShape(linkedObject, ts.getShape())) {
-            return ts.getShape();
-        }
+    if (shape.IsNull()) {
+        return TopoDS_Shape();
+    }
+    if (Part::TopoShape(shape).isInfinite()) {
+        shape = ShapeFinder::stripInfiniteShapes(shape);
+    }
+    if (checkShape(xLink, shape)) {
+        return shape;
     }
     return TopoDS_Shape();
 }
