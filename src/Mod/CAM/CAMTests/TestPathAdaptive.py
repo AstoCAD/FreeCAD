@@ -897,6 +897,40 @@ class TestPathAdaptive(PathTestBase):
 
         self.assertTrue(okAt10 and okAt5 and okAt0, "Path boundaries outside of expected regions")
 
+    def testModelAwareOperationTypeChange(self):
+        """testModelAwareOperationTypeChange() Switching OperationType recomputes the model aware
+        toolpath instead of reusing the cached one of the other operation type."""
+
+        def makeAdaptive(label, operationType):
+            adaptive = PathAdaptive.Create("Adaptive")
+            adaptive.Base = [(self.doc.Fusion, ["Face3", "Face10"])]
+            adaptive.Label = label
+            setDepthsAndHeights(adaptive, 15, 5)
+            adaptive.FinishingProfile = False
+            adaptive.HelixMaxRampAngle = 75.0
+            adaptive.StepOverPercent = 20
+            adaptive.UseOutline = False
+            adaptive.clearExpression("StepDown")
+            adaptive.StepDown.Value = 5.0
+            adaptive.ModelAwareExperiment = True
+            adaptive.OperationType = operationType
+            _addViewProvider(adaptive)
+            return adaptive
+
+        def moves(adaptive):
+            return [c.toGCode() for c in adaptive.Path.Commands if c.Name in Constants.GCODE_MOVE]
+
+        switched = makeAdaptive("testModelAwareOperationTypeChange+", "Clearing")
+        self.doc.recompute()
+        clearing = moves(switched)
+
+        switched.OperationType = "Profiling"
+        fresh = makeAdaptive("testModelAwareOperationTypeChange+", "Profiling")
+        self.doc.recompute()
+
+        self.assertNotEqual(moves(fresh), clearing)
+        self.assertEqual(moves(switched), moves(fresh))
+
     def testZStockToLeave(self):
         """testZStockToLeave() Tests Z stock to leave- with 1mm Z stock to leave, machining
         at the top of the model should not touch the top model face"""
