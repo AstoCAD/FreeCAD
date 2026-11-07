@@ -848,6 +848,21 @@ class SpreadsheetCases(unittest.TestCase):
                 self.assertEqual(sorted(other.getNonEmptyCells()), ["A1", "A2", "A3", "A4", "B1"])
                 self.doc.removeObject(other.Name)
 
+    def testImportSkipsByteOrderMark(self):
+        """A CSV file saved as "CSV UTF-8" starts with a byte order mark, which ended up in
+        the first cell (a text "\\ufeff5" instead of the number 5)"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "bom.csv")
+            with open(path, "wb") as csv_file:
+                csv_file.write(b"\xef\xbb\xbf5,abc\n6,\xc3\xa9\n")
+            self.assertTrue(sheet.importFile(path, ",", '"', "\\"))
+        self.doc.recompute()
+        self.assertEqual(sheet.get("A1"), 5)
+        self.assertEqual(sheet.get("B1"), "abc")
+        self.assertEqual(sheet.get("A2"), 6)
+        self.assertEqual(sheet.get("B2"), "\u00e9")
+
     def testNumericLiteralIsStableAcrossSaveRestore(self):
         """Numeric literals retain their value and type across save and restore."""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
