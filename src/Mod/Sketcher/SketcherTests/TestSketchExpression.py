@@ -107,6 +107,80 @@ class TestSketchExpression(unittest.TestCase):
         self.Doc.recompute()
         self.assertAlmostEqual(sketch.getDatum("mm").Value, 10.0)
 
+    def _makeSketchWithRenumberedConstraints(self):
+        # constraint 1 is named, constraints 2 and 3 are not
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        for k in range(4):
+            sketch.addGeometry(
+                Part.LineSegment(App.Vector(10 * k, 0, 0), App.Vector(10 * k + 5, 3 + k, 0))
+            )
+        sketch.addConstraint(Sketcher.Constraint("Horizontal", 0))
+        named = sketch.addConstraint(Sketcher.Constraint("Distance", 1, 7.0))
+        sketch.renameConstraint(named, "a")
+        sketch.addConstraint(Sketcher.Constraint("Distance", 2, 6.0))
+        sketch.addConstraint(Sketcher.Constraint("Distance", 3, 5.0))
+        sketch.setExpression("Constraints.a", ".Constraints[2] + 1 mm")
+        box = self.Doc.addObject("Part::Box", "Box")
+        box.setExpression("Width", "Sketch.Constraints[2] * 2")
+        box.setExpression("Length", "Sketch.Constraints[3] * 2")
+        self.Doc.recompute()
+        self.assertAlmostEqual(sketch.getDatum("a").Value, 7.0)
+        return sketch, box
+
+    def _checkExpressionsFollowTheirConstraints(self, sketch, box):
+        # The constraints that were 2 and 3 are now 1 and 2. Their new index 1 was the
+        # index of the named constraint before: the expressions must not end up on it.
+        self.assertEqual(sketch.Constraints[1].Name, "")
+        self.assertAlmostEqual(sketch.Constraints[1].Value, 6.0)
+        sketch.setDatum(1, App.Units.Quantity("8 mm"))
+        sketch.setDatum(2, App.Units.Quantity("4 mm"))
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", sketch.State)
+        self.assertNotIn("Invalid", box.State)
+        self.assertAlmostEqual(sketch.getDatum("a").Value, 9.0)
+        self.assertAlmostEqual(box.Width.Value, 16.0)
+        self.assertAlmostEqual(box.Length.Value, 8.0)
+
+    def testDeletingAConstraintKeepsExpressionsOnTheirConstraints(self):
+        sketch, box = self._makeSketchWithRenumberedConstraints()
+        sketch.delConstraint(0)
+        self._checkExpressionsFollowTheirConstraints(sketch, box)
+
+    def testDeletingAGeometryKeepsExpressionsOnTheirConstraints(self):
+        sketch, box = self._makeSketchWithRenumberedConstraints()
+        sketch.delGeometries([0])
+        self._checkExpressionsFollowTheirConstraints(sketch, box)
+
+    def testDeletingAConstraintMovesBindingsSpelledWithADot(self):
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        for k in range(3):
+            sketch.addGeometry(
+                Part.LineSegment(App.Vector(10 * k, 0, 0), App.Vector(10 * k + 5, 3 + k, 0))
+            )
+            sketch.addConstraint(Sketcher.Constraint("Distance", k, 5.0 + k))
+        sketch.setExpression(".Constraints[0]", "4 mm")
+        sketch.setExpression(".Constraints[2]", "9 mm")
+        self.Doc.recompute()
+        sketch.delConstraint(0)
+        # the binding of the deleted constraint is gone, the other one follows its constraint
+        self.assertEqual(len(sketch.ExpressionEngine), 1)
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", sketch.State)
+        self.assertAlmostEqual(sketch.Constraints[0].Value, 6.0)
+        self.assertAlmostEqual(sketch.Constraints[1].Value, 9.0)
+
+    def testClearingAConstraintNameKeepsExpressionsOnIt(self):
+        sketch, box = self._makeSketchWithRenumberedConstraints()
+        box.setExpression("Height", "Sketch.Constraints.a * 3")
+        self.Doc.recompute()
+        sketch.renameConstraint(1, "")
+        sketch.setDatum(2, App.Units.Quantity("2 mm"))
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", sketch.State)
+        self.assertNotIn("Invalid", box.State)
+        self.assertAlmostEqual(sketch.Constraints[1].Value, 3.0)
+        self.assertAlmostEqual(box.Height.Value, 9.0)
+
     def tearDown(self):
         # comment out to omit closing document for debugging
         FreeCAD.closeDocument(self.Doc.Name)
