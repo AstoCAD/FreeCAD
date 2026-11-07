@@ -353,6 +353,35 @@ class TestMeshCommon(unittest.TestCase):
         self.assertAlmostEqual(loads[5], 10)
 
     # ********************************************************************************************
+    def test_force_vertex_nodeloads_of_several_objects(self):
+        # a vertex force was split per reference object first, then per vertex of the object:
+        # with two vertices of one object and one of another the loads were F/4, F/4 and F/2
+        import ObjectsFem
+        from femmesh import meshtools
+
+        box = self.document.addObject("Part::Box", "Box")
+        copy = self.document.addObject("Part::Feature", "Copy")
+        self.document.recompute()
+        copy.Shape = box.Shape.copy()
+        self.document.recompute()
+        mesh = Fem.FemMesh()
+        corners = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        corners += [(0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)]
+        for i, p in enumerate(corners, 1):
+            mesh.addNode(10 * p[0], 10 * p[1], 10 * p[2], i)
+        tets = [(1, 2, 3, 7), (1, 3, 4, 7), (1, 4, 8, 7), (1, 8, 5, 7), (1, 5, 6, 7), (1, 6, 2, 7)]
+        for i, t in enumerate(tets, 1):
+            mesh.addVolume(list(t), i)
+        force = ObjectsFem.makeConstraintForce(self.document, "Force")
+        force.Force = "30 N"
+        force.References = [(box, "Vertex1"), (box, "Vertex2"), (copy, "Vertex3")]
+        table = meshtools.get_force_obj_vertex_nodeload_table(mesh, force)
+        loads = {n: float(v) for _, node_loads in table for n, v in node_loads.items()}
+        self.assertEqual(sorted(loads), [1, 5, 8])
+        for node in loads:
+            self.assertAlmostEqual(loads[node], 10)
+
+    # ********************************************************************************************
     def test_stl_save_load(self):
         # the binary STL reader assembled every float in a one-byte bool,
         # so the nodes of a mesh written to STL read back as garbage
