@@ -66,6 +66,36 @@ class DrawViewScaledLinkTest(unittest.TestCase):
         self.doc.recompute()
         self.assertAlmostEqual(dim.getRawValue(), 60, places=6)
 
+    def testDimension3dOnScaledLink(self):
+        # A dimension referencing the link's 3d edge measures and lands on the
+        # scaled edge the view shows (Measure applied the link's scale and
+        # placement twice: 120 instead of 60, drawn off the view).
+        view = self.checkLink(App.Vector(2, 2, 2))
+        edges = self.box.Shape.Edges
+        longEdge = next("Edge%d" % (i + 1) for i, edge in enumerate(edges)
+                        if abs(edge.Length - 30) < 1e-6)
+        points2d = []
+        for i in range(len(view.getVisibleEdges())):
+            dim2d = self.doc.addObject("TechDraw::DrawViewDimension", "Dimension2d")
+            self.page.addView(dim2d)
+            dim2d.Type = "Distance"
+            dim2d.References2D = [(view, "Edge%d" % i)]
+            self.doc.recompute()
+            points2d.extend(dim2d.getLinearPoints())
+        link = view.Source[0]
+        for measureType in ("Projected", "True"):
+            dim = self.doc.addObject("TechDraw::DrawViewDimension", "Dimension3d")
+            self.page.addView(dim)
+            dim.Type = "Distance"
+            dim.References2D = [(view, "")]
+            dim.MeasureType = measureType
+            dim.References3D = [(link, longEdge)]
+            self.doc.recompute()
+            self.assertAlmostEqual(dim.getRawValue(), 60, places=6, msg=measureType)
+            for point in dim.getLinearPoints():
+                self.assertTrue(any((point - other).Length < 1e-6 for other in points2d),
+                                "%s %s not in %s" % (measureType, point, points2d))
+
     def testNonUniformScale(self):
         view = self.checkLink(App.Vector(2, 3, 1))
         self.assertEqual(self.edgeLengths(view), [30, 30, 60, 60])
