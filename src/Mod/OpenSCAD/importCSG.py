@@ -1326,10 +1326,11 @@ def p_polygon_action_plus_path(p) :
     if len(faces) == 1:
         mypolygon.Shape = faces[0]
     else:
-        # All paths make up one polygon: a path inside another one is a hole
-        # (OpenSCAD fills polygons with the even-odd rule).
-        from OpenSCAD2Dgeom import Overlappingfaces
-        mypolygon.Shape = Overlappingfaces(faces).makeshape()
+        # All paths make up one polygon, filled with the even-odd rule like
+        # OpenSCAD does: a path inside another one is a hole, the overlapping
+        # part of two paths is removed.
+        from OpenSCAD2Dgeom import evenoddfaces
+        mypolygon.Shape = evenoddfaces(faces)
     p[0] = [mypolygon]
 
 def make_face(v1,v2,v3):

@@ -64,6 +64,55 @@ class TestCsgPolygonPaths(unittest.TestCase):
         self.assertEqual(len(shape.Faces), 2)
         self.assertAlmostEqual(shape.Area, 100.0 + 50.0, places=6)
 
+    def test_clockwise_hole(self):
+        shape = self._import(
+            "polygon(points = [[0, 0], [10, 0], [10, 10], [0, 10], [2, 2], [8, 2], [8, 8], [2, 8]], "
+            "paths = [[0, 1, 2, 3], [7, 6, 5, 4]], convexity = 1);"
+        )
+        self.assertEqual(len(shape.Faces), 1)
+        self.assertAlmostEqual(shape.Area, 100.0 - 36.0, places=6)
+
+    def test_island_in_hole(self):
+        shape = self._import(
+            "polygon(points = [[0, 0], [10, 0], [10, 10], [0, 10], [1, 1], [9, 1], [9, 9], [1, 9], "
+            "[3, 3], [7, 3], [7, 7], [3, 7]], paths = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]], "
+            "convexity = 1);"
+        )
+        self.assertEqual(len(shape.Faces), 2)
+        self.assertAlmostEqual(shape.Area, 100.0 - 64.0 + 16.0, places=6)
+
+    def test_partially_overlapping_paths_even_odd(self):
+        """OpenSCAD fills the paths with the even-odd rule: the overlap is removed, both rest."""
+        shape = self._import(
+            "polygon(points = [[0, 0], [10, 0], [10, 10], [0, 10], [5, 5], [15, 5], [15, 15], [5, 15]], "
+            "paths = [[0, 1, 2, 3], [4, 5, 6, 7]], convexity = 1);"
+        )
+        self.assertAlmostEqual(shape.Area, 100.0 + 100.0 - 2 * 25.0, places=6)
+        self.assertFalse(shape.isInside(App.Vector(7.5, 7.5, 0), 1e-6, True))
+        self.assertTrue(shape.isInside(App.Vector(2.5, 2.5, 0), 1e-6, True))
+        self.assertTrue(shape.isInside(App.Vector(12.5, 12.5, 0), 1e-6, True))
+
+    def test_three_overlapping_paths_even_odd(self):
+        # strips [0,10], [5,15] and [2.5,12.5] in x: covered once in [0,2.5] and [12.5,15],
+        # twice in [2.5,5] and [10,12.5], three times in [5,10]
+        shape = self._import(
+            "polygon(points = [[0, 0], [10, 0], [10, 10], [0, 10], [5, 0], [15, 0], [15, 10], [5, 10], "
+            "[2.5, 0], [12.5, 0], [12.5, 10], [2.5, 10]], "
+            "paths = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]], convexity = 1);"
+        )
+        self.assertAlmostEqual(shape.Area, 25.0 + 25.0 + 50.0, places=6)
+        self.assertTrue(shape.isInside(App.Vector(7.5, 5, 0), 1e-6, True))
+        self.assertFalse(shape.isInside(App.Vector(3.75, 5, 0), 1e-6, True))
+
+    def test_extruded_overlapping_paths(self):
+        shape = self._import(
+            "linear_extrude(height = 2, center = false, convexity = 1, scale = [1, 1], "
+            "$fn = 0, $fa = 12, $fs = 2) {\n"
+            "polygon(points = [[0, 0], [10, 0], [10, 10], [0, 10], [5, 5], [15, 5], [15, 15], [5, 15]], "
+            "paths = [[0, 1, 2, 3], [4, 5, 6, 7]], convexity = 1);\n}"
+        )
+        self.assertAlmostEqual(shape.Volume, 150.0 * 2.0, places=6)
+
     def test_extruded_polygon_with_hole(self):
         shape = self._import(
             "linear_extrude(height = 5, center = false, convexity = 1, scale = [1, 1], "

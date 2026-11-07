@@ -336,6 +336,33 @@ def fusefaces(faces):
     else:
         return reduce(lambda p1,p2: p1.fuse(p2),faces)
 
+def evenoddfaces(faces):
+    '''Combine coplanar faces with the even-odd rule: keep the areas that are
+    covered by an odd number of faces (what OpenSCAD does with the paths of a
+    polygon). Nested faces become holes and islands, overlapping parts of two
+    faces are removed, separate faces are kept.'''
+    import Part
+    if len(faces) == 1:
+        return faces[0]
+    # orient the faces alike, so that the pieces can be merged afterwards
+    normal = faces[0].normalAt(0,0)
+    faces = [face if face.normalAt(0,0).dot(normal) > 0 else face.reversed()
+             for face in faces]
+    pieces, history = faces[0].generalFuse(faces[1:])
+    # a face that was not split has no history: it is a piece itself
+    history = [parts or [face] for face, parts in zip(faces, history)]
+    kept = [piece for piece in pieces.Faces
+            if sum(any(piece.isSame(part) for part in parts)
+                   for parts in history) % 2 == 1]
+    if not kept:
+        return Part.Compound([])
+    if len(kept) == 1:
+        return kept[0]
+    merged = Part.Compound(kept).removeSplitter()
+    if len(merged.Faces) == 1:
+        return merged.Faces[0]
+    return merged
+
 def subtractfaces2(faces):
     '''Sort faces, check if they overlap. Subtract overlapping face and fuse
     nonoverlapping groups.'''
