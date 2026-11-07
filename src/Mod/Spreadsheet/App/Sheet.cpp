@@ -240,6 +240,12 @@ bool Sheet::importFromFile(const std::string& filename, char delimiter, char quo
         while (std::getline(file, line)) {
             using namespace boost;
 
+            // Files saved as "CSV UTF-8" (e.g. by Excel) start with a byte order mark, which is
+            // not part of the first cell
+            if (row == 0 && line.starts_with("\xEF\xBB\xBF")) {
+                line.erase(0, 3);
+            }
+
             try {
                 escaped_list_separator<char> e;
                 int col = 0;
