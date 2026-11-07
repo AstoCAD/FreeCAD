@@ -2040,10 +2040,13 @@ void Sheet::setAlias(CellAddress address, const std::string& alias)
 
 std::string Sheet::getAddressFromAlias(const std::string& alias) const
 {
-    const Cell* cell = cells.getValueFromAlias(alias);
+    // The alias map is what defines the address of an alias. Do not require the cell itself:
+    // inserting or removing rows/columns moves the aliases before their cells, and the
+    // dependencies of the cells moved in between resolve ranges such as "first:last" here.
+    auto it = cells.revAliasProp.find(alias);
 
-    if (cell) {
-        return cell->getAddress().toString();
+    if (it != cells.revAliasProp.end()) {
+        return it->second.toString();
     }
     return {};
 }
