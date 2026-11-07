@@ -251,4 +251,4 @@ CGRP     '\,'[0-9][0-9][0-9]
 "tanh"                                                  return TANH;
 "sqrt"                                                  return SQRT;
 
-.                                                       return *yytext;
+.                                                       return static_cast<unsigned char>(*yytext); // a negative char (UTF-8 byte) would end the input
