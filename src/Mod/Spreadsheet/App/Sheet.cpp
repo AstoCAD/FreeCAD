@@ -291,16 +291,41 @@ bool Sheet::importFromFile(const std::string& filename, char delimiter, char quo
 static void writeEscaped(std::string const& s, char quoteChar, char escapeChar, std::ostream& out)
 {
     out << quoteChar;
-    for (unsigned char c : s) {
-        if (c != quoteChar) {
+    for (char c : s) {
+        if (c == quoteChar) {
+            out << escapeChar;
             out << c;
         }
-        else {
+        // importFromFile() reads the escape character as the start of an escape sequence and a
+        // newline as the end of the row: escape them too, with the sequences its tokenizer
+        // understands (escape character + escape character, escape character + 'n')
+        else if (escapeChar && c == escapeChar) {
             out << escapeChar;
+            out << c;
+        }
+        else if (escapeChar && c == '\n') {
+            out << escapeChar;
+            out << 'n';
+        }
+        else {
             out << c;
         }
     }
     out << quoteChar;
+}
+
+/**
+ * Characters that make exportToFile() write a field quoted and escaped.
+ */
+
+static std::string charsToEscape(char delimiter, char quoteChar, char escapeChar)
+{
+    std::string chars {quoteChar, delimiter};
+    if (escapeChar) {
+        chars += escapeChar;
+        chars += '\n';
+    }
+    return chars;
 }
 
 /**
@@ -338,6 +363,7 @@ bool Sheet::exportToFile(const std::string& filename, char delimiter, char quote
         }
     }
     prevCol = firstCol;
+    const std::string escapedChars = charsToEscape(delimiter, quoteChar, escapeChar);
 
     while (i != usedCells.end()) {
         Property* prop = getProperty(*i);
@@ -377,7 +403,7 @@ bool Sheet::exportToFile(const std::string& filename, char delimiter, char quote
         std::string str = field.str();
 
         if (quoteChar
-            && str.find_first_of(std::string {quoteChar, delimiter}) != std::string::npos) {
+            && str.find_first_of(escapedChars) != std::string::npos) {
             writeEscaped(str, quoteChar, escapeChar, file);
         }
         else {
