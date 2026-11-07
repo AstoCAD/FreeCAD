@@ -1766,7 +1766,7 @@ return SQRT;
 case 164:
 YY_RULE_SETUP
 #line 254 "Quantity.l"
-return *yytext;
+return static_cast<unsigned char>(*yytext); // a negative char (UTF-8 byte) would end the input
 	YY_BREAK
 case 165:
 YY_RULE_SETUP
