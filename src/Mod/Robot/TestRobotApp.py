@@ -2,7 +2,10 @@
 
 """App-level regression tests for the Robot Python API."""
 
+import io
+import re
 import unittest
+import zipfile
 
 import FreeCAD as App
 import Robot
@@ -115,3 +118,40 @@ class TestRobotAttributeErrors(unittest.TestCase):
             waypoint.Type = "Bogus"
         waypoint.Type = "PTP"
         self.assertEqual(waypoint.Type, "PTP")
+
+
+class TestRobot6AxisPersistence(unittest.TestCase):
+    """Robot6Axis.Restore() must read back what Save() wrote."""
+
+    AXIS = re.compile(r'<Axis [^>]*rotDir="([^"]*)" maxAngle="([^"]*)" minAngle="([^"]*)"')
+
+    def _axes(self, robot):
+        return [tuple(float(v) for v in m) for m in self.AXIS.findall(robot.Content)]
+
+    def test_axis_limits_survive_save_and_restore(self):
+        robot = Robot.Robot6Axis()
+        restored = Robot.Robot6Axis()
+        restored.restoreContent(robot.dumpContent())
+        self.assertEqual(self._axes(restored), self._axes(robot))
+        # Kuka IR500 axis 2 turns from -155 to +35 degrees
+        self.assertEqual(self._axes(restored)[1], (1.0, 35.0, -155.0))
+
+    def test_rotation_direction_is_restored(self):
+        robot = Robot.Robot6Axis()
+        content = bytes(robot.dumpContent())
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            xml = archive.read("Persistence.xml").decode()
+        # Kuka IR500 axis 1 turns the other way: write the opposite direction
+        self.assertEqual(self._axes(robot)[0][0], -1.0)
+        xml = re.sub(r'rotDir="[^"]*"', 'rotDir="1"', xml, count=1)
+        changed = io.BytesIO()
+        with zipfile.ZipFile(changed, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("Persistence.xml", xml)
+        restored = Robot.Robot6Axis()
+        restored.restoreContent(bytearray(changed.getvalue()))
+        self.assertEqual(self._axes(restored)[0][0], 1.0)
+        # the axis angle is stored with the restored direction
+        restored.Axis1 = 10
+        self.assertAlmostEqual(restored.Axis1, 10.0, places=6)
+        pos = float(re.search(r'Pos="([^"]*)"', restored.Content).group(1))
+        self.assertGreater(pos, 0.0)
