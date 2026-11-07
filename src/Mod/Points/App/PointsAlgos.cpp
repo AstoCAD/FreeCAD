@@ -1955,12 +1955,14 @@ AscWriter::AscWriter(const PointKernel& p)
 
 void AscWriter::write(const std::string& filename)
 {
-    if (placement.isIdentity()) {
+    // the points are written with the given placement instead of their own transformation
+    Base::Matrix4D mat = placement.toMatrix();
+    if (points.getTransform() == mat) {
         points.save(filename.c_str());
     }
     else {
         PointKernel copy = points;
-        copy.transformGeometry(placement.toMatrix());
+        copy.setTransform(mat);
         copy.save(filename.c_str());
     }
 }
