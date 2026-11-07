@@ -27,6 +27,7 @@
 # include <BRepBuilderAPI_Transform.hxx>
 # include <gp_Trsf.hxx>
 # include <gp_Vec.hxx>
+# include <Precision.hxx>
 # include <TopoDS.hxx>
 # include <TopoDS_Compound.hxx>
 # include <TopoDS_Edge.hxx>
@@ -109,6 +110,26 @@ T* objectFromPy(PyObject* pyObject)
         throw Py::ValueError("Invalid document object");
     }
     return static_cast<T*>(object);
+}
+
+/** The direction of the line of a radius or diameter dimension for DXF export.
+ *
+ * The arrow positions are saved when the Gui draws the dimension. A dimension that was not
+ * drawn (no Gui, page never shown) has none: then the line runs from the center towards the
+ * label, as the Gui draws it.
+ */
+Base::Vector3d radialLineDirection(const pointPair& arrowPositions,
+                                   const Base::Vector3d& center,
+                                   const Base::Vector3d& labelPosition)
+{
+    Base::Vector3d direction = arrowPositions.first() - arrowPositions.second();
+    if (direction.Length() < Precision::Confusion()) {
+        direction = labelPosition - center;
+    }
+    if (direction.Length() < Precision::Confusion()) {
+        direction = Base::Vector3d(1.0, 0.0, 0.0);
+    }
+    return direction.Normalize();
 }
 
 /** Copies a Python dictionary of Python strings to a C++ container.
@@ -861,7 +882,7 @@ private:
                             Base::Vector3d center = pts.center;
                             center.y = -center.y;
                             center = center + parentPos;
-                            Base::Vector3d lineDir = (arrowPts.first() - arrowPts.second()).Normalize();
+                            Base::Vector3d lineDir = radialLineDirection(arrowPts, center, textLocn);
                             Base::Vector3d arcPoint = center + lineDir * pts.radius;
                             writer.exportRadialDim(center, textLocn, arcPoint, dimText);
                         } else if(dvd->Type.isValue("Diameter")){
@@ -871,7 +892,7 @@ private:
                             Base::Vector3d center = pts.center;
                             center.y = -center.y;
                             center = center + parentPos;
-                            Base::Vector3d lineDir = (arrowPts.first() - arrowPts.second()).Normalize();
+                            Base::Vector3d lineDir = radialLineDirection(arrowPts, center, textLocn);
                             Base::Vector3d end1 = center + lineDir * pts.radius;
                             Base::Vector3d end2 = center - lineDir * pts.radius;
                             writer.exportDiametricDim(textLocn, end1, end2, dimText);
