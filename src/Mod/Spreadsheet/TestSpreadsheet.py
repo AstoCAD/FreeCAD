@@ -2204,6 +2204,61 @@ class SpreadsheetCases(unittest.TestCase):
             for cell in formulas:
                 self.assertEqual(sheet.get(cell), 16, (index, cell))
 
+    def testRemoveRowsColumnsInsideRange(self):
+        """A bound of a range inside removed rows/columns moves to the nearest remaining
+        row/column of the range. sum(A4:A7) with rows 3-4 removed became sum(A2:A5), adding
+        A2; sum(A1:A3) kept A1:A3, adding the old A5; and a range starting at row 1 gave
+        A0 when removing row 1, which stopped the removal half-way"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        for row in range(1, 8):
+            sheet.set("A%d" % row, str(row))
+        formulas = {
+            "C1": ("=sum(A1:A5)", "=sum(A1:A3)", 8),
+            "D1": ("=sum(A4:A7)", "=sum(A3:A5)", 18),
+            "E1": ("=sum(A1:A3)", "=sum(A1:A2)", 3),
+            "F1": ("=sum(A2:A6)", "=sum(A2:A4)", 13),
+            "G1": ("=sum($A$4:$A$7)", "=sum($A$3:$A$5)", 18),
+            # Bounds in reverse order keep their order. Only the formula is checked: such a
+            # range evaluates its first cell only, which this test is not about
+            "H1": ("=sum(A7:A4)", "=sum(A5:A3)", None),
+        }
+        for cell, (formula, _, _) in formulas.items():
+            sheet.set(cell, formula)
+        self.doc.recompute()
+        sheet.removeRows("3", 2)
+        self.doc.recompute()
+        for cell, (_, formula, value) in formulas.items():
+            if value is None:
+                self.assertEqual(sheet.getContents(cell), formula, cell)
+            else:
+                self.assertEqual((sheet.getContents(cell), sheet.get(cell)), (formula, value), cell)
+
+        # Columns: B10:H10 = 1..7, columns C:D removed
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Columns")
+        for col, value in zip("BCDEFGH", range(1, 8)):
+            sheet.set("%s10" % col, str(value))
+        sheet.set("A12", "=sum(E10:H10)")
+        sheet.set("A13", "=sum(B10:D10)")
+        self.doc.recompute()
+        sheet.removeColumns("C", 2)
+        self.doc.recompute()
+        self.assertEqual((sheet.getContents("A12"), sheet.get("A12")), ("=sum(C10:F10)", 22))
+        self.assertEqual((sheet.getContents("A13"), sheet.get("A13")), ("=sum(B10:B10)", 1))
+
+        # A range starting in the removed first row
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "FirstRow")
+        for row in range(1, 8):
+            sheet.set("A%d" % row, str(row))
+        sheet.set("C5", "=sum(A1:A4)")
+        sheet.set("D5", "=sum(A1:A1)")  # every cell removed: left alone
+        self.doc.recompute()
+        sheet.removeRows("1", 1)
+        self.doc.recompute()
+        self.assertEqual((sheet.getContents("C4"), sheet.get("C4")), ("=sum(A1:A3)", 9))
+        self.assertEqual(sheet.getContents("D4"), "=sum(A1:A1)")
+        self.assertEqual([sheet.get("A%d" % row) for row in range(1, 7)], [2, 3, 4, 5, 6, 7])
+        self.assertEqual(sheet.getContents("A7"), "")
+
     def testImportXLSXSharedFormulas(self):
         """Issue #20299: cells using a shared formula (formula dragged down
         or across in Excel) must be imported"""
