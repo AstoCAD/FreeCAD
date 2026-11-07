@@ -1361,6 +1361,45 @@ class SpreadsheetCases(unittest.TestCase):
         self.doc.recompute()
         self.assertEqual(sheet.A1, FreeCAD.Units.Quantity("2 mm"))
 
+    def testReferenceToMissingObjectByLabelKeepsQuotes(self):
+        """A reference by a label that is not an identifier (<<My Sheet>>.A1) lost its quotes
+        while no object had that label (not created yet, or deleted): the cell turned into
+        text when the object appeared, and the expression was lost after saving it twice"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "=<<Later Sheet>>.A1 * 2")
+        varset = self.doc.addObject("App::VarSet", "VarSet")
+        varset.addProperty("App::PropertyFloat", "Result")
+        varset.setExpression("Result", "<<Later Sheet>>.A1 + 1")
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("A1"), "=<<Later Sheet>>.A1 * 2")
+        self.assertEqual(varset.ExpressionEngine, [("Result", "<<Later Sheet>>.A1 + 1")])
+
+        later = self.doc.addObject("Spreadsheet::Sheet", "Later")
+        later.Label = "Later Sheet"
+        later.set("A1", "4")
+        # The reference to a missing object gave the sheet no dependency on it, so the document
+        # does not know to recompute it first (as with a reference by name): do it here
+        later.recompute()
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("A1"), "=<<Later Sheet>>.A1 * 2")
+        self.assertEqual(sheet.A1, 8)
+        self.assertEqual(varset.ExpressionEngine, [("Result", "<<Later Sheet>>.A1 + 1")])
+
+        self.doc.removeObject("Later")
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for name in ("first.FCStd", "second.FCStd"):
+                path = os.path.join(temp_dir, name)
+                self.doc.saveAs(path)
+                FreeCAD.closeDocument(self.doc.Name)
+                self.doc = FreeCAD.openDocument(path)
+                sheet = self.doc.getObject("Spreadsheet")
+                varset = self.doc.getObject("VarSet")
+                self.assertEqual(sheet.getContents("A1"), "=<<Later Sheet>>.A1 * 2", name)
+                self.assertEqual(
+                    varset.ExpressionEngine, [("Result", "<<Later Sheet>>.A1 + 1")], name
+                )
+
     def testRenameAlias2(self):
         """Test renaming of alias1 to alias2 in a spreadsheet, when referenced from another object"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
