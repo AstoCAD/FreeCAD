@@ -363,3 +363,19 @@ class UnitBasicCases(unittest.TestCase):
         self.assertEqual(FreeCAD.Units.getSchema(), schema)
         FreeCAD.Units.setSchema(schema)
         self.assertEqual(FreeCAD.Units.getSchema(), schema)
+
+    def testUnknownCharacterIsSyntaxError(self):
+        # A character the parser does not know ended the input when it was not ASCII:
+        # "1 m²" gave 1 m, "1 µPa" or "1 μm" (Greek mu) a plain 1 and "１ mm" (full-width
+        # digit) the empty-input value
+        for text in ("1 m²", "1 kg/m³", "1 N·m", "1 µPa", "1 μm", "１ mm", "1 Ω", "1 mm €"):
+            with self.subTest(text=text):
+                with self.assertRaises(ValueError):
+                    FreeCAD.Units.Quantity(text)
+        with self.assertRaises(ValueError):
+            FreeCAD.Units.Quantity("1 mm !")
+        # the known non-ASCII units still parse
+        self.assertEqual(FreeCAD.Units.Quantity("1 µm").Value, 0.001)
+        self.assertEqual(FreeCAD.Units.Quantity("2 °").Value, 2)
+        self.assertEqual(FreeCAD.Units.Quantity("1 kg/m^3").Unit, FreeCAD.Units.Density)
+        self.assertEqual(FreeCAD.Units.Quantity("−1 mm").Value, -1)
