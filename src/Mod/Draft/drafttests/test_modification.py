@@ -364,6 +364,32 @@ class DraftModification(test_base.DraftTestCaseDoc):
             obj = True
         self.assertTrue(obj, "'{}' failed".format(operation))
 
+    def test_split_at_vertex(self):
+        """Split a Draft Wire at an inner vertex without duplicating it."""
+        a = Vector(0, 0, 0)
+        b = Vector(2, 2, 0)
+        c = Vector(2, 4, 0)
+        d = Vector(6, 4, 0)
+        e = Vector(2, 3, 0)
+
+        def check_points(points, expected):
+            self.assertEqual(len(points), len(expected), points)
+            for point, exp in zip(points, expected):
+                self.assertTrue(point.isEqual(exp, 1e-9), points)
+
+        for index in (1, 2):  # b ends edge 1 and starts edge 2
+            wire = Draft.make_wire([a, b, c, d])
+            self.doc.recompute()
+            new = Draft.split(wire, b, index)
+            self.doc.recompute()
+            check_points(wire.Points, [a, b])
+            check_points(new.Points, [b, c, d])
+            # The new wire splits correctly again: its edges match its points.
+            newer = Draft.split(new, e, 1)
+            self.doc.recompute()
+            check_points(new.Points, [b, e])
+            check_points(newer.Points, [e, c, d])
+
     def test_split_at_endpoint(self):
         """Split a Draft Wire at its endpoints should be a no-op."""
         operation = "Draft_Split endpoint"
