@@ -157,6 +157,49 @@ class TestCcxTools(unittest.TestCase):
         self.assertIn("EmptyDisplacement has empty references.", fea.check_prerequisites())
 
     # ********************************************************************************************
+    def test_rigidbody_node_ids_mesh_with_gaps(self):
+        # the reference and rotation nodes were numbered after the node count: with gaps in the
+        # node numbers of the mesh they overwrote existing mesh nodes
+        import io
+        import types
+        import Fem
+        import ObjectsFem
+        from femsolver.calculix import write_constraint_rigidbody, write_constraint_rigidbody_step
+
+        mesh = Fem.FemMesh()
+        tetra = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
+        for i, p in enumerate(tetra + [(x + 2, y, z) for x, y, z in tetra]):
+            mesh.addNode(*p, i + 1 if i < 4 else i + 7)  # nodes 1..4 and 11..14
+        mesh.addVolume([1, 2, 3, 4], 1)
+        mesh.addVolume([11, 12, 13, 14], 2)
+        analysis = ObjectsFem.makeAnalysis(self.document, "Analysis")
+        analysis.addObject(ObjectsFem.makeMaterialSolid(self.document, "Material"))
+        rigid_body = ObjectsFem.makeConstraintRigidBody(self.document, "RigidBody")
+        analysis.addObject(rigid_body)
+        writer = types.SimpleNamespace(
+            analysis=analysis,
+            mesh_object=types.SimpleNamespace(FemMesh=mesh),
+            femmesh=mesh,
+            femnodes_mesh={},
+        )
+
+        f = io.StringIO()
+        write_constraint_rigidbody.write_constraint(f, {}, rigid_body, writer)
+        lines = f.getvalue().splitlines()
+        new_nodes = [int(line.split(",")[0]) for line in lines[1:3]]
+        self.assertEqual(lines[0], "*NODE")
+        self.assertTrue(all(n > 14 for n in new_nodes), new_nodes)
+        self.assertIn(f"REF NODE={new_nodes[0]}, ROT NODE={new_nodes[1]}", lines[-1])
+
+        # the step writes the loads on the same nodes
+        rigid_body.TranslationalModeX = "Load"
+        rigid_body.RotationalModeX = "Load"
+        f = io.StringIO()
+        write_constraint_rigidbody_step.write_constraint(f, {}, rigid_body, writer)
+        step_nodes = {int(line.split(",")[0]) for line in f.getvalue().splitlines()[1::2]}
+        self.assertEqual(step_nodes, set(new_nodes))
+
+    # ********************************************************************************************
     def test_fluid_section_liquid_pump(self):
         # CalculiX reads an unused first entry, then the pairs flow rate, total head,
         # with at most 16 entries per line
