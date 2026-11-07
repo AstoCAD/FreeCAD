@@ -666,6 +666,37 @@ class TestPathPocket(PathTestBase):
         self.assertGreaterEqual(actual_num_vertical_lines, expected_num_vertical_lines - 1)
         self.assertLessEqual(actual_num_vertical_lines, expected_num_vertical_lines + 1)
 
+    def test_pocket_final_depth_above_floor(self):
+        """test_pocket_final_depth_above_floor() Verify a pocket cut shallower than its floor."""
+
+        # 40 x 30 pocket, 4 mm deep: floor at Z=16 in a 20 mm high block
+        outer = Part.makeBox(60, 50, 20)
+        inner = Part.makeBox(40, 30, 4, FreeCAD.Vector(10, 10, 16))
+        part_obj = FreeCAD.ActiveDocument.addObject("Part::Feature", "ShallowPocketPart")
+        part_obj.Shape = outer.cut(inner)
+
+        for finalDepth in (16.5, 18.0):
+            pocket = self.createPocketOperation(
+                part_obj,
+                16.0,
+                "pocket_final_depth_{}".format(finalDepth),
+                5.0,
+                FinalDepth=finalDepth,
+                StepDown=10.0,
+                ClearingPattern="Offset",
+            )
+
+            cuts = [
+                c
+                for c in pocket.Path.Commands
+                if c.Name in ("G1", "G2", "G3") and "X" in c.Parameters
+            ]
+            self.assertTrue(cuts, "no cutting moves at Final Depth {}".format(finalDepth))
+            for c in cuts:
+                self.assertRoughly(c.Parameters.get("Z", finalDepth), finalDepth)
+                self.assertTrue(12.5 - 1e-6 <= c.Parameters["X"] <= 47.5 + 1e-6)
+                self.assertTrue(12.5 - 1e-6 <= c.Parameters.get("Y", 20.0) <= 37.5 + 1e-6)
+
     def test_pocket_rest_machining(self):
         """test_pocket_rest_machining() Verify pocket rest machining clears remaining material after large tool pass."""
 
