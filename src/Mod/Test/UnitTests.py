@@ -405,3 +405,9 @@ class UnitBasicCases(unittest.TestCase):
         self.assertEqual(FreeCAD.Units.Quantity("2 °").Value, 2)
         self.assertEqual(FreeCAD.Units.Quantity("1 kg/m^3").Unit, FreeCAD.Units.Density)
         self.assertEqual(FreeCAD.Units.Quantity("−1 mm").Value, -1)
+
+    def testLongNumberLiteral(self):
+        # A number of 40 characters or more overflowed the lexer's buffer and read as 0
+        digits = "0." + "1" * 45
+        self.assertAlmostEqual(FreeCAD.Units.Quantity(digits + " mm").Value, float(digits))
+        self.assertEqual(FreeCAD.Units.Quantity("1" + "0" * 45).Value, 1e45)
