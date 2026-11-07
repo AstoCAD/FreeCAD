@@ -198,6 +198,9 @@ def importFrd(filename, analysis=None, result_name_prefix="", result_analysis_ty
                         res_obj = resulttools.compact_result(res_obj)
                         res_mesh_is_compacted = True
                         nodenumbers_for_compacted_mesh = res_obj.NodeNumbers
+                        # every result set has its own result mesh obj (make_result_mesh),
+                        # the ones of the next result sets need the compacted mesh too
+                        mesh = res_obj.Mesh.FemMesh
                     else:
                         # all other result sets, do not compact FemMesh, only set NodeNumbers
                         res_obj.NodeNumbers = nodenumbers_for_compacted_mesh
