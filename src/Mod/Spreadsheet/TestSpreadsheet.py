@@ -825,6 +825,29 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(other.get("C1"), 0.1)
         self.assertEqual(other.get("D1"), 12.3456789)
 
+    def testExportEscapesEscapeCharAndNewline(self):
+        """Text with the escape character or a newline survives a CSV export/import: the
+        backslash of "C:\\temp" was written as is, the import read it as an escape sequence
+        and failed, leaving the importing sheet empty"""
+        texts = ["C:\\temp\\file", "back\\", "line1\nline2", 'quote " and \\ both']
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        for row, text in enumerate(texts, 1):
+            sheet.set("A%d" % row, "'" + text)
+        sheet.set("B1", "5")
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for delimiter in (",", "\t"):
+                path = os.path.join(temp_dir, "escape.csv")
+                self.assertTrue(sheet.exportFile(path, delimiter, '"', "\\"))
+                other = self.doc.addObject("Spreadsheet::Sheet", "Imported")
+                self.assertTrue(other.importFile(path, delimiter, '"', "\\"))
+                self.doc.recompute()
+                for row, text in enumerate(texts, 1):
+                    self.assertEqual(other.get("A%d" % row), text, repr(delimiter))
+                self.assertEqual(other.get("B1"), 5)
+                self.assertEqual(sorted(other.getNonEmptyCells()), ["A1", "A2", "A3", "A4", "B1"])
+                self.doc.removeObject(other.Name)
+
     def testNumericLiteralIsStableAcrossSaveRestore(self):
         """Numeric literals retain their value and type across save and restore."""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
