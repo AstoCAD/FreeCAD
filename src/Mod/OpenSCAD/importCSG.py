@@ -1356,7 +1356,8 @@ def p_polyhedron_action(p) :
     for i in p[12] :
         if printverbose: print(i)
         v2 = FreeCAD.Vector
-        pp =[v2(v[k]) for k in i]
+        # faces are parsed as integers, the old 'triangles' as number strings
+        pp =[v2(v[int(k)]) for k in i]
         # Add first point to end of list to close polygon
         pp.append(pp[0])
         try:
