@@ -561,6 +561,44 @@ class TestArchIfc(TestArchBase.TestArchBase):
                     attributes["BarLength"], rebar.Length.Value * 0.001, places=9
                 )
 
+    def test_export_classification_codes(self):
+        """Objects with the same classification code share one reference, and a code
+        without its system in front of it is exported too. Both aborted the export."""
+        import Arch
+        from importers import exportIFC
+
+        codes = ["Uniclass Ss_20_05", "Uniclass Ss_20_05", "Uniclass Ss_20_10", "Ss_30"]
+        walls = []
+        for i, code in enumerate(codes):
+            wall = Arch.makeWall(None, 1000, 200, 3000)
+            wall.Label = "Wall%d" % i
+            wall.Placement.Base.x = i * 2000
+            wall.StandardCode = code
+            walls.append(wall)
+        site = Arch.makeSite([Arch.makeBuilding([Arch.makeFloor(walls)])])
+        self.document.recompute()
+
+        path = os.path.join(tempfile.mkdtemp(), "classification.ifc")
+        exportIFC.export([site], path)
+        ifcfile = ifcopenshell.open(path)
+
+        self.assertEqual([c.Name for c in ifcfile.by_type("IfcClassification")], ["Uniclass"])
+        classified = {}
+        for rel in ifcfile.by_type("IfcRelAssociatesClassification"):
+            ref = rel.RelatingClassification
+            system = ref.ReferencedSource.Name if ref.ReferencedSource else None
+            key = (system, ref.Identification)
+            self.assertNotIn(key, classified)
+            classified[key] = sorted(o.Name for o in rel.RelatedObjects)
+        self.assertEqual(
+            classified,
+            {
+                ("Uniclass", "Ss_20_05"): ["Wall0", "Wall1"],
+                ("Uniclass", "Ss_20_10"): ["Wall2"],
+                (None, "Ss_30"): ["Wall3"],
+            },
+        )
+
     def test_export_site_geolocation_keeps_fractions_of_seconds(self):
         """The site latitude and longitude keep the millionths of seconds of
         IfcCompoundPlaneAngleMeasure; whole seconds put the site up to 30 m off."""
