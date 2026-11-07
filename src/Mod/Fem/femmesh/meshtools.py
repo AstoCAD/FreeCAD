@@ -757,9 +757,10 @@ def get_force_obj_vertex_nodeload_table(femmesh, frc_obj):
     #     ]
     force_obj_node_load_table = []
     force_quantity = FreeCAD.Units.Quantity(frc_obj.Force.getValueAs("N"))
-    node_load = force_quantity / len(frc_obj.References)
+    # the force is shared equally by all referenced vertices, whatever object they belong to
+    node_count = sum(len(elem_tup) for _, elem_tup in frc_obj.References)
+    node_load = force_quantity / node_count
     for o, elem_tup in frc_obj.References:
-        node_count = len(elem_tup)
         for elem in elem_tup:
             ref_node = sub_shape_at_global_placement(o, elem)
             FreeCAD.Console.PrintMessage(
@@ -773,7 +774,7 @@ def get_force_obj_vertex_nodeload_table(femmesh, frc_obj):
             elem_info_string = "node load on shape: " + o.Name + ":" + elem
             if len(node) == 1:
                 force_obj_node_load_table.append(
-                    (elem_info_string, {node[0]: node_load / node_count})
+                    (elem_info_string, {node[0]: node_load})
                 )
             else:
                 FreeCAD.Console.PrintError(
