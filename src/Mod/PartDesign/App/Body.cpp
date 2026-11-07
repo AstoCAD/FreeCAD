@@ -239,6 +239,11 @@ std::vector<App::DocumentObject*> Body::addObject(App::DocumentObject* feature)
         throw Base::ValueError("Body: object is not allowed");
     }
 
+    // Already in this Body: nothing to add, as in GroupExtension::addObjects()
+    if (std::ranges::count(Group.getValues(), feature)) {
+        return {};
+    }
+
     // TODO: features should not add all links
 
     // only one group per object. If it is in a body the single feature will be removed
@@ -285,6 +290,12 @@ void Body::insertObject(App::DocumentObject* feature, App::DocumentObject* targe
         throw Base::ValueError(
             "Body: the feature we should insert relative to is not part of that body"
         );
+    }
+
+    // A second entry in Group would also route the BaseFeature chain through the feature twice
+    // (cycles, a feature based on itself). To move a feature, remove it first.
+    if (std::ranges::count(Group.getValues(), feature)) {
+        throw Base::ValueError("Body: the feature to insert is already part of that body");
     }
 
     // ensure that all origin links are ok
