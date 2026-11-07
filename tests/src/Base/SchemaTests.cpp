@@ -593,6 +593,14 @@ TEST_F(SchemaTest, imperial_civil_special_function_angle_no_degrees)
     EXPECT_EQ(result, expect);
 }
 
+TEST_F(SchemaTest, imperial_civil_special_function_angle_negative)
+{
+    // one sign for the whole angle, as the quantity parser reads it: -(10°30′), not -11° + 30′
+    EXPECT_EQ(set("ImperialCivil", Unit::Angle, -10.5), "-10°30′");
+    EXPECT_EQ(set("ImperialCivil", Unit::Angle, -0.25), "-0°15′");
+    EXPECT_EQ(set("ImperialCivil", Unit::Angle, -30.0), "-30°");
+}
+
 TEST_F(SchemaTest, unknown_schema_name_throws)
 {
     EXPECT_THROW(UnitsApi::setSchema("Unknown"), RuntimeError);

@@ -934,8 +934,10 @@ inline std::string toDms(const double value)
         return {static_cast<int>(whole), dmsRatio * (total - whole)};
     };
 
-    auto [degrees, totalMinutes] = calc(value);
-    std::string out = std::format("{}°", degrees);
+    // One sign for the whole angle, as for feet and inches: the quantity parser reads -10°30′
+    // as -(10°30′), so -10.5° must not be written -11°30′ (-11° + 30′).
+    auto [degrees, totalMinutes] = calc(std::fabs(value));
+    std::string out = std::format("{}{}°", value < 0 ? "-" : "", degrees);
 
     if (totalMinutes > 0) {
         auto [minutes, totalSeconds] = calc(totalMinutes);
