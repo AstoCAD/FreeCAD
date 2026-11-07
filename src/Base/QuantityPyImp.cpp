@@ -115,7 +115,9 @@ int QuantityPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     int i7 {0};
     int i8 {0};
     if (PyArg_ParseTuple(args, "|diiiiiiii", &f, &i1, &i2, &i3, &i4, &i5, &i6, &i7, &i8)) {
-        if (f < std::numeric_limits<double>::max()) {
+        // Quantity() keeps the default; test for the argument, not for a sentinel value:
+        // nan, inf and the largest double failed "f < max" and silently gave 0
+        if (PyTuple_Size(args) > 0) {
             *self = Quantity {f, Unit(i1, i2, i3, i4, i5, i6, i7, i8)};
         }
         return 0;
