@@ -25,4 +25,5 @@ from SurfaceTests.TestBlendCurve import TestBlendCurve
 from SurfaceTests.TestGeomFillSurface import TestGeomFillSurface
 
 __all__ = ["TestBlendCurve", "TestGeomFillSurface"]
+from SurfaceTests.TestFilling import TestFilling
 from SurfaceTests.TestIntersectionCurve import TestIntersectionCurve
