@@ -156,9 +156,10 @@ protected:
 public:
     void updateAttacherVals(bool base = false) const;
     // This update both _props and _baseProps if base = false
-    void updatePropertyStatus(bool attached, bool base = false);
+    // force: set the read-only status of the placement even if this extension did not lock it
+    void updatePropertyStatus(bool attached, bool base = false, bool force = false);
     // This update only _props if base = false
-    void updateSinglePropertyStatus(bool attached, bool base = false);
+    void updateSinglePropertyStatus(bool attached, bool base = false, bool force = false);
 
 private:
     struct _Properties: Properties
@@ -169,6 +170,8 @@ private:
     _Properties _baseProps;
 
     mutable int _active = -1;
+    // Whether the read-only status of the placement was last set by this extension.
+    bool _placementLocked = false;
 };
 
 
