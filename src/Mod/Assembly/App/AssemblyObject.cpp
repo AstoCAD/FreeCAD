@@ -475,6 +475,9 @@ int AssemblyObject::generateSimulation(App::DocumentObject* sim)
 {
     mbdAssembly = makeMbdAssembly();
     objectPartMap.clear();
+    // The rigid clusters left by the last solve may be out of date (rigid groups
+    // created, edited or deleted since) and may name deleted objects.
+    rebuildRigidClusters();
 
     motions = getMotionsFromSimulation(sim);
 
