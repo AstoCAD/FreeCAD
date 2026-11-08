@@ -686,6 +686,14 @@ void ExtrusionHelper::makeElementDraft(
     }
 
     if (shape.shapeType() == TopAbs_FACE) {
+        if (!params.solid) {
+            // A face extrudes to a solid, as in the untapered prism. Lofting its wires
+            // as a shell would drop the end faces and leave the holes as open shells.
+            ExtrusionParameters solidParams = params;
+            solidParams.solid = true;
+            makeElementDraft(solidParams, shape, drafts, hasher);
+            return;
+        }
         std::vector<TopoShape> wires;
         TopoShape outerWire = shape.splitWires(&wires, TopoShape::ReorientForward);
         if (outerWire.isNull()) {
