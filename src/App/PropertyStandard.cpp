@@ -1136,7 +1136,9 @@ PyObject* PropertyIntegerSet::getPyObject()
 {
     PyObject* set = PySet_New(nullptr);
     for (long it : _lValueSet) {
-        PySet_Add(set, PyLong_FromLong(it));
+        // PySet_Add() does not steal the reference
+        Py::Long item(it);
+        PySet_Add(set, item.ptr());
     }
     return set;
 }
