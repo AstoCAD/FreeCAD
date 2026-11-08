@@ -1312,6 +1312,24 @@ class TestCore(AssemblyTestBase):
         positions = self._kinematic_end_positions(study)
         self.assertEqual(set(positions), {"Ground", driven.Name})
 
+    def test_simulation_playback_after_deleting_a_simulated_part(self):
+        driven, member, other, study = self._rigid_group_kinematic_fixture()
+        self.doc.UndoMode = 0  # really free the deleted part
+        fixed = self.jointgroup.newObject("App::FeaturePython", "Fixed")
+        JointObject.Joint(fixed, JointObject.JointTypes.index("Fixed"))
+        fixed.Detach1 = fixed.Detach2 = True
+        fixed.Reference1 = (driven, [""])
+        fixed.Reference2 = (member, [""])
+        fixed.Placement1 = App.Placement(App.Vector(20, 0, 0), App.Rotation())
+        self.assertEqual(self.assembly.generateSimulation(study), 0)
+        last = self.assembly.numberOfFrames() - 1
+
+        # The playback must not write to the deleted part; the others still move.
+        self.doc.removeObject(fixed.Name)
+        self.doc.removeObject(member.Name)
+        self.assembly.updateForFrame(last)
+        self.assertAlmostEqual(driven.Placement.Rotation.Angle, 1.0, places=6)
+
     def test_slider_limits_preserve_precision_in_asmt(self):
         ground = self.assembly.newObject("Part::Box", "Ground")
         moving = self.assembly.newObject("Part::Box", "Moving")

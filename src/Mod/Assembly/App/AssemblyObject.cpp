@@ -275,6 +275,28 @@ AssemblyObject::AssemblyObject()
 
     lastDoF = numberOfComponents() * 6;
     signalSolverUpdate();
+
+    // signalDeletedObject comes before an object is destroyed, signalDeleteDocument before
+    // a document destroys its objects.
+    connDeletedObject = App::GetApplication().signalDeletedObject.connect(
+        [this](const App::DocumentObject& obj) {
+            forgetObjects([&obj](const App::DocumentObject* part) { return part == &obj; });
+        }
+    );
+    connDeleteDocument = App::GetApplication().signalDeleteDocument.connect(
+        [this](const App::Document& doc) {
+            forgetObjects([&doc](const App::DocumentObject* part) {
+                return part && part->getDocument() == &doc;
+            });
+        }
+    );
+}
+
+void AssemblyObject::forgetObjects(const std::function<bool(const App::DocumentObject*)>& isGone)
+{
+    std::erase_if(objectPartMap, [&](const auto& entry) { return isGone(entry.first); });
+    std::erase_if(rigidPlacementCache, [&](const auto& entry) { return isGone(entry.first); });
+    std::erase_if(draggedParts, isGone);
 }
 
 AssemblyObject::~AssemblyObject() = default;
