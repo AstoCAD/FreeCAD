@@ -350,6 +350,15 @@ def _profile_face(profile):
         raise ValueError("Form Face requires a face or closed wire")
     if not face.Wires or any(not wire.isClosed() for wire in face.Wires):
         raise ValueError("The selected profile contains an open wire")
+    # A face selected on a placed object carries that placement as its own
+    # Location. Part::Feature replaces the Location of every assigned Shape
+    # with the Form's Placement, so keep the profile in the cage's coordinates
+    # by baking its Location into the geometry.
+    placement = face.Placement
+    if not placement.isIdentity():
+        face = face.copy()
+        face.Placement = App.Placement()
+        face = face.transformed(placement.toMatrix(), True)
     return face
 
 
