@@ -862,6 +862,40 @@ class MeshCorruptedFacet(unittest.TestCase):
         self.assertEqual(mesh.Topology[1], [(0, 1, 2)])
 
 
+class MeshRemoveFacetsDuplicates(unittest.TestCase):
+    """A facet index given twice to removeFacets() must remove that facet only once"""
+
+    def setUp(self):
+        points = [
+            Base.Vector(0, 0, 0),
+            Base.Vector(1, 0, 0),
+            Base.Vector(0, 1, 0),
+            Base.Vector(1, 1, 0),
+            Base.Vector(2, 0, 0),
+        ]
+        self.mesh = Mesh.Mesh()
+        self.mesh.addFacets((points, [(0, 1, 2), (2, 1, 3), (1, 4, 3)]))
+
+    def testDuplicateIndex(self):
+        # The points of the removed facet were released twice and deleted although the
+        # other facets still use them: those facets then referenced the wrong points.
+        expected = Mesh.Mesh(self.mesh)
+        expected.removeFacets([0])
+        self.mesh.removeFacets([0, 0])
+        self.assertEqual(self.mesh.CountFacets, 2)
+        self.assertEqual(self.mesh.CountPoints, 4)
+        self.assertEqual(self.mesh.Topology, expected.Topology)
+
+    def testDuplicateIndexOfLastFacets(self):
+        self.mesh.removeFacets([2, 1, 2])
+        self.assertEqual(self.mesh.CountFacets, 1)
+        self.assertEqual(self.mesh.CountPoints, 3)
+        self.assertEqual(
+            [f.Points for f in self.mesh.Facets],
+            [[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]],
+        )
+
+
 class MeshReadTruncatedOff(unittest.TestCase):
     """Reading an OFF file without the line of element counts must not hang"""
 
