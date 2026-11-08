@@ -98,8 +98,11 @@ App::DocumentObjectExecReturn* SegmentByMesh::execute()
     cNormal = Base::convertTo<Base::Vector3f>(Normal.getValue());
 
 
-    const MeshKernel& rMeshKernel = kernel->getValue().getKernel();
-    const MeshKernel& rToolMesh = toolmesh->getValue().getKernel();
+    // work on the placed meshes
+    MeshKernel rMeshKernel(kernel->getValue().getKernel());
+    rMeshKernel.Transform(kernel->getValue().getTransform());
+    MeshKernel rToolMesh(toolmesh->getValue().getKernel());
+    rToolMesh.Transform(toolmesh->getValue().getTransform());
 
     // check if the toolmesh is a solid
     if (!MeshEvalSolid(rToolMesh).Evaluate()) {
