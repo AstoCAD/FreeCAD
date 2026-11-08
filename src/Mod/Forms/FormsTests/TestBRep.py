@@ -687,6 +687,29 @@ class BRepConversionTest(unittest.TestCase):
         )
         self.assertAlmostEqual(obj.Shape.BoundBox.ZMin, profile.BoundBox.ZMin, places=6)
 
+    def test_malformed_local_topology_data_fails_conversion_clearly(self):
+        document = App.newDocument("FormsTestMalformedTopologyData")
+        obj = create_box(document)
+        make_editable(obj)
+        document.recompute()
+        for name, value in (
+            ("TMeshData", '{"version": 3}'),
+            ("TMeshData", "[1, 2]"),
+            ("LocalEdgeInserts", ['{"face": [0, 1, 2, 3]}']),
+            ("LocalEdgeInserts", ["[1, 2]"]),
+        ):
+            with self.subTest(name=name, value=value):
+                setattr(obj, name, value)
+                obj.touch()
+                document.recompute()
+                self.assertNotIn("Invalid", obj.State)
+                self.assertTrue(obj.Shape.isNull())
+                self.assertTrue(obj.ConversionStatus.startswith("Failed: Invalid"))
+                setattr(obj, name, "" if name == "TMeshData" else [])
+                obj.touch()
+                document.recompute()
+                self.assertTrue(obj.ConversionStatus.startswith("Valid"))
+
     def test_profile_form_face_exposes_and_subdivides_control_patches(self):
         profile = Part.Face(
             Part.makePolygon(
