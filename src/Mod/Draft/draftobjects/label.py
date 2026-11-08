@@ -427,7 +427,7 @@ def _get_position(target, subelement):
     if subelement is not None:
         if "Vertex" in subelement:
             point = target.Shape.Vertexes[int(subelement[6:]) - 1].Point
-    else:
+    elif hasattr(target, "Placement"):
         point = target.Placement.Base
     if point is None:
         return [translate("draft", "Position not available for (sub)object")]
