@@ -896,6 +896,36 @@ class MeshRemoveFacetsDuplicates(unittest.TestCase):
         )
 
 
+class MeshCollapseFacetSegments(unittest.TestCase):
+    """Collapsing a facet also removes its neighbours: segments must follow all removals"""
+
+    def setUp(self):
+        self.mesh = Mesh.createBox(1, 1, 1)
+        self.count = self.mesh.CountFacets
+
+    def testCollapseFacetKeepsSegmentInRange(self):
+        self.mesh.addSegment(list(range(self.count)))
+        self.mesh.collapseFacet(3)
+        # the segment kept indices of facets that no longer exist
+        self.assertEqual(self.mesh.getSegment(0), list(range(self.mesh.CountFacets)))
+
+    def testCollapseFacetRemapsSegment(self):
+        last = self.count - 1
+        removed = [0] + list(self.mesh.Facets[0].NeighbourIndices)
+        self.assertNotIn(last, removed)
+        self.mesh.addSegment([last])
+        self.mesh.collapseFacet(0)
+        self.assertEqual(self.mesh.CountFacets, self.count - len(removed))
+        self.assertEqual(self.mesh.getSegment(0), [last - len(removed)])
+
+    def testCollapseFacetsKeepsSegmentInRange(self):
+        self.mesh.addSegment(list(range(self.count)))
+        self.mesh.collapseFacets([0])
+        segment = self.mesh.getSegment(0)
+        self.assertEqual(segment, list(range(self.mesh.CountFacets)))
+        self.assertEqual(self.mesh.meshFromSegment(segment).CountFacets, self.mesh.CountFacets)
+
+
 class MeshReadTruncatedOff(unittest.TestCase):
     """Reading an OFF file without the line of element counts must not hang"""
 

@@ -1482,8 +1482,10 @@ void MeshObject::collapseFacet(FacetIndex facet)
     MeshCore::MeshTopoAlgorithm topalg(_kernel);
     topalg.CollapseFacet(facet);
 
+    // the collapse removes the neighbours of the facet as well
     std::vector<FacetIndex> remFacets;
-    remFacets.push_back(facet);
+    MeshCore::MeshAlgorithm(_kernel).GetFacetsFlag(remFacets, MeshCore::MeshFacet::INVALID);
+    topalg.Cleanup();
     deletedFacets(remFacets);
 }
 
@@ -1494,7 +1496,11 @@ void MeshObject::collapseFacets(const std::vector<FacetIndex>& facets)
         alg.CollapseFacet(it);
     }
 
-    deletedFacets(facets);
+    // the collapses remove the neighbours of the facets as well
+    std::vector<FacetIndex> remFacets;
+    MeshCore::MeshAlgorithm(_kernel).GetFacetsFlag(remFacets, MeshCore::MeshFacet::INVALID);
+    alg.Cleanup();
+    deletedFacets(remFacets);
 }
 
 void MeshObject::insertVertex(FacetIndex facet, const Base::Vector3f& v)
