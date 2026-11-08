@@ -1250,6 +1250,68 @@ class TestCore(AssemblyTestBase):
             with self.subTest(part=part.Name):
                 self.assertTrue(part.Placement.isSame(placement, 1e-6))
 
+    def _rigid_group_kinematic_fixture(self):
+        import Dynamics
+        from CommandCreateSimulation import Motion
+
+        ground = self.assembly.newObject("Part::Box", "Ground")
+        driven = self.assembly.newObject("Part::Box", "Driven")
+        member = self.assembly.newObject("Part::Box", "Member")
+        other = self.assembly.newObject("Part::Box", "Other")
+        member.Placement.Base = App.Vector(20, 0, 0)
+        other.Placement.Base = App.Vector(40, 0, 0)
+        grounding = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+        JointObject.GroundedJoint(grounding, ground)
+        revolute = self.jointgroup.newObject("App::FeaturePython", "Revolute")
+        JointObject.Joint(revolute, JointObject.JointTypes.index("Revolute"))
+        revolute.Detach1 = revolute.Detach2 = True
+        revolute.Reference1 = (ground, [""])
+        revolute.Reference2 = (driven, [""])
+        self.doc.recompute()
+
+        study = Dynamics.create_study(self.assembly)
+        study.EndTime = "1 s"
+        study.OutputStep = "0.5 s"
+        motion = self.doc.addObject("App::FeaturePython", "Motion")
+        Motion(motion, "Angular", revolute, "initialValue + time")
+        study.addObject(motion)
+        return driven, member, other, study
+
+    def _kinematic_end_positions(self, study):
+        self.assertEqual(self.assembly.generateSimulation(study), 0)
+        bodies = self.assembly.getSimulationResults()["Bodies"]
+        return {name: App.Vector(*body["Placements"][-1][:3]) for name, body in bodies.items()}
+
+    def test_kinematic_simulation_uses_rigid_groups_changed_since_last_solve(self):
+        driven, member, other, study = self._rigid_group_kinematic_fixture()
+        rotated = App.Rotation(App.Vector(0, 0, 1), 57.29577951308232)
+
+        # Created after the last solve: the member must turn with the driven part.
+        group = self.jointgroup.newObject("App::FeaturePython", "RigidGroup")
+        JointObject.RigidGroupJoint(group, [driven, member])
+        positions = self._kinematic_end_positions(study)
+        self.assertIn(member.Name, positions)
+        self.assertLess((positions[member.Name] - rotated.multVec(App.Vector(20, 0, 0))).Length, 1e-6)
+
+        # Edited after a solve: the group now holds the other part, not the member.
+        self.assertEqual(self.assembly.solve(), 0)
+        group.ObjectsToRigidGroup = [driven, other]
+        positions = self._kinematic_end_positions(study)
+        self.assertNotIn(member.Name, positions)
+        self.assertLess((positions[other.Name] - rotated.multVec(App.Vector(40, 0, 0))).Length, 1e-6)
+
+    def test_kinematic_simulation_after_deleting_rigid_group_member(self):
+        driven, member, other, study = self._rigid_group_kinematic_fixture()
+        self.doc.UndoMode = 0  # really free the deleted member
+        group = self.jointgroup.newObject("App::FeaturePython", "RigidGroup")
+        JointObject.RigidGroupJoint(group, [driven, member])
+        self.assertEqual(self.assembly.solve(), 0)
+
+        # The last solve's rigid clusters still point to the deleted member.
+        self.doc.removeObject(member.Name)
+        positions = self._kinematic_end_positions(study)
+        self.assertEqual(set(positions), {"Ground", driven.Name})
+
     def test_slider_limits_preserve_precision_in_asmt(self):
         ground = self.assembly.newObject("Part::Box", "Ground")
         moving = self.assembly.newObject("Part::Box", "Moving")
