@@ -534,6 +534,13 @@ void Revolved::setResult(const TopoShape& base, const TopoShape& revolved)
     // set the additive shape property for later usage in e.g. pattern
     this->AddSubShape.setValue(result);
 
+    if (base.isNull() && getAddSubType() == FeatureAddSub::Type::Subtractive) {
+        // the tool alone is not the result of removing material
+        throw Base::RuntimeError(
+            QT_TRANSLATE_NOOP("Exception", "Groove: There is nothing to subtract from")
+        );
+    }
+
     if (!base.isNull()) {
         result = makeShape(base, result);
         // store shape before refinement

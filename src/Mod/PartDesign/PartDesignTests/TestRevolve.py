@@ -21,6 +21,7 @@
 # *                                                                         *
 # ***************************************************************************
 
+import math
 import unittest
 
 import FreeCAD
@@ -67,6 +68,46 @@ class TestRevolve(unittest.TestCase):
         self.Body.addObject(self.Groove)
         self.Doc.recompute()
         self.assertEqual(len(self.Groove.Shape.Faces), 5)
+
+    def _makeGrooveOnSquare(self, withCylinder):
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        if withCylinder:
+            cylinder = body.newObject("PartDesign::AdditiveCylinder", "Cylinder")
+            cylinder.Radius = 6
+            cylinder.Height = 10
+        sketch = body.newObject("Sketcher::SketchObject", "Sketch")
+        xzPlane = [f for f in body.Origin.OriginFeatures if f.Role == "XZ_Plane"][0]
+        sketch.AttachmentSupport = (xzPlane, [""])
+        sketch.MapMode = "FlatFace"
+        points = [
+            FreeCAD.Vector(5, 4, 0),
+            FreeCAD.Vector(7, 4, 0),
+            FreeCAD.Vector(7, 6, 0),
+            FreeCAD.Vector(5, 6, 0),
+        ]
+        for i in range(4):
+            sketch.addGeometry(Part.LineSegment(points[i], points[(i + 1) % 4]))
+        groove = body.newObject("PartDesign::Groove", "Groove")
+        groove.Profile = sketch
+        groove.ReferenceAxis = (sketch, ["V_Axis"])
+        groove.Angle = 360
+        self.Doc.recompute()
+        return groove
+
+    def testGrooveWithoutBaseFails(self):
+        # A Groove as first feature of a Body used to give the revolved tool itself as solid
+        groove = self._makeGrooveOnSquare(False)
+        self.assertIn("Invalid", groove.State)
+        self.assertIn("nothing to subtract", groove.getStatusString())
+        # the tool is still available, e.g. for the preview
+        self.assertAlmostEqual(groove.AddSubShape.Volume, 4 * 2 * math.pi * 6, places=6)
+
+    def testGrooveWithBaseRemovesMaterial(self):
+        groove = self._makeGrooveOnSquare(True)
+        self.assertIn("Up-to-date", groove.State)
+        self.assertAlmostEqual(
+            groove.Shape.Volume, math.pi * 36 * 10 - 2 * 2 * math.pi * 5.5, places=6
+        )
 
     def testRevolutionStartOffsetAndReference(self):
         profile = self.Doc.addObject("Sketcher::SketchObject", "Profile")
