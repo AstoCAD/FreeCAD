@@ -4978,7 +4978,27 @@ TopoShape& TopoShape::makeElementDraft(
         }
     } while (retry && !done);
 
-    mkDraft.Build(std::make_unique<Part::ProgressIndicator>()->Start());
+    // OCCT reports a draft it cannot build (e.g. an angle so large that the drafted faces would
+    // cross) with an exception without message or with a bare "command not done": say what failed.
+    const char* failure = "Failed to draft the faces, the draft angle may be too large";
+    try {
+        mkDraft.Build(std::make_unique<Part::ProgressIndicator>()->Start());
+    }
+    catch (const Standard_Failure& e) {
+        const char* msg = e.GetMessageString();
+        FC_THROWM(Base::CADKernelError, failure << (msg && msg[0] ? ": " : "") << (msg ? msg : ""));
+    }
+    if (!mkDraft.IsDone()) {
+        const TopoDS_Shape& problem = mkDraft.ProblematicShape();
+        const int index = problem.IsNull() ? 0 : shape.findShape(problem);
+        if (index > 0) {
+            FC_THROWM(
+                Base::CADKernelError,
+                failure << " (at " << shapeName(problem.ShapeType()) << index << ")"
+            );
+        }
+        FC_THROWM(Base::CADKernelError, failure);
+    }
     return makeElementShape(mkDraft, shape, op);
 }
 
