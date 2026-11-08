@@ -383,6 +383,12 @@ App::DocumentObjectExecReturn* Loft::execute()
         }
 
         if (base.isNull()) {
+            if (getAddSubType() == FeatureAddSub::Type::Subtractive) {
+                return new App::DocumentObjectExecReturn(
+                    QT_TRANSLATE_NOOP("Exception", "Loft: There is nothing to subtract from")
+                );
+            }
+
             if (!isSingleSolidRuleSatisfied(result.getShape())) {
                 return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP(
                     "Exception",
