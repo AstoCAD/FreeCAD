@@ -172,3 +172,29 @@ class TestDressupArray(PathTestBase):
 
         # And we kept the annotation
         self.assertIn("; RetractMode:'G98'", gcode)
+
+    def test04(self):
+        """A linear copy of a drill cycle moves its retract plane R with its Z."""
+
+        source_gcode = "G81 F6 R2 X7 Y9 Z-3"
+
+        for arrayType, copiesX in (("Linear1D", 0), ("Linear2D", 1)):
+            base = _TestEngrave(source_gcode)
+            pa = PathArray(
+                base,
+                arrayType,
+                1,
+                FreeCAD.Vector(12, 12, 5),
+                copiesX,
+                0,
+                angle=None,
+                centre=None,
+                swapDirection=False,
+            )
+            cmds = pa.getPath().Commands
+            self.assertEqual(len(cmds), 2)
+            copy = cmds[1].Parameters
+            self.assertRoughly(copy["X"], 19)
+            self.assertRoughly(copy["Z"], 2)
+            # the retract plane stays 5 mm above the bottom of the hole
+            self.assertRoughly(copy["R"], 7)
