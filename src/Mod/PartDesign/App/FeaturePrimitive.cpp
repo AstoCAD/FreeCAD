@@ -395,6 +395,12 @@ App::DocumentObjectExecReturn* Cone::execute()
             QT_TRANSLATE_NOOP("Exception", "Height of cone too small")
         );
     }
+    // OCCT builds an invalid solid without volume when both radii are zero
+    if (Radius1.getValue() < Precision::Confusion() && Radius2.getValue() < Precision::Confusion()) {
+        return new App::DocumentObjectExecReturn(
+            QT_TRANSLATE_NOOP("Exception", "Cone needs a non-zero radius")
+        );
+    }
     try {
         if (std::abs(Radius1.getValue() - Radius2.getValue()) < Precision::Confusion()) {
             // Build a cylinder
