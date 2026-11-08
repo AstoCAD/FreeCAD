@@ -938,6 +938,25 @@ class DocumentBasicCases(unittest.TestCase):
             obj.Set = {1, "a"}
         self.assertEqual(obj.Set, set())
 
+    def testIntegerSetGetterDoesNotLeak(self):
+        # Every read of the property leaked one int object per item.
+        import tracemalloc
+
+        obj = self.Doc.addObject("App::FeaturePython", "IntegerSet")
+        obj.addProperty("App::PropertyIntegerSet", "Set")
+        obj.Set = list(range(1000, 1500))
+        tracemalloc.start()
+        try:
+            obj.Set
+            before = tracemalloc.get_traced_memory()[0]
+            for _ in range(100):
+                obj.Set
+            grown = tracemalloc.get_traced_memory()[0] - before
+        finally:
+            tracemalloc.stop()
+        # the leak was about 100 * 500 * 28 bytes
+        self.assertLess(grown, 200000)
+
     def testMaterialColorOutOfRangeInteger(self):
         # App.Material colours: same unchecked int conversion as PropertyColor
         mat = FreeCAD.Material()
