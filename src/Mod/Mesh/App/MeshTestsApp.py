@@ -959,6 +959,60 @@ class MeshSetOperationsPlacement(unittest.TestCase):
         self.assertTrue(expected.BoundBox.isInside(self.op.Mesh.BoundBox))
 
 
+class MeshSegmentByMeshPlacement(unittest.TestCase):
+    """The Mesh::SegmentByMesh feature works on the placed source and tool meshes"""
+
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("MeshSegmentByMeshPlacement")
+        # a planar grid of 20 x 20 squares in the unit square
+        n = 20
+        points = [Base.Vector(i / n, j / n, 0) for j in range(n + 1) for i in range(n + 1)]
+        facets = []
+        for j in range(n):
+            for i in range(n):
+                k = j * (n + 1) + i
+                facets.append((k, k + 1, k + n + 2))
+                facets.append((k, k + n + 2, k + n + 1))
+        self.source = self.doc.addObject("Mesh::Feature", "Source")
+        self.source.Mesh = Mesh.Mesh((points, facets))
+        # The feature casts rays along Normal (default +Z) and counts the tool facets
+        # they cross. Keep every grid vertex off the tool sides and off the diagonals
+        # of its top and bottom faces: a ray through a diagonal crosses two facets,
+        # and whether it counts as inside then depends on rounding.
+        tool = Mesh.createBox(0.43, 0.43, 3.0)
+        tool.translate(0.51, 0.52, 0.0)
+        self.tool = self.doc.addObject("Mesh::Feature", "Tool")
+        self.tool.Mesh = tool
+        self.segment = self.doc.addObject("Mesh::SegmentByMesh", "Segment")
+        self.segment.Source = self.source
+        self.segment.Tool = self.tool
+        self.doc.recompute()
+        self.count = self.segment.Mesh.CountFacets
+        self.bound = self.segment.Mesh.BoundBox
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def testUnplaced(self):
+        self.assertGreater(self.count, 0)
+        self.assertLess(self.count, self.source.Mesh.CountFacets)
+        self.assertTrue(self.tool.Mesh.BoundBox.isInside(self.bound.Center))
+
+    def testSourceMovedAwayFromTool(self):
+        # The placements were ignored: the segment stayed the same
+        self.source.Placement.Base = FreeCAD.Vector(10, 0, 0)
+        self.doc.recompute()
+        self.assertEqual(self.segment.Mesh.CountFacets, 0)
+
+    def testBothMoved(self):
+        self.source.Placement.Base = FreeCAD.Vector(10, 0, 0)
+        self.tool.Placement.Base = FreeCAD.Vector(10, 0, 0)
+        self.doc.recompute()
+        self.assertEqual(self.segment.Mesh.CountFacets, self.count)
+        self.assertAlmostEqual(self.segment.Mesh.BoundBox.XMin, self.bound.XMin + 10, 4)
+        self.assertAlmostEqual(self.segment.Mesh.BoundBox.XMax, self.bound.XMax + 10, 4)
+
+
 class MeshReadTruncatedOff(unittest.TestCase):
     """Reading an OFF file without the line of element counts must not hang"""
 
