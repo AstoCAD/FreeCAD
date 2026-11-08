@@ -692,6 +692,33 @@ class TestLoft(unittest.TestCase):
         self.assertGreater(body.Shape.Volume, 9220.0)  # 9221.776241582389 post-Loft
         self.Doc.recompute()
 
+    def _addSquareSketch(self, body, name, z, half):
+        sketch = body.newObject("Sketcher::SketchObject", name)
+        sketch.Placement.Base.z = z
+        points = [
+            Base.Vector(-half, -half, 0),
+            Base.Vector(half, -half, 0),
+            Base.Vector(half, half, 0),
+            Base.Vector(-half, half, 0),
+        ]
+        for i in range(4):
+            sketch.addGeometry(Part.LineSegment(points[i], points[(i + 1) % 4]))
+        return sketch
+
+    def testSubtractiveLoftWithoutBaseFails(self):
+        # A Subtractive Loft as first feature of a Body used to give the loft itself as solid
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        bottom = self._addSquareSketch(body, "Bottom", 0, 5)
+        top = self._addSquareSketch(body, "Top", 10, 5)
+        loft = body.newObject("PartDesign::SubtractiveLoft", "SubtractiveLoft")
+        loft.Profile = bottom
+        loft.Sections = [top]
+        self.Doc.recompute()
+        self.assertIn("Invalid", loft.State)
+        self.assertIn("nothing to subtract", loft.getStatusString())
+        # the tool is still available, e.g. for the preview
+        self.assertAlmostEqual(loft.AddSubShape.Volume, 1000, places=6)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestLoft")
