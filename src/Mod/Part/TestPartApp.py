@@ -1806,6 +1806,58 @@ class PartExtrusionTests(unittest.TestCase):
         self.assertEqual(len(extrusion.Shape.Solids), 0)
         self.assertEqual(len(extrusion.Shape.Faces), 1)
 
+    def testExtrudeAlongFacePlaneFails(self):
+        """Extruding a face, or wires made into a solid, along their own plane gave a
+        flat solid without volume and no error."""
+        square = Part.makePolygon(
+            [
+                Base.Vector(0, 0, 0),
+                Base.Vector(10, 0, 0),
+                Base.Vector(10, 10, 0),
+                Base.Vector(0, 10, 0),
+                Base.Vector(0, 0, 0),
+            ]
+        )
+        for name, shape, solid, taper in (
+            ("face", Part.Face(square), False, 0),
+            ("tapered face", Part.Face(square), False, 5),
+            ("wire made solid", square, True, 0),
+            ("tapered wire made solid", square, True, 5),
+        ):
+            with self.subTest(shape=name):
+                base_feature = self.Doc.addObject("Part::Feature", "Base")
+                base_feature.Shape = shape
+                extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
+                extrusion.Base = base_feature
+                extrusion.Dir = Base.Vector(1, 1, 0)
+                extrusion.LengthFwd = 3
+                extrusion.Solid = solid
+                extrusion.TaperAngle = taper
+                self.Doc.recompute()
+                self.assertIn("Invalid", extrusion.State)
+
+        # an open wire extruded along its plane is a valid planar face
+        base_feature = self.Doc.addObject("Part::Feature", "Base")
+        base_feature.Shape = Part.makeLine(Base.Vector(0, 0, 0), Base.Vector(10, 0, 0))
+        extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
+        extrusion.Base = base_feature
+        extrusion.Dir = Base.Vector(0, 1, 0)
+        extrusion.LengthFwd = 3
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", extrusion.State)
+        self.assertAlmostEqual(extrusion.Shape.Area, 30, places=6)
+
+        # a direction leaving the plane at an angle still works
+        base_feature = self.Doc.addObject("Part::Feature", "Base")
+        base_feature.Shape = Part.Face(square)
+        extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
+        extrusion.Base = base_feature
+        extrusion.Dir = Base.Vector(1, 0, 1)
+        extrusion.LengthFwd = 3
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", extrusion.State)
+        self.assertAlmostEqual(extrusion.Shape.Volume, 300 * math.sqrt(0.5), places=6)
+
     def testNonFiniteLengthOrDirectionFails(self):
         # NaN passed the zero length checks and crashed the prism (segmentation fault)
         nan = float("nan")
