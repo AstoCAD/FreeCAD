@@ -1766,6 +1766,46 @@ class PartExtrusionTests(unittest.TestCase):
         expected_volume = outer - hole  # ~781
         self.assertAlmostEqual(extrusion.Shape.Volume, expected_volume, places=1)
 
+    def testExtrudeTaperFaceIsSolidWithoutSolidFlag(self):
+        """A face extrudes to a solid whatever Solid says, tapered or not. The tapered
+        extrusion of a face with Solid = False was a shell without its end faces."""
+        offset = 10 * math.tan(math.radians(10))
+        outer = self._frustum_volume(10, 10 * 10, (10 + 2 * offset) * (10 + 2 * offset))
+        hole = self._frustum_volume(10, 6 * 6, (6 - 2 * offset) * (6 - 2 * offset))
+        circle = Part.Face(Part.Wire(Part.makeCircle(5)))
+        radius = 5 + 10 * math.tan(math.radians(10))
+        cone = math.pi * 10 / 3 * (25 + radius * radius + 5 * radius)
+        for name, shape, expected_volume in (
+            ("circle", circle, cone),
+            ("face with hole", self._make_face_with_hole(), outer - hole),
+        ):
+            with self.subTest(shape=name):
+                base_feature = self.Doc.addObject("Part::Feature", "Base")
+                base_feature.Shape = shape
+                extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
+                extrusion.Base = base_feature
+                extrusion.LengthFwd = 10
+                extrusion.Solid = False
+                extrusion.TaperAngle = 10
+                self.Doc.recompute()
+
+                self.assertNotIn("Invalid", extrusion.State)
+                self.assertTrue(extrusion.Shape.isValid())
+                self.assertEqual(len(extrusion.Shape.Solids), 1)
+                self.assertAlmostEqual(extrusion.Shape.Volume, expected_volume, places=1)
+
+        # a wire still extrudes to a shell
+        base_feature = self.Doc.addObject("Part::Feature", "Base")
+        base_feature.Shape = Part.Wire(Part.makeCircle(5))
+        extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
+        extrusion.Base = base_feature
+        extrusion.LengthFwd = 10
+        extrusion.Solid = False
+        extrusion.TaperAngle = 10
+        self.Doc.recompute()
+        self.assertEqual(len(extrusion.Shape.Solids), 0)
+        self.assertEqual(len(extrusion.Shape.Faces), 1)
+
     def testNonFiniteLengthOrDirectionFails(self):
         # NaN passed the zero length checks and crashed the prism (segmentation fault)
         nan = float("nan")
