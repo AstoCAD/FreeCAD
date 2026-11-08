@@ -719,6 +719,60 @@ class TestLoft(unittest.TestCase):
         # the tool is still available, e.g. for the preview
         self.assertAlmostEqual(loft.AddSubShape.Volume, 1000, places=6)
 
+    def _addRingSections(self, body):
+        # four circles around the Z axis, each in a plane containing the axis
+        sketches = []
+        for k in range(4):
+            sketch = body.newObject("Sketcher::SketchObject", f"{body.Name}Ring{k}")
+            rotation = FreeCAD.Rotation(Base.Vector(0, 0, 1), 90 * k)
+            sketch.Placement = FreeCAD.Placement(
+                rotation.multVec(Base.Vector(10, 0, 0)),
+                rotation * FreeCAD.Rotation(Base.Vector(1, 0, 0), 90),
+            )
+            sketch.addGeometry(Part.Circle(Base.Vector(0, 0, 0), Base.Vector(0, 0, 1), 2))
+            sketches.append(sketch)
+        self.Doc.recompute()
+        return sketches
+
+    def testClosedLoftIsNotCappedAtProfile(self):
+        # A closed loft has no free end: the faces built from the profile and the last section
+        # used to be sewn into its closed shell, which broke it ("Failed to create shell" when
+        # smooth, an invalid solid when ruled).
+        for ruled in (False, True):
+            with self.subTest(ruled=ruled):
+                body = self.Doc.addObject("PartDesign::Body", "Body")
+                sketches = self._addRingSections(body)
+                wires = [sketch.Shape.Wires[0] for sketch in sketches]
+                loft = body.newObject("PartDesign::AdditiveLoft", "Loft")
+                loft.Profile = sketches[0]
+                loft.Sections = sketches[1:]
+                loft.Closed = True
+                loft.Ruled = ruled
+                self.Doc.recompute()
+                expected = Part.makeLoft(wires, True, ruled, True)
+                self.assertIn("Up-to-date", loft.State)
+                self.assertTrue(loft.Shape.isValid())
+                self.assertEqual(len(loft.Shape.Solids), 1)
+                self.assertAlmostEqual(loft.Shape.Volume, expected.Volume, places=3)
+
+    def testLoftBetweenTwoPoints(self):
+        # point -> square -> point: neither end needs a face
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        middle = self._addSquareSketch(body, "Middle", 10, 5)
+        bottom = body.newObject("PartDesign::Point", "Bottom")
+        top = body.newObject("PartDesign::Point", "Top")
+        bottom.MapMode = top.MapMode = "Deactivated"
+        top.Placement.Base.z = 20
+        self.Doc.recompute()
+        loft = body.newObject("PartDesign::AdditiveLoft", "Loft")
+        loft.Profile = bottom
+        loft.Sections = [middle, top]
+        loft.Ruled = True
+        self.Doc.recompute()
+        self.assertIn("Up-to-date", loft.State)
+        self.assertTrue(loft.Shape.isValid())
+        self.assertAlmostEqual(loft.Shape.Volume, 2 * 100 * 10 / 3, places=6)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestLoft")
