@@ -623,6 +623,25 @@ class PartTestCone(unittest.TestCase):
         self.assertAlmostEqual(v2.getAngle(w2), 0)
         self.assertAlmostEqual(v3.getAngle(w3), 0)
 
+    def testConeFeatureWithoutRadiusFails(self):
+        # Both radii zero used to give an invalid solid without volume
+        doc = FreeCAD.newDocument("PartTestConeFeature")
+        try:
+            cone = doc.addObject("Part::Cone", "Cone")
+            cone.Radius1 = 0
+            cone.Radius2 = 0
+            doc.recompute()
+            self.assertIn("Invalid", cone.State)
+            self.assertIn("radius", cone.getStatusString())
+            # one zero radius is a valid cone
+            cone.Radius2 = 3
+            doc.recompute()
+            self.assertIn("Up-to-date", cone.State)
+            self.assertTrue(cone.Shape.isValid())
+            self.assertAlmostEqual(cone.Shape.Volume, math.pi * 9 * cone.Height.Value / 3)
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
 
 class PartTestChFi2dAlgos(unittest.TestCase):
     def testChFi2d_FilletAlgo(self):

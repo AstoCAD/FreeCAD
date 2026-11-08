@@ -159,6 +159,30 @@ class TestPrimitive(unittest.TestCase):
         self.Doc.recompute()
         self.assertAlmostEqual(self.Wedge001.Shape.Volume, 1 / 2.0 * (10 * 10 - 9 * 8) * 10)
 
+    def testPrimitiveConeWithoutRadiusFails(self):
+        # Both radii zero used to give an invalid solid without volume
+        for typeName in ("PartDesign::AdditiveCone", "PartDesign::SubtractiveCone"):
+            with self.subTest(type=typeName):
+                body = self.Doc.addObject("PartDesign::Body", "Body")
+                if typeName == "PartDesign::SubtractiveCone":
+                    box = body.newObject("PartDesign::AdditiveBox", "Box")
+                cone = body.newObject(typeName, "Cone")
+                cone.Radius1 = 0
+                cone.Radius2 = 0
+                cone.Height = 10
+                self.Doc.recompute()
+                self.assertIn("Invalid", cone.State)
+                self.assertIn("radius", cone.getStatusString().lower())
+                # one zero radius is a valid cone
+                cone.Radius2 = 3
+                self.Doc.recompute()
+                self.assertIn("Up-to-date", cone.State)
+                self.assertTrue(cone.Shape.isValid())
+                expected = pi * 9 * 10 / 3
+                if typeName == "PartDesign::SubtractiveCone":
+                    expected = box.Shape.Volume - pi * 9 * 10 / 3 / 4
+                self.assertAlmostEqual(cone.Shape.Volume, expected)
+
     def testPrimitivePrismNaNFails(self):
         # NaN passed the height and angle checks and the NaN prism crashed the recompute
         self.Body = self.Doc.addObject("PartDesign::Body", "Body")
