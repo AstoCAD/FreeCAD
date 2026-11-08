@@ -248,13 +248,7 @@ class Hatch(DraftObject):
 
     def getPatterns(self, filename):
         """returns a list of pattern names found in a PAT file"""
-        patterns = []
-        if os.path.exists(filename):
-            with open(filename) as patfile:
-                for line in patfile:
-                    if line.startswith("*"):
-                        patterns.append(line.split(",")[0][1:])
-        return patterns
+        return get_pattern_names(filename)
 
     def add_faces(self, obj, face_links):
         """adds face_links to this hatch (compare addSubobjects in facebinder.py)"""
@@ -283,3 +277,19 @@ class Hatch(DraftObject):
                         if "Face" in sub:
                             sels.append((sel_obj, sub))
         obj.Faces = sels
+
+
+def get_pattern_names(filename):
+    """Return the list of pattern names found in a PAT file.
+
+    A pattern starts with a header line "*name[, description]"; the
+    description is optional. The name is read like TechDraw does when it
+    loads the pattern (PATLineSpec::findPatternStart).
+    """
+    patterns = []
+    if os.path.exists(filename):
+        with open(filename) as patfile:
+            for line in patfile:
+                if line.startswith("*"):
+                    patterns.append(line.rstrip("\r\n").split(",")[0][1:])
+    return patterns

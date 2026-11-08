@@ -137,13 +137,9 @@ class Draft_Hatch_TaskPanel:
 
     def getPatterns(self, filename):
         """returns a list of pattern names found in a PAT file"""
-        patterns = []
-        if os.path.exists(filename):
-            with open(filename) as patfile:
-                for line in patfile:
-                    if line.startswith("*"):
-                        patterns.append(line.split(",")[0][1:])
-        return patterns
+        from draftobjects.hatch import get_pattern_names
+
+        return get_pattern_names(filename)
 
 
 if FreeCAD.GuiUp:

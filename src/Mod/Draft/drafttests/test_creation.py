@@ -467,5 +467,23 @@ class DraftCreation(test_base.DraftTestCaseDoc):
         self.assertNotIn("Invalid", obj.State)
         self.assertTrue(obj.Shape.isNull())
 
+    def test_hatch_pattern_without_description(self):
+        """A PAT pattern header without the optional description must be found."""
+        operation = "Draft Hatch pattern without description"
+        _msg("  Test '{}'".format(operation))
+        rect = Draft.make_rectangle(50, 30)
+        rect.MakeFace = True
+        self.doc.recompute()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            patfile = os.path.join(temp_dir, "nodesc.pat")
+            with open(patfile, "w") as pat_file:
+                pat_file.write("*NoDescription\n0, 0,0, 0,10\n")
+            obj = Draft.make_hatch(rect, patfile, "NoDescription", scale=1, rotation=0)
+            self.doc.recompute()
+            self.assertEqual(obj.Proxy.getPatterns(patfile), ["NoDescription"])
+
+        self.assertFalse(obj.Shape.isNull(), "'{}' failed".format(operation))
+
 
 ## @}
