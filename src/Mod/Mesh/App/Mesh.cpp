@@ -677,7 +677,18 @@ void MeshObject::setFacets(
 
 void MeshObject::addMesh(const MeshObject& mesh)
 {
-    _kernel.Merge(mesh._kernel);
+    if (&mesh != this && mesh._Mtrx == this->_Mtrx) {
+        _kernel.Merge(mesh._kernel);
+        return;
+    }
+
+    // bring the points of the other mesh (or of a copy of this one) into the frame of this mesh
+    Base::Matrix4D mat(this->_Mtrx);
+    mat.inverse();
+    mat = mat * mesh._Mtrx;
+    MeshCore::MeshKernel kernel(mesh._kernel);
+    kernel.Transform(mat);
+    _kernel.Merge(kernel);
 }
 
 void MeshObject::addMesh(const MeshCore::MeshKernel& kernel)

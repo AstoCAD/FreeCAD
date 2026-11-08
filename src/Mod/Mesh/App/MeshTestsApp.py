@@ -1048,6 +1048,41 @@ class MeshPartWirePlacement(unittest.TestCase):
         self.checkWires(MeshPart.wireFromMesh(self.mesh), MeshPart.wireFromMesh(self.placed))
 
 
+class MeshAddMeshPlacement(unittest.TestCase):
+    """Mesh.addMesh() adds the other mesh where it is placed"""
+
+    def testOtherMeshPlaced(self):
+        # The placement of the added mesh was ignored
+        mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        other = Mesh.createBox(1.0, 1.0, 1.0)
+        other.Placement = FreeCAD.Placement(FreeCAD.Vector(5, 0, 0), FreeCAD.Rotation())
+        mesh.addMesh(other)
+        self.assertEqual(mesh.CountFacets, 24)
+        self.assertAlmostEqual(mesh.BoundBox.XMin, -0.5, 5)
+        self.assertAlmostEqual(mesh.BoundBox.XMax, 5.5, 5)
+
+    def testThisMeshPlaced(self):
+        mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        mesh.Placement = FreeCAD.Placement(
+            FreeCAD.Vector(10, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 90)
+        )
+        other = Mesh.createBox(1.0, 2.0, 1.0)
+        mesh.addMesh(other)
+        self.assertEqual(mesh.CountFacets, 24)
+        # the added box keeps its global position and orientation
+        points = [(round(p.x, 4), round(p.y, 4)) for p in mesh.Points]
+        self.assertIn((-0.5, -1.0), points)
+        self.assertIn((0.5, 1.0), points)
+        self.assertIn((10.5, 0.5), points)
+
+    def testSameMesh(self):
+        # Adding a mesh to itself silently did nothing
+        mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        mesh.addMesh(mesh)
+        self.assertEqual(mesh.CountFacets, 24)
+        self.assertAlmostEqual(mesh.Volume, 2.0, 5)
+
+
 class MeshReadTruncatedOff(unittest.TestCase):
     """Reading an OFF file without the line of element counts must not hang"""
 
