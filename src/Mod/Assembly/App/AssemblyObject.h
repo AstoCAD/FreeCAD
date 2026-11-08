@@ -25,6 +25,8 @@
 #pragma once
 
 #include <boost/signals2.hpp>
+#include <fastsignals/signal.h>
+#include <functional>
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -282,6 +284,7 @@ private:
     void syncActiveRigidGroupPlacements();
     void updateRigidPlacementCache();
     void prepareMbdForIslandDrag(std::vector<App::DocumentObject*> dragParts);
+    void forgetObjects(const std::function<bool(const App::DocumentObject*)>& isGone);
 
     std::shared_ptr<MbD::ASMTAssembly> mbdAssembly;
 
@@ -312,6 +315,11 @@ private:
     std::vector<std::string> lastConflictingJoints;
     std::vector<std::string> lastPartialRedundantJoints;
     std::vector<std::string> lastMalformedJoints;
+
+    // objectPartMap outlives a solve or simulation (frame playback, drag steps): drop the
+    // objects that are deleted meanwhile. Declared last so it disconnects first.
+    fastsignals::scoped_connection connDeletedObject;
+    fastsignals::scoped_connection connDeleteDocument;
 };
 
 }  // namespace Assembly
