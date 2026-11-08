@@ -113,6 +113,35 @@ class TestDraft(unittest.TestCase):
                 self.assertTrue(valid, "faces %s, Reversed %s" % (faces, reversed))
                 self.assertAlmostEqual(volume, expected, places=6)
 
+    def testTooLargeDraftAngleReportsError(self):
+        # Drafting the sides of a 10 mm cube by 45 degrees about its bottom face would make
+        # them cross: OCCT cannot build it, and the feature failed without any message
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        box = body.newObject("PartDesign::AdditiveBox", "Box")
+        self.Doc.recompute()
+        sides = [
+            "Face%d" % (i + 1)
+            for i, face in enumerate(box.Shape.Faces)
+            if abs(face.normalAt(0, 0).z) < 1e-6
+        ]
+        bottom = [
+            "Face%d" % (i + 1)
+            for i, face in enumerate(box.Shape.Faces)
+            if face.normalAt(0, 0).z < -0.5
+        ]
+        draft = body.newObject("PartDesign::Draft", "Draft")
+        draft.Base = (box, sides)
+        draft.NeutralPlane = (box, bottom)
+        draft.Angle = 45
+        self.Doc.recompute()
+        self.assertIn("Invalid", draft.State)
+        self.assertNotEqual(draft.getStatusString().strip(), "")
+        # a feasible angle still drafts the faces
+        draft.Angle = 10
+        self.Doc.recompute()
+        self.assertIn("Up-to-date", draft.State)
+        self.assertLess(draft.Shape.Volume, 1000)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("PartDesignTestDraft")

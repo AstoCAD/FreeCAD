@@ -347,4 +347,7 @@ App::DocumentObjectExecReturn* Draft::execute()
 
         return new App::DocumentObjectExecReturn(e.GetMessageString());
     }
+    catch (const Base::Exception& e) {
+        return new App::DocumentObjectExecReturn(e.what());
+    }
 }
