@@ -94,9 +94,15 @@ App::DocumentObjectExecReturn* SetOperations::execute()
             );
         }
 
+        // operate on the placed meshes, as MeshObject::unite() etc. do
+        MeshCore::MeshKernel kernel1(meshKernel1.getKernel());
+        kernel1.Transform(meshKernel1.getTransform());
+        MeshCore::MeshKernel kernel2(meshKernel2.getKernel());
+        kernel2.Transform(meshKernel2.getTransform());
+
         MeshCore::SetOperations setOp(
-            meshKernel1.getKernel(),
-            meshKernel2.getKernel(),
+            kernel1,
+            kernel2,
             pcKernel->getKernel(),
             type,
             1.0e-5F
