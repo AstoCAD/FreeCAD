@@ -364,6 +364,17 @@ class DraftCreation(test_base.DraftTestCaseDoc):
         obj.CustomText = ["Foo"]
         self.assertEqual(list(obj.Text), ["Foo"], "'{}' failed".format(operation))
 
+    def test_label_position_of_target_without_placement(self):
+        """A Position label of a target without Placement must not fail."""
+        operation = "Draft Label Position without Placement"
+        _msg("  Test '{}'".format(operation))
+        group = self.doc.addObject("App::DocumentObjectGroup", "Group")
+        obj = Draft.make_label(target_object=group, label_type="Label + Position")
+        self.doc.recompute()
+        self.assertNotIn("Invalid", obj.State, "'{}' failed".format(operation))
+        self.assertEqual(len(obj.Text), 2, "'{}' failed".format(operation))
+        self.assertEqual(obj.Text[0], group.Label, "'{}' failed".format(operation))
+
     def test_layer(self):
         """Create a layer, and add a rectangle to it."""
         operation = "Draft Layer"
