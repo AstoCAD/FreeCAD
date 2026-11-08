@@ -1143,6 +1143,12 @@ PyObject* PropertyIntegerSet::getPyObject()
 
 void PropertyIntegerSet::setPyObject(PyObject* value)
 {
+    if (PyAnySet_Check(value)) {
+        // getPyObject() returns a set: take it back like a list
+        Py::List items(PySequence_List(value), true);
+        setPyObject(items.ptr());
+        return;
+    }
     if (PySequence_Check(value)) {
 
         Py::Sequence sequence(value);
