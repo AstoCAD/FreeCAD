@@ -659,6 +659,34 @@ class BRepConversionTest(unittest.TestCase):
                 expected = profile if profile.ShapeType == "Face" else Part.Face(profile)
                 self.assertAlmostEqual(obj.Shape.Area, expected.Area, places=7)
 
+    def test_form_face_keeps_the_placement_of_a_located_profile(self):
+        # A face picked on a placed object carries that placement as its
+        # Location; the Form Face must stay where the profile and its cage are.
+        profile = Part.Face(Part.Wire([Part.makeCircle(5)]))
+        profile.Placement = App.Placement(
+            App.Vector(0, 0, 50), App.Rotation(App.Vector(1, 0, 0), 90)
+        )
+        document = App.newDocument("FormsTestLocatedProfileFace")
+        obj = create_face(document, profile=profile)
+        document.recompute()
+
+        self.assertTrue(obj.ConversionStatus.startswith("Valid"))
+        self.assertTrue(obj.Shape.BoundBox.isInside(profile.BoundBox.Center))
+        self.assertAlmostEqual(obj.Shape.BoundBox.ZMin, profile.BoundBox.ZMin, places=6)
+        self.assertAlmostEqual(obj.Shape.BoundBox.ZMax, profile.BoundBox.ZMax, places=6)
+        for point in obj.ControlPoints:
+            self.assertLess(profile.distToShape(Part.Vertex(point))[0], 1.0e-6)
+        self.assertAlmostEqual(obj.Shape.Area, profile.Area, places=6)
+
+        # Moving the Form still moves the generated profile surface.
+        obj.Placement = App.Placement(App.Vector(10, 0, 0), App.Rotation())
+        obj.touch()
+        document.recompute()
+        self.assertAlmostEqual(
+            obj.Shape.BoundBox.Center.x, profile.BoundBox.Center.x + 10, places=6
+        )
+        self.assertAlmostEqual(obj.Shape.BoundBox.ZMin, profile.BoundBox.ZMin, places=6)
+
     def test_profile_form_face_exposes_and_subdivides_control_patches(self):
         profile = Part.Face(
             Part.makePolygon(
