@@ -1013,6 +1013,41 @@ class MeshSegmentByMeshPlacement(unittest.TestCase):
         self.assertAlmostEqual(self.segment.Mesh.BoundBox.XMax, self.bound.XMax + 10, 4)
 
 
+class MeshPartWirePlacement(unittest.TestCase):
+    """MeshPart.wireFromSegment() and wireFromMesh() return the wires at the placed mesh"""
+
+    def setUp(self):
+        self.mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        self.mesh.removeFacets([0])
+        self.placed = Mesh.Mesh(self.mesh)
+        self.placed.Placement = FreeCAD.Placement(
+            FreeCAD.Vector(10, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 90)
+        )
+
+    def checkWires(self, wires, placedWires):
+        # The placement was ignored: the wires were at the unplaced mesh
+        self.assertEqual(len(placedWires), len(wires))
+        self.assertGreater(len(wires), 0)
+        for wire, placedWire in zip(wires, placedWires):
+            wire = wire.copy()
+            wire.Placement = self.placed.Placement
+            for v1, v2 in zip(wire.Vertexes, placedWire.Vertexes):
+                self.assertLess(v1.Point.distanceToPoint(v2.Point), 1e-6)
+
+    def testWireFromSegment(self):
+        import MeshPart
+
+        self.checkWires(
+            MeshPart.wireFromSegment(self.mesh, [0, 1]),
+            MeshPart.wireFromSegment(self.placed, [0, 1]),
+        )
+
+    def testWireFromMesh(self):
+        import MeshPart
+
+        self.checkWires(MeshPart.wireFromMesh(self.mesh), MeshPart.wireFromMesh(self.placed))
+
+
 class MeshReadTruncatedOff(unittest.TestCase):
     """Reading an OFF file without the line of element counts must not hang"""
 

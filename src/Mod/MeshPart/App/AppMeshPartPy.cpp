@@ -420,11 +420,14 @@ private:
 
         Py::List wires;
         std::list<std::vector<Base::Vector3f> >::iterator bt;
+        // the borders are in mesh coordinates: apply the mesh placement
+        const Base::Matrix4D mat = mesh->getTransform();
 
         for (bt = bounds.begin(); bt != bounds.end(); ++bt) {
             BRepBuilderAPI_MakePolygon mkPoly;
             for (std::vector<Base::Vector3f>::reverse_iterator it = bt->rbegin(); it != bt->rend(); ++it) {
-                mkPoly.Add(gp_Pnt(it->x,it->y,it->z));
+                Base::Vector3d pnt = mat * Base::convertTo<Base::Vector3d>(*it);
+                mkPoly.Add(gp_Pnt(pnt.x,pnt.y,pnt.z));
             }
             if (mkPoly.IsDone()) {
                 PyObject* wire = new Part::TopoShapeWirePy(new Part::TopoShape(mkPoly.Wire()));
@@ -448,11 +451,14 @@ private:
 
         Py::List wires;
         std::list<std::vector<Base::Vector3f> >::iterator bt;
+        // the borders are in mesh coordinates: apply the mesh placement
+        const Base::Matrix4D mat = mesh->getTransform();
 
         for (bt = bounds.begin(); bt != bounds.end(); ++bt) {
             BRepBuilderAPI_MakePolygon mkPoly;
             for (std::vector<Base::Vector3f>::reverse_iterator it = bt->rbegin(); it != bt->rend(); ++it) {
-                mkPoly.Add(gp_Pnt(it->x,it->y,it->z));
+                Base::Vector3d pnt = mat * Base::convertTo<Base::Vector3d>(*it);
+                mkPoly.Add(gp_Pnt(pnt.x,pnt.y,pnt.z));
             }
             if (mkPoly.IsDone()) {
                 PyObject* wire = new Part::TopoShapeWirePy(new Part::TopoShape(mkPoly.Wire()));
