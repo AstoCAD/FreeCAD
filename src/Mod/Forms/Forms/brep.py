@@ -68,10 +68,13 @@ class LocalEdgeInsert:
     @classmethod
     def decode(cls, value):
         data = json.loads(str(value))
-        face = tuple(int(index) for index in data["face"])
-        edge = tuple(sorted(int(index) for index in data["edge"]))
-        position = float(data["position"])
-        points = tuple(int(index) for index in data.get("points", ()))
+        try:
+            face = tuple(int(index) for index in data["face"])
+            edge = tuple(sorted(int(index) for index in data["edge"]))
+            position = float(data["position"])
+            points = tuple(int(index) for index in data.get("points", ()))
+        except (AttributeError, KeyError, TypeError) as error:
+            raise ValueError("Invalid local edge-insert record") from error
         if (
             len(face) != 4
             or len(edge) != 2

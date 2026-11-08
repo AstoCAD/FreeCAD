@@ -710,6 +710,15 @@ class HierarchicalTMesh:
 
     @classmethod
     def decode(cls, value):
+        try:
+            return cls._decode(value)
+        except (AttributeError, IndexError, KeyError, TypeError) as error:
+            # TMeshData comes from the document. Report a malformed record as
+            # the ValueError that conversion turns into a failed status.
+            raise ValueError("Invalid T-mesh data") from error
+
+    @classmethod
+    def _decode(cls, value):
         data = json.loads(str(value))
         version = int(data.get("version", -1))
         if version not in (1, 2, cls.VERSION):
