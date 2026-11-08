@@ -319,9 +319,9 @@ class PathArray:
 
                 pl = FreeCAD.Placement()
                 pl.move(pos)
-                np = [cm.transform(pl) for cm in base.Path.Commands]
+                np = PathUtils.applyPlacementToPath(pl, base.Path)
 
-                output.addCommands(np)
+                output.addCommands(np.Commands)
 
         elif self.arrayType == "Linear2D":
             if self.swapDirection:
@@ -345,8 +345,8 @@ class PathArray:
                         # do not process the index 0,0. It will be processed by the base Paths themselves
                         if not (i == 0 and j == 0):
                             pl.move(pos)
-                            np = [cm.transform(pl) for cm in base.Path.Commands]
-                            output.addCommands(np)
+                            np = PathUtils.applyPlacementToPath(pl, base.Path)
+                            output.addCommands(np.Commands)
             else:
                 for i in range(self.copiesX + 1):
                     for j in range(self.copiesY + 1):
@@ -368,8 +368,8 @@ class PathArray:
                         # do not process the index 0,0. It will be processed by the base Paths themselves
                         if not (i == 0 and j == 0):
                             pl.move(pos)
-                            np = [cm.transform(pl) for cm in base.Path.Commands]
-                            output.addCommands(np)
+                            np = PathUtils.applyPlacementToPath(pl, base.Path)
+                            output.addCommands(np.Commands)
             # Eif
         else:
             for i in range(self.copies):
