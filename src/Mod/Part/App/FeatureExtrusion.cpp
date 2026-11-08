@@ -32,6 +32,7 @@
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepLib_FindSurface.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
+#include <GeomAdaptor_Surface.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Trsf.hxx>
 #include <Precision.hxx>
@@ -87,6 +88,36 @@ void restoreFaceMakerMode(Extrusion* self)
     const char* type = self->FaceMakerClass.getValue();
     if (strcmp(mode, type) != 0) {
         self->FaceMakerMode.setValue(classToEnum(type));
+    }
+}
+
+bool isInPlane(const gp_Dir& dir, const gp_Pln& plane)
+{
+    return dir.IsNormal(plane.Axis().Direction(), Precision::Angular());
+}
+
+// A face swept along its own plane has no volume: the result would be a flat solid
+// that reports no error. The faces are the source faces, or, for a solid made from
+// wires, the plane of those wires.
+void checkDirectionLeavesFacePlanes(const TopoShape& source, const ExtrusionParameters& params)
+{
+    if (source.isNull()) {
+        return;
+    }
+    bool hasFaces = false;
+    for (TopExp_Explorer ex(source.getShape(), TopAbs_FACE); ex.More(); ex.Next()) {
+        hasFaces = true;
+        BRepAdaptor_Surface surf(TopoDS::Face(ex.Current()), Standard_False);
+        if (surf.GetType() == GeomAbs_Plane && isInPlane(params.dir, surf.Plane())) {
+            throw Base::ValueError("The extrusion direction lies in the plane of a face to extrude");
+        }
+    }
+    if (!hasFaces && params.solid) {
+        BRepLib_FindSurface planeFinder(source.getShape(), -1, /*OnlyPlane=*/Standard_True);
+        if (planeFinder.Found()
+            && isInPlane(params.dir, GeomAdaptor_Surface(planeFinder.Surface()).Plane())) {
+            throw Base::ValueError("The extrusion direction lies in the plane of the wires to extrude");
+        }
     }
 }
 }  // namespace
@@ -329,6 +360,8 @@ void Extrusion::extrudeShape(TopoShape& result, const TopoShape& source, const E
 {
     gp_Vec vec = gp_Vec(params.dir).Multiplied(params.lengthFwd + params.lengthRev);  // total vector
                                                                                       // of extrusion
+
+    checkDirectionLeavesFacePlanes(source, params);
 
     // #0000910: Circles Extrude Only Surfaces, thus use BRepBuilderAPI_Copy
     TopoShape myShape(source.makeElementCopy());
