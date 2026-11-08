@@ -285,8 +285,12 @@ App::DocumentObjectExecReturn* Loft::execute()
         }
 
         // build the top and bottom face, sew the shell and build the final solid
+        // A closed loft of a single wire has no free ends: its shell is already closed, and faces
+        // built from the profile and the last section would lie inside it and break the sewing.
+        // (With several wires the inner shells must still be cut away through the sewn faces.)
+        const bool capEnds = !closed || wiresections.size() > 1;
         TopoShape front;
-        if (wiresections[0].front().shapeType() != TopAbs_VERTEX) {
+        if (capEnds && wiresections[0].front().shapeType() != TopAbs_VERTEX) {
             front = getTopoShapeVerifiedFace();
             if (front.isNull()) {
                 return new App::DocumentObjectExecReturn(
@@ -297,7 +301,7 @@ App::DocumentObjectExecReturn* Loft::execute()
         }
 
         TopoShape back;
-        if (wiresections[0].back().shapeType() != TopAbs_VERTEX) {
+        if (capEnds && wiresections[0].back().shapeType() != TopAbs_VERTEX) {
             std::vector<TopoShape> backwires;
             for (auto& sectionWires : wiresections) {
                 backwires.push_back(sectionWires.back());
@@ -349,6 +353,14 @@ App::DocumentObjectExecReturn* Loft::execute()
                 Part::MapperSewing(sewer),
                 shells,
                 Part::OpCodes::Sewing
+            );
+        }
+        else {
+            // no face to add (closed loft, or both ends are vertices): the shells bound the solid
+            result.makeElementCompound(
+                shells,
+                nullptr,
+                Part::TopoShape::SingleShapeCompoundCreationPolicy::returnShape
             );
         }
 
