@@ -36,6 +36,26 @@ class DrawHatchTest(unittest.TestCase):
     def tearDown(self):
         FreeCAD.closeDocument("TDHatch")
 
+    def testRemoveViewWithHatchesLinkingTwice(self):
+        """Removing a view removes each of its hatches once, even when a hatch links to it twice."""
+        doc = FreeCAD.ActiveDocument
+        names = []
+        for kind in ("TechDraw::DrawHatch", "TechDraw::DrawGeomHatch"):
+            hatch = doc.addObject(kind, "Hatch")
+            hatch.Source = (self.view, ["Face0"])
+            # a second link to the view: the view's InList holds the hatch twice
+            hatch.addProperty("App::PropertyLink", "SecondLink")
+            hatch.SecondLink = self.view
+            names.append(hatch.Name)
+        doc.recompute()
+        for name in names:
+            self.assertEqual([obj.Name for obj in self.view.InList].count(name), 2)
+
+        doc.removeObject(self.view.Name)
+        self.assertIsNone(doc.getObject("View"))
+        for name in names:
+            self.assertIsNone(doc.getObject(name), name)
+
     def testMakeHatchCase(self):
         """Tests if hatch area can be added to view"""
         # make hatch
