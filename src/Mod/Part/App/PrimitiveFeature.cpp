@@ -724,6 +724,10 @@ App::DocumentObjectExecReturn* Cone::execute()
     if (Height.getValue() < Precision::Confusion()) {
         return new App::DocumentObjectExecReturn("Height of cone too small");
     }
+    // OCCT builds an invalid solid without volume when both radii are zero
+    if (Radius1.getValue() < Precision::Confusion() && Radius2.getValue() < Precision::Confusion()) {
+        return new App::DocumentObjectExecReturn("Cone needs a non-zero radius");
+    }
     try {
         TopoDS_Shape ResultShape;
         if (std::abs(Radius1.getValue() - Radius2.getValue()) < Precision::Confusion()) {
