@@ -921,6 +921,23 @@ class DocumentBasicCases(unittest.TestCase):
         obj.Floats = [2, 10**12]
         self.assertEqual(obj.Floats, [2.0, 1e12])
 
+    def testIntegerSetTakesSet(self):
+        # The property returns a set but only took a list or an int, so assigning
+        # its own value back (or copying it to another object) raised TypeError.
+        obj = self.Doc.addObject("App::FeaturePython", "IntegerSet")
+        obj.addProperty("App::PropertyIntegerSet", "Set")
+        obj.addProperty("App::PropertyIntegerSet", "Other")
+        obj.Set = [3, 1, 2]
+        obj.Other = obj.Set
+        self.assertEqual(obj.Other, {1, 2, 3})
+        obj.Set = frozenset({7, 5})
+        self.assertEqual(obj.Set, {5, 7})
+        obj.Set = set()
+        self.assertEqual(obj.Set, set())
+        with self.assertRaises(TypeError):
+            obj.Set = {1, "a"}
+        self.assertEqual(obj.Set, set())
+
     def testMaterialColorOutOfRangeInteger(self):
         # App.Material colours: same unchecked int conversion as PropertyColor
         mat = FreeCAD.Material()
