@@ -544,6 +544,10 @@ void MeshKernel::DeleteFacets(const std::vector<FacetIndex>& raulFacets)
     _aclFacetArray.ResetInvalid();
     for (FacetIndex index : raulFacets) {
         MeshFacet& rclFacet = _aclFacetArray[index];
+        // an index given twice must release the points of its facet only once
+        if (!rclFacet.IsValid()) {
+            continue;
+        }
         rclFacet.SetInvalid();
         _aclPointArray[rclFacet._aulPoints[0]]._ulProp--;
         _aclPointArray[rclFacet._aulPoints[1]]._ulProp--;
