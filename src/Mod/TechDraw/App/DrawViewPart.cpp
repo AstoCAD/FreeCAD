@@ -1577,7 +1577,10 @@ std::vector<TechDraw::DrawHatch*> DrawViewPart::getHatches() const
     for (auto& child : children) {
         if (child->isDerivedFrom<DrawHatch>() && !child->isRemoving()) {
             TechDraw::DrawHatch* hatch = static_cast<TechDraw::DrawHatch*>(child);
-            result.push_back(hatch);
+            // the InList has one entry per link: list a hatch linking here twice only once
+            if (std::find(result.begin(), result.end(), hatch) == result.end()) {
+                result.push_back(hatch);
+            }
         }
     }
     return result;
@@ -1592,11 +1595,13 @@ std::vector<TechDraw::DrawGeomHatch*> DrawViewPart::getGeomHatches() const
         if (child->isDerivedFrom<DrawGeomHatch>()
             && !child->isRemoving()) {
             TechDraw::DrawGeomHatch* geom = static_cast<TechDraw::DrawGeomHatch*>(child);
-            result.push_back(geom);
+            // the InList has one entry per link: list a hatch linking here twice only once,
+            // keeping the creation order, which is the painting order
+            if (std::find(result.begin(), result.end(), geom) == result.end()) {
+                result.push_back(geom);
+            }
         }
     }
-    std::sort(result.begin(), result.end(), std::less<>());
-    result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;
 }
 
