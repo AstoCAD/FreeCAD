@@ -1027,6 +1027,36 @@ class DocumentBasicCases(unittest.TestCase):
         self.Doc = FreeCAD.open(SaveName)
         self.assertEqual(self.Doc.ActiveObject.Label, "abc_ef")
 
+    def testValidateXmlAllAttributes(self):
+        # A character that XML does not allow in a string list, a map, a path, an enumeration
+        # or a property description made the whole document unreadable on restore.
+        bad = "a\x01b"
+        self.Doc.Meta = {"key": bad}
+        obj = self.Doc.addObject("App::FeaturePython", "Strings")
+        obj.addProperty("App::PropertyStringList", "List", "Group", bad)
+        obj.addProperty("App::PropertyMap", "Map")
+        obj.addProperty("App::PropertyPath", "Path")
+        obj.addProperty("App::PropertyEnumeration", "Enum")
+        obj.List = ["ok", bad, "é€"]
+        obj.Map = {bad: bad}
+        obj.Path = bad
+        obj.Enum = ["x", bad]
+        obj.Enum = 1
+        # same name as the document, closed by tearDown()
+        SaveName = os.path.join(tempfile.gettempdir(), "CreateTest.FCStd")
+        self.Doc.saveAs(SaveName)
+        FreeCAD.closeDocument(self.Doc.Name)
+        self.Doc = FreeCAD.open(SaveName)
+        obj = self.Doc.getObject("Strings")
+        self.assertIsNotNone(obj)
+        self.assertEqual(self.Doc.Meta, {"key": "a_b"})
+        self.assertEqual(obj.List, ["ok", "a_b", "é€"])
+        self.assertEqual(obj.Map, {"a_b": "a_b"})
+        self.assertEqual(obj.Path, "a_b")
+        self.assertEqual(obj.getEnumerationsOfProperty("Enum"), ["x", "a_b"])
+        self.assertEqual(obj.Enum, "a_b")
+        self.assertEqual(obj.getDocumentationOfProperty("List"), "a_b")
+
     def testExpressionOnListItem(self):
         # An expression bound to one item of a list (".Values[1]") or to a value inside
         # an item (".Points[1].y") was evaluated but set on a temporary copy of the list.

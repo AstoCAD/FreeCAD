@@ -33,6 +33,7 @@
 
 #include <unicode/utf8.h>
 
+#include "Console.h"
 #include "Exception.h"
 #include "Reader.h"
 #include "Writer.h"
@@ -80,8 +81,25 @@ void Persistence::RestoreDocFile(Reader& /*reader*/)
 
 std::string Persistence::encodeAttribute(const std::string& str)
 {
+    // A single character that XML does not allow makes the parser reject the whole file on
+    // restore, so every attribute written through here gets such characters replaced.
+    std::string valid;
+    const bool maybeInvalid = std::ranges::any_of(str, [](char ch) {
+        const auto uch = static_cast<unsigned char>(ch);
+        return uch < 0x20 || uch >= 0x7F;
+    });
+    if (maybeInvalid) {
+        valid = validateXMLString(str);
+        if (valid != str) {
+            Base::Console().warning("XML output: Validate invalid string:\n'{}'\n'{}'\n",
+                                    str,
+                                    valid);
+        }
+    }
+
+    const std::string& text = maybeInvalid ? valid : str;
     std::string tmp;
-    for (char it : str) {
+    for (char it : text) {
         switch (it) {
             case '<':
                 tmp += "&lt;";

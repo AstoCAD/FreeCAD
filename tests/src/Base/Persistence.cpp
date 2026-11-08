@@ -32,3 +32,20 @@ TEST(Persistence, ValidateXmlStringReplacesDiscouraged)
     const std::string out = Base::Persistence::validateXMLString(s);
     EXPECT_EQ(out, "x_y");
 }
+
+TEST(Persistence, EncodeAttributeReplacesDisallowed)
+{
+    // A character that XML does not allow made the whole document unreadable on restore.
+    std::string s = "a<";
+    s.push_back(static_cast<char>(0x01));
+    s.push_back(static_cast<char>(0x1F));
+    s += "\"b\n";
+    EXPECT_EQ(Base::Persistence::encodeAttribute(s), "a&lt;__&quot;b&#10;");
+}
+
+TEST(Persistence, EncodeAttributeKeepsValidUnicode)
+{
+    // e acute, euro sign and U+1F600 in UTF-8
+    const std::string s = "\xc3\xa9\xe2\x82\xac\xf0\x9f\x98\x80\t&";
+    EXPECT_EQ(Base::Persistence::encodeAttribute(s), "\xc3\xa9\xe2\x82\xac\xf0\x9f\x98\x80&#9;&amp;");
+}
