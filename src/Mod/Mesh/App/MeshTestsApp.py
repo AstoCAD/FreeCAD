@@ -926,6 +926,39 @@ class MeshCollapseFacetSegments(unittest.TestCase):
         self.assertEqual(self.mesh.meshFromSegment(segment).CountFacets, self.mesh.CountFacets)
 
 
+class MeshSetOperationsPlacement(unittest.TestCase):
+    """The Mesh::SetOperations feature works on the placed source meshes"""
+
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("MeshSetOperationsPlacement")
+        self.box1 = self.doc.addObject("Mesh::Feature", "Box1")
+        self.box1.Mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        self.box2 = self.doc.addObject("Mesh::Feature", "Box2")
+        self.box2.Mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        self.box2.Placement.Base = FreeCAD.Vector(0.5, 0.5, 0.5)
+        self.op = self.doc.addObject("Mesh::SetOperations", "Operation")
+        self.op.Source1 = self.box1
+        self.op.Source2 = self.box2
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def testOperations(self):
+        # The placement of Box2 was ignored: both boxes coincided (union empty, intersection 1)
+        for operation, volume in (("union", 1.875), ("intersection", 0.125), ("difference", 0.875)):
+            self.op.OperationType = operation
+            self.doc.recompute()
+            self.assertAlmostEqual(self.op.Mesh.Volume, volume, 4, operation)
+
+    def testSameAsPythonApi(self):
+        self.op.OperationType = "union"
+        self.doc.recompute()
+        expected = self.box1.Mesh.unite(self.box2.Mesh)
+        self.assertEqual(self.op.Mesh.CountFacets, expected.CountFacets)
+        self.assertTrue(self.op.Mesh.BoundBox.isInside(expected.BoundBox))
+        self.assertTrue(expected.BoundBox.isInside(self.op.Mesh.BoundBox))
+
+
 class MeshReadTruncatedOff(unittest.TestCase):
     """Reading an OFF file without the line of element counts must not hang"""
 
