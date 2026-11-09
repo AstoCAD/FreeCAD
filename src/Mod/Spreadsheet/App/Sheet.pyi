@@ -179,6 +179,24 @@ class Sheet(DocumentObject):
         """Get the number of decimals set for the cell, or None"""
         ...
 
+    def setBorders(self, cell: str, borders: str | set[str], options: str = ..., /) -> None:
+        """
+        Draw lines along the edges of the cell or range.
+
+        borders names the edges: "top", "left", "bottom" and "right", or "all"
+        for the four, as a set or separated by '|'; "" or an empty set is none.
+        options is how they combine with the borders of the cells:
+        "replace" (default) gives every cell exactly these borders, "add" and
+        "remove" add them to or remove them from every cell, and "outline"
+        adds them along the outer edges of the range only, e.g.
+        setBorders("A1:C3", "all", "outline") draws a frame around A1:C3.
+        """
+        ...
+
+    def getBorders(self, address: str, /) -> set[str] | None:
+        """Get the edges of the cell drawn as lines, or None"""
+        ...
+
     def setForeground(self, address: str, value: tuple[float, ...] | None, /) -> None:
         """Set foreground color of the cell, None clears it"""
 

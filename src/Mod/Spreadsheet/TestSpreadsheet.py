@@ -2858,6 +2858,93 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertIn('<numFmt numFmtId="164" formatCode="0.000"/>', styles)
         self.assertIn('<c r="A1" s="1"><v>1.5</v></c>', worksheet)
 
+    def testExportXLSXBorders(self):
+        """Borders are exported as thin lines and read back, those of a merged
+        cell on the cells along its edges as Excel expects"""
+        import zipfile
+        import importXLSX
+
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Borders")
+        sheet.set("A1", "1")
+        sheet.setBorders("A1", "top|right")
+        sheet.set("C1", "merged")
+        sheet.mergeCells("C1:D2")
+        sheet.setBorders("C1:D2", "all", "outline")
+        self.doc.recompute()
+        filename = os.path.join(self.TempPath, "SpreadsheetBorders.xlsx")
+        importXLSX.export([sheet], filename)
+        with zipfile.ZipFile(filename) as z:
+            styles = z.read("xl/styles.xml").decode("utf-8")
+            worksheet = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
+        self.assertIn(
+            '<border><left/><right style="thin"><color auto="1"/></right>'
+            '<top style="thin"><color auto="1"/></top><bottom/><diagonal/></border>',
+            styles,
+        )
+        # The covered cells along the edges of the merged cell carry its borders
+        self.assertIn('<c r="D2" s="', worksheet)
+        self.assertNotIn('<c r="B1"', worksheet)
+
+        doc = FreeCAD.newDocument("ExportXLSXBorders")
+        try:
+            importXLSX.insert(filename, doc.Name)
+            back = doc.getObject("Borders")
+            self.assertEqual(back.getBorders("A1"), {"top", "right"})
+            self.assertEqual(back.getBorders("C1"), {"top", "left", "bottom", "right"})
+            self.assertEqual(back.getMergedCells(), ["C1:D2"])
+            self.assertIsNone(back.getBorders("B1"))
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
+    def testImportXLSXBorders(self):
+        """Sides of XLSX borders with a line style are imported, whatever the style"""
+        import zipfile
+        import importXLSX
+
+        main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        workbook = (
+            f'<workbook xmlns="{main}" xmlns:r="{rels}"><sheets>'
+            '<sheet name="Lines" sheetId="1" r:id="rId1"/></sheets></workbook>'
+        )
+        workbookRels = (
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'<Relationship Id="rId1" Type="{rels}/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>"
+        )
+        styles = (
+            f'<styleSheet xmlns="{main}">'
+            '<fonts count="1"><font><sz val="11"/></font></fonts>'
+            '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>'
+            '<borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border>'
+            '<border><left style="medium"/><right style="none"/><top/>'
+            '<bottom style="double"><color rgb="FFFF0000"/></bottom><diagonal/></border>'
+            '<border><left style="thin"/><right style="thin"/><top style="thin"/>'
+            '<bottom style="thin"/><diagonal/></border></borders>'
+            '<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+            '<xf numFmtId="0" fontId="0" fillId="0" borderId="2" xfId="0" applyBorder="1"/>'
+            "</cellXfs></styleSheet>"
+        )
+        worksheet = (
+            f'<worksheet xmlns="{main}"><sheetData>'
+            '<row r="1"><c r="A1" s="1"><v>5</v></c><c r="B1" s="0"><v>6</v></c>'
+            '<c r="C1" s="2"/></row>'
+            "</sheetData></worksheet>"
+        )
+        filename = os.path.join(self.TempPath, "SpreadsheetImportBorders.xlsx")
+        with zipfile.ZipFile(filename, "w") as z:
+            z.writestr("xl/workbook.xml", workbook)
+            z.writestr("xl/_rels/workbook.xml.rels", workbookRels)
+            z.writestr("xl/styles.xml", styles)
+            z.writestr("xl/worksheets/sheet1.xml", worksheet)
+        importXLSX.insert(filename, self.doc.Name)
+        sheet = self.doc.getObject("Lines")
+        self.assertEqual(sheet.A1, 5)
+        self.assertEqual(sheet.getBorders("A1"), {"left", "bottom"})
+        self.assertIsNone(sheet.getBorders("B1"))
+        self.assertEqual(sheet.getBorders("C1"), {"top", "left", "bottom", "right"})
+
     def testExportXLSXQuantityPrecision(self):
         """Quantities are exported at full precision, not rounded to the
         decimals of the preferences, and read back as the same quantity"""
@@ -3752,6 +3839,104 @@ class SpreadsheetEditing(unittest.TestCase):
             sheet = self.doc.getObject("Spreadsheet")
             self.assertEqual(sheet.getDecimals("A1"), 4)
             self.assertEqual(sheet.getDecimals("B2"), 0)
+            self.assertEqual(sheet.getContents("A1"), "1.5")
+        finally:
+            os.remove(path)
+
+    def testBorders(self):
+        sheet = self.sheet
+        self.doc.UndoMode = 1
+        sheet.set("A1", "1")
+        self.assertIsNone(sheet.getBorders("A1"))
+        # Every cell gets exactly the given borders
+        self.doc.openTransaction("Borders")
+        sheet.setBorders("A1:B2", "top|left")
+        self.doc.commitTransaction()
+        self.assertEqual(sheet.getBorders("A1"), {"top", "left"})
+        self.assertEqual(sheet.getBorders("B2"), {"top", "left"})
+        self.doc.undo()
+        self.assertIsNone(sheet.getBorders("A1"))
+        self.doc.redo()
+        self.assertEqual(sheet.getBorders("A1"), {"top", "left"})
+        sheet.setBorders("A1", {"bottom"}, "add")
+        self.assertEqual(sheet.getBorders("A1"), {"top", "left", "bottom"})
+        sheet.setBorders("A1:B2", "top|left", "remove")
+        self.assertEqual(sheet.getBorders("A1"), {"bottom"})
+        self.assertIsNone(sheet.getBorders("B2"))
+        sheet.setBorders("A1", "all")
+        self.assertEqual(sheet.getBorders("A1"), {"top", "left", "bottom", "right"})
+        sheet.setBorders("A1", "")
+        self.assertIsNone(sheet.getBorders("A1"))
+        # Only the display changes
+        self.assertEqual(sheet.getContents("A1"), "1")
+
+        # A frame around the range
+        sheet.setBorders("C3:E5", "all", "outline")
+        self.assertEqual(sheet.getBorders("C3"), {"top", "left"})
+        self.assertEqual(sheet.getBorders("D3"), {"top"})
+        self.assertEqual(sheet.getBorders("E5"), {"bottom", "right"})
+        self.assertIsNone(sheet.getBorders("D4"))
+        sheet.setBorders("C3:E5", "bottom", "outline")
+        self.assertEqual(sheet.getBorders("C5"), {"bottom", "left"})
+        self.assertEqual(sheet.getBorders("C4"), {"left"})
+        # A merged cell is framed with its whole area
+        sheet.mergeCells("G1:H2")
+        sheet.setBorders("G1:H2", "all", "outline")
+        self.assertEqual(sheet.getBorders("G1"), {"top", "left", "bottom", "right"})
+        sheet.setBorders("G1:H2", "")
+        sheet.setBorders("F1:H1", "bottom", "outline")
+        self.assertEqual(sheet.getBorders("G1"), {"bottom"})
+
+        # Removing or clearing borders does not create cells
+        sheet.setBorders("J1:J5", "", "replace")
+        sheet.setBorders("J1:J5", "all", "remove")
+        self.assertNotIn("J1", sheet.getUsedCells())
+        with self.assertRaises(ValueError):
+            sheet.setBorders("A1", "thick")
+        with self.assertRaises(ValueError):
+            sheet.setBorders("A1", "top", "invert")
+        with self.assertRaises(TypeError):
+            sheet.setBorders("A1", {1})
+        with self.assertRaises(TypeError):
+            sheet.setBorders("A1", 1)
+
+    def testBordersMoveAndCopyWithTheCell(self):
+        sheet = self.sheet
+        sheet.set("A1", "1")
+        sheet.setBorders("A1", "bottom")
+        sheet.fillDown("A1:A2")
+        self.assertEqual(sheet.getBorders("A2"), {"bottom"})
+        sheet.insertRows("1", 1)
+        self.assertIsNone(sheet.getBorders("A1"))
+        self.assertEqual(sheet.getBorders("A2"), {"bottom"})
+        self.assertEqual(sheet.getBorders("A3"), {"bottom"})
+
+    def testBordersSaveAndRestore(self):
+        sheet = self.sheet
+        sheet.set("A1", "1.5")
+        sheet.setBorders("A1", "top|bottom")
+        sheet.setBorders("B2", "right")
+        self.doc.recompute()
+        path = os.path.join(tempfile.gettempdir(), "SpreadsheetBorders.FCStd")
+        self.doc.saveAs(path)
+        FreeCAD.closeDocument(self.doc.Name)
+        try:
+            with zipfile.ZipFile(path) as archive:
+                files = {name: archive.read(name) for name in archive.namelist()}
+            xml = files["Document.xml"].decode("utf-8")
+            # A plain optional attribute, ignored by versions that do not know it
+            self.assertIn('borders="top|bottom"', xml)
+            # Border names a later version may add are skipped
+            files["Document.xml"] = xml.replace(
+                'borders="top|bottom"', 'borders="top|double|bottom"'
+            ).encode("utf-8")
+            with zipfile.ZipFile(path, "w") as archive:
+                for name, data in files.items():
+                    archive.writestr(name, data)
+            self.doc = FreeCAD.openDocument(path)
+            sheet = self.doc.getObject("Spreadsheet")
+            self.assertEqual(sheet.getBorders("A1"), {"top", "bottom"})
+            self.assertEqual(sheet.getBorders("B2"), {"right"})
             self.assertEqual(sheet.getContents("A1"), "1.5")
         finally:
             os.remove(path)

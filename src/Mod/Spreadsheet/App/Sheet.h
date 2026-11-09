@@ -206,6 +206,12 @@ public:
 
     void setDecimals(App::Range range, int decimals);
 
+    void setBorders(
+        App::Range range,
+        int borders,
+        PropertySheet::BorderMode mode = PropertySheet::BorderMode::Replace
+    );
+
     void setComputedUnit(App::CellAddress address, const Base::Unit& unit);
     void setComputedUnit(App::Range range, const Base::Unit& unit);
 

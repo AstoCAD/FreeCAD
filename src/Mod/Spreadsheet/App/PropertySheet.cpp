@@ -853,6 +853,79 @@ void PropertySheet::setDecimals(Range range, int decimals)
     signaller.tryInvoke();
 }
 
+void PropertySheet::setBorders(Range range, int borders, BorderMode mode)
+{
+    if ((borders & ~Cell::BORDER_ALL) != 0) {
+        throw Base::ValueError("Invalid borders");
+    }
+    const CellAddress from = range.from();
+    const CellAddress to = range.to();
+    // A merged cell is formatted through its anchor, like the other formats; it
+    // is handled once, with the edges of the whole merged area.
+    std::set<CellAddress> done;
+
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        const CellAddress anchor = getAnchor(*range);
+        if (!done.insert(anchor).second) {
+            continue;
+        }
+        int edges = borders;
+        if (mode == BorderMode::Outline) {
+            int rows = 1;
+            int cols = 1;
+            if (const Cell* cell = cellAt(anchor)) {
+                cell->getSpans(rows, cols);
+            }
+            int outer = 0;
+            if (anchor.row() <= from.row()) {
+                outer |= Cell::BORDER_TOP;
+            }
+            if (anchor.row() + rows - 1 >= to.row()) {
+                outer |= Cell::BORDER_BOTTOM;
+            }
+            if (anchor.col() <= from.col()) {
+                outer |= Cell::BORDER_LEFT;
+            }
+            if (anchor.col() + cols - 1 >= to.col()) {
+                outer |= Cell::BORDER_RIGHT;
+            }
+            edges &= outer;
+            if (edges == 0) {
+                continue;
+            }
+        }
+
+        int current = 0;
+        Cell* cell = cellAt(anchor);
+        if (cell) {
+            cell->getBorders(current);
+        }
+        int newBorders = edges;
+        switch (mode) {
+            case BorderMode::Replace:
+                break;
+            case BorderMode::Add:
+            case BorderMode::Outline:
+                newBorders = current | edges;
+                break;
+            case BorderMode::Remove:
+                newBorders = current & ~edges;
+                break;
+        }
+        if (newBorders == current) {
+            continue;
+        }
+        if (!cell) {
+            // Only drawing borders creates cells, removing them does not
+            cell = nonNullCellAt(anchor);
+        }
+        cell->setBorders(newBorders);
+    } while (range.next());
+
+    signaller.tryInvoke();
+}
+
 
 void PropertySheet::setAlias(CellAddress address, const std::string& alias)
 {

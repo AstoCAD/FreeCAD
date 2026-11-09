@@ -92,6 +92,10 @@ public:
     /// The decimals of the cell if set, otherwise those of the unit preferences.
     int getDisplayDecimals() const;
 
+    /// The edges of the cell drawn as lines: an or'ed combination of the BORDER_* values.
+    void setBorders(int borders);
+    bool getBorders(int& borders) const;
+
     void setAlias(const std::string& n);
     bool getAlias(std::string& n) const;
 
@@ -165,11 +169,24 @@ public:
     static const int ALIGNMENT_VERTICAL;
     static const int ALIGNMENT_VIMPLIED;
 
+    /* Borders; the same values as Sheet::Border */
+    static const int BORDER_TOP;
+    static const int BORDER_LEFT;
+    static const int BORDER_BOTTOM;
+    static const int BORDER_RIGHT;
+    static const int BORDER_ALL;
+
     /* Static functions */
     static int decodeAlignment(const std::string& itemStr, int alignment);
     static std::string encodeAlignment(int alignment);
 
     static std::string encodeStyle(const std::set<std::string>& style);
+
+    /// Borders as names separated by '|', like "top|bottom".
+    static std::string encodeBorders(int borders);
+    /// Add the border named \a name ("top", "left", "bottom", "right" or "all") to
+    /// \a borders; returns false for an unknown name.
+    static bool decodeBorder(const std::string& name, int& borders);
 
     static std::string encodeColor(const Base::Color& color);
     static Base::Color decodeColor(const std::string& color, const Base::Color& defaultColor);
@@ -205,6 +222,7 @@ private:
     static const unsigned int ALIAS_SET;
     static const unsigned int SPANS_SET;
     static const unsigned int DECIMALS_SET;
+    static const unsigned int BORDERS_SET;
     static const unsigned int MARK_SET;
     static const unsigned int EXCEPTION_SET;
     static const unsigned int PARSE_EXCEPTION_SET;
@@ -225,6 +243,7 @@ private:
     int rowSpan;
     int colSpan;
     int decimals;
+    int borders;
     std::string exceptionStr;
     App::CellAddress anchor;
     friend class PropertySheet;

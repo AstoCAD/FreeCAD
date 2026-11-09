@@ -32,6 +32,7 @@
 #include <App/DocumentObject.h>
 #include <Base/Console.h>
 #include <Mod/Spreadsheet/App/Sheet.h>
+#include <Mod/Spreadsheet/App/SheetParameter.h>
 
 #include "LineEdit.h"
 #include "SpreadsheetDelegate.h"
@@ -133,6 +134,33 @@ static inline void drawBorder(
     }
 }
 
+// The borders of the cell itself, as thin lines in the default text color
+static void drawCellBorders(QPainter* painter, const QStyleOptionViewItem& option, const Cell* cell)
+{
+    int borders = 0;
+    if (!cell || !cell->getBorders(borders)) {
+        return;
+    }
+    painter->save();
+    QPen pen(QColor(QString::fromStdString(SheetParameter::instance()->getTextColor())));
+    pen.setWidth(1);
+    painter->setPen(pen);
+    const QRect& rect = option.rect;
+    if (borders & Cell::BORDER_TOP) {
+        painter->drawLine(rect.topLeft(), rect.topRight());
+    }
+    if (borders & Cell::BORDER_LEFT) {
+        painter->drawLine(rect.topLeft(), rect.bottomLeft());
+    }
+    if (borders & Cell::BORDER_BOTTOM) {
+        painter->drawLine(rect.bottomLeft(), rect.bottomRight());
+    }
+    if (borders & Cell::BORDER_RIGHT) {
+        painter->drawLine(rect.topRight(), rect.bottomRight());
+    }
+    painter->restore();
+}
+
 void SpreadsheetDelegate::paint(
     QPainter* painter,
     const QStyleOptionViewItem& option,
@@ -144,6 +172,7 @@ void SpreadsheetDelegate::paint(
         return;
     }
     App::CellAddress addr(index.row(), index.column());
+    drawCellBorders(painter, option, sheet->getCell(addr));
     drawBorder(painter, option, sheet->getCellBindingBorder(addr), Qt::blue, Qt::SolidLine);
     drawBorder(painter, option, sheet->getCopyOrCutBorder(addr, true), Qt::green, Qt::DashLine);
     drawBorder(painter, option, sheet->getCopyOrCutBorder(addr, false), Qt::red, Qt::DashLine);
