@@ -136,6 +136,27 @@ class TestSpreadsheetFeaturesGui(unittest.TestCase):
         text = table.model().data(table.model().index(1, 0))
         self.assertEqual(text.count("0"), max(decimals - 1, 0))
 
+    def testPasteFormattingAndClearFormat(self):
+        self.sheet.set("A1", "1")
+        self.sheet.setStyle("A1", "bold")
+        self.sheet.setBorders("A1", "bottom")
+        self.sheet.set("B3", "2")
+        self.doc.recompute()
+        table = self._tableView()
+        self._select(table, 0, 0, 0, 0)
+        self._action(table, "Copy").trigger()
+        self._select(table, 2, 1, 2, 1)
+        self._action(table, "Paste Formatting").trigger()
+        self._process()
+        self.assertEqual(self.sheet.getStyle("B3"), {"bold"})
+        self.assertEqual(self.sheet.getBorders("B3"), {"bottom"})
+        self.assertEqual(self.sheet.getContents("B3"), "2")
+        FreeCADGui.runCommand("Spreadsheet_ClearFormat")
+        self._process()
+        self.assertIsNone(self.sheet.getStyle("B3"))
+        self.assertIsNone(self.sheet.getBorders("B3"))
+        self.assertEqual(self.sheet.getContents("B3"), "2")
+
     def testBordersCommands(self):
         table = self._tableView()
         self._select(table, 0, 0, 1, 1)
