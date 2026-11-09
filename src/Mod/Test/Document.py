@@ -787,6 +787,38 @@ class DocumentBasicCases(unittest.TestCase):
         self.Doc = FreeCAD.open(SaveName)
         self.assertEqual(self.Doc.ActiveObject.Label, "abc_ef")
 
+
+    def testGetLicenses(self):
+        """FreeCAD.getLicenses() lists the licenses in the order of the
+        prefLicenseType preference that new documents use."""
+        licenses = FreeCAD.getLicenses()
+        self.assertGreater(len(licenses), 0)
+        param = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document")
+        storedType = "prefLicenseType" in param.GetInts()
+        storedUrl = "prefLicenseUrl" in param.GetStrings()
+        oldType = param.GetInt("prefLicenseType", 0)
+        oldUrl = param.GetString("prefLicenseUrl", "")
+        try:
+            param.RemString("prefLicenseUrl")
+            for index, (identifier, name, url) in enumerate(licenses):
+                self.assertTrue(identifier and name and url)
+                param.SetInt("prefLicenseType", index)
+                doc = FreeCAD.newDocument("LicenseTest")
+                try:
+                    self.assertEqual(doc.License, name)
+                    self.assertEqual(doc.LicenseURL, url)
+                finally:
+                    FreeCAD.closeDocument(doc.Name)
+        finally:
+            if storedType:
+                param.SetInt("prefLicenseType", oldType)
+            else:
+                param.RemInt("prefLicenseType")
+            if storedUrl:
+                param.SetString("prefLicenseUrl", oldUrl)
+            else:
+                param.RemString("prefLicenseUrl")
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("CreateTest")
