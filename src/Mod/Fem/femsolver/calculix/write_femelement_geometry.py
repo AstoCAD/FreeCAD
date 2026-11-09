@@ -189,7 +189,9 @@ def liquid_section_def(obj, section_type):
         return section_geo
     elif section_type == "PIPE WHITE-COLEBROOK":
         colebrooke_area = obj.ColebrookeArea.getValueAs("mm^2").Value
-        colebrooke_diameter = 2 * obj.ColebrookeRadius.getValueAs("mm").Value
+        # ColebrookeRadius is the hydraulic radius R_h = area / wetted perimeter (as for
+        # Manning), CalculiX wants the hydraulic diameter D_h = 4 * area / perimeter = 4 * R_h
+        colebrooke_diameter = 4 * obj.ColebrookeRadius.getValueAs("mm").Value
         colebrooke_grain_diameter = obj.ColebrookeGrainDiameter.getValueAs("mm").Value
         colebrooke_form_factor = obj.ColebrookeFormFactor
         section_geo = "{:.13G},{:.13G},{},{:.13G},{:.13G}\n".format(
