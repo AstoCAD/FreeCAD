@@ -468,3 +468,38 @@ class TestCommandCreateView(unittest.TestCase):
         args = openPlacementEditor.call_args.args
         self.assertEqual(args[:2], (move, "MovementTransform"))
         self.assertTrue(callable(args[2]))
+
+    def test_exploded_shape_lines_follow_previous_moves(self):
+        """The line of a later step starts where the line of the previous step of the
+        same part ended, see github.com/freecad/freecad/issues/29179"""
+        doc = App.newDocument("ExplodedLines")
+        try:
+            assembly = doc.addObject("Assembly::AssemblyObject", "Assembly")
+            box = assembly.newObject("Part::Box", "Box")
+            box.Placement.Base = App.Vector(100, 0, 0)
+            doc.recompute()
+
+            first = _Move("Normal", App.Placement(App.Vector(10, 0, 0), App.Rotation()))
+            first.References = (box, ["Face1"])
+            second = _Move("Normal", App.Placement(App.Vector(0, 20, 0), App.Rotation()))
+            second.References = (box, ["Face1"])
+            viewObj = SimpleNamespace(InList=[assembly], Group=[first, second])
+
+            proxy = CommandCreateView.ExplodedView.__new__(CommandCreateView.ExplodedView)
+            placements, lines = proxy._calculateExplodedPlacements(viewObj)
+
+            self.assertEqual(len(lines), 2)
+            expected = [
+                (App.Vector(105, 5, 5), App.Vector(115, 5, 5)),
+                (App.Vector(115, 5, 5), App.Vector(115, 25, 5)),
+            ]
+            for (start, end), (expectedStart, expectedEnd) in zip(lines, expected):
+                self.assertAlmostEqual((start - expectedStart).Length, 0, msg=str(lines))
+                self.assertAlmostEqual((end - expectedEnd).Length, 0, msg=str(lines))
+            self.assertAlmostEqual(
+                (placements[box].Base - App.Vector(110, 20, 0)).Length, 0
+            )
+            # The document is not modified.
+            self.assertEqual(box.Placement.Base, App.Vector(100, 0, 0))
+        finally:
+            App.closeDocument(doc.Name)
