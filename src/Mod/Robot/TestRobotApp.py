@@ -70,9 +70,13 @@ class TestRobotTrajectory(unittest.TestCase):
         finally:
             App.closeDocument(doc.Name)
 
-    def test_delete_last_unchanged(self):
+    def test_delete_last_count(self):
+        """deleteLast(n) deletes n waypoints at the end, deleteLast() the last one."""
         trac = Robot.Trajectory([_waypoint(i) for i in range(5)])
-        self.assertEqual(len(trac.deleteLast(0).Waypoints), 4)
+        self.assertEqual(len(trac.deleteLast(0).Waypoints), 5)
+        self.assertEqual(len(trac.deleteLast().Waypoints), 4)
+        self.assertEqual(len(trac.deleteLast(2).Waypoints), 2)
+        self.assertEqual([w.Pos.Base.x for w in trac.Waypoints], [0.0, 1.0])
 
     def test_delete_last_updates_the_motion(self):
         """deleteLast() changes the trajectory in place: its duration and path must follow."""
