@@ -2755,6 +2755,29 @@ class DocumentGroupCases(unittest.TestCase):
         self.assertEqual(other.getParent(), part)
         self.assertEqual(group.getParent(), part)
 
+    def testParentsListEachPathOnce(self):
+        # A container can link a child through several properties (e.g. a PartDesign Body links
+        # its Tip feature through Group and Tip); each path must still be reported once.
+        part = self.Doc.addObject("App::Part", "Part")
+        obj = self.Doc.addObject("App::FeatureTest", "Obj")
+        part.addObject(obj)
+        part.addProperty("App::PropertyLink", "Extra")
+        part.Extra = obj
+        self.assertEqual(obj.InList.count(part), 2)
+        self.assertEqual(obj.Parents, [(part, "Obj.")])
+
+        # A link to the container adds its own path, also once.
+        link = self.Doc.addObject("App::Link", "Link")
+        link.LinkedObject = part
+        parents = sorted(obj.Parents, key=lambda v: v[0].Name)
+        self.assertEqual(parents, [(link, "Obj."), (part, "Obj.")])
+
+        # A nested container: the paths start at the top level object.
+        outer = self.Doc.addObject("App::Part", "Outer")
+        outer.addObject(part)
+        parents = sorted(obj.Parents, key=lambda v: v[0].Name)
+        self.assertEqual(parents, [(link, "Obj."), (outer, "Part.Obj.")])
+
     def testIssue0003150Part2(self):
         self.box = self.Doc.addObject("App::FeatureTest")
         self.cyl = self.Doc.addObject("App::FeatureTest")
