@@ -239,7 +239,8 @@ Modifiers after subdivision, non-quad faces, loose vertices, branched boundaries
 and non-manifold edges are rejected with an explanatory message. A standard
 Blender installation is discovered automatically; a nonstandard executable may
 be selected through the `BlenderExecutable` string parameter under
-`BaseApp/Preferences/Mod/Forms`.
+`BaseApp/Preferences/Mod/Forms`. When set, it must name an existing file; it
+is reported as an error rather than replaced by an automatically found Blender.
 
 ## Blender export
 

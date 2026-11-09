@@ -124,6 +124,32 @@ class BlendImportTest(unittest.TestCase):
         self.assertFalse(source.startswith("-"))
         self.assertNotIn("shell", run.call_args.kwargs)
 
+    def test_missing_configured_blender_is_reported_instead_of_replaced(self):
+        import os
+        import tempfile
+
+        from Forms.blend_import import _run_blender
+        from Forms.blender_bridge import BlenderBridgeError, find_blender_executable
+
+        parameters = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Forms")
+        previous = parameters.GetString("BlenderExecutable", "")
+        missing = os.path.join(tempfile.gettempdir(), "astocad-no-such-dir", "blender.exe")
+        parameters.SetString("BlenderExecutable", missing)
+        try:
+            # Another Blender is available, but the user chose a specific one.
+            with patch("Forms.blender_bridge.shutil.which", return_value=sys.executable):
+                with self.assertRaisesRegex(BlenderBridgeError, "'BlenderExecutable'"):
+                    find_blender_executable()
+                with patch("Forms.blender_bridge.subprocess.run") as run:
+                    with self.assertRaisesRegex(BlendImportError, "blender.exe"):
+                        _run_blender("scene.blend")
+                run.assert_not_called()
+        finally:
+            if previous:
+                parameters.SetString("BlenderExecutable", previous)
+            else:
+                parameters.RemString("BlenderExecutable")
+
     def test_legacy_imported_type_is_migrated_on_restore(self):
         document = App.newDocument("FormsTestBlendLegacy")
         obj = create_form(document)
