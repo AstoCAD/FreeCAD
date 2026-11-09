@@ -1526,6 +1526,33 @@ class BRepConversionTest(unittest.TestCase):
         self.assertEqual(len(obj.Shape.Faces), 1)
         self.assertTrue(obj.Shape.isValid(), obj.ConversionStatus)
 
+    def test_local_refinement_refuses_a_form_with_dissolved_edges(self):
+        document = App.newDocument("FormsTestDissolveThenRefine")
+        obj = create_box(document)
+        document.recompute()
+        cage = ControlCage.from_object(obj)
+        internal = [edge for edge, count in cage.edge_counts().items() if count == 2]
+        dissolve_edges(obj, [internal[0]])
+        document.recompute()
+        self.assertEqual(obj.ConversionStatus, "Valid solid")
+        dissolved = list(obj.DissolvedEdges)
+        first, second = internal[1], internal[2]
+        operations = {
+            "Subdivide": lambda: subdivide_faces(obj, [0]),
+            "Insert Edge": lambda: insert_edge(obj, first),
+            "Insert Point": lambda: insert_point_edges(obj, [(first, 0.5), (second, 0.5)]),
+        }
+        for name, operation in operations.items():
+            with self.subTest(operation=name):
+                with self.assertRaisesRegex(
+                    ValueError, f"{name} cannot be combined with edge dissolve"
+                ):
+                    operation()
+                self.assertEqual(obj.TMeshData, "")
+                self.assertEqual(list(obj.DissolvedEdges), dissolved)
+        document.recompute()
+        self.assertEqual(obj.ConversionStatus, "Valid solid")
+
     def test_delete_edge_keeps_pipe_valid(self):
         document = App.newDocument("FormsTestDissolvePipeEdge")
         path = document.addObject("Part::Feature", "Path")
