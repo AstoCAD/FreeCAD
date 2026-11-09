@@ -394,11 +394,17 @@ class ViewProviderPartDesignForm(ViewProviderFormBox):
         obj.EditingForm = True
         obj.Document.recompute()
         try:
-            return super().setEdit(view_object, mode)
+            started = super().setEdit(view_object, mode)
         except Exception:
             obj.EditingForm = False
             obj.Document.recompute()
             raise
+        if not started:
+            # A rejected edit is reported by returning False, and FreeCAD then
+            # never calls unsetEdit(): restore the combined Body result here.
+            obj.EditingForm = False
+            obj.Document.recompute()
+        return started
 
     def unsetEdit(self, view_object, mode):
         result = super().unsetEdit(view_object, mode)
