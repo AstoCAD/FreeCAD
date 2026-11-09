@@ -277,7 +277,7 @@ void DSHSymmetryController::configureToolWidget()
     if (!init) {  // Code to be executed only upon initialisation
         toolWidget->setCheckboxLabel(
             WCheckbox::FirstBox,
-            QApplication::translate("TaskSketcherTool_c1_symmetry", "Delete original geometries (U)")
+            QApplication::translate("TaskSketcherTool_c1_symmetry", "Delete original geometries (Home)")
         );
         toolWidget->setCheckboxToolTip(
             WCheckbox::FirstBox,
@@ -289,7 +289,7 @@ void DSHSymmetryController::configureToolWidget()
         );
         toolWidget->setCheckboxLabel(
             WCheckbox::SecondBox,
-            QApplication::translate("TaskSketcherTool_c2_symmetry", "Create symmetry constraints (J)")
+            QApplication::translate("TaskSketcherTool_c2_symmetry", "Create symmetry constraints (End)")
         );
         toolWidget->setCheckboxToolTip(
             WCheckbox::SecondBox,

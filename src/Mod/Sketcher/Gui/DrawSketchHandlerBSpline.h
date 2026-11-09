@@ -427,11 +427,11 @@ private:
             constructionMethod() == ConstructionMethod::ControlPoints
                 ? tr("%1 switch to knots")
                 : tr("%1 switch to control points"),
-            {KeyM}
+            {KeyAlt}
         };
-        const Gui::InputHint periodicHint {tr("%1 toggle periodic"), {KeyF}};
-        const Gui::InputHint undoHint {tr("%1 undo last point"), {KeyR}};
-        const Gui::InputHint degreeHint {tr("%1/%2 increase/decrease degree"), {KeyU, KeyJ}};
+        const Gui::InputHint periodicHint {tr("%1 toggle periodic"), {KeyPageDown}};
+        const Gui::InputHint undoHint {tr("%1 undo last point"), {KeyPageUp}};
+        const Gui::InputHint degreeHint {tr("%1/%2 increase/decrease degree"), {KeyHome, KeyEnd}};
 
         return Gui::lookupHints<State>(
             {constructionMethod(), state()},
@@ -948,7 +948,7 @@ void DSHBSplineController::configureToolWidget()
 
         toolWidget->setCheckboxLabel(
             WCheckbox::FirstBox,
-            QApplication::translate("TaskSketcherTool_c1_bspline", "Periodic (F)")
+            QApplication::translate("TaskSketcherTool_c1_bspline", "Periodic (PgDown)")
         );
         toolWidget->setCheckboxToolTip(
             WCheckbox::FirstBox,

@@ -121,12 +121,12 @@ private:
         using State = std::pair<ConstructionMethod, SelectMode>;
         using enum Gui::InputHint::UserInput;
 
-        const Gui::InputHint switchHint {.message = tr("%1 switch mode"), .sequences = {KeyM}};
+        const Gui::InputHint switchHint {.message = tr("%1 switch mode"), .sequences = {KeyAlt}};
         const Gui::InputHint roundedCornersHint {
             .message = tr("%1 toggle rounded corners"),
-            .sequences = {KeyU}
+            .sequences = {KeyHome}
         };
-        const Gui::InputHint frameHint {.message = tr("%1 toggle frame"), .sequences = {KeyJ}};
+        const Gui::InputHint frameHint {.message = tr("%1 toggle frame"), .sequences = {KeyEnd}};
 
         return Gui::lookupHints<State>(
             {constructionMethod(), state()},
@@ -2116,7 +2116,7 @@ void DSHRectangleController::configureToolWidget()
 
         toolWidget->setCheckboxLabel(
             WCheckbox::FirstBox,
-            QApplication::translate("TaskSketcherTool_c1_rectangle", "Rounded corners (U)")
+            QApplication::translate("TaskSketcherTool_c1_rectangle", "Rounded corners (Home)")
         );
         toolWidget->setCheckboxToolTip(
             WCheckbox::FirstBox,
@@ -2129,7 +2129,7 @@ void DSHRectangleController::configureToolWidget()
 
         toolWidget->setCheckboxLabel(
             WCheckbox::SecondBox,
-            QApplication::translate("TaskSketcherTool_c2_rectangle", "Frame (J)")
+            QApplication::translate("TaskSketcherTool_c2_rectangle", "Frame (End)")
         );
         toolWidget->setCheckboxToolTip(
             WCheckbox::SecondBox,

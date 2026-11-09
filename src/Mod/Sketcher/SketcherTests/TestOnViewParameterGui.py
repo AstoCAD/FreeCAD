@@ -1004,9 +1004,34 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
                 continue
         return None
 
-    def test_ovp_first_letter_goes_to_the_tool(self):
-        # Before an expression is started, letters are the tool shortcuts: M switches the
-        # construction method of the rectangle.
+    def visible_check_box(self, name):
+        for box in FreeCADGui.getMainWindow().findChildren(QtGui.QCheckBox, name):
+            try:
+                if box.isVisible():
+                    return box
+            except RuntimeError:  # widget of a closed tool, not yet destroyed
+                continue
+        return None
+
+    def test_ovp_letters_go_to_the_field(self):
+        # Letters are text in the field (`height = 20 mm`), not tool shortcuts: M does not
+        # switch the construction method, and the first letter replaces the shown value and
+        # its unit.
+        self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first, "Expected the first rectangle OVP to have focus")
+        method = self.visible_combo("comboBox1")
+        self.assertIsNotNone(method, "Expected the construction method combobox")
+        before = method.currentIndex()
+        editor = first.findChild(QtGui.QLineEdit)
+        editor.selectAll()
+        self.type_keys(first, "m")
+        self.pump(200)
+        self.assertEqual(method.currentIndex(), before, "Expected M to be typed in the field")
+        self.assertEqual(editor.text(), "m")
+
+    def test_ovp_alt_tap_switches_construction_method(self):
+        # In a field, tapping Alt is the M of the 3D view.
         self.begin_rectangle_with_visible_ovp()
         first = self.active_spinbox()
         self.assertIsNotNone(first, "Expected the first rectangle OVP to have focus")
@@ -1014,13 +1039,36 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         self.assertIsNotNone(method, "Expected the construction method combobox")
         before = method.currentIndex()
         try:
-            self.key_click(first, QtCore.Qt.Key_M, "m")
+            press = QtGui.QKeyEvent(
+                QtCore.QEvent.KeyPress, QtCore.Qt.Key_Alt, QtCore.Qt.AltModifier, ""
+            )
+            release = QtGui.QKeyEvent(
+                QtCore.QEvent.KeyRelease, QtCore.Qt.Key_Alt, QtCore.Qt.NoModifier, ""
+            )
+            QtGui.QApplication.sendEvent(first, press)
+            QtGui.QApplication.sendEvent(first, release)
             self.pump(200)
             self.assertNotEqual(
-                method.currentIndex(), before, "Expected M to switch the construction method"
+                method.currentIndex(), before, "Expected Alt to switch the construction method"
             )
         finally:
             method.setCurrentIndex(before)
+            self.pump(100)
+
+    def test_ovp_home_toggles_first_tool_option(self):
+        # In a field, Home is the U of the 3D view: rounded corners of the rectangle.
+        self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first, "Expected the first rectangle OVP to have focus")
+        rounded = self.visible_check_box("checkBoxTS1")
+        self.assertIsNotNone(rounded, "Expected the rounded corners check box")
+        before = rounded.isChecked()
+        try:
+            self.key_click(first, QtCore.Qt.Key_Home)
+            self.pump(200)
+            self.assertNotEqual(rounded.isChecked(), before, "Expected Home to toggle it")
+        finally:
+            rounded.setChecked(before)
             self.pump(100)
 
     def test_ovp_letters_after_equal_sign_go_to_the_field(self):
@@ -1105,6 +1153,66 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         shown = [model.index(row, 0).data() for row in range(model.rowCount())]
         self.assertTrue(any(s.startswith("heightValue") for s in shown), shown)
         completer.popup().hide()
+
+    def begin_rectangle_without_ovp_focus(self):
+        """Start the rectangle with the 3D view focused, before any OVP shows."""
+        self.begin_sketch_edit_with_task_dialog()
+        FreeCADGui.runCommand("Sketcher_CreateRectangle")
+        self.pump(200)
+        view = FreeCADGui.ActiveDocument.ActiveView.graphicsView()
+        view.setFocus()
+        self.pump(50)
+        return view
+
+    def test_alt_tap_in_3d_view_switches_construction_method(self):
+        view = self.begin_rectangle_without_ovp_focus()
+        method = self.visible_combo("comboBox1")
+        self.assertIsNotNone(method, "Expected the construction method combobox")
+        before = method.currentIndex()
+        try:
+            override = QtGui.QKeyEvent(
+                QtCore.QEvent.ShortcutOverride, QtCore.Qt.Key_Alt, QtCore.Qt.AltModifier, ""
+            )
+            override.ignore()
+            QtGui.QApplication.sendEvent(view, override)
+            self.assertTrue(override.isAccepted(), "Expected Alt to be kept from the menu bar")
+
+            press = QtGui.QKeyEvent(
+                QtCore.QEvent.KeyPress, QtCore.Qt.Key_Alt, QtCore.Qt.AltModifier, ""
+            )
+            release = QtGui.QKeyEvent(
+                QtCore.QEvent.KeyRelease, QtCore.Qt.Key_Alt, QtCore.Qt.NoModifier, ""
+            )
+            QtGui.QApplication.sendEvent(view, press)
+            QtGui.QApplication.sendEvent(view, release)
+            self.pump(200)
+            self.assertNotEqual(
+                method.currentIndex(), before, "Expected Alt to switch the construction method"
+            )
+        finally:
+            method.setCurrentIndex(before)
+            self.pump(100)
+
+    def test_home_in_3d_view_toggles_first_tool_option(self):
+        view = self.begin_rectangle_without_ovp_focus()
+        rounded = self.visible_check_box("checkBoxTS1")
+        self.assertIsNotNone(rounded, "Expected the rounded corners check box")
+        before = rounded.isChecked()
+        try:
+            # Home is also the shortcut of Std_ViewHome: the tool claims it.
+            override = QtGui.QKeyEvent(
+                QtCore.QEvent.ShortcutOverride, QtCore.Qt.Key_Home, QtCore.Qt.NoModifier, ""
+            )
+            override.ignore()
+            QtGui.QApplication.sendEvent(view, override)
+            self.assertTrue(override.isAccepted(), "Expected Home to be kept from Std_ViewHome")
+
+            self.key_click(view, QtCore.Qt.Key_Home)
+            self.pump(200)
+            self.assertNotEqual(rounded.isChecked(), before, "Expected Home to toggle it")
+        finally:
+            rounded.setChecked(before)
+            self.pump(100)
 
     def test_ovp_short_length_with_many_decimals_binds(self):
         # 1 mm/3 is written as 0.333333 mm, 3.3e-7 away from the value of the expression.

@@ -872,7 +872,7 @@ void DSHBlockController::addConstraints()
 
 Gui::InputHint DrawSketchHandlerBlock::switchModeHint()
 {
-    return {QObject::tr("%1 switch mode"), {Gui::InputHint::UserInput::KeyM}};
+    return {QObject::tr("%1 switch mode"), {Gui::InputHint::UserInput::KeyAlt}};
 }
 
 DrawSketchHandlerBlock::HintTable DrawSketchHandlerBlock::getBlockHintTable()

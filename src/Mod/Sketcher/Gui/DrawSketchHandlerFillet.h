@@ -462,10 +462,10 @@ public:
     {
         using enum Gui::InputHint::UserInput;
 
-        const Gui::InputHint switchModeHint {.message = tr("%1 switch mode"), .sequences = {KeyM}};
+        const Gui::InputHint switchModeHint {.message = tr("%1 switch mode"), .sequences = {KeyAlt}};
         const Gui::InputHint preserveCornerHint {
             .message = tr("%1 toggle preserve corner"),
-            .sequences = {KeyU}
+            .sequences = {KeyHome}
         };
 
         return Gui::lookupHints<SelectMode>(
@@ -506,7 +506,7 @@ void DSHFilletController::configureToolWidget()
 
         toolWidget->setCheckboxLabel(
             WCheckbox::FirstBox,
-            QApplication::translate("TaskSketcherTool_c1_fillet", "Preserve corner (U)")
+            QApplication::translate("TaskSketcherTool_c1_fillet", "Preserve corner (Home)")
         );
         toolWidget->setCheckboxToolTip(
             WCheckbox::FirstBox,

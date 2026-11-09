@@ -536,19 +536,27 @@ bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
 {
     if (event->type() == QEvent::KeyPress) {
         auto* keyEvent = static_cast<QKeyEvent*>(event);
-        // `= expression`: '=' typed over the shown value and unit starts an empty expression,
-        // so that the unit does not end up behind the names ("= height mm"). Only for labels
-        // that accept such expressions (setUserParameterOwner()).
-        if (keyEvent->text() == QLatin1String("=") && qobject_cast<QAbstractSpinBox*>(watched)
+        // `= expression` and `name = expression`: '=' typed over the shown value and unit
+        // starts an empty expression, and the first letter of a name typed over the shown value
+        // replaces the unit too, so that the unit does not end up behind the names
+        // ("= height mm", "height mm"). Only for labels that accept such expressions
+        // (setUserParameterOwner()).
+        const QString typed = keyEvent->text();
+        const bool startsExpression = typed == QLatin1String("=");
+        const bool startsName = typed.size() == 1
+            && (typed.front().isLetter() || typed.front() == QLatin1Char('_'))
+            && !(keyEvent->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
+        if ((startsExpression || startsName) && qobject_cast<QAbstractSpinBox*>(watched)
             && spinBox && acceptsUserExpressions()) {
             if (auto* edit = spinBox->findChild<QLineEdit*>()) {
                 QString rest = edit->text();
                 if (edit->hasSelectedText()) {
                     rest.remove(edit->selectionStart(), edit->selectedText().size());
                 }
-                // Only a number and/or the unit the field shows: nothing typed that the
-                // expression would need. Anything else ("h", "height") is a name being typed
-                // and is kept, even when it is also a unit symbol (h = hour).
+                // Only a number and/or the unit the field shows (for '='), or only the unit (for
+                // a letter: after a typed number it starts a unit, "1 c" for "1 cm"): nothing
+                // typed that the expression would need. Anything else ("h", "height") is a name
+                // being typed and is kept, even when it is also a unit symbol (h = hour).
                 const QString shown = QString::fromStdString(spinBox->value().getUserString());
                 static const QRegularExpression lastDigit(QStringLiteral(R"(\d)"));
                 const QString unit = shown.mid(shown.lastIndexOf(lastDigit) + 1).trimmed();
@@ -557,10 +565,15 @@ bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
                     remaining.chop(unit.size());
                 }
                 static const QRegularExpression number(QStringLiteral(R"(^[-+]?[\d.,\s]*$)"));
-                if (number.match(remaining).hasMatch()) {
+                if (startsExpression && number.match(remaining).hasMatch()) {
                     edit->setText(QStringLiteral("="));
                     clearUserExpression();
                     return true;
+                }
+                if (startsName && remaining.trimmed().isEmpty() && !rest.trimmed().isEmpty()) {
+                    // The field inserts the letter, which then starts the completion.
+                    edit->clear();
+                    clearUserExpression();
                 }
             }
         }
