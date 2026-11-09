@@ -91,7 +91,8 @@ def insert(filename, docname=None, preferences=None):
     progressbar = Base.ProgressIndicator()
     productscount = len(ifcfile.by_type("IfcProduct"))
     progressbar.start("Importing " + str(productscount) + " products...", productscount)
-    cores = preferences["MULTICORE"]
+    # called directly, this importer runs even when the preference is 0
+    cores = max(1, preferences["MULTICORE"])
     iterator = ifcopenshell.geom.iterator(settings, ifcfile, cores)
     iterator.initialize()
     count = 0
