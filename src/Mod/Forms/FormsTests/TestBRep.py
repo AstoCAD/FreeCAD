@@ -1740,6 +1740,32 @@ class BRepConversionTest(unittest.TestCase):
         finally:
             App.closeDocument(document.Name)
 
+    def test_match_refuses_a_support_that_depends_on_the_form(self):
+        document = App.newDocument("FormsTestCyclicMatchSupport")
+        obj = create_box(document)
+        document.recompute()
+        delete_faces(obj, [0])
+        document.recompute()
+        offset = document.addObject("Part::Offset", "Offset")
+        offset.Source = obj
+        offset.Value = 1.0
+        document.recompute()
+        boundary = ControlCage.from_object(obj).boundary_edges
+        points = list(obj.ControlPoints)
+
+        for support in ((obj, ["Face1"]), (offset, ["Face1"])):
+            with self.subTest(support=support[0].Name):
+                with self.assertRaisesRegex(ValueError, "must not be the Form or depend on it"):
+                    match_boundary(obj, boundary, support)
+                self.assertIsNone(obj.MatchSupport)
+                self.assertEqual(list(obj.MatchBoundary), [])
+                self.assertEqual(list(obj.ControlPoints), points)
+
+        obj.touch()
+        document.recompute()
+        self.assertIn("Up-to-date", obj.State)
+        self.assertIn("Up-to-date", offset.State)
+
     def test_standalone_form_matches_whole_closed_wire(self):
         document = App.newDocument("FormsTestExternalWireMatch")
         obj = create_box(document)
