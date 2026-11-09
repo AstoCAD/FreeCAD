@@ -649,8 +649,46 @@ class TestArchIfc(TestArchBase.TestArchBase):
         path = os.path.join(tempfile.mkdtemp(), "legacy_import.ifc")
         model.write(path)
         prefs = importIFCHelper.getPreferences()
+        prefs["MULTICORE"] = 1
         importIFC.insert(path, self.document.Name, preferences=prefs)
         self._check_imported_wall()
+
+    def test_legacy_import_multicore_preference_zero(self):
+        """With the number of cores set to 0 (the default), importing an IFC file
+        uses the full importer, which keeps the site location and the property
+        sets; the multicore importer drops them."""
+        from importers import importIFC, importIFCHelper
+
+        model, wall = _make_wall_file()
+        site = model.by_type("IfcSite")[0]
+        site.Name = "TestSite"
+        site.RefLatitude = (48, 51, 30, 132000)
+        pset = ifcopenshell.api.run("pset.add_pset", model, product=wall, name="Pset_Custom")
+        ifcopenshell.api.run("pset.edit_pset", model, pset=pset, properties={"Colour": "red"})
+        path = os.path.join(tempfile.mkdtemp(), "multicore_zero.ifc")
+        model.write(path)
+
+        group = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Arch")
+        stored = "ifcMulticore" in group.GetInts()
+        old = group.GetInt("ifcMulticore", 0)
+        try:
+            group.SetInt("ifcMulticore", 0)
+            prefs = importIFCHelper.getPreferences()
+        finally:
+            if stored:
+                group.SetInt("ifcMulticore", old)
+            else:
+                group.RemInt("ifcMulticore")
+        self.assertEqual(prefs["MULTICORE"], 0)
+        prefs["IMPORT_PROPERTIES"] = False  # properties in the IfcProperties map
+        importIFC.insert(path, self.document.Name, preferences=prefs)
+
+        self._check_imported_wall()
+        sites = [o for o in self.document.Objects if o.Label == "TestSite"]
+        self.assertEqual(len(sites), 1)
+        self.assertAlmostEqual(sites[0].Latitude, 48.858370, places=6)
+        imported = [o for o in self.document.Objects if o.Label == "TestWall"][0]
+        self.assertEqual(imported.IfcProperties, {"Colour;;Pset_Custom": "IfcLabel;;red"})
 
     def test_legacy_import_singlecore(self):
         """Same as above, through the single-core code path of importIFC.insert.
