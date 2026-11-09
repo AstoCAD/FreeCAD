@@ -1053,6 +1053,33 @@ class BRepConversionTest(unittest.TestCase):
         self.assertGreater(len(pipe.ControlPoints), control_count)
         self.assertTrue(pipe.Shape.isValid(), pipe.ConversionStatus)
 
+    def test_pipe_segment_overrides_reject_non_finite_values(self):
+        from Forms.pipe import set_segment_diameter
+
+        document = App.newDocument("FormsTestPipeNonFiniteOverrides")
+        path = document.addObject("Part::Feature", "Path")
+        path.Shape = Part.makePolygon(
+            [App.Vector(0, 0, 0), App.Vector(30, 0, 0), App.Vector(30, 30, 0)]
+        )
+        pipe = create_pipe(document, path)
+        document.recompute()
+        key = pipe.PipeSegmentKeys[0]
+        set_segment_diameter(pipe, key, 5)
+        overrides = list(pipe.SegmentDiameters)
+        for value in (math.inf, math.nan):
+            with self.subTest(diameter=value):
+                with self.assertRaises(ValueError):
+                    set_segment_diameter(pipe, key, value)
+                self.assertEqual(list(pipe.SegmentDiameters), overrides)
+
+        # A stored infinite sample count is skipped like other invalid records,
+        # instead of escaping the recompute and leaving a stale shape.
+        pipe.SegmentSamples = ['{"segment": "%s", "samples": Infinity}' % key]
+        document.recompute()
+        self.assertIn("Up-to-date", pipe.State)
+        self.assertFalse(pipe.Shape.isNull(), pipe.ConversionStatus)
+        self.assertTrue(pipe.ConversionStatus.startswith("Valid"), pipe.ConversionStatus)
+
     def test_pipe_closes_periodically_around_a_closed_wire(self):
         document = App.newDocument("FormsTestClosedPipe")
         path = document.addObject("Part::Feature", "ClosedPath")
