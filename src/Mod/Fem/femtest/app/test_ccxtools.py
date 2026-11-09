@@ -225,14 +225,15 @@ class TestCcxTools(unittest.TestCase):
     # ********************************************************************************************
     def test_fluid_section_pipe_white_colebrook(self):
         # CalculiX reads area, hydraulic diameter, length (nonpositive: from the end nodes),
-        # grain diameter and form factor
+        # grain diameter and form factor; the hydraulic diameter is 4 times the hydraulic
+        # radius (area / perimeter), here a round pipe of 4 mm diameter
         from femsolver.calculix.write_femelement_geometry import liquid_section_def
         import ObjectsFem
 
         fluid = ObjectsFem.makeElementFluid1D(self.document)
         fluid.LiquidSectionType = "PIPE WHITE-COLEBROOK"
         fluid.ColebrookeArea = "12.5 mm^2"
-        fluid.ColebrookeRadius = "2 mm"
+        fluid.ColebrookeRadius = "1 mm"
         fluid.ColebrookeGrainDiameter = "0.1 mm"
         fluid.ColebrookeFormFactor = 1.0
         self.assertEqual(
