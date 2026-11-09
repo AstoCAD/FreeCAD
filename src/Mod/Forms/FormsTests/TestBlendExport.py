@@ -109,6 +109,39 @@ class BlendExportTest(unittest.TestCase):
         self.assertAlmostEqual(bounds.XLength, 40.0, places=6)
         self.assertAlmostEqual(bounds.ZLength, 40.0, places=6)
 
+    def test_part_design_form_without_base_exports_like_part_design(self):
+        from Forms.additive import create_partdesign_form
+        from Forms.blend_export import _shape_payload
+
+        document = App.newDocument("FormsTestBlendExportWithoutBase")
+        body = document.addObject("PartDesign::Body", "Body")
+        form = create_partdesign_form(
+            body, None, "Box", placement=App.Placement(App.Vector(100, 0, 0), App.Rotation())
+        )
+        document.recompute()
+
+        exported = build_payload([form], deflection=0.5)["objects"][0]
+
+        # Like a native additive feature without a base, the Form is the Body
+        # solid itself, so it stays an editable subdivision cage.
+        self.assertEqual(exported["kind"], "SUBDIVISION")
+        self.assertEqual(len(exported["vertices"]), len(form.ControlPoints))
+        cage = App.BoundBox()
+        for point in exported["vertices"]:
+            cage.add(App.Vector(*point))
+        mesh = App.BoundBox()
+        for point in _shape_payload(form, 0.5)["vertices"]:
+            mesh.add(App.Vector(*point))
+        self.assertTrue(cage.Center.isEqual(mesh.Center, 1.0e-6))
+        self.assertAlmostEqual(cage.Center.x, 100.0, places=6)
+
+        # A subtractive Form without a base has no result to export.
+        other = document.addObject("PartDesign::Body", "OtherBody")
+        cut = create_partdesign_form(other, None, "Box", operation="Subtractive")
+        document.recompute()
+        with self.assertRaisesRegex(BlendExportError, "has no shape"):
+            build_payload([cut], deflection=0.5)
+
     def test_advanced_local_form_topology_falls_back_to_shape(self):
         document = App.newDocument("FormsTestBlendExportLocal")
         obj = create_box(document)
