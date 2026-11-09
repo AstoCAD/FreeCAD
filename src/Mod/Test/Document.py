@@ -986,6 +986,24 @@ class DocumentBasicCases(unittest.TestCase):
         doc = self.saveAndRestore()
         self.assertEqual(doc.B.LinkedObject, doc.A)
 
+    def testLinkToItselfRecompute(self):
+        # Unlike the PropertyXLink of App::Link, a plain PropertyLink used as the
+        # LinkedObject of a Python link accepts a link to its own container.
+        # Asking such a link whether it must execute asked itself again until
+        # FreeCAD crashed with a stack overflow, on the first recompute that
+        # found the object up to date.
+        obj = self.Doc.addObject("App::FeaturePython", "SelfLink")
+        obj.addExtension("App::LinkExtensionPython")
+        obj.addProperty("App::PropertyLink", "Base")
+        obj.configLinkProperty(LinkedObject="Base")
+        obj.Base = obj
+        for _ in range(2):
+            self.Doc.recompute()
+        obj.touch()
+        for _ in range(2):
+            self.Doc.recompute()
+        self.assertEqual(obj.Base, obj)
+
     def testLinkPropertyInfoByIndexAndName(self):
         # The index and name overloads ran after a failed PyArg_ParseTuple() without
         # clearing its error, so a valid call raised SystemError.
