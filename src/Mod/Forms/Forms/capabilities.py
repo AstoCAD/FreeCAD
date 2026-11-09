@@ -13,6 +13,14 @@ def require_base_topology(obj, operation):
         )
 
 
+def reject_edge_dissolve(obj, operation):
+    # Local refinement stores a T-mesh, and the converter cannot combine it
+    # with dissolved base edges (a T-mesh dissolve stays inside one base
+    # patch). Refuse instead of storing a Form that can no longer convert.
+    if getattr(obj, "DissolvedEdges", ()):
+        raise ValueError(f"{operation} cannot be combined with edge dissolve")
+
+
 def reject_form_surface(obj, operation):
     # A Form Surface cage is the USegments x VSegments grid sampled on the
     # replaced face; its filling follows only the positions of the interior
