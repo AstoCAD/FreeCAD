@@ -42,6 +42,7 @@
 #include <Base/UnitsApi.h>
 #include <Gui/ComboView.h>
 #include <Gui/CommandT.h>
+#include <Gui/Dialogs/DocumentParameters.h>
 #include <Gui/Document.h>
 #include <Gui/DockWindowManager.h>
 #include <Gui/EditableDatumLabel.h>
@@ -857,7 +858,64 @@ void SketcherGui::ConstraintLineByAngle(
     }
 }
 
-bool SketcherGui::bindOnViewParameterExpression(
+namespace
+{
+// Tells the user that the expression of the on-view parameter @p label is not bound, and why.
+void warnOnViewParameterNotBound(
+    Sketcher::SketchObject* sketch,
+    const Gui::EditableDatumLabel& label,
+    const QString& reason
+)
+{
+    const std::string& name = label.getUserParameterName();
+    const auto expression = label.getUserExpression();
+    const QString what = name.empty()
+        ? QObject::tr("The expression '%1' was used as a plain value: %2")
+              .arg(QString::fromStdString(expression->toString()), reason)
+        : QObject::tr("The user parameter '%1' was not created: %2")
+              .arg(QString::fromStdString(name), reason);
+    Gui::TranslatedUserWarning(sketch, QObject::tr("On-view parameter"), what);
+}
+}  // namespace
+
+void SketcherGui::warnOnViewParameterExpressionNotBound(
+    Sketcher::SketchObject* sketch,
+    const Gui::EditableDatumLabel& label,
+    const std::string& missingParameter
+)
+{
+    if (!sketch || !label.getUserExpression()) {
+        return;
+    }
+    warnOnViewParameterNotBound(
+        sketch,
+        label,
+        QObject::tr("it uses the user parameter '%1', which was not created.")
+            .arg(QString::fromStdString(missingParameter))
+    );
+}
+
+bool SketcherGui::removeOnViewUserParameter(Sketcher::SketchObject* sketch, const std::string& name)
+{
+    if (!sketch
+        || !App::UserParameters::isUserParameter(sketch->getDynamicPropertyByName(name.c_str()))) {
+        return false;
+    }
+    // Removing a parameter that is still used would leave an expression that cannot resolve.
+    // A reference without a path is only a guess (an object that depends on the sketch and has
+    // expressions of its own, e.g. a spreadsheet): nothing but the tool can use a parameter that
+    // the tool has just created.
+    const auto references = Gui::Parameters::findReferences(sketch, name);
+    const bool used = std::ranges::any_of(references, [](const auto& reference) {
+        return !reference.path.empty();
+    });
+    if (used) {
+        return false;
+    }
+    return sketch->removeDynamicProperty(name.c_str());
+}
+
+SketcherGui::OnViewParameterBinding SketcherGui::bindOnViewParameterExpression(
     Sketcher::SketchObject* sketch,
     const Gui::EditableDatumLabel& label,
     int firstConstraint,
@@ -867,17 +925,12 @@ bool SketcherGui::bindOnViewParameterExpression(
     const std::string& name = label.getUserParameterName();
     const auto expression = label.getUserExpression();
     if (!sketch || !expression) {
-        return false;
+        return {};
     }
 
     const auto warn = [&](const QString& reason) {
-        const QString what = name.empty()
-            ? QObject::tr("The expression '%1' was used as a plain value: %2")
-                  .arg(QString::fromStdString(expression->toString()), reason)
-            : QObject::tr("The user parameter '%1' was not created: %2")
-                  .arg(QString::fromStdString(name), reason);
-        Gui::TranslatedUserWarning(sketch, QObject::tr("On-view parameter"), what);
-        return false;
+        warnOnViewParameterNotBound(sketch, label, reason);
+        return OnViewParameterBinding {};
     };
 
     // The tool may add several constraints for one on-view parameter (e.g. a point on an axis
@@ -948,7 +1001,7 @@ bool SketcherGui::bindOnViewParameterExpression(
         }
         return warn(QString::fromUtf8(e.what()));
     }
-    return true;
+    return {.bound = true, .createdParameter = created ? name : std::string()};
 }
 
 void SketcherGui::Constraint2LinesByAngle(

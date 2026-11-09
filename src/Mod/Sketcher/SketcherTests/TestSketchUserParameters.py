@@ -112,6 +112,44 @@ class TestSketchUserParameters(unittest.TestCase):
         self.assertTrue(hasattr(self.sketch, "len"))
         self.assertEqual(len(self.sketch.ExpressionEngine), 2)
 
+    def test_parameter_taken_back_inside_the_command_frees_its_name(self):
+        """The polyline undoing its last point removes, inside its open command, the segment
+        and the parameter that the segment created. The name can then be typed again, and the
+        command is still one undo step."""
+        sketch = self.sketch
+
+        def add_segment():
+            geo = sketch.addGeometry(
+                Part.LineSegment(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(30, 0, 0)), False
+            )
+            length = sketch.addConstraint(Sketcher.Constraint("Distance", geo, 30.0))
+            self.assertEqual(self.doc.addUserParameter(sketch, "seg", "30 mm"), "seg")
+            sketch.setExpression(".Constraints[%d]" % length, "seg")
+            return geo
+
+        self.doc.openTransaction("Add sketch polyline")
+        geo = add_segment()
+        sketch.delGeometries([geo])
+        self.assertEqual(len(sketch.ExpressionEngine), 0)
+        sketch.removeProperty("seg")
+        self.assertEqual(self.doc.getUserParameters(), [])
+
+        add_segment()
+        self.doc.commitTransaction()
+        self.doc.recompute()
+        self.assertEqual(sketch.ExpressionEngine, [(".Constraints[0]", "seg")])
+
+        self.doc.undo()
+        self.doc.recompute()
+        self.assertFalse(hasattr(sketch, "seg"))
+        self.assertEqual(sketch.GeometryCount, 0)
+        self.assertEqual(len(sketch.ExpressionEngine), 0)
+
+        self.doc.redo()
+        self.doc.recompute()
+        self.assertAlmostEqual(sketch.seg.Value, 30)
+        self.assertEqual(sketch.ExpressionEngine, [(".Constraints[0]", "seg")])
+
     def test_save_restore(self):
         geo, length, angle = self.add_line_as_tool(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(30, 0, 0))
         path = os.path.join(tempfile.gettempdir(), "TestSketchUserParameters.FCStd")

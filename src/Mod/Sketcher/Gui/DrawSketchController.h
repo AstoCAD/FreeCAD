@@ -24,9 +24,14 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
+#include <string>
 #include <utility>
+#include <vector>
 
+#include <App/Expression.h>
+#include <App/ObjectIdentifier.h>
 #include <Base/Console.h>
 #include <Base/Tools2D.h>
 #include <Gui/EditableDatumLabel.h>
@@ -417,26 +422,93 @@ public:
     }
 
     /// Creates the user parameters and binds the recorded constraints. A value that did not
-    /// produce a constraint creates nothing and is reported.
-    void bindOnViewParameterExpressions()
+    /// produce a constraint creates nothing and is reported. A parameter is created before the
+    /// on-view parameters using it (`height = 10 mm`, then `= 2 * height` in another one); when
+    /// it could not be created, these are reported and not bound either, as their expression
+    /// could not resolve. Returns the names of the user parameters that were created, for tools
+    /// that can take a step back (polyline).
+    std::vector<std::string> bindOnViewParameterExpressions()
     {
+        std::vector<unsigned int> remaining;
         for (unsigned int i = 0; i < onViewParameters.size(); i++) {
-            if (!hasUserExpression(i)) {
-                continue;
+            if (hasUserExpression(i)) {
+                remaining.push_back(i);
             }
-            const auto range = i < onViewParameterConstraintRanges.size()
-                ? onViewParameterConstraintRanges[i]
-                : std::pair<int, int>(-1, -1);
-            bindOnViewParameterExpression(
-                handler->getSketchObject(),
-                *onViewParameters[i],
-                range.first,
-                range.second
-            );
+        }
+        const auto usesRemaining = [this, &remaining](unsigned int i) {
+            return std::ranges::any_of(remaining, [&](unsigned int j) {
+                return j != i
+                    && userExpressionUses(i, onViewParameters[j]->getUserParameterName());
+            });
+        };
+        std::vector<std::string> created;
+        std::vector<std::string> notCreated;
+        while (!remaining.empty()) {
+            // A parameter can only use the ones typed before it: there is always one ready.
+            auto next = std::ranges::find_if(remaining, [&](unsigned int i) {
+                return !usesRemaining(i);
+            });
+            if (next == remaining.end()) {
+                next = remaining.begin();
+            }
+            const unsigned int i = *next;
+            remaining.erase(next);
+
+            // A copy: the name is cleared with the expression below.
+            const std::string name = onViewParameters[i]->getUserParameterName();
+            const auto missing = std::ranges::find_if(notCreated, [&](const std::string& other) {
+                return userExpressionUses(i, other);
+            });
+            if (missing != notCreated.end()) {
+                // Bound, the expression could not resolve: the parameter it uses does not exist.
+                warnOnViewParameterExpressionNotBound(
+                    handler->getSketchObject(),
+                    *onViewParameters[i],
+                    *missing
+                );
+                if (!name.empty()) {
+                    notCreated.push_back(name);
+                }
+            }
+            else {
+                const auto range = i < onViewParameterConstraintRanges.size()
+                    ? onViewParameterConstraintRanges[i]
+                    : std::pair<int, int>(-1, -1);
+                const OnViewParameterBinding binding = bindOnViewParameterExpression(
+                    handler->getSketchObject(),
+                    *onViewParameters[i],
+                    range.first,
+                    range.second
+                );
+                if (!binding.createdParameter.empty()) {
+                    created.push_back(binding.createdParameter);
+                }
+                else if (!name.empty()) {
+                    notCreated.push_back(name);
+                }
+            }
             // Bound once: tools binding at every step (polyline) must not bind it again.
             onViewParameters[i]->clearUserExpression();
         }
         onViewParameterConstraintRanges.assign(onViewParameterConstraintRanges.size(), {-1, -1});
+        return created;
+    }
+
+    /// The user parameters @p names no longer exist: the tool took back the step that created
+    /// them (polyline). An on-view parameter whose expression, not bound yet, uses one of them
+    /// gives it up and follows the mouse again; bound later, it could not resolve.
+    void unsetOnViewParametersUsing(const std::vector<std::string>& names)
+    {
+        for (unsigned int i = 0; i < onViewParameters.size(); i++) {
+            const bool usesOne = hasUserExpression(i)
+                && std::ranges::any_of(names, [&](const std::string& name) {
+                       return userExpressionUses(i, name);
+                   });
+            if (usesOne) {
+                onViewParameters[i]->clearUserExpression();
+                unsetOnViewParameter(onViewParameters[i].get());
+            }
+        }
     }
     //@}
 
@@ -759,6 +831,20 @@ protected:
                                  .get();
 
             parameter->setUserParameterOwner(handler->sketchgui->getObject());
+            // The parameters typed in the other on-view parameters are created with the geometry
+            // (bindOnViewParameterExpressions()), but this one can already use them.
+            parameter->setPendingUserParameters([this, parameter]() {
+                std::vector<App::UserParameters::PendingParameter> pending;
+                for (const auto& other : onViewParameters) {
+                    if (other.get() == parameter) {
+                        continue;
+                    }
+                    if (auto userParameter = other->getPendingUserParameter()) {
+                        pending.push_back(std::move(*userParameter));
+                    }
+                }
+                return pending;
+            });
 
             const auto handleParameterValueChanged = [this, parameter, i](double value) {
                 parameter->setActivatedColor();
@@ -990,6 +1076,21 @@ private:
     int getConstraintCount()
     {
         return handler->getSketchObject()->Constraints.getSize();
+    }
+
+    /// Whether the expression typed in on-view parameter @p index, which has one, uses the user
+    /// parameter typed as @p name: on the sketch, so that the expression has the bare name.
+    bool userExpressionUses(unsigned int index, const std::string& name) const
+    {
+        const auto expression = onViewParameters[index]->getUserExpression();
+        for (const auto& identifier : expression->getIdentifiers()) {
+            const App::ObjectIdentifier& path = identifier.first;
+            if (!path.hasDocumentObjectName() && path.getComponents().size() == 1
+                && path.getPropertyName() == name) {
+                return true;
+            }
+        }
+        return false;
     }
     //@}
 

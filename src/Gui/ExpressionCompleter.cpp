@@ -100,6 +100,18 @@ public:
         invalidate();
     }
 
+    void setPendingUserParameters(std::vector<App::UserParameters::PendingParameter> parameters)
+    {
+        const auto same = [](const auto& a, const auto& b) {
+            return a.name == b.name && a.value == b.value;
+        };
+        if (std::ranges::equal(parameters, pendingParameters, same)) {
+            return;
+        }
+        pendingParameters = std::move(parameters);
+        invalidate();
+    }
+
     void setDocumentObject(const App::DocumentObject* obj, bool checkInList)
     {
         this->checkInList = checkInList;
@@ -495,6 +507,27 @@ public:
                     + QCoreApplication::translate("Gui::ExpressionCompleter", "Expression: %1")
                           .arg(QString::fromStdString(info.expression->toString()));
             }
+            userParameters.push_back(std::move(item));
+        }
+        // Parameters that the tool in use creates when it finishes: the input can use them already.
+        for (const auto& pending : pendingParameters) {
+            UserParameterItem item;
+            item.name = QString::fromStdString(pending.name);
+            const bool listed = std::ranges::any_of(userParameters, [&item](const auto& param) {
+                return param.name == item.name;
+            });
+            if (listed) {
+                continue;
+            }
+            const QString value = QString::fromStdString(pending.value.getUserString());
+            item.display = item.name + QStringLiteral(" (") + value + QLatin1Char(')');
+            item.toolTip = QCoreApplication::translate(
+                               "Gui::ExpressionCompleter",
+                               "User parameter %1, created with the current tool"
+                           )
+                               .arg(item.name)
+                + QLatin1Char('\n')
+                + QCoreApplication::translate("Gui::ExpressionCompleter", "Value: %1").arg(value);
             userParameters.push_back(std::move(item));
         }
         return userParameters;
@@ -1245,6 +1278,7 @@ private:
     std::set<App::DocumentObject*> inList;
     mutable std::vector<UserParameterItem> userParameters;
     mutable bool userParametersCached = false;
+    std::vector<App::UserParameters::PendingParameter> pendingParameters;
     std::string currentDoc;
     std::string currentObj;
     QList<Candidate> fuzzyCandidates;
@@ -1293,6 +1327,7 @@ void ExpressionCompleter::init()
 
     auto m = new ExpressionCompleterModel(this, noProperty);
     m->setUserParameters(userParameters);
+    m->setPendingUserParameters(pendingUserParameters);
     m->setDocumentObject(currentObj.getObject(), checkInList);
     setModel(m);
 }
@@ -1325,6 +1360,16 @@ void ExpressionCompleter::setUserParameters(bool enabled)
     userParameters = enabled;
     if (auto m = model()) {
         static_cast<ExpressionCompleterModel*>(m)->setUserParameters(enabled);
+    }
+}
+
+void ExpressionCompleter::setPendingUserParameters(
+    std::vector<App::UserParameters::PendingParameter> parameters
+)
+{
+    pendingUserParameters = std::move(parameters);
+    if (auto m = model()) {
+        static_cast<ExpressionCompleterModel*>(m)->setPendingUserParameters(pendingUserParameters);
     }
 }
 

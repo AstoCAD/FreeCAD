@@ -25,6 +25,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <Base/Exception.h>
@@ -235,6 +236,16 @@ void ConstraintLineByAngle(
     bool forceDimensional = false
 );
 
+/// What bindOnViewParameterExpression() did.
+struct OnViewParameterBinding
+{
+    /// The constraint is bound to the expression of the on-view parameter.
+    bool bound = false;
+    /// The user parameter that was created on the sketch for it. Empty when the on-view parameter
+    /// names none (`= 2 * height`) or when nothing was created.
+    std::string createdParameter;
+};
+
 /**
  * Bind the constraint created from the on-view parameter @p label to the expression typed in it.
  *
@@ -242,14 +253,27 @@ void ConstraintLineByAngle(
  * is the value of @p label (or its opposite, then the binding is negated). The user parameter
  * named in the label is created on @p sketch first. When no such constraint exists or binding
  * fails, nothing is created and a warning says that the parameter was not created.
- * Returns true on success.
  */
-bool bindOnViewParameterExpression(
+OnViewParameterBinding bindOnViewParameterExpression(
     Sketcher::SketchObject* sketch,
     const Gui::EditableDatumLabel& label,
     int firstConstraint,
     int endConstraint
 );
+
+/// Warns that the expression of the on-view parameter @p label is not bound, and the user
+/// parameter it names not created, because it uses the user parameter @p missingParameter that
+/// could not be created (see bindOnViewParameterExpression()).
+void warnOnViewParameterExpressionNotBound(
+    Sketcher::SketchObject* sketch,
+    const Gui::EditableDatumLabel& label,
+    const std::string& missingParameter
+);
+
+/// Removes the user parameter @p name that bindOnViewParameterExpression() created on @p sketch,
+/// for a tool that takes back what it created (the polyline undoing its last point). The
+/// parameter is kept while an expression still uses it. Returns true when it was removed.
+bool removeOnViewUserParameter(Sketcher::SketchObject* sketch, const std::string& name);
 /// @p forceDimensional: always an Angle constraint, never Parallel/Perpendicular.
 void Constraint2LinesByAngle(
     int geoId1,
