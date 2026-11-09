@@ -1268,6 +1268,55 @@ bool CmdSpreadsheetBordersNone::isActive()
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+DEF_STD_CMD_A(CmdSpreadsheetClearFormat)
+
+CmdSpreadsheetClearFormat::CmdSpreadsheetClearFormat()
+    : Command("Spreadsheet_ClearFormat")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("C&lear Formatting");
+    sToolTipText = QT_TR_NOOP(
+        "Removes the alignment, style, colors, units, number format and borders of the "
+        "selected cells, keeping their content"
+    );
+    sWhatsThis = "Spreadsheet_ClearFormat";
+    sStatusTip = sToolTipText;
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetClearFormat::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    auto* sheetView = freecad_cast<SpreadsheetGui::SheetView*>(Gui::getMainWindow()->activeWindow());
+    if (!sheetView) {
+        return;
+    }
+    Sheet* sheet = sheetView->getSheet();
+    std::vector<Range> ranges = sheetView->selectedRanges();
+    if (ranges.empty()) {
+        return;
+    }
+    openCommand(QT_TRANSLATE_NOOP("Command", "Clear formatting"));
+    for (const auto& range : ranges) {
+        Gui::Command::doCommand(
+            Gui::Command::Doc,
+            "App.ActiveDocument.%s.clearFormat('%s')",
+            sheet->getNameInDocument(),
+            range.rangeString().c_str()
+        );
+    }
+    commitCommand();
+    Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
+}
+
+bool CmdSpreadsheetClearFormat::isActive()
+{
+    return getActiveGuiDocument() && isSheetViewActive();
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 DEF_STD_CMD_A(CmdSpreadsheetSetAlias)
 
 CmdSpreadsheetSetAlias::CmdSpreadsheetSetAlias()
@@ -1411,6 +1460,8 @@ void CreateSpreadsheetCommands()
     rcCmdMgr.addCommand(new CmdSpreadsheetBordersLeft());
     rcCmdMgr.addCommand(new CmdSpreadsheetBordersRight());
     rcCmdMgr.addCommand(new CmdSpreadsheetBordersNone());
+
+    rcCmdMgr.addCommand(new CmdSpreadsheetClearFormat());
 
     rcCmdMgr.addCommand(new CmdSpreadsheetSetAlias());
 }

@@ -4016,6 +4016,112 @@ class SpreadsheetEditing(unittest.TestCase):
         finally:
             os.remove(path)
 
+    def _formatEverything(self, address):
+        sheet = self.sheet
+        sheet.setStyle(address, "bold|italic")
+        sheet.setAlignment(address, "center|top")
+        sheet.setForeground(address, (1.0, 0.0, 0.0))
+        sheet.setBackground(address, (0.0, 1.0, 0.0))
+        sheet.setDisplayUnit(address, "mm")
+        sheet.setDecimals(address, 4)
+        sheet.setNumberFormat(address, "scientific")
+        sheet.setBorders(address, "all")
+
+    def _formatOf(self, address):
+        sheet = self.sheet
+        return (
+            sheet.getStyle(address),
+            sheet.getAlignment(address),
+            sheet.getForeground(address),
+            sheet.getBackground(address),
+            sheet.getDisplayUnit(address),
+            sheet.getDecimals(address),
+            sheet.getNumberFormat(address),
+            sheet.getBorders(address),
+        )
+
+    def testClearFormat(self):
+        sheet = self.sheet
+        self.doc.UndoMode = 1
+        sheet.set("A1", "=2 * 3")
+        sheet.setAlias("A1", "six")
+        self._formatEverything("A1")
+        sheet.set("B1", "merged")
+        sheet.mergeCells("B1:C1")
+        sheet.setStyle("B1", "bold")
+        self.doc.recompute()
+        formatted = self._formatOf("A1")
+        self.doc.openTransaction("Clear formatting")
+        sheet.clearFormat("A1:C1")
+        self.doc.commitTransaction()
+        self.assertEqual(self._formatOf("A1"), (None,) * 8)
+        self.assertIsNone(sheet.getStyle("B1"))
+        # The content, alias and merging stay
+        self.assertEqual(sheet.getContents("A1"), "=2 * 3")
+        self.assertEqual(sheet.getAlias("A1"), "six")
+        self.assertEqual(sheet.getMergedCells(), ["B1:C1"])
+        self.doc.recompute()
+        self.assertEqual(sheet.six, 6)
+        self.doc.undo()
+        self.assertEqual(self._formatOf("A1"), formatted)
+        self.assertEqual(sheet.getStyle("B1"), {"bold"})
+        # Does not create cells
+        sheet.clearFormat("E1:E3")
+        self.assertNotIn("E1", sheet.getUsedCells())
+
+    def testCopyFormat(self):
+        sheet = self.sheet
+        self.doc.UndoMode = 1
+        sheet.set("A1", "1")
+        sheet.setAlias("A1", "first")
+        self._formatEverything("A1")
+        sheet.set("A2", "0.5")
+        sheet.setNumberFormat("A2", "percent")
+        sheet.set("C1", "3")
+        sheet.setStyle("C1", "underline")
+        self.doc.recompute()
+
+        self.doc.openTransaction("Paste formatting")
+        sheet.copyFormat("A1:A2", "C1")
+        self.doc.commitTransaction()
+        # A single target cell receives the size of the source
+        self.assertEqual(self._formatOf("C1"), self._formatOf("A1"))
+        self.assertEqual(sheet.getNumberFormat("C2"), "percent")
+        self.assertIsNone(sheet.getStyle("C2"))
+        # Only the formatting
+        self.assertEqual(sheet.getContents("C1"), "3")
+        self.assertIsNone(sheet.getAlias("C1"))
+        self.assertEqual(sheet.getContents("C2"), "")
+        self.doc.undo()
+        self.assertEqual(sheet.getStyle("C1"), {"underline"})
+        self.assertIsNone(sheet.getNumberFormat("C2"))
+
+        # A larger target is filled with whole copies of the source
+        sheet.copyFormat("A1:A2", "E1:E5")
+        self.assertEqual(sheet.getStyle("E3"), {"bold", "italic"})
+        self.assertEqual(sheet.getNumberFormat("E4"), "percent")
+        self.assertNotIn("E5", sheet.getUsedCells())
+        # An unformatted source cell removes the formatting, without creating cells
+        sheet.copyFormat("H1", "E1")
+        self.assertEqual(self._formatOf("E1"), (None,) * 8)
+        sheet.copyFormat("H1", "J1:J3")
+        self.assertNotIn("J1", sheet.getUsedCells())
+        # Overlapping ranges use the formatting from before the copy
+        sheet.copyFormat("A1:A2", "A2:A3")
+        self.assertEqual(sheet.getStyle("A2"), {"bold", "italic"})
+        self.assertEqual(sheet.getNumberFormat("A3"), "percent")
+        # A merged cell takes the formatting at its first cell
+        sheet.mergeCells("K1:L1")
+        sheet.copyFormat("A1", "K1:L1")
+        self.assertEqual(sheet.getStyle("K1"), {"bold", "italic"})
+        self.assertEqual(sheet.getMergedCells(), ["K1:L1"])
+        # The cells of a merged source get its borders along their edges only
+        sheet.mergeCells("N1:O2")
+        sheet.setBorders("N1:O2", "all", "outline")
+        sheet.copyFormat("N1:O2", "Q1")
+        self.assertEqual(sheet.getBorders("Q1"), {"top", "left"})
+        self.assertEqual(sheet.getBorders("R2"), {"bottom", "right"})
+
     def testBorders(self):
         sheet = self.sheet
         self.doc.UndoMode = 1

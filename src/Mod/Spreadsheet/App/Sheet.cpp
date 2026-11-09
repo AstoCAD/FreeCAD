@@ -2015,6 +2015,28 @@ void Sheet::setNumberFormat(App::Range range, Cell::NumberFormat format)
 }
 
 /**
+ * @brief Give the cells of \a range the formatting of new cells, keeping their content.
+ * @param range Range of cells
+ */
+
+void Sheet::clearFormat(App::Range range)
+{
+    cells.clearFormat(range);
+}
+
+/**
+ * @brief Give the cells of \a target the formatting of those of \a source, keeping
+ * their content; \a source is repeated over \a target like when pasting it.
+ * @param source Range of cells to take the formatting from
+ * @param target Range of cells to format
+ */
+
+void Sheet::copyFormat(App::Range source, App::Range target)
+{
+    cells.copyFormat(source, target);
+}
+
+/**
  * @brief Draw or remove borders on the cells of \a range.
  * @param range Range of cells
  * @param borders Or'ed Cell::BORDER_* values

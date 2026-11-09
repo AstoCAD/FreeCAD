@@ -135,6 +135,12 @@ public:
 
     void setNumberFormat(App::Range range, Cell::NumberFormat format);
 
+    /// Give the cells of \a range the formatting of new cells; their content stays.
+    void clearFormat(App::Range range);
+    /// Give the cells of \a target the formatting of those of \a source, repeated
+    /// over \a target like a paste of \a source; the content of the cells stays.
+    void copyFormat(App::Range source, App::Range target);
+
     /// How setBorders() combines the given borders with those of the cells.
     enum class BorderMode
     {

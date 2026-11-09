@@ -340,7 +340,8 @@ Gui::MenuItem* Workbench::setupMenuBar() const
                  << "Separator"
                  << "Spreadsheet_FillDown"
                  << "Spreadsheet_FillRight"
-                 << "Separator" << alignments << styles << borders << "Separator"
+                 << "Separator" << alignments << styles << borders
+                 << "Spreadsheet_ClearFormat" << "Separator"
                  << "Spreadsheet_IncreaseDecimals" << "Spreadsheet_DecreaseDecimals";
 
     return root;

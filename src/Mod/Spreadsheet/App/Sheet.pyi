@@ -192,6 +192,23 @@ class Sheet(DocumentObject):
         """Get the number format set for the cell, or None"""
         ...
 
+    def clearFormat(self, range: str, /) -> None:
+        """
+        Remove the formatting of the cells of the range: alignment, style,
+        colors, display unit, decimals, number format and borders. Their
+        content, aliases and merging stay.
+        """
+        ...
+
+    def copyFormat(self, source: str, target: str, /) -> None:
+        """
+        Give the cells of target the formatting of the cells of source, like a
+        paste of their formatting only: a single target cell receives the size
+        of source, a larger target is filled with as many copies of source as
+        fit. The content, aliases and merging of the cells stay.
+        """
+        ...
+
     def setBorders(self, cell: str, borders: str | set[str], options: str = ..., /) -> None:
         """
         Draw lines along the edges of the cell or range.

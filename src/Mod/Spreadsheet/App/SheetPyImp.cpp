@@ -856,6 +856,45 @@ PyObject* SheetPy::getNumberFormat(PyObject* args)
     }
 }
 
+PyObject* SheetPy::clearFormat(PyObject* args)
+{
+    const char* range;
+
+    if (!PyArg_ParseTuple(args, "s:clearFormat", &range)) {
+        return nullptr;
+    }
+
+    try {
+        getSheetPtr()->clearFormat(Range(range, true));
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+
+    Py_Return;
+}
+
+PyObject* SheetPy::copyFormat(PyObject* args)
+{
+    const char* source;
+    const char* target;
+
+    if (!PyArg_ParseTuple(args, "ss:copyFormat", &source, &target)) {
+        return nullptr;
+    }
+
+    try {
+        getSheetPtr()->copyFormat(Range(source, true), Range(target, true));
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+
+    Py_Return;
+}
+
 PyObject* SheetPy::setBorders(PyObject* args)
 {
     const char* cell;
