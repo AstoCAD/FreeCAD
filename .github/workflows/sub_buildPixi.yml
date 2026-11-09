@@ -205,6 +205,18 @@ jobs:
       run: |
         pixi run ccache -s
 
+    # pixi.toml takes occt from the AstoCAD OCCT fork's channel: fail if the build runs on another OCCT.
+    - name: Check that the build uses the AstoCAD OCCT fork
+      if: "!inputs.skipBuild"
+      timeout-minutes: 5
+      uses: ./.github/workflows/actions/runPythonTests
+      with:
+        testDescription: "AstoCAD OCCT fork check on build dir"
+        testCommand: ${{ env.builddir }}/bin/FreeCADCmd .github/scripts/check_occt_fork.py
+        logFile: ${{ env.logdir }}CheckOCCTFork.log
+        reportFile: ${{env.reportdir}}${{ env.reportfilename }}
+        shellCmd: ${{ env.shellCmd }}
+
     - name: FreeCAD CLI tests on build dir
       if: inputs.testOnBuildDir && !inputs.skipBuild
       timeout-minutes: 10
