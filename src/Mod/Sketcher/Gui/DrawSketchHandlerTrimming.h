@@ -265,7 +265,7 @@ public:
             {{.state = SelectMode::SeekFirst,
               .hints
               = {{tr("%1 pick edge to trim", "Sketcher Trimming: hint"), {MouseLeft}},
-                 {tr("%1 toggle include axes as trim boundaries"), {KeyU}}}}}
+                 {tr("%1 toggle include axes as trim boundaries"), {KeyHome}}}}}
         );
     }
 };
@@ -276,7 +276,7 @@ void DSHTrimmingController::configureToolWidget()
     if (!init) {  // Code to be executed only upon initialisation
         toolWidget->setCheckboxLabel(
             WCheckbox::FirstBox,
-            QApplication::translate("TaskSketcherTool_c1_trimming", "Include axes (U)")
+            QApplication::translate("TaskSketcherTool_c1_trimming", "Include axes (Home)")
         );
         toolWidget->setCheckboxToolTip(
             WCheckbox::FirstBox,
