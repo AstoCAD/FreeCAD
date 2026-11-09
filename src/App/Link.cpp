@@ -455,9 +455,13 @@ App::DocumentObjectExecReturn* LinkBaseExtension::extensionExecute()
 short LinkBaseExtension::extensionMustExecute()
 {
     auto link = getLink();
-    if (!link) {
+    if (!link || checkingMustExecute) {
         return 0;
     }
+    // A cyclic link, e.g. a plain PropertyLink configured as LinkedObject that
+    // links to its own container, would otherwise recurse here until the stack
+    // overflows. The cycle itself is reported by the document recompute.
+    Base::StateLocker guard(checkingMustExecute);
     return link->mustExecute();
 }
 

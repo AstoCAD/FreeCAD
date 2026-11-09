@@ -842,6 +842,10 @@ protected:
     /// Whether we are checking properties to avoid recursion.
     mutable bool checkingProperty = false;
 
+    /// Whether we are asking the linked object if it must execute, to avoid
+    /// recursion through a cyclic link.
+    bool checkingMustExecute = false;
+
     /// Whether to pause copy on change updates.
     bool pauseCopyOnChange = false;
 
