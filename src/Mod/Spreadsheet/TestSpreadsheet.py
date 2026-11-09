@@ -2237,6 +2237,64 @@ class SpreadsheetCases(unittest.TestCase):
             for cell in formulas:
                 self.assertEqual(sheet.get(cell), 16, (index, cell))
 
+    def testAliasRangeBoundThatNamesNoCell(self):
+        """A range bound that is an alias naming no cell made the dependency update throw
+        "Invalid cell address": removing the row of the bound's cell stopped half-way and
+        left the sheet half-moved, and typing =sum(start:stop) before defining the aliases was
+        refused. Like a reference to a single unknown alias, such a range is kept, also in the
+        file, and is an error until the alias names a cell"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "RemovedBound")
+        for row in range(1, 4):
+            sheet.set("A%d" % row, str(row))
+        sheet.setAlias("A1", "first")
+        sheet.setAlias("A3", "last")
+        sheet.set("B5", "=sum(first:last)")
+        sheet.set("C5", "=first")
+        self.doc.recompute()
+        sheet.removeRows("1", 1)
+        self.doc.recompute()
+        self.assertEqual([sheet.get("A%d" % row) for row in (1, 2)], [2, 3])
+        self.assertEqual(sheet.getContents("A3"), "")
+        self.assertEqual(sheet.getCellFromAlias("last"), "A2")
+        self.assertIsNone(sheet.getCellFromAlias("first"))
+        self.assertEqual(sheet.getContents("B4"), "=sum(first:last)")
+        self.assertEqual(sheet.getContents("C4"), "=first")
+        self.assertTrue(sheet.get("B4").startswith("ERR: Invalid cell address 'first'"))
+        self.assertTrue(sheet.get("C4").startswith("ERR:"))
+        self.assertEqual(sheet.getContents("B5"), "")
+        # The range is resolved again once the alias names a cell
+        sheet.setAlias("A1", "first")
+        self.doc.recompute()
+        self.assertEqual((sheet.get("B4"), sheet.get("C4")), (5, 2))
+
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "UnknownBounds")
+        sheet.set("B1", "=sum(start:stop)")
+        sheet.set("B2", "=B3 * 2")
+        sheet.set("B3", "7")
+        self.doc.recompute()
+        self.assertEqual(sheet.getContents("B1"), "=sum(start:stop)")
+        self.assertTrue(sheet.get("B1").startswith("ERR: Invalid cell address 'start'"))
+        self.assertEqual(sheet.get("B2"), 14)
+        filename = os.path.join(self.TempPath, "SpreadsheetAliasRangeBound.FCStd")
+        self.doc.saveAs(filename)
+        name = self.doc.Name
+        FreeCAD.closeDocument(name)
+        self.doc = FreeCAD.openDocument(filename)
+        sheet = self.doc.getObject("UnknownBounds")
+        self.doc.recompute()
+        self.assertEqual(
+            [sheet.getContents(cell) for cell in ("B1", "B2", "B3")],
+            ["=sum(start:stop)", "=B3 * 2", "7"],
+        )
+        self.assertEqual(sheet.get("B2"), 14)
+        self.assertTrue(sheet.get("B1").startswith("ERR: Invalid cell address 'start'"))
+        sheet.set("A1", "1")
+        sheet.set("A2", "2")
+        sheet.setAlias("A1", "start")
+        sheet.setAlias("A2", "stop")
+        self.doc.recompute()
+        self.assertEqual(sheet.get("B1"), 3)
+
     def testRemoveRowsColumnsInsideRange(self):
         """A bound of a range inside removed rows/columns moves to the nearest remaining
         row/column of the range. sum(A4:A7) with rows 3-4 removed became sum(A2:A5), adding
