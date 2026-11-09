@@ -3,7 +3,8 @@ name = "FreeCAD"
 version = "27.1.0"
 description = "pixi instructions for FreeCAD"
 authors = ["looooo <sppedflyer@gmail.com>"]
-channels = ["conda-forge"]
+## occt comes from the AstoCAD OCCT fork's channel (see occt below); everything else from conda-forge.
+channels = ["conda-forge", "https://astocad.github.io/occt-feedstock"]
 platforms = [
     { platform = "linux-64" },
     { platform = "linux-aarch64" },
@@ -44,7 +45,11 @@ ninja = "*"
 noqt5 = "*"
 numpy = "*"
 nlohmann_json = "*"
-occt = ">=8.0,<8.1"
+## The AstoCAD OCCT fork (https://github.com/AstoCAD/OCCT, tag V8_0_1-astocad2), built by
+## https://github.com/AstoCAD/occt-feedstock with conda-forge's recipe: same ABI as conda-forge's
+## occt 8.0.1, so the packages built against that (smesh, ifcopenshell, ...) use it unchanged.
+## The build number names the fork's tag: 1201 = astocad1, 1202 = astocad2.
+occt = { version = "==8.0.1", build = "all_*_1202", channel = "https://astocad.github.io/occt-feedstock" }
 opencamlib = "*"
 openssl = "*"
 pandas = "*"
