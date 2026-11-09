@@ -26,6 +26,7 @@
 #include <QFocusEvent>
 #include <QFontMetrics>
 #include <QLineEdit>
+#include <QMenu>
 #include <QtCore/QScopedValueRollback>
 #include <QStyle>
 #include <QStyleOptionSpinBox>
@@ -1232,9 +1233,48 @@ void QuantitySpinBox::focusInEvent(QFocusEvent* event)
     }
 }
 
+namespace
+{
+// Whether @p popup belongs to the field made of @p spinBox and its line edit @p edit: the popup
+// of a completer attached to it, or its context menu.
+bool isPopupOfField(const QWidget* popup, const QWidget* spinBox, const QWidget* edit)
+{
+    if (!popup) {
+        return false;
+    }
+    // QCompleter gives its popup no parent, and the widget it completes as focus proxy.
+    if (const QWidget* completed = popup->focusProxy(); completed == edit || completed == spinBox) {
+        return true;
+    }
+    // QAbstractSpinBox::contextMenuEvent() shows a menu whose parent is the line edit.
+    if (!qobject_cast<const QMenu*>(popup)) {
+        return false;
+    }
+    for (const QWidget* parent = popup->parentWidget(); parent; parent = parent->parentWidget()) {
+        if (parent == spinBox) {
+            return true;
+        }
+    }
+    return false;
+}
+}  // namespace
+
 void QuantitySpinBox::focusOutEvent(QFocusEvent* event)
 {
     Q_D(const QuantitySpinBox);
+
+    if (event->reason() == Qt::PopupFocusReason
+        && isPopupOfField(QApplication::activePopupWidget(), this, lineEdit())) {
+        // A popup of the field (the completer of an expression being typed, the context menu)
+        // takes the focus while the input is still being edited, as QLineEdit treats it. The
+        // input is not finished: interpreting it here would report an error on a half-typed
+        // expression and select the faulty part, which the next key then replaces. Any other
+        // popup (a menu of the main window, a toolbar drop-down) ends the editing: the command
+        // it runs must see the value that was typed.
+        QCoreApplication::sendEvent(lineEdit(), event);
+        QWidget::focusOutEvent(event);  // NOLINT(bugprone-parent-virtual-call)
+        return;
+    }
 
     validateInput();
 
