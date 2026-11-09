@@ -235,6 +235,29 @@ class BRepConversionTest(unittest.TestCase):
         document.recompute()
         self.assertIs(cut.BaseFeature, form)
 
+    def test_moving_a_profile_face_into_a_body_keeps_its_exact_profile(self):
+        from Forms import move_form_to_body
+
+        document = App.newDocument("FormsTestMoveProfileFace")
+        profile = Part.Face(Part.Wire([Part.makeCircle(10)]))
+        source = create_face(document, profile=profile)
+        source.Placement = App.Placement(App.Vector(30, 0, 0), App.Rotation())
+        body = document.addObject("PartDesign::Body", "Body")
+        body.Placement = App.Placement(App.Vector(0, 10, 0), App.Rotation(App.Vector(0, 0, 1), 90))
+        document.recompute()
+        global_center = source.Shape.BoundBox.Center
+        self.assertAlmostEqual(source.Shape.Area, profile.Area, places=7)
+
+        result = move_form_to_body(source, body)
+        document.recompute()
+
+        self.assertEqual(result.ConversionStatus, "Valid profile surface")
+        self.assertAlmostEqual(result.FormShape.Area, profile.Area, places=7)
+        center = body.Placement.multVec(result.FormShape.BoundBox.Center)
+        self.assertTrue(center.isEqual(global_center, 1.0e-6), (center, global_center))
+        for point in result.ControlPoints:
+            self.assertLess(result.FormShape.distToShape(Part.Vertex(point))[0], 1.0e-6)
+
     def _save_and_reopen_partdesign_form(self, editing):
         """Save a Body with Box, additive Form and Cut, reopen it and count
         the Form executions done while opening. Returns the reopened document,
