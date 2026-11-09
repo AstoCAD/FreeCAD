@@ -990,8 +990,7 @@ class Joint:
     """
 
     def findPlacement(self, joint, ref, index=0):
-        ignoreVertex = joint.JointType == "Distance"
-        plc = UtilsAssembly.findPlacement(ref, ignoreVertex)
+        plc = self.findPlacementWithoutOffset(joint, ref)
 
         # We apply the attachment offsets.
         if index == 0:
@@ -1000,6 +999,10 @@ class Joint:
             plc = plc * joint.Offset2
 
         return plc
+
+    def findPlacementWithoutOffset(self, joint, ref):
+        ignoreVertex = joint.JointType == "Distance"
+        return UtilsAssembly.findPlacement(ref, ignoreVertex)
 
     def flipOnePart(self, joint):
         self.matchJCS(joint, False, True)
@@ -1189,8 +1192,18 @@ class Joint:
         return UtilsAssembly.arePlacementZParallel(globalJcsPlc1, globalJcsPlc2)
 
     def setPreservedPosOffsets(self, joint):
-        jpl1 = UtilsAssembly.getJcsGlobalPlc(joint.Placement1, joint.Reference1)
-        jpl2 = UtilsAssembly.getJcsGlobalPlc(joint.Placement2, joint.Reference2)
+        # The offsets are replaced, so measure the JCS without the current ones: Placement1 and
+        # Placement2 still carry the offsets of an earlier pick, e.g. when a reference is picked
+        # again. A detached JCS does not follow the offsets: keep its placement.
+        plc1 = joint.Placement1
+        if not joint.Detach1:
+            plc1 = self.findPlacementWithoutOffset(joint, joint.Reference1)
+        plc2 = joint.Placement2
+        if not joint.Detach2:
+            plc2 = self.findPlacementWithoutOffset(joint, joint.Reference2)
+
+        jpl1 = UtilsAssembly.getJcsGlobalPlc(plc1, joint.Reference1)
+        jpl2 = UtilsAssembly.getJcsGlobalPlc(plc2, joint.Reference2)
         joint.Offset2 = jpl2.inverse() * jpl1
         joint.Offset1 = App.Placement()
 
