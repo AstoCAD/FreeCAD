@@ -463,6 +463,7 @@ protected:
     Expression* _copy() const override;
     void _visit(ExpressionVisitor& v) override;
     void _toString(std::ostream& ss, bool persistent, int indent) const override;
+    void _moveCells(const CellAddress&, int, int, ExpressionVisitor&) override;
 
     Function f; /**< Function to execute */
     std::string fname;
@@ -629,6 +630,15 @@ public:
     ExpressionPtr simplify() const override;
 
     Range getRange() const;
+
+    const std::string& getBegin() const
+    {
+        return begin;
+    }
+    const std::string& getEnd() const
+    {
+        return end;
+    }
 
 protected:
     Expression* _copy() const override;

@@ -2934,6 +2934,54 @@ void FunctionExpression::_visit(ExpressionVisitor &v)
     }
 }
 
+// A reference to a cell whose row or column was removed (see removedCellName()). Versions that
+// do not know the name read it back too, and report a missing property.
+static bool isRemovedCellReference(const std::string &name)
+{
+    return name == removedCellName();
+}
+
+static ObjectIdentifier removedCellPath(const DocumentObject *owner)
+{
+    ObjectIdentifier path(owner);
+    path << ObjectIdentifier::SimpleComponent(removedCellName());
+    return path;
+}
+
+void FunctionExpression::_moveCells(const CellAddress &, int, int, ExpressionVisitor &v)
+{
+    // RangeExpression::_moveCells, which is called before (a visitor visits the arguments
+    // first), marks a range whose cells are all removed. Make it a reference to a removed cell:
+    // a range needs two cell addresses or aliases, and versions that do not know the name
+    // could not read such a range back.
+    for (auto &arg : args) {
+        auto range = freecad_cast<RangeExpression*>(arg);
+        if (range && isRemovedCellReference(range->getBegin())) {
+            v.aboutToChange();
+            auto ref = new VariableExpression(owner, removedCellPath(owner));
+            delete arg;
+            arg = ref;
+        }
+    }
+}
+
+// Moves a row (or column) index when count rows are inserted at pos (count > 0), or removed up
+// to and including pos (count < 0). Returns false if the row is one of the removed ones.
+static bool moveCellIndex(int &index, int pos, int count)
+{
+    if (count >= 0) {
+        if (index >= pos) {
+            index += count;
+        }
+        return true;
+    }
+    if (index > pos) {
+        index += count;
+        return true;
+    }
+    return index <= pos + count;
+}
+
 //
 // VariableExpression class
 //
@@ -3017,7 +3065,16 @@ bool VariableExpression::_isIndexable() const {
 }
 
 Py::Object VariableExpression::_getPyValue() const {
-    return var.getPyValue(true);
+    try {
+        return var.getPyValue(true);
+    }
+    catch (Base::Exception &) {
+        // Say so, rather than that there is no property of this name
+        if (!var.getComponents().empty() && isRemovedCellReference(var.getPropertyName())) {
+            EXPR_THROW("Reference to a removed cell");
+        }
+        throw;
+    }
 }
 
 void VariableExpression::_toString(std::ostream &ss, bool persistent,int) const {
@@ -3126,13 +3183,26 @@ void VariableExpression::_moveCells(const CellAddress &address,
     CellAddress addr = stringToAddress(comp.getName().c_str(),true);
     if(!addr.isValid())
         return;
+    // Only a cell of this sheet. The path names another object if that object did not exist yet
+    // when the expression was read (otherwise its name is forced, see above).
+    if (var.getDocumentObject() != owner)
+        return;
 
-    int thisRow = addr.row();
-    int thisCol = addr.col();
-    if (thisRow >= address.row() || thisCol >= address.col()) {
+    int row = addr.row();
+    int col = addr.col();
+    if (!moveCellIndex(row, address.row(), rowCount)
+        || !moveCellIndex(col, address.col(), colCount)) {
+        // The cell is removed. Make the reference an error rather than let it point at the cell
+        // that takes its place. Components after the cell (A1.x) go too: they would make it
+        // read back as an object name.
         v.aboutToChange();
-        addr.setRow(thisRow + rowCount);
-        addr.setCol(thisCol + colCount);
+        var = removedCellPath(owner);
+        return;
+    }
+    if (row != addr.row() || col != addr.col()) {
+        v.aboutToChange();
+        addr.setRow(row);
+        addr.setCol(col);
         var.setComponent(idx,ObjectIdentifier::SimpleComponent(addr.toString()));
     }
 }
@@ -3515,8 +3585,9 @@ bool RangeExpression::_renameObjectIdentifier(
 // Moves the lower and upper row (or column) of a range when count rows are inserted at pos
 // (count > 0), or removed up to and including pos (count < 0). A bound inside the removed rows
 // moves to the nearest remaining row of the range, so that the range keeps the cells it still
-// has and takes in no others. A null bound is an alias, which moves with its cell.
-static void moveRangeBounds(int *lower, int *upper, int pos, int count)
+// has and takes in no others. A null bound is an alias, which moves with its cell. Returns false
+// if all the rows of the range are removed, leaving the bounds alone.
+static bool moveRangeBounds(int *lower, int *upper, int pos, int count)
 {
     if (count >= 0) {
         for (int *bound : {lower, upper}) {
@@ -3524,13 +3595,11 @@ static void moveRangeBounds(int *lower, int *upper, int pos, int count)
                 *bound += count;
             }
         }
-        return;
+        return true;
     }
     const int first = pos + count + 1;
     if (lower && upper && *lower >= first && *upper <= pos) {
-        // All the rows of the range are removed: no cell is left to point at. Leave the range
-        // alone rather than making an invalid address, which would abort the removal half-way.
-        return;
+        return false;
     }
     if (lower) {
         if (*lower > pos) {
@@ -3548,6 +3617,7 @@ static void moveRangeBounds(int *lower, int *upper, int pos, int count)
             *upper = first - 1;
         }
     }
+    return true;
 }
 
 void RangeExpression::_moveCells(const CellAddress &address,
@@ -3571,9 +3641,16 @@ void RangeExpression::_moveCells(const CellAddress &address,
         return {from.isValid() ? &fromValue : nullptr, to.isValid() ? &toValue : nullptr};
     };
     auto rows = bounds(fromRow, toRow);
-    moveRangeBounds(rows.first, rows.second, address.row(), rowCount);
     auto cols = bounds(fromCol, toCol);
-    moveRangeBounds(cols.first, cols.second, address.col(), colCount);
+    if (!moveRangeBounds(rows.first, rows.second, address.row(), rowCount)
+        || !moveRangeBounds(cols.first, cols.second, address.col(), colCount)) {
+        // No cell of the range is left. Mark it for FunctionExpression::_moveCells (the
+        // function of which the range is an argument, visited next), which replaces it.
+        v.aboutToChange();
+        begin = removedCellName();
+        end = removedCellName();
+        return;
+    }
 
     if (from.isValid() && (fromRow != from.row() || fromCol != from.col())) {
         v.aboutToChange();

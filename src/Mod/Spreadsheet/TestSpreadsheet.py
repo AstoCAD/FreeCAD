@@ -2283,14 +2283,120 @@ class SpreadsheetCases(unittest.TestCase):
         for row in range(1, 8):
             sheet.set("A%d" % row, str(row))
         sheet.set("C5", "=sum(A1:A4)")
-        sheet.set("D5", "=sum(A1:A1)")  # every cell removed: left alone
+        sheet.set("D5", "=sum(A1:A1)")  # every cell removed: an error
         self.doc.recompute()
         sheet.removeRows("1", 1)
         self.doc.recompute()
         self.assertEqual((sheet.getContents("C4"), sheet.get("C4")), ("=sum(A1:A3)", 9))
-        self.assertEqual(sheet.getContents("D4"), "=sum(A1:A1)")
+        self.assertEqual(sheet.getContents("D4"), "=sum(REF@)")
+        self.assertIn("Reference to a removed cell", sheet.get("D4"))
         self.assertEqual([sheet.get("A%d" % row) for row in range(1, 7)], [2, 3, 4, 5, 6, 7])
         self.assertEqual(sheet.getContents("A7"), "")
+
+    def testReferenceToRemovedCellIsError(self):
+        """A reference to a cell whose row or column is removed pointed at another cell: =A3
+        with row 3 removed became =A2, other objects' Sheet.A3 read the old A4; =A1 became =A0
+        (row 1 removed) or =@1 (column A removed), which read back as text. It becomes an error,
+        like #REF! in other spreadsheet programs, that is kept in the file"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        for row in range(1, 6):
+            sheet.set("A%d" % row, str(row))
+        sheet.set("B5", "10")
+        # Another sheet, created after the reference was read: only the cells of this sheet move
+        sheet.set("H1", "=Later.A3")
+        self.doc.addObject("Spreadsheet::Sheet", "Later")
+        formulas = {
+            # cell: (before, after removing row 3, value after)
+            "C1": ("=A3", "=REF@", None),
+            "D1": ("=$A$3 + A4", "=REF@ + A3", None),
+            "E1": ("=A2 + A4 + B5", "=A2 + A3 + B4", 16),
+            "F1": ("=sum(A3:A3)", "=sum(REF@)", None),
+            "G1": ("=sum(A2:A4)", "=sum(A2:A3)", 6),
+        }
+        for cell, (formula, _, _) in formulas.items():
+            sheet.set(cell, formula)
+        # References from other objects, to a sheet without errors (the objects that depend
+        # on a sheet with errors are not recomputed)
+        source = self.doc.addObject("Spreadsheet::Sheet", "Source")
+        for row in range(1, 6):
+            source.set("A%d" % row, str(row))
+        other = self.doc.addObject("Spreadsheet::Sheet", "Other")
+        other.set("A1", "=Source.A3")
+        other.set("A2", "=Source.A4")
+        obj = self.doc.addObject("App::FeaturePython", "Obj")
+        obj.addProperty("App::PropertyFloat", "Value")
+        obj.setExpression("Value", "Source.A3")
+        self.doc.recompute()
+
+        def check():
+            for cell, (_, formula, value) in formulas.items():
+                self.assertEqual(sheet.getContents(cell), formula, cell)
+                if value is None:
+                    self.assertIn("Reference to a removed cell", sheet.get(cell), cell)
+                else:
+                    self.assertEqual(sheet.get(cell), value, cell)
+            self.assertEqual(sheet.getContents("H1"), "=Later.A3")
+            self.assertEqual(other.getContents("A1"), "=Source.REF@")
+            self.assertIn("Reference to a removed cell", other.get("A1"))
+            self.assertEqual((other.getContents("A2"), other.A2), ("=Source.A3", 4))
+            self.assertEqual(obj.ExpressionEngine, [("Value", "Source.REF@")])
+            self.assertIn("Invalid", obj.State)
+
+        sheet.removeRows("3", 1)
+        source.removeRows("3", 1)
+        self.doc.recompute()
+        check()
+
+        # The error is kept in the file
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "removed.FCStd")
+            self.doc.saveAs(path)
+            FreeCAD.closeDocument(self.doc.Name)
+            self.doc = FreeCAD.openDocument(path)
+        sheet = self.doc.getObject("Spreadsheet")
+        other = self.doc.getObject("Other")
+        obj = self.doc.getObject("Obj")
+        self.doc.recompute()
+        check()
+        self.assertEqual(self.doc.getObject("Source").A3, 4)
+
+    def testUndoReferenceToRemovedCell(self):
+        """Undoing the removal of a row or column gives back the references to its cells"""
+        self.doc.UndoMode = 1
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "1")
+        sheet.set("B1", "2")
+        sheet.set("C2", "=A1 + B1")
+        sheet.set("C3", "=sum(A1:B1)")
+        obj = self.doc.addObject("App::FeaturePython", "Obj")
+        obj.addProperty("App::PropertyFloat", "Value")
+        obj.setExpression("Value", "Spreadsheet.A1")
+        self.doc.recompute()
+        for op, contents in (
+            (
+                lambda: sheet.removeRows("1", 1),
+                {"C1": "=REF@ + REF@", "C2": "=sum(REF@)"},
+            ),
+            (
+                lambda: sheet.removeColumns("A", 1),
+                {"A1": "2", "B2": "=REF@ + A1", "B3": "=sum(A1:A1)"},
+            ),
+        ):
+            self.doc.openTransaction("Remove")
+            op()
+            self.doc.commitTransaction()
+            self.doc.recompute()
+            self.assertEqual(
+                {cell: sheet.getContents(cell) for cell in sheet.getUsedCells()}, contents
+            )
+            self.assertEqual(obj.ExpressionEngine, [("Value", "Spreadsheet.REF@")])
+            self.doc.undo()
+            self.doc.recompute()
+            self.assertEqual(sheet.getContents("C2"), "=A1 + B1")
+            self.assertEqual(sheet.getContents("C3"), "=sum(A1:B1)")
+            self.assertEqual((sheet.C2, sheet.C3), (3, 3))
+            self.assertEqual(obj.ExpressionEngine, [("Value", "Spreadsheet.A1")])
+            self.assertEqual(obj.Value, 1)
 
     def testImportXLSXSharedFormulas(self):
         """Issue #20299: cells using a shared formula (formula dragged down

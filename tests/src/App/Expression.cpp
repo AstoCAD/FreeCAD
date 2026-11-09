@@ -123,6 +123,16 @@ TEST_F(Expression, tokenizeID)
     EXPECT_EQ(std::get<2>(result[0]), "Something");
 }
 
+TEST_F(Expression, tokenizeRemovedCellName)
+{
+    // A reference to a removed spreadsheet cell must read back as an identifier that is no cell
+    auto result = App::ExpressionParser::tokenize(App::removedCellName());
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(std::get<0>(result[0]), App::ExpressionParser::IDENTIFIER);
+    EXPECT_EQ(std::get<2>(result[0]), App::removedCellName());
+    EXPECT_FALSE(App::stringToAddress(App::removedCellName(), true).isValid());
+}
+
 TEST_F(Expression, tokenizeUnit)
 {
     auto result = App::ExpressionParser::tokenize("km");
