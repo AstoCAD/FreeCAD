@@ -229,9 +229,7 @@ class Writer:
         """
         objs = self.getMember("Fem::ConstantVacuumPermittivity")
         if len(objs) == 1:
-            permittivity = float(objs[0].VacuumPermittivity.getValueAs("F/m"))
-            # since the base unit of FC is in mm, we must scale it to get plain SI
-            permittivity = permittivity * 1e-9
+            permittivity = objs[0].VacuumPermittivity.getValueAs("F/m").Value
             Console.PrintLog(f"Overwriting vacuum permittivity with: {permittivity}\n")
             self.constsdef["PermittivityOfVacuum"] = "{} {}".format(permittivity, "F/m")
             self.handled(objs[0])
