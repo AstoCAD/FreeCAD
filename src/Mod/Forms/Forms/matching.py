@@ -58,6 +58,18 @@ from .match_support import (
 MATCH_CORNER_SHARPNESS = 10.0
 
 
+def _require_independent_support(obj, support):
+    """Refuse a support that is the Form itself or is computed from it.
+
+    MatchSupport makes the Form depend on the support. If the support also
+    depends on the Form, the document gets a dependency cycle and neither
+    object can be recomputed any more.
+    """
+    source = support[0] if support else None
+    if source is not None and (source == obj or obj in source.OutListRecursive):
+        raise ValueError("A Match support must not be the Form or depend on it")
+
+
 def _match_preview(
     obj,
     boundary_edges,
@@ -66,6 +78,7 @@ def _match_preview(
     tangent_mode="AdjacentFaces",
 ):
     """Build a Match result without modifying the document object."""
+    _require_independent_support(obj, support)
     target, tangent_face, _support_kind = _linked_support(support, obj)
     if target is None:
         raise ValueError("Match support must be one face or one closed wire")
@@ -125,6 +138,7 @@ def match_boundary(
         raise TypeError("Match requires a Forms object")
     from .feature import FormFeatureProxy
     FormFeatureProxy._ensure_match_properties(obj)
+    _require_independent_support(obj, support)
     target, tangent_face, _support_kind = _linked_support(support, obj)
     if target is None:
         raise ValueError("Match support must be one face or one closed wire")
