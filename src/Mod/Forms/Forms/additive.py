@@ -25,6 +25,8 @@
 
 from .feature import reset_cage
 
+import re
+
 import FreeCAD as App
 import Part
 
@@ -543,6 +545,13 @@ def move_form_to_body(source, body):
     ):
         if name in source.PropertiesList:
             copied[name] = getattr(source, name)
+    # Keep the copied properties parametric: e.g. a Length bound to a
+    # spreadsheet must still follow it in the Body feature.
+    expressions = []
+    for path, expression in source.ExpressionEngine:
+        name = re.split(r"[.\[]", str(path).lstrip("."))[0]
+        if name in copied:
+            expressions.append((name, path, expression))
     source_points = [App.Vector(point) for point in source.ControlPoints]
     local_points = [App.Vector(point) for point in getattr(source, "LocalControlPoints", ())]
     view_values = {}
@@ -562,6 +571,11 @@ def move_form_to_body(source, body):
     for name, value in copied.items():
         if name in result.PropertiesList:
             setattr(result, name, value)
+    # FreeCAD stores references to the object's own properties relative to
+    # it, so these now refer to the new feature, not to the removed source.
+    for name, path, expression in expressions:
+        if name in result.PropertiesList:
+            result.setExpression(path, expression)
 
     if source_mode == "Editable":
         # Editable cages already contain their final primitive geometry. Bake
