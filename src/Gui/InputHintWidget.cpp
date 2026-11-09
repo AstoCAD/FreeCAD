@@ -287,10 +287,10 @@ QString Gui::InputHintWidget::inputRepresentation(const InputHint::UserInput key
         case KeyUp: return QStringLiteral("↑");
         case KeyRight: return QStringLiteral("→");
         case KeyDown: return QStringLiteral("↓");
-        /*: Keyboard key for Page Down */
-        case KeyPageUp: return tr("PgDown");
         /*: Keyboard key for Page Up */
-        case KeyPageDown: return tr("PgUp");
+        case KeyPageUp: return tr("PgUp");
+        /*: Keyboard key for Page Down */
+        case KeyPageDown: return tr("PgDown");
 
         // modifiers
 #ifdef FC_OS_MACOSX
