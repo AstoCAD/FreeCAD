@@ -243,6 +243,76 @@ class DraftModification(test_base.DraftTestCaseDoc):
                     )
                     self.assertEqual(new.DrawMode, poly.DrawMode)
 
+    def test_offset_wire_with_fillet_in_place(self):
+        """Offset in place a wire with fillets, chamfers or subdivisions.
+
+        The Points must be offset like those of a plain wire, the fillets,
+        chamfers or subdivisions are then applied once to them.
+        """
+        open_points = [Vector(0, 0, 0), Vector(10, 0, 0), Vector(10, 10, 0)]
+        closed_points = open_points + [Vector(0, 10, 0)]
+        props = [("FilletRadius", 2), ("ChamferSize", 2), ("Subdivisions", 2)]
+        for points, closed in ((open_points, False), (closed_points, True)):
+            for delta in (Vector(0, -1, 0), Vector(0, 1, 0)):
+                plain = Draft.make_wire(points, closed=closed)
+                self.doc.recompute()
+                Draft.offset(plain, delta)
+                self.doc.recompute()
+                for prop, value in props:
+                    msg = "{} closed={} delta={}".format(prop, closed, delta)
+                    wire = Draft.make_wire(points, closed=closed)
+                    setattr(wire, prop, value)
+                    self.doc.recompute()
+                    Draft.offset(wire, delta)
+                    self.doc.recompute()
+                    self.assertEqual(len(wire.Points), len(plain.Points), msg)
+                    for point, expected in zip(wire.Points, plain.Points):
+                        self.assertTrue(point.isEqual(expected, 1e-6), msg)
+                    self.assertEqual(getattr(wire, prop), value, msg)
+                    self.assertFalse(wire.Shape.isNull(), msg)
+
+    def test_offset_rectangle_with_fillet(self):
+        """Offset a rectangle with fillets or chamfers."""
+        from draftgeoutils import offsets
+
+        delta = Vector(0, -1, 0)
+        for prop in ("FilletRadius", "ChamferSize"):
+            rect = Draft.make_rectangle(10, 4)
+            setattr(rect, prop, 1)
+            self.doc.recompute()
+            # A copy has the exact offset shape
+            exact = offsets.offsetWire(rect.Shape, delta)
+            new = Draft.offset(rect, delta, copy=True)
+            self.doc.recompute()
+            self.assertEqual(new.TypeId, "Part::Feature", prop)
+            self.assertAlmostEqual(new.Shape.Length, exact.Length, 6, prop)
+            # An offset in place changes the size, the corners stay rounded
+            Draft.offset(rect, delta)
+            self.doc.recompute()
+            self.assertAlmostEqual(rect.Length.Value, 12, 6, prop)
+            self.assertAlmostEqual(rect.Height.Value, 6, 6, prop)
+            self.assertTrue(rect.Placement.Base.isEqual(Vector(-1, -1, 0), 1e-6), prop)
+            self.assertEqual(getattr(rect, prop).Value, 1, prop)
+
+    def test_offset_polygon_with_fillet(self):
+        """Offset a polygon with fillets or chamfers like a plain polygon."""
+        for prop in ("FilletRadius", "ChamferSize"):
+            for inscribed in (True, False):
+                msg = "{} inscribed={}".format(prop, inscribed)
+                plain = Draft.make_polygon(6, 10, inscribed=inscribed)
+                poly = Draft.make_polygon(6, 10, inscribed=inscribed)
+                setattr(poly, prop, 1)
+                self.doc.recompute()
+                # Offset by 1 outwards, perpendicular to the first edge.
+                edge = plain.Shape.Edges[0]
+                delta = edge.CenterOfMass.normalize()
+                expected = Draft.offset(plain, delta, copy=True).Radius.Value
+                new = Draft.offset(poly, delta, copy=True)
+                self.assertAlmostEqual(new.Radius.Value, expected, 6, msg)
+                Draft.offset(poly, delta)
+                self.assertAlmostEqual(poly.Radius.Value, expected, 6, msg)
+                self.assertEqual(getattr(poly, prop).Value, 1, msg)
+
     def test_trim(self):
         """Trim a line. NOT IMPLEMENTED."""
         operation = "Draft Trimex trim"
