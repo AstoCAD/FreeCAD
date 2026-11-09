@@ -2557,6 +2557,56 @@ class SpreadsheetCases(unittest.TestCase):
         with self.assertRaises(AttributeError):
             sheet.C2
 
+    def testImportXLSXRichAndEmptyStrings(self):
+        """Text with several formatted runs is read whole, phonetic hints are
+        skipped and empty strings are read, without shifting the other strings"""
+        import zipfile
+        import importXLSX
+
+        main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        workbook = (
+            f'<workbook xmlns="{main}" xmlns:r="{rels}"><sheets>'
+            '<sheet name="Texts" sheetId="1" r:id="rId1"/></sheets></workbook>'
+        )
+        workbookRels = (
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'<Relationship Id="rId1" Type="{rels}/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>"
+        )
+        sharedStrings = (
+            f'<sst xmlns="{main}" count="4" uniqueCount="4">'
+            "<si><t>plain</t></si>"
+            '<si><r><t xml:space="preserve">Hello </t></r><r><rPr><b/></rPr><t>World</t></r>'
+            '<rPh sb="0" eb="1"><t>hint</t></rPh></si>'
+            "<si><t/></si>"
+            "<si><t>after</t></si>"
+            "</sst>"
+        )
+        worksheet = (
+            f'<worksheet xmlns="{main}"><sheetData>'
+            '<row r="1"><c r="A1" t="s"><v>0</v></c></row>'
+            '<row r="2"><c r="A2" t="s"><v>1</v></c></row>'
+            '<row r="3"><c r="A3" t="s"><v>2</v></c></row>'
+            '<row r="4"><c r="A4" t="s"><v>3</v></c></row>'
+            '<row r="5"><c r="A5" t="inlineStr"><is><r><t>in</t></r><r><t>line</t></r></is></c>'
+            "</row></sheetData></worksheet>"
+        )
+        filename = os.path.join(self.TempPath, "SpreadsheetRichStrings.xlsx")
+        with zipfile.ZipFile(filename, "w") as z:
+            z.writestr("xl/workbook.xml", workbook)
+            z.writestr("xl/_rels/workbook.xml.rels", workbookRels)
+            z.writestr("xl/sharedStrings.xml", sharedStrings)
+            z.writestr("xl/worksheets/sheet1.xml", worksheet)
+        importXLSX.insert(filename, self.doc.Name)
+        sheet = self.doc.getObject("Texts")
+        self.doc.recompute()
+        self.assertEqual(sheet.A1, "plain")
+        self.assertEqual(sheet.A2, "Hello World")
+        self.assertEqual(sheet.getContents("A3"), "")
+        self.assertEqual(sheet.A4, "after")
+        self.assertEqual(sheet.A5, "inline")
+
     def testImportXLSXFormatsOutsideSheet(self):
         """Formatted empty cells beyond column ZZ or row 16384, which Excel may
         write, are skipped instead of aborting the import"""

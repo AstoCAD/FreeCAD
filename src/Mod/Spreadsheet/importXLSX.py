@@ -314,7 +314,17 @@ def getText(nodelist):
     for node in nodelist:
         if node.nodeType == node.TEXT_NODE:
             rc.append(node.data)
-        return "".join(rc)
+    return "".join(rc)
+
+
+def stringItemText(item):
+    """The text of a string item (<si> of the shared strings, <is> of a cell):
+    its <t>, or the <t> of all its formatted runs, without the phonetic hints."""
+    return "".join(
+        getText(t.childNodes)
+        for t in item.getElementsByTagName("t")
+        if t.parentNode.tagName != "rPh"
+    )
 
 
 def handleWorkSheet(theDom, actSheet, strList, cellFormats=None):
@@ -583,8 +593,7 @@ def handleCells(cellList, actCellSheet, sList, sharedFormulas=None):
             iStringList = cell.getElementsByTagName("is")
             # print('iString: ', iStringList)
             for stringEle in iStringList:
-                tElement = stringEle.getElementsByTagName("t")[0]
-                theString = getText(tElement.childNodes)
+                theString = stringItemText(stringEle)
 
                 # print('theString: ', theString)
                 actCellSheet.set(ref, theString)
@@ -680,11 +689,9 @@ def handleWorkBook(theBook, theBookRels, sheetDict, Doc):
 
 
 def handleStrings(theStr, sList):
-    # print("process Strings: ")
-    stringElements = theStr.getElementsByTagName("t")
-    for sElem in stringElements:
-        # print("string: ", getText(sElem.childNodes))
-        sList.append(getText(sElem.childNodes))
+    # One string per <si>, which holds one <t> or several formatted runs
+    for item in theStr.getElementsByTagName("si"):
+        sList.append(stringItemText(item))
 
 
 def open(nameXLSX):
