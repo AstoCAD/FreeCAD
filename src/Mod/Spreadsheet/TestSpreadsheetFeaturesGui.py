@@ -136,6 +136,24 @@ class TestSpreadsheetFeaturesGui(unittest.TestCase):
         text = table.model().data(table.model().index(1, 0))
         self.assertEqual(text.count("0"), max(decimals - 1, 0))
 
+    def testBordersCommands(self):
+        table = self._tableView()
+        self._select(table, 0, 0, 1, 1)
+        FreeCADGui.runCommand("Spreadsheet_BordersOutside")
+        self._process()
+        self.assertEqual(self.sheet.getBorders("A1"), {"top", "left"})
+        self.assertEqual(self.sheet.getBorders("B2"), {"bottom", "right"})
+        FreeCADGui.runCommand("Spreadsheet_BordersAll")
+        self._process()
+        self.assertEqual(self.sheet.getBorders("A2"), {"top", "left", "bottom", "right"})
+        # One undo step per command
+        self.doc.undo()
+        self.assertEqual(self.sheet.getBorders("A2"), {"left", "bottom"})
+        FreeCADGui.runCommand("Spreadsheet_BordersNone")
+        self._process()
+        self.assertIsNone(self.sheet.getBorders("A1"))
+        self.assertIsNone(self.sheet.getBorders("B2"))
+
     def _clickCell(self, table, row, col):
         """Click a cell through the graphics view that hosts the table, like a user."""
         try:
