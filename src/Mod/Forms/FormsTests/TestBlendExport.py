@@ -146,6 +146,41 @@ class BlendExportTest(unittest.TestCase):
             self.assertEqual(destination.read_bytes(), b"previous blend contents")
             self.assertEqual(list(Path(temporary).glob(".*.tmp")), [])
 
+    def test_exported_view_does_not_clip_metre_sized_parts(self):
+        import json
+
+        from Forms.blender_bridge import find_blender_executable, run_blender_script
+
+        if not find_blender_executable():
+            self.skipTest("Blender integration requires an installed Blender")
+        document = App.newDocument("FormsTestBlendExportClipping")
+        obj = create_box(document)
+        document.recompute()
+        probe = (
+            "import bpy, json, sys\n"
+            "spaces = [space for screen in bpy.data.screens for area in screen.areas\n"
+            "          for space in area.spaces if space.type == 'VIEW_3D']\n"
+            "json.dump({'scale': bpy.context.scene.unit_settings.scale_length,\n"
+            "           'clip': [[space.clip_start, space.clip_end] for space in spaces]},\n"
+            "          open(sys.argv[sys.argv.index('--') + 1], 'w'))\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            blend = Path(temporary) / "clipping.blend"
+            script = Path(temporary) / "probe.py"
+            output = Path(temporary) / "clipping.json"
+            script.write_text(probe, encoding="utf-8")
+            self.assertEqual(export_file([obj], str(blend)), [])
+            run_blender_script(script, (output,), source_file=blend, operation="probing")
+            result = json.loads(output.read_text(encoding="utf-8"))
+
+        self.assertAlmostEqual(result["scale"], 0.001, places=6)
+        self.assertTrue(result["clip"])
+        for clip_start, clip_end in result["clip"]:
+            # 1 BU is 1 mm: parts several metres long stay inside the far plane,
+            # and the depth range is no wider than Blender's factory one.
+            self.assertGreaterEqual(clip_end, 100000.0)
+            self.assertLessEqual(clip_end / clip_start, 1.0e5 * 1.001)
+
     def test_export_file_runs_blender_with_built_payload(self):
         document = App.newDocument("FormsTestBlendExportRun")
         obj = create_box(document)
