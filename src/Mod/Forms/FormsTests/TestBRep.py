@@ -121,6 +121,29 @@ class BRepConversionTest(unittest.TestCase):
                 self.assertEqual(form.Shape.Tag, form.ID)
                 self.assertEqual(source.Shape.Tag, source.ID)
 
+    def test_partdesign_form_without_base_follows_part_design(self):
+        document = App.newDocument("FormsTestPartDesignFormWithoutBase")
+        added = document.addObject("PartDesign::Body", "Added")
+        form = create_additive_form(added, None, "Box")
+        cut_body = document.addObject("PartDesign::Body", "Cut")
+        cut = create_subtractive_form(cut_body, None, "Box")
+        native_body = document.addObject("PartDesign::Body", "Native")
+        native = native_body.newObject("PartDesign::SubtractiveBox", "NativeCut")
+        document.recompute()
+
+        # An additive feature without a base is the Body's first solid.
+        self.assertNotIn("Invalid", form.State)
+        self.assertEqual(form.Shape.ShapeType, "Solid")
+        self.assertAlmostEqual(added.Shape.Volume, form.Shape.Volume, places=6)
+        # A subtractive one has nothing to cut: it fails like the native
+        # feature instead of adding its tool to the Body as material.
+        self.assertIn("Invalid", native.State)
+        self.assertIn("Invalid", cut.State)
+        self.assertTrue(cut.Shape.isNull())
+        self.assertTrue(cut_body.Shape.isNull())
+        self.assertFalse(cut.AddSubShape.isNull())
+        self.assertIn("without a base feature", cut.CombinationStatus)
+
     def _save_and_reopen_partdesign_form(self, editing):
         """Save a Body with Box, additive Form and Cut, reopen it and count
         the Form executions done while opening. Returns the reopened document,

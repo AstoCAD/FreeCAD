@@ -220,6 +220,15 @@ class PartDesignFormProxy(FormFeatureProxy):
         else:
             base = Part.Shape()
         operation = _partdesign_operation(obj)
+        if base.isNull() and operation == "Subtractive":
+            # As for native Part Design subtractive features: there is nothing
+            # to cut, and the tool must not become the Body's material.
+            # FormShape and AddSubShape keep the tool for the preview.
+            obj.Shape = Part.Shape()
+            obj.CombinationStatus = App.Qt.translate(
+                "Forms_PartDesign", "Cannot subtract a Form without a base feature"
+            )
+            raise RuntimeError(obj.CombinationStatus)
         if base.isNull():
             obj.CombinationStatus = App.Qt.translate(
                 "Forms_PartDesign", "Form only; no preceding feature"
