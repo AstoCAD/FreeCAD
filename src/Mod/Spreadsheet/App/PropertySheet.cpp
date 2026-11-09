@@ -1164,6 +1164,9 @@ void PropertySheet::removeRows(int row, int count)
 
         if (key.row() >= row && key.row() < row + count) {
             clear(key, false);  // aliases were cleared earlier
+            // Other objects referring to the cell get an error too, like the cells of this sheet
+            renames[ObjectIdentifier(owner, key.toString())]
+                = ObjectIdentifier(owner, std::string(App::removedCellName()));
         }
         else if (key.row() >= row + count) {
             moveCell(key, CellAddress(key.row() - count, key.col()), renames);
@@ -1316,6 +1319,9 @@ void PropertySheet::removeColumns(int col, int count)
 
         if (key.col() >= col && key.col() < col + count) {
             clear(key, false);  // aliases were cleared earlier
+            // Other objects referring to the cell get an error too, like the cells of this sheet
+            renames[ObjectIdentifier(owner, key.toString())]
+                = ObjectIdentifier(owner, std::string(App::removedCellName()));
         }
         else if (key.col() >= col + count) {
             moveCell(key, CellAddress(key.row(), key.col() - count), renames);

@@ -38,6 +38,15 @@ AppExport int decodeColumn(const std::string& colstr, bool silent = false);
 AppExport int decodeRow(const std::string& rowstr, bool silent = false);
 AppExport bool validColumn(const std::string& colstr);
 AppExport int validRow(const std::string& rowstr);
+/**
+ * @brief The name a reference to a cell gets when the row or column of the cell is removed.
+ *
+ * It is like #REF! in other spreadsheet programs: the reference becomes an error instead of
+ * pointing at the cell that takes the place of the removed one. The name reads back as an
+ * identifier, so the expression stays valid, but it contains '@', which is in no cell address,
+ * alias or property name.
+ */
+AppExport const char* removedCellName();
 
 struct AppExport CellAddress
 {

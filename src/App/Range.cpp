@@ -213,6 +213,11 @@ int App::validRow(const std::string& rowstr)
     return i - 1;
 }
 
+const char* App::removedCellName()
+{
+    return "REF@";
+}
+
 /**
  * @brief Determine if a string is a valid column specification.
  *
