@@ -242,6 +242,18 @@ class TestCcxTools(unittest.TestCase):
         )
 
     # ********************************************************************************************
+    def test_fluid_section_pipe_bend_default(self):
+        # CalculiX reads area, bend radius / pipe diameter, bend angle in degrees (> 0) and
+        # roughness coefficient; its loss coefficient scales with angle / 90, so an angle of 0
+        # would silently make the bend lossless
+        from femsolver.calculix.write_femelement_geometry import liquid_section_def
+        import ObjectsFem
+
+        fluid = ObjectsFem.makeElementFluid1D(self.document)
+        fluid.LiquidSectionType = "PIPE BEND"
+        self.assertEqual(liquid_section_def(fluid, "PIPE BEND"), "20,1,90,0\n")
+
+    # ********************************************************************************************
     def test_box_frequency(self):
         # set up
         from femexamples.boxanalysis_frequency import setup
