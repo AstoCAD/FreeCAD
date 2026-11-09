@@ -316,10 +316,14 @@ class ViewProviderFormFace(ViewProviderFormBox):
             return False
         self._show_edit_shape(view_object, True)
         try:
-            return super().setEdit(view_object, mode)
+            started = super().setEdit(view_object, mode)
         except Exception:
             self._show_edit_shape(view_object, False)
             raise
+        if not started:
+            # FreeCAD does not call unsetEdit() after a rejected edit.
+            self._show_edit_shape(view_object, False)
+        return started
 
     def unsetEdit(self, view_object, mode):
         try:
