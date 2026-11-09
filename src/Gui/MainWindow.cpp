@@ -77,6 +77,7 @@
 #include <App/GeoFeature.h>
 #include <App/ImagePlane.h>
 #include <App/SafeMode.h>
+#include <App/UserParameters.h>
 #include <Base/ConsoleObserver.h>
 #include <Base/Parameter.h>
 #include <Base/Exception.h>
@@ -2501,15 +2502,72 @@ static App::DocumentObject* getActivePasteTarget(
     return nullptr;
 }
 
+// Give the pasted objects the user parameters of the document (App::UserParameters::mergePasted).
+// Pasted into the document they were copied from, they use its parameters as they are. Coming
+// from another document, the user chooses what happens to a parameter that the document
+// already has with another value.
+static void mergePastedUserParameters(
+    App::Document* doc,
+    std::vector<App::DocumentObject*>& newObj,
+    const QString& format,
+    const QByteArray& data
+)
+{
+    auto policy = App::UserParameters::PastePolicy::UseExisting;
+    const auto& copied = lastCopiedPlacements();
+    const bool sameDocument = copied.format == format && copied.data == data
+        && copied.document == doc->getName();
+    const auto conflicts = sameDocument ? std::vector<App::UserParameters::PastedConflict>()
+                                        : App::UserParameters::pastedConflicts(newObj);
+    if (!conflicts.empty()) {
+        QStringList lines;
+        for (const auto& conflict : conflicts) {
+            lines << MainWindow::tr("%1: %2 in this document, %3 pasted")
+                         .arg(
+                             QString::fromStdString(conflict.name),
+                             QString::fromStdString(conflict.existing),
+                             QString::fromStdString(conflict.pasted)
+                         );
+        }
+        QMessageBox box(getMainWindow());
+        box.setIcon(QMessageBox::Question);
+        box.setWindowTitle(MainWindow::tr("User parameters"));
+        box.setText(
+            MainWindow::tr(
+                "The pasted objects use user parameters that this document already has with "
+                "another value."
+            )
+        );
+        box.setInformativeText(lines.join(QLatin1Char('\n')));
+        QPushButton* useExisting
+            = box.addButton(MainWindow::tr("Use This Document's Values"), QMessageBox::AcceptRole);
+        QPushButton* keepPasted
+            = box.addButton(MainWindow::tr("Add as New Parameters"), QMessageBox::ActionRole);
+        box.setDefaultButton(useExisting);
+        box.exec();
+        if (box.clickedButton() == keepPasted) {
+            policy = App::UserParameters::PastePolicy::KeepPasted;
+        }
+    }
+    try {
+        App::UserParameters::mergePasted(newObj, policy);
+    }
+    catch (const Base::Exception& e) {
+        e.reportException();
+    }
+}
+
 // Put freshly pasted objects into the selected group, body or part (see App::CopyPasteRules)
 static void addPastedObjectsToContainer(
     App::Document* doc,
-    const std::vector<App::DocumentObject*>& newObj,
+    std::vector<App::DocumentObject*> newObj,
     const std::map<const App::DocumentObject*, Base::Placement>& sourcePlacements,
     const QString& format,
     const QByteArray& data
 )
 {
+    mergePastedUserParameters(doc, newObj, format, data);
+
     std::set<App::DocumentObject*> selected;
     for (const auto& sel : Gui::Selection().getSelection(doc->getName())) {
         if (sel.pObject) {

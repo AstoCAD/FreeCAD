@@ -96,7 +96,8 @@ public:
  * Copy: a dependency of the copied objects is "explained" when it is owned by a
  * copied object (group children, the Origin of an origin group, the features of a
  * coordinate system), recursively, or when it is an origin feature, which Paste
- * resolves in the target container. Modules can add explained objects and links
+ * resolves in the target container, or the holder of the user parameters, which Paste
+ * merges into the one of the target document. Modules can add explained objects and links
  * (CopyPasteHandler). When every dependency is explained, the objects can be
  * copied with their dependencies without asking.
  *

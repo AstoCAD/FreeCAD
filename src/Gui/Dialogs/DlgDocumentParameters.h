@@ -54,6 +54,9 @@ class Ui_DlgDocumentParameters;
  * The dialog is application modal but not run with exec(), like the dialog of
  * ViewProviderVarSet: exec() would block the command that opens it before it
  * closes its own transaction.
+ *
+ * Its size and position, the widths of its columns and "Show model parameters"
+ * are kept in the user parameters when it closes, and restored when it opens.
  */
 class GuiExport DlgDocumentParameters: public QDialog
 {
@@ -88,8 +91,13 @@ public:
     bool setParameterExpression(QTreeWidgetItem* item, const QString& text);
     bool setParameterValue(QTreeWidgetItem* item, const App::any& value);
     bool deleteParameter(QTreeWidgetItem* item, bool confirm);
+    /// Add a user parameter. It becomes a property of the object that holds the user parameters
+    /// of the document (App::UserParameters::holder), which is created, in the same transaction,
+    /// when the document has none.
+    bool addUserParameter(const QString& name, const QString& expression, const QString& comment);
+    /// Add a property to the variable set \a varSet, or to a new variable set if it is nullptr.
     bool addParameter(
-        App::DocumentObject* holder,
+        App::DocumentObject* varSet,
         const QString& name,
         const QString& expression,
         const QString& comment
@@ -105,6 +113,7 @@ public:
 
 public Q_SLOTS:
     void refresh();
+    void done(int result) override;
 
 protected:
     void changeEvent(QEvent* e) override;
@@ -123,8 +132,11 @@ private:
     App::Property* propertyOf(const QTreeWidgetItem* item) const;
     bool identifierOf(const QTreeWidgetItem* item, App::ObjectIdentifier& path) const;
     QTreeWidgetItem* itemFromIndex(const QModelIndex& index) const;
-    App::DocumentObject* defaultHolder() const;
+    /// What "Add" proposes for a new parameter: the name of a variable set, or of the object that
+    /// holds the user parameters, which the document may not have yet.
+    QString defaultAddTarget() const;
     void scheduleRefresh();
+    void saveLayout() const;
 
     std::string documentName;
     std::unique_ptr<Ui_DlgDocumentParameters> ui;

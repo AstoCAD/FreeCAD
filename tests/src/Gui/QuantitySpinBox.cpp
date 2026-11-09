@@ -1513,9 +1513,14 @@ private Q_SLOTS:
         ok->click();
         QCoreApplication::processEvents();
 
-        QVERIFY(App::UserParameters::isUserParameter(
-            owner.getObject()->getDynamicPropertyByName("height")
-        ));
+        // The parameter is created on the holder of the user parameters of the document, not on
+        // the object of the field, which is bound to it.
+        const App::DocumentObject* holder
+            = App::UserParameters::findHolder(owner.getObject()->getDocument());
+        QVERIFY(holder);
+        QVERIFY(App::UserParameters::isUserParameter(holder->getDynamicPropertyByName("height")));
+        QVERIFY(!owner.getObject()->getDynamicPropertyByName("height"));
+        QVERIFY(spinBox.hasExpression());
         QCOMPARE(spinBox.value(), Base::Quantity(25.0, "mm"));
     }
 

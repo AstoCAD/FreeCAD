@@ -24,8 +24,12 @@
 #include <memory>
 
 
+#include <App/Document.h>
+#include <App/UserParameters.h>
 #include <App/VarSet.h>
 
+#include "Application.h"
+#include "Document.h"
 #include "MainWindow.h"
 #include "ViewProviderVarSet.h"
 
@@ -60,4 +64,48 @@ bool ViewProviderVarSet::doubleClicked()
 void ViewProviderVarSet::onFinished(int /*result*/)
 {
     dialog = nullptr;
+}
+
+// The object holding the user parameters of a document (App::UserParameters::holder()) is created
+// on demand, when the user types `name = value` in an input: it is not shown in the tree unless
+// the user asks for it (ShowInTree, "Toggle Visibility in Tree View" in the tree). It is hidden
+// once, when the GUI first knows it; from then on ShowInTree is the choice of the user, which is
+// saved with the document.
+
+void ViewProviderVarSet::attach(App::DocumentObject* obj)
+{
+    ViewProviderDocumentObject::attach(obj);
+
+    if (!App::UserParameters::isHolder(obj)) {
+        return;
+    }
+    // Only a holder that is created now: one that is loaded, pasted or brought back by undo or
+    // redo gets its saved view properties, see finishRestoring().
+    const App::Document* doc = obj->getDocument();
+    if (!doc || doc->testStatus(App::Document::Restoring) || doc->isPerformingTransaction()) {
+        return;
+    }
+    // Not a view provider that is attached without being the one of the document
+    // (Gui.subgraphFromObject()).
+    const Gui::Document* guiDoc = Application::Instance->getDocument(doc);
+    if (guiDoc && guiDoc->getViewProvider(obj) == this) {
+        ShowInTree.setValue(false);
+    }
+}
+
+void ViewProviderVarSet::Restore(Base::XMLReader& reader)
+{
+    viewPropertiesRestored = true;
+    ViewProviderDocumentObject::Restore(reader);
+}
+
+void ViewProviderVarSet::finishRestoring()
+{
+    ViewProviderDocumentObject::finishRestoring();
+
+    // A document saved without the GUI has no view properties: its holder is new to the GUI.
+    if (!viewPropertiesRestored && App::UserParameters::isHolder(getObject())) {
+        ShowInTree.setValue(false);
+    }
+    viewPropertiesRestored = false;
 }

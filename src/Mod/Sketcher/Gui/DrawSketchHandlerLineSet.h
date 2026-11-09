@@ -22,7 +22,11 @@
 #pragma once
 
 #include <algorithm>
+#include <ranges>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 #include <QApplication>
 
 #include <Inventor/events/SoKeyboardEvent.h>
@@ -1177,6 +1181,8 @@ private:
                 // No fillet: this step only added one edge.
                 polySteps.emplace_back();
             }
+            // The step also owns the user parameters that its on-view parameters created.
+            polySteps.back().userParameters = std::exchange(stepUserParameters, {});
 
             Base::Vector3d p3d = obj->getPoint(geoEltIds.back().GeoId, geoEltIds.back().Pos);
             points.push_back(toVector2d(p3d));
@@ -1295,6 +1301,7 @@ private:
         geoEltIds.clear();
         points.clear();
         polySteps.clear();
+        stepUserParameters.clear();
 
         previousDirectionAngle = 0.0;
         dirChangeAngle = 0.0;
@@ -1369,6 +1376,20 @@ private:
                 obj->solve();
             }
 
+            // The user parameters that the on-view parameters of this step created go with it,
+            // or the names could not be typed again and would be left in the document (they are
+            // on the object holding its user parameters, which stays). The constraints bound to
+            // them went with the geometry. Last created first: a parameter of the step may use
+            // an earlier one of the same step.
+            std::vector<std::string> removedParameters;
+            for (const std::string& name : step.userParameters | std::views::reverse) {
+                if (removeOnViewUserParameter(obj, name)) {
+                    removedParameters.push_back(name);
+                }
+            }
+            // An expression typed for the next segment may already use one of them.
+            toolWidgetManager.unsetOnViewParametersUsing(removedParameters);
+
             // Deleting geometry renumbers the remaining IDs. Skip deleted entries and
             // shift each surviving ID down by the number of deleted IDs before it.
             // Since toDelete is sorted, lower_bound() gives both pieces of information.
@@ -1429,12 +1450,15 @@ private:
         return false;
     }
 
-    // Geometry one polyline step created, recorded at build time so undo can reverse it.
+    // What one polyline step created, recorded at build time so undo can reverse it.
     struct PolylineStep
     {
         int arcId = -1;   // fillet arc, if any
         int scrap1 = -1;  // construction scrap of the new edge, if any
         int scrap2 = -1;  // construction scrap of the prev edge, if any
+        // User parameters created from the on-view parameters of the step, in creation order.
+        // Not the ones that existed before or that an earlier step created.
+        std::vector<std::string> userParameters = {};
     };
 
 private:
@@ -1443,6 +1467,8 @@ private:
     std::vector<Base::Vector2d> points;
     std::vector<GeoElementId> geoEltIds;
     std::vector<PolylineStep> polySteps;
+    // The user parameters created by the step being added, until its PolylineStep is recorded.
+    std::vector<std::string> stepUserParameters;
     bool resetSeekSecond;
     bool resetEdge;
     bool fillet;
@@ -2238,8 +2264,9 @@ void DSHPolyLineController::addStepConstraints()
     }
 
     // The polyline adds its constraints segment by segment, inside its single command: bind the
-    // expressions typed in the on-view parameters of this segment now.
-    bindOnViewParameterExpressions();
+    // expressions typed in the on-view parameters of this segment now. The segment keeps the
+    // user parameters this created, to remove them if it is undone (undoLastPoint()).
+    handler->stepUserParameters = bindOnViewParameterExpressions();
 }
 
 }  // namespace SketcherGui

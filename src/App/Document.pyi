@@ -430,7 +430,9 @@ class Document(PropertyContainer):
         """
         Return the user parameters of the document as (object, property name) pairs.
 
-        User parameters are the properties of the group 'UserParameters'.
+        User parameters are the properties of the group 'UserParameters'. They
+        are created on one variable set of the document, 'UserParameters'; in
+        documents of earlier versions they can be on other objects.
         """
         ...
 
@@ -446,24 +448,28 @@ class Document(PropertyContainer):
     ) -> str:
         """
         Return an empty string if a user parameter 'name' can be created
-        (on 'owner' if given), otherwise the reason why not.
+        (typed in 'owner' if given), otherwise the reason why not.
         """
         ...
 
     def addUserParameter(self, owner: DocumentObject, name: str, value: str, /) -> str:
         """
-        Create the user parameter 'name' on 'owner' and return its name.
+        Create the user parameter 'name' and return its name.
 
-        'value' is an expression parsed with 'owner' as owner, e.g. '23 mm' or
-        '2 * otherParameter'. A literal is assigned as value, other expressions
-        are bound to the new property.
+        The parameter is created on the variable set 'UserParameters' of the
+        document, which is created when the document has none. 'owner' is the
+        object in which the parameter is typed: 'value' is an expression parsed
+        with it as owner, e.g. '23 mm', '2 * otherParameter' or '<<text>>'. A
+        literal is assigned as value, other expressions are bound to the new
+        property. The value is a number, a quantity or a text.
         """
         ...
 
     def renameUserParameter(self, owner: DocumentObject, name: str, newName: str, /) -> None:
         """
-        Rename the user parameter 'name' of 'owner' and update the expressions
-        of the document that refer to it.
+        Rename the user parameter 'name' and update the expressions of the
+        document that refer to it. 'owner' is the object holding it or any
+        object of the document.
         """
         ...
 

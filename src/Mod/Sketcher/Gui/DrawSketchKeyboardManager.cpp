@@ -22,13 +22,17 @@
 
 #include <QAbstractSpinBox>
 #include <QApplication>
+#include <QCursor>
 #include <QEvent>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QStyleHints>
 
 #include <utility>
 
 #include <Inventor/events/SoKeyboardEvent.h>
+
+#include <Gui/QuantitySpinBox.h>
 
 #include "DrawSketchKeyboardManager.h"
 
@@ -95,13 +99,15 @@ bool DrawSketchKeyboardManager::eventFilter(QObject* object, QEvent* event)
         // Here we decide if we redirect the input the viewer
         auto keyEvent = static_cast<QKeyEvent*>(event);
 
-        if (sendToolShortcut(keyEvent, /*inField=*/true)) {
+        if (sendToolShortcut(keyEvent, object)) {
             return true;
         }
 
         // Pressing Alt/Option sends the keypress to the viewer
-        // without permanently switching the destination (keyMode)
-        bool altPressed = (keyEvent->modifiers() & Qt::AltModifier);
+        // without permanently switching the destination (keyMode).
+        // Not a character typed with AltGr, which is no Alt+key: it is text for the field.
+        bool altPressed = (keyEvent->modifiers() & Qt::AltModifier)
+            && !typesTextWithAltGr(keyEvent);
         if (isMode(KeyboardEventHandlingMode::DSHControl) && altPressed) {
             // Convert from Alt+Key to just Key For view navigation
             keyEvent->setModifiers(keyEvent->modifiers() & ~Qt::AltModifier);
@@ -134,11 +140,23 @@ bool DrawSketchKeyboardManager::filterViewerEvent(QObject* object, QEvent* event
         case QEvent::KeyRelease:
             // The keys of a field sent on to the 3D view were handled in the field already.
             return object == vpViewer && !sendingToViewer
-                && sendToolShortcut(static_cast<QKeyEvent*>(event), /*inField=*/false);
+                && sendToolShortcut(static_cast<QKeyEvent*>(event), /*field=*/nullptr);
         case QEvent::MouseButtonPress:
         case QEvent::Wheel:
             // Alt held while clicking or scrolling in the 3D view is no tap
             altTap = false;
+            return false;
+        case QEvent::MouseMove:
+            // Nor is Alt held while moving the mouse: it rotates the view in the navigation
+            // styles that need no button for it (Touchpad). The distance of a drag tells that
+            // from a mouse that merely shakes while the key is tapped.
+            if (altTap) {
+                const QPoint cursor = static_cast<QMouseEvent*>(event)->globalPosition().toPoint();
+                if ((cursor - altPressCursor).manhattanLength()
+                    >= QGuiApplication::styleHints()->startDragDistance()) {
+                    altTap = false;
+                }
+            }
             return false;
         default:
             return false;
@@ -217,23 +235,47 @@ DrawSketchKeyboardManager::KeyboardEventHandlingMode DrawSketchKeyboardManager::
         // Letters are text in a field: units, names of user parameters (`height = 20 mm`) and
         // expressions (`= 2 * height`). The tool shortcuts are then other keys (see
         // sendToolShortcut()); Alt+letter still sends the letter to the 3D view.
+        // A letter typed with AltGr (Polish, Czech layouts) is a letter all the same.
         const auto commandModifiers = Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier;
-        if ((ch.isLetter() || ch == '_' || ch == '=') && !(keyEvent->modifiers() & commandModifiers)) {
+        const bool plainText = !(keyEvent->modifiers() & commandModifiers)
+            || typesTextWithAltGr(keyEvent);
+        if ((ch.isLetter() || ch == '_' || ch == '=') && plainText) {
             return KeyboardEventHandlingMode::DSHControl;
         }
     }
-    // A field still holding an expression (e.g. one refused on Enter) keeps being edited.
-    if (holdsExpression(object)) {
+    // A field still holding typed text (e.g. an expression refused on Enter) keeps being edited.
+    if (holdsTypedText(object)) {
         return KeyboardEventHandlingMode::DSHControl;
     }
     return keyMode;
 }
 
-bool DrawSketchKeyboardManager::holdsExpression(QObject* object)
+bool DrawSketchKeyboardManager::holdsTypedText(QObject* object)
 {
-    // A quantity never contains '=': the text is an expression being typed.
     auto* field = qobject_cast<QAbstractSpinBox*>(object);
-    return field && field->text().contains(QLatin1Char('='));
+    if (!field) {
+        return false;
+    }
+    // A quantity never contains '=': the text is an expression being typed.
+    if (field->text().contains(QLatin1Char('='))) {
+        return true;
+    }
+    // Text that is not a value was typed and is not accepted (yet): an expression without '='
+    // (`2*heigth`), also one refused on Enter. An emptied field holds nothing.
+    const auto* quantityField = qobject_cast<Gui::QuantitySpinBox*>(field);
+    return quantityField && !quantityField->hasValidInput() && !field->text().trimmed().isEmpty();
+}
+
+bool DrawSketchKeyboardManager::typesTextWithAltGr(const QKeyEvent* keyEvent)
+{
+    // Windows reports AltGr as Ctrl+Alt (Qt::GroupSwitchModifier is X11, or opt-in on Windows),
+    // with the character of the key as text ('[', '{', '@', '\' on AZERTY and QWERTZ layouts).
+    // A Ctrl+Alt+key command types no character.
+    const auto commandModifiers = Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier;
+    const auto altGr = Qt::ControlModifier | Qt::AltModifier;
+    const QString text = keyEvent->text();
+    return (keyEvent->modifiers() & commandModifiers) == altGr && !text.isEmpty()
+        && text.front().isPrint();
 }
 
 void DrawSketchKeyboardManager::setToolShortcutHandler(std::function<void(bool, int)> handler)
@@ -241,7 +283,7 @@ void DrawSketchKeyboardManager::setToolShortcutHandler(std::function<void(bool, 
     toolShortcutHandler = std::move(handler);
 }
 
-bool DrawSketchKeyboardManager::sendToolShortcut(QKeyEvent* keyEvent, bool inField)
+bool DrawSketchKeyboardManager::sendToolShortcut(QKeyEvent* keyEvent, QObject* field)
 {
     if (!toolShortcutHandler) {
         return false;
@@ -256,6 +298,7 @@ bool DrawSketchKeyboardManager::sendToolShortcut(QKeyEvent* keyEvent, bool inFie
             if (!keyEvent->isAutoRepeat()) {
                 altTap = true;
                 altPressTime.start();
+                altPressCursor = QCursor::pos();
             }
         }
         else if (altTap) {
@@ -285,9 +328,11 @@ bool DrawSketchKeyboardManager::sendToolShortcut(QKeyEvent* keyEvent, bool inFie
     if (shortcut == 0) {
         return false;
     }
-    // While a value is typed in the field, Home and End move the cursor in it
-    if (inField && (key == Qt::Key_Home || key == Qt::Key_End)
-        && isMode(KeyboardEventHandlingMode::DSHControl)) {
+    // While a value is typed in the field, Home and End move the cursor in it. Enter puts the
+    // keys back to the 3D view, also when the field refused the input: its text is still there
+    // to be corrected.
+    if (field && (key == Qt::Key_Home || key == Qt::Key_End)
+        && (isMode(KeyboardEventHandlingMode::DSHControl) || holdsTypedText(field))) {
         return false;
     }
     toolShortcutHandler(pressed, shortcut);

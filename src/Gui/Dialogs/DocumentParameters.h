@@ -47,13 +47,14 @@ class Unit;
  *
  * Parameters are:
  * - user parameters: properties in the property group named exactly
- *   "UserParameters" on any object of the document that is not a VarSet;
- * - VarSet parameters: the visible dynamic properties of every App::VarSet;
+ *   "UserParameters" (App::UserParameters).  They are properties of one variable set of the
+ *   document, its holder (App::UserParameters::findHolder); documents made before the holder
+ *   existed have them on other objects;
+ * - VarSet parameters: the other visible dynamic properties of every App::VarSet;
  * - model parameters (optional): expressions bound to properties of other
  *   objects, and named sketch constraints.
  *
- * All the scanning of user parameters is done in collectUserParameters() so
- * that it can be replaced by a document-level helper later.
+ * The user parameters are listed by App::UserParameters::getParameters().
  */
 namespace Gui::Parameters
 {
@@ -98,11 +99,11 @@ struct GuiExport Entry
 /// Whether \a prop is a user parameter (in the "UserParameters" group).
 GuiExport bool isUserParameter(const App::Property* prop);
 
-/// The user parameters of the document, sorted by name.  VarSets are skipped.
+/// The user parameters of the document, whatever object has them, sorted by name.
 GuiExport std::vector<App::Property*> collectUserParameters(const App::Document* doc);
 
-/// All parameters of the document: user parameters, then each VarSet (sorted by label), then the
-/// model parameters if \a includeModel is true.
+/// All parameters of the document: user parameters, then the other properties of each VarSet
+/// (sorted by label), then the model parameters if \a includeModel is true.
 GuiExport std::vector<Entry> collect(const App::Document* doc, bool includeModel);
 
 /// Build an entry for the property path \a path of \a obj.
@@ -129,9 +130,11 @@ enum class NameError
 };
 
 /**
- * Check \a name for a new or renamed parameter held by \a holder.  If \a userParameter is true,
- * the name must also be unique among the user parameters of the document.  \a exclude is the
- * property being renamed, if any.
+ * Check \a name for a new or renamed parameter.  \a holder is the variable set that gets or has
+ * the property.  If \a userParameter is true, \a holder is the object in which the name is typed
+ * or that has the renamed parameter: the name must also be unique among the user parameters of
+ * the document and be no property of the object that holds them (App::UserParameters::findHolder).
+ * \a exclude is the property being renamed, if any.
  */
 GuiExport NameError checkName(
     const App::DocumentObject* holder,

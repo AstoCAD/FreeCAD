@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <vector>
+
 #include <QCompleter>
 #include <QLineEdit>
 #include <QObject>
@@ -29,6 +31,7 @@
 #include <QValidator>
 #include <App/DocumentObserver.h>
 #include <App/ExpressionTokenizer.h>
+#include <App/UserParameters.h>
 
 class QStandardItem;
 
@@ -93,6 +96,10 @@ public:
     /// inputs that do not resolve bare user parameter names (App::UserParameters).
     void setUserParameters(bool enabled = true);
 
+    /// Also offer the user parameters that the tool in use is going to create
+    /// (App::UserParameters::PendingScope), by their bare name.
+    void setPendingUserParameters(std::vector<App::UserParameters::PendingParameter> parameters);
+
 public Q_SLOTS:
     void slotUpdate(const QString& prefix, int pos);
 
@@ -110,6 +117,7 @@ private:
     bool noProperty;
     bool checkInList;
     bool userParameters = true;
+    std::vector<App::UserParameters::PendingParameter> pendingUserParameters;
 };
 
 class GuiExport ExpressionLineEdit: public QLineEdit

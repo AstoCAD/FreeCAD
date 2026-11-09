@@ -23,12 +23,16 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include <QObject>
 #include <QPointer>
 #include <QLabel>
+#include <App/UserParameters.h>
 #include <Base/Unit.h>
 #include <Gui/QuantitySpinBox.h>
 
@@ -42,6 +46,9 @@ class SoAnnotation;
 class SoSwitch;
 class SoEventCallback;
 class SoPickStyle;
+class QAbstractItemView;
+class QCompleter;
+class QKeyEvent;
 class QLineEdit;
 
 namespace App
@@ -133,6 +140,14 @@ public:
     const Base::Unit& getUserExpressionUnit() const;
     /// Forget the expression once it has been bound (tools that bind at every step).
     void clearUserExpression();
+    /// The user parameter this label is going to create (`name = expression` accepted), if any.
+    std::optional<App::UserParameters::PendingParameter> getPendingUserParameter() const;
+    /// The user parameters that other inputs of the same tool are going to create: the input
+    /// of this label can already use them (App::UserParameters::PendingScope), they are
+    /// completed, and their names cannot be given again.
+    void setPendingUserParameters(
+        std::function<std::vector<App::UserParameters::PendingParameter>()> provider
+    );
     //@}
 
     // NOLINTBEGIN
@@ -171,7 +186,16 @@ private:
     /// Whether an owner is set (setUserParameterOwner()) and the expressions can name its document.
     bool acceptsUserExpressions() const;
     UserInput acceptUserExpressionInput();
+    std::vector<App::UserParameters::PendingParameter> otherPendingUserParameters() const;
     void setupUserParameterCompleter(QLineEdit* edit);
+    /// The completer of the editor (labels that accept user expressions), or nullptr.
+    QCompleter* userParameterCompleter() const;
+    /// Replaces the word the completer was completing by @p completion.
+    void applyCompletion(const QString& completion);
+    /// Tab and Enter pressed while the completer popup has the keyboard. Returns true when
+    /// the key was handled here.
+    bool handleCompleterPopupKey(QAbstractItemView* popup, QKeyEvent* keyEvent);
+    void hideCompleterPopup();
     bool syncValueFromSpinBox(bool emitParameterUnset = true);
     void handleSpinBoxValueChanged();
     void handleSpinBoxInputCleared();
@@ -198,8 +222,15 @@ private:
 
     Function function;
     double editStartValue;
+    /// The editor holds text typed by the user. While that text is not a valid value (an
+    /// expression or a name being typed, `= wid`, or an incomplete number, `1e`), isSet does
+    /// not tell the callers of setSpinboxValue() to leave the field alone: this is what keeps
+    /// the typed text from being replaced. It ends when the text is committed, emptied, given
+    /// up (Escape, a refused Enter or Tab) or left (the field loses the focus).
+    bool userEditPending {false};
 
     App::DocumentObject* userParameterOwner {nullptr};
+    std::function<std::vector<App::UserParameters::PendingParameter>()> pendingUserParameters;
     std::string userParameterName;
     std::shared_ptr<App::Expression> userExpression;
     Base::Unit userExpressionUnit;

@@ -1004,7 +1004,13 @@ PyObject* DocumentPy::addUserParameter(PyObject* args)
             throw Base::ValueError("Invalid value for the user parameter");
         }
         UserParameters::qualifyReferences(owner, *expr);
-        auto* prop = UserParameters::createParameter(owner, name, expr);
+        auto* prop = UserParameters::createParameter(
+            owner,
+            name,
+            expr,
+            Base::Unit::One,
+            UserParameters::ValueKind::NumberOrText
+        );
         return Py::new_reference_to(Py::String(prop->getName()));
     }
     PY_CATCH
@@ -1021,7 +1027,12 @@ PyObject* DocumentPy::renameUserParameter(PyObject* args)
     PY_TRY
     {
         DocumentObject* owner = userParameterOwner(pyowner, getDocumentPtr());
+        // The parameter is on the holder of the document, wherever it was typed; the object
+        // holding it can be given too (parameters of older documents are on other objects).
         Property* prop = owner->getDynamicPropertyByName(name);
+        if (!UserParameters::isUserParameter(prop)) {
+            prop = UserParameters::findParameter(getDocumentPtr(), name);
+        }
         if (!UserParameters::isUserParameter(prop)) {
             throw Base::NameError(std::string("No user parameter named '") + name + "'");
         }

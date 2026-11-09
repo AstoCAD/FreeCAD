@@ -47,8 +47,14 @@ public:
 
     void onFinished(int);
 
+    void attach(App::DocumentObject* obj) override;
+    void finishRestoring() override;
+    void Restore(Base::XMLReader& reader) override;
+
 private:
     std::unique_ptr<Dialog::DlgAddProperty> dialog;
+    /// Restore() gave this view provider the view properties saved with the document.
+    bool viewPropertiesRestored {false};
 };
 
 }  // namespace Gui

@@ -36,8 +36,10 @@
 #include <algorithm>
 
 #include <QAbstractItemView>
+#include <QApplication>
 #include <QCompleter>
 #include <QEvent>
+#include <QFocusEvent>
 #include <QFontMetrics>
 #include <QKeyEvent>
 #include <QPixmap>
@@ -64,6 +66,7 @@
 
 #include "EditableDatumLabel.h"
 #include "ExpressionCompleter.h"
+#include "UserParameterMessages.h"
 #include "Base/Console.h"
 #include "Gui/QuantitySpinBox.h"
 
@@ -222,6 +225,7 @@ void EditableDatumLabel::startEdit(double val, QObject* eventFilteringObj, bool 
     // Reset locked state when starting to edit
     this->resetLockedState();
     clearUserExpression();
+    userEditPending = false;
 
     QWidget* mdi = viewer->parentWidget();
 
@@ -286,8 +290,14 @@ void EditableDatumLabel::startEdit(double val, QObject* eventFilteringObj, bool 
     connect(spinBox, &QuantitySpinBox::inputCleared, this, &EditableDatumLabel::handleSpinBoxInputCleared);
     if (auto* edit = spinBox->findChild<QLineEdit*>()) {
         connect(edit, &QLineEdit::textChanged, this, [this, edit]() { this->updateGeometry(edit); });
-        // A new input replaces an accepted user parameter expression.
-        connect(edit, &QLineEdit::textEdited, this, [this]() { clearUserExpression(); });
+        // A new input replaces an accepted user parameter expression. Until it is committed
+        // (the spin box interprets the text after this signal, see syncValueFromSpinBox()), it
+        // is a pending edit that setSpinboxValue() must not replace. Emptying the field
+        // releases it.
+        connect(edit, &QLineEdit::textEdited, this, [this](const QString& text) {
+            clearUserExpression();
+            userEditPending = !text.trimmed().isEmpty();
+        });
         setupUserParameterCompleter(edit);
     }
 }
@@ -316,6 +326,28 @@ bool isTypingName(const QString& text, int cursor)
     // a unit follows a number
     return before == 0 || !(text[before - 1].isDigit() || text[before - 1] == QLatin1Char('.')
                             || text[before - 1] == QLatin1Char(','));
+}
+
+// The unit symbol the field shows after its value ("mm" for "9.12 mm"), empty when none.
+QString shownUnit(const QuantitySpinBox* spinBox)
+{
+    const QString shown = QString::fromStdString(spinBox->value().getUserString());
+    static const QRegularExpression lastDigit(QStringLiteral(R"(\d)"));
+    return shown.mid(shown.lastIndexOf(lastDigit) + 1).trimmed();
+}
+
+// Whether @p text names something (`2*heigth`, `width mm`), as opposed to a number with or
+// without its unit, complete or not (`12 mm`, `1e`, `-`).
+bool containsName(const QString& text)
+{
+    for (int end = 1; end <= text.size(); ++end) {
+        const bool wordEnds = end == text.size()
+            || !(text[end].isLetterOrNumber() || text[end] == QLatin1Char('_'));
+        if (wordEnds && isTypingName(text, end)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // The popup of a completer takes the width of the field it completes, which for an on-view
@@ -350,8 +382,9 @@ void EditableDatumLabel::setupUserParameterCompleter(QLineEdit* edit)
     if (!ExpressionParameter::instance()->isExactMatch()) {
         completer->setFilterMode(Qt::MatchContains);
     }
-    connect(edit, &QLineEdit::textEdited, completer, [completer, edit](const QString& text) {
+    connect(edit, &QLineEdit::textEdited, completer, [this, completer, edit](const QString& text) {
         if (isTypingName(text, edit->cursorPosition())) {
+            completer->setPendingUserParameters(otherPendingUserParameters());
             completer->slotUpdate(text, edit->cursorPosition());
             fitCompleterPopup(completer, edit);
         }
@@ -359,17 +392,87 @@ void EditableDatumLabel::setupUserParameterCompleter(QLineEdit* edit)
             completer->popup()->hide();
         }
     });
-    const auto complete = [completer, edit](const QString& completion) {
-        int start = 0;
-        int end = 0;
-        completer->getPrefixRange(start, end);
-        const QString before = edit->text().left(start) + completion;
-        const QString after = edit->text().mid(end);
-        edit->setText(before + after);
-        edit->setCursorPosition(static_cast<int>(before.size()));
-        completer->updatePrefixEnd(static_cast<int>(before.size()));
-    };
-    connect(completer, qOverload<const QString&>(&QCompleter::activated), edit, complete);
+    connect(
+        completer,
+        qOverload<const QString&>(&QCompleter::activated),
+        this,
+        &EditableDatumLabel::applyCompletion
+    );
+    // While the popup is shown it has the keyboard, and QCompleter hands the keys it does not
+    // use straight to the line edit, past the event filters of the spin box (this label, the
+    // keyboard manager of the tool). Installed after the completer's own filter (popup()
+    // creates the popup and installs it), so this one sees the keys first.
+    completer->popup()->installEventFilter(this);
+}
+
+QCompleter* EditableDatumLabel::userParameterCompleter() const
+{
+    return spinBox ? spinBox->findChild<QCompleter*>(QString(), Qt::FindDirectChildrenOnly)
+                   : nullptr;
+}
+
+void EditableDatumLabel::applyCompletion(const QString& completion)
+{
+    auto* completer = qobject_cast<ExpressionCompleter*>(userParameterCompleter());
+    auto* edit = spinBox ? spinBox->findChild<QLineEdit*>() : nullptr;
+    if (!completer || !edit) {
+        return;
+    }
+    int start = 0;
+    int end = 0;
+    completer->getPrefixRange(start, end);
+    const QString before = edit->text().left(start) + completion;
+    const QString after = edit->text().mid(end);
+    edit->setText(before + after);
+    edit->setCursorPosition(static_cast<int>(before.size()));
+    completer->updatePrefixEnd(static_cast<int>(before.size()));
+    // setText() is no user edit for the line edit, but the completed text is the user's input.
+    clearUserExpression();
+    userEditPending = true;
+}
+
+void EditableDatumLabel::hideCompleterPopup()
+{
+    if (auto* completer = userParameterCompleter()) {
+        if (QAbstractItemView* popup = completer->popup(); popup && popup->isVisible()) {
+            popup->hide();
+        }
+    }
+}
+
+// Tab completes the highlighted completion, or the first one, like the expression editor of
+// the formula dialog; Enter completes the highlighted one. With nothing to complete, the key
+// goes to the spin box as if the popup were closed, so that it accepts or refuses the input
+// the usual way. Without this, QCompleter gives Tab to the line edit, which moves the focus
+// away and loses the input, and Enter only closes the popup.
+bool EditableDatumLabel::handleCompleterPopupKey(QAbstractItemView* popup, QKeyEvent* keyEvent)
+{
+    const int key = keyEvent->key();
+    const bool tab = key == Qt::Key_Tab;
+    if (!tab && key != Qt::Key_Return && key != Qt::Key_Enter) {
+        return false;
+    }
+    auto* completer = userParameterCompleter();
+    if (!completer || !spinBox) {
+        return false;
+    }
+
+    QModelIndex index = popup->currentIndex();
+    if (!index.isValid() && tab && popup->model()) {
+        index = popup->model()->index(0, 0);
+    }
+    const bool plainKey = !(keyEvent->modifiers()
+                            & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
+    if (index.isValid() && plainKey && completer->setCurrentRow(index.row())) {
+        const QString completion = completer->currentCompletion();
+        popup->hide();
+        applyCompletion(completion);
+        return true;
+    }
+
+    popup->hide();
+    QApplication::sendEvent(spinBox, keyEvent);
+    return true;
 }
 
 void EditableDatumLabel::setUserParameterOwner(App::DocumentObject* owner)
@@ -405,6 +508,30 @@ std::shared_ptr<App::Expression> EditableDatumLabel::getUserExpression() const
 const Base::Unit& EditableDatumLabel::getUserExpressionUnit() const
 {
     return userExpressionUnit;
+}
+
+std::optional<App::UserParameters::PendingParameter> EditableDatumLabel::getPendingUserParameter() const
+{
+    if (!hasUserExpression() || userParameterName.empty()) {
+        return std::nullopt;
+    }
+    return App::UserParameters::PendingParameter {
+        userParameterName,
+        Base::Quantity(userExpressionValue, userExpressionUnit)
+    };
+}
+
+void EditableDatumLabel::setPendingUserParameters(
+    std::function<std::vector<App::UserParameters::PendingParameter>()> provider
+)
+{
+    pendingUserParameters = std::move(provider);
+}
+
+std::vector<App::UserParameters::PendingParameter> EditableDatumLabel::otherPendingUserParameters() const
+{
+    return pendingUserParameters ? pendingUserParameters()
+                                 : std::vector<App::UserParameters::PendingParameter>();
 }
 
 void EditableDatumLabel::clearUserExpression()
@@ -443,16 +570,40 @@ EditableDatumLabel::UserInput EditableDatumLabel::acceptUserExpressionInput()
         return UserInput::Rejected;
     };
 
+    // The parameters typed in the other inputs of the tool are created with it, after this input.
+    const auto pending = otherPendingUserParameters();
     Base::Quantity quantity;
     QString error;
-    const auto expression = spinBox->interpretExpression(
-        QString::fromStdString(assignment ? rhs : input),
-        App::ObjectIdentifier(userParameterOwner->Label),
-        quantity,
-        error
-    );
+    std::shared_ptr<App::Expression> expression;
+    {
+        App::UserParameters::PendingScope scope(userParameterOwner, pending);
+        expression = spinBox->interpretExpression(
+            QString::fromStdString(assignment ? rhs : input),
+            App::ObjectIdentifier(userParameterOwner->Label),
+            quantity,
+            error
+        );
+    }
     if (!expression) {
-        if (!assignment && !explicitExpression) {
+        // An expression typed over the shown value keeps the unit the field showed behind it
+        // ("2*height mm"), which no expression ends with: the unit was not typed. Only tried
+        // when the input is not valid as it is, so that no valid input changes its meaning.
+        const QString typed = QString::fromStdString(assignment ? rhs : input).trimmed();
+        const QString unit = shownUnit(spinBox);
+        if (!unit.isEmpty() && typed.endsWith(unit) && typed.size() > unit.size()) {
+            App::UserParameters::PendingScope scope(userParameterOwner, pending);
+            expression = spinBox->interpretExpression(
+                typed.left(typed.size() - unit.size()),
+                App::ObjectIdentifier(userParameterOwner->Label),
+                quantity,
+                error
+            );
+        }
+    }
+    if (!expression) {
+        // A number, complete or not, keeps its usual handling. An input that names something
+        // is an expression that cannot be used: say why, instead of dropping it silently.
+        if (!assignment && !explicitExpression && !containsName(QString::fromStdString(input))) {
             return UserInput::NotApplicable;
         }
         return reject(error);
@@ -465,9 +616,16 @@ EditableDatumLabel::UserInput EditableDatumLabel::acceptUserExpressionInput()
             userParameterOwner
         );
         if (status != App::UserParameters::NameStatus::Available) {
-            return reject(
-                QString::fromStdString(App::UserParameters::nameStatusMessage(status, name))
-            );
+            return reject(userParameterNameStatusText(status, QString::fromStdString(name)));
+        }
+        const bool namedAgain = std::ranges::any_of(pending, [&name](const auto& parameter) {
+            return parameter.name == name;
+        });
+        if (namedAgain) {
+            return reject(userParameterNameStatusText(
+                App::UserParameters::NameStatus::UsedByParameter,
+                QString::fromStdString(name)
+            ));
         }
     }
 
@@ -478,6 +636,7 @@ EditableDatumLabel::UserInput EditableDatumLabel::acceptUserExpressionInput()
     }
 
     clearUserExpression();
+    userEditPending = false;
     // `= 30 mm` is a plain value.
     if (assignment || !expression->getIdentifiers().empty()) {
         userParameterName = assignment ? name : std::string();
@@ -496,6 +655,8 @@ bool EditableDatumLabel::syncValueFromSpinBox(bool emitParameterUnset)
 
     if (!spinBox->hasValidInput()) {
         if (emitParameterUnset) {
+            // The input is given up: the label takes the values it is given again.
+            userEditPending = false;
             resetLockedState();
             Q_EMIT parameterUnset();
         }
@@ -504,6 +665,7 @@ bool EditableDatumLabel::syncValueFromSpinBox(bool emitParameterUnset)
 
     value = spinBox->rawValue();
     isSet = true;
+    userEditPending = false;
 
     if (hasFinishedEditing) {
         setLockedAppearance(true);
@@ -534,6 +696,15 @@ void EditableDatumLabel::handleSpinBoxInputCleared()
 
 bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
 {
+    if (event->type() == QEvent::KeyPress && watched != spinBox) {
+        if (auto* popup = qobject_cast<QAbstractItemView*>(watched)) {
+            const auto* completer = userParameterCompleter();
+            if (completer && completer->popup() == popup) {
+                return handleCompleterPopupKey(popup, static_cast<QKeyEvent*>(event));
+            }
+            return false;
+        }
+    }
     if (event->type() == QEvent::KeyPress) {
         auto* keyEvent = static_cast<QKeyEvent*>(event);
         // `= expression` and `name = expression`: '=' typed over the shown value and unit
@@ -543,9 +714,15 @@ bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
         // (setUserParameterOwner()).
         const QString typed = keyEvent->text();
         const bool startsExpression = typed == QLatin1String("=");
+        // AltGr arrives as Ctrl+Alt on Windows and types text (letters on some layouts), as
+        // in DrawSketchKeyboardManager; other Ctrl, Alt and Meta combinations are commands.
+        const auto commandModifiers = Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier;
+        const auto typedModifiers = keyEvent->modifiers() & commandModifiers;
+        const bool altGrText = typedModifiers == (Qt::ControlModifier | Qt::AltModifier)
+            && !typed.isEmpty() && typed.front().isPrint();
         const bool startsName = typed.size() == 1
             && (typed.front().isLetter() || typed.front() == QLatin1Char('_'))
-            && !(keyEvent->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
+            && (!typedModifiers || altGrText);
         if ((startsExpression || startsName) && qobject_cast<QAbstractSpinBox*>(watched)
             && spinBox && acceptsUserExpressions()) {
             if (auto* edit = spinBox->findChild<QLineEdit*>()) {
@@ -557,9 +734,7 @@ bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
                 // a letter: after a typed number it starts a unit, "1 c" for "1 cm"): nothing
                 // typed that the expression would need. Anything else ("h", "height") is a name
                 // being typed and is kept, even when it is also a unit symbol (h = hour).
-                const QString shown = QString::fromStdString(spinBox->value().getUserString());
-                static const QRegularExpression lastDigit(QStringLiteral(R"(\d)"));
-                const QString unit = shown.mid(shown.lastIndexOf(lastDigit) + 1).trimmed();
+                const QString unit = shownUnit(spinBox);
                 QString remaining = rest.trimmed();
                 if (!unit.isEmpty() && remaining.endsWith(unit)) {
                     remaining.chop(unit.size());
@@ -568,6 +743,8 @@ bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
                 if (startsExpression && number.match(remaining).hasMatch()) {
                     edit->setText(QStringLiteral("="));
                     clearUserExpression();
+                    // setText() is no user edit for the line edit: the '=' is typed text.
+                    userEditPending = true;
                     return true;
                 }
                 if (startsName && remaining.trimmed().isEmpty() && !rest.trimmed().isEmpty()) {
@@ -583,6 +760,7 @@ bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
                 this->isSet = false;
                 this->hasFinishedEditing = false;
                 this->clearUserExpression();
+                this->userEditPending = false;
                 this->setLockedAppearance(false);
                 this->setSpinboxValue(this->editStartValue);
                 this->stopEdit();
@@ -644,6 +822,13 @@ bool EditableDatumLabel::eventFilter(QObject* watched, QEvent* event)
     }
     else if (event->type() == QEvent::FocusOut) {
         if (watched == spinBox) {
+            // The field is left with its input unfinished: it takes the values it is given
+            // again. A popup of the field (its completer) or another window taking the focus
+            // does not leave the field: the focus comes back to the text being typed.
+            const auto reason = static_cast<QFocusEvent*>(event)->reason();
+            if (reason != Qt::PopupFocusReason && reason != Qt::ActiveWindowFocusReason) {
+                userEditPending = false;
+            }
             Q_EMIT focusLost();
         }
     }
@@ -665,6 +850,9 @@ void EditableDatumLabel::stopEdit(bool writeChanges)
             label->string = quantity.getUserString().c_str();
         }
 
+        // The popup is a window of its own: it would stay until the spin box is deleted.
+        hideCompleterPopup();
+        userEditPending = false;
         spinBox->deleteLater();
         spinBox = nullptr;
 
@@ -702,6 +890,18 @@ void EditableDatumLabel::setSpinboxValue(double val, const Base::Unit& unit)
         label->string = SbString(valueStr.c_str());
         return;
     }
+
+    if (userEditPending && !spinBox->hasValidInput()) {
+        // The user is typing in the field (`= wid`, `1e`): the text is not a value yet, so
+        // isSet does not tell the caller to leave the field alone. Replacing it would lose
+        // the input, and a completion picked afterwards would be inserted into the new text.
+        positionSpinbox();
+        return;
+    }
+
+    // The completer completes a word of the text that is replaced.
+    hideCompleterPopup();
+    userEditPending = false;
 
     QSignalBlocker block(spinBox);
     spinBox->setValue(Base::Quantity(val, unit));
