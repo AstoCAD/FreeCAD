@@ -245,6 +245,7 @@ class PartDesignFormProxy(FormFeatureProxy):
                 "Forms_PartDesign", "Editing form preview"
             )
             return
+        result = None
         try:
             tool = (
                 fused_pipe_shape(form_shape)
@@ -255,31 +256,46 @@ class PartDesignFormProxy(FormFeatureProxy):
                 # Downstream Part Design patterns consume this native tool shape.
                 obj.AddSubShape = tool
             if tool.ShapeType != "Solid":
-                obj.Shape = Part.makeCompound([base, form_shape])
-                obj.CombinationStatus = App.Qt.translate(
+                shown = Part.makeCompound([base, form_shape])
+                status = App.Qt.translate(
                     "Forms_PartDesign", "Open form; match or thicken it before combining"
                 )
-                return
-            result = base.fuse(tool) if operation == "Additive" else base.cut(tool)
-            if result.isNull() or not result.isValid() or len(result.Solids) != 1:
-                obj.Shape = Part.makeCompound([base, tool])
-                obj.CombinationStatus = App.Qt.translate(
-                    "Forms_PartDesign", "Form does not produce a valid single-solid result"
-                )
-                return
-            obj.Shape = result
-            if operation == "Additive":
-                obj.CombinationStatus = App.Qt.translate(
-                    "Forms_PartDesign", "Valid fused additive form"
-                )
             else:
-                obj.CombinationStatus = App.Qt.translate(
-                    "Forms_PartDesign", "Valid cut subtractive form"
-                )
+                result = base.fuse(tool) if operation == "Additive" else base.cut(tool)
+                if result.isNull() or not result.isValid() or len(result.Solids) != 1:
+                    result = None
+                    shown = Part.makeCompound([base, tool])
+                    status = App.Qt.translate(
+                        "Forms_PartDesign", "Form does not produce a valid single-solid result"
+                    )
         except (Part.OCCError, RuntimeError, ValueError) as error:
-            obj.Shape = Part.makeCompound([base, form_shape])
+            result = None
+            shown = Part.makeCompound([base, form_shape])
             message = App.Qt.translate("Forms_PartDesign", "Not combined: %1")
-            obj.CombinationStatus = message.replace("%1", str(error))
+            status = message.replace("%1", str(error))
+        if result is None:
+            obj.CombinationStatus = status
+            if operation == "Subtractive":
+                # As for native Part Design subtractive features, a cut that
+                # fails is an error: the base and the tool shown together
+                # would make the tool material for the following features.
+                # Nothing is removed; AddSubShape keeps the tool for the
+                # preview.
+                obj.Shape = base
+                raise RuntimeError(status)
+            # The base and the tool shown together are the material the
+            # additive Form is meant to add, e.g. while its face is open.
+            obj.Shape = shown
+            return
+        obj.Shape = result
+        if operation == "Additive":
+            obj.CombinationStatus = App.Qt.translate(
+                "Forms_PartDesign", "Valid fused additive form"
+            )
+        else:
+            obj.CombinationStatus = App.Qt.translate(
+                "Forms_PartDesign", "Valid cut subtractive form"
+            )
 
     def onChanged(self, obj, prop):
         proxy = _primitive_proxy(obj) if "FormType" in obj.PropertiesList else None
