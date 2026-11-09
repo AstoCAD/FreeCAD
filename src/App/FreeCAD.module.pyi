@@ -112,6 +112,15 @@ def getHelpDir() -> str:
 def getHomePath() -> str:
     """Return the current FreeCAD home directory."""
 
+# Document metadata
+def getLicenses() -> list[tuple[str, str, str]]:
+    """Return the predefined document licenses as (identifier, name, url) tuples.
+
+    The order is the one of the "prefLicenseType" preference: a new document
+    gets the license at that index, or a custom one past the end of the list.
+    """
+    ...
+
 # Document lifecycle
 def loadFile(path: str, doc: str = "", module: str = "", /) -> None:
     """Load one file by delegating to an importer module.

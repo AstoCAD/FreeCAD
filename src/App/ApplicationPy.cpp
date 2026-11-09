@@ -41,6 +41,7 @@
 #include "DocumentPy.h"
 #include "DocumentObserverPython.h"
 #include "DocumentObjectPy.h"
+#include "License.h"
 #include "RecoverySnapshot.h"
 
 #include <Base/CrashReporter/Manager.h>
@@ -780,6 +781,23 @@ PyObject* ApplicationPy::sGetHomePath(PyObject* /*self*/, PyObject* args)
 
     Py::String homedir(Application::getHomePath(), "utf-8");
     return Py::new_reference_to(homedir);
+}
+
+PyObject* ApplicationPy::sGetLicenses(PyObject* /*self*/, PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+
+    Py::List licenses;
+    for (const auto& item : licenseItems) {
+        Py::Tuple license(colsInArray);
+        license.setItem(posnOfIdentifier, Py::String(item.at(posnOfIdentifier)));
+        license.setItem(posnOfFullName, Py::String(item.at(posnOfFullName)));
+        license.setItem(posnOfUrl, Py::String(item.at(posnOfUrl)));
+        licenses.append(license);
+    }
+    return Py::new_reference_to(licenses);
 }
 
 PyObject* ApplicationPy::sListDocuments(PyObject* /*self*/, PyObject* args)

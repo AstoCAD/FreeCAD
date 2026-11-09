@@ -59,6 +59,7 @@ public:
     static PyObject* sGetUserMacroDir        (PyObject *self, PyObject *args);
     static PyObject* sGetHelpDir             (PyObject *self, PyObject *args);
     static PyObject* sGetHomePath            (PyObject *self, PyObject *args);
+    static PyObject* sGetLicenses            (PyObject *self, PyObject *args);
 
     static PyObject* sLoadFile               (PyObject *self,PyObject *args);
     static PyObject* sOpen                   (PyObject *self,PyObject *args, PyObject *kwd);
