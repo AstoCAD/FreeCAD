@@ -196,6 +196,45 @@ class BRepConversionTest(unittest.TestCase):
         self.assertNotIn("Invalid", added.State)
         self.assertIn("Open form", added.CombinationStatus)
 
+    def test_partdesign_form_is_based_on_the_body_previous_solid(self):
+        document = App.newDocument("FormsTestPartDesignFormBase")
+        body = document.addObject("PartDesign::Body", "Body")
+        first = body.newObject("PartDesign::AdditiveBox", "First")
+        second = body.newObject("PartDesign::AdditiveBox", "Second")
+        second.Placement = App.Placement(App.Vector(5, 0, 0), App.Rotation())
+        other_body = document.addObject("PartDesign::Body", "Other")
+        foreign = other_body.newObject("PartDesign::AdditiveBox", "Foreign")
+        document.recompute()
+        names = [obj.Name for obj in document.Objects]
+
+        # None would drop the Body's features, a foreign feature is not in
+        # the Body, and First is not the solid the Body bases a new one on.
+        for base in (None, foreign, first):
+            with self.subTest(base=getattr(base, "Name", None)):
+                with self.assertRaisesRegex(ValueError, "Second"):
+                    create_additive_form(body, base, "Box")
+                self.assertEqual([obj.Name for obj in document.Objects], names)
+                self.assertEqual(body.Group, [first, second])
+                self.assertIs(body.Tip, second)
+                self.assertIs(second.BaseFeature, first)
+
+        # With the Tip moved back, the Form is inserted after it and the
+        # feature after it is based on the Form.
+        body.Tip = first
+        form = create_additive_form(body, first, "Box")
+        document.recompute()
+        self.assertIs(form.BaseFeature, first)
+        self.assertIs(second.BaseFeature, form)
+        self.assertIs(body.Tip, form)
+
+        # A Tip that is no solid names the insertion point: the Form is based
+        # on the solid before it.
+        sketch = body.newObject("Sketcher::SketchObject", "Sketch")
+        body.Tip = sketch
+        cut = create_subtractive_form(body, sketch, "Box")
+        document.recompute()
+        self.assertIs(cut.BaseFeature, form)
+
     def _save_and_reopen_partdesign_form(self, editing):
         """Save a Body with Box, additive Form and Cut, reopen it and count
         the Form executions done while opening. Returns the reopened document,
