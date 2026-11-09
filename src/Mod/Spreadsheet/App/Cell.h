@@ -96,6 +96,20 @@ public:
     void setBorders(int borders);
     bool getBorders(int& borders) const;
 
+    /// How the numbers of the cell are written
+    enum class NumberFormat
+    {
+        General,     ///< with the decimals of the cell, like 1234.50
+        Percent,     ///< multiplied by 100 with a percent sign, like 25.00%; numbers with a unit
+                     ///< are written as General
+        Scientific,  ///< with an exponent, like 1.23E+03
+    };
+    void setNumberFormat(NumberFormat format);
+    bool getNumberFormat(NumberFormat& format) const;
+    /// The text of \a value as the cell shows it: its decimals and number format applied.
+    /// \a unitless tells whether the number is shown without a unit (a percentage can only be).
+    std::string formatNumber(double value, bool unitless) const;
+
     void setAlias(const std::string& n);
     bool getAlias(std::string& n) const;
 
@@ -188,6 +202,11 @@ public:
     /// \a borders; returns false for an unknown name.
     static bool decodeBorder(const std::string& name, int& borders);
 
+    /// "general", "percent" or "scientific"
+    static std::string encodeNumberFormat(NumberFormat format);
+    /// Returns false for an unknown name.
+    static bool decodeNumberFormat(const std::string& name, NumberFormat& format);
+
     static std::string encodeColor(const Base::Color& color);
     static Base::Color decodeColor(const std::string& color, const Base::Color& defaultColor);
 
@@ -223,6 +242,7 @@ private:
     static const unsigned int SPANS_SET;
     static const unsigned int DECIMALS_SET;
     static const unsigned int BORDERS_SET;
+    static const unsigned int NUMBER_FORMAT_SET;
     static const unsigned int MARK_SET;
     static const unsigned int EXCEPTION_SET;
     static const unsigned int PARSE_EXCEPTION_SET;
@@ -244,6 +264,7 @@ private:
     int colSpan;
     int decimals;
     int borders;
+    NumberFormat numberFormat;
     std::string exceptionStr;
     App::CellAddress anchor;
     friend class PropertySheet;

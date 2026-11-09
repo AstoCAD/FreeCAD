@@ -133,6 +133,8 @@ public:
 
     void setDecimals(App::Range range, int decimals);
 
+    void setNumberFormat(App::Range range, Cell::NumberFormat format);
+
     /// How setBorders() combines the given borders with those of the cells.
     enum class BorderMode
     {

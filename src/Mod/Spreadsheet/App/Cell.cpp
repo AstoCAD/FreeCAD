@@ -86,6 +86,7 @@ const unsigned int Cell::ALIAS_SET            = 0x100;
 const unsigned int Cell::SPANS_SET            = 0x200;
 const unsigned int Cell::DECIMALS_SET         = 0x400;
 const unsigned int Cell::BORDERS_SET          = 0x800;
+const unsigned int Cell::NUMBER_FORMAT_SET    = 0x1000;
 const unsigned int Cell::MARK_SET             = 0x40000000;
 const unsigned int Cell::EXCEPTION_SET        = 0x20000000;
 const unsigned int Cell::PARSE_EXCEPTION_SET  = 0x80000000;
@@ -133,6 +134,7 @@ Cell::Cell(const CellAddress& _address, PropertySheet* _owner)
     , colSpan(1)
     , decimals(-1)
     , borders(0)
+    , numberFormat(NumberFormat::General)
     , anchor()
 {
     assert(address.isValid());
@@ -153,6 +155,7 @@ Cell::Cell(PropertySheet* _owner, const Cell& other)
     , colSpan(other.colSpan)
     , decimals(other.decimals)
     , borders(other.borders)
+    , numberFormat(other.numberFormat)
 {
     setUsed(MARK_SET, false);
     setAlias(other.alias);
@@ -185,6 +188,7 @@ Cell& Cell::operator=(const Cell& rhs)
     setDisplayUnit(rhs.displayUnit.stringRep);
     setDecimals(rhs.isUsed(DECIMALS_SET) ? rhs.decimals : -1);
     setBorders(rhs.borders);
+    setNumberFormat(rhs.numberFormat);
     setComputedUnit(rhs.computedUnit);
     setAlias(rhs.alias);
     setSpans(rhs.rowSpan, rhs.colSpan);
@@ -260,7 +264,8 @@ const App::Expression* Cell::getExpression(bool withFormat) const
     if (withFormat && expression) {
         if ((used
              & (ALIGNMENT_SET | STYLE_SET | FOREGROUND_COLOR_SET | BACKGROUND_COLOR_SET
-                | DISPLAY_UNIT_SET | DECIMALS_SET | BORDERS_SET | ALIAS_SET | SPANS_SET))) {
+                | DISPLAY_UNIT_SET | DECIMALS_SET | BORDERS_SET | NUMBER_FORMAT_SET | ALIAS_SET
+                | SPANS_SET))) {
             std::ostringstream ss;
             save(ss, "", true);
             expression->comment = ss.str();
@@ -760,6 +765,46 @@ bool Cell::getBorders(int& value) const
     return isUsed(BORDERS_SET);
 }
 
+/**
+ * Set how the numbers of the cell are written; General is the default.
+ *
+ */
+
+void Cell::setNumberFormat(NumberFormat format)
+{
+    if (format != numberFormat) {
+        PropertySheet::AtomicPropertyChange signaller(*owner);
+
+        numberFormat = format;
+        setUsed(NUMBER_FORMAT_SET, numberFormat != NumberFormat::General);
+        setDirty();
+
+        signaller.tryInvoke();
+    }
+}
+
+bool Cell::getNumberFormat(NumberFormat& format) const
+{
+    format = numberFormat;
+    return isUsed(NUMBER_FORMAT_SET);
+}
+
+std::string Cell::formatNumber(double value, bool unitless) const
+{
+    const int precision = getDisplayDecimals();
+    QString text;
+    if (numberFormat == NumberFormat::Percent && unitless) {
+        text = QLocale().toString(value * 100.0, 'f', precision) + QLatin1Char('%');
+    }
+    else if (numberFormat == NumberFormat::Scientific) {
+        text = QLocale().toString(value, 'E', precision);
+    }
+    else {
+        text = QLocale().toString(value, 'f', precision);
+    }
+    return text.toStdString();
+}
+
 void Cell::setAlias(const std::string& n)
 {
     if (alias != n) {
@@ -991,6 +1036,9 @@ void Cell::restore(Base::XMLReader& reader, bool checkAlias)
     const char* bordersAttr = reader.hasAttribute("borders")
         ? reader.getAttribute<const char*>("borders")
         : nullptr;
+    const char* numberFormatAttr = reader.hasAttribute("numberFormat")
+        ? reader.getAttribute<const char*>("numberFormat")
+        : nullptr;
 
     // Don't trigger multiple updates below; wait until everything is loaded by calling unfreeze()
     // below.
@@ -1056,6 +1104,12 @@ void Cell::restore(Base::XMLReader& reader, bool checkAlias)
             decodeBorder(name, bordersCode);
         }
         setBorders(bordersCode);
+    }
+    if (numberFormatAttr) {
+        // A format this version does not know is shown as General
+        NumberFormat format = NumberFormat::General;
+        decodeNumberFormat(numberFormatAttr, format);
+        setNumberFormat(format);
     }
     if (alias && (!checkAlias || !owner->revAliasProp.count(alias))) {
         setAlias(alias);
@@ -1123,6 +1177,10 @@ void Cell::save(std::ostream& os, const char* indent, bool noContent) const
 
     if (isUsed(BORDERS_SET)) {
         os << "borders=\"" << encodeBorders(borders) << "\" ";
+    }
+
+    if (isUsed(NUMBER_FORMAT_SET)) {
+        os << "numberFormat=\"" << encodeNumberFormat(numberFormat) << "\" ";
     }
 
     if (isUsed(ALIAS_SET)) {
@@ -1375,6 +1433,30 @@ bool Cell::decodeBorder(const std::string& name, int& borders)
     return false;
 }
 
+std::string Cell::encodeNumberFormat(NumberFormat format)
+{
+    switch (format) {
+        case NumberFormat::Percent:
+            return "percent";
+        case NumberFormat::Scientific:
+            return "scientific";
+        case NumberFormat::General:
+            break;
+    }
+    return "general";
+}
+
+bool Cell::decodeNumberFormat(const std::string& name, NumberFormat& format)
+{
+    for (auto candidate : {NumberFormat::General, NumberFormat::Percent, NumberFormat::Scientific}) {
+        if (name == encodeNumberFormat(candidate)) {
+            format = candidate;
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Decode a string of the format \#rrggbb or \#rrggbbaa into a Color.
  *
@@ -1425,10 +1507,10 @@ std::string Cell::getFormattedQuantity()
         bool hasDisplayUnit = getDisplayUnit(du);
         double duScale = du.scaler;
         const Base::Unit& computedUnit = floatProp->getUnit();
-        qFormatted = QLocale().toString(rawVal, 'f', getDisplayDecimals());
+        qFormatted = QString::fromStdString(formatNumber(rawVal, computedUnit == Unit::One));
         if (hasDisplayUnit) {
             if (computedUnit == Unit::One || computedUnit == du.unit) {
-                QString number = QLocale().toString(rawVal / duScale, 'f', getDisplayDecimals());
+                QString number = QString::fromStdString(formatNumber(rawVal / duScale, false));
                 qFormatted = number + QString::fromStdString(" " + displayUnit.stringRep);
             }
         }
@@ -1438,9 +1520,9 @@ std::string Cell::getFormattedQuantity()
         DisplayUnit du;
         bool hasDisplayUnit = getDisplayUnit(du);
         double duScale = du.scaler;
-        qFormatted = QLocale().toString(rawVal, 'f', getDisplayDecimals());
+        qFormatted = QString::fromStdString(formatNumber(rawVal, true));
         if (hasDisplayUnit) {
-            QString number = QLocale().toString(rawVal / duScale, 'f', getDisplayDecimals());
+            QString number = QString::fromStdString(formatNumber(rawVal / duScale, false));
             qFormatted = number + QString::fromStdString(" " + displayUnit.stringRep);
         }
     }
@@ -1450,10 +1532,11 @@ std::string Cell::getFormattedQuantity()
         bool hasDisplayUnit = getDisplayUnit(du);
         double duScale = du.scaler;
         int iRawVal = std::round(rawVal);
-        qFormatted = isUsed(DECIMALS_SET) ? QLocale().toString(rawVal, 'f', decimals)
-                                          : QLocale().toString(iRawVal);
+        qFormatted = isUsed(DECIMALS_SET) || isUsed(NUMBER_FORMAT_SET)
+            ? QString::fromStdString(formatNumber(rawVal, true))
+            : QLocale().toString(iRawVal);
         if (hasDisplayUnit) {
-            QString number = QLocale().toString(rawVal / duScale, 'f', getDisplayDecimals());
+            QString number = QString::fromStdString(formatNumber(rawVal / duScale, false));
             qFormatted = number + QString::fromStdString(" " + displayUnit.stringRep);
         }
     }

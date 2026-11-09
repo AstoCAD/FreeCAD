@@ -179,6 +179,19 @@ class Sheet(DocumentObject):
         """Get the number of decimals set for the cell, or None"""
         ...
 
+    def setNumberFormat(self, cell: str, format: str | None, /) -> None:
+        """
+        Set how the numbers of the cell or range are written: "percent"
+        (0.25 is shown as 25.00%; numbers with a unit are not changed),
+        "scientific" (1.23E+03), or "general" or None for the default. The
+        decimals of the cell apply. Only the display changes, not the values.
+        """
+        ...
+
+    def getNumberFormat(self, address: str, /) -> str | None:
+        """Get the number format set for the cell, or None"""
+        ...
+
     def setBorders(self, cell: str, borders: str | set[str], options: str = ..., /) -> None:
         """
         Draw lines along the edges of the cell or range.

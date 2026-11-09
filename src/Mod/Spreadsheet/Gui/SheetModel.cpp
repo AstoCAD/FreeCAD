@@ -452,10 +452,8 @@ QVariant SheetModel::data(const QModelIndex& index, int role) const
                 // Display locale specific decimal separator (#0003875,#0003876)
                 if (cell->getDisplayUnit(displayUnit)) {
                     if (computedUnit == Base::Unit::One || computedUnit == displayUnit.unit) {
-                        QString number = QLocale().toString(
-                            floatProp->getValue() / displayUnit.scaler,
-                            'f',
-                            cell->getDisplayDecimals()
+                        QString number = QString::fromStdString(
+                            cell->formatNumber(floatProp->getValue() / displayUnit.scaler, false)
                         );
                         // QString number = QString::number(floatProp->getValue() /
                         // displayUnit.scaler);
@@ -474,6 +472,13 @@ QVariant SheetModel::data(const QModelIndex& index, int role) const
                     if (cell->getDecimals(decimals)) {
                         Base::QuantityFormat format = value.getFormat();
                         format.setPrecision(decimals);
+                        value.setFormat(format);
+                    }
+                    Cell::NumberFormat numberFormat {};
+                    if (cell->getNumberFormat(numberFormat)
+                        && numberFormat == Cell::NumberFormat::Scientific) {
+                        Base::QuantityFormat format = value.getFormat();
+                        format.format = Base::QuantityFormat::Scientific;
                         value.setFormat(format);
                     }
                     v = QString::fromStdString(value.getUserString());
@@ -533,13 +538,14 @@ QVariant SheetModel::data(const QModelIndex& index, int role) const
 
                 // Display locale specific decimal separator (#0003875,#0003876)
                 if (cell->getDisplayUnit(displayUnit)) {
-                    QString number = QLocale().toString(
-                        d / displayUnit.scaler,
-                        'f',
-                        cell->getDisplayDecimals()
+                    QString number = QString::fromStdString(
+                        cell->formatNumber(d / displayUnit.scaler, false)
                     );
                     // QString number = QString::number(d / displayUnit.scaler);
                     v = number + QString::fromStdString(" " + displayUnit.stringRep);
+                }
+                else if (Cell::NumberFormat numberFormat {}; cell->getNumberFormat(numberFormat)) {
+                    v = QString::fromStdString(cell->formatNumber(d, true));
                 }
                 else if (int decimals = 0; !isInteger || cell->getDecimals(decimals)) {
                     v = QLocale::system().toString(d, 'f', cell->getDisplayDecimals());

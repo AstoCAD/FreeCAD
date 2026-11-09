@@ -793,6 +793,69 @@ PyObject* SheetPy::getDecimals(PyObject* args)
     }
 }
 
+PyObject* SheetPy::setNumberFormat(PyObject* args)
+{
+    const char* cell;
+    PyObject* value;
+
+    if (!PyArg_ParseTuple(args, "sO:setNumberFormat", &cell, &value)) {
+        return nullptr;
+    }
+
+    Cell::NumberFormat format = Cell::NumberFormat::General;
+    if (value != Py_None) {
+        if (!PyUnicode_Check(value)) {
+            PyErr_SetString(PyExc_TypeError, "The number format must be a string or None");
+            return nullptr;
+        }
+        const char* name = PyUnicode_AsUTF8(value);
+        if (!name) {
+            return nullptr;  // not encodable as UTF-8
+        }
+        if (!Cell::decodeNumberFormat(name, format)) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "Invalid number format '%s': use 'general', 'percent' or 'scientific'",
+                name
+            );
+            return nullptr;
+        }
+    }
+
+    try {
+        getSheetPtr()->setNumberFormat(Range(cell, true), format);
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+
+    Py_Return;
+}
+
+PyObject* SheetPy::getNumberFormat(PyObject* args)
+{
+    const char* strAddress;
+
+    if (!PyArg_ParseTuple(args, "s:getNumberFormat", &strAddress)) {
+        return nullptr;
+    }
+
+    try {
+        CellAddress address = stringToAddress(strAddress);
+        Cell::NumberFormat format = Cell::NumberFormat::General;
+        const Cell* cell = getSheetPtr()->getCell(address);
+        if (cell && cell->getNumberFormat(format)) {
+            return Py::new_reference_to(Py::String(Cell::encodeNumberFormat(format)));
+        }
+        Py_Return;
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+}
+
 PyObject* SheetPy::setBorders(PyObject* args)
 {
     const char* cell;

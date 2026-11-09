@@ -159,6 +159,9 @@ PropertiesDialog::PropertiesDialog(Sheet* _sheet, const std::vector<Range>& _ran
         orgDecimals = -1;
     }
     ui->decimals->setValue(orgDecimals);
+    // The items of the combo box are in the order of Cell::NumberFormat
+    (void)cell->getNumberFormat(orgNumberFormat);
+    ui->numberFormat->setCurrentIndex(static_cast<int>(orgNumberFormat));
 
     ui->alias->setText(QString::fromStdString(alias));
 
@@ -465,6 +468,18 @@ void PropertiesDialog::apply()
                     "setDecimals('%s', %s)",
                     i->rangeString().c_str(),
                     decimals < 0 ? std::string("None") : std::to_string(decimals)
+                );
+                changes = true;
+            }
+            const auto numberFormat = static_cast<Cell::NumberFormat>(
+                ui->numberFormat->currentIndex()
+            );
+            if (numberFormat != orgNumberFormat) {
+                Gui::cmdAppObjectArgs(
+                    sheet,
+                    "setNumberFormat('%s', '%s')",
+                    i->rangeString().c_str(),
+                    Cell::encodeNumberFormat(numberFormat)
                 );
                 changes = true;
             }
