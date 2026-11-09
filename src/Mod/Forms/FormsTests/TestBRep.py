@@ -710,6 +710,38 @@ class BRepConversionTest(unittest.TestCase):
                 document.recompute()
                 self.assertTrue(obj.ConversionStatus.startswith("Valid"))
 
+    def test_nan_sharpness_is_rejected_instead_of_read_as_smooth(self):
+        document = App.newDocument("FormsTestNaNSharpness")
+        obj = create_box(document)
+        make_editable(obj)
+        set_edge_crease(obj, [(0, 1)], 2.5)
+        document.recompute()
+        creased = list(obj.EdgeSharpness)
+
+        with self.assertRaisesRegex(ValueError, "nan"):
+            set_edge_crease(obj, [(0, 1)], float("nan"))
+        self.assertEqual(obj.EdgeSharpness, creased)
+
+        nan_corner = [float("nan")] + [0.0] * (len(obj.ControlPoints) - 1)
+        for name, value in (
+            ("VertexSharpness", nan_corner),
+            ("EdgeSharpness", creased + ["2 3 nan"]),
+        ):
+            with self.subTest(name=name):
+                previous = list(getattr(obj, name))
+                setattr(obj, name, value)
+                document.recompute()
+                self.assertTrue(obj.Shape.isNull())
+                self.assertEqual(
+                    obj.ConversionStatus,
+                    "Failed: Control-cage {} sharpness must be finite".format(
+                        "vertex" if name == "VertexSharpness" else "edge"
+                    ),
+                )
+                setattr(obj, name, previous)
+                document.recompute()
+                self.assertTrue(obj.ConversionStatus.startswith("Valid"))
+
     def test_profile_form_face_exposes_and_subdivides_control_patches(self):
         profile = Part.Face(
             Part.makePolygon(

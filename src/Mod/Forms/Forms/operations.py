@@ -88,7 +88,11 @@ def set_edge_crease(obj, edges, sharpness):
         selected = mirror_edges(enumerate(_all_points(obj)), selected, axis)
     if not selected or not selected.issubset(valid):
         raise ValueError("Crease requires valid control edges")
-    value = max(0.0, min(float(sharpness), 10.0))
+    value = float(sharpness)
+    if math.isnan(value):
+        # Clamping would turn NaN into 0 and silently remove the crease.
+        raise ValueError("Invalid crease sharpness 'nan'")
+    value = max(0.0, min(value, 10.0))
     validate_local_creases(obj, selected, value)
     edge_values = dict(cage.edge_sharpness)
     for edge in selected:

@@ -21,6 +21,9 @@
 #                                                                           *
 # **************************************************************************/
 
+import importlib
+import sys
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -137,6 +140,24 @@ class BlendImportTest(unittest.TestCase):
         self.assertNotIn("SourceFile", obj.PropertiesList)
         self.assertNotIn("SourceObject", obj.PropertiesList)
         self.assertNotIn("BlenderVersion", obj.PropertiesList)
+
+    def test_nan_creases_are_rejected_instead_of_read_as_smooth(self):
+        document = App.newDocument("FormsTestBlendNaNCrease")
+        data = _box_data()
+        data["vertex_sharpness"][0] = float("nan")
+        with self.assertRaisesRegex(BlendImportError, "non-finite vertex creases"):
+            _create_feature(document, "example.blend", "4.0.1", data)
+        data = _box_data()
+        data["edge_sharpness"] = [[0, 1, float("nan")]]
+        with self.assertRaisesRegex(BlendImportError, "non-finite edge creases"):
+            _create_feature(document, "example.blend", "4.0.1", data)
+        self.assertEqual(document.Objects, [])
+
+        # The Blender-side reader rejects the object rather than reading 0.
+        with patch.dict(sys.modules, {"bpy": SimpleNamespace()}):
+            extract = importlib.import_module("Forms.blender_extract")
+        with self.assertRaisesRegex(ValueError, "non-finite crease"):
+            extract._sharpness(float("nan"))
 
     def test_validate_cage_rejects_triangles(self):
         data = _box_data()
