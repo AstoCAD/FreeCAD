@@ -42,6 +42,7 @@
 #include <cctype>
 #include <limits>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <stack>
 #include <string>
@@ -3469,7 +3470,15 @@ RangeExpression::RangeExpression(const DocumentObject *_owner, const std::string
 
 bool RangeExpression::isTouched() const
 {
-    Range i(getRange());
+    std::optional<Range> range;
+    try {
+        range.emplace(getRange());
+    }
+    catch (Base::Exception &) {
+        // An alias bound that names no cell: nothing to be touched
+        return false;
+    }
+    Range &i = *range;
 
     do {
         Property * prop = owner->getPropertyByName(i.address().c_str());
@@ -3513,14 +3522,29 @@ void RangeExpression::_getIdentifiers(std::map<App::ObjectIdentifier,bool> &deps
 
     assert(owner);
 
-    Range i(getRange());
-
-    do {
-        ObjectIdentifier var(owner,i.address());
-        auto res = deps.insert(std::make_pair(var,hidden));
+    auto add = [&](const std::string &name) {
+        auto res = deps.insert(std::make_pair(ObjectIdentifier(owner, name), hidden));
         if(!hidden || res.second)
             res.first->second = hidden;
-    } while (i.next());
+    };
+
+    std::optional<Range> range;
+    try {
+        range.emplace(getRange());
+    }
+    catch (Base::Exception &) {
+        // A bound is an alias that names no cell (it was never defined, or its cell was
+        // removed). Depend on the names of the bounds, like a reference to a single alias does,
+        // so that the range can still be stored, moved and recomputed once the alias exists.
+        // Evaluating the range reports the error.
+        add(begin);
+        add(end);
+        return;
+    }
+
+    do {
+        add(range->address());
+    } while (range->next());
 }
 
 Range RangeExpression::getRange() const
