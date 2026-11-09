@@ -1059,6 +1059,215 @@ bool CmdSpreadsheetDecreaseDecimals::isActive()
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+// Draw or remove borders on each selected range, see Sheet.setBorders().
+static void setSelectionBorders(
+    Gui::Command* command,
+    const char* transaction,
+    const char* borders,
+    const char* mode
+)
+{
+    auto* sheetView = freecad_cast<SpreadsheetGui::SheetView*>(Gui::getMainWindow()->activeWindow());
+    if (!sheetView) {
+        return;
+    }
+    Sheet* sheet = sheetView->getSheet();
+    std::vector<Range> ranges = sheetView->selectedRanges();
+    if (ranges.empty()) {
+        return;
+    }
+    command->openCommand(transaction);
+    for (const auto& range : ranges) {
+        Gui::Command::doCommand(
+            Gui::Command::Doc,
+            "App.ActiveDocument.%s.setBorders('%s', '%s', '%s')",
+            sheet->getNameInDocument(),
+            range.rangeString().c_str(),
+            borders,
+            mode
+        );
+    }
+    command->commitCommand();
+    Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetBordersAll)
+
+CmdSpreadsheetBordersAll::CmdSpreadsheetBordersAll()
+    : Command("Spreadsheet_BordersAll")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("&All Borders");
+    sToolTipText = QT_TR_NOOP("Draws lines around every selected cell");
+    sWhatsThis = "Spreadsheet_BordersAll";
+    sStatusTip = sToolTipText;
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetBordersAll::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    setSelectionBorders(this, QT_TRANSLATE_NOOP("Command", "Set borders"), "all", "add");
+}
+
+bool CmdSpreadsheetBordersAll::isActive()
+{
+    return getActiveGuiDocument() && isSheetViewActive();
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetBordersOutside)
+
+CmdSpreadsheetBordersOutside::CmdSpreadsheetBordersOutside()
+    : Command("Spreadsheet_BordersOutside")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("&Outside Borders");
+    sToolTipText = QT_TR_NOOP("Draws a frame around the selected cells");
+    sWhatsThis = "Spreadsheet_BordersOutside";
+    sStatusTip = sToolTipText;
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetBordersOutside::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    setSelectionBorders(this, QT_TRANSLATE_NOOP("Command", "Set borders"), "all", "outline");
+}
+
+bool CmdSpreadsheetBordersOutside::isActive()
+{
+    return getActiveGuiDocument() && isSheetViewActive();
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetBordersTop)
+
+CmdSpreadsheetBordersTop::CmdSpreadsheetBordersTop()
+    : Command("Spreadsheet_BordersTop")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("&Top Border");
+    sToolTipText = QT_TR_NOOP("Draws a line along the top of the selected cells");
+    sWhatsThis = "Spreadsheet_BordersTop";
+    sStatusTip = sToolTipText;
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetBordersTop::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    setSelectionBorders(this, QT_TRANSLATE_NOOP("Command", "Set borders"), "top", "outline");
+}
+
+bool CmdSpreadsheetBordersTop::isActive()
+{
+    return getActiveGuiDocument() && isSheetViewActive();
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetBordersBottom)
+
+CmdSpreadsheetBordersBottom::CmdSpreadsheetBordersBottom()
+    : Command("Spreadsheet_BordersBottom")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("&Bottom Border");
+    sToolTipText = QT_TR_NOOP("Draws a line along the bottom of the selected cells");
+    sWhatsThis = "Spreadsheet_BordersBottom";
+    sStatusTip = sToolTipText;
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetBordersBottom::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    setSelectionBorders(this, QT_TRANSLATE_NOOP("Command", "Set borders"), "bottom", "outline");
+}
+
+bool CmdSpreadsheetBordersBottom::isActive()
+{
+    return getActiveGuiDocument() && isSheetViewActive();
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetBordersLeft)
+
+CmdSpreadsheetBordersLeft::CmdSpreadsheetBordersLeft()
+    : Command("Spreadsheet_BordersLeft")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("&Left Border");
+    sToolTipText = QT_TR_NOOP("Draws a line along the left side of the selected cells");
+    sWhatsThis = "Spreadsheet_BordersLeft";
+    sStatusTip = sToolTipText;
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetBordersLeft::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    setSelectionBorders(this, QT_TRANSLATE_NOOP("Command", "Set borders"), "left", "outline");
+}
+
+bool CmdSpreadsheetBordersLeft::isActive()
+{
+    return getActiveGuiDocument() && isSheetViewActive();
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetBordersRight)
+
+CmdSpreadsheetBordersRight::CmdSpreadsheetBordersRight()
+    : Command("Spreadsheet_BordersRight")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("&Right Border");
+    sToolTipText = QT_TR_NOOP("Draws a line along the right side of the selected cells");
+    sWhatsThis = "Spreadsheet_BordersRight";
+    sStatusTip = sToolTipText;
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetBordersRight::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    setSelectionBorders(this, QT_TRANSLATE_NOOP("Command", "Set borders"), "right", "outline");
+}
+
+bool CmdSpreadsheetBordersRight::isActive()
+{
+    return getActiveGuiDocument() && isSheetViewActive();
+}
+
+DEF_STD_CMD_A(CmdSpreadsheetBordersNone)
+
+CmdSpreadsheetBordersNone::CmdSpreadsheetBordersNone()
+    : Command("Spreadsheet_BordersNone")
+{
+    sAppModule = "Spreadsheet";
+    sGroup = QT_TR_NOOP("Spreadsheet");
+    sMenuText = QT_TR_NOOP("&No Borders");
+    sToolTipText = QT_TR_NOOP("Removes the borders of the selected cells");
+    sWhatsThis = "Spreadsheet_BordersNone";
+    sStatusTip = sToolTipText;
+    eType = AlterNone;
+}
+
+void CmdSpreadsheetBordersNone::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    setSelectionBorders(this, QT_TRANSLATE_NOOP("Command", "Remove borders"), "", "replace");
+}
+
+bool CmdSpreadsheetBordersNone::isActive()
+{
+    return getActiveGuiDocument() && isSheetViewActive();
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 DEF_STD_CMD_A(CmdSpreadsheetSetAlias)
 
 CmdSpreadsheetSetAlias::CmdSpreadsheetSetAlias()
@@ -1194,6 +1403,14 @@ void CreateSpreadsheetCommands()
 
     rcCmdMgr.addCommand(new CmdSpreadsheetIncreaseDecimals());
     rcCmdMgr.addCommand(new CmdSpreadsheetDecreaseDecimals());
+
+    rcCmdMgr.addCommand(new CmdSpreadsheetBordersAll());
+    rcCmdMgr.addCommand(new CmdSpreadsheetBordersOutside());
+    rcCmdMgr.addCommand(new CmdSpreadsheetBordersTop());
+    rcCmdMgr.addCommand(new CmdSpreadsheetBordersBottom());
+    rcCmdMgr.addCommand(new CmdSpreadsheetBordersLeft());
+    rcCmdMgr.addCommand(new CmdSpreadsheetBordersRight());
+    rcCmdMgr.addCommand(new CmdSpreadsheetBordersNone());
 
     rcCmdMgr.addCommand(new CmdSpreadsheetSetAlias());
 }

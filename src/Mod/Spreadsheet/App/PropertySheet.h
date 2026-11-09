@@ -133,6 +133,16 @@ public:
 
     void setDecimals(App::Range range, int decimals);
 
+    /// How setBorders() combines the given borders with those of the cells.
+    enum class BorderMode
+    {
+        Replace,  ///< every cell gets exactly the given borders
+        Add,      ///< the given borders are added to every cell
+        Remove,   ///< the given borders are removed from every cell
+        Outline,  ///< the given borders are added along the outer edges of the range only
+    };
+    void setBorders(App::Range range, int borders, BorderMode mode = BorderMode::Replace);
+
     void setAlias(App::CellAddress address, const std::string& alias);
 
     void setComputedUnit(App::CellAddress address, const Base::Unit& unit);

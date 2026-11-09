@@ -52,6 +52,7 @@ using namespace Spreadsheet;
     qApp->translate("Workbench", "&Spreadsheet");
     qApp->translate("Workbench", "&Alignment");
     qApp->translate("Workbench", "&Styles");
+    qApp->translate("Workbench", "&Borders");
 #endif
 
 /// @namespace ImageGui @class Workbench
@@ -317,6 +318,17 @@ Gui::MenuItem* Workbench::setupMenuBar() const
             << "Spreadsheet_StyleItalic"
             << "Spreadsheet_StyleUnderline";
 
+    Gui::MenuItem* borders = new Gui::MenuItem;
+    borders->setCommand("&Borders");
+    *borders << "Spreadsheet_BordersAll"
+             << "Spreadsheet_BordersOutside"
+             << "Spreadsheet_BordersTop"
+             << "Spreadsheet_BordersBottom"
+             << "Spreadsheet_BordersLeft"
+             << "Spreadsheet_BordersRight"
+             << "Separator"
+             << "Spreadsheet_BordersNone";
+
     spreadsheet->setCommand("&Spreadsheet");
     *spreadsheet << "Spreadsheet_CreateSheet"
                  << "Separator"
@@ -328,7 +340,7 @@ Gui::MenuItem* Workbench::setupMenuBar() const
                  << "Separator"
                  << "Spreadsheet_FillDown"
                  << "Spreadsheet_FillRight"
-                 << "Separator" << alignments << styles << "Separator"
+                 << "Separator" << alignments << styles << borders << "Separator"
                  << "Spreadsheet_IncreaseDecimals" << "Spreadsheet_DecreaseDecimals";
 
     return root;

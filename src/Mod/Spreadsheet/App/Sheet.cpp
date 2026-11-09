@@ -2004,6 +2004,18 @@ void Sheet::setDecimals(App::Range range, int decimals)
 }
 
 /**
+ * @brief Draw or remove borders on the cells of \a range.
+ * @param range Range of cells
+ * @param borders Or'ed Cell::BORDER_* values
+ * @param mode How the borders combine with those of the cells, see PropertySheet::BorderMode
+ */
+
+void Sheet::setBorders(App::Range range, int borders, PropertySheet::BorderMode mode)
+{
+    cells.setBorders(range, borders, mode);
+}
+
+/**
  * @brief Set computed unit for cell at address \a address to \a unit.
  * @param address Address of cell
  * @param unit New unit.

@@ -29,6 +29,7 @@
 #include <boost/tokenizer.hpp>
 #include <iomanip>
 #include <sstream>
+#include <utility>
 
 
 #include <App/ExpressionParser.h>
@@ -84,6 +85,7 @@ const unsigned int Cell::COMPUTED_UNIT_SET    = 0x80;
 const unsigned int Cell::ALIAS_SET            = 0x100;
 const unsigned int Cell::SPANS_SET            = 0x200;
 const unsigned int Cell::DECIMALS_SET         = 0x400;
+const unsigned int Cell::BORDERS_SET          = 0x800;
 const unsigned int Cell::MARK_SET             = 0x40000000;
 const unsigned int Cell::EXCEPTION_SET        = 0x20000000;
 const unsigned int Cell::PARSE_EXCEPTION_SET  = 0x80000000;
@@ -100,6 +102,13 @@ const int Cell::ALIGNMENT_VCENTER    = 0x20;
 const int Cell::ALIGNMENT_BOTTOM     = 0x40;
 const int Cell::ALIGNMENT_VIMPLIED   = 0x80;
 const int Cell::ALIGNMENT_VERTICAL   = 0xf0;
+
+/* Borders */
+const int Cell::BORDER_TOP           = 0x01;
+const int Cell::BORDER_LEFT          = 0x02;
+const int Cell::BORDER_BOTTOM        = 0x04;
+const int Cell::BORDER_RIGHT         = 0x08;
+const int Cell::BORDER_ALL           = 0x0f;
 // clang-format on
 
 /**
@@ -123,6 +132,7 @@ Cell::Cell(const CellAddress& _address, PropertySheet* _owner)
     , rowSpan(1)
     , colSpan(1)
     , decimals(-1)
+    , borders(0)
     , anchor()
 {
     assert(address.isValid());
@@ -142,6 +152,7 @@ Cell::Cell(PropertySheet* _owner, const Cell& other)
     , rowSpan(other.rowSpan)
     , colSpan(other.colSpan)
     , decimals(other.decimals)
+    , borders(other.borders)
 {
     setUsed(MARK_SET, false);
     setAlias(other.alias);
@@ -173,6 +184,7 @@ Cell& Cell::operator=(const Cell& rhs)
     }
     setDisplayUnit(rhs.displayUnit.stringRep);
     setDecimals(rhs.isUsed(DECIMALS_SET) ? rhs.decimals : -1);
+    setBorders(rhs.borders);
     setComputedUnit(rhs.computedUnit);
     setAlias(rhs.alias);
     setSpans(rhs.rowSpan, rhs.colSpan);
@@ -248,7 +260,7 @@ const App::Expression* Cell::getExpression(bool withFormat) const
     if (withFormat && expression) {
         if ((used
              & (ALIGNMENT_SET | STYLE_SET | FOREGROUND_COLOR_SET | BACKGROUND_COLOR_SET
-                | DISPLAY_UNIT_SET | DECIMALS_SET | ALIAS_SET | SPANS_SET))) {
+                | DISPLAY_UNIT_SET | DECIMALS_SET | BORDERS_SET | ALIAS_SET | SPANS_SET))) {
             std::ostringstream ss;
             save(ss, "", true);
             expression->comment = ss.str();
@@ -720,6 +732,34 @@ int Cell::getDisplayDecimals() const
     return isUsed(DECIMALS_SET) ? decimals : Base::UnitsApi::getDecimals();
 }
 
+/**
+ * Set the edges of the cell drawn as lines, an or'ed combination of the
+ * BORDER_* values; 0 removes the borders.
+ *
+ */
+
+void Cell::setBorders(int newBorders)
+{
+    if ((newBorders & ~BORDER_ALL) != 0) {
+        throw Base::ValueError("Invalid borders");
+    }
+    if (newBorders != borders) {
+        PropertySheet::AtomicPropertyChange signaller(*owner);
+
+        borders = newBorders;
+        setUsed(BORDERS_SET, borders != 0);
+        setDirty();
+
+        signaller.tryInvoke();
+    }
+}
+
+bool Cell::getBorders(int& value) const
+{
+    value = borders;
+    return isUsed(BORDERS_SET);
+}
+
 void Cell::setAlias(const std::string& n)
 {
     if (alias != n) {
@@ -948,6 +988,9 @@ void Cell::restore(Base::XMLReader& reader, bool checkAlias)
     const char* decimalsAttr = reader.hasAttribute("decimals")
         ? reader.getAttribute<const char*>("decimals")
         : nullptr;
+    const char* bordersAttr = reader.hasAttribute("borders")
+        ? reader.getAttribute<const char*>("borders")
+        : nullptr;
 
     // Don't trigger multiple updates below; wait until everything is loaded by calling unfreeze()
     // below.
@@ -998,6 +1041,21 @@ void Cell::restore(Base::XMLReader& reader, bool checkAlias)
     }
     if (decimalsAttr) {
         setDecimals(std::min(atoi(decimalsAttr), 15));
+    }
+    if (bordersAttr) {
+        int bordersCode = 0;
+        using namespace boost;
+
+        escaped_list_separator<char> e('\0', '|', '\0');
+        std::string line = std::string(bordersAttr);
+        tokenizer<escaped_list_separator<char>> tok(line, e);
+
+        // Names this version does not know are skipped, so that a file saved by a
+        // later version still opens.
+        for (const auto& name : tok) {
+            decodeBorder(name, bordersCode);
+        }
+        setBorders(bordersCode);
     }
     if (alias && (!checkAlias || !owner->revAliasProp.count(alias))) {
         setAlias(alias);
@@ -1061,6 +1119,10 @@ void Cell::save(std::ostream& os, const char* indent, bool noContent) const
 
     if (isUsed(DECIMALS_SET)) {
         os << "decimals=\"" << decimals << "\" ";
+    }
+
+    if (isUsed(BORDERS_SET)) {
+        os << "borders=\"" << encodeBorders(borders) << "\" ";
     }
 
     if (isUsed(ALIAS_SET)) {
@@ -1260,6 +1322,57 @@ std::string Cell::encodeStyle(const std::set<std::string>& style)
     }
 
     return s;
+}
+
+namespace
+{
+const std::pair<int, const char*> borderNames[] = {
+    {Cell::BORDER_TOP, "top"},
+    {Cell::BORDER_LEFT, "left"},
+    {Cell::BORDER_BOTTOM, "bottom"},
+    {Cell::BORDER_RIGHT, "right"},
+};
+}
+
+/**
+ * Encode borders as their names separated by '|', like "top|bottom".
+ *
+ */
+
+std::string Cell::encodeBorders(int borders)
+{
+    std::string s;
+    for (const auto& [border, name] : borderNames) {
+        if (borders & border) {
+            if (!s.empty()) {
+                s += "|";
+            }
+            s += name;
+        }
+    }
+    return s;
+}
+
+/**
+ * Add the border called \a name to \a borders.
+ *
+ * @returns false if \a name is not "top", "left", "bottom", "right" or "all".
+ *
+ */
+
+bool Cell::decodeBorder(const std::string& name, int& borders)
+{
+    if (name == "all") {
+        borders |= BORDER_ALL;
+        return true;
+    }
+    for (const auto& [border, borderName] : borderNames) {
+        if (name == borderName) {
+            borders |= border;
+            return true;
+        }
+    }
+    return false;
 }
 
 /**

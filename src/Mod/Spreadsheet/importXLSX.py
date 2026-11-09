@@ -337,6 +337,9 @@ def handleWorkSheet(theDom, actSheet, strList, cellFormats=None):
         for row in rows:
             handleCellFormats(row.getElementsByTagName("c"), actSheet, cellFormats)
     handleLayout(theDom, actSheet)
+    if cellFormats:
+        for row in rows:
+            handleCellBorders(row.getElementsByTagName("c"), actSheet, cellFormats)
 
 
 def childElements(node, tagName):
@@ -377,7 +380,8 @@ def isOn(node):
 
 def handleStyles(theStyles):
     """Returns the cell formats of xl/styles.xml, indexed like the "s" attribute
-    of the cells: a tuple (style set, text color, background color, alignment)."""
+    of the cells: a tuple (style set, text color, background color, alignment,
+    borders)."""
     fonts = []
     fontsNode = firstChildElement(theStyles.documentElement, "fonts")
     for font in childElements(fontsNode, "font") if fontsNode else []:
@@ -403,7 +407,18 @@ def handleStyles(theStyles):
             color = decodeColor(firstChildElement(pattern, "fgColor"))
         fills.append(color)
 
-    horizontal = {"left": "left", "center": "center", "centerContinuous": "center", "right": "right"}
+    borders = []
+    bordersNode = firstChildElement(theStyles.documentElement, "borders")
+    for border in childElements(bordersNode, "border") if bordersNode else []:
+        # A side is drawn when it has a line style; FreeCAD draws thin lines
+        sides = set()
+        for side in ("left", "right", "top", "bottom"):
+            node = firstChildElement(border, side)
+            if node is not None and node.getAttribute("style") not in ("", "none"):
+                sides.add(side)
+        borders.append(sides)
+
+    horizontal ={"left": "left", "center": "center", "centerContinuous": "center", "right": "right"}
     vertical = {"top": "top", "center": "vcenter", "bottom": "bottom"}
 
     formats = []
@@ -424,7 +439,11 @@ def handleStyles(theStyles):
                 alignment.add(horizontal[alignNode.getAttribute("horizontal")])
             if alignNode.getAttribute("vertical") in vertical:
                 alignment.add(vertical[alignNode.getAttribute("vertical")])
-        formats.append((style, foreground, background, alignment))
+        try:
+            sides = borders[int(xf.getAttribute("borderId") or 0)]
+        except (ValueError, IndexError):
+            sides = set()
+        formats.append((style, foreground, background, alignment, sides))
     return formats
 
 
@@ -447,7 +466,7 @@ def handleCellFormats(cellList, actCellSheet, cellFormats):
         if not ref or not index:
             continue
         try:
-            style, foreground, background, alignment = cellFormats[int(index)]
+            style, foreground, background, alignment = cellFormats[int(index)][:4]
         except (ValueError, IndexError):
             continue
         if not isSheetCell(ref):
@@ -462,6 +481,23 @@ def handleCellFormats(cellList, actCellSheet, cellFormats):
             actCellSheet.setBackground(ref, background)
         if alignment:
             actCellSheet.setAlignment(ref, alignment, "keep")
+
+
+def handleCellBorders(cellList, actCellSheet, cellFormats):
+    """Draws the borders of the cells. Called after merging: Excel keeps the
+    borders of a merged cell on the cells along its edges, which all add theirs
+    to the merged cell."""
+    for cell in cellList:
+        ref = cell.getAttribute("r")
+        index = cell.getAttribute("s")
+        if not ref or not index or not isSheetCell(ref):
+            continue
+        try:
+            borders = cellFormats[int(index)][4]
+        except (ValueError, IndexError):
+            continue
+        if borders:
+            actCellSheet.setBorders(ref, borders, "add")
 
 
 # FreeCAD spreadsheets have the columns A to ZZ
@@ -785,8 +821,8 @@ def insert(nameXLSX, docname):
 #
 # Writes one worksheet per spreadsheet with the computed values, the formulas
 # that Excel computes the same way, aliases (as defined names), bold, italic,
-# underline, colors, alignment, per-cell decimals, column widths, custom row
-# heights and merged cells. Kept simple on purpose:
+# underline, colors, alignment, borders (thin lines), per-cell decimals, column
+# widths, custom row heights and merged cells. Kept simple on purpose:
 # - quantities with a unit are written as text with their unit ("10 mm"),
 #   dimensionless ones as numbers;
 # - a formula is written only if it uses cell references, ranges, aliases of
@@ -920,12 +956,13 @@ def _hexColor(color):
 
 
 class _Styles:
-    """Collects the cell formats into the font, fill, number format and cellXfs
-    tables of xl/styles.xml."""
+    """Collects the cell formats into the font, fill, border, number format and
+    cellXfs tables of xl/styles.xml."""
 
     def __init__(self):
         self.fonts = [""]  # the default font
         self.fills = ['<patternFill patternType="none"/>', '<patternFill patternType="gray125"/>']
+        self.borders = [""]  # no border
         self.numFmts = []
         self.xfs = [None]  # the default format
         self.index = {}
@@ -935,12 +972,23 @@ class _Styles:
             table.append(item)
         return table.index(item)
 
-    def cellStyle(self, sheet, address):
+    def cellStyle(self, sheet, address, borders=None):
+        """The index of the format of the cell; borders, if given, replaces the
+        borders of the cell."""
         style = sheet.getStyle(address) or set()
         foreground = sheet.getForeground(address)
         background = sheet.getBackground(address)
         alignment = sheet.getAlignment(address) or set()
         decimals = sheet.getDecimals(address) if hasattr(sheet, "getDecimals") else None
+        if borders is None:
+            borders = sheet.getBorders(address) or set()
+        # In the order of the XLSX schema
+        border = "".join(
+            '<%s style="thin"><color auto="1"/></%s>' % (side, side) if side in borders else "<%s/>" % side
+            for side in ("left", "right", "top", "bottom")
+        )
+        if not borders:
+            border = ""
 
         font = ""
         if "bold" in style:
@@ -965,14 +1013,15 @@ class _Styles:
         if "vimplied" in alignment:
             vertical = None
 
-        key = (font, fill, horizontal, vertical, decimals)
-        if key == ("", None, None, None, None):
+        key = (font, fill, horizontal, vertical, decimals, border)
+        if key == ("", None, None, None, None, ""):
             return 0
         if key in self.index:
             return self.index[key]
 
         fontId = self._add(self.fonts, font)
         fillId = self._add(self.fills, fill) if fill else 0
+        borderId = self._add(self.borders, border)
         numFmtId = 0
         if decimals is not None:
             code = "0." + "0" * decimals if decimals > 0 else "0"
@@ -983,13 +1032,15 @@ class _Styles:
                 ' horizontal="%s"' % horizontal if horizontal else "",
                 ' vertical="%s"' % vertical if vertical else "",
             )
-        xf = '<xf numFmtId="%d" fontId="%d" fillId="%d" borderId="0" xfId="0"%s%s%s%s>%s</xf>' % (
+        xf = '<xf numFmtId="%d" fontId="%d" fillId="%d" borderId="%d" xfId="0"%s%s%s%s%s>%s</xf>' % (
             numFmtId,
             fontId,
             fillId,
+            borderId,
             ' applyNumberFormat="1"' if numFmtId else "",
             ' applyFont="1"' if fontId else "",
             ' applyFill="1"' if fillId else "",
+            ' applyBorder="1"' if borderId else "",
             ' applyAlignment="1"' if align else "",
             align,
         )
@@ -1010,8 +1061,12 @@ class _Styles:
         parts.append('</fonts><fills count="%d">' % len(self.fills))
         for fill in self.fills:
             parts.append("<fill>%s</fill>" % fill)
+        parts.append('</fills><borders count="%d">' % len(self.borders))
+        for border in self.borders:
+            parts.append(
+                "<border>%s<diagonal/></border>" % (border or "<left/><right/><top/><bottom/>")
+            )
         parts.append(
-            '</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border>'
             '</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
             '</cellStyleXfs><cellXfs count="%d">' % len(self.xfs)
         )
@@ -1066,6 +1121,26 @@ def _worksheetXml(sheet, styles):
         col, row = _cellNumbers(address)
         cells.setdefault(row, []).append((col, address))
 
+    # FreeCAD keeps the borders of a merged cell on its first cell; Excel draws
+    # each edge from the cells along that edge
+    edgeBorders = {}
+    merged = sheet.getMergedCells()
+    for ref in merged:
+        first, last = ref.split(":")
+        borders = sheet.getBorders(first)
+        if not borders:
+            continue
+        col1, row1 = _cellNumbers(first)
+        col2, row2 = _cellNumbers(last)
+        for row in range(row1, row2 + 1):
+            for col in range(col1, col2 + 1):
+                edges = {"top": row == row1, "bottom": row == row2}
+                edges.update({"left": col == col1, "right": col == col2})
+                address = columnName(col) + str(row)
+                edgeBorders[address] = {side for side in borders if edges[side]}
+                if address != first and edgeBorders[address]:
+                    cells.setdefault(row, []).append((col, address))
+
     lastCol = max([col for row in cells.values() for col, _ in row] or [0])
     # Only the sizes set in FreeCAD: the others are the default of each application
     widths = sheet.getColumnWidths()
@@ -1090,11 +1165,11 @@ def _worksheetXml(sheet, styles):
             rowAttrs += ' ht="%s" customHeight="1"' % repr(height * 72.0 / 96.0)
         parts.append("<row%s>" % rowAttrs)
         for col, address in sorted(cells[row]):
-            parts.append(_cellXml(sheet, address, styles.cellStyle(sheet, address), aliases))
+            style = styles.cellStyle(sheet, address, edgeBorders.get(address))
+            parts.append(_cellXml(sheet, address, style, aliases))
         parts.append("</row>")
     parts.append("</sheetData>")
 
-    merged = sheet.getMergedCells()
     if merged:
         parts.append('<mergeCells count="%d">' % len(merged))
         for ref in merged:

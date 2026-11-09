@@ -793,6 +793,150 @@ PyObject* SheetPy::getDecimals(PyObject* args)
     }
 }
 
+PyObject* SheetPy::setBorders(PyObject* args)
+{
+    const char* cell;
+    PyObject* value;
+    const char* options = "replace";
+
+    if (!PyArg_ParseTuple(args, "sO|s:setBorders", &cell, &value, &options)) {
+        return nullptr;
+    }
+
+    std::vector<std::string> names;
+    if (PyAnySet_Check(value)) {
+        PyObject* iter = PyObject_GetIter(value);
+        if (!iter) {
+            return nullptr;
+        }
+        while (PyObject* item = PyIter_Next(iter)) {
+            const char* name = nullptr;
+            if (!PyUnicode_Check(item)) {
+                PyErr_SetString(PyExc_TypeError, "Border names must be strings");
+            }
+            else {
+                name = PyUnicode_AsUTF8(item);  // nullptr if not encodable as UTF-8
+            }
+            if (name) {
+                names.emplace_back(name);
+            }
+            Py_DECREF(item);
+            if (!name) {
+                Py_DECREF(iter);
+                return nullptr;
+            }
+        }
+        Py_DECREF(iter);
+        if (PyErr_Occurred()) {
+            return nullptr;
+        }
+    }
+    else if (PyUnicode_Check(value)) {
+        const char* utf8 = PyUnicode_AsUTF8(value);
+        if (!utf8) {
+            return nullptr;  // not encodable as UTF-8
+        }
+        std::string line = utf8;
+        boost::escaped_list_separator<char> e('\0', '|', '\0');
+        boost::tokenizer<boost::escaped_list_separator<char>> tok(line, e);
+        for (const auto& name : tok) {
+            if (!name.empty()) {
+                names.push_back(name);
+            }
+        }
+    }
+    else {
+        PyErr_Format(
+            PyExc_TypeError,
+            "borders must be either set or string, not %s",
+            Py_TYPE(value)->tp_name
+        );
+        return nullptr;
+    }
+
+    int borders = 0;
+    for (const auto& name : names) {
+        if (!Cell::decodeBorder(name, borders)) {
+            PyErr_Format(
+                PyExc_ValueError,
+                "Invalid border '%s': use 'top', 'left', 'bottom', 'right' or 'all'",
+                name.c_str()
+            );
+            return nullptr;
+        }
+    }
+
+    PropertySheet::BorderMode mode;
+    if (strcmp(options, "replace") == 0) {
+        mode = PropertySheet::BorderMode::Replace;
+    }
+    else if (strcmp(options, "add") == 0) {
+        mode = PropertySheet::BorderMode::Add;
+    }
+    else if (strcmp(options, "remove") == 0) {
+        mode = PropertySheet::BorderMode::Remove;
+    }
+    else if (strcmp(options, "outline") == 0) {
+        mode = PropertySheet::BorderMode::Outline;
+    }
+    else {
+        PyErr_SetString(
+            PyExc_ValueError,
+            "Optional parameter must be either 'replace', 'add', 'remove', or 'outline'"
+        );
+        return nullptr;
+    }
+
+    try {
+        getSheetPtr()->setBorders(Range(cell, true), borders, mode);
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+
+    Py_Return;
+}
+
+PyObject* SheetPy::getBorders(PyObject* args)
+{
+    const char* strAddress;
+
+    if (!PyArg_ParseTuple(args, "s:getBorders", &strAddress)) {
+        return nullptr;
+    }
+
+    try {
+        CellAddress address = stringToAddress(strAddress);
+        int borders = 0;
+        const Cell* cell = getSheetPtr()->getCell(address);
+        if (cell && cell->getBorders(borders)) {
+            PyObject* result = PySet_New(nullptr);
+            if (!result) {
+                return nullptr;
+            }
+            for (int border :
+                 {Cell::BORDER_TOP, Cell::BORDER_LEFT, Cell::BORDER_BOTTOM, Cell::BORDER_RIGHT}) {
+                if (borders & border) {
+                    PyObject* name = PyUnicode_FromString(Cell::encodeBorders(border).c_str());
+                    if (!name || PySet_Add(result, name) < 0) {
+                        Py_XDECREF(name);
+                        Py_DECREF(result);
+                        return nullptr;
+                    }
+                    Py_DECREF(name);
+                }
+            }
+            return result;
+        }
+        Py_Return;
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+}
+
 PyObject* SheetPy::getDisplayUnit(PyObject* args)
 {
     const char* strAddress;
