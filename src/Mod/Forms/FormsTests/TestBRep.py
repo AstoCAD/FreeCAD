@@ -146,6 +146,56 @@ class BRepConversionTest(unittest.TestCase):
         self.assertFalse(cut.AddSubShape.isNull())
         self.assertIn("without a base feature", cut.CombinationStatus)
 
+    def test_failed_subtractive_form_is_an_error_and_cuts_nothing(self):
+        def body_with_box(name):
+            document = App.newDocument(name)
+            body = document.addObject("PartDesign::Body", "Body")
+            box = body.newObject("PartDesign::AdditiveBox", "Box")
+            box.Length = box.Width = box.Height = 40
+            document.recompute()
+            return document, body, box
+
+        # A cut splitting the solid in two
+        document, body, box = body_with_box("FormsTestSubtractiveSplit")
+        split = create_subtractive_form(
+            body, box, "Box", placement=App.Placement(App.Vector(20, 20, 20), App.Rotation())
+        )
+        split.Length = 10
+        split.Width = split.Height = 100
+        document.recompute()
+        self.assertIn("Invalid", split.State)
+        self.assertIn("single-solid", split.CombinationStatus)
+        self.assertEqual(len(split.Shape.Solids), 1)
+        # The tool must not become material: nothing is removed nor added.
+        self.assertAlmostEqual(split.Shape.Volume, 64000.0, places=3)
+        self.assertFalse(split.AddSubShape.isNull())
+
+        # An open tool
+        document, body, box = body_with_box("FormsTestSubtractiveOpen")
+        opened = create_subtractive_form(
+            body, box, "Box", placement=App.Placement(App.Vector(20, 20, 40), App.Rotation())
+        )
+        document.recompute()
+        self.assertEqual(opened.CombinationStatus, "Valid cut subtractive form")
+        make_editable(opened)
+        delete_faces(opened, [0])
+        document.recompute()
+        self.assertIn("Invalid", opened.State)
+        self.assertIn("Open form", opened.CombinationStatus)
+        self.assertAlmostEqual(opened.Shape.Volume, 64000.0, places=3)
+
+        # An additive Form still shows its open tool beside the base.
+        document, body, box = body_with_box("FormsTestAdditiveOpen")
+        added = create_additive_form(
+            body, box, "Box", placement=App.Placement(App.Vector(20, 20, 40), App.Rotation())
+        )
+        document.recompute()
+        make_editable(added)
+        delete_faces(added, [0])
+        document.recompute()
+        self.assertNotIn("Invalid", added.State)
+        self.assertIn("Open form", added.CombinationStatus)
+
     def _save_and_reopen_partdesign_form(self, editing):
         """Save a Body with Box, additive Form and Cut, reopen it and count
         the Form executions done while opening. Returns the reopened document,
