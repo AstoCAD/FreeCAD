@@ -931,15 +931,21 @@ class Joint:
             joint.Placement1 = App.Placement()
 
         if len(refs) >= 2:
+            if not preservePosition:
+                # Join the picked elements as they are. The offsets are reset before the
+                # reference is set: an offset change on a complete joint solves the assembly,
+                # which would move the part before preSolve() and the solve below record where
+                # to put it back when the reference is removed again.
+                for prop in ("Offset1", "Offset2"):
+                    if not getattr(joint, prop).isIdentity():
+                        setattr(joint, prop, App.Placement())
+
             joint.Reference2 = refs[1]
 
             self.ensureUnconnectedIsSecondRef(joint)
 
             if preservePosition:
                 self.setPreservedPosOffsets(joint)
-            else:
-                joint.Offset1 = App.Placement()
-                joint.Offset2 = App.Placement()
 
             if joint.JointType in JointUsingPreSolve:
                 self.preSolve(joint)
