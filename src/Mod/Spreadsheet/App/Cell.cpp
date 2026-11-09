@@ -169,26 +169,7 @@ Cell& Cell::operator=(const Cell& rhs)
     address = rhs.address;
 
     setExpression(App::ExpressionPtr(rhs.expression ? rhs.expression->copy() : nullptr));
-    setAlignment(rhs.alignment);
-    setStyle(rhs.style);
-    // Copy the colors only if they are set; setting a color always marks it
-    // as set, which would turn the default (theme) colors into explicit ones.
-    if (rhs.isUsed(BACKGROUND_COLOR_SET)) {
-        setBackground(rhs.backgroundColor);
-    }
-    else {
-        clearBackground();
-    }
-    if (rhs.isUsed(FOREGROUND_COLOR_SET)) {
-        setForeground(rhs.foregroundColor);
-    }
-    else {
-        clearForeground();
-    }
-    setDisplayUnit(rhs.displayUnit.stringRep);
-    setDecimals(rhs.isUsed(DECIMALS_SET) ? rhs.decimals : -1);
-    setBorders(rhs.borders);
-    setNumberFormat(rhs.numberFormat);
+    setFormat(rhs.getFormat());
     setComputedUnit(rhs.computedUnit);
     setAlias(rhs.alias);
     setSpans(rhs.rowSpan, rhs.colSpan);
@@ -787,6 +768,63 @@ bool Cell::getNumberFormat(NumberFormat& format) const
 {
     format = numberFormat;
     return isUsed(NUMBER_FORMAT_SET);
+}
+
+Cell::Format Cell::getFormat() const
+{
+    Format format;
+    format.alignment = alignment;
+    format.style = style;
+    // Only the colors that are set; the others are those of the theme
+    format.foregroundSet = isUsed(FOREGROUND_COLOR_SET);
+    if (format.foregroundSet) {
+        format.foreground = foregroundColor;
+    }
+    format.backgroundSet = isUsed(BACKGROUND_COLOR_SET);
+    if (format.backgroundSet) {
+        format.background = backgroundColor;
+    }
+    format.displayUnit = displayUnit.stringRep;
+    format.decimals = isUsed(DECIMALS_SET) ? decimals : -1;
+    format.borders = borders;
+    format.numberFormat = numberFormat;
+    return format;
+}
+
+/**
+ * Give the cell the formatting \a format; its content, alias and merging do
+ * not change.
+ *
+ */
+
+void Cell::setFormat(const Format& format)
+{
+    PropertySheet::AtomicPropertyChange signaller(*owner);
+
+    setAlignment(format.alignment);
+    setStyle(format.style);
+    // Setting a color always marks it as set, which would turn the default
+    // (theme) colors into explicit ones: clear the ones that are not set.
+    if (format.backgroundSet) {
+        setBackground(format.background);
+    }
+    else if (isUsed(BACKGROUND_COLOR_SET)) {
+        clearBackground();
+        setDirty();
+    }
+    if (format.foregroundSet) {
+        setForeground(format.foreground);
+    }
+    else if (isUsed(FOREGROUND_COLOR_SET)) {
+        clearForeground();
+        setDirty();
+    }
+    setDisplayUnit(format.displayUnit);
+    setDecimals(format.decimals);
+    setBorders(format.borders);
+    setNumberFormat(format.numberFormat);
+
+    signaller.tryInvoke();
 }
 
 std::string Cell::formatNumber(double value, bool unitless) const

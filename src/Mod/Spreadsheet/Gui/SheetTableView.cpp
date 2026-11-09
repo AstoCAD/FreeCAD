@@ -227,6 +227,8 @@ SheetTableView::SheetTableView(QWidget* parent)
     actionCut = createAction(":/icons/edit-cut.svg", tr("Cut"), &SheetTableView::cutSelection);
     actionCopy = createAction(":/icons/edit-copy.svg", tr("Copy"), &SheetTableView::copySelection);
     actionPaste = createAction(":/icons/edit-paste.svg", tr("Paste"), &SheetTableView::pasteClipboard);
+    actionPasteFormatting
+        = createAction("", tr("Paste Formatting"), &SheetTableView::pasteFormatting);
     actionDel = createAction(":/icons/edit-delete.svg", tr("Delete"), &SheetTableView::deleteSelection);
     contextMenu.addSeparator();
     // Commands, so their shortcuts can be changed (see event() for their keys)
@@ -644,6 +646,7 @@ bool SheetTableView::event(QEvent* event)
         actionSplit->setText(tr("Split Cell"));
         actionCopy->setText(tr("Copy"));
         actionPaste->setText(tr("Paste"));
+        actionPasteFormatting->setText(tr("Paste Formatting"));
         actionCut->setText(tr("Cut"));
         actionDel->setText(tr("Delete"));
         actionSortAscending->setText(tr("Sort Ascending"));
@@ -872,6 +875,40 @@ void SheetTableView::findReplace()
     dialog->show();
     dialog->raise();
     dialog->activateWindow();
+}
+
+void SheetTableView::pasteFormatting()
+{
+    // The cells last copied in this sheet (Copy, not Cut) give the formatting
+    const std::vector<Range> sources = sheet->getCopyOrCutRange(true);
+    const std::vector<Range> targets = selectedRanges();
+    if (sources.size() != 1 || targets.empty()) {
+        return;
+    }
+
+    App::AutoTransaction committer(
+        sheet->getDocument()->openTransaction(QT_TRANSLATE_NOOP("Command", "Paste formatting"))
+    );
+    try {
+        for (const auto& target : targets) {
+            Gui::cmdAppObjectArgs(
+                sheet,
+                "copyFormat('%s', '%s')",
+                sources.front().rangeString(),
+                target.rangeString()
+            );
+        }
+        Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
+    }
+    catch (Base::Exception& e) {
+        committer.close(App::TransactionCloseMode::Abort);
+        e.reportException();
+        QMessageBox::critical(
+            Gui::getMainWindow(),
+            tr("Paste Formatting Failed"),
+            QString::fromUtf8(e.what())
+        );
+    }
 }
 
 void SheetTableView::sortSelection(bool ascending)
@@ -1462,11 +1499,14 @@ void SheetTableView::contextMenuEvent(QContextMenuEvent*)
         actionCopy->setEnabled(false);
         actionDel->setEnabled(false);
         actionPaste->setEnabled(false);
+        actionPasteFormatting->setEnabled(false);
         actionSplit->setEnabled(false);
         actionMerge->setEnabled(false);
     }
     else {
         actionPaste->setEnabled(mimeData && mimeData->hasText());
+        // The formatting comes from the cells copied in this sheet
+        actionPasteFormatting->setEnabled(sheet->getCopyOrCutRange(true).size() == 1);
         actionCut->setEnabled(true);
         actionCopy->setEnabled(true);
         actionDel->setEnabled(true);

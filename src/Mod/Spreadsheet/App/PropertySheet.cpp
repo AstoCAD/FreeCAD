@@ -871,6 +871,85 @@ void PropertySheet::setNumberFormat(Range range, Cell::NumberFormat format)
     signaller.tryInvoke();
 }
 
+void PropertySheet::clearFormat(Range range)
+{
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        if (Cell* cell = cellAt(*range)) {
+            cell->setFormat(Cell::Format());
+        }
+    } while (range.next());
+
+    signaller.tryInvoke();
+}
+
+void PropertySheet::copyFormat(Range source, Range target)
+{
+    const CellAddress sourceFrom = source.from();
+    const int sourceRows = source.rowCount();
+    const int sourceCols = source.colCount();
+
+    // Read the formats first: the ranges may overlap
+    std::vector<Cell::Format> formats(static_cast<std::size_t>(sourceRows) * sourceCols);
+    do {
+        if (const Cell* cell = cellAt(*source)) {
+            const CellAddress address = *source;
+            Cell::Format format = cell->getFormat();
+            // Each cell of a merged cell takes its formatting, but only the
+            // borders along the edges it lies on, so that a frame stays a frame
+            int rows = 1;
+            int cols = 1;
+            cell->getSpans(rows, cols);
+            const CellAddress anchor = cell->getAddress();
+            int edges = 0;
+            if (address.row() == anchor.row()) {
+                edges |= Cell::BORDER_TOP;
+            }
+            if (address.row() == anchor.row() + rows - 1) {
+                edges |= Cell::BORDER_BOTTOM;
+            }
+            if (address.col() == anchor.col()) {
+                edges |= Cell::BORDER_LEFT;
+            }
+            if (address.col() == anchor.col() + cols - 1) {
+                edges |= Cell::BORDER_RIGHT;
+            }
+            format.borders &= edges;
+            formats[static_cast<std::size_t>(address.row() - sourceFrom.row()) * sourceCols
+                    + (address.col() - sourceFrom.col())]
+                = format;
+        }
+    } while (source.next());
+
+    // Like a paste: as many whole copies of the source as fit in the target, at least one
+    const int rows = std::max(1, target.rowCount() / sourceRows) * sourceRows;
+    const int cols = std::max(1, target.colCount() / sourceCols) * sourceCols;
+    const CellAddress targetFrom = target.from();
+
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    for (int r = 0; r < rows; ++r) {
+        for (int c = 0; c < cols; ++c) {
+            CellAddress address(targetFrom.row() + r, targetFrom.col() + c);
+            // A merged cell takes the format at its first cell
+            if (!address.isValid() || getAnchor(address) != address) {
+                continue;
+            }
+            const Cell::Format& format = formats[static_cast<std::size_t>(r % sourceRows) * sourceCols
+                                                 + (c % sourceCols)];
+            Cell* cell = cellAt(address);
+            if (!cell) {
+                if (format == Cell::Format()) {
+                    continue;  // nothing to format
+                }
+                cell = nonNullCellAt(address);
+            }
+            cell->setFormat(format);
+        }
+    }
+
+    signaller.tryInvoke();
+}
+
 void PropertySheet::setBorders(Range range, int borders, BorderMode mode)
 {
     if ((borders & ~Cell::BORDER_ALL) != 0) {

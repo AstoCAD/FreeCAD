@@ -110,6 +110,26 @@ public:
     /// \a unitless tells whether the number is shown without a unit (a percentage can only be).
     std::string formatNumber(double value, bool unitless) const;
 
+    /// The formatting of a cell: everything but its content, alias and merging.
+    /// Default constructed, it is the formatting of a new cell.
+    struct Format
+    {
+        int alignment = ALIGNMENT_HIMPLIED | ALIGNMENT_LEFT | ALIGNMENT_VIMPLIED | ALIGNMENT_VCENTER;
+        std::set<std::string> style;
+        bool foregroundSet = false;
+        Base::Color foreground;
+        bool backgroundSet = false;
+        Base::Color background;
+        std::string displayUnit;
+        int decimals = -1;
+        int borders = 0;
+        NumberFormat numberFormat = NumberFormat::General;
+
+        bool operator==(const Format& other) const = default;
+    };
+    Format getFormat() const;
+    void setFormat(const Format& format);
+
     void setAlias(const std::string& n);
     bool getAlias(std::string& n) const;
 

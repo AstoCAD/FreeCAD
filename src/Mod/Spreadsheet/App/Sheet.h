@@ -208,6 +208,9 @@ public:
 
     void setNumberFormat(App::Range range, Cell::NumberFormat format);
 
+    void clearFormat(App::Range range);
+    void copyFormat(App::Range source, App::Range target);
+
     void setBorders(
         App::Range range,
         int borders,

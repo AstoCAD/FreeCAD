@@ -87,6 +87,7 @@ public Q_SLOTS:
     void copySelection();
     void cutSelection();
     void pasteClipboard();
+    void pasteFormatting();
     void fillDown();
     void fillRight();
     void sortAscending();
@@ -144,6 +145,7 @@ protected:
     QAction* actionSplit;
     QAction* actionCopy;
     QAction* actionPaste;
+    QAction* actionPasteFormatting;
     QAction* actionCut;
     QAction* actionDel;
     QAction* actionSortAscending;
