@@ -9,6 +9,7 @@ import FreeCAD as App
 import Part
 
 from Forms import (
+    bridge_boundaries,
     create_additive_form,
     create_box,
     create_cylinder,
@@ -17,6 +18,7 @@ from Forms import (
     create_quadball,
     create_sphere,
     create_subtractive_form,
+    create_surface,
     create_torus,
     create_tube,
     delete_faces,
@@ -681,6 +683,50 @@ class BRepConversionTest(unittest.TestCase):
                 self.assertTrue(obj.Shape.isValid())
                 expected = profile if profile.ShapeType == "Face" else Part.Face(profile)
                 self.assertAlmostEqual(obj.Shape.Area, expected.Area, places=7)
+
+    def test_form_surface_refuses_topology_its_filling_cannot_follow(self):
+        document = App.newDocument("FormsTestSurfaceTopology")
+        body = document.addObject("PartDesign::Body", "Body")
+        source = body.newObject("PartDesign::Feature", "Source")
+        source.Shape = Part.makeBox(10, 12, 14)
+        surface = create_surface(body, source, "Face6")
+        document.recompute()
+        make_editable(surface)
+        document.recompute()
+        cage = ControlCage.from_object(surface)
+        edge = tuple(cage.faces[0][:2])
+        boundary = cage.boundary_edges[0]
+        operations = {
+            "Crease": lambda: set_edge_crease(surface, [edge], 10.0),
+            "Insert Edge": lambda: insert_edge(surface, edge),
+            "Insert Edge Loop": lambda: insert_edge_loop(surface, edge),
+            "Subdivide": lambda: subdivide_faces(surface, [0]),
+            "Delete Faces": lambda: delete_faces(surface, [0]),
+            "Erase and Fill": lambda: erase_and_fill(surface, [0]),
+            "Fill Hole": lambda: fill_holes(surface, [boundary]),
+            "Bridge": lambda: bridge_boundaries(surface, [boundary]),
+            "Thicken": lambda: thicken_surface(surface, 1.0),
+        }
+        for name, operation in operations.items():
+            with self.subTest(operation=name):
+                before = (
+                    list(surface.ControlPoints),
+                    list(surface.ControlFaces),
+                    list(surface.EdgeSharpness),
+                    surface.TMeshData,
+                )
+                with self.assertRaisesRegex(ValueError, f"Form Surface does not support {name}"):
+                    operation()
+                after = (
+                    list(surface.ControlPoints),
+                    list(surface.ControlFaces),
+                    list(surface.EdgeSharpness),
+                    surface.TMeshData,
+                )
+                self.assertEqual(after, before)
+        document.recompute()
+        self.assertTrue(surface.ConversionStatus.startswith("Valid"))
+        self.assertEqual(len(surface.Shape.Solids), 1)
 
     def test_rejected_form_face_profile_adds_no_object(self):
         document = App.newDocument("FormsTestRejectedProfileFace")
