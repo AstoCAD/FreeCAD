@@ -189,7 +189,7 @@ public:
     App::DocumentObject* getJointOfPartForUngroundedDrag(App::DocumentObject* part, std::string& name);
     std::unordered_set<App::DocumentObject*> getGroundedParts();
     std::unordered_set<App::DocumentObject*> fixGroundedParts();
-    void fixGroundedPart(App::DocumentObject* obj, Base::Placement& plc, std::string& jointName);
+    void fixGroundedPart(App::DocumentObject* obj);
 
     bool isJointConnectingPartToGround(App::DocumentObject* joint, const char* partPropName);
     bool isJointTypeConnecting(App::DocumentObject* joint);
@@ -284,6 +284,8 @@ private:
     void syncActiveRigidGroupPlacements();
     void updateRigidPlacementCache();
     void prepareMbdForIslandDrag(std::vector<App::DocumentObject*> dragParts);
+    // Express the fixed solver bodies as fixed joints to the assembly, for the ASMT file.
+    void writeGroundingAsFixedJoints();
     void forgetObjects(const std::function<bool(const App::DocumentObject*)>& isGone);
 
     std::shared_ptr<MbD::ASMTAssembly> mbdAssembly;
