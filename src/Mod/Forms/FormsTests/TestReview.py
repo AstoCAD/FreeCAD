@@ -572,6 +572,33 @@ class ReviewTest(unittest.TestCase):
         self.assertAlmostEqual(form.Shape.Volume, combined_volume, places=6)
         self.assertFalse(getattr(face.Proxy, "_show_edit_shape", False))
 
+    def test_moving_a_form_into_a_body_keeps_its_expressions(self):
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Sheet")
+        sheet.set("A1", "30 mm")
+        sheet.setAlias("A1", "size")
+        body = self.doc.addObject("PartDesign::Body", "Body")
+        source = Forms.create_box(self.doc)
+        source.setExpression("Length", "Sheet.size")
+        source.setExpression("Width", "Length / 2")
+        # FreeCAD stores a reference to the object itself as relative, so it
+        # must follow the new feature after the source is removed.
+        source.setExpression("Height", f"{source.Name}.Length")
+        self.doc.recompute()
+
+        result = Forms.move_form_to_body(source, body)
+        sheet.set("A1", "50 mm")
+        self.doc.recompute()
+
+        self.assertEqual(
+            sorted(str(path).lstrip(".") for path, _expression in result.ExpressionEngine),
+            ["Height", "Length", "Width"],
+        )
+        self.assertAlmostEqual(result.Length.Value, 50.0)
+        self.assertAlmostEqual(result.Width.Value, 25.0)
+        self.assertAlmostEqual(result.Height.Value, 50.0)
+        self.assertIn("Up-to-date", result.State)
+        self.assertAlmostEqual(result.FormShape.BoundBox.XLength, 50.0, delta=1.0)
+
     def test_public_api_exports_and_forwards_every_option(self):
         import inspect
 
