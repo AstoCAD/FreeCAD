@@ -424,25 +424,14 @@ int Sketch::setUpSketch(
 
         std::vector<double*> params_to_block;
 
-        bool unsatisfied_groups
-            = analyseBlockedConstraintDependentParameters(blockedGeoIds, params_to_block);
-
-        // I am unsure if more than one QR iterations are needed with the current implementation.
-        //
-        // With previous implementations mostly one QR iteration was enough, but if block constraint
-        // is abused, more iterations were needed.
+        // Each iteration fixes parameters of blocked geometry that are independent of each other
+        // in the current diagnosis, and diagnoses again, until no parameter of blocked geometry
+        // is dependent any more. Usually one or two iterations are enough.
         int index = 0;
-        while (unsatisfied_groups) {
-            // We tried hard not to arrive to an unsatisfied group, so we try harder
-            // This loop has the advantage that the user will notice increased effort to solve,
-            // so they may understand that they are abusing the block constraint, while guaranteeing
-            // that wrong behaviour of the block constraint is not undetected.
-
-            // Another QR iteration
-            fixParametersAndDiagnose(params_to_block);
-
-            unsatisfied_groups
-                = analyseBlockedConstraintDependentParameters(blockedGeoIds, params_to_block);
+        while (analyseBlockedConstraintDependentParameters(blockedGeoIds, params_to_block)) {
+            if (!fixParametersAndDiagnose(params_to_block)) {
+                break;  // nothing left to fix, do not loop forever
+            }
 
             if (debugMode == GCS::IterationLevel) {
                 Base::Console().log("Sketcher::setUpSketch()-BlockConstraint-PostAnalysis:{}\n", index);
@@ -450,11 +439,8 @@ int Sketch::setUpSketch(
             index++;
         }
 
-        // 2. If something needs blocking, block-it
-        fixParametersAndDiagnose(params_to_block);
-
 #ifdef DEBUG_BLOCK_CONSTRAINT
-        if (params_to_block.size() > 0) {
+        if (index > 0) {
             std::vector<std::vector<double*>> groups;
             GCSsys.getDependentParamsGroups(groups);
 
@@ -503,16 +489,18 @@ void Sketch::buildInternalAlignmentGeometryMap(const std::vector<Constraint*>& c
     }
 }
 
-void Sketch::fixParametersAndDiagnose(std::vector<double*>& params_to_block)
+bool Sketch::fixParametersAndDiagnose(std::vector<double*>& params_to_block)
 {
-    if (!params_to_block.empty()) {  // only there are parameters to fix
-        for (auto p : params_to_block) {
-            if (auto findparam = std::ranges::find(Parameters, p); findparam != Parameters.end()) {
-                FixParameters.push_back(*findparam);
-                Parameters.erase(findparam);
-            }
+    bool fixed = false;
+    for (auto p : params_to_block) {
+        if (auto findparam = std::ranges::find(Parameters, p); findparam != Parameters.end()) {
+            FixParameters.push_back(*findparam);
+            Parameters.erase(findparam);
+            fixed = true;
         }
+    }
 
+    if (fixed) {  // only if there are parameters to fix
         pDependencyGroups.clear();
         clearTemporaryConstraints();
         GCSsys.invalidatedDiagnosis();
@@ -520,25 +508,20 @@ void Sketch::fixParametersAndDiagnose(std::vector<double*>& params_to_block)
         GCSsys.declareDrivenParams(DrivenParameters);
         GCSsys.initSolution(defaultSolverRedundant);
     }
+
+    return fixed;
 }
 
 bool Sketch::analyseBlockedConstraintDependentParameters(
-    std::vector<int>& blockedGeoIds,
+    const std::vector<int>& blockedGeoIds,
     std::vector<double*>& params_to_block
 ) const
 {
+    params_to_block.clear();
+
     // 1. Retrieve solver information
     std::vector<std::vector<double*>> groups;
     GCSsys.getDependentParamsGroups(groups);
-
-    // 2. Determine blockable parameters for each group (see documentation in header file).
-    struct group
-    {
-        std::vector<double*> blockable_params_in_group;
-        double* blocking_param_in_group = nullptr;
-    };
-
-    std::vector<group> prop_groups(groups.size());
 
 #ifdef DEBUG_BLOCK_CONSTRAINT
     for (size_t i = 0; i < groups.size(); i++) {
@@ -554,37 +537,34 @@ bool Sketch::analyseBlockedConstraintDependentParameters(
     }
 #endif  // DEBUG_BLOCK_CONSTRAINT
 
-    for (size_t i = 0; i < groups.size(); i++) {
-        for (size_t j = 0; j < groups[i].size(); j++) {
+    // 2. A parameter is blockable if it belongs to blocked geometry (see documentation in header
+    // file).
+    auto isBlockable = [this, &blockedGeoIds](double* param) {
+        auto element = param2geoelement.find(param);
+        return element != param2geoelement.end()
+            && std::ranges::find(blockedGeoIds, std::get<0>(element->second)) != blockedGeoIds.end();
+    };
 
-            double* thisparam = *std::next(groups[i].begin(), j);
+    // 3. Pick at most one blockable parameter per group, starting from the last group and from the
+    // last parameter of a group, and only a parameter that does not belong to any group a parameter
+    // was already picked for (see documentation in header file).
+    std::vector<const std::vector<double*>*> pickedGroups;
+    auto belongsToPickedGroup = [&pickedGroups](double* param) {
+        return std::ranges::any_of(pickedGroups, [param](const std::vector<double*>* group) {
+            return std::ranges::find(*group, param) != group->end();
+        });
+    };
 
-            if (auto element = param2geoelement.find(thisparam); element != param2geoelement.end()) {
+    for (size_t i = groups.size(); i-- > 0;) {
+        for (size_t j = groups[i].size(); j-- > 0;) {
+            double* thisparam = groups[i][j];
 
-                if (auto blockable = std::ranges::find(blockedGeoIds, std::get<0>(element->second));
-                    blockable != blockedGeoIds.end()) {
-                    // This dependent parameter group contains at least one parameter that should be
-                    // blocked, so added to the blockable list.
-                    prop_groups[i].blockable_params_in_group.push_back(thisparam);
-                }
-            }
-        }
-    }
-
-    // 3. Apply heuristic - pick the last blockable param available to block the group, starting
-    // from the last group
-    for (size_t i = prop_groups.size(); i-- > 0;) {
-        for (size_t j = prop_groups[i].blockable_params_in_group.size(); j-- > 0;) {
-            // check if parameter is already satisfying one group
-            double* thisparam = prop_groups[i].blockable_params_in_group[j];
-            auto pos = std::ranges::find(params_to_block, thisparam);
-
-            if (pos == params_to_block.end()) {  // not found, so add
+            if (isBlockable(thisparam) && !belongsToPickedGroup(thisparam)) {
                 params_to_block.push_back(thisparam);
-                prop_groups[i].blocking_param_in_group = thisparam;
+                pickedGroups.push_back(&groups[i]);
 #ifdef DEBUG_BLOCK_CONSTRAINT
                 Base::Console().log(
-                    "\nTentatively blocking group {}, with param={}",
+                    "\nBlocking group {}, with param={}",
                     i,
                     static_cast<const void*>(thisparam)
                 );
@@ -594,22 +574,7 @@ bool Sketch::analyseBlockedConstraintDependentParameters(
         }
     }
 
-    // 4. Check if groups are satisfied or are licitly unsatisfiable and thus deemed as satisfied
-    bool unsatisfied_groups = false;
-    for (auto& prop_group : prop_groups) {
-        // 4.1. unsatisfiable group
-        if (prop_group.blockable_params_in_group.empty()) {
-            // this group does not contain any blockable parameter, so it is by definition satisfied
-            // (or impossible to satisfy by block constraints)
-            continue;
-        }
-        // 4.2. satisfiable and not satisfied
-        if (!prop_group.blocking_param_in_group) {
-            unsatisfied_groups = true;
-        }
-    }
-
-    return unsatisfied_groups;
+    return !params_to_block.empty();
 }
 
 void Sketch::clearTemporaryConstraints()
