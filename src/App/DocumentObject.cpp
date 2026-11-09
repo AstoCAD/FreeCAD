@@ -1485,6 +1485,12 @@ DocumentObject::getParents(int depth) const
 
     std::string name(getNameInDocument());
     name += ".";
+
+    // The in-list holds an object once per link to us (e.g. a Body links its Tip feature through
+    // both Group and Tip), and the same object can also be reached as a link to another parent.
+    // The paths through an object only depend on that object, so visit each one once to report
+    // every path exactly once.
+    std::set<App::DocumentObject*> visited;
     for (auto parent : getInList()) {
         if (!parent || !parent->isAttachedToDocument()) {
             continue;
@@ -1503,6 +1509,9 @@ DocumentObject::getParents(int depth) const
         links.insert(parent);
 
         for (auto parent : links) {
+            if (!visited.insert(parent).second) {
+                continue;
+            }
             auto parents = parent->getParents(depth + 1);
             if (parents.empty()) {
                 parents.emplace_back(parent, std::string());
