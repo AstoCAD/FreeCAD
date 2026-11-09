@@ -192,11 +192,22 @@ class Sheet(DocumentObject):
         """Get the number format set for the cell, or None"""
         ...
 
+    def setFontSize(self, cell: str, points: int | None, /) -> None:
+        """
+        Set the size of the text of the cell or range in points (1 to 409);
+        None uses the size of the view again. The row heights do not change.
+        """
+        ...
+
+    def getFontSize(self, address: str, /) -> int | None:
+        """Get the font size set for the cell, or None"""
+        ...
+
     def clearFormat(self, range: str, /) -> None:
         """
         Remove the formatting of the cells of the range: alignment, style,
-        colors, display unit, decimals, number format and borders. Their
-        content, aliases and merging stay.
+        font size, colors, display unit, decimals, number format and borders.
+        Their content, aliases and merging stay.
         """
         ...
 

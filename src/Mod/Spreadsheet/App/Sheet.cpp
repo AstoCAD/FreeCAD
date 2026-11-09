@@ -2015,6 +2015,17 @@ void Sheet::setNumberFormat(App::Range range, Cell::NumberFormat format)
 }
 
 /**
+ * @brief Set the size of the text of the cells in \a range.
+ * @param range Range of cells
+ * @param points 1 to 409 points, or 0 to use the size of the view again
+ */
+
+void Sheet::setFontSize(App::Range range, int points)
+{
+    cells.setFontSize(range, points);
+}
+
+/**
  * @brief Give the cells of \a range the formatting of new cells, keeping their content.
  * @param range Range of cells
  */

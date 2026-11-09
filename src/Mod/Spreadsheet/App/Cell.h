@@ -92,6 +92,11 @@ public:
     /// The decimals of the cell if set, otherwise those of the unit preferences.
     int getDisplayDecimals() const;
 
+    /// Size of the text in points, 1 to MAX_FONT_SIZE; 0 or less uses the size of the view.
+    void setFontSize(int points);
+    bool getFontSize(int& points) const;
+    static const int MAX_FONT_SIZE;
+
     /// The edges of the cell drawn as lines: an or'ed combination of the BORDER_* values.
     void setBorders(int borders);
     bool getBorders(int& borders) const;
@@ -122,6 +127,7 @@ public:
         Base::Color background;
         std::string displayUnit;
         int decimals = -1;
+        int fontSize = 0;
         int borders = 0;
         NumberFormat numberFormat = NumberFormat::General;
 
@@ -263,6 +269,7 @@ private:
     static const unsigned int DECIMALS_SET;
     static const unsigned int BORDERS_SET;
     static const unsigned int NUMBER_FORMAT_SET;
+    static const unsigned int FONT_SIZE_SET;
     static const unsigned int MARK_SET;
     static const unsigned int EXCEPTION_SET;
     static const unsigned int PARSE_EXCEPTION_SET;
@@ -285,6 +292,7 @@ private:
     int decimals;
     int borders;
     NumberFormat numberFormat;
+    int fontSize;
     std::string exceptionStr;
     App::CellAddress anchor;
     friend class PropertySheet;

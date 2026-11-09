@@ -208,6 +208,8 @@ public:
 
     void setNumberFormat(App::Range range, Cell::NumberFormat format);
 
+    void setFontSize(App::Range range, int points);
+
     void clearFormat(App::Range range);
     void copyFormat(App::Range source, App::Range target);
 

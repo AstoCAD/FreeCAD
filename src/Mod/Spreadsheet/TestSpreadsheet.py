@@ -2949,6 +2949,36 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertIsNone(sheet.getDecimals("D1"))
         self.assertIsNone(sheet.getDecimals("E1"))
 
+    def testExportXLSXFontSize(self):
+        """Font sizes are exported and read back; the size of the default font
+        of a file is not imported, so that text keeps the size of the view"""
+        import zipfile
+        import importXLSX
+
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Fonts")
+        sheet.set("A1", "Title")
+        sheet.setFontSize("A1", 18)
+        sheet.setStyle("A1", "bold")
+        sheet.set("A2", "Text")
+        sheet.setStyle("A2", "bold")
+        self.doc.recompute()
+        filename = os.path.join(self.TempPath, "SpreadsheetFontSize.xlsx")
+        importXLSX.export([sheet], filename)
+        with zipfile.ZipFile(filename) as z:
+            styles = z.read("xl/styles.xml").decode("utf-8")
+        self.assertIn('<font><b/><sz val="18"/>', styles)
+        self.assertIn('<font><b/><sz val="11"/>', styles)
+
+        doc = FreeCAD.newDocument("ExportXLSXFontSize")
+        try:
+            importXLSX.insert(filename, doc.Name)
+            back = doc.getObject("Fonts")
+            self.assertEqual(back.getFontSize("A1"), 18)
+            self.assertEqual(back.getStyle("A1"), {"bold"})
+            self.assertIsNone(back.getFontSize("A2"))
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
     def testExportXLSXBorders(self):
         """Borders are exported as thin lines and read back, those of a merged
         cell on the cells along its edges as Excel expects"""
@@ -4016,6 +4046,52 @@ class SpreadsheetEditing(unittest.TestCase):
         finally:
             os.remove(path)
 
+    def testFontSize(self):
+        sheet = self.sheet
+        self.doc.UndoMode = 1
+        sheet.set("A1", "Title")
+        self.assertIsNone(sheet.getFontSize("A1"))
+        self.doc.openTransaction("Font size")
+        sheet.setFontSize("A1:B1", 16)
+        self.doc.commitTransaction()
+        self.assertEqual(sheet.getFontSize("A1"), 16)
+        self.assertEqual(sheet.getFontSize("B1"), 16)
+        self.doc.undo()
+        self.assertIsNone(sheet.getFontSize("A1"))
+        self.doc.redo()
+        self.assertEqual(sheet.getFontSize("A1"), 16)
+        # Copied with the cell
+        sheet.fillDown("A1:A2")
+        self.assertEqual(sheet.getFontSize("A2"), 16)
+        sheet.setFontSize("A1", None)
+        self.assertIsNone(sheet.getFontSize("A1"))
+        # Going back to the default does not create cells
+        sheet.setFontSize("E1:E5", None)
+        self.assertNotIn("E1", sheet.getUsedCells())
+        with self.assertRaises(ValueError):
+            sheet.setFontSize("A1", 0)
+        with self.assertRaises(ValueError):
+            sheet.setFontSize("A1", 410)
+        with self.assertRaises(TypeError):
+            sheet.setFontSize("A1", 12.5)
+
+    def testFontSizeSaveAndRestore(self):
+        sheet = self.sheet
+        sheet.set("A1", "Title")
+        sheet.setFontSize("A1", 20)
+        path = os.path.join(tempfile.gettempdir(), "SpreadsheetFontSize.FCStd")
+        self.doc.saveAs(path)
+        FreeCAD.closeDocument(self.doc.Name)
+        try:
+            with zipfile.ZipFile(path) as archive:
+                xml = archive.read("Document.xml").decode("utf-8")
+            # A plain optional attribute, ignored by versions that do not know it
+            self.assertIn('fontSize="20"', xml)
+            self.doc = FreeCAD.openDocument(path)
+            self.assertEqual(self.doc.getObject("Spreadsheet").getFontSize("A1"), 20)
+        finally:
+            os.remove(path)
+
     def _formatEverything(self, address):
         sheet = self.sheet
         sheet.setStyle(address, "bold|italic")
@@ -4026,6 +4102,7 @@ class SpreadsheetEditing(unittest.TestCase):
         sheet.setDecimals(address, 4)
         sheet.setNumberFormat(address, "scientific")
         sheet.setBorders(address, "all")
+        sheet.setFontSize(address, 14)
 
     def _formatOf(self, address):
         sheet = self.sheet
@@ -4038,6 +4115,7 @@ class SpreadsheetEditing(unittest.TestCase):
             sheet.getDecimals(address),
             sheet.getNumberFormat(address),
             sheet.getBorders(address),
+            sheet.getFontSize(address),
         )
 
     def testClearFormat(self):
@@ -4054,7 +4132,7 @@ class SpreadsheetEditing(unittest.TestCase):
         self.doc.openTransaction("Clear formatting")
         sheet.clearFormat("A1:C1")
         self.doc.commitTransaction()
-        self.assertEqual(self._formatOf("A1"), (None,) * 8)
+        self.assertEqual(self._formatOf("A1"), (None,) * 9)
         self.assertIsNone(sheet.getStyle("B1"))
         # The content, alias and merging stay
         self.assertEqual(sheet.getContents("A1"), "=2 * 3")
@@ -4103,7 +4181,7 @@ class SpreadsheetEditing(unittest.TestCase):
         self.assertNotIn("E5", sheet.getUsedCells())
         # An unformatted source cell removes the formatting, without creating cells
         sheet.copyFormat("H1", "E1")
-        self.assertEqual(self._formatOf("E1"), (None,) * 8)
+        self.assertEqual(self._formatOf("E1"), (None,) * 9)
         sheet.copyFormat("H1", "J1:J3")
         self.assertNotIn("J1", sheet.getUsedCells())
         # Overlapping ranges use the formatting from before the copy

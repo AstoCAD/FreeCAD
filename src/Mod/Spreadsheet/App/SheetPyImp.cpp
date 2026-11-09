@@ -856,6 +856,63 @@ PyObject* SheetPy::getNumberFormat(PyObject* args)
     }
 }
 
+PyObject* SheetPy::setFontSize(PyObject* args)
+{
+    const char* cell;
+    PyObject* value;
+
+    if (!PyArg_ParseTuple(args, "sO:setFontSize", &cell, &value)) {
+        return nullptr;
+    }
+
+    int points = 0;
+    if (value != Py_None) {
+        if (!PyLong_Check(value)) {
+            PyErr_SetString(PyExc_TypeError, "The font size must be an integer or None");
+            return nullptr;
+        }
+        long n = PyLong_AsLong(value);
+        if (n < 1 || n > Cell::MAX_FONT_SIZE) {
+            PyErr_SetString(PyExc_ValueError, "The font size must be between 1 and 409 points");
+            return nullptr;
+        }
+        points = static_cast<int>(n);
+    }
+
+    try {
+        getSheetPtr()->setFontSize(Range(cell, true), points);
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+
+    Py_Return;
+}
+
+PyObject* SheetPy::getFontSize(PyObject* args)
+{
+    const char* strAddress;
+
+    if (!PyArg_ParseTuple(args, "s:getFontSize", &strAddress)) {
+        return nullptr;
+    }
+
+    try {
+        CellAddress address = stringToAddress(strAddress);
+        int points = 0;
+        const Cell* cell = getSheetPtr()->getCell(address);
+        if (cell && cell->getFontSize(points)) {
+            return Py::new_reference_to(Py::Long(points));
+        }
+        Py_Return;
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+}
+
 PyObject* SheetPy::clearFormat(PyObject* args)
 {
     const char* range;

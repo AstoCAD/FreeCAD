@@ -319,8 +319,12 @@ QVariant SheetModel::data(const QModelIndex& index, int role) const
     }
 
     std::set<std::string> style;
-    if (role == Qt::FontRole && cell->getStyle(style)) {
+    int fontSize = 0;
+    if (role == Qt::FontRole && (cell->getStyle(style) || cell->getFontSize(fontSize))) {
         QFont f;
+        if (cell->getFontSize(fontSize)) {
+            f.setPointSize(fontSize);
+        }
 
         for (const auto& i : style) {
             if (i == "bold") {
