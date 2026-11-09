@@ -174,6 +174,42 @@ class TestSolverElmer(unittest.TestCase):
         self.input_file_writing_test(get_namefromdef("test_"))
 
     # ********************************************************************************************
+    def test_constant_vacuum_permittivity(self):
+        # the constant object holds a real F/m quantity and Elmer gets it in SI units
+        import ObjectsFem
+
+        analysis = ObjectsFem.makeAnalysis(self.document)
+        solver = ObjectsFem.makeSolverElmer(self.document)
+        constant = ObjectsFem.makeConstantVacuumPermittivity(self.document)
+        analysis.addObject(solver)
+        analysis.addObject(constant)
+        self.document.recompute()
+
+        def written():
+            w = writer.Writer(solver, testtools.get_fem_test_tmp_dir("elmer_permittivity"))
+            w._handleRedifinedConstants()
+            return FreeCAD.Units.Quantity(w.constsdef["PermittivityOfVacuum"]).getValueAs("F/m")
+
+        self.assertAlmostEqual(
+            constant.VacuumPermittivity.getValueAs("F/m").Value, 8.85419e-12, delta=1e-17
+        )
+        self.assertAlmostEqual(written().Value, 8.85419e-12, delta=1e-17)
+
+        constant.setExpression("VacuumPermittivity", None)
+        constant.VacuumPermittivity = FreeCAD.Units.Quantity("1e-11 F/m")
+        self.assertAlmostEqual(written().Value, 1e-11, delta=1e-17)
+
+        # documents of older versions bound a unitless expression meant in F/m
+        constant.setExpression("VacuumPermittivity", "8.85419e-12")
+        self.document.recompute()
+        constant.Proxy.onDocumentRestored(constant)
+        # a restored document is not recomputed
+        self.assertAlmostEqual(
+            constant.VacuumPermittivity.getValueAs("F/m").Value, 8.85419e-12, delta=1e-17
+        )
+        self.assertAlmostEqual(written().Value, 8.85419e-12, delta=1e-17)
+
+    # ********************************************************************************************
     def input_file_writing_test(self, base_name):
         self.document.recompute()
 
