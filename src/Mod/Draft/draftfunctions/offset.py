@@ -107,6 +107,38 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
             h = nh.Length
         return l, h, pl
 
+    def getOutline(obj):
+        """returns the polyline described by the Points of a Wire or by
+        the size of a Rectangle, or None if it is the shape itself.
+
+        execute() adds fillets, chamfers and subdivisions to that polyline,
+        so the vertices of the shape are then not the Points or corners."""
+        fillet = getattr(obj, "FilletRadius", None)
+        chamfer = getattr(obj, "ChamferSize", None)
+        if not (
+            (fillet is not None and fillet.Value != 0)
+            or (chamfer is not None and chamfer.Value != 0)
+            or getattr(obj, "Subdivisions", 0) > 0
+        ):
+            return None
+        pl = obj.Placement
+        if utils.get_type(obj) == "Wire":
+            if obj.Base or obj.Tool:
+                return None
+            pts = [pl.multVec(p) for p in obj.Points]
+            if obj.Closed and len(pts) > 2:
+                pts.append(pts[0])
+        elif utils.get_type(obj) == "Rectangle":
+            length = obj.Length.Value
+            height = obj.Height.Value
+            pts = [
+                pl.multVec(App.Vector(x, y, 0))
+                for x, y in ((0, 0), (length, 0), (length, height), (0, height), (0, 0))
+            ]
+        else:
+            return None
+        return Part.makePolygon(pts)
+
     def getRadius(obj, delta):
         """returns a new radius for a regular polygon"""
         an = math.pi / obj.FacesNumber
@@ -114,7 +146,13 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
         normal = obj.Placement.Rotation.multVec(App.Vector(0, 0, 1))
         nr = DraftVecUtils.rotate(delta, -an, normal)
         nr.multiply(1 / math.cos(an))
-        nr = obj.Shape.Vertexes[0].Point.add(nr)
+        # The first corner of the polygon, as in Polygon.execute(). It is
+        # not a vertex of the shape if the corners have fillets or chamfers.
+        if obj.DrawMode == "inscribed":
+            corner = obj.Radius.Value
+        else:
+            corner = obj.Radius.Value / math.cos(an)
+        nr = obj.Placement.multVec(App.Vector(corner, 0, 0)).add(nr)
         nr = nr.sub(obj.Placement.Base)
         nr = nr.Length
         if obj.DrawMode == "inscribed":
@@ -192,7 +230,9 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
             else:
                 print("Draft.offset: Unable to duplicate this object")
         elif utils.get_type(obj) == "Rectangle":
-            if p:
+            # the vertices of the offset are not the corners of a rectangle
+            # if obj has fillets or chamfers
+            if p and not getOutline(obj):
                 length, height, plac = getRect(p, obj)
                 newobj = make_rectangle(length, height, plac)
             elif newwire:
@@ -235,6 +275,11 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
         newobj = None
         if sym:
             return None
+        outline = getOutline(obj)
+        if outline:
+            # The fillets, chamfers or subdivisions of obj are kept and
+            # applied again to the offset of its polyline
+            p = geo_general.getVerts(geo_offsets.offsetWire(outline, delta))
         if utils.get_type(obj) == "Wire":
             if obj.Base or obj.Tool:
                 App.Console.PrintWarning("Warning: object history removed\n")
