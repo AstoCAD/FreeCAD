@@ -682,6 +682,17 @@ class BRepConversionTest(unittest.TestCase):
                 expected = profile if profile.ShapeType == "Face" else Part.Face(profile)
                 self.assertAlmostEqual(obj.Shape.Area, expected.Area, places=7)
 
+    def test_rejected_form_face_profile_adds_no_object(self):
+        document = App.newDocument("FormsTestRejectedProfileFace")
+        for profile in (
+            Part.makeLine(App.Vector(0, 0, 0), App.Vector(10, 0, 0)),
+            Part.Wire([Part.makeLine(App.Vector(0, 0, 0), App.Vector(10, 0, 0))]),
+        ):
+            with self.subTest(profile=profile.ShapeType):
+                with self.assertRaises(ValueError):
+                    create_face(document, profile=profile)
+                self.assertEqual(document.Objects, [])
+
     def test_form_face_keeps_the_placement_of_a_located_profile(self):
         # A face picked on a placed object carries that placement as its
         # Location; the Form Face must stay where the profile and its cage are.
