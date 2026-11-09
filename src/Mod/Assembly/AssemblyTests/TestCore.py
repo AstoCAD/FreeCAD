@@ -363,6 +363,54 @@ class TestCore(AssemblyTestBase):
     def test_custom_assembly_type_preserves_grounded_second_reference(self):
         self._check_grounded_part_with_assembly_type("Custom assembly metadata")
 
+    def _grounded_box_fixed_to_other(self):
+        grounded = self.assembly.newObject("Part::Box", "Grounded")
+        grounded.Placement = App.Placement(App.Vector(5, -3, 2), App.Rotation(30, 10, 0))
+        other = self.assembly.newObject("Part::Box", "Other")
+        other.Placement = grounded.Placement.multiply(
+            App.Placement(App.Vector(0, 0, 10), App.Rotation())
+        )
+        self.doc.recompute()
+        ground = self.jointgroup.newObject("App::FeaturePython", "Ground")
+        JointObject.GroundedJoint(ground, grounded)
+        fixed = self.jointgroup.newObject("App::FeaturePython", "Fixed")
+        JointObject.Joint(fixed, JointObject.JointTypes.index("Fixed"))
+        fixed.Proxy.setJointConnectors(
+            fixed, [[grounded, ["Face6", "Vertex7"]], [other, ["Face5", "Vertex1"]]]
+        )
+        self.assertEqual(self.assembly.solve(), 0)
+        return grounded, other
+
+    def test_conflicting_joints_do_not_move_grounded_part(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/32650 (redundant constraint cause):
+        # removing the redundant equations must never drop the grounding.
+        grounded, other = self._grounded_box_fixed_to_other()
+        initial = App.Placement(grounded.Placement)
+
+        # The fixed joint makes this distance impossible.
+        distance = self.jointgroup.newObject("App::FeaturePython", "Distance")
+        JointObject.Joint(distance, JointObject.JointTypes.index("Distance"))
+        distance.Distance = 1000
+        distance.Proxy.setJointConnectors(
+            distance, [[grounded, ["Vertex1", "Vertex1"]], [other, ["Vertex1", "Vertex1"]]]
+        )
+        self.assembly.solve()
+
+        self.assertTrue(
+            grounded.Placement.isSame(initial, 1e-7),
+            f"grounded part moved to {grounded.Placement}",
+        )
+
+    def test_export_asmt_writes_grounding(self):
+        # The ASMT format has no fixed-body flag: the grounding is written as a fixed joint.
+        grounded, _other = self._grounded_box_fixed_to_other()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "grounded.asmt"
+            self.assembly.exportAsASMT(str(path))
+            text = path.read_text(encoding="utf-8")
+        self.assertIn(f"marker-{self.doc.Name}#{grounded.Name}", text)
+        self.assertIn("FixingMarker", text)
+
     def _fixed_joint_between_boxes(self):
         grounded = self.assembly.newObject("Part::Box", "Grounded")
         moving = self.assembly.newObject("Part::Box", "Moving")
