@@ -885,22 +885,32 @@ private:
      * between the rank and the full size, may only depend on a number of parameters, while the last
      * full size column may be dependent on any amount of previously introduced parameters.
      *
-     * Thus the rationale is: start from the last group (having **potentially** the larger amount of
-     * parameters) and selecting as blocking for that group the latest blockable parameter. Because
-     * previous groups do not have access to the last parameter, this can never interfere with
-     * previous groups. However, because the last parameter may not be a blockable one, there is a
-     * risk of selecting a parameter common with other group, albeit the probability is reduced and
-     * probably (I have not demonstrated it though and I am not sure), it leads to the right
-     * solution in one iteration.
+     * Each group is thus one free direction of the system: a parameter belongs to a group exactly
+     * when it moves along that direction. Fixing a parameter removes one degree of freedom if, and
+     * only if, it cannot be expressed through the parameters already fixed, otherwise the fixed
+     * parameter is one equation too many: the system loses rank, a constraint (possibly an
+     * internal one, like the ArcRules of an arc) becomes redundant, and the blocked geometry
+     * keeps a degree of freedom while geometry connected to it may get locked (#19105).
      *
+     * Thus the rationale is: start from the last group (having **potentially** the larger amount of
+     * parameters) and select as blocking for that group the latest blockable parameter, provided
+     * that it does not belong to any group a parameter was already selected for. Ordered by their
+     * groups, the selected parameters then form a triangular matrix with a non-zero diagonal, so
+     * they are independent: fixing them cannot make any constraint redundant. A group whose
+     * blockable parameters all belong to already selected groups is left for the next iteration.
+     *
+     * The parameters to fix are returned in params_to_block (cleared first). Returns whether there
+     * is any. The caller fixes them, diagnoses again and repeats until no blockable parameter is
+     * dependent any more, i.e. the blocked geometry has no degree of freedom left.
      */
     bool analyseBlockedConstraintDependentParameters(
-        std::vector<int>& blockedGeoIds,
+        const std::vector<int>& blockedGeoIds,
         std::vector<double*>& params_to_block
     ) const;
 
-    /// utility function refactoring fixing the provided parameters and running a new diagnose
-    void fixParametersAndDiagnose(std::vector<double*>& params_to_block);
+    /// utility function refactoring fixing the provided parameters and running a new diagnose.
+    /// Returns whether any of the parameters was still unknown and has been fixed.
+    bool fixParametersAndDiagnose(std::vector<double*>& params_to_block);
 };
 
 }  // namespace Sketcher
