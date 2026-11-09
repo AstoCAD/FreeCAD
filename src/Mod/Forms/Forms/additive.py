@@ -450,14 +450,35 @@ def create_partdesign_form(
     operation="Additive",
     path_object=None,
 ):
-    """Create an additive or subtractive Forms primitive inside *body*."""
+    """Create an additive or subtractive Forms primitive inside *body*.
+
+    As for any Part Design feature, the Form is added after the Body's Tip and
+    based on the Body's last solid feature up to the Tip. *base_feature* states
+    that base: it must be that solid feature, or the Tip, after which the Form
+    is added. ``None`` is accepted only in a Body without such a feature."""
     if primitive not in PRIMITIVES:
         raise ValueError(f"Unsupported Part Design Form primitive: {primitive}")
     if operation not in OPERATIONS:
         raise ValueError(f"Unsupported Part Design Form operation: {operation}")
     name = name or f"{operation}Form{primitive}"
     feature_type = f"PartDesign::Feature{operation}Python"
+    tip = body.Tip
     obj = body.newObject(feature_type, name)
+    # The Body set the base and routed the next solid feature to the new one:
+    # another base would drop features from the Body result or make a cycle.
+    body_base = obj.BaseFeature
+    if base_feature is not body_base and base_feature is not tip:
+        document = obj.Document
+        body.removeObject(obj)
+        document.removeObject(obj.Name)
+        if body.Tip is not tip:
+            body.Tip = tip
+        expected = body_base.Label if body_base is not None else "None"
+        raise ValueError(
+            f"The base feature of a Form in {body.Label} must be {expected}, "
+            "the Body's previous solid feature"
+        )
+    base_feature = body_base
     label_template = App.Qt.translate("Forms_Create", "%1 Form %2")
     operation_label = (
         App.Qt.translate("Forms_Create", "Additive")
