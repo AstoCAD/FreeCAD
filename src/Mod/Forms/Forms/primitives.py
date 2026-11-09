@@ -166,45 +166,8 @@ class FormFaceProxy(FormFeatureProxy):
         return face_control_cage(obj.Length.Value, obj.Width.Value, obj.XSegments, obj.YSegments)
 
     def execute(self, obj):
-        profile = obj.ProfileShape
-        profile_topology = list(obj.ProfileControlFaces)
-        if (
-            obj.CageMode == "Parametric"
-            or bool(getattr(obj, "MatchBoundary", ()))
-            or profile.isNull()
-            or list(obj.ControlFaces) != profile_topology
-            or bool(str(getattr(obj, "TMeshData", "") or ""))
-            or bool(getattr(obj, "LocalEdgeInserts", ()))
-            or bool(getattr(obj, "LocalControlPoints", ()))
-            or bool(getattr(obj, "DissolvedEdges", ()))
-            or bool(getattr(obj, "EdgeSharpness", ()))
-            or any(float(value) > 0.0 for value in getattr(obj, "VertexSharpness", ()))
-        ):
+        if not update_profile_face_shape(self, obj):
             super().execute(obj)
-            return
-        if _same_control_points(obj.ControlPoints, obj.ProfileControlPoints):
-            from .elementmap import map_form_shape
-
-            if bool(getattr(self, "_show_edit_shape", False)):
-                try:
-                    shape = _segmented_profile_shape(
-                        profile, obj.ControlPoints, obj.ControlFaces
-                    )
-                except ValueError:
-                    vertices, faces, support = _validated_profile_control_cage(profile)
-                    _write_profile_control_cage(obj, vertices, faces, support)
-                    profile = support
-                    shape = _segmented_profile_shape(
-                        profile, obj.ControlPoints, obj.ControlFaces
-                    )
-            else:
-                shape = profile.copy()
-            obj.Shape = map_form_shape(obj, shape, source_shapes=(profile,))
-            obj.MaximumDeviation = 0.0
-            obj.ConversionLevel = 0
-            obj.ConversionStatus = App.Qt.translate("Forms_Conversion", "Valid profile surface")
-            return
-        super().execute(obj)
 
     def show_edit_shape(self, obj, enabled):
         """Expose selectable control patches while the Form Face is edited."""
@@ -587,6 +550,47 @@ def _segmented_profile_shape(profile, control_points, encoded_faces):
     if shell.isNull() or not shell.isValid():
         raise ValueError("The exact profile patches do not form a valid shell")
     return shell
+
+
+def update_profile_face_shape(proxy, obj):
+    """Give a Form Face made from a profile the exact profile as its shape.
+
+    This holds while the cage is still the initial profile cage. Returns False
+    when it is not, and the shape is then the subdivision surface of the cage.
+    *proxy* is the object's proxy, a standalone or a Part Design Form."""
+    profile = obj.ProfileShape
+    profile_topology = list(obj.ProfileControlFaces)
+    if (
+        obj.CageMode == "Parametric"
+        or bool(getattr(obj, "MatchBoundary", ()))
+        or profile.isNull()
+        or list(obj.ControlFaces) != profile_topology
+        or bool(str(getattr(obj, "TMeshData", "") or ""))
+        or bool(getattr(obj, "LocalEdgeInserts", ()))
+        or bool(getattr(obj, "LocalControlPoints", ()))
+        or bool(getattr(obj, "DissolvedEdges", ()))
+        or bool(getattr(obj, "EdgeSharpness", ()))
+        or any(float(value) > 0.0 for value in getattr(obj, "VertexSharpness", ()))
+        or not _same_control_points(obj.ControlPoints, obj.ProfileControlPoints)
+    ):
+        return False
+    from .elementmap import map_form_shape
+
+    if bool(getattr(proxy, "_show_edit_shape", False)):
+        try:
+            shape = _segmented_profile_shape(profile, obj.ControlPoints, obj.ControlFaces)
+        except ValueError:
+            vertices, faces, support = _validated_profile_control_cage(profile)
+            _write_profile_control_cage(obj, vertices, faces, support)
+            profile = support
+            shape = _segmented_profile_shape(profile, obj.ControlPoints, obj.ControlFaces)
+    else:
+        shape = profile.copy()
+    obj.Shape = map_form_shape(obj, shape, source_shapes=(profile,))
+    obj.MaximumDeviation = 0.0
+    obj.ConversionLevel = 0
+    obj.ConversionStatus = App.Qt.translate("Forms_Conversion", "Valid profile surface")
+    return True
 
 
 def _same_control_points(current, initial, tolerance=1.0e-9):
