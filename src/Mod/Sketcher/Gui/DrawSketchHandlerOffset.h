@@ -1192,11 +1192,11 @@ void DSHOffsetController::configureToolWidget()
 
         toolWidget->setCheckboxLabel(
             WCheckbox::FirstBox,
-            QApplication::translate("TaskSketcherTool_c1_offset", "Delete original geometries (U)")
+            QApplication::translate("TaskSketcherTool_c1_offset", "Delete original geometries (Home)")
         );
         toolWidget->setCheckboxLabel(
             WCheckbox::SecondBox,
-            QApplication::translate("TaskSketcherTool_c2_offset", "Add offset constraint (J)")
+            QApplication::translate("TaskSketcherTool_c2_offset", "Add offset constraint (End)")
         );
         toolWidget->setCheckboxToolTip(
             WCheckbox::FirstBox,

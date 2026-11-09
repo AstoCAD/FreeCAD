@@ -1014,10 +1014,10 @@ private:
         const Gui::InputHint switchModeHint {
             constructionMethod() == ConstructionMethod::Line ? tr("%1 switch to arc")
                                                              : tr("%1 switch to line"),
-            {KeyM}
+            {KeyAlt}
         };
-        const Gui::InputHint filletHint {tr("%1 toggle fillet"), {KeyF}};
-        const Gui::InputHint undoHint {tr("%1 undo last point"), {KeyR}};
+        const Gui::InputHint filletHint {tr("%1 toggle fillet"), {KeyPageDown}};
+        const Gui::InputHint undoHint {tr("%1 undo last point"), {KeyPageUp}};
 
         return Gui::lookupHints<SelectMode>(
             state(),
@@ -1771,7 +1771,7 @@ void DSHPolyLineController::configureToolWidget()
 
         toolWidget->setCheckboxLabel(
             WCheckbox::FirstBox,
-            QApplication::translate("TaskSketcherTool_c1_PolyLine", "Fillet (F)")
+            QApplication::translate("TaskSketcherTool_c1_PolyLine", "Fillet (PgDown)")
         );
         toolWidget->setCheckboxToolTip(
             WCheckbox::FirstBox,

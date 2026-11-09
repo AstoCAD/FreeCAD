@@ -277,7 +277,7 @@ CmdSketcherCreatePolyline::CmdSketcherCreatePolyline()
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
     sMenuText = QT_TR_NOOP("Polyline");
-    sToolTipText = QT_TR_NOOP("Creates a polyline in the sketch. M key cycles through segment modes.");
+    sToolTipText = QT_TR_NOOP("Creates a polyline in the sketch. Alt cycles through segment modes.");
     sWhatsThis = "Sketcher_CreatePolyline";
     sStatusTip = sToolTipText;
     sPixmap = "Sketcher_CreatePolyline";

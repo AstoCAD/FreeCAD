@@ -242,7 +242,12 @@ public:
     explicit DrawSketchController(HandlerT* dshandler)
         : handler(dshandler)
         , keymanager(std::make_unique<DrawSketchKeyboardManager>())
-    {}
+    {
+        // The tool shortcuts typed in a field reach the tool as their 3D view keys do
+        keymanager->setToolShortcutHandler([this](bool pressed, int key) {
+            static_cast<DrawSketchHandler*>(handler)->registerPressedKey(pressed, key);
+        });
+    }
 
     DrawSketchController(const DrawSketchController&) = delete;
     DrawSketchController(DrawSketchController&&) = delete;

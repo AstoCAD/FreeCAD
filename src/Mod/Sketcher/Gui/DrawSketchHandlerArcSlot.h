@@ -98,7 +98,7 @@ public:
     {
         using enum Gui::InputHint::UserInput;
 
-        const Gui::InputHint switchModeHint {.message = tr("%1 switch mode"), .sequences = {KeyM}};
+        const Gui::InputHint switchModeHint {.message = tr("%1 switch mode"), .sequences = {KeyAlt}};
 
         return Gui::lookupHints<SelectMode>(state(),
                                             {

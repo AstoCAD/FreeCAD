@@ -698,7 +698,7 @@ void DSHScaleController::configureToolWidget()
     if (!init) {  // Code to be executed only upon initialisation
         toolWidget->setCheckboxLabel(
             WCheckbox::FirstBox,
-            QApplication::translate("TaskSketcherTool_c1_scale", "Keep original geometries (U)")
+            QApplication::translate("TaskSketcherTool_c1_scale", "Keep original geometries (Home)")
         );
     }
 

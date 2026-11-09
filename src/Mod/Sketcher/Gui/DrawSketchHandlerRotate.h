@@ -96,7 +96,7 @@ public:
 
         const Gui::InputHint elementsHint {
             tr("%1/%2 increase/decrease number of elements", "Sketcher Rotate: hint"),
-            {KeyU, KeyJ}
+            {KeyHome, KeyEnd}
         };
 
         return Gui::lookupHints<SelectMode>(
