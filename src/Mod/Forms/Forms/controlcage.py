@@ -56,14 +56,19 @@ class ControlCage:
     ):
         self.vertices = [tuple(float(component) for component in point) for point in vertices]
         self.faces = [tuple(int(index) for index in face) for face in faces]
-        self.vertex_sharpness = [max(0.0, float(value)) for value in (vertex_sharpness or ())]
-        self.vertex_sharpness.extend([0.0] * (len(self.vertices) - len(self.vertex_sharpness)))
-        self.vertex_sharpness = self.vertex_sharpness[: len(self.vertices)]
-        self.edge_sharpness = {
-            _edge(*edge): max(0.0, float(value))
-            for edge, value in (edge_sharpness or {}).items()
-            if float(value) > 0.0
+        vertex_values = [float(value) for value in (vertex_sharpness or ())][: len(self.vertices)]
+        edge_values = {
+            _edge(*edge): float(value) for edge, value in (edge_sharpness or {}).items()
         }
+        # Check before clamping: max(0.0, nan) is 0.0 and nan > 0.0 is false,
+        # so a NaN would otherwise silently become a smooth vertex or edge.
+        if any(not math.isfinite(value) for value in vertex_values):
+            raise ValueError("Control-cage vertex sharpness must be finite")
+        if any(not math.isfinite(value) for value in edge_values.values()):
+            raise ValueError("Control-cage edge sharpness must be finite")
+        self.vertex_sharpness = [max(0.0, value) for value in vertex_values]
+        self.vertex_sharpness.extend([0.0] * (len(self.vertices) - len(self.vertex_sharpness)))
+        self.edge_sharpness = {edge: value for edge, value in edge_values.items() if value > 0.0}
         self.validate()
 
     @classmethod
