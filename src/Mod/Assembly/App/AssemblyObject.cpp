@@ -403,10 +403,18 @@ int AssemblyObject::solve(bool enableRedo)
 
 void AssemblyObject::updateSolveStatus()
 {
+    // Solve on demand when queried before the system is solved, but not from within
+    // a solve: solve() calls this, so a failed solve would recurse indefinitely.
+    // Solve first: the counts below describe the solver system.
+    if (!solveInProgress && (!mbdAssembly || !mbdAssembly->mbdSystem)) {
+        solve();
+    }
+
     lastRedundantJoints.clear();
     lastHasRedundancies = false;
 
     int numberOfSolverBodies = numberOfComponents();
+    int fixedSolverBodies = 0;
     if (!objectPartMap.empty()) {
         std::unordered_set<MbD::ASMTPart*> uniqueParts;
         for (const auto& entry : objectPartMap) {
@@ -417,16 +425,17 @@ void AssemblyObject::updateSolveStatus()
 
         const int bundledParts = static_cast<int>(objectPartMap.size() - uniqueParts.size());
         numberOfSolverBodies -= bundledParts;
+
+        // Grounded bodies (the origin among them) are fixed in the solver: no DoF.
+        fixedSolverBodies = static_cast<int>(
+            std::ranges::count_if(uniqueParts, [](const MbD::ASMTPart* part) {
+                return part->isFixed;
+            })
+        );
     }
 
     // +1 because the assembly origin is also represented by a solver body.
-    lastDoF = (1 + numberOfSolverBodies) * 6;
-
-    // Solve on demand when queried before the system is solved, but not from within
-    // a solve: solve() calls this, so a failed solve would recurse indefinitely.
-    if (!solveInProgress && (!mbdAssembly || !mbdAssembly->mbdSystem)) {
-        solve();
-    }
+    lastDoF = (1 + numberOfSolverBodies - fixedSolverBodies) * 6;
 
     if (!mbdAssembly || !mbdAssembly->mbdSystem) {
         return;
@@ -943,6 +952,9 @@ void AssemblyObject::exportAsASMT(std::string fileName)
 
     jointParts(joints);
     contactParts(getContacts());
+
+    // The ASMT file format cannot store a fixed body.
+    writeGroundingAsFixedJoints();
 
     mbdAssembly->outputFile(fileName);
 }
@@ -1640,39 +1652,56 @@ std::unordered_set<App::DocumentObject*> AssemblyObject::fixGroundedParts()
             continue;
         }
 
-        Base::Placement plc = getPlacementFromProp(obj, "Placement");
-        std::string str = obj->getFullName();
-        fixGroundedPart(obj, plc, str);
+        fixGroundedPart(obj);
     }
     return groundedParts;
 }
 
-void AssemblyObject::fixGroundedPart(App::DocumentObject* obj, Base::Placement& plc, std::string& name)
+void AssemblyObject::fixGroundedPart(App::DocumentObject* obj)
 {
     if (!obj) {
         return;
     }
 
-    std::string markerName1 = "marker-" + obj->getFullName();
-    auto mbdMarker1 = makeMbdMarker(markerName1, plc);
-    mbdAssembly->addMarker(mbdMarker1);
+    // Fix the solver body at its current placement. The solver keeps the equations of
+    // a fixed body ahead of every joint equation, so removing redundant constraints
+    // drops conflicting joint equations, never the grounding. A grounding written as a
+    // fixed joint to the assembly competed with the other joints, and the grounded part
+    // moved when they conflicted.
+    if (std::shared_ptr<ASMTPart> mbdPart = getMbDPart(obj)) {
+        mbdPart->isFixed = true;
+    }
+}
 
-    std::shared_ptr<ASMTPart> mbdPart = getMbDPart(obj);
+void AssemblyObject::writeGroundingAsFixedJoints()
+{
+    std::unordered_set<ASMTPart*> written;
+    for (const auto& entry : objectPartMap) {
+        const std::shared_ptr<ASMTPart>& mbdPart = entry.second.part;
+        if (!mbdPart || !mbdPart->isFixed || !written.insert(mbdPart.get()).second) {
+            continue;
+        }
 
-    std::string markerName2 = "FixingMarker";
-    Base::Placement basePlc = Base::Placement();
-    auto mbdMarker2 = makeMbdMarker(markerName2, basePlc);
-    mbdPart->addMarker(mbdMarker2);
+        Base::Placement plc = getMbdPlacement(mbdPart);
+        std::string markerName1 = "marker-" + mbdPart->name;
+        auto mbdMarker1 = makeMbdMarker(markerName1, plc);
+        mbdAssembly->addMarker(mbdMarker1);
 
-    markerName1 = "/OndselAssembly/" + mbdMarker1->name;
-    markerName2 = "/OndselAssembly/" + mbdPart->name + "/" + mbdMarker2->name;
+        std::string markerName2 = "FixingMarker";
+        Base::Placement basePlc = Base::Placement();
+        auto mbdMarker2 = makeMbdMarker(markerName2, basePlc);
+        mbdPart->addMarker(mbdMarker2);
 
-    auto mbdJoint = CREATE<ASMTFixedJoint>::With();
-    mbdJoint->setName(name);
-    mbdJoint->setMarkerI(markerName1);
-    mbdJoint->setMarkerJ(markerName2);
+        markerName1 = "/OndselAssembly/" + mbdMarker1->name;
+        markerName2 = "/OndselAssembly/" + mbdPart->name + "/" + mbdMarker2->name;
 
-    mbdAssembly->addJoint(mbdJoint);
+        auto mbdJoint = CREATE<ASMTFixedJoint>::With();
+        mbdJoint->setName(mbdPart->name);
+        mbdJoint->setMarkerI(markerName1);
+        mbdJoint->setMarkerJ(markerName2);
+
+        mbdAssembly->addJoint(mbdJoint);
+    }
 }
 
 bool AssemblyObject::isJointConnectingPartToGround(App::DocumentObject* joint, const char* propname)
