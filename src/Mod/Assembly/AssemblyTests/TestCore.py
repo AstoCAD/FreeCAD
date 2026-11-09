@@ -430,6 +430,33 @@ class TestCore(AssemblyTestBase):
 
         self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
 
+    def test_preserve_position_when_reference_is_picked_again(self):
+        """Preserve position keeps the part where it is, also when the joint still has the
+        offsets computed for a previous pick."""
+        moving, joint, refs = self._fixed_joint_between_boxes()
+        before = App.Placement(moving.Placement)
+        joint.Proxy.setJointConnectors(joint, refs, True)
+        offset = App.Placement(joint.Offset2)
+        self.assertFalse(offset.isIdentity())
+        self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
+
+        joint.Proxy.setJointConnectors(joint, refs[:1], True)
+        joint.Proxy.setJointConnectors(joint, refs, True)
+
+        self.assertTrue(joint.Offset2.isSame(offset, 1e-6), str(joint.Offset2))
+        self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
+
+    def test_preserve_position_replaces_an_existing_first_offset(self):
+        moving, joint, refs = self._fixed_joint_between_boxes()
+        before = App.Placement(moving.Placement)
+        joint.Proxy.setJointConnectors(joint, refs[:1])
+        joint.Offset1 = App.Placement(App.Vector(0, 0, 5), App.Rotation())
+
+        joint.Proxy.setJointConnectors(joint, refs, True)
+
+        self.assertTrue(joint.Offset1.isIdentity(), str(joint.Offset1))
+        self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
+
     def test_plain_part_matching_still_moves_second_component(self):
         part = self.doc.addObject("App::Part", "OrdinaryPart")
         first = part.newObject("Part::Box", "First")
