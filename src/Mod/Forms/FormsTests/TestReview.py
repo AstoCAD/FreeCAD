@@ -544,6 +544,34 @@ class ReviewTest(unittest.TestCase):
         session.dragger_finished(session.dragger)
         session.reject()
 
+    def test_rejected_edit_restores_the_shape_shown_outside_edit_mode(self):
+        # FreeCAD never calls unsetEdit() when setEdit() returns False, which
+        # is how the shared Forms editor reports an expected modeling error.
+        from Forms.additive import ViewProviderPartDesignForm
+        from Forms.primitives import ViewProviderFormFace
+        from Forms.viewprovider import ViewProviderForm
+
+        body = self.doc.addObject("PartDesign::Body", "Body")
+        source = body.newObject("PartDesign::Feature", "Source")
+        source.Shape = Part.makeBox(20, 20, 10)
+        form = Forms.create_additive_form(
+            body, source, "Box", placement=App.Placement(App.Vector(15, 10, 5), App.Rotation())
+        )
+        face = Forms.create_face(self.doc)
+        self.doc.recompute()
+        combined_volume = form.Shape.Volume
+
+        with patch.object(ViewProviderForm, "setEdit", return_value=False):
+            provider = object.__new__(ViewProviderPartDesignForm)
+            self.assertFalse(provider.setEdit(SimpleNamespace(Object=form), 0))
+            provider = object.__new__(ViewProviderFormFace)
+            self.assertFalse(provider.setEdit(SimpleNamespace(Object=face), 0))
+
+        self.assertFalse(form.EditingForm)
+        self.assertEqual(form.CombinationStatus, "Valid fused additive form")
+        self.assertAlmostEqual(form.Shape.Volume, combined_volume, places=6)
+        self.assertFalse(getattr(face.Proxy, "_show_edit_shape", False))
+
     def test_straighten_finds_the_dominant_eigenvector(self):
         points = [(math.sqrt(1.5), 0, 0), (-math.sqrt(1.5), 0, 0), (0, 1, 1), (0, -1, -1)]
         center, axis = topology._largest_covariance_axis(points)
