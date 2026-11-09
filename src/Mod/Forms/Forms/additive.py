@@ -48,6 +48,7 @@ from .primitives import (
     ViewProviderFormQuadball,
     ViewProviderFormTorus,
     ViewProviderFormTube,
+    update_profile_face_shape,
 )
 from .pipe import FormPipeProxy, ViewProviderFormPipe, fused_pipe_shape, update_pipe_shape
 
@@ -207,7 +208,9 @@ class PartDesignFormProxy(FormFeatureProxy):
             reset_cage(obj, vertices, faces)
         if str(obj.FormType) == "Forms::Pipe":
             update_pipe_shape(obj)
-        else:
+        elif not (
+            str(obj.FormType) == "Forms::Face" and update_profile_face_shape(self, obj)
+        ):
             update_object_shape(obj)
         form_shape = obj.Shape
         obj.FormShape = form_shape
@@ -297,6 +300,13 @@ class PartDesignFormProxy(FormFeatureProxy):
                 "Forms_PartDesign", "Valid cut subtractive form"
             )
 
+    def show_edit_shape(self, obj, enabled):
+        """Expose the selectable control patches of a profile Form Face while
+        it is edited, as the standalone Form Face does."""
+        self._show_edit_shape = bool(enabled)
+        obj.touch()
+        obj.Document.recompute()
+
     def onChanged(self, obj, prop):
         proxy = _primitive_proxy(obj) if "FormType" in obj.PropertiesList else None
         if prop == "CageMode" and proxy is not None:
@@ -305,6 +315,7 @@ class PartDesignFormProxy(FormFeatureProxy):
                 obj.setEditorMode(name, read_only)
 
     def onDocumentRestored(self, obj):
+        self._show_edit_shape = False
         self._ensure_conversion_properties(obj)
         self._ensure_symmetry_properties(obj)
         self._ensure_sharpness_properties(obj)
@@ -624,6 +635,18 @@ def move_form_to_body(source, body):
     else:
         result.CageMode = "Parametric"
         result.FormPlacement = relative_placement
+    if "ProfileShape" in source.PropertiesList:
+        # The exact profile of a Form Face, in Body coordinates like the cage.
+        # Baked in the geometry: the feature placement replaces the location
+        # of the shape it is given.
+        profile = source.ProfileShape.copy()
+        if not profile.isNull():
+            profile.transformShape(relative_placement.toMatrix(), True)
+        result.ProfileShape = profile
+        result.ProfileControlPoints = [
+            relative_placement.multVec(point) for point in source.ProfileControlPoints
+        ]
+        result.ProfileControlFaces = list(source.ProfileControlFaces)
 
     if App.GuiUp:
         for name, value in view_values.items():
