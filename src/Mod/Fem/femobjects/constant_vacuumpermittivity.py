@@ -51,5 +51,27 @@ class ConstantVacuumPermittivity(base_fempythonobject.BaseFemPythonObject):
         )
         obj.setPropertyStatus("VacuumPermittivity", "LockDynamic")
         # we must set an expression so that the small value can actually be entered
-        permittivity = Units.Quantity(constants.vacuum_permittivity()).getValueAs("F/m")
-        obj.setExpression("VacuumPermittivity", str(permittivity))
+        obj.setExpression("VacuumPermittivity", constants.vacuum_permittivity())
+
+    def onDocumentRestored(self, obj):
+        # Older versions bound a unitless expression (e.g. "8.85419e-12"), which stores the SI
+        # number in the internal units (mm based) of the property, and the solver writer
+        # scaled it back. Give such an expression the unit F/m it was meant in.
+        for path, expression in obj.ExpressionEngine:
+            if path != "VacuumPermittivity":
+                continue
+            try:
+                value = obj.evalExpression(expression)
+            except Exception:
+                # an expression that cannot be evaluated now is left as it is
+                return
+            if isinstance(value, Units.Quantity) and value.Unit != Units.Unit():
+                return
+            try:
+                float(expression)
+                new_expression = f"{expression} F/m"
+            except ValueError:
+                new_expression = f"({expression}) * 1 F/m"
+            obj.setExpression("VacuumPermittivity", new_expression)
+            # a restored object is not recomputed, so set the value the expression gives now
+            obj.VacuumPermittivity = obj.evalExpression(new_expression)
