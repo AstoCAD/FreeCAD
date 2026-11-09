@@ -666,6 +666,9 @@ def create_quadball(document=None, name="FormQuadball"):
 
 
 def create_face(document=None, name="FormFace", profile=None):
+    # Validate the profile before adding the object, so a rejected profile
+    # does not leave a default Form Face in the document.
+    profile_cage = _validated_profile_control_cage(profile) if profile is not None else None
     obj = _create(
         document,
         name,
@@ -673,8 +676,8 @@ def create_face(document=None, name="FormFace", profile=None):
         FormFaceProxy,
         ViewProviderFormFace,
     )
-    if profile is not None:
-        vertices, faces, support = _validated_profile_control_cage(profile)
+    if profile_cage is not None:
+        vertices, faces, support = profile_cage
         _write_profile_control_cage(obj, vertices, faces, support)
         obj.touch()
         obj.recompute()
