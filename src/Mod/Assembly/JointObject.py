@@ -2465,6 +2465,8 @@ class TaskAssemblyCreateJoint(QtCore.QObject):
         self.joint.Proxy.setJointConnectors(
             self.joint, self.refs, self.jForm.preservePosCheckbox.isChecked()
         )
+        # setJointConnectors() resets or computes the offsets: show their new values.
+        self.updateOffsetWidgets()
 
         self.updateIsolation()
 
