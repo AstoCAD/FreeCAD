@@ -479,36 +479,23 @@ def edgeForCmd(cmd, startPoint):
         center = startPoint + commandEndPoint(cmd, Vector(0, 0, 0), "I", "J", "K")
         A = xy(startPoint - center)
         B = xy(endPoint - center)
-        d = -B.x * A.y + B.y * A.x
+        cw = cmd.Name in CmdMoveCW
 
-        # d is also about zero when A and B point the same way: for a very
-        # short arc, which is not a half circle, and for an almost full circle,
-        # whose end lies just behind its start (d > 0 for a CW arc, d < 0 for a
-        # CCW one). The half circle midpoint, a quarter turn along the arc,
-        # keeps the latter going the long way around.
-        almostFull = (d > 0) == (cmd.Name in CmdMoveCW)
-        if isRoughly(d, 0, 0.005) and (A.dot(B) < 0 or almostFull):
-            # Path.Log.debug(
-            #    "Half circle arc at: (%.2f, %.2f, %.2f)" % (center.x, center.y, center.z)
-            # )
-            # we're dealing with half a circle here
-            angle = getAngle(A) + math.pi / 2
-            if cmd.Name in CmdMoveCW:
-                angle -= math.pi
-        else:
-            C = A + B
-            angle = getAngle(C)
-            # Path.Log.debug(
-            #    "Arc (%8f) at: (%.2f, %.2f, %.2f) -> angle=%f"
-            #    % (d, center.x, center.y, center.z, angle / math.pi)
-            # )
+        # The angle swept from A to B in the direction of travel, in [0, 2pi):
+        # less than pi for a minor arc, more than pi for a major arc.
+        sweep = diffAngle(getAngle(A), getAngle(B), "CW" if cw else "CCW")
+
+        # The midpoint lies half way along the arc in its direction of travel,
+        # which picks the right side of the circle for any arc, be it short,
+        # a half circle, longer than half a circle or almost a full circle.
+        angle = getAngle(A) + (-sweep if cw else sweep) / 2
 
         R = A.Length
         # Path.Log.debug(
         #    "arc: p1=(%.2f, %.2f) p2=(%.2f, %.2f) -> center=(%.2f, %.2f)"
         #    % (startPoint.x, startPoint.y, endPoint.x, endPoint.y, center.x, center.y)
         # )
-        # Path.Log.debug("arc: A=(%.2f, %.2f) B=(%.2f, %.2f) -> d=%.2f" % (A.x, A.y, B.x, B.y, d))
+        # Path.Log.debug("arc: A=(%.2f, %.2f) B=(%.2f, %.2f) -> sweep=%.2f" % (A.x, A.y, B.x, B.y, sweep))
         # Path.Log.debug("arc: R=%.2f angle=%.2f" % (R, angle / math.pi))
         if isRoughly(startPoint.z, endPoint.z):
             midPoint = center + Vector(math.cos(angle), math.sin(angle), 0) * R
@@ -534,11 +521,7 @@ def edgeForCmd(cmd, startPoint):
 
         # It's a Helix
         # print('angle: A=%.2f B=%.2f' % (getAngle(A)/math.pi, getAngle(B)/math.pi))
-        if cmd.Name in CmdMoveCW:
-            cw = True
-        else:
-            cw = False
-        angle = diffAngle(getAngle(A), getAngle(B), "CW" if cw else "CCW")
+        angle = sweep
         if isRoughly(angle, 0):
             # start and end coincide in XY: one full turn, as for the planar circle above
             angle = 2 * math.pi

@@ -539,6 +539,27 @@ class TestPathGeom(PathTestBase):
                 shortArc = Path.Geom.edgeForCmd(Path.Command(short, params), start)
                 self.assertRoughly(shortArc.Length, 0.003, 0.0001)
 
+    def test22(self):
+        """Verify arcs over half a circle are created the long way around."""
+        center = Vector(1, 2, 3)
+        radius = 2
+
+        def pointAt(angle):
+            return center + Vector(math.cos(angle), math.sin(angle), 0) * radius
+
+        a0 = math.radians(30)
+        for degrees in (90, 180, 200, 270, 350):
+            for name, sign in (("G3", 1), ("G2", -1)):
+                with self.subTest(name=name, degrees=degrees):
+                    sweep = sign * math.radians(degrees)
+                    start = pointAt(a0)
+                    end = pointAt(a0 + sweep)
+                    offset = center - start
+                    params = {"X": end.x, "Y": end.y, "Z": end.z, "I": offset.x, "J": offset.y}
+                    edge = Path.Geom.edgeForCmd(Path.Command(name, params), start)
+                    self.assertCurve(edge, start, pointAt(a0 + sweep / 2), end)
+                    self.assertRoughly(edge.Length, radius * math.radians(degrees))
+
     def test30(self):
         """Verify proper geometry for arcs with rising and fall ing Z-axis are created."""
         # print("------ rising helix -------")
