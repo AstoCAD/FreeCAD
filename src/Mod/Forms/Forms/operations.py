@@ -29,7 +29,7 @@ import FreeCAD as App
 
 from .cage import ControlCage
 from .controlcage import clear_match_data
-from .capabilities import require_base_topology, validate_local_creases
+from .capabilities import reject_form_surface, require_base_topology, validate_local_creases
 from .limits import check_sampling
 from .numerics import DenseLU
 from .model import object_tmesh as _object_tmesh, form_preview_object as _form_preview_object
@@ -75,6 +75,7 @@ def _write_all_points(obj, points):
 
 def set_edge_crease(obj, edges, sharpness):
     """Set selected control edges to a semi-sharp subdivision value."""
+    reject_form_surface(obj, "Crease")
     cage = ControlCage.from_object(obj)
     encoded = str(getattr(obj, "TMeshData", "") or "")
     valid = (
@@ -267,6 +268,7 @@ def insert_edge(obj, edge, position=0.5, side="left", mode="simple"):
     """Insert a local hierarchical edge with two editable endpoint controls."""
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms object")
+    reject_form_surface(obj, "Insert Edge")
     position = float(position)
     if abs(position - 0.5) > 1.0e-9:
         raise ValueError("Editable local insertion currently supports the 50% position")
@@ -434,8 +436,7 @@ def insert_point_edges(obj, points):
     """
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms object")
-    if str(obj.FormType) == "Forms::Surface":
-        raise ValueError("Part Design Form Surface does not support Insert Point")
+    reject_form_surface(obj, "Insert Point")
     records = [
         (tuple(sorted((int(edge[0]), int(edge[1])))), float(fraction))
         for edge, fraction in points
@@ -523,6 +524,7 @@ def subdivide_faces(obj, face_ids, u_divisions=2, v_divisions=2):
     """Subdivide selected logical leaves by dyadic U and V counts."""
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms object")
+    reject_form_surface(obj, "Subdivide")
     cage = ControlCage.from_object(obj)
     old_mesh = _object_tmesh(obj, cage)
     counts = (int(u_divisions), int(v_divisions))
@@ -557,6 +559,7 @@ def delete_faces(obj, face_indices):
     """
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms object")
+    reject_form_surface(obj, "Delete Faces")
     cage = ControlCage.from_object(obj)
     axis = object_axis(obj)
     encoded = str(getattr(obj, "TMeshData", "") or "")
@@ -595,8 +598,7 @@ def dissolve_edges(obj, edges):
     """
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms object")
-    if str(obj.FormType) == "Forms::Surface":
-        raise ValueError("Part Design Form Surface does not support edge dissolve")
+    reject_form_surface(obj, "edge dissolve")
     cage = ControlCage.from_object(obj)
     selected = {tuple(sorted((int(edge[0]), int(edge[1])))) for edge in edges}
     if not selected:
@@ -637,6 +639,7 @@ def erase_and_fill(obj, face_indices):
     require_base_topology(obj, "Erase and fill")
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms object")
+    reject_form_surface(obj, "Erase and Fill")
     cage = ControlCage.from_object(obj)
     axis = object_axis(obj)
     if axis is not None:
@@ -655,6 +658,7 @@ def fill_holes(obj, boundary_edges, mode="automatic"):
     require_base_topology(obj, "Fill holes")
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms object")
+    reject_form_surface(obj, "Fill Hole")
     cage = ControlCage.from_object(obj)
     axis = object_axis(obj)
     if axis is not None:
@@ -670,6 +674,7 @@ def bridge_boundaries(obj, boundary_edges):
     """Bridge two boundary loops, incorporating existing local refinement."""
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms object")
+    reject_form_surface(obj, "Bridge")
     cage = ControlCage.from_object(obj)
     local = bool(getattr(obj, "TMeshData", "") or getattr(obj, "LocalEdgeInserts", ()))
     if local:
@@ -816,6 +821,7 @@ def thicken_surface(obj, distance, sharp=True):
     require_base_topology(obj, "Thicken surface")
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms object")
+    reject_form_surface(obj, "Thicken")
     if getattr(obj, "LocalEdgeInserts", ()) or str(getattr(obj, "TMeshData", "") or ""):
         raise ValueError("Thicken does not yet support Forms with local edge inserts")
     cage = ControlCage.from_object(obj).thickened(distance, sharp)
@@ -830,6 +836,7 @@ def insert_edge_loop(obj, edge, position=0.5, mode="simple"):
     require_base_topology(obj, "Insert edge loop")
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms object")
+    reject_form_surface(obj, "Insert Edge Loop")
     source = ControlCage.from_object(obj)
     cage, inserted_edges = source.insert_edge_ring(edge, position, mode)
     axis = object_axis(obj)
