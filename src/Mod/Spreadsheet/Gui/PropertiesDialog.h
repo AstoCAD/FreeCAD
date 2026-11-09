@@ -81,6 +81,7 @@ private:
     std::set<std::string> orgStyle;
     Spreadsheet::DisplayUnit orgDisplayUnit;
     int orgDecimals {-1};
+    Spreadsheet::Cell::NumberFormat orgNumberFormat {Spreadsheet::Cell::NumberFormat::General};
     std::string orgAlias;
 
     bool displayUnitOk;

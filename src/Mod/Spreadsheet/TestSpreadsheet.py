@@ -2858,6 +2858,97 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertIn('<numFmt numFmtId="164" formatCode="0.000"/>', styles)
         self.assertIn('<c r="A1" s="1"><v>1.5</v></c>', worksheet)
 
+    def testExportXLSXNumberFormats(self):
+        """Percent and scientific formats are exported as number formats with
+        the decimals of the cell, and read back"""
+        import zipfile
+        import importXLSX
+
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Numbers")
+        sheet.set("A1", "0.125")
+        sheet.setNumberFormat("A1", "percent")
+        sheet.setDecimals("A1", 1)
+        sheet.set("A2", "12345")
+        sheet.setNumberFormat("A2", "scientific")
+        self.doc.recompute()
+        filename = os.path.join(self.TempPath, "SpreadsheetNumberFormats.xlsx")
+        importXLSX.export([sheet], filename)
+        with zipfile.ZipFile(filename) as z:
+            styles = z.read("xl/styles.xml").decode("utf-8")
+        default = importXLSX._defaultDecimals()
+        self.assertIn('formatCode="0.0%"', styles)
+        scientific = ("0." + "0" * default if default else "0") + "E+00"
+        self.assertIn('formatCode="%s"' % scientific, styles)
+
+        doc = FreeCAD.newDocument("ExportXLSXNumberFormats")
+        try:
+            importXLSX.insert(filename, doc.Name)
+            back = doc.getObject("Numbers")
+            self.assertEqual(back.A1, 0.125)
+            self.assertEqual(back.getNumberFormat("A1"), "percent")
+            self.assertEqual(back.getDecimals("A1"), 1)
+            self.assertEqual(back.getNumberFormat("A2"), "scientific")
+            self.assertEqual(back.getDecimals("A2"), default)
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
+    def testImportXLSXNumberFormats(self):
+        """The decimals, percentages and scientific notation of built-in and custom
+        XLSX number formats are imported; formats FreeCAD cannot show are not"""
+        import zipfile
+        import importXLSX
+
+        main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        workbook = (
+            f'<workbook xmlns="{main}" xmlns:r="{rels}"><sheets>'
+            '<sheet name="Numbers" sheetId="1" r:id="rId1"/></sheets></workbook>'
+        )
+        workbookRels = (
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'<Relationship Id="rId1" Type="{rels}/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>"
+        )
+        styles = (
+            f'<styleSheet xmlns="{main}">'
+            '<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.000"/>'
+            '<numFmt numFmtId="165" formatCode="yyyy\\-mm\\-dd"/></numFmts>'
+            '<fonts count="1"><font><sz val="11"/></font></fonts>'
+            '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>'
+            '<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            '<xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+            '<xf numFmtId="11" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+            '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+            '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+            "</cellXfs></styleSheet>"
+        )
+        worksheet = (
+            f'<worksheet xmlns="{main}"><sheetData><row r="1">'
+            '<c r="A1" s="1"><v>0.25</v></c><c r="B1" s="2"><v>12345</v></c>'
+            '<c r="C1" s="3"><v>1.5</v></c><c r="D1" s="4"><v>45000</v></c>'
+            '<c r="E1" s="0"><v>7</v></c>'
+            "</row></sheetData></worksheet>"
+        )
+        filename = os.path.join(self.TempPath, "SpreadsheetImportNumberFormats.xlsx")
+        with zipfile.ZipFile(filename, "w") as z:
+            z.writestr("xl/workbook.xml", workbook)
+            z.writestr("xl/_rels/workbook.xml.rels", workbookRels)
+            z.writestr("xl/styles.xml", styles)
+            z.writestr("xl/worksheets/sheet1.xml", worksheet)
+        importXLSX.insert(filename, self.doc.Name)
+        sheet = self.doc.getObject("Numbers")
+        self.assertEqual(sheet.A1, 0.25)
+        self.assertEqual(sheet.getNumberFormat("A1"), "percent")
+        self.assertEqual(sheet.getDecimals("A1"), 2)
+        self.assertEqual(sheet.getNumberFormat("B1"), "scientific")
+        self.assertEqual(sheet.getDecimals("B1"), 2)
+        self.assertIsNone(sheet.getNumberFormat("C1"))
+        self.assertEqual(sheet.getDecimals("C1"), 3)
+        # A date: the number is kept, without a format
+        self.assertIsNone(sheet.getNumberFormat("D1"))
+        self.assertIsNone(sheet.getDecimals("D1"))
+        self.assertIsNone(sheet.getDecimals("E1"))
+
     def testExportXLSXBorders(self):
         """Borders are exported as thin lines and read back, those of a merged
         cell on the cells along its edges as Excel expects"""
@@ -3840,6 +3931,88 @@ class SpreadsheetEditing(unittest.TestCase):
             self.assertEqual(sheet.getDecimals("A1"), 4)
             self.assertEqual(sheet.getDecimals("B2"), 0)
             self.assertEqual(sheet.getContents("A1"), "1.5")
+        finally:
+            os.remove(path)
+
+    def testNumberFormat(self):
+        sheet = self.sheet
+        self.doc.UndoMode = 1
+        sheet.set("A1", "0.125")
+        sheet.set("A2", "12345.678")
+        sheet.set("A3", "2")
+        sheet.set("A4", "=5 mm")
+        self.doc.recompute()
+        self.assertIsNone(sheet.getNumberFormat("A1"))
+        self.assertEqual(sheet.findCells("%", False, False, True), [])
+        self.doc.openTransaction("Number format")
+        sheet.setNumberFormat("A1", "percent")
+        self.doc.commitTransaction()
+        self.assertEqual(sheet.getNumberFormat("A1"), "percent")
+        self.doc.undo()
+        self.assertIsNone(sheet.getNumberFormat("A1"))
+        self.doc.redo()
+        self.assertEqual(sheet.getNumberFormat("A1"), "percent")
+        sheet.setDecimals("A1", 1)
+        self.doc.recompute()
+        # 12.5% (the decimal separator is the one of the locale)
+        self.assertEqual(sheet.findCells("5%", False, False, True), ["A1"])
+        # Only the display changes
+        self.assertEqual(sheet.A1, 0.125)
+        self.assertEqual(sheet.getContents("A1"), "0.125")
+
+        sheet.setNumberFormat("A2:A4", "scientific")
+        sheet.setDecimals("A2", 2)
+        self.doc.recompute()
+        # 1.23E+04, and integers and quantities too
+        self.assertEqual(sheet.findCells("E+04", False, False, True), ["A2"])
+        self.assertEqual(sheet.findCells("E+00", False, False, True), ["A3", "A4"])
+        # A number with a unit is not a percentage
+        sheet.setNumberFormat("A4", "percent")
+        self.doc.recompute()
+        self.assertEqual(sheet.findCells("%", False, False, True), ["A1"])
+
+        sheet.setNumberFormat("A2", None)
+        self.assertIsNone(sheet.getNumberFormat("A2"))
+        sheet.setNumberFormat("A3", "general")
+        self.assertIsNone(sheet.getNumberFormat("A3"))
+        # Copied with the cell
+        sheet.fillDown("A1:A2")
+        self.assertEqual(sheet.getNumberFormat("A2"), "percent")
+        # Going back to the default does not create cells
+        sheet.setNumberFormat("E1:E5", None)
+        self.assertNotIn("E1", sheet.getUsedCells())
+        with self.assertRaises(ValueError):
+            sheet.setNumberFormat("A1", "currency")
+        with self.assertRaises(TypeError):
+            sheet.setNumberFormat("A1", 1)
+
+    def testNumberFormatSaveAndRestore(self):
+        sheet = self.sheet
+        sheet.set("A1", "0.5")
+        sheet.setNumberFormat("A1", "percent")
+        sheet.setNumberFormat("B1", "scientific")
+        self.doc.recompute()
+        path = os.path.join(tempfile.gettempdir(), "SpreadsheetNumberFormat.FCStd")
+        self.doc.saveAs(path)
+        FreeCAD.closeDocument(self.doc.Name)
+        try:
+            with zipfile.ZipFile(path) as archive:
+                files = {name: archive.read(name) for name in archive.namelist()}
+            xml = files["Document.xml"].decode("utf-8")
+            # A plain optional attribute, ignored by versions that do not know it
+            self.assertIn('numberFormat="percent"', xml)
+            # A format a later version may add is shown as General
+            files["Document.xml"] = xml.replace(
+                'numberFormat="scientific"', 'numberFormat="currency"'
+            ).encode("utf-8")
+            with zipfile.ZipFile(path, "w") as archive:
+                for name, data in files.items():
+                    archive.writestr(name, data)
+            self.doc = FreeCAD.openDocument(path)
+            sheet = self.doc.getObject("Spreadsheet")
+            self.assertEqual(sheet.getNumberFormat("A1"), "percent")
+            self.assertIsNone(sheet.getNumberFormat("B1"))
+            self.assertEqual(sheet.A1, 0.5)
         finally:
             os.remove(path)
 

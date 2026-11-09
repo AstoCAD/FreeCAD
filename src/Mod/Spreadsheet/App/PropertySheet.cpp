@@ -853,6 +853,24 @@ void PropertySheet::setDecimals(Range range, int decimals)
     signaller.tryInvoke();
 }
 
+void PropertySheet::setNumberFormat(Range range, Cell::NumberFormat format)
+{
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        if (format != Cell::NumberFormat::General) {
+            if (Cell* cell = nonNullCellAt(*range)) {
+                cell->setNumberFormat(format);
+            }
+        }
+        else if (Cell* cell = cellAt(*range)) {
+            // Going back to the default does not create cells
+            cell->setNumberFormat(format);
+        }
+    } while (range.next());
+
+    signaller.tryInvoke();
+}
+
 void PropertySheet::setBorders(Range range, int borders, BorderMode mode)
 {
     if ((borders & ~Cell::BORDER_ALL) != 0) {

@@ -2004,6 +2004,17 @@ void Sheet::setDecimals(App::Range range, int decimals)
 }
 
 /**
+ * @brief Set how the numbers of the cells in \a range are written.
+ * @param range Range of cells
+ * @param format The number format; General is the default
+ */
+
+void Sheet::setNumberFormat(App::Range range, Cell::NumberFormat format)
+{
+    cells.setNumberFormat(range, format);
+}
+
+/**
  * @brief Draw or remove borders on the cells of \a range.
  * @param range Range of cells
  * @param borders Or'ed Cell::BORDER_* values

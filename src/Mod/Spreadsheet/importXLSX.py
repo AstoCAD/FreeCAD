@@ -381,7 +381,15 @@ def isOn(node):
 def handleStyles(theStyles):
     """Returns the cell formats of xl/styles.xml, indexed like the "s" attribute
     of the cells: a tuple (style set, text color, background color, alignment,
-    borders)."""
+    borders, (number format, decimals) or None)."""
+    numberCodes = dict(builtinNumberFormats)
+    numFmtsNode = firstChildElement(theStyles.documentElement, "numFmts")
+    for numFmt in childElements(numFmtsNode, "numFmt") if numFmtsNode else []:
+        try:
+            numberCodes[int(numFmt.getAttribute("numFmtId"))] = numFmt.getAttribute("formatCode")
+        except ValueError:
+            pass
+
     fonts = []
     fontsNode = firstChildElement(theStyles.documentElement, "fonts")
     for font in childElements(fontsNode, "font") if fontsNode else []:
@@ -443,8 +451,42 @@ def handleStyles(theStyles):
             sides = borders[int(xf.getAttribute("borderId") or 0)]
         except (ValueError, IndexError):
             sides = set()
-        formats.append((style, foreground, background, alignment, sides))
+        try:
+            number = decodeNumberFormat(numberCodes.get(int(xf.getAttribute("numFmtId") or 0), ""))
+        except ValueError:
+            number = None
+        formats.append((style, foreground, background, alignment, sides, number))
     return formats
+
+
+# The built-in number formats of Excel that FreeCAD can show (others are
+# dates, times, currencies, fractions or text)
+builtinNumberFormats = {
+    1: "0",
+    2: "0.00",
+    3: "#,##0",
+    4: "#,##0.00",
+    9: "0%",
+    10: "0.00%",
+    11: "0.00E+00",
+    48: "##0.0E+0",
+}
+
+numberCodePattern = re.compile(r"[#,]*0+(?:\.(0+))?(%|E\+0+)?")
+
+
+def decodeNumberFormat(code):
+    """Returns (number format, decimals) of an Excel number format code that
+    FreeCAD can show, like ("percent", 2) for "0.00%", or None."""
+    # Only the format of the positive numbers
+    match = numberCodePattern.fullmatch(code.split(";")[0])
+    if not match:
+        return None
+    decimals = len(match.group(1) or "")
+    suffix = match.group(2)
+    if not suffix:
+        return ("general", decimals)
+    return ("percent" if suffix == "%" else "scientific", decimals)
 
 
 def readCellFormats(z):
@@ -459,7 +501,8 @@ def readCellFormats(z):
 
 
 def handleCellFormats(cellList, actCellSheet, cellFormats):
-    """Applies the bold, italic, underline, colors and alignment of the cells."""
+    """Applies the bold, italic, underline, colors, alignment, decimals and
+    number format of the cells."""
     for cell in cellList:
         ref = cell.getAttribute("r")
         index = cell.getAttribute("s")
@@ -467,6 +510,7 @@ def handleCellFormats(cellList, actCellSheet, cellFormats):
             continue
         try:
             style, foreground, background, alignment = cellFormats[int(index)][:4]
+            number = cellFormats[int(index)][5]
         except (ValueError, IndexError):
             continue
         if not isSheetCell(ref):
@@ -481,6 +525,11 @@ def handleCellFormats(cellList, actCellSheet, cellFormats):
             actCellSheet.setBackground(ref, background)
         if alignment:
             actCellSheet.setAlignment(ref, alignment, "keep")
+        if number:
+            numberFormat, decimals = number
+            actCellSheet.setDecimals(ref, min(decimals, 15))
+            if numberFormat != "general":
+                actCellSheet.setNumberFormat(ref, numberFormat)
 
 
 def handleCellBorders(cellList, actCellSheet, cellFormats):
@@ -950,6 +999,26 @@ def _rangesOf(formula, aliases):
         ]
 
 
+def _defaultDecimals():
+    """The decimals FreeCAD shows by default (unit preferences)."""
+    match = re.search(r"\d(\D)(\d+)$", App.Units.toNumber(1.0, "f"))
+    return len(match.group(2)) if match else 0
+
+
+def _numberFormatCode(numberFormat, decimals):
+    """The Excel number format code of a cell number format and decimals, or
+    None for the default format."""
+    general = numberFormat in (None, "general")
+    if general and decimals is None:
+        return None
+    if decimals is None:
+        decimals = _defaultDecimals()
+    code = "0." + "0" * decimals if decimals > 0 else "0"
+    if general:
+        return code
+    return code + ("%" if numberFormat == "percent" else "E+00")
+
+
 def _hexColor(color):
     r, g, b = (max(0, min(255, int(round(c * 255)))) for c in color[:3])
     return "FF%02X%02X%02X" % (r, g, b)
@@ -980,11 +1049,16 @@ class _Styles:
         background = sheet.getBackground(address)
         alignment = sheet.getAlignment(address) or set()
         decimals = sheet.getDecimals(address) if hasattr(sheet, "getDecimals") else None
+        numberCode = _numberFormatCode(sheet.getNumberFormat(address), decimals)
         if borders is None:
             borders = sheet.getBorders(address) or set()
         # In the order of the XLSX schema
         border = "".join(
-            '<%s style="thin"><color auto="1"/></%s>' % (side, side) if side in borders else "<%s/>" % side
+            (
+                '<%s style="thin"><color auto="1"/></%s>' % (side, side)
+                if side in borders
+                else "<%s/>" % side
+            )
             for side in ("left", "right", "top", "bottom")
         )
         if not borders:
@@ -1013,7 +1087,7 @@ class _Styles:
         if "vimplied" in alignment:
             vertical = None
 
-        key = (font, fill, horizontal, vertical, decimals, border)
+        key = (font, fill, horizontal, vertical, numberCode, border)
         if key == ("", None, None, None, None, ""):
             return 0
         if key in self.index:
@@ -1023,9 +1097,8 @@ class _Styles:
         fillId = self._add(self.fills, fill) if fill else 0
         borderId = self._add(self.borders, border)
         numFmtId = 0
-        if decimals is not None:
-            code = "0." + "0" * decimals if decimals > 0 else "0"
-            numFmtId = 164 + self._add(self.numFmts, code)
+        if numberCode is not None:
+            numFmtId = 164 + self._add(self.numFmts, numberCode)
         align = ""
         if horizontal or vertical:
             align = "<alignment%s%s/>" % (
