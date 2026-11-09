@@ -517,7 +517,7 @@ public:
 
         const Gui::InputHint elementsHint {
             tr("%1/%2 increase/decrease number of elements", "Sketcher Translate: hint"),
-            {KeyU, KeyJ}
+            {KeyHome, KeyEnd}
         };
         const Gui::InputHint rowsHint {
             tr("%1/%2 increase/decrease number of rows", "Sketcher Translate: hint"),
