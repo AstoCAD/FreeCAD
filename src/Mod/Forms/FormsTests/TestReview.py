@@ -572,6 +572,42 @@ class ReviewTest(unittest.TestCase):
         self.assertAlmostEqual(form.Shape.Volume, combined_volume, places=6)
         self.assertFalse(getattr(face.Proxy, "_show_edit_shape", False))
 
+    def test_public_api_exports_and_forwards_every_option(self):
+        import inspect
+
+        from Forms import additive, box, form, operations, pipe, primitives, surface
+
+        public = {
+            name
+            for name, value in vars(Forms).items()
+            if inspect.isfunction(value) and value.__module__ == "Forms"
+        }
+        self.assertEqual(public.difference(Forms.__all__), set())
+        implementations = {
+            "create_box": box,
+            "create_form": form,
+            "create_pipe": pipe,
+            "create_surface": surface,
+            "create_additive_form": additive,
+            "create_subtractive_form": additive,
+            "move_form_to_body": additive,
+            "match_boundary": additive,
+        }
+        for name in ("create_cylinder", "create_sphere", "create_quadball", "create_face",
+                     "create_torus", "create_tube"):
+            implementations[name] = primitives
+        for name in ("delete_faces", "dissolve_edges", "erase_and_fill", "fill_holes",
+                     "bridge_boundaries", "unweld_segment", "weld_boundaries", "thicken_surface",
+                     "insert_edge_loop", "insert_edge", "insert_point_edges", "subdivide_faces",
+                     "set_edge_crease", "straighten_control_points", "flatten_control_points"):
+            implementations[name] = operations
+        for name, module in implementations.items():
+            with self.subTest(function=name):
+                self.assertEqual(
+                    list(inspect.signature(getattr(Forms, name)).parameters),
+                    list(inspect.signature(getattr(module, name)).parameters),
+                )
+
     def test_straighten_finds_the_dominant_eigenvector(self):
         points = [(math.sqrt(1.5), 0, 0), (-math.sqrt(1.5), 0, 0), (0, 1, 1), (0, -1, -1)]
         center, axis = topology._largest_covariance_axis(points)
