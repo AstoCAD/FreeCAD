@@ -1190,6 +1190,16 @@ void QuantitySpinBox::focusOutEvent(QFocusEvent* event)
 {
     Q_D(const QuantitySpinBox);
 
+    if (event->reason() == Qt::PopupFocusReason) {
+        // A popup of the field (the completer of an expression being typed, the context menu)
+        // takes the focus while the input is still being edited, as QLineEdit treats it. The
+        // input is not finished: interpreting it here would report an error on a half-typed
+        // expression and select the faulty part, which the next key then replaces.
+        QCoreApplication::sendEvent(lineEdit(), event);
+        QWidget::focusOutEvent(event);  // NOLINT(bugprone-parent-virtual-call)
+        return;
+    }
+
     validateInput();
 
     if (d->validInput && d->normalize) {
