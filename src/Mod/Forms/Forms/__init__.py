@@ -122,11 +122,11 @@ def move_form_to_body(source, body):
     return _move_form_to_body(source, body)
 
 
-def match_boundary(obj, boundary_edges, support, continuity="Connected"):
+def match_boundary(obj, boundary_edges, support, continuity="Connected", tangent_mode=None):
     """Match one Form opening to a face or closed-wire support."""
     from .additive import match_boundary as _match_boundary
 
-    return _match_boundary(obj, boundary_edges, support, continuity)
+    return _match_boundary(obj, boundary_edges, support, continuity, tangent_mode)
 
 
 def make_editable(obj):
@@ -236,11 +236,11 @@ def straighten_control_points(obj, indices, line=None, surface_points=False):
     return _straighten_control_points(obj, indices, line, surface_points)
 
 
-def flatten_control_points(obj, indices):
-    """Flatten selected controls to their best-fit plane."""
+def flatten_control_points(obj, indices, plane=None):
+    """Flatten selected controls to their best-fit plane or an (origin, normal) plane."""
     from .operations import flatten_control_points as _flatten_control_points
 
-    return _flatten_control_points(obj, indices)
+    return _flatten_control_points(obj, indices, plane)
 
 
 __all__ = [
@@ -270,6 +270,7 @@ __all__ = [
     "thicken_surface",
     "insert_edge",
     "insert_edge_loop",
+    "insert_point_edges",
     "subdivide_faces",
     "set_edge_crease",
     "straighten_control_points",
