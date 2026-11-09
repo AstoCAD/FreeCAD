@@ -135,6 +135,8 @@ public:
 
     void setNumberFormat(App::Range range, Cell::NumberFormat format);
 
+    void setFontSize(App::Range range, int points);
+
     /// Give the cells of \a range the formatting of new cells; their content stays.
     void clearFormat(App::Range range);
     /// Give the cells of \a target the formatting of those of \a source, repeated

@@ -381,7 +381,7 @@ def isOn(node):
 def handleStyles(theStyles):
     """Returns the cell formats of xl/styles.xml, indexed like the "s" attribute
     of the cells: a tuple (style set, text color, background color, alignment,
-    borders, (number format, decimals) or None)."""
+    borders, (number format, decimals) or None, font size or None)."""
     numberCodes = dict(builtinNumberFormats)
     numFmtsNode = firstChildElement(theStyles.documentElement, "numFmts")
     for numFmt in childElements(numFmtsNode, "numFmt") if numFmtsNode else []:
@@ -404,7 +404,28 @@ def handleStyles(theStyles):
         color = decodeColor(firstChildElement(font, "color"))
         if color == (0.0, 0.0, 0.0, 1.0):
             color = None  # the default text color
-        fonts.append((style, color))
+        size = None
+        sizeNode = firstChildElement(font, "sz")
+        if sizeNode is not None:
+            try:
+                size = float(sizeNode.getAttribute("val"))
+            except ValueError:
+                pass
+        fonts.append((style, color, size))
+    # Text in the size of the default font (the first one) keeps the size of the view
+    defaultSize = fonts[0][2] if fonts else None
+    fonts = [
+        (
+            style,
+            color,
+            (
+                min(max(int(round(size)), 1), 409)
+                if size is not None and size > 0 and size != defaultSize
+                else None
+            ),
+        )
+        for style, color, size in fonts
+    ]
 
     fills = []
     fillsNode = firstChildElement(theStyles.documentElement, "fills")
@@ -433,9 +454,9 @@ def handleStyles(theStyles):
     xfsNode = firstChildElement(theStyles.documentElement, "cellXfs")
     for xf in childElements(xfsNode, "xf") if xfsNode else []:
         try:
-            style, foreground = fonts[int(xf.getAttribute("fontId") or 0)]
+            style, foreground, fontSize = fonts[int(xf.getAttribute("fontId") or 0)]
         except (ValueError, IndexError):
-            style, foreground = set(), None
+            style, foreground, fontSize = set(), None, None
         try:
             background = fills[int(xf.getAttribute("fillId") or 0)]
         except (ValueError, IndexError):
@@ -455,7 +476,7 @@ def handleStyles(theStyles):
             number = decodeNumberFormat(numberCodes.get(int(xf.getAttribute("numFmtId") or 0), ""))
         except ValueError:
             number = None
-        formats.append((style, foreground, background, alignment, sides, number))
+        formats.append((style, foreground, background, alignment, sides, number, fontSize))
     return formats
 
 
@@ -501,8 +522,8 @@ def readCellFormats(z):
 
 
 def handleCellFormats(cellList, actCellSheet, cellFormats):
-    """Applies the bold, italic, underline, colors, alignment, decimals and
-    number format of the cells."""
+    """Applies the bold, italic, underline, font size, colors, alignment,
+    decimals and number format of the cells."""
     for cell in cellList:
         ref = cell.getAttribute("r")
         index = cell.getAttribute("s")
@@ -510,7 +531,7 @@ def handleCellFormats(cellList, actCellSheet, cellFormats):
             continue
         try:
             style, foreground, background, alignment = cellFormats[int(index)][:4]
-            number = cellFormats[int(index)][5]
+            number, fontSize = cellFormats[int(index)][5:7]
         except (ValueError, IndexError):
             continue
         if not isSheetCell(ref):
@@ -530,6 +551,8 @@ def handleCellFormats(cellList, actCellSheet, cellFormats):
             actCellSheet.setDecimals(ref, min(decimals, 15))
             if numberFormat != "general":
                 actCellSheet.setNumberFormat(ref, numberFormat)
+        if fontSize:
+            actCellSheet.setFontSize(ref, fontSize)
 
 
 def handleCellBorders(cellList, actCellSheet, cellFormats):
@@ -870,8 +893,9 @@ def insert(nameXLSX, docname):
 #
 # Writes one worksheet per spreadsheet with the computed values, the formulas
 # that Excel computes the same way, aliases (as defined names), bold, italic,
-# underline, colors, alignment, borders (thin lines), per-cell decimals, column
-# widths, custom row heights and merged cells. Kept simple on purpose:
+# underline, font sizes, colors, alignment, borders (thin lines), per-cell
+# decimals and number formats, column widths, custom row heights and merged
+# cells. Kept simple on purpose:
 # - quantities with a unit are written as text with their unit ("10 mm"),
 #   dimensionless ones as numbers;
 # - a formula is written only if it uses cell references, ranges, aliases of
@@ -900,6 +924,8 @@ _mainNS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 _relNS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 _pkgRelNS = "http://schemas.openxmlformats.org/package/2006/relationships"
 _xmlHeader = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+# The size of the default font of the exported files (Calibri 11, like Excel's)
+defaultFontSize = 11
 
 _formulaToken = re.compile(
     r"\s+|(?P<ref>\$?[A-Z]{1,3}\$?[0-9]+)(?![A-Za-z0-9_(])"
@@ -1073,6 +1099,9 @@ class _Styles:
             font += "<u/>"
         if foreground:
             font += '<color rgb="%s"/>' % _hexColor(foreground)
+        fontSize = sheet.getFontSize(address)
+        if fontSize:
+            font += '<sz val="%d"/>' % fontSize
         fill = None
         if background:
             fill = (
@@ -1130,7 +1159,8 @@ class _Styles:
             parts.append("</numFmts>")
         parts.append('<fonts count="%d">' % len(self.fonts))
         for font in self.fonts:
-            parts.append('<font>%s<sz val="11"/><name val="Calibri"/><family val="2"/></font>' % font)
+            size = "" if "<sz " in font else '<sz val="%d"/>' % defaultFontSize
+            parts.append('<font>%s%s<name val="Calibri"/><family val="2"/></font>' % (font, size))
         parts.append('</fonts><fills count="%d">' % len(self.fills))
         for fill in self.fills:
             parts.append("<fill>%s</fill>" % fill)

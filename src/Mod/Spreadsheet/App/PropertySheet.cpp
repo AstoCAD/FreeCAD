@@ -871,6 +871,27 @@ void PropertySheet::setNumberFormat(Range range, Cell::NumberFormat format)
     signaller.tryInvoke();
 }
 
+void PropertySheet::setFontSize(Range range, int points)
+{
+    if (points > Cell::MAX_FONT_SIZE) {
+        throw Base::ValueError("The font size must be at most 409 points");
+    }
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        if (points > 0) {
+            if (Cell* cell = nonNullCellAt(*range)) {
+                cell->setFontSize(points);
+            }
+        }
+        else if (Cell* cell = cellAt(*range)) {
+            // Going back to the default does not create cells
+            cell->setFontSize(0);
+        }
+    } while (range.next());
+
+    signaller.tryInvoke();
+}
+
 void PropertySheet::clearFormat(Range range)
 {
     PropertySheet::AtomicPropertyChange signaller(*this);

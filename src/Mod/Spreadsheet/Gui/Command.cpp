@@ -1277,8 +1277,8 @@ CmdSpreadsheetClearFormat::CmdSpreadsheetClearFormat()
     sGroup = QT_TR_NOOP("Spreadsheet");
     sMenuText = QT_TR_NOOP("C&lear Formatting");
     sToolTipText = QT_TR_NOOP(
-        "Removes the alignment, style, colors, units, number format and borders of the "
-        "selected cells, keeping their content"
+        "Removes the alignment, style, font size, colors, units, number format and borders "
+        "of the selected cells, keeping their content"
     );
     sWhatsThis = "Spreadsheet_ClearFormat";
     sStatusTip = sToolTipText;

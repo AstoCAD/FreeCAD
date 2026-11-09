@@ -87,6 +87,7 @@ const unsigned int Cell::SPANS_SET            = 0x200;
 const unsigned int Cell::DECIMALS_SET         = 0x400;
 const unsigned int Cell::BORDERS_SET          = 0x800;
 const unsigned int Cell::NUMBER_FORMAT_SET    = 0x1000;
+const unsigned int Cell::FONT_SIZE_SET        = 0x2000;
 const unsigned int Cell::MARK_SET             = 0x40000000;
 const unsigned int Cell::EXCEPTION_SET        = 0x20000000;
 const unsigned int Cell::PARSE_EXCEPTION_SET  = 0x80000000;
@@ -110,6 +111,9 @@ const int Cell::BORDER_LEFT          = 0x02;
 const int Cell::BORDER_BOTTOM        = 0x04;
 const int Cell::BORDER_RIGHT         = 0x08;
 const int Cell::BORDER_ALL           = 0x0f;
+
+/* The largest font size of Excel */
+const int Cell::MAX_FONT_SIZE        = 409;
 // clang-format on
 
 /**
@@ -135,6 +139,7 @@ Cell::Cell(const CellAddress& _address, PropertySheet* _owner)
     , decimals(-1)
     , borders(0)
     , numberFormat(NumberFormat::General)
+    , fontSize(0)
     , anchor()
 {
     assert(address.isValid());
@@ -156,6 +161,7 @@ Cell::Cell(PropertySheet* _owner, const Cell& other)
     , decimals(other.decimals)
     , borders(other.borders)
     , numberFormat(other.numberFormat)
+    , fontSize(other.fontSize)
 {
     setUsed(MARK_SET, false);
     setAlias(other.alias);
@@ -245,8 +251,8 @@ const App::Expression* Cell::getExpression(bool withFormat) const
     if (withFormat && expression) {
         if ((used
              & (ALIGNMENT_SET | STYLE_SET | FOREGROUND_COLOR_SET | BACKGROUND_COLOR_SET
-                | DISPLAY_UNIT_SET | DECIMALS_SET | BORDERS_SET | NUMBER_FORMAT_SET | ALIAS_SET
-                | SPANS_SET))) {
+                | DISPLAY_UNIT_SET | DECIMALS_SET | BORDERS_SET | NUMBER_FORMAT_SET
+                | FONT_SIZE_SET | ALIAS_SET | SPANS_SET))) {
             std::ostringstream ss;
             save(ss, "", true);
             expression->comment = ss.str();
@@ -747,6 +753,37 @@ bool Cell::getBorders(int& value) const
 }
 
 /**
+ * Set the size of the text of the cell in points; 0 or less uses the size of
+ * the view again.
+ *
+ */
+
+void Cell::setFontSize(int points)
+{
+    if (points > MAX_FONT_SIZE) {
+        throw Base::ValueError("The font size must be at most 409 points");
+    }
+    if (points < 0) {
+        points = 0;
+    }
+    if (points != fontSize) {
+        PropertySheet::AtomicPropertyChange signaller(*owner);
+
+        fontSize = points;
+        setUsed(FONT_SIZE_SET, fontSize > 0);
+        setDirty();
+
+        signaller.tryInvoke();
+    }
+}
+
+bool Cell::getFontSize(int& points) const
+{
+    points = fontSize;
+    return isUsed(FONT_SIZE_SET);
+}
+
+/**
  * Set how the numbers of the cell are written; General is the default.
  *
  */
@@ -786,6 +823,7 @@ Cell::Format Cell::getFormat() const
     }
     format.displayUnit = displayUnit.stringRep;
     format.decimals = isUsed(DECIMALS_SET) ? decimals : -1;
+    format.fontSize = fontSize;
     format.borders = borders;
     format.numberFormat = numberFormat;
     return format;
@@ -821,6 +859,7 @@ void Cell::setFormat(const Format& format)
     }
     setDisplayUnit(format.displayUnit);
     setDecimals(format.decimals);
+    setFontSize(format.fontSize);
     setBorders(format.borders);
     setNumberFormat(format.numberFormat);
 
@@ -1077,6 +1116,9 @@ void Cell::restore(Base::XMLReader& reader, bool checkAlias)
     const char* numberFormatAttr = reader.hasAttribute("numberFormat")
         ? reader.getAttribute<const char*>("numberFormat")
         : nullptr;
+    const char* fontSizeAttr = reader.hasAttribute("fontSize")
+        ? reader.getAttribute<const char*>("fontSize")
+        : nullptr;
 
     // Don't trigger multiple updates below; wait until everything is loaded by calling unfreeze()
     // below.
@@ -1149,6 +1191,9 @@ void Cell::restore(Base::XMLReader& reader, bool checkAlias)
         decodeNumberFormat(numberFormatAttr, format);
         setNumberFormat(format);
     }
+    if (fontSizeAttr) {
+        setFontSize(std::clamp(atoi(fontSizeAttr), 0, MAX_FONT_SIZE));
+    }
     if (alias && (!checkAlias || !owner->revAliasProp.count(alias))) {
         setAlias(alias);
     }
@@ -1219,6 +1264,10 @@ void Cell::save(std::ostream& os, const char* indent, bool noContent) const
 
     if (isUsed(NUMBER_FORMAT_SET)) {
         os << "numberFormat=\"" << encodeNumberFormat(numberFormat) << "\" ";
+    }
+
+    if (isUsed(FONT_SIZE_SET)) {
+        os << "fontSize=\"" << fontSize << "\" ";
     }
 
     if (isUsed(ALIAS_SET)) {

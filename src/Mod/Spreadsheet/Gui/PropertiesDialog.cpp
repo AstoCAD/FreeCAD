@@ -159,6 +159,8 @@ PropertiesDialog::PropertiesDialog(Sheet* _sheet, const std::vector<Range>& _ran
         orgDecimals = -1;
     }
     ui->decimals->setValue(orgDecimals);
+    (void)cell->getFontSize(orgFontSize);
+    ui->fontSize->setValue(orgFontSize);
     // The items of the combo box are in the order of Cell::NumberFormat
     (void)cell->getNumberFormat(orgNumberFormat);
     ui->numberFormat->setCurrentIndex(static_cast<int>(orgNumberFormat));
@@ -468,6 +470,16 @@ void PropertiesDialog::apply()
                     "setDecimals('%s', %s)",
                     i->rangeString().c_str(),
                     decimals < 0 ? std::string("None") : std::to_string(decimals)
+                );
+                changes = true;
+            }
+            if (ui->fontSize->value() != orgFontSize) {
+                const int fontSize = ui->fontSize->value();
+                Gui::cmdAppObjectArgs(
+                    sheet,
+                    "setFontSize('%s', %s)",
+                    i->rangeString().c_str(),
+                    fontSize > 0 ? std::to_string(fontSize) : std::string("None")
                 );
                 changes = true;
             }
