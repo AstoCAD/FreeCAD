@@ -28,7 +28,9 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+from PySide import QtCore
 
 import UtilsAssembly
 import JointObject
@@ -372,6 +374,28 @@ class TestCore(AssemblyTestBase):
         JointObject.Joint(joint, JointObject.JointTypes.index("Fixed"))
         refs = [[grounded, ["Face6", "Vertex7"]], [moving, ["Face6", "Vertex7"]]]
         return moving, joint, refs
+
+    def test_joint_task_shows_offsets_reset_by_new_references(self):
+        """Without Preserve position, picking the references resets the offsets; the task
+        panel must then show the reset values, not the ones typed before."""
+        _moving, joint, refs = self._fixed_joint_between_boxes()
+        task = JointObject.TaskAssemblyCreateJoint.__new__(JointObject.TaskAssemblyCreateJoint)
+        QtCore.QObject.__init__(task)
+        task.joint = joint
+        task.refs = [refs[0]]
+        task.activeType = "Part"  # no isolation of the view
+        task.blockOffsetRotation = False
+        task.jForm = MagicMock()
+        task.jForm.preservePosCheckbox.isChecked.return_value = False
+        task.updateJoint()
+        joint.Offset2 = App.Placement(App.Vector(0, 0, 10), App.Rotation(15, 0, 0))
+
+        task.refs = refs
+        task.updateJoint()
+
+        self.assertTrue(joint.Offset2.isIdentity(), str(joint.Offset2))
+        task.jForm.offsetSpinbox.setProperty.assert_called_with("rawValue", 0.0)
+        task.jForm.rotationSpinbox.setProperty.assert_called_with("rawValue", 0.0)
 
     def test_without_preserve_position_new_references_reset_the_offsets(self):
         """Without Preserve position the picked elements are joined as they are, dropping the
