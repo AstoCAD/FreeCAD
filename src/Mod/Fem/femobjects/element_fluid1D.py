@@ -360,7 +360,7 @@ class ElementFluid1D(base_femelement.BaseFemElement):
         obj.DiaphragmArea = 20.0
         obj.BendPipeArea = 20.0
         obj.BendRadiusDiameter = 1.0
-        obj.BendAngle = 0.0
+        obj.BendAngle = 90.0  # CalculiX requires an angle > 0 (in degrees)
         obj.BendLossCoefficient = 0.0
         obj.GateValvePipeArea = 20.0
         obj.GateValveClosingCoeff = 0.125
