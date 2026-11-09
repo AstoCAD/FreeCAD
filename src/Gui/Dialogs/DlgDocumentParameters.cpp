@@ -24,6 +24,7 @@
 #include <limits>
 #include <map>
 
+#include <QByteArray>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -32,11 +33,14 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QList>
+#include <QLocale>
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
 #include <QSet>
 #include <QSpinBox>
+#include <QStringList>
 #include <QStyledItemDelegate>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -50,6 +54,7 @@
 #include <App/UserParameters.h>
 #include <App/VarSet.h>
 #include <Base/Exception.h>
+#include <Base/Parameter.h>
 #include <Base/Quantity.h>
 
 #include "Dialogs/DlgDocumentParameters.h"
@@ -197,37 +202,36 @@ QString nameErrorText(Parameters::NameError error, const QString& name)
 }
 
 /**
- * The error for the new name \a name of a parameter held by \a holder, empty if it can be used.
- * User parameters follow the rules of App::UserParameters (the same as for `name = value` typed
- * in an input); \a exclude is the property being renamed, if any.
+ * The error for the new name \a name of a parameter of \a doc, empty if it can be used.
+ *
+ * A user parameter follows the rules of App::UserParameters (the same as for `name = value` typed
+ * in an input): \a object is the object that has the renamed parameter, nullptr for a new one,
+ * whose name is typed in no object. Any other parameter is a property of the variable set
+ * \a object, nullptr for a variable set that does not exist yet. \a exclude is the property being
+ * renamed, if any.
  */
 QString nameError(
-    const App::DocumentObject* holder,
+    const App::Document* doc,
+    const App::DocumentObject* object,
     const QString& name,
     bool userParameter,
     const App::Property* exclude = nullptr
 )
 {
     const std::string nameStd = name.toStdString();
-    if (!userParameter || !holder || nameStd.empty()) {
-        return nameErrorText(Parameters::checkName(holder, nameStd, userParameter, exclude), name);
+    if (!userParameter || nameStd.empty()) {
+        return nameErrorText(Parameters::checkName(object, nameStd, userParameter, exclude), name);
     }
     if (exclude && nameStd == exclude->getName()) {
         return {};
     }
-    return userParameterNameStatusText(
-        App::UserParameters::checkName(holder->getDocument(), nameStd, holder),
-        name
-    );
+    return userParameterNameStatusText(App::UserParameters::checkName(doc, nameStd, object), name);
 }
 
 /// The error for a new parameter with the value of \a expr, empty if its type can hold it.
-QString valueTypeError(const App::Expression& expr, bool userParameter)
+QString valueTypeError(const App::Expression& expr)
 {
     const std::string type = Parameters::propertyTypeForExpression(expr);
-    if (type == "App::PropertyString" && userParameter) {
-        return DlgDocumentParameters::tr("A user parameter needs a numeric value");
-    }
     if (!type.empty()) {
         return {};
     }
@@ -237,6 +241,60 @@ QString valueTypeError(const App::Expression& expr, bool userParameter)
             .arg(QString::fromStdString(number->getUnit().getString()));
     }
     return DlgDocumentParameters::tr("The value must be a number, a quantity or a string");
+}
+
+/**
+ * The expression typed as \a text in the dialog for \a owner, nullptr or an exception if it is
+ * not one.
+ *
+ * A text can be written in quotes ("Steel" or 'Steel'), for those who do not know the `<<Steel>>`
+ * of the expressions. Quotes have no other meaning in an expression.
+ */
+std::shared_ptr<App::Expression>
+parseInput(const App::DocumentObject* owner, const QString& text, const QLocale& locale)
+{
+    const QString trimmed = text.trimmed();
+    if (trimmed.size() >= 2) {
+        const QChar quote = trimmed.front();
+        if ((quote == QLatin1Char('"') || quote == QLatin1Char('\'')) && trimmed.back() == quote) {
+            const QString quoted = trimmed.mid(1, trimmed.size() - 2);
+            if (!quoted.contains(quote)) {
+                return std::make_shared<App::StringExpression>(owner, quoted.toStdString());
+            }
+        }
+    }
+    return App::ExpressionParser::parseUserInput(
+        owner,
+        trimmed.toUtf8().constData(),
+        numericLocaleContextFor(locale)
+    );
+}
+
+/// The value typed as \a text for a new parameter of \a owner. Throws when it cannot be one.
+std::shared_ptr<App::Expression> newParameterValue(
+    const App::DocumentObject* owner,
+    const QString& text,
+    const QLocale& locale
+)
+{
+    std::shared_ptr<App::Expression> expr = parseInput(owner, text, locale);
+    if (!expr) {
+        throw Base::ValueError(DlgDocumentParameters::tr("Invalid expression").toStdString());
+    }
+    // user parameters typed by their bare name, as offered by the completer
+    App::UserParameters::qualifyReferences(owner, *expr);
+    const QString typeError = valueTypeError(*expr);
+    if (!typeError.isEmpty()) {
+        throw Base::TypeError(typeError.toStdString());
+    }
+    return expr;
+}
+
+/// What "Add" offers for the user parameters: the name of the object that holds them, which
+/// tells it from the variable sets whether the document has that object yet or not.
+QString userParametersTarget()
+{
+    return QString::fromLatin1(App::UserParameters::HolderName);
 }
 
 /// Throw if the result of \a expr has a unit that does not fit the parameter at \a path.
@@ -265,6 +323,33 @@ void checkUnit(const App::ObjectIdentifier& path, const App::Expression& expr)
 
 QPointer<DlgDocumentParameters> openDialog;  // NOLINT
 
+/// Where the dialog keeps its layout from one opening to the next.
+ParameterGrp::handle layoutSettings()
+{
+    return App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/ParametersDialog"
+    );
+}
+
+/// The widths stored as \a text for the columns before the comment, empty if it is not that.
+QList<int> columnWidthsFromText(const QString& text)
+{
+    const QStringList parts = text.split(QLatin1Char(';'));
+    if (parts.size() != DlgDocumentParameters::ColumnComment) {
+        return {};
+    }
+    QList<int> widths;
+    for (const QString& part : parts) {
+        bool ok = false;
+        const int width = part.toInt(&ok);
+        if (!ok || width <= 0) {
+            return {};
+        }
+        widths.append(width);
+    }
+    return widths;
+}
+
 }  // namespace
 
 /* TRANSLATOR Gui::Dialog::DlgDocumentParameters */
@@ -288,6 +373,10 @@ DlgDocumentParameters::DlgDocumentParameters(App::Document* doc, QWidget* parent
     ui->treeParameters->setItemDelegate(new ParameterItemDelegate(this));
     ui->treeParameters->header()->setStretchLastSection(true);
 
+    // Before the connections and the first refresh(): the list is built once, with this choice.
+    const ParameterGrp::handle settings = layoutSettings();
+    ui->checkBoxModel->setChecked(settings->GetBool("ShowModelParameters", false));
+
     connect(ui->lineEditFilter, &QLineEdit::textChanged, this, &DlgDocumentParameters::onFilterChanged);
     connect(ui->checkBoxModel, &QCheckBox::toggled, this, &DlgDocumentParameters::refresh);
     connect(ui->pushButtonAdd, &QPushButton::clicked, this, &DlgDocumentParameters::onAdd);
@@ -307,12 +396,46 @@ DlgDocumentParameters::DlgDocumentParameters(App::Document* doc, QWidget* parent
     ui->treeParameters->ensurePolished();
 
     refresh();
+
+    // The layout the dialog was closed with. The comment column takes the rest of the width.
+    const QList<int> widths = columnWidthsFromText(
+        QString::fromStdString(settings->GetASCII("ColumnWidths", ""))
+    );
     for (int column = ColumnName; column < ColumnComment; ++column) {
-        ui->treeParameters->resizeColumnToContents(column);
+        if (widths.isEmpty()) {
+            ui->treeParameters->resizeColumnToContents(column);
+        }
+        else {
+            ui->treeParameters->setColumnWidth(column, widths[column]);
+        }
+    }
+    const std::string geometry = settings->GetASCII("Geometry", "");
+    if (!geometry.empty()) {
+        // leaves the dialog as it is if the data is not valid
+        restoreGeometry(QByteArray::fromBase64(QByteArray::fromStdString(geometry)));
     }
 }
 
 DlgDocumentParameters::~DlgDocumentParameters() = default;
+
+void DlgDocumentParameters::done(int result)
+{
+    // Every way to close the dialog ends here, while it still has its geometry.
+    saveLayout();
+    QDialog::done(result);
+}
+
+void DlgDocumentParameters::saveLayout() const
+{
+    const ParameterGrp::handle settings = layoutSettings();
+    settings->SetBool("ShowModelParameters", ui->checkBoxModel->isChecked());
+    QStringList widths;
+    for (int column = ColumnName; column < ColumnComment; ++column) {
+        widths.append(QString::number(ui->treeParameters->columnWidth(column)));
+    }
+    settings->SetASCII("ColumnWidths", widths.join(QLatin1Char(';')).toStdString());
+    settings->SetASCII("Geometry", saveGeometry().toBase64().toStdString());
+}
 
 DlgDocumentParameters* DlgDocumentParameters::showFor(App::Document* doc)
 {
@@ -488,6 +611,18 @@ void DlgDocumentParameters::refresh()
             .arg(QString::fromLatin1(Parameters::userParametersGroup()))
     );
 
+    const bool includeModel = ui->checkBoxModel->isChecked();
+    const std::vector<Parameters::Entry> entries = Parameters::collect(doc, includeModel);
+
+    // The object that holds the user parameters is a variable set, but its parameters are the
+    // user parameters: it is listed as a variable set only for the other properties it was given.
+    const App::DocumentObject* userHolder = App::UserParameters::findHolder(doc);
+    const bool userHolderHasOtherProperties
+        = std::ranges::any_of(entries, [](const Parameters::Entry& entry) {
+              return entry.category == Parameters::Category::VarSet
+                  && entry.objectName == App::UserParameters::HolderName;
+          });
+
     std::map<std::string, QTreeWidgetItem*> varSetGroups;
     std::vector<App::DocumentObject*> varSets = doc->getObjectsOfType(App::VarSet::getClassTypeId());
     std::ranges::stable_sort(varSets, [](const App::DocumentObject* a, const App::DocumentObject* b) {
@@ -495,9 +630,14 @@ void DlgDocumentParameters::refresh()
     });
     QIcon varSetIcon = BitmapFactory().iconFromTheme("VarSet");
     for (App::DocumentObject* varSet : varSets) {
+        const bool isUserHolder = varSet == userHolder;
+        if (isUserHolder && !userHolderHasOtherProperties) {
+            continue;
+        }
         QString name = QString::fromLatin1(varSet->getNameInDocument());
+        const QString label = QString::fromUtf8(varSet->Label.getValue());
         QTreeWidgetItem* group = makeGroup(
-            QString::fromUtf8(varSet->Label.getValue()),
+            isUserHolder ? tr("%1 (other properties)").arg(label) : label,
             QStringLiteral("#varset:") + name,
             varSetIcon
         );
@@ -506,7 +646,6 @@ void DlgDocumentParameters::refresh()
         varSetGroups[varSet->getNameInDocument()] = group;
     }
 
-    bool includeModel = ui->checkBoxModel->isChecked();
     QTreeWidgetItem* modelGroup = nullptr;
     if (includeModel) {
         modelGroup = makeGroup(tr("Model Parameters"), QStringLiteral("#model"), QIcon());
@@ -518,7 +657,7 @@ void DlgDocumentParameters::refresh()
 
     QBrush disabledText = palette().brush(QPalette::Disabled, QPalette::Text);
     QTreeWidgetItem* current = nullptr;
-    for (const Parameters::Entry& entry : Parameters::collect(doc, includeModel)) {
+    for (const Parameters::Entry& entry : entries) {
         QTreeWidgetItem* parent = nullptr;
         switch (entry.category) {
             case Parameters::Category::User:
@@ -806,7 +945,7 @@ bool DlgDocumentParameters::renameParameter(QTreeWidgetItem* item, const QString
     }
 
     const bool userParameter = Parameters::isUserParameter(prop);
-    const QString error = nameError(obj, name, userParameter, prop);
+    const QString error = nameError(obj->getDocument(), obj, name, userParameter, prop);
     if (!error.isEmpty()) {
         showMessage(error);
         return false;
@@ -848,8 +987,7 @@ bool DlgDocumentParameters::setParameterExpression(QTreeWidgetItem* item, const 
     std::shared_ptr<App::Expression> expr;
     if (!trimmed.isEmpty()) {
         try {
-            const auto formatting = numericLocaleContextFor(locale());
-            expr = App::ExpressionParser::parseUserInput(obj, trimmed.toUtf8().constData(), formatting);
+            expr = parseInput(obj, trimmed, locale());
             if (!expr) {
                 throw Base::ValueError(tr("Invalid expression").toStdString());
             }
@@ -983,22 +1121,87 @@ bool DlgDocumentParameters::deleteParameter(QTreeWidgetItem* item, bool confirm)
     return true;
 }
 
-bool DlgDocumentParameters::addParameter(
-    App::DocumentObject* holder,
+bool DlgDocumentParameters::addUserParameter(
     const QString& name,
     const QString& expression,
     const QString& comment
 )
 {
     App::Document* doc = document();
-    if (!doc || (holder && holder->getDocument() != doc)) {
+    if (!doc) {
+        return false;
+    }
+
+    // The name is typed in no object: it is checked for the object that holds the user parameters
+    // (App::UserParameters::checkName), before that object is created for a first parameter.
+    const QString trimmedName = name.trimmed();
+    const std::string nameStd = trimmedName.toStdString();
+    const QString error = nameError(doc, nullptr, trimmedName, true);
+    if (!error.isEmpty()) {
+        showMessage(error);
+        return false;
+    }
+
+    QString holderName;
+    try {
+        ParameterTransaction transaction(QT_TRANSLATE_NOOP("Command", "Add parameter"));
+        // The value is written from the object that holds the user parameters, which gets the
+        // expression: a first parameter needs that object before its value can be parsed. It is
+        // created in the transaction of the parameter, so that both are one undo step.
+        const bool hadHolder = App::UserParameters::findHolder(doc) != nullptr;
+        App::DocumentObject* holder = App::UserParameters::holder(doc);
+        try {
+            const std::shared_ptr<App::Expression> expr
+                = newParameterValue(holder, expression, locale());
+            // the same creation as for `name = value` typed in an input
+            App::Property* prop = App::UserParameters::createParameter(
+                holder,
+                nameStd,
+                expr,
+                Base::Unit::One,
+                App::UserParameters::ValueKind::NumberOrText
+            );
+            if (!comment.isEmpty()) {
+                holder->changeDynamicProperty(prop, nullptr, comment.toUtf8().constData());
+            }
+        }
+        catch (...) {
+            // Not left to the transaction: a document without undo has none to abort.
+            if (!hadHolder) {
+                doc->removeObject(holder->getNameInDocument());
+            }
+            throw;
+        }
+        holderName = QString::fromLatin1(holder->getNameInDocument());
+        doc->recompute();
+        transaction.commit();
+    }
+    catch (const Base::Exception& e) {
+        showMessage(tr("Cannot add the parameter: %1").arg(QString::fromUtf8(e.what())));
+        return false;
+    }
+
+    showMessage(tr("Added '%1'").arg(trimmedName), false);
+    selectAfterRefresh = {holderName, trimmedName};
+    scheduleRefresh();
+    return true;
+}
+
+bool DlgDocumentParameters::addParameter(
+    App::DocumentObject* varSet,
+    const QString& name,
+    const QString& expression,
+    const QString& comment
+)
+{
+    App::Document* doc = document();
+    if (!doc || (varSet && (varSet->getDocument() != doc || !varSet->isDerivedFrom<App::VarSet>()))) {
         return false;
     }
 
     const QString trimmedName = name.trimmed();
     const std::string nameStd = trimmedName.toStdString();
-    const bool inVarSet = !holder || holder->isDerivedFrom<App::VarSet>();
-    const QString error = nameError(holder, trimmedName, !inVarSet);
+    const QString error = nameError(doc, varSet, trimmedName, false);
     if (!error.isEmpty()) {
         showMessage(error);
         return false;
@@ -1006,57 +1209,34 @@ bool DlgDocumentParameters::addParameter(
 
     try {
         ParameterTransaction transaction(QT_TRANSLATE_NOOP("Command", "Add parameter"));
-        if (!holder) {
-            holder = doc->addObject("App::VarSet", "VarSet");
+        if (!varSet) {
+            varSet = doc->addObject("App::VarSet", "VarSet");
         }
 
-        const auto formatting = numericLocaleContextFor(locale());
-        std::shared_ptr<App::Expression> expr = App::ExpressionParser::parseUserInput(
-            holder,
-            expression.trimmed().toUtf8().constData(),
-            formatting
+        const std::shared_ptr<App::Expression> expr
+            = newParameterValue(varSet, expression, locale());
+        const std::string type = Parameters::propertyTypeForExpression(*expr);
+        App::Property* prop = varSet->addDynamicProperty(
+            type.c_str(),
+            nameStd.c_str(),
+            "Base",
+            comment.toUtf8().constData()
         );
-        if (!expr) {
-            throw Base::ValueError(tr("Invalid expression").toStdString());
+        if (!prop) {
+            throw Base::RuntimeError(tr("Cannot add the property").toStdString());
         }
-        // user parameters typed by their bare name, as offered by the completer
-        App::UserParameters::qualifyReferences(holder, *expr);
-        const QString typeError = valueTypeError(*expr, !inVarSet);
-        if (!typeError.isEmpty()) {
-            throw Base::TypeError(typeError.toStdString());
-        }
-
-        if (!inVarSet) {
-            // the same creation as for `name = value` typed in an input
-            App::Property* prop = App::UserParameters::createParameter(holder, nameStd, expr);
-            if (!comment.isEmpty()) {
-                holder->changeDynamicProperty(prop, nullptr, comment.toUtf8().constData());
-            }
+        App::ObjectIdentifier path(*prop);
+        if (expr->getIdentifiers().empty()) {
+            // a constant: store the value, not an expression
+            App::ExpressionPtr result = expr->eval();
+            prop->setPathValue(path, result->getValueAsAny());
         }
         else {
-            const std::string type = Parameters::propertyTypeForExpression(*expr);
-            App::Property* prop = holder->addDynamicProperty(
-                type.c_str(),
-                nameStd.c_str(),
-                "Base",
-                comment.toUtf8().constData()
-            );
-            if (!prop) {
-                throw Base::RuntimeError(tr("Cannot add the property").toStdString());
+            std::string invalid = varSet->ExpressionEngine.validateExpression(path, expr);
+            if (!invalid.empty()) {
+                throw Base::RuntimeError(invalid.c_str());
             }
-            App::ObjectIdentifier path(*prop);
-            if (expr->getIdentifiers().empty()) {
-                // a constant: store the value, not an expression
-                App::ExpressionPtr result = expr->eval();
-                prop->setPathValue(path, result->getValueAsAny());
-            }
-            else {
-                std::string invalid = holder->ExpressionEngine.validateExpression(path, expr);
-                if (!invalid.empty()) {
-                    throw Base::RuntimeError(invalid.c_str());
-                }
-                holder->setExpression(path, expr);
-            }
+            varSet->setExpression(path, expr);
         }
         doc->recompute();
         transaction.commit();
@@ -1067,47 +1247,41 @@ bool DlgDocumentParameters::addParameter(
     }
 
     showMessage(tr("Added '%1'").arg(trimmedName), false);
-    selectAfterRefresh = {QString::fromLatin1(holder->getNameInDocument()), trimmedName};
+    selectAfterRefresh = {QString::fromLatin1(varSet->getNameInDocument()), trimmedName};
     scheduleRefresh();
     return true;
 }
 
-App::DocumentObject* DlgDocumentParameters::defaultHolder() const
+QString DlgDocumentParameters::defaultAddTarget() const
 {
+    const QString userParameters = userParametersTarget();
     App::Document* doc = document();
     if (!doc) {
-        return nullptr;
+        return userParameters;
     }
 
-    if (QTreeWidgetItem* current = ui->treeParameters->currentItem()) {
-        QString holder = current->data(ColumnName, HolderRole).toString();
-        auto category = static_cast<Parameters::Category>(
-            current->data(ColumnName, CategoryRole).toInt()
-        );
-        if (holder.isEmpty() && current->data(ColumnName, ObjectRole).isValid()
-            && category != Parameters::Category::Model) {
-            holder = current->data(ColumnName, ObjectRole).toString();
+    // The variable set of the current row or group. For the object that holds the user
+    // parameters, listed for its other properties, that is the target of the user parameters.
+    if (const QTreeWidgetItem* current = ui->treeParameters->currentItem()) {
+        QString varSet = current->data(ColumnName, HolderRole).toString();
+        const QVariant category = current->data(ColumnName, CategoryRole);
+        if (category.isValid()
+            && static_cast<Parameters::Category>(category.toInt()) == Parameters::Category::VarSet) {
+            varSet = current->data(ColumnName, ObjectRole).toString();
         }
-        if (!holder.isEmpty()) {
-            if (App::DocumentObject* obj = doc->getObject(holder.toUtf8().constData())) {
-                return obj;
-            }
-        }
+        const App::DocumentObject* obj = varSet.isEmpty()
+            ? nullptr
+            : doc->getObject(varSet.toUtf8().constData());
+        return obj && obj->isDerivedFrom<App::VarSet>() ? varSet : userParameters;
     }
 
-    std::vector<App::DocumentObject*> selection
+    // Nothing is chosen in the dialog yet: the variable set selected in the document
+    const std::vector<App::DocumentObject*> selection
         = Selection().getObjectsOfType(App::DocumentObject::getClassTypeId(), doc->getName());
-    if (selection.size() == 1) {
-        return selection.front();
+    if (selection.size() == 1 && selection.front()->isDerivedFrom<App::VarSet>()) {
+        return QString::fromLatin1(selection.front()->getNameInDocument());
     }
-
-    std::vector<App::DocumentObject*> varSets = doc->getObjectsOfType(App::VarSet::getClassTypeId());
-    if (!varSets.empty()) {
-        return *std::ranges::min_element(varSets, [](const App::DocumentObject* a, const App::DocumentObject* b) {
-            return std::strcmp(a->Label.getValue(), b->Label.getValue()) < 0;
-        });
-    }
-    return nullptr;  // a new variable set
+    return userParameters;
 }
 
 void DlgDocumentParameters::onAdd()
@@ -1126,15 +1300,12 @@ void DlgDocumentParameters::onAdd()
 
     auto* comboHolder = new QComboBox(&dlg);
     comboHolder->setObjectName(QStringLiteral("comboBoxHolder"));
-    comboHolder->setToolTip(
-        tr("A variable set, or an object that keeps the parameter in its group '%1'")
-            .arg(QString::fromLatin1(Parameters::userParametersGroup()))
-    );
+    comboHolder->setToolTip(tr("The user parameters of the document, or a variable set"));
     auto* lineEditName = new QLineEdit(&dlg);
     lineEditName->setObjectName(QStringLiteral("lineEditName"));
     auto* lineEditExpression = new ExpressionLineEdit(&dlg);
     lineEditExpression->setObjectName(QStringLiteral("lineEditExpression"));
-    lineEditExpression->setPlaceholderText(tr("For example: 23 mm"));
+    lineEditExpression->setPlaceholderText(tr("For example: 23 mm, or \"text\""));
     auto* lineEditComment = new QLineEdit(&dlg);
     lineEditComment->setObjectName(QStringLiteral("lineEditComment"));
     auto* labelError = new QLabel(&dlg);
@@ -1150,52 +1321,37 @@ void DlgDocumentParameters::onAdd()
     layout->addWidget(labelError);
     layout->addWidget(buttons);
 
-    // holders: a new variable set, the variable sets, the objects with user
-    // parameters and the selected objects
+    // Holders: the user parameters of the document, which are kept by one object that the first
+    // of them creates, then a new variable set and the other variable sets.
+    const QString userParameters = userParametersTarget();
+    comboHolder->addItem(tr("User Parameters"), userParameters);
     comboHolder->addItem(BitmapFactory().iconFromTheme("VarSet"), tr("New variable set"), QString());
     std::vector<App::DocumentObject*> varSets = doc->getObjectsOfType(App::VarSet::getClassTypeId());
     std::ranges::stable_sort(varSets, [](const App::DocumentObject* a, const App::DocumentObject* b) {
         return std::strcmp(a->Label.getValue(), b->Label.getValue()) < 0;
     });
     for (App::DocumentObject* varSet : varSets) {
+        if (App::UserParameters::isHolder(varSet)) {
+            continue;
+        }
         comboHolder->addItem(
             BitmapFactory().iconFromTheme("VarSet"),
             QString::fromUtf8(varSet->Label.getValue()),
             QString::fromLatin1(varSet->getNameInDocument())
         );
     }
-    std::vector<App::DocumentObject*> others;
-    for (App::Property* prop : Parameters::collectUserParameters(doc)) {
-        if (auto* obj = freecad_cast<App::DocumentObject*>(prop->getContainer())) {
-            others.push_back(obj);
-        }
-    }
-    for (App::DocumentObject* obj :
-         Selection().getObjectsOfType(App::DocumentObject::getClassTypeId(), doc->getName())) {
-        others.push_back(obj);
-    }
-    if (App::DocumentObject* holder = defaultHolder()) {
-        others.push_back(holder);
-    }
-    for (App::DocumentObject* obj : others) {
-        if (!obj || obj->isDerivedFrom<App::VarSet>()) {
-            continue;
-        }
-        QString objName = QString::fromLatin1(obj->getNameInDocument());
-        if (comboHolder->findData(objName) >= 0) {
-            continue;
-        }
-        comboHolder->addItem(
-            tr("%1 (user parameters)").arg(QString::fromUtf8(obj->Label.getValue())),
-            objName
-        );
-    }
-    if (App::DocumentObject* holder = defaultHolder()) {
-        int index = comboHolder->findData(QString::fromLatin1(holder->getNameInDocument()));
-        comboHolder->setCurrentIndex(std::max(index, 0));
-    }
+    comboHolder->setCurrentIndex(std::max(comboHolder->findData(defaultAddTarget()), 0));
 
-    auto holderObject = [doc, comboHolder]() -> App::DocumentObject* {
+    auto isUserParameter = [comboHolder, userParameters]() {
+        return comboHolder->currentData().toString() == userParameters;
+    };
+
+    // The object that gets the parameter, nullptr when it does not exist yet: a new variable set,
+    // or the object that holds the user parameters before the first of them.
+    auto holderObject = [doc, comboHolder, &isUserParameter]() -> App::DocumentObject* {
+        if (isUserParameter()) {
+            return App::UserParameters::findHolder(doc);
+        }
         QString name = comboHolder->currentData().toString();
         return name.isEmpty() ? nullptr : doc->getObject(name.toUtf8().constData());
     };
@@ -1203,7 +1359,7 @@ void DlgDocumentParameters::onAdd()
     QPushButton* okButton = buttons->button(QDialogButtonBox::Ok);
     okButton->setText(tr("Add"));
 
-    // a new variable set does not exist yet: complete and check relative to any object
+    // an object that does not exist yet: complete and check relative to any object
     auto ownerObject = [doc, &holderObject]() -> App::DocumentObject* {
         App::DocumentObject* owner = holderObject();
         if (!owner && !doc->getObjects().empty()) {
@@ -1218,19 +1374,24 @@ void DlgDocumentParameters::onAdd()
 
         QString error;
         const QString name = lineEditName->text().trimmed();
-        const bool inVarSet = !holder || holder->isDerivedFrom<App::VarSet>();
-        if (!name.isEmpty()) {
-            error = nameError(holder, name, !inVarSet);
+        const bool userParameter = isUserParameter();
+        if (userParameter && !holder && doc->getObject(App::UserParameters::HolderName)) {
+            // App::UserParameters::holder() refuses it
+            error = tr("The object '%1' is not a variable set: it cannot hold the user parameters")
+                        .arg(userParameters);
+        }
+        else if (!name.isEmpty()) {
+            // the name of a user parameter is typed in no object
+            error = nameError(doc, userParameter ? nullptr : holder, name, userParameter);
         }
         const QString text = lineEditExpression->text().trimmed();
         if (error.isEmpty() && !text.isEmpty()) {
             try {
-                const auto formatting = numericLocaleContextFor(lineEditExpression->locale());
-                App::ExpressionPtr expr
-                    = App::ExpressionParser::parseUserInput(owner, text.toUtf8().constData(), formatting);
+                const std::shared_ptr<App::Expression> expr
+                    = parseInput(owner, text, lineEditExpression->locale());
                 if (expr) {
                     App::UserParameters::qualifyReferences(owner, *expr);
-                    error = valueTypeError(*expr, !inVarSet);
+                    error = valueTypeError(*expr);
                 }
                 else {
                     error = tr("The value must be a number, a quantity or a string");
@@ -1259,7 +1420,17 @@ void DlgDocumentParameters::onAdd()
     if (dlg.exec() != QDialog::Accepted) {
         return;
     }
-    addParameter(holderObject(), lineEditName->text(), lineEditExpression->text(), lineEditComment->text());
+    if (isUserParameter()) {
+        addUserParameter(lineEditName->text(), lineEditExpression->text(), lineEditComment->text());
+    }
+    else {
+        addParameter(
+            holderObject(),
+            lineEditName->text(),
+            lineEditExpression->text(),
+            lineEditComment->text()
+        );
+    }
 }
 
 void DlgDocumentParameters::onDelete()

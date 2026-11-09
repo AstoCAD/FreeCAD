@@ -978,14 +978,30 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
     def user_parameter_names(self):
         return [(obj.Name, name) for obj, name in self.doc.getUserParameters()]
 
+    # The object holding the user parameters of a document (App::UserParameters::HolderName):
+    # a parameter typed in a sketch is created there, not on the sketch.
+    HOLDER = "UserParameters"
+
+    def holder(self):
+        """The object holding the user parameters of the document, None when it has none."""
+        return self.doc.getObject(self.HOLDER)
+
+    def assert_parameter_on_holder(self, name):
+        """The user parameter @p name exists, on the holder and not on the sketch."""
+        holder = self.holder()
+        self.assertIsNotNone(holder, "Expected the object holding the user parameters")
+        self.assertEqual(holder.getGroupOfProperty(name), "UserParameters")
+        self.assertNotIn(name, self.sketch.PropertiesList)
+        return holder
+
     def test_ovp_assignment_creates_bound_user_parameter(self):
         self.doc.UndoMode = 1
         viewport = self.draw_rectangle_with_ovp_texts("boxWidth=30", "20")
 
-        self.assertEqual(self.sketch.getGroupOfProperty("boxWidth"), "UserParameters")
-        self.assertAlmostEqual(self.sketch.boxWidth.Value, 30)
+        holder = self.assert_parameter_on_holder("boxWidth")
+        self.assertAlmostEqual(holder.boxWidth.Value, 30)
         index = self.bound_constraint("boxWidth")
-        self.assertEqual(self.sketch.ExpressionEngine[0][1], "boxWidth")
+        self.assertEqual(self.sketch.ExpressionEngine[0][1], self.HOLDER + ".boxWidth")
         self.assertEqual(self.sketch.Constraints[index].Type, "Distance")
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, 30)
 
@@ -995,16 +1011,41 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         geometry_when_removed = None
         for _ in range(len(self.doc.UndoNames)):
             self.doc.undo()
-            if not hasattr(self.sketch, "boxWidth"):
+            if self.doc.findUserParameter("boxWidth") is None:
                 geometry_when_removed = self.sketch.GeometryCount
                 break
         self.assertEqual(geometry_when_removed, 0)
         self.assertEqual(len(self.sketch.ExpressionEngine), 0)
 
+    def test_ovp_undo_removes_the_first_parameter_with_its_holder(self):
+        # The first user parameter of a document comes with the object holding them, created
+        # inside the command of the tool: one undo step removes the rectangle, the parameter
+        # and that object.
+        self.doc.UndoMode = 1
+        self.assertIsNone(self.holder())
+        viewport = self.draw_rectangle_with_ovp_texts("boxWidth=30", "20")
+        self.assert_parameter_on_holder("boxWidth")
+        self.assertEqual(self.user_parameter_names(), [(self.HOLDER, "boxWidth")])
+        self.bound_constraint("boxWidth")
+
+        self.cancel_drawing_tool(viewport)
+        self.pump(100)
+        state_when_removed = None
+        for _ in range(len(self.doc.UndoNames)):
+            self.doc.undo()
+            if self.holder() is None:
+                state_when_removed = (self.sketch.GeometryCount, self.user_parameter_names())
+                break
+            # Not one step: the holder would outlive its parameter or the rectangle.
+            self.assertEqual(self.user_parameter_names(), [(self.HOLDER, "boxWidth")])
+            self.assertGreaterEqual(self.sketch.GeometryCount, 4)
+        self.assertEqual(state_when_removed, (0, []))
+        self.assertEqual(len(self.sketch.ExpressionEngine), 0)
+
     def test_ovp_assignment_drives_the_constraint(self):
         self.draw_rectangle_with_ovp_texts("boxWidth=30", "20")
         index = self.bound_constraint("boxWidth")
-        self.sketch.boxWidth = 45
+        self.holder().boxWidth = 45
         self.doc.recompute()
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, 45)
 
@@ -1014,7 +1055,7 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
 
         index = self.bound_constraint("base", "2")
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, 30)
-        self.assertEqual(self.user_parameter_names(), [(self.sketch.Name, "base")])
+        self.assertEqual(self.user_parameter_names(), [(self.HOLDER, "base")])
 
     def test_ovp_plain_numbers_create_no_parameter(self):
         self.draw_rectangle_with_ovp_texts("10", "20")
@@ -1033,7 +1074,7 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
 
         self.assertIs(self.active_spinbox(), first, "Expected the OVP to stay in edit")
         self.assertEqual(self.sketch.GeometryCount, 0)
-        self.assertAlmostEqual(self.sketch.taken.Value, 5)
+        self.assertAlmostEqual(self.holder().taken.Value, 5)
 
         # The refused expression is still being edited: letters go on to the field.
         editor = first.findChild(QtGui.QLineEdit)
@@ -1049,10 +1090,10 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         self.draw_rectangle_with_ovp_texts(
             "10", "{}={}".format(name, degrees), command="Sketcher_CreateLine", min_geometry=1
         )
-        self.assertEqual(self.sketch.getGroupOfProperty(name), "UserParameters")
-        self.assertAlmostEqual(getattr(self.sketch, name).Value, degrees)
+        holder = self.assert_parameter_on_holder(name)
+        self.assertAlmostEqual(getattr(holder, name).Value, degrees)
         index = self.bound_constraint(name)
-        self.assertEqual(self.sketch.ExpressionEngine[0][1], name)
+        self.assertEqual(self.sketch.ExpressionEngine[0][1], self.HOLDER + "." + name)
         self.assertEqual(self.sketch.Constraints[index].Type, "Angle")
         self.doc.recompute()
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, math.radians(degrees), 9)
@@ -1162,7 +1203,7 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         self.key_click(second, QtCore.Qt.Key_Return, "\r")
         self.pump(500)
 
-        self.assertEqual(self.sketch.getGroupOfProperty("height"), "UserParameters")
+        self.assert_parameter_on_holder("height")
         self.bound_constraint("height")
 
     def test_ovp_equal_sign_drops_the_shown_value_and_unit(self):
@@ -1207,9 +1248,9 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         self.cancel_drawing_tool(viewport)
         self.pump(200)
 
-        self.assertEqual(self.sketch.getGroupOfProperty("seg"), "UserParameters")
+        self.assert_parameter_on_holder("seg")
         index = self.bound_constraint("seg")
-        self.assertEqual(self.sketch.ExpressionEngine[0][1], "seg")
+        self.assertEqual(self.sketch.ExpressionEngine[0][1], self.HOLDER + ".seg")
         self.assertEqual(self.sketch.Constraints[index].Type, "Distance")
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, 30)
 
@@ -1229,6 +1270,209 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         shown = [model.index(row, 0).data() for row in range(model.rowCount())]
         self.assertTrue(any(s.startswith("heightValue") for s in shown), shown)
         completer.popup().hide()
+
+    def test_ovp_expression_uses_parameter_typed_in_the_other_ovp(self):
+        # The parameter of the first OVP is created with the rectangle, after the second OVP is
+        # accepted: the second one can use it all the same.
+        self.draw_rectangle_with_ovp_texts("height=10", "=2*height")
+
+        self.assertEqual(self.user_parameter_names(), [(self.HOLDER, "height")])
+        bindings = dict(self.sketch.ExpressionEngine)
+        self.assertEqual(len(bindings), 2, bindings)
+        values = {}
+        for path, expression in bindings.items():
+            index = int(path[path.index("[") + 1 : path.index("]")])
+            values[expression.replace(" ", "")] = self.sketch.Constraints[index].Value
+        # The name typed in the second OVP was bare, the parameter not being created yet: it is
+        # bound qualified, as the parameter is on the holder.
+        self.assertAlmostEqual(values[self.HOLDER + ".height"], 10)
+        self.assertAlmostEqual(values["2*" + self.HOLDER + ".height"], 20)
+
+        self.holder().height = 15
+        self.doc.recompute()
+        for path, expression in self.sketch.ExpressionEngine:
+            index = int(path[path.index("[") + 1 : path.index("]")])
+            expected = 30 if "2" in expression else 15
+            self.assertAlmostEqual(self.sketch.Constraints[index].Value, expected)
+
+    def test_ovp_assignment_uses_parameter_typed_in_the_other_ovp(self):
+        # `boxW = 2*boxH` with `boxH` typed in the other OVP: both are created on the holder,
+        # `boxH` first, `boxW` follows it and each constraint is bound to its parameter.
+        self.draw_rectangle_with_ovp_texts("boxH=10", "boxW=2*boxH")
+
+        holder = self.assert_parameter_on_holder("boxH")
+        self.assert_parameter_on_holder("boxW")
+        self.assertEqual(
+            sorted(self.user_parameter_names()), [(self.HOLDER, "boxH"), (self.HOLDER, "boxW")]
+        )
+        self.assertAlmostEqual(holder.boxH.Value, 10)
+        self.assertAlmostEqual(holder.boxW.Value, 20)
+        self.assertEqual(len(holder.ExpressionEngine), 1, holder.ExpressionEngine)
+        self.assertIn("boxH", holder.ExpressionEngine[0][1])
+
+        bindings = dict(self.sketch.ExpressionEngine)
+        self.assertEqual(
+            sorted(bindings.values()), [self.HOLDER + ".boxH", self.HOLDER + ".boxW"], bindings
+        )
+        constraint_of = {}
+        for path, expression in bindings.items():
+            constraint_of[expression] = int(path[path.index("[") + 1 : path.index("]")])
+        height = constraint_of[self.HOLDER + ".boxH"]
+        width = constraint_of[self.HOLDER + ".boxW"]
+        self.assertAlmostEqual(self.sketch.Constraints[height].Value, 10)
+        self.assertAlmostEqual(self.sketch.Constraints[width].Value, 20)
+
+        holder.boxH = 15
+        self.doc.recompute()
+        self.assertAlmostEqual(holder.boxW.Value, 30)
+        self.assertAlmostEqual(self.sketch.Constraints[height].Value, 15)
+        self.assertAlmostEqual(self.sketch.Constraints[width].Value, 30)
+
+    def test_ovp_completer_offers_parameter_typed_in_the_other_ovp(self):
+        self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first)
+        self.type_ovp(first, "boxHeight=10")
+        self.key_click(first, QtCore.Qt.Key_Tab, "\t")
+        second = [spinbox for spinbox in self.ovp_spinboxes() if spinbox is not first][0]
+        self.assertTrue(self.wait_until(lambda: second.hasFocus(), timeout_ms=1000))
+        self.type_ovp(second, "=boxH")
+        completer = second.findChild(QtGui.QCompleter)
+        self.assertIsNotNone(completer, "Expected a completer on the OVP")
+        self.assertTrue(
+            self.wait_until(lambda: completer.popup().isVisible(), timeout_ms=1000),
+            "Expected the completer popup",
+        )
+        model = completer.completionModel()
+        shown = [model.index(row, 0).data() for row in range(model.rowCount())]
+        self.assertTrue(any(s.startswith("boxHeight") for s in shown), shown)
+        completer.popup().hide()
+
+    def test_ovp_name_typed_in_the_other_ovp_is_refused(self):
+        self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first)
+        self.type_ovp(first, "twice=10")
+        self.key_click(first, QtCore.Qt.Key_Tab, "\t")
+        second = [spinbox for spinbox in self.ovp_spinboxes() if spinbox is not first][0]
+        self.assertTrue(self.wait_until(lambda: second.hasFocus(), timeout_ms=1000))
+        self.type_ovp(second, "twice=20")
+        self.key_click(second, QtCore.Qt.Key_Return, "\r")
+        self.pump(200)
+
+        self.assertIs(self.active_spinbox(), second, "Expected the OVP to stay in edit")
+        self.assertEqual(self.sketch.GeometryCount, 0)
+
+    def test_ovp_polyline_undo_last_point_removes_its_parameter(self):
+        # Page Up (R in the 3D view) takes the last point of the polyline back, with the user
+        # parameter that its segment created: the name can be typed again, and the polyline
+        # with its parameter is still one undo step.
+        self.doc.UndoMode = 1
+        viewport = self.draw_rectangle_with_ovp_texts(
+            "seg=30", "20", command="Sketcher_CreatePolyline", min_geometry=1
+        )
+        self.assert_parameter_on_holder("seg")
+
+        first = self.active_spinbox()
+        self.assertIsNotNone(first, "Expected an OVP of the next segment to have focus")
+        self.key_click(first, QtCore.Qt.Key_PageUp)
+        self.pump(300)
+        self.assertEqual(self.sketch.GeometryCount, 0, "Expected Page Up to undo the segment")
+        self.assertEqual(len(self.sketch.ExpressionEngine), 0)
+        self.assertEqual(
+            self.user_parameter_names(), [], "Expected the parameter of the undone segment to go"
+        )
+        # Only the parameter is taken back: the object holding the parameters stays, empty.
+        self.assertIsNotNone(self.holder())
+        self.assertNotIn("seg", self.holder().PropertiesList)
+
+        first = self.active_spinbox()
+        self.assertIsNotNone(first, "Expected an OVP of the segment to have focus")
+        self.type_ovp(first, "seg=30")
+        self.key_click(first, QtCore.Qt.Key_Tab, "\t")
+        second = [spinbox for spinbox in self.ovp_spinboxes() if spinbox is not first][0]
+        self.assertTrue(
+            self.wait_until(lambda: second.hasFocus(), timeout_ms=1000),
+            "Expected the name of the undone parameter to be accepted again",
+        )
+        self.type_ovp(second, "20")
+        self.key_click(second, QtCore.Qt.Key_Return, "\r")
+        self.pump(500)
+        self.assertGreaterEqual(self.sketch.GeometryCount, 1)
+        self.assertEqual(self.user_parameter_names(), [(self.HOLDER, "seg")])
+        self.bound_constraint("seg")
+
+        self.cancel_drawing_tool(viewport)
+        self.pump(200)
+        geometry_when_removed = None
+        for _ in range(len(self.doc.UndoNames)):
+            self.doc.undo()
+            if self.doc.findUserParameter("seg") is None:
+                geometry_when_removed = self.sketch.GeometryCount
+                break
+        self.assertEqual(geometry_when_removed, 0)
+        self.assertEqual(len(self.sketch.ExpressionEngine), 0)
+        # The polyline created the holder with its first parameter: it goes with the command.
+        self.assertIsNone(self.holder())
+
+    def test_ovp_home_in_refused_input_moves_the_caret(self):
+        # Enter gives the keys back to the 3D view, also when the field refused the input. Its
+        # text is still there to be corrected: Home moves the caret in it and is not the first
+        # tool shortcut (rounded corners of the rectangle).
+        self.doc.addUserParameter(self.sketch, "taken", "5 mm")
+        self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first, "Expected the first rectangle OVP to have focus")
+        rounded = self.visible_check_box("checkBoxTS1")
+        self.assertIsNotNone(rounded, "Expected the rounded corners check box")
+        before = rounded.isChecked()
+
+        self.type_ovp(first, "taken=30")
+        self.key_click(first, QtCore.Qt.Key_Return, "\r")
+        self.pump(200)
+        editor = first.findChild(QtGui.QLineEdit)
+        self.assertEqual(editor.text(), "taken=30", "Expected the refused input to stay")
+        editor.end(False)
+        try:
+            self.key_click(first, QtCore.Qt.Key_Home)
+            self.pump(200)
+            self.assertEqual(rounded.isChecked(), before, "Expected Home to stay in the field")
+            self.assertEqual(editor.cursorPosition(), 0, "Expected Home to move the caret")
+            self.assertEqual(editor.text(), "taken=30")
+        finally:
+            rounded.setChecked(before)
+            self.pump(100)
+
+    def test_alt_held_while_moving_the_mouse_is_no_tap(self):
+        # Alt with a mouse move rotates the view in the Touchpad navigation style, without any
+        # button: releasing Alt after it must not switch the construction method.
+        view = self.begin_rectangle_without_ovp_focus()
+        viewport = view.viewport()
+        method = self.visible_combo("comboBox1")
+        self.assertIsNotNone(method, "Expected the construction method combobox")
+        before = method.currentIndex()
+        start = viewport.rect().center()
+        end = self.clamp_to_widget(viewport, QtCore.QPoint(start.x() + 120, start.y()))
+        self.assertGreater(end.x() - start.x(), 60, "Expected room for the mouse move")
+        try:
+            press = QtGui.QKeyEvent(
+                QtCore.QEvent.KeyPress, QtCore.Qt.Key_Alt, QtCore.Qt.AltModifier, ""
+            )
+            release = QtGui.QKeyEvent(
+                QtCore.QEvent.KeyRelease, QtCore.Qt.Key_Alt, QtCore.Qt.NoModifier, ""
+            )
+            QtGui.QApplication.sendEvent(view, press)
+            # Wherever the cursor was when Alt went down, one of the two points is far from it.
+            self.move(viewport, start)
+            self.move(viewport, end)
+            QtGui.QApplication.sendEvent(view, release)
+            self.pump(200)
+            self.assertEqual(
+                method.currentIndex(), before, "Expected Alt with a mouse move to be no tap"
+            )
+        finally:
+            method.setCurrentIndex(before)
+            self.pump(100)
 
     def begin_rectangle_without_ovp_focus(self):
         """Start the rectangle with the 3D view focused, before any OVP shows."""
@@ -1293,7 +1537,144 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
     def test_ovp_short_length_with_many_decimals_binds(self):
         # 1 mm/3 is written as 0.333333 mm, 3.3e-7 away from the value of the expression.
         self.draw_rectangle_with_ovp_texts("w=1/3", "20")
-        self.assertEqual(self.sketch.getGroupOfProperty("w"), "UserParameters")
+        self.assert_parameter_on_holder("w")
         index = self.bound_constraint("w")
         self.doc.recompute()
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, 1.0 / 3.0, 12)
+
+    # Text being typed in an OVP and the values the mouse gives it
+
+    def move_second_corner(self, viewport, first_point, dx, dy):
+        self.move(
+            viewport,
+            self.clamp_to_widget(
+                viewport, QtCore.QPoint(first_point.x() + dx, first_point.y() + dy)
+            ),
+        )
+        self.pump(100)
+
+    def test_ovp_mouse_move_keeps_text_being_typed(self):
+        # "=wid" is not a value yet, so the OVP is not set: a mouse move must not replace the
+        # text by the length under the cursor. The move is sent to the viewport itself, as the
+        # overlay panels do while the completer popup has the mouse.
+        viewport, first_point = self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first, "Expected the first rectangle OVP to have focus")
+        editor = first.findChild(QtGui.QLineEdit)
+
+        for text in ("=", "=wid", "=width=1"):
+            with self.subTest(text=text):
+                self.type_ovp(first, "")
+                self.type_keys(first, text)
+                self.assertEqual(editor.text(), text)
+                self.move_second_corner(viewport, first_point, 140, 110)
+                self.move_second_corner(viewport, first_point, -120, 90)
+                self.assertEqual(editor.text(), text, "Expected the typed text to be kept")
+
+        # An incomplete number typed in a field that is not set is kept too.
+        self.type_ovp(first, "")
+        self.type_keys(first, "-")
+        self.move_second_corner(viewport, first_point, 150, 100)
+        self.assertEqual(editor.text(), "-")
+
+        # Emptying the field releases it: it shows the length under the cursor again.
+        self.type_ovp(first, "")
+        self.move_second_corner(viewport, first_point, 130, 120)
+        self.assertTrue(
+            self.wait_until(lambda: any(ch.isdigit() for ch in editor.text()), timeout_ms=1000),
+            "Expected the emptied OVP to follow the mouse again, got '%s'" % editor.text(),
+        )
+        completer = first.findChild(QtGui.QCompleter)
+        if completer:
+            completer.popup().hide()
+
+    def test_ovp_completion_goes_into_the_typed_text(self):
+        # A completion picked after a mouse move replaces the typed word, not a part of a
+        # value the mouse wrote in between ("9.widthm").
+        self.doc.addUserParameter(self.sketch, "heightValue", "15 mm")
+        viewport, first_point = self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first)
+        editor = first.findChild(QtGui.QLineEdit)
+        self.type_keys(first, "=heightV")
+        completer = first.findChild(QtGui.QCompleter)
+        self.assertIsNotNone(completer, "Expected a completer on the OVP")
+        popup = completer.popup()
+        self.assertTrue(self.wait_until(lambda: popup.isVisible(), timeout_ms=1000))
+
+        self.move_second_corner(viewport, first_point, 140, 110)
+        self.assertEqual(editor.text(), "=heightV")
+
+        # Tab in the popup takes the first completion and keeps the field in edit; without
+        # the label handling it, QCompleter gives Tab to the line edit and the focus leaves.
+        self.key_click(popup, QtCore.Qt.Key_Tab, "\t")
+        self.pump(200)
+        self.assertFalse(popup.isVisible(), "Expected Tab to close the popup")
+        self.assertEqual(editor.text(), "=heightValue")
+        self.assertIs(self.active_spinbox(), first, "Expected the OVP to keep the focus")
+
+    def test_ovp_enter_in_completer_popup_without_choice_accepts_the_input(self):
+        # Enter with no completion highlighted is the Enter of the field, not only the end
+        # of the popup.
+        self.doc.addUserParameter(self.sketch, "base", "15 mm")
+        self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first)
+        self.type_keys(first, "=base")
+        completer = first.findChild(QtGui.QCompleter)
+        self.assertIsNotNone(completer)
+        popup = completer.popup()
+        self.assertTrue(self.wait_until(lambda: popup.isVisible(), timeout_ms=1000))
+        self.assertFalse(popup.currentIndex().isValid())
+
+        self.key_click(popup, QtCore.Qt.Key_Return, "\r")
+        self.pump(200)
+        self.assertFalse(popup.isVisible())
+        self.assertIsNotNone(
+            self.ovp_lock_icon(first), "Expected the lock icon of the accepted OVP"
+        )
+        self.assertTrue(
+            self.ovp_lock_icon(first).isVisible(), "Expected Enter to accept '=base'"
+        )
+
+    def test_ovp_expression_typed_over_the_shown_value_drops_the_unit(self):
+        # "2*base" typed over the selected number of "100 mm" leaves "2*base mm": the unit the
+        # field showed is not part of the expression.
+        self.doc.addUserParameter(self.sketch, "base", "15 mm")
+        self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first)
+        editor = first.findChild(QtGui.QLineEdit)
+        shown = editor.text()
+        digits = [i for i, ch in enumerate(shown) if ch.isdigit()]
+        self.assertTrue(digits, shown)
+        unit = shown[digits[-1] + 1 :].strip()
+        self.assertTrue(unit, "Expected the OVP to show a unit, got '%s'" % shown)
+        editor.setSelection(0, digits[-1] + 1)
+        self.type_keys(first, "2*base")
+        self.assertTrue(editor.text().startswith("2*base"), editor.text())
+        self.assertTrue(editor.text().endswith(unit), editor.text())
+
+        self.key_click(first, QtCore.Qt.Key_Tab, "\t")
+        second = [spinbox for spinbox in self.ovp_spinboxes() if spinbox is not first][0]
+        self.assertTrue(self.wait_until(lambda: second.hasFocus(), timeout_ms=1000))
+        self.type_ovp(second, "20")
+        self.key_click(second, QtCore.Qt.Key_Return, "\r")
+        self.pump(500)
+
+        index = self.bound_constraint("base", "2")
+        self.assertAlmostEqual(self.sketch.Constraints[index].Value, 30)
+
+    def test_ovp_expression_that_cannot_be_used_is_refused_visibly(self):
+        # An expression without '=' that names nothing known stays in the field with a
+        # message, like "= nope"; it is not replaced silently by the value under the cursor.
+        self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first)
+        self.type_ovp(first, "2*nope")
+        self.key_click(first, QtCore.Qt.Key_Return, "\r")
+        self.pump(200)
+
+        self.assertIs(self.active_spinbox(), first, "Expected the OVP to stay in edit")
+        self.assertEqual(first.findChild(QtGui.QLineEdit).text(), "2*nope")
+        self.assertEqual(self.sketch.GeometryCount, 0)

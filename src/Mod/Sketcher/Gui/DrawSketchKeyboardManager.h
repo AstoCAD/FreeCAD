@@ -28,6 +28,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QKeyEvent>
+#include <QPoint>
 #include <QPointer>
 
 #include <Gui/Application.h>
@@ -57,6 +58,8 @@ class ViewProviderSketch;
  * construction method (M), Home/End/Page Up/Page Down are the first to fourth tool shortcuts
  * (U/J/R/F). Alt+key sends the key to the 3D view. These keys work the same while the 3D view
  * has the focus, where the manager also filters the events of the viewer.
+ * Alt held while the mouse is clicked, scrolled or moved (view navigation) is no tap, and a
+ * character typed with AltGr is text for the field.
  */
 class DrawSketchKeyboardManager: public QObject
 {
@@ -99,11 +102,15 @@ private:
     /// This function decides whether events should be send to the ViewProvider
     /// or to the UI control of DSH.
     KeyboardEventHandlingMode detectKeyboardEventHandlingMode(QObject* object, QKeyEvent* keyEvent);
-    /// Whether the field @p object holds an expression being typed (`= expression`).
-    static bool holdsExpression(QObject* object);
-    /// Sends the tool shortcut typed in a field (@p inField) or the 3D view, if @p keyEvent is one
-    /// (see the class description).
-    bool sendToolShortcut(QKeyEvent* keyEvent, bool inField);
+    /// Whether the field @p object holds text that the user typed and that is not a value: an
+    /// expression (`= expression`, `2*name`), being typed or refused when it was entered.
+    static bool holdsTypedText(QObject* object);
+    /// Whether @p keyEvent is a character typed with AltGr, which Windows reports as Ctrl+Alt.
+    /// Such a key is text, not Alt+key or a command.
+    static bool typesTextWithAltGr(const QKeyEvent* keyEvent);
+    /// Sends the tool shortcut typed in @p field, or in the 3D view (nullptr), if @p keyEvent is
+    /// one (see the class description).
+    bool sendToolShortcut(QKeyEvent* keyEvent, QObject* field);
     /// The events of the 3D view itself: the tool shortcuts, the rest goes on to the viewer.
     bool filterViewerEvent(QObject* object, QEvent* event);
     /// Sends a key typed in a field to the 3D view.
@@ -122,6 +129,8 @@ private:
     /// Alt pressed alone and not yet released: a tap switches the construction method
     bool altTap = false;
     QElapsedTimer altPressTime;
+    /// Where the mouse cursor was when Alt was pressed (global position)
+    QPoint altPressCursor;
 };
 
 }  // namespace SketcherGui
