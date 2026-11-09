@@ -23,12 +23,16 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include <QObject>
 #include <QPointer>
 #include <QLabel>
+#include <App/UserParameters.h>
 #include <Base/Unit.h>
 #include <Gui/QuantitySpinBox.h>
 
@@ -133,6 +137,14 @@ public:
     const Base::Unit& getUserExpressionUnit() const;
     /// Forget the expression once it has been bound (tools that bind at every step).
     void clearUserExpression();
+    /// The user parameter this label is going to create (`name = expression` accepted), if any.
+    std::optional<App::UserParameters::PendingParameter> getPendingUserParameter() const;
+    /// The user parameters that other inputs of the same tool are going to create: the input
+    /// of this label can already use them (App::UserParameters::PendingScope), they are
+    /// completed, and their names cannot be given again.
+    void setPendingUserParameters(
+        std::function<std::vector<App::UserParameters::PendingParameter>()> provider
+    );
     //@}
 
     // NOLINTBEGIN
@@ -171,6 +183,7 @@ private:
     /// Whether an owner is set (setUserParameterOwner()) and the expressions can name its document.
     bool acceptsUserExpressions() const;
     UserInput acceptUserExpressionInput();
+    std::vector<App::UserParameters::PendingParameter> otherPendingUserParameters() const;
     void setupUserParameterCompleter(QLineEdit* edit);
     bool syncValueFromSpinBox(bool emitParameterUnset = true);
     void handleSpinBoxValueChanged();
@@ -200,6 +213,7 @@ private:
     double editStartValue;
 
     App::DocumentObject* userParameterOwner {nullptr};
+    std::function<std::vector<App::UserParameters::PendingParameter>()> pendingUserParameters;
     std::string userParameterName;
     std::shared_ptr<App::Expression> userExpression;
     Base::Unit userExpressionUnit;

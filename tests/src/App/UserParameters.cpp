@@ -313,4 +313,54 @@ TEST_F(UserParameters, quantityInputResolvesUserParameters)
     EXPECT_EQ(plain.userParameterReferences, 0);
 }
 
+TEST_F(UserParameters, pendingParametersAreKnownInTheirScope)
+{
+    const Base::NumericLocaleContext enUs {"en_US", ".", ",", "+", "-", 3, 3, "0"};
+    const auto interpret = [&](const char* text) {
+        return App::interpretQuantityInput(
+            text,
+            App::QuantityInputGrammar::Expression,
+            App::ObjectIdentifier(*target),
+            App::QuantityInputUnit(Base::Unit::Length),
+            enUs,
+            App::InputPhase::Commit,
+            App::QuantityConstraints {}
+        );
+    };
+    const Base::Quantity height(10.0, Base::Unit::Length);
+
+    {
+        UP::PendingScope scope(other, {{"height", height}});
+        const auto result = interpret("2 * height + 1");
+        ASSERT_EQ(result.status, App::InputStatus::Acceptable);
+        EXPECT_DOUBLE_EQ(result.quantity->getValue(), 21.0);
+        // The expression keeps the bare name: it refers to the parameter once it is created.
+        ASSERT_NE(result.expression, nullptr);
+        EXPECT_EQ(result.expression->toString(), "2 * height + 1 mm");
+        EXPECT_EQ(result.userParameterReferences, 0);
+        // Bare names only, and only for the expressions of the owner of the scope
+        EXPECT_EQ(interpret("Other.height").status, App::InputStatus::Invalid);
+        EXPECT_EQ(interpret("Holder.height").status, App::InputStatus::Invalid);
+        UP::PendingScope holderScope(holder, {{"width", height}});
+        EXPECT_EQ(interpret("width").status, App::InputStatus::Invalid);
+        EXPECT_EQ(interpret("height").status, App::InputStatus::Acceptable);
+    }
+    EXPECT_EQ(interpret("2 * height").status, App::InputStatus::Invalid);
+
+    // Existing names keep their meaning
+    UP::createParameter(holder, "myVar", parse(holder, "23 mm"));
+    {
+        UP::PendingScope scope(other, {{"myVar", height}, {"Target", height}});
+        const auto parameter = interpret("myVar");
+        ASSERT_EQ(parameter.status, App::InputStatus::Acceptable);
+        EXPECT_DOUBLE_EQ(parameter.quantity->getValue(), 23.0);
+        static_cast<App::PropertyDistance*>(target)->setValue(5.0);
+        const auto property = interpret("Target");
+        ASSERT_EQ(property.status, App::InputStatus::Acceptable);
+        EXPECT_DOUBLE_EQ(property.quantity->getValue(), 5.0);
+    }
+    // Nothing was added to the document
+    EXPECT_EQ(other->getPropertyByName("height"), nullptr);
+}
+
 // NOLINTEND(readability-magic-numbers)

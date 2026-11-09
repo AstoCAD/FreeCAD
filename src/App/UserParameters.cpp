@@ -416,6 +416,56 @@ int UserParameters::qualifyReferences(const DocumentObject* owner, Expression& e
     return visitor.count;
 }
 
+namespace
+{
+thread_local UserParameters::PendingScope* innermostPendingScope = nullptr;
+}  // namespace
+
+UserParameters::PendingScope::PendingScope(
+    const DocumentObject* owner,
+    std::vector<PendingParameter> parameters
+)
+    : owner(owner)
+    , parameters(std::move(parameters))
+    , outer(innermostPendingScope)
+{
+    innermostPendingScope = this;
+}
+
+UserParameters::PendingScope::~PendingScope()
+{
+    innermostPendingScope = outer;
+}
+
+const Base::Quantity* UserParameters::PendingScope::find(const ObjectIdentifier& path)
+{
+    const DocumentObject* owner = path.getOwner();
+    if (!owner || !innermostPendingScope) {
+        return nullptr;
+    }
+    // A bare name only, as typed for a user parameter (see parameterHolder())
+    if (path.hasDocumentObjectName() || path.isLocalProperty()
+        || !path.getSubObjectName().empty()) {
+        return nullptr;
+    }
+    const auto& components = path.getComponents();
+    if (components.size() != 1 || !components[0].isSimple()) {
+        return nullptr;
+    }
+    const std::string& name = components[0].getName();
+    for (const PendingScope* scope = innermostPendingScope; scope; scope = scope->outer) {
+        if (scope->owner != owner) {
+            continue;
+        }
+        for (const auto& parameter : scope->parameters) {
+            if (parameter.name == name) {
+                return &parameter.value;
+            }
+        }
+    }
+    return nullptr;
+}
+
 std::string UserParameters::toDisplayString(const DocumentObject* owner, const Expression& expr)
 {
     if (!owner || !owner->getDocument()) {

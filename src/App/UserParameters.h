@@ -8,6 +8,7 @@
 
 #include <FCGlobal.h>
 
+#include <Base/Quantity.h>
 #include <Base/Type.h>
 #include <Base/Unit.h>
 
@@ -16,6 +17,7 @@ namespace App
 class Document;
 class DocumentObject;
 class Expression;
+class ObjectIdentifier;
 class Property;
 
 /**
@@ -121,6 +123,45 @@ AppExport int qualifyReferences(const DocumentObject* owner, Expression& expr);
 /// The text of @p expr with qualified user parameter references shortened back to their name
 /// wherever the short name refers to the same parameter.
 AppExport std::string toDisplayString(const DocumentObject* owner, const Expression& expr);
+
+/// A user parameter that is going to be created, see PendingScope.
+struct PendingParameter
+{
+    std::string name;
+    Base::Quantity value;
+};
+
+/**
+ * Make user parameters that are not created yet known to the expressions of @p owner.
+ *
+ * A tool may create user parameters only when it finishes (the on-view parameters of a sketch
+ * tool create them with the geometry), while the user already refers to them in the next input
+ * of the same tool (`height = 10 mm`, then `= 2 * height`). While the scope is alive, on this
+ * thread, evaluating a bare name of an expression owned by @p owner that resolves nowhere else
+ * gives the value of the pending parameter of that name. The document is not changed and the
+ * expression keeps the bare name, which refers to the parameter once it is created on @p owner.
+ * Scopes nest; the innermost one is searched first.
+ */
+class AppExport PendingScope
+{
+public:
+    PendingScope(const DocumentObject* owner, std::vector<PendingParameter> parameters);
+    ~PendingScope();
+
+    PendingScope(const PendingScope&) = delete;
+    PendingScope(PendingScope&&) = delete;
+    PendingScope& operator=(const PendingScope&) = delete;
+    PendingScope& operator=(PendingScope&&) = delete;
+
+    /// The value of the pending parameter that the bare identifier @p path names, nullptr when
+    /// @p path is not a bare name or no scope of its owner has a pending parameter of that name.
+    static const Base::Quantity* find(const ObjectIdentifier& path);
+
+private:
+    const DocumentObject* owner;
+    std::vector<PendingParameter> parameters;
+    PendingScope* outer;
+};
 
 }  // namespace UserParameters
 }  // namespace App

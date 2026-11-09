@@ -1154,6 +1154,63 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         self.assertTrue(any(s.startswith("heightValue") for s in shown), shown)
         completer.popup().hide()
 
+    def test_ovp_expression_uses_parameter_typed_in_the_other_ovp(self):
+        # The parameter of the first OVP is created with the rectangle, after the second OVP is
+        # accepted: the second one can use it all the same.
+        self.draw_rectangle_with_ovp_texts("height=10", "=2*height")
+
+        self.assertEqual(self.user_parameter_names(), [(self.sketch.Name, "height")])
+        bindings = dict(self.sketch.ExpressionEngine)
+        self.assertEqual(len(bindings), 2, bindings)
+        values = {}
+        for path, expression in bindings.items():
+            index = int(path[path.index("[") + 1 : path.index("]")])
+            values[expression.replace(" ", "")] = self.sketch.Constraints[index].Value
+        self.assertAlmostEqual(values["height"], 10)
+        self.assertAlmostEqual(values["2*height"], 20)
+
+        self.sketch.height = 15
+        self.doc.recompute()
+        for path, expression in self.sketch.ExpressionEngine:
+            index = int(path[path.index("[") + 1 : path.index("]")])
+            expected = 30 if "2" in expression else 15
+            self.assertAlmostEqual(self.sketch.Constraints[index].Value, expected)
+
+    def test_ovp_completer_offers_parameter_typed_in_the_other_ovp(self):
+        self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first)
+        self.type_ovp(first, "boxHeight=10")
+        self.key_click(first, QtCore.Qt.Key_Tab, "\t")
+        second = [spinbox for spinbox in self.ovp_spinboxes() if spinbox is not first][0]
+        self.assertTrue(self.wait_until(lambda: second.hasFocus(), timeout_ms=1000))
+        self.type_ovp(second, "=boxH")
+        completer = second.findChild(QtGui.QCompleter)
+        self.assertIsNotNone(completer, "Expected a completer on the OVP")
+        self.assertTrue(
+            self.wait_until(lambda: completer.popup().isVisible(), timeout_ms=1000),
+            "Expected the completer popup",
+        )
+        model = completer.completionModel()
+        shown = [model.index(row, 0).data() for row in range(model.rowCount())]
+        self.assertTrue(any(s.startswith("boxHeight") for s in shown), shown)
+        completer.popup().hide()
+
+    def test_ovp_name_typed_in_the_other_ovp_is_refused(self):
+        self.begin_rectangle_with_visible_ovp()
+        first = self.active_spinbox()
+        self.assertIsNotNone(first)
+        self.type_ovp(first, "twice=10")
+        self.key_click(first, QtCore.Qt.Key_Tab, "\t")
+        second = [spinbox for spinbox in self.ovp_spinboxes() if spinbox is not first][0]
+        self.assertTrue(self.wait_until(lambda: second.hasFocus(), timeout_ms=1000))
+        self.type_ovp(second, "twice=20")
+        self.key_click(second, QtCore.Qt.Key_Return, "\r")
+        self.pump(200)
+
+        self.assertIs(self.active_spinbox(), second, "Expected the OVP to stay in edit")
+        self.assertEqual(self.sketch.GeometryCount, 0)
+
     def begin_rectangle_without_ovp_focus(self):
         """Start the rectangle with the 3D view focused, before any OVP shows."""
         self.begin_sketch_edit_with_task_dialog()

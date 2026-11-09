@@ -350,8 +350,9 @@ void EditableDatumLabel::setupUserParameterCompleter(QLineEdit* edit)
     if (!ExpressionParameter::instance()->isExactMatch()) {
         completer->setFilterMode(Qt::MatchContains);
     }
-    connect(edit, &QLineEdit::textEdited, completer, [completer, edit](const QString& text) {
+    connect(edit, &QLineEdit::textEdited, completer, [this, completer, edit](const QString& text) {
         if (isTypingName(text, edit->cursorPosition())) {
+            completer->setPendingUserParameters(otherPendingUserParameters());
             completer->slotUpdate(text, edit->cursorPosition());
             fitCompleterPopup(completer, edit);
         }
@@ -407,6 +408,30 @@ const Base::Unit& EditableDatumLabel::getUserExpressionUnit() const
     return userExpressionUnit;
 }
 
+std::optional<App::UserParameters::PendingParameter> EditableDatumLabel::getPendingUserParameter() const
+{
+    if (!hasUserExpression() || userParameterName.empty()) {
+        return std::nullopt;
+    }
+    return App::UserParameters::PendingParameter {
+        userParameterName,
+        Base::Quantity(userExpressionValue, userExpressionUnit)
+    };
+}
+
+void EditableDatumLabel::setPendingUserParameters(
+    std::function<std::vector<App::UserParameters::PendingParameter>()> provider
+)
+{
+    pendingUserParameters = std::move(provider);
+}
+
+std::vector<App::UserParameters::PendingParameter> EditableDatumLabel::otherPendingUserParameters() const
+{
+    return pendingUserParameters ? pendingUserParameters()
+                                 : std::vector<App::UserParameters::PendingParameter>();
+}
+
 void EditableDatumLabel::clearUserExpression()
 {
     userParameterName.clear();
@@ -443,14 +468,20 @@ EditableDatumLabel::UserInput EditableDatumLabel::acceptUserExpressionInput()
         return UserInput::Rejected;
     };
 
+    // The parameters typed in the other inputs of the tool are created with it, after this input.
+    const auto pending = otherPendingUserParameters();
     Base::Quantity quantity;
     QString error;
-    const auto expression = spinBox->interpretExpression(
-        QString::fromStdString(assignment ? rhs : input),
-        App::ObjectIdentifier(userParameterOwner->Label),
-        quantity,
-        error
-    );
+    std::shared_ptr<App::Expression> expression;
+    {
+        App::UserParameters::PendingScope scope(userParameterOwner, pending);
+        expression = spinBox->interpretExpression(
+            QString::fromStdString(assignment ? rhs : input),
+            App::ObjectIdentifier(userParameterOwner->Label),
+            quantity,
+            error
+        );
+    }
     if (!expression) {
         if (!assignment && !explicitExpression) {
             return UserInput::NotApplicable;
@@ -468,6 +499,15 @@ EditableDatumLabel::UserInput EditableDatumLabel::acceptUserExpressionInput()
             return reject(
                 QString::fromStdString(App::UserParameters::nameStatusMessage(status, name))
             );
+        }
+        const bool namedAgain = std::ranges::any_of(pending, [&name](const auto& parameter) {
+            return parameter.name == name;
+        });
+        if (namedAgain) {
+            return reject(QString::fromStdString(App::UserParameters::nameStatusMessage(
+                App::UserParameters::NameStatus::UsedByParameter,
+                name
+            )));
         }
     }
 

@@ -58,6 +58,7 @@
 #include <App/DocumentObject.h>
 #include <App/ObjectIdentifier.h>
 #include <App/PropertyUnits.h>
+#include <App/UserParameters.h>
 #include <Base/Interpreter.h>
 #include <Base/MatrixPy.h>
 #include <Base/NumericFormatting.h>
@@ -3073,6 +3074,10 @@ Py::Object VariableExpression::_getPyValue() const {
         // Say so, rather than that there is no property of this name
         if (!var.getComponents().empty() && isRemovedCellReference(var.getPropertyName())) {
             EXPR_THROW("Reference to a removed cell");
+        }
+        // A user parameter that the tool in use is going to create
+        if (const Base::Quantity* pending = UserParameters::PendingScope::find(var)) {
+            return Py::asObject(new QuantityPy(new Quantity(*pending)));
         }
         throw;
     }

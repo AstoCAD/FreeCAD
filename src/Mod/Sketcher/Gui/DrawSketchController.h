@@ -24,9 +24,12 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
+#include <App/Expression.h>
+#include <App/ObjectIdentifier.h>
 #include <Base/Console.h>
 #include <Base/Tools2D.h>
 #include <Gui/EditableDatumLabel.h>
@@ -417,13 +420,42 @@ public:
     }
 
     /// Creates the user parameters and binds the recorded constraints. A value that did not
-    /// produce a constraint creates nothing and is reported.
+    /// produce a constraint creates nothing and is reported. A parameter is created before the
+    /// on-view parameters using it (`height = 10 mm`, then `= 2 * height` in another one).
     void bindOnViewParameterExpressions()
     {
+        std::vector<unsigned int> remaining;
         for (unsigned int i = 0; i < onViewParameters.size(); i++) {
-            if (!hasUserExpression(i)) {
-                continue;
+            if (hasUserExpression(i)) {
+                remaining.push_back(i);
             }
+        }
+        const auto usesRemaining = [this, &remaining](unsigned int i) {
+            for (const auto& identifier : onViewParameters[i]->getUserExpression()->getIdentifiers()) {
+                const App::ObjectIdentifier& path = identifier.first;
+                if (path.hasDocumentObjectName() || path.getComponents().size() != 1) {
+                    continue;
+                }
+                const std::string name = path.getPropertyName();
+                for (unsigned int j : remaining) {
+                    if (j != i && onViewParameters[j]->getUserParameterName() == name) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+        while (!remaining.empty()) {
+            // A parameter can only use the ones typed before it: there is always one ready.
+            auto next = std::ranges::find_if(remaining, [&](unsigned int i) {
+                return !usesRemaining(i);
+            });
+            if (next == remaining.end()) {
+                next = remaining.begin();
+            }
+            const unsigned int i = *next;
+            remaining.erase(next);
+
             const auto range = i < onViewParameterConstraintRanges.size()
                 ? onViewParameterConstraintRanges[i]
                 : std::pair<int, int>(-1, -1);
@@ -759,6 +791,20 @@ protected:
                                  .get();
 
             parameter->setUserParameterOwner(handler->sketchgui->getObject());
+            // The parameters typed in the other on-view parameters are created with the geometry
+            // (bindOnViewParameterExpressions()), but this one can already use them.
+            parameter->setPendingUserParameters([this, parameter]() {
+                std::vector<App::UserParameters::PendingParameter> pending;
+                for (const auto& other : onViewParameters) {
+                    if (other.get() == parameter) {
+                        continue;
+                    }
+                    if (auto userParameter = other->getPendingUserParameter()) {
+                        pending.push_back(std::move(*userParameter));
+                    }
+                }
+                return pending;
+            });
 
             const auto handleParameterValueChanged = [this, parameter, i](double value) {
                 parameter->setActivatedColor();
