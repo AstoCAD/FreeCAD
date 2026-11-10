@@ -98,19 +98,22 @@ bool isInPlane(const gp_Dir& dir, const gp_Pln& plane)
 
 // A face swept along its own plane has no volume: the result would be a flat solid
 // that reports no error. The faces are the source faces, or, for a solid made from
-// wires, the plane of those wires.
+// wires, the plane of those wires. A source with faces in several planes is refused
+// only when none of them can sweep a volume: its other faces still give a real result.
 void checkDirectionLeavesFacePlanes(const TopoShape& source, const ExtrusionParameters& params)
 {
     if (source.isNull()) {
         return;
     }
     bool hasFaces = false;
-    for (TopExp_Explorer ex(source.getShape(), TopAbs_FACE); ex.More(); ex.Next()) {
+    bool leavesAFace = false;
+    for (TopExp_Explorer ex(source.getShape(), TopAbs_FACE); ex.More() && !leavesAFace; ex.Next()) {
         hasFaces = true;
         BRepAdaptor_Surface surf(TopoDS::Face(ex.Current()), Standard_False);
-        if (surf.GetType() == GeomAbs_Plane && isInPlane(params.dir, surf.Plane())) {
-            throw Base::ValueError("The extrusion direction lies in the plane of a face to extrude");
-        }
+        leavesAFace = surf.GetType() != GeomAbs_Plane || !isInPlane(params.dir, surf.Plane());
+    }
+    if (hasFaces && !leavesAFace) {
+        throw Base::ValueError("The extrusion direction lies in the plane of the faces to extrude");
     }
     if (!hasFaces && params.solid) {
         BRepLib_FindSurface planeFinder(source.getShape(), -1, /*OnlyPlane=*/Standard_True);
