@@ -504,7 +504,7 @@ void AssemblyObject::updateSolveStatus()
         App::DocumentObject* docObj = getDocument()->getObject(fullName.c_str());
 
         // We only care about objects that are actual joints in the FreeCAD document.
-        // This effectively filters out the grounding joints, which are named after parts.
+        // Solver joints that are not a joint of the document are skipped.
         if (!docObj || !docObj->getPropertyByName("Reference1")) {
             return;
         }

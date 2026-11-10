@@ -401,6 +401,39 @@ class TestCore(AssemblyTestBase):
             f"grounded part moved to {grounded.Placement}",
         )
 
+    def test_conflicting_revolutes_do_not_move_grounded_parts(self):
+        # A part tied to two grounded parts by revolutes that cannot both be met. The
+        # solver iterations diverge before the redundant equations are looked for, and
+        # the grounding equations were among those removed at that point.
+        first = self.assembly.newObject("Part::Box", "FirstGrounded")
+        first.Placement = App.Placement(App.Vector(5, -3, 2), App.Rotation(30, 10, 0))
+        second = self.assembly.newObject("Part::Box", "SecondGrounded")
+        second.Placement = App.Placement(App.Vector(100, 0, 0), App.Rotation(0, 0, 180))
+        moving = self.assembly.newObject("Part::Box", "Moving")
+        moving.Placement = App.Placement(App.Vector(30, 30, 30), App.Rotation(5, 6, 7))
+        self.doc.recompute()
+        for name, part in (("FirstGround", first), ("SecondGround", second)):
+            ground = self.jointgroup.newObject("App::FeaturePython", name)
+            JointObject.GroundedJoint(ground, part)
+        initial = [App.Placement(first.Placement), App.Placement(second.Placement)]
+
+        for name, part, moving_reference in (
+            ("FirstRevolute", first, ["Face5", "Vertex1"]),
+            ("SecondRevolute", second, ["Face6", "Vertex7"]),
+        ):
+            revolute = self.jointgroup.newObject("App::FeaturePython", name)
+            JointObject.Joint(revolute, JointObject.JointTypes.index("Revolute"))
+            revolute.Proxy.setJointConnectors(
+                revolute, [[part, ["Face6", "Vertex7"]], [moving, moving_reference]]
+            )
+        self.assembly.solve()
+
+        for part, placement in zip((first, second), initial):
+            self.assertTrue(
+                part.Placement.isSame(placement, 1e-7),
+                f"{part.Name} moved to {part.Placement}",
+            )
+
     def test_export_asmt_writes_grounding(self):
         # The ASMT format has no fixed-body flag: the grounding is written as a fixed joint.
         grounded, _other = self._grounded_box_fixed_to_other()
