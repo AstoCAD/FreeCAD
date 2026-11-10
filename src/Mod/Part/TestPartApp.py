@@ -1866,6 +1866,26 @@ class PartExtrusionTests(unittest.TestCase):
         self.assertNotIn("Invalid", extrusion.State)
         self.assertAlmostEqual(extrusion.Shape.Area, 30, places=6)
 
+        # faces in several planes: the face leaving its plane still sweeps its volume
+        upright = Part.makePolygon(
+            [
+                Base.Vector(0, 0, 0),
+                Base.Vector(10, 0, 0),
+                Base.Vector(10, 0, 10),
+                Base.Vector(0, 0, 10),
+                Base.Vector(0, 0, 0),
+            ]
+        )
+        base_feature = self.Doc.addObject("Part::Feature", "Base")
+        base_feature.Shape = Part.Compound([Part.Face(square), Part.Face(upright)])
+        extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
+        extrusion.Base = base_feature
+        extrusion.Dir = Base.Vector(0, 0, 1)
+        extrusion.LengthFwd = 3
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", extrusion.State)
+        self.assertAlmostEqual(extrusion.Shape.Volume, 300, places=6)
+
         # a direction leaving the plane at an angle still works
         base_feature = self.Doc.addObject("Part::Feature", "Base")
         base_feature.Shape = Part.Face(square)
