@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 """Actual Part Mirror accepts real internal UTF8 source/document names.
 
-The Latin1 UI/cache MatchName pairing is preserved. These tests exercise ordinary
+The task caches the names as decoded UTF8 text. These tests exercise ordinary
 XY mirroring with valid1800-volume geometry, separately from reference paths.
 """
 
@@ -98,8 +98,8 @@ class TestMirrorUnicodeNames(unittest.TestCase):
                          "Normal constructor preselection must identify the original source")
         self.assertEqual(selected[0].text(0), source.Label)
         cached_name = selected[0].data(0, QtCore.Qt.UserRole)
-        self.assertEqual(cached_name.encode("latin1").decode("utf-8"), source.Name,
-                         "Preserve the existing paired Latin1 MatchName/cache contract")
+        self.assertEqual(cached_name, source.Name,
+                         "The task caches the internal name as decoded text")
         self.assertEqual(combo.currentIndex(), 0,
                          "The ordinary XY plane isolates source/document command identity")
         dialog.accept()
