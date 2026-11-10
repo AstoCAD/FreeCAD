@@ -299,6 +299,20 @@ jobs:
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
+          # The bundle scripts no longer write checksum files (GitHub shows them for release
+          # assets). The AstoCAD server has no such display, so they are written here.
+          write_sha256() {
+            local file
+            for file in "$@"; do
+              [[ -e "$file" ]] || continue
+              if command -v sha256sum >/dev/null; then
+                sha256sum "$file" > "$file-SHA256.txt"
+              else
+                shasum -a 256 "$file" > "$file-SHA256.txt"
+              fi
+            done
+          }
+
           # 1. Move to the bundle root
           cd package/bundle
 
@@ -308,6 +322,7 @@ jobs:
             sudo apt-get update -qq && sudo apt-get install -y lftp
 
             cd linux
+            write_sha256 AstoCAD_*.AppImage
 
             lftp -e "
             set ssl:verify-certificate no;
@@ -323,6 +338,7 @@ jobs:
             brew install lftp
 
             cd osx
+            write_sha256 AstoCAD_*.dmg
 
             lftp -e "
             set ssl:verify-certificate no;
@@ -338,6 +354,7 @@ jobs:
 
             # 1. Enter the windows directory (as fixed previously)
             cd windows
+            write_sha256 AstoCAD_*.7z AstoCAD_*.exe
 
             # 2. Run PowerShell with escaped variables (\$)
             pwsh -Command "
