@@ -24,6 +24,8 @@
  ***************************************************************************/
 
 #include <cmath>
+#include <map>
+#include <utility>
 
 #include <BRep_Tool.hxx>
 #include <Precision.hxx>
@@ -148,6 +150,46 @@ private:
     double tolerance;
 };
 
+/// Sets of sketch points that are connected by a chain of point-on-point constraints. A point is
+/// any (GeoId, PosId), including the ones that are not analysed vertices (root point, external
+/// geometry, construction geometry), so that two vertices joined through such a point are
+/// known to coincide already.
+class CoincidentPointSets
+{
+public:
+    using PointId = std::pair<int, Sketcher::PointPos>;
+
+    void join(const PointId& point1, const PointId& point2)
+    {
+        const PointId set1 = find(point1);
+        const PointId set2 = find(point2);
+        if (set1 != set2) {
+            parent[set1] = set2;
+        }
+    }
+
+    /// Returns the point that identifies the set of the given point. A point that no constraint
+    /// refers to is alone in its set.
+    PointId find(const PointId& point)
+    {
+        PointId set = point;
+        for (auto it = parent.find(set); it != parent.end(); it = parent.find(set)) {
+            set = it->second;
+        }
+
+        // Shorten the path for the next lookups
+        for (PointId current = point; current != set;) {
+            current = std::exchange(parent[current], set);
+        }
+
+        return set;
+    }
+
+private:
+    // Holds, for each point that is not the identifier of its set, a point closer to it
+    std::map<PointId, PointId> parent;
+};
+
 struct PointConstraints
 {
     void addGeometry(const Part::Geometry* geo, int index)
@@ -257,6 +299,21 @@ struct PointConstraints
     {
         std::list<ConstraintIds> missingCoincidences;  // Holds the list of missing coincidences
 
+        // Points that existing constraints already make coincident. Only a constraint between
+        // two points does that: an endpoint-to-edge tangency, for instance, leaves its endpoint
+        // free to have a missing coincidence with its neighbours.
+        CoincidentPointSets coincidentPoints;
+        for (const auto* coincidence : allcoincid) {
+            if (coincidence->FirstPos == Sketcher::PointPos::none
+                || coincidence->SecondPos == Sketcher::PointPos::none) {
+                continue;
+            }
+            coincidentPoints.join(
+                {coincidence->First, coincidence->FirstPos},
+                {coincidence->Second, coincidence->SecondPos}
+            );
+        }
+
         // Sort points in geographic order
         std::sort(vertexIds.begin(), vertexIds.end(), Vertex_Less(precision));
 
@@ -286,87 +343,20 @@ struct PointConstraints
                 // Holds groups of coincident vertices
                 std::vector<std::set<VertexIds, VertexID_Less>> coincVertexGrps;
 
-                // Decompose the group of adjacent vertices into groups of coincident vertices
-                // Going through existent coincidences
-                for (auto& coincidence : allcoincid) {
-                    VertexIds v1;
-                    VertexIds v2;
-                    v1.GeoId = coincidence->First;
-                    v1.PosId = coincidence->FirstPos;
-                    v2.GeoId = coincidence->Second;
-                    v2.PosId = coincidence->SecondPos;
-
-                    // Look if coincident vertices are in the group of adjacent ones we are
-                    // processing
-                    auto nv1 = vertexGrp.extract(v1);
-                    auto nv2 = vertexGrp.extract(v2);
-
-                    // Maybe if both empty, they already have been extracted by other coincidences
-                    // We have to check in existing coincident groups and eventually merge
-                    if (nv1.empty() && nv2.empty()) {
-                        std::set<VertexIds, VertexID_Less>* tempGrp = nullptr;
-                        for (auto it = coincVertexGrps.begin(); it < coincVertexGrps.end(); ++it) {
-                            if ((it->find(v1) != it->end()) || (it->find(v2) != it->end())) {
-                                if (!tempGrp) {
-                                    tempGrp = &*it;
-                                }
-                                else {
-                                    tempGrp->insert(it->begin(), it->end());
-                                    coincVertexGrps.erase(it);
-                                    break;
-                                }
-                            }
-                        }
-                        continue;
+                // Decompose the group of adjacent vertices into groups of coincident vertices:
+                // the vertices that existing constraints connect, directly or through any other
+                // points, are in the same group. A vertex connected to none of the others is a
+                // group on its own.
+                std::map<CoincidentPointSets::PointId, std::size_t> grpOfPointSet;
+                for (const auto& vertex : vertexGrp) {
+                    const auto [it, isNewGrp] = grpOfPointSet.try_emplace(
+                        coincidentPoints.find({vertex.GeoId, vertex.PosId}),
+                        coincVertexGrps.size()
+                    );
+                    if (isNewGrp) {
+                        coincVertexGrps.emplace_back();
                     }
-
-                    // Look if one of the constrained vertices is already in a group of coincident
-                    // vertices
-                    bool grouped = false;
-                    for (std::set<VertexIds, VertexID_Less>& grp : coincVertexGrps) {
-                        if ((grp.find(v1) != grp.end()) || (grp.find(v2) != grp.end())) {
-                            // If yes add them to the existing group
-                            if (!nv1.empty()) {
-                                grp.insert(nv1.value());
-                            }
-                            if (!nv2.empty()) {
-                                grp.insert(nv2.value());
-                            }
-                            grouped = true;
-                            break;
-                        }
-                    }
-
-                    if (grouped) {
-                        continue;
-                    }
-
-                    if (nv1.empty() || nv2.empty()) {
-                        // The other vertex is not part of this group of adjacent vertices (e.g.
-                        // endpoint-to-edge tangency): give the vertex back so that it is still
-                        // checked against its neighbours.
-                        if (!nv1.empty()) {
-                            vertexGrp.insert(std::move(nv1));
-                        }
-                        if (!nv2.empty()) {
-                            vertexGrp.insert(std::move(nv2));
-                        }
-                        continue;
-                    }
-
-                    // If no, create a new group of coincident vertices
-                    std::set<VertexIds, VertexID_Less> newGrp;
-                    newGrp.insert(nv1.value());
-                    newGrp.insert(nv2.value());
-                    coincVertexGrps.push_back(newGrp);
-                }
-
-                // If there are remaining vertices in the adjacent group (not in any existing
-                // constraint) add them as being each a separate coincident group
-                for (auto& lonept : vertexGrp) {
-                    std::set<VertexIds, VertexID_Less> newGrp;
-                    newGrp.insert(lonept);
-                    coincVertexGrps.push_back(newGrp);
+                    coincVertexGrps[it->second].insert(vertex);
                 }
 
                 // If there is more than 1 coincident group into adjacent group, constraint(s)
