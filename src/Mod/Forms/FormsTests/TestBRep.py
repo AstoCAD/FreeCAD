@@ -2511,6 +2511,46 @@ class BRepConversionTest(unittest.TestCase):
         mapper = ControlElementMapper(obj)
         self.assertTrue(all(mapper.indices(face) for face in obj.Shape.Faces))
 
+    def test_element_mapping_follows_the_object_placement(self):
+        # The Shape carries the Placement; the cage, and the anchors the editor
+        # draws under the object's transform, stay in the object's own frame.
+        document = App.newDocument("FormsTestMapperPlacement")
+        obj = create_box(document)
+        document.recompute()
+        make_editable(obj)
+        document.recompute()
+
+        def mapping():
+            mapper = ControlElementMapper(obj)
+            shape = obj.Shape
+            return mapper.tolerance, [
+                mapper.target(element)
+                for element in shape.Vertexes + shape.Edges + shape.Faces
+            ]
+
+        tolerance, expected = mapping()
+        self.assertTrue(all(indices for indices, _anchor in expected))
+        self.assertTrue(any(anchor is not None for _indices, anchor in expected))
+        for placement in (
+            App.Placement(App.Vector(100, 0, 0), App.Rotation()),
+            App.Placement(App.Vector(), App.Rotation(App.Vector(0, 0, 1), 30)),
+            App.Placement(App.Vector(7, -3, 40), App.Rotation(App.Vector(1, 2, 3), 77)),
+        ):
+            with self.subTest(placement=placement):
+                obj.Placement = placement
+                document.recompute()
+                moved_tolerance, moved = mapping()
+                self.assertAlmostEqual(moved_tolerance, tolerance, places=12)
+                self.assertEqual(
+                    [indices for indices, _anchor in moved],
+                    [indices for indices, _anchor in expected],
+                )
+                for (_indices, anchor), (_expected, reference) in zip(moved, expected):
+                    if reference is None:
+                        self.assertIsNone(anchor)
+                    else:
+                        self.assertLess(anchor.sub(reference).Length, 1.0e-9)
+
     def _attach_lcs_to_form_faces(self, obj):
         mapper = ControlElementMapper(obj)
         attachments = {}
