@@ -99,6 +99,8 @@ def _match_preview(
         MatchParameters=[],
         MatchCornerVertices=list(getattr(obj, "MatchCornerVertices", ())),
         MatchCornerEdges=list(getattr(obj, "MatchCornerEdges", ())),
+        MatchFreeControlPoints=list(getattr(obj, "MatchFreeControlPoints", ())),
+        MatchSolvedControlPoints=list(getattr(obj, "MatchSolvedControlPoints", ())),
         LocalEdgeInserts=list(getattr(obj, "LocalEdgeInserts", ())),
         LocalControlPoints=[App.Vector(point) for point in getattr(obj, "LocalControlPoints", ())],
         TMeshData=str(getattr(obj, "TMeshData", "") or ""),
@@ -153,7 +155,8 @@ def match_boundary(
         preview = _match_preview(obj, boundary_edges, support, continuity, tangent_mode)
         for name in ("ControlPoints", "VertexSharpness", "EdgeSharpness", "MatchBoundary",
                      "MatchSupport", "MatchContinuity", "MatchTangentMode", "MatchParameters",
-                     "MatchCornerVertices", "MatchCornerEdges", "MatchPositionError",
+                     "MatchCornerVertices", "MatchCornerEdges", "MatchFreeControlPoints",
+                     "MatchSolvedControlPoints", "MatchPositionError",
                      "MatchAngularError", "MatchCurvatureError", "MatchStatus"):
             setattr(obj, name, getattr(preview, name))
         obj.CageMode = "Editable"

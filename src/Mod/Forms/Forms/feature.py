@@ -163,6 +163,22 @@ class FormFeatureProxy:
                 "Match",
                 "Control edges creased from corners of a tangent matched opening",
             )
+        if "MatchFreeControlPoints" not in obj.PropertiesList:
+            obj.addProperty(
+                "App::PropertyVectorList",
+                "MatchFreeControlPoints",
+                "Match",
+                "Control-cage vertices as edited, before Match moves them",
+            )
+        if "MatchSolvedControlPoints" not in obj.PropertiesList:
+            obj.addProperty(
+                "App::PropertyVectorList",
+                "MatchSolvedControlPoints",
+                "Match",
+                "Control-cage vertices as Match last wrote them",
+            )
+        obj.setEditorMode("MatchFreeControlPoints", 2)
+        obj.setEditorMode("MatchSolvedControlPoints", 2)
         obj.setEditorMode("MatchBoundary", 2)
         obj.setEditorMode("MatchParameters", 2)
         obj.setEditorMode("MatchCornerVertices", 2)
