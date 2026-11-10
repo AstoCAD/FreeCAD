@@ -757,6 +757,22 @@ bool arePointsWithinPrecision(const Base::Vector3d& point1, const Base::Vector3d
     return ((point1 - point2).Length() < 500 * Precision::Confusion());
 }
 
+// The sketch reads a reversed (clockwise, axis -Z) conic as the counter-clockwise one (emulated
+// CCW): the start point of a reversed arc of conic is at its last parameter. An arc cut out of a
+// reversed circle or ellipse keeps its axis, so it is such an arc too. Operations that work in
+// the parameter direction of the curve use this to map their result onto the start and end
+// points of the sketch.
+bool isReversedConic(const Part::GeomCurve* geo)
+{
+    if (geo->isDerivedFrom<Part::GeomArcOfConic>()) {
+        return static_cast<const Part::GeomArcOfConic*>(geo)->isReversed();
+    }
+    if (geo->isDerivedFrom<Part::GeomConic>()) {
+        return static_cast<const Part::GeomConic*>(geo)->isReversed();
+    }
+    return false;
+}
+
 bool areParamsWithinApproximation(double param1, double param2)
 {
     // From testing: 500x (or 0.000050) is needed in order to not falsely distinguish points
@@ -1134,8 +1150,9 @@ SketchSolveStatus SketchObject::trim(int GeoId, const Base::Vector3d& point, boo
     // cut. The cuts and pieces above follow the parameter direction of the curve, but the sketch
     // takes the start point of a reversed (clockwise) arc of conic at its last parameter (emulated
     // CCW arc): order them from the start point of the arc in the sketch, as for a CCW arc.
-    if (geoAsCurve->isDerivedFrom<Part::GeomArcOfConic>()
-        && static_cast<const Part::GeomArcOfConic*>(geoAsCurve)->isReversed()) {
+    // The arc that remains of a reversed circle or ellipse is reversed as well: it is a single
+    // piece from the second cut to the first one, whose end in the sketch is at the second cut.
+    if (isReversedConic(geoAsCurve)) {
         std::ranges::reverse(paramsOfNewGeos);
         std::swap(cuttingGeoIds[0], cuttingGeoIds[1]);
         std::swap(cutPoints[0], cutPoints[1]);
@@ -1362,8 +1379,7 @@ int SketchObject::split(int GeoId, const Base::Vector3d& point)
     // The first piece keeps GeoId and the constraints of the start point. The sketch takes the
     // start point of a reversed (clockwise) arc of conic at its last parameter (emulated CCW
     // arc), so its first piece is the one at the end of the parameter range.
-    if (paramsOfNewGeos.size() == 2 && geoAsCurve->isDerivedFrom<Part::GeomArcOfConic>()
-        && static_cast<const Part::GeomArcOfConic*>(geoAsCurve)->isReversed()) {
+    if (paramsOfNewGeos.size() == 2 && isReversedConic(geoAsCurve)) {
         std::swap(paramsOfNewGeos.front(), paramsOfNewGeos.back());
     }
 
@@ -1549,10 +1565,10 @@ int SketchObject::join(
 
     // toNurbs() follows the parameter direction of the curve, but the sketch takes the start point
     // of a reversed (clockwise) arc of conic at its last parameter (emulated CCW arc): make the
-    // start of each spline the start point of its curve in the sketch.
+    // start of each spline the start point of its curve in the sketch. The spline of a closed
+    // conic already starts there: its start and end are the same point.
     auto startAtStartPoint = [](const Part::GeomCurve* geo, Part::GeomBSplineCurve* bsp) {
-        if (geo->isDerivedFrom<Part::GeomArcOfConic>()
-            && static_cast<const Part::GeomArcOfConic*>(geo)->isReversed()) {
+        if (!isClosedCurve(geo) && isReversedConic(geo)) {
             bsp->reverse();
         }
     };
