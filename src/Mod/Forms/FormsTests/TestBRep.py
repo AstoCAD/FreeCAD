@@ -1784,6 +1784,145 @@ class BRepConversionTest(unittest.TestCase):
             )
             self.assertLess(distance, 1.0e-7)
 
+    def _tangent_match_on_cylinder(self, name):
+        """A 4x4 Form Face over a quarter cylinder, matched tangent to it."""
+        document = App.newDocument(name)
+        support = document.addObject("Part::Feature", "Support")
+        cylinder = Part.makeCylinder(20, 30, App.Vector(), App.Vector(0, 0, 1), 90)
+        support.Shape = next(
+            face for face in cylinder.Faces if isinstance(face.Surface, Part.Cylinder)
+        )
+        obj = create_face(document)
+        obj.XSegments = 4
+        obj.YSegments = 4
+        document.recompute()
+        points = list(obj.ControlPoints)
+        x_min = min(point.x for point in points)
+        x_size = max(point.x for point in points) - x_min
+        y_min = min(point.y for point in points)
+        y_size = max(point.y for point in points) - y_min
+        lifted = []
+        for point in points:
+            angle = math.radians(10 + 70 * (point.x - x_min) / x_size)
+            height = 3 + 24 * (point.y - y_min) / y_size
+            lifted.append(App.Vector(22 * math.cos(angle), 22 * math.sin(angle), height))
+        obj.CageMode = "Editable"
+        obj.ControlPoints = lifted
+        document.recompute()
+        match_boundary(
+            obj,
+            ControlCage.from_object(obj).boundary_edges,
+            (support, ["Face1"]),
+            "Tangent",
+            "SelectedFace",
+        )
+        document.recompute()
+        self.assertFalse(obj.Shape.isNull(), obj.ConversionStatus)
+        return document, obj, support, lifted
+
+    def assertSamePoints(self, actual, expected, tolerance=1.0e-9):
+        self.assertEqual(len(actual), len(expected))
+        worst = max(first.distanceToPoint(second) for first, second in zip(actual, expected))
+        self.assertLessEqual(worst, tolerance)
+
+    def test_tangent_match_does_not_depend_on_the_number_of_recomputes(self):
+        document, obj, support, _lifted = self._tangent_match_on_cylinder(
+            "FormsTestMatchRecompute"
+        )
+        matched = [App.Vector(point) for point in obj.ControlPoints]
+        area = obj.Shape.Area
+        for _ in range(3):
+            obj.touch()
+            document.recompute()
+            self.assertSamePoints(obj.ControlPoints, matched)
+        self.assertAlmostEqual(obj.Shape.Area, area, places=9)
+
+        # The cage is a function of the support, not of where the support was.
+        support.Placement = App.Placement(
+            App.Vector(5, -3, 8), App.Rotation(App.Vector(1, 0.3, 0), 50)
+        )
+        document.recompute()
+        self.assertFalse(obj.Shape.isNull(), obj.ConversionStatus)
+        support.Placement = App.Placement()
+        document.recompute()
+        self.assertSamePoints(obj.ControlPoints, matched)
+        self.assertAlmostEqual(obj.Shape.Area, area, places=9)
+
+    def test_tangent_match_keeps_the_edited_cage(self):
+        document, obj, _support, lifted = self._tangent_match_on_cylinder("FormsTestMatchEdits")
+        cage = ControlCage.from_object(obj)
+        boundary = set(obj.MatchBoundary)
+        ring = {
+            second if first in boundary else first
+            for first, second in cage.edge_counts()
+            if (first in boundary) != (second in boundary)
+        }
+        inner = set(range(len(cage.vertices))) - boundary - ring
+        self.assertTrue(ring)
+        self.assertTrue(inner)
+        matched = [App.Vector(point) for point in obj.ControlPoints]
+        for index in inner:
+            self.assertLess(matched[index].distanceToPoint(lifted[index]), 1.0e-9)
+        self.assertTrue(any(matched[index].distanceToPoint(lifted[index]) > 0.1 for index in ring))
+
+        # Releasing the tangency gives back the controls it had moved.
+        obj.MatchContinuity = "Connected"
+        document.recompute()
+        for index in ring | inner:
+            self.assertLess(obj.ControlPoints[index].distanceToPoint(lifted[index]), 1.0e-9)
+        obj.MatchContinuity = "Tangent"
+        document.recompute()
+        self.assertSamePoints(obj.ControlPoints, matched)
+
+        # An edit of a constrained control is kept as far as the constraint allows.
+        moved = min(ring)
+        edited = list(obj.ControlPoints)
+        edited[moved] = edited[moved] + App.Vector(0.4, -0.3, 1.5)
+        obj.ControlPoints = edited
+        document.recompute()
+        result = [App.Vector(point) for point in obj.ControlPoints]
+        self.assertGreater(result[moved].distanceToPoint(matched[moved]), 0.5)
+        for index in set(range(len(result))) - {moved}:
+            self.assertLess(result[index].distanceToPoint(matched[index]), 1.0e-9)
+        obj.touch()
+        document.recompute()
+        self.assertSamePoints(obj.ControlPoints, result)
+
+    def test_tangent_plane_projection_is_a_projection(self):
+        from Forms.match_support import _project_to_planes
+
+        def plane(normal, point):
+            normal = App.Vector(*normal)
+            normal.normalize()
+            return normal, normal.dot(App.Vector(*point))
+
+        start = App.Vector(3.0, -2.0, 5.0)
+        cases = {
+            "one": [plane((0, 0, 1), (0, 0, 1))],
+            "line": [plane((0, 0, 1), (0, 0, 1)), plane((1, 0, 1), (2, 0, 0))],
+            "point": [
+                plane((0, 0, 1), (0, 0, 1)),
+                plane((1, 0, 1), (2, 0, 0)),
+                plane((0, 1, 0.5), (0, 3, 0)),
+            ],
+            # Tangent planes of a cylinder along Z: no common point, Z stays free.
+            "ruled": [
+                plane((math.cos(angle), math.sin(angle), 0), (2 * math.cos(angle), 2 * math.sin(angle), 0))
+                for angle in (0.1, 0.5, 0.9, 1.3)
+            ],
+        }
+        for name, planes in cases.items():
+            with self.subTest(name):
+                projected = _project_to_planes(start, planes)
+                again = _project_to_planes(projected, planes)
+                self.assertLess(again.distanceToPoint(projected), 1.0e-12)
+                if name != "ruled":
+                    for normal, offset in planes:
+                        self.assertAlmostEqual(normal.dot(projected), offset, places=12)
+                else:
+                    self.assertAlmostEqual(projected.z, start.z, places=12)
+                    self.assertAlmostEqual(math.atan2(projected.y, projected.x), 0.7, places=9)
+
     def test_deleted_match_support_clears_stale_form_shape(self):
         document = App.newDocument("FormsTestDeletedMatchSupport")
         obj = create_box(document)
