@@ -83,6 +83,12 @@ std::unordered_set<std::string> SelectionFilterGate::getGatedTypes(
 ) const
 {
     std::unordered_set<std::string> allowedTypes;
+    // Gates that implement allow() themselves are built without a filter: they have no
+    // filter expression to derive types from, so they restrict nothing here, like the
+    // base class.
+    if (!Filter) {
+        return allowedTypes;
+    }
     std::ranges::copy_if(
         allTypesForGeometry.begin(),
         allTypesForGeometry.end(),
