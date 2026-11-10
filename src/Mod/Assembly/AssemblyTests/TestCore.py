@@ -1474,6 +1474,26 @@ class TestCore(AssemblyTestBase):
         self.assembly.updateForFrame(last)
         self.assertAlmostEqual(driven.Placement.Rotation.Angle, 1.0, places=6)
 
+    def test_rigid_clusters_after_deleting_a_member(self):
+        ground = self.assembly.newObject("Part::Box", "Ground")
+        member = self.assembly.newObject("Part::Box", "Member")
+        other = self.assembly.newObject("Part::Box", "Other")
+        free = self.assembly.newObject("Part::Box", "Free")
+        self.doc.UndoMode = 0  # really free the deleted part
+        grounding = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+        JointObject.GroundedJoint(grounding, ground)
+        group = self.jointgroup.newObject("App::FeaturePython", "RigidGroup")
+        JointObject.RigidGroupJoint(group, [ground, member, other])
+        self.doc.recompute()
+        self.assertEqual(self.assembly.solve(), 0)
+        self.assertTrue(self.assembly.isPartGrounded(other))
+
+        # No solve rebuilds the clusters here: they must not name the deleted member,
+        # and the remaining members stay one cluster.
+        self.doc.removeObject(member.Name)
+        self.assertTrue(self.assembly.isPartGrounded(other))
+        self.assertFalse(self.assembly.isPartGrounded(free))
+
     def test_slider_limits_preserve_precision_in_asmt(self):
         ground = self.assembly.newObject("Part::Box", "Ground")
         moving = self.assembly.newObject("Part::Box", "Moving")
