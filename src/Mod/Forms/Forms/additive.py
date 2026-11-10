@@ -643,6 +643,13 @@ def move_form_to_body(source, body):
             expressions.append((name, path, expression))
     source_points = [App.Vector(point) for point in source.ControlPoints]
     local_points = [App.Vector(point) for point in getattr(source, "LocalControlPoints", ())]
+    # The cage as edited and as Match wrote it: Match starts again from the
+    # edited cage, not from its own result.
+    match_points = {
+        name: [App.Vector(point) for point in getattr(source, name)]
+        for name in ("MatchFreeControlPoints", "MatchSolvedControlPoints")
+        if name in source.PropertiesList
+    }
     view_values = {}
     if App.GuiUp:
         for name in ("ShapeColor", "LineColor", "PointColor", "Transparency"):
@@ -676,6 +683,10 @@ def move_form_to_body(source, body):
     else:
         result.CageMode = "Parametric"
         result.FormPlacement = relative_placement
+    for name, points in match_points.items():
+        # In Body coordinates like the cage.
+        if name in result.PropertiesList:
+            setattr(result, name, [relative_placement.multVec(point) for point in points])
     if "ProfileShape" in source.PropertiesList:
         # The exact profile of a Form Face, in Body coordinates like the cage.
         # Baked in the geometry: the feature placement replaces the location

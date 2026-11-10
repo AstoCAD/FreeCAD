@@ -737,6 +737,50 @@ class ReviewTest(unittest.TestCase):
         self.assertIn("Up-to-date", result.State)
         self.assertAlmostEqual(result.FormShape.BoundBox.XLength, 50.0, delta=1.0)
 
+    def test_a_matched_form_moved_into_a_body_follows_its_support_as_before(self):
+        from Forms.matching import match_boundary
+        from Forms.operations import delete_faces
+
+        placement = App.Placement(App.Vector(30, 5, 0), App.Rotation(App.Vector(0, 0, 1), 30))
+        forms = []
+        for name in ("Moved", "Standalone"):
+            form = Forms.create_box(self.doc, name)
+            form.Placement = placement
+            self.doc.recompute()
+            delete_faces(form, [0])
+            cage = ControlCage.from_object(form)
+            points = [App.Vector(*cage.vertices[index]) for index in cage.boundary_loops()[0]]
+            center = sum(points, App.Vector()) / len(points)
+            tilt = App.Rotation(App.Vector(1, 1, 0), 12)
+            target = [tilt.multVec(point - center) + center + App.Vector(0, 0, 6) for point in points]
+            support = self.doc.addObject("Part::Feature", name + "Support")
+            support.Shape = Part.Face(Part.makePolygon(target + [target[0]]))
+            support.Placement = placement
+            self.doc.recompute()
+            match_boundary(form, [cage.boundary_edges[0]], (support, ["Face1"]), "Tangent")
+            self.doc.recompute()
+            forms.append((form, support))
+        body = self.doc.addObject("PartDesign::Body", "Body")
+        body.Placement = App.Placement(App.Vector(-7, 3, 2), App.Rotation(App.Vector(1, 0, 0), 20))
+        self.doc.recompute()
+        moved = Forms.move_form_to_body(forms[0][0], body)
+        standalone = forms[1][0]
+
+        # Match starts again from the cage as it was edited, not from the
+        # cage it moved: the moved Form follows its support as before.
+        for _form, support in forms:
+            support.Placement = placement.multiply(
+                App.Placement(App.Vector(0, 0, 2), App.Rotation(App.Vector(0, 1, 0), 8))
+            )
+        self.doc.recompute()
+
+        self.assertIn("Up-to-date", moved.State)
+        self.assertEqual(len(moved.ControlPoints), len(standalone.ControlPoints))
+        for actual, expected in zip(moved.ControlPoints, standalone.ControlPoints):
+            actual = body.Placement.multVec(actual)
+            expected = standalone.Placement.multVec(expected)
+            self.assertLess(actual.sub(expected).Length, 1.0e-7, (actual, expected))
+
     def test_public_api_exports_and_forwards_every_option(self):
         import inspect
 
