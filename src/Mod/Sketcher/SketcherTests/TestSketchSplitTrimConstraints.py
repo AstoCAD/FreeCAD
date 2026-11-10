@@ -400,3 +400,69 @@ class TestSketchSplitTrimConstraints(unittest.TestCase):
     def testTrimCounterClockwiseArcOfEllipseAtItsEnd(self):
         # control
         self._trimArcEnd(self._arcOfEllipse(False), False)
+
+    def _trimClosedConic(self, conic, clockwise, xRadius, yRadius):
+        """Trim a circle or ellipse centred on the origin (geometry 0), cut by the lines x = 3
+        and y = 4, in the corner between the two lines. A clockwise conic (axis -Z) is read by
+        the sketch as the counter-clockwise one, so the result is the same for both."""
+        self.assertEqual(conic.Axis.z < 0, clockwise)
+        self.sketch.addGeometry(conic)  # 0
+        self.sketch.addGeometry(Part.LineSegment(V(3, -20, 0), V(3, 20, 0)))  # 1
+        self.sketch.addGeometry(Part.LineSegment(V(-20, 4, 0), V(20, 4, 0)))  # 2
+        self.sketch.addConstraint(Sketcher.Constraint("Block", 1))
+        self.sketch.addConstraint(Sketcher.Constraint("Block", 2))
+        self.doc.recompute()
+        self.assertEqual(self.sketch.Geometry[0].Axis.z < 0, clockwise)
+        click = V(xRadius * math.cos(1.0), yRadius * math.sin(1.0), 0)
+        onVerticalLine = V(3, yRadius * math.sqrt(1 - (3 / xRadius) ** 2), 0)
+        onHorizontalLine = V(xRadius * math.sqrt(1 - (4 / yRadius) ** 2), 4, 0)
+
+        self.sketch.trim(0, click)
+
+        self.assertEqual(len(self.sketch.Geometry), 3)
+        self.assertEqual(self.sketch.solve(), 0)
+        arc = self.sketch.Geometry[0]
+        self.assertEqual(arc.Axis.z < 0, clockwise)
+        self.assertLess(arc.Center.Length, 1e-6)
+        # the arc starts on the vertical line and ends on the horizontal one
+        self.assertLess((self.sketch.getPoint(0, 1) - onVerticalLine).Length, 1e-6)
+        self.assertLess((self.sketch.getPoint(0, 2) - onHorizontalLine).Length, 1e-6)
+        self.assertEqual(self._constraintsBetween(0, 1), [("PointOnObject", 0, 1)])
+        self.assertEqual(self._constraintsBetween(0, 2), [("PointOnObject", 0, 2)])
+        # the corner is removed, the rest of the curve is kept
+        edge = arc.toShape()
+        self.assertGreater(edge.distToShape(Part.Vertex(click))[0], 1.0)
+        for kept in (V(-xRadius, 0, 0), V(0, -yRadius, 0), V(xRadius, 0, 0), V(0, yRadius, 0)):
+            self.assertLess(edge.distToShape(Part.Vertex(kept))[0], 1e-6)
+        self._assertSolveKeepsGeometry()
+        return arc
+
+    def _trimCircle(self, clockwise):
+        circle = Part.Circle(V(0, 0, 0), V(0, 0, -1 if clockwise else 1), 10)
+        arc = self._trimClosedConic(circle, clockwise, 10, 10)
+        self.assertIsInstance(arc, Part.ArcOfCircle)
+        self.assertAlmostEqual(arc.Radius, 10.0)
+
+    def _trimEllipse(self, clockwise):
+        if clockwise:
+            ellipse = Part.Ellipse(V(12, 0, 0), V(0, -8, 0), V(0, 0, 0))
+        else:
+            ellipse = Part.Ellipse(V(0, 0, 0), 12, 8)
+        arc = self._trimClosedConic(ellipse, clockwise, 12, 8)
+        self.assertIsInstance(arc, Part.ArcOfEllipse)
+        self.assertAlmostEqual(arc.MajorRadius, 12.0)
+        self.assertAlmostEqual(arc.MinorRadius, 8.0)
+
+    def testTrimClockwiseCircle(self):
+        self._trimCircle(True)
+
+    def testTrimClockwiseEllipse(self):
+        self._trimEllipse(True)
+
+    def testTrimCounterClockwiseCircle(self):
+        # control
+        self._trimCircle(False)
+
+    def testTrimCounterClockwiseEllipse(self):
+        # control
+        self._trimEllipse(False)
