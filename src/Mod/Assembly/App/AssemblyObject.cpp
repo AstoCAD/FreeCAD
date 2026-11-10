@@ -297,6 +297,31 @@ void AssemblyObject::forgetObjects(const std::function<bool(const App::DocumentO
     std::erase_if(objectPartMap, [&](const auto& entry) { return isGone(entry.first); });
     std::erase_if(rigidPlacementCache, [&](const auto& entry) { return isGone(entry.first); });
     std::erase_if(draggedParts, isGone);
+
+    // The rigid clusters are rebuilt at the next solve. Until then they must not name a
+    // deleted part: keep each cluster with its remaining members, as a rebuild would.
+    if (!std::ranges::any_of(rigidRepByPart, [&](const auto& entry) { return isGone(entry.first); })) {
+        return;
+    }
+    std::vector<std::vector<App::DocumentObject*>> clusters;
+    for (auto& [rep, members] : rigidMembersByRep) {
+        boost::ignore_unused(rep);
+        std::erase_if(members, isGone);
+        if (members.size() >= 2) {
+            clusters.push_back(std::move(members));
+        }
+    }
+    rigidRepByPart.clear();
+    rigidMembersByRep.clear();
+    for (auto& members : clusters) {
+        auto* const rep = *std::ranges::min_element(members, {}, [](App::DocumentObject* obj) {
+            return std::string(obj->getNameInDocument());
+        });
+        for (auto* const member : members) {
+            rigidRepByPart[member] = rep;
+        }
+        rigidMembersByRep[rep] = std::move(members);
+    }
 }
 
 AssemblyObject::~AssemblyObject() = default;
