@@ -371,6 +371,9 @@ class Load:
             obj.ProfileData = ""
         if prop == "ProfileData":
             invalidate_results(obj)
+        if getattr(self, "_syncing_placement", False) and prop in ("Placement", "Direction"):
+            # Derived from the attachment, which is unchanged: not an edit.
+            return
         if prop in ("Placement", "BodyI") and not self._updating_attachment:
             self.update_attachment(obj)
         elif (
@@ -383,6 +386,8 @@ class Load:
                 align_bushing_reference(obj)
             finally:
                 self._updating_attachment = False
+        if prop == "AttachmentI" and not self._updating_attachment:
+            self.sync_placement(obj)
         if prop in {
             "Placement", "LoadType", "Suppressed", "BodyI", "BodyJ",
             "AttachmentI", "AttachmentJ", "Direction", "Force", "Torque",
@@ -395,8 +400,50 @@ class Load:
         }:
             invalidate_results(obj)
 
+    @staticmethod
+    def _positioned_by_support(obj):
+        """Return True when the attachment engine computes Placement from geometry."""
+        return bool(getattr(obj, "AttachmentSupport", None)) and (
+            str(getattr(obj, "MapMode", "Deactivated")) != "Deactivated"
+        )
+
+    def sync_placement(self, obj):
+        """Bring Placement back to where the load is attached now.
+
+        The load is attached to its component by AttachmentI, which is local
+        to the component and is what the solver and the 3D view use. Placement
+        is the same frame in assembly coordinates, for the attachment editor.
+        It is only correct for the component position it was computed with:
+        once the component has moved, an edit of the old Placement would be
+        converted with the new component position and the load would leave
+        its component. So Placement follows the component.
+        """
+        if (
+            not getattr(obj, "BodyI", None)
+            or self._updating_attachment
+            or getattr(self, "_syncing_placement", False)
+            or self._positioned_by_support(obj)
+        ):
+            return
+        previous = obj.Placement
+        current = _component_placement(obj.BodyI) * obj.AttachmentI
+        if previous.isSame(current, 1e-9):
+            return
+        self._syncing_placement = True
+        try:
+            if obj.Follower and obj.LoadType in ("Force", "Torque"):
+                # A follower direction is read relative to Placement, so it
+                # turns with it. A fixed direction stays in assembly coordinates.
+                local = previous.Rotation.inverted().multVec(obj.Direction)
+                obj.Direction = current.Rotation.multVec(local)
+            obj.Placement = current
+        finally:
+            self._syncing_placement = False
+
     def update_attachment(self, obj):
         if not hasattr(obj, "BodyI") or not obj.BodyI or not hasattr(obj, "Placement"):
+            return
+        if getattr(self, "_syncing_placement", False):
             return
         self._updating_attachment = True
         try:
@@ -406,8 +453,16 @@ class Load:
             component_placement = _component_placement(obj.BodyI)
             attachment = component_placement.inverse() * placement
             attachment_changed = not obj.AttachmentI.isSame(attachment, 1e-12)
+            # The direction is the Z axis of the frame the editor orients. An
+            # edit that only moves the load leaves it alone: after its
+            # component has turned, a direction fixed in assembly coordinates
+            # is no longer that Z axis.
+            reoriented = not (component_placement * obj.AttachmentI).Rotation.isSame(
+                placement.Rotation, 1e-9
+            )
             obj.AttachmentI = attachment
-            obj.Direction = placement.Rotation.multVec(App.Vector(0, 0, 1))
+            if reoriented:
+                obj.Direction = placement.Rotation.multVec(App.Vector(0, 0, 1))
             # Attachment task initialization may assign the same Placement.
             # Do not discard a configured second frame on a no-op update.
             if attachment_changed and obj.LoadType == "TorsionalSpringDamper":
@@ -418,7 +473,8 @@ class Load:
             self._updating_attachment = False
 
     def execute(self, obj):
-        pass
+        # Recomputed when its component has moved; nothing else is derived here.
+        self.sync_placement(obj)
 
     def dumps(self):
         return None
@@ -845,6 +901,7 @@ def create_load(study, kind, body, name=None, body_j=None):
     if body:
         obj.Placement = _component_placement(body)
         obj.Proxy.update_attachment(obj)
+        obj.Direction = obj.Placement.Rotation.multVec(App.Vector(0, 0, 1))
     if body_j:
         obj.AttachmentJ = App.Placement()
     if kind == "TorsionalSpringDamper":
