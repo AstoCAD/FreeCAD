@@ -93,6 +93,29 @@ class DrawCosmeticRemoveUndoTest(unittest.TestCase):
             "CenterLines",
         )
 
+    # Clearing a whole list shares the same undo copies as removing one entry.
+
+    def testUndoClearedCosmeticEdges(self):
+        self._removeAndUndo(
+            lambda: self.view.makeCosmeticLine(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(5, 5, 0)),
+            lambda tag: self.view.clearCosmeticEdges(),
+            "CosmeticEdges",
+        )
+
+    def testUndoClearedCosmeticVertexes(self):
+        self._removeAndUndo(
+            lambda: self.view.makeCosmeticVertex(FreeCAD.Vector(1, 2, 0)),
+            lambda tag: self.view.clearCosmeticVertices(),
+            "CosmeticVertexes",
+        )
+
+    def testUndoClearedCenterLines(self):
+        self._removeAndUndo(
+            lambda: self.view.makeCenterLine(["Edge0", "Edge2"], 2),
+            lambda tag: self.view.clearCenterLines(),
+            "CenterLines",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

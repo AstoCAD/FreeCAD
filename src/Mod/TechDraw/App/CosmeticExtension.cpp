@@ -110,10 +110,8 @@ void CosmeticExtension::refreshAllCosmetic()
 /// remove all the cosmetic vertices in the property list
 void CosmeticExtension::clearCosmeticVertexes()
 {
-    std::vector<TechDraw::CosmeticVertex*> cVerts = CosmeticVertexes.getValues();
-    for (auto& vert : cVerts) {
-        delete vert;
-    }
+    // Do not delete the removed vertices: the list does not own its entries and the
+    // undo copy of the property still points to them.
     std::vector<CosmeticVertex*> noVerts;
     CosmeticVertexes.setValues(noVerts);
 }
@@ -286,10 +284,8 @@ void CosmeticExtension::removeCosmeticVertex(const std::vector<std::string>& del
 /// remove all the cosmetic edges for this view
 void CosmeticExtension::clearCosmeticEdges()
 {
-    std::vector<TechDraw::CosmeticEdge*> cEdges = CosmeticEdges.getValues();
-    for (auto& edge : cEdges) {
-        delete edge;
-    }
+    // Do not delete the removed edges: the list does not own its entries and the
+    // undo copy of the property still points to them.
     std::vector<CosmeticEdge*> noEdges;
     CosmeticEdges.setValues(noEdges);
 }
@@ -437,10 +433,8 @@ void CosmeticExtension::removeCosmeticEdge(const std::vector<std::string>& delTa
 // this is never called!
 void CosmeticExtension::clearCenterLines()
 {
-    std::vector<TechDraw::CenterLine*> cLines = CenterLines.getValues();
-    for (auto& line : cLines) {
-        delete line;
-    }
+    // Do not delete the removed center lines: the list does not own its entries and
+    // the undo copy of the property still points to them.
     std::vector<CenterLine*> noLines;
     CenterLines.setValues(noLines);
 }
