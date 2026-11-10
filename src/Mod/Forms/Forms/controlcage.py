@@ -39,7 +39,14 @@ def clear_match_data(obj):
     """Remove associative boundary-match data that refers to cage indices."""
     if "MatchSupport" in obj.PropertiesList:
         obj.MatchSupport = None
-    for name in ("MatchBoundary", "MatchParameters", "MatchCornerVertices", "MatchCornerEdges"):
+    for name in (
+        "MatchBoundary",
+        "MatchParameters",
+        "MatchCornerVertices",
+        "MatchCornerEdges",
+        "MatchFreeControlPoints",
+        "MatchSolvedControlPoints",
+    ):
         if name in obj.PropertiesList and getattr(obj, name):
             setattr(obj, name, [])
 
