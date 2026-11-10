@@ -467,7 +467,139 @@ class TestDynamics(unittest.TestCase):
         torque = Dynamics.run(study)["Loads"][load.Name]
         actual = App.Vector(*(torque["Torque" + axis][0] for axis in "XYZ"))
         self.assertVectorClose(actual, Dynamics.load_visual_direction(load) * 300, delta=1e-6)
+    def test_load_stays_on_its_component_after_the_component_moved(self):
+        body = self.box()
+        study = self.study(False)
+        load = Dynamics.create_load(study, "Force", body)
+        load.Direction = App.Vector(1, 0, 0)
+        load.AttachmentI = App.Placement(App.Vector(5, 10, 15), App.Rotation())
+        # Placement is the attachment in assembly coordinates.
+        self.assertTrue(load.Placement.isSame(body.Placement * load.AttachmentI, 1e-9))
 
+        body.Placement = App.Placement(
+            App.Vector(100, 0, 0), App.Rotation(App.Vector(0, 0, 1), 90)
+        )
+        self.doc.recompute()
+        self.assertVectorClose(load.AttachmentI.Base, (5, 10, 15), delta=1e-9)
+        self.assertTrue(load.Placement.isSame(body.Placement * load.AttachmentI, 1e-9))
+        # Not a follower load: its direction stays fixed in the assembly.
+        self.assertVectorClose(load.Direction, (1, 0, 0), delta=1e-9)
+
+        # Moving the load 1 mm, as its editor does, moves it 1 mm.
+        placement = load.Placement
+        placement.Base = placement.Base + App.Vector(0, 0, 1)
+        load.Placement = placement
+        self.assertVectorClose(load.AttachmentI.Base, (5, 10, 16), delta=1e-9)
+        self.assertVectorClose(
+            Dynamics.attachment_placement(load, "I").Base,
+            body.Placement.multVec(App.Vector(5, 10, 16)),
+            delta=1e-9,
+        )
+        self.assertVectorClose(load.Direction, (1, 0, 0), delta=1e-9)
+
+        # Turning the load in its editor sets the direction, as before.
+        placement = load.Placement
+        placement.Rotation = App.Rotation(App.Vector(0, 1, 0), 90)
+        load.Placement = placement
+        self.assertVectorClose(load.Direction, (1, 0, 0), delta=1e-9)
+        placement.Rotation = App.Rotation(App.Vector(1, 0, 0), -90)
+        load.Placement = placement
+        self.assertVectorClose(load.Direction, (0, 1, 0), delta=1e-9)
+
+    def test_load_moved_to_another_component_keeps_its_direction(self):
+        body = self.box()
+        other = self.box("Other", position=(50, 0, 0))
+        other.Placement.Rotation = App.Rotation(App.Vector(0, 0, 1), 90)
+        study = self.study(False)
+        load = Dynamics.create_load(study, "Force", body)
+        self.assertVectorClose(load.Direction, (0, 0, 1), delta=1e-9)
+        # The component turns; the direction stays fixed in the assembly.
+        body.Placement = App.Placement(App.Vector(), App.Rotation(App.Vector(1, 0, 0), 90))
+        self.doc.recompute()
+        self.assertVectorClose(load.Direction, (0, 0, 1), delta=1e-9)
+        # Attaching the load to another component, as the editor's component
+        # selector does, does not turn it either.
+        load.BodyI = other
+        self.assertVectorClose(load.Direction, (0, 0, 1), delta=1e-9)
+        self.assertTrue(load.Placement.isSame(other.Placement * load.AttachmentI, 1e-9))
+
+    def test_follower_load_direction_turns_with_its_component(self):
+        body = self.box()
+        study = self.study(False)
+        load = Dynamics.create_load(study, "Force", body)
+        load.Direction = App.Vector(1, 0, 0)
+        load.Follower = True
+        body.Placement = App.Placement(
+            App.Vector(100, 0, 0), App.Rotation(App.Vector(0, 0, 1), 90)
+        )
+        self.doc.recompute()
+        self.assertVectorClose(load.Direction, (0, 1, 0), delta=1e-9)
+        self.assertVectorClose(Dynamics.load_visual_direction(load), (0, 1, 0), delta=1e-9)
+
+    def test_load_on_a_support_moves_with_it(self):
+        # The attachment engine first resets Placement to the identity, then
+        # writes the support's frame (AttachExtension::positionBySupport).
+        body = self.box()
+        other = self.box("Other", position=(50, 0, 0))
+        body.Placement.Rotation = App.Rotation(App.Vector(0, 0, 1), 90)
+        study = self.study(False)
+        force = Dynamics.create_load(study, "Force", body)
+        follower = Dynamics.create_load(study, "Force", body)
+        follower.Follower = True
+        spring = Dynamics.create_load(study, "TorsionalSpringDamper", body, body_j=other)
+        for load in (force, follower, spring):
+            load.AttachmentSupport = [(body, "Face6")]
+            load.MapMode = "FlatFace"
+        self.doc.recompute()
+        for load in (force, follower):
+            load.Direction = App.Vector(1, 0, 0)
+        reference = App.Placement(App.Vector(1, 2, 3), App.Rotation(App.Vector(0, 0, 1), 30))
+        spring.AttachmentJ = reference
+        attachment = App.Placement(spring.AttachmentI)
+        study.Status = "Complete"
+        study.ResultData = "{}"
+
+        # Recomputing the support puts the loads back where they are.
+        body.touch()
+        self.doc.recompute()
+        self.assertEqual(study.Status, "Complete")
+        self.assertVectorClose(force.Direction, (1, 0, 0), delta=1e-9)
+        self.assertVectorClose(follower.Direction, (1, 0, 0), delta=1e-9)
+        self.assertTrue(spring.AttachmentI.isSame(attachment, 1e-9))
+        self.assertTrue(spring.AttachmentJ.isSame(reference, 1e-9))
+        # Nothing is rewritten, so rounding does not build up over recomputes.
+        frames = [(load.AttachmentI, load.AttachmentJ, load.Direction) for load in (force, follower, spring)]
+        for _ in range(1000):
+            body.touch()
+            self.doc.recompute()
+        for load, (frame_i, frame_j, direction) in zip((force, follower, spring), frames):
+            for actual, expected in ((load.AttachmentI, frame_i), (load.AttachmentJ, frame_j)):
+                self.assertEqual(actual.Base, expected.Base)
+                self.assertEqual(actual.Rotation.Q, expected.Rotation.Q)
+            self.assertEqual(load.Direction, direction)
+
+        # The component turns: the loads stay on the face, a fixed direction
+        # stays in the assembly, a follower turns with the component.
+        body.Placement.Rotation = App.Rotation(App.Vector(0, 0, 1), 180)
+        self.doc.recompute()
+        self.assertEqual(study.Status, "Complete")
+        self.assertTrue(spring.AttachmentI.isSame(attachment, 1e-9))
+        self.assertTrue(spring.AttachmentJ.isSame(reference, 1e-9))
+        self.assertVectorClose(force.Direction, (1, 0, 0), delta=1e-9)
+        self.assertVectorClose(follower.Direction, (0, 1, 0), delta=1e-9)
+
+        # Turning the attachment is an edit: the direction turns with the
+        # frame and the spring's reference frame keeps its pose relative to I.
+        local = force.Placement.Rotation.inverted().multVec(force.Direction)
+        twist = Dynamics.attachment_placement(spring, "I").inverse() * Dynamics.attachment_placement(spring, "J")
+        offset = App.Placement(App.Vector(1, 2, 3), App.Rotation(App.Vector(0, 1, 0), 90))
+        force.AttachmentOffset = offset
+        spring.AttachmentOffset = offset
+        self.assertEqual(study.Status, "NotRun")
+        self.assertTrue(force.Placement.isSame(body.Placement * App.Placement(App.Vector(0, 0, 30), App.Rotation()) * offset, 1e-9))
+        self.assertVectorClose(force.Placement.Rotation.inverted().multVec(force.Direction), local, delta=1e-9)
+        self.assertTrue((Dynamics.attachment_placement(spring, "I").inverse()
+                         * Dynamics.attachment_placement(spring, "J")).isSame(twist, 1e-9))
     def test_follower_torque_tracks_component_rotation(self):
         body = self.box()
         study = self.study(False)

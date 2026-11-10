@@ -465,6 +465,9 @@ class TaskAssemblyCreateLoad:
         # The attachment widget temporarily changes Placement while initializing
         # its controls. Opening an editor must not redefine the reaction frame.
         reaction_frame = App.Placement(load.AttachmentJ)
+        # The widget edits Placement. The component may have moved without a
+        # recompute since Placement was last brought back to the attachment.
+        load.Proxy.sync_placement(load)
         try:
             self.attachment = PartGui.createAttachmentTaskBox(load)
         finally:
