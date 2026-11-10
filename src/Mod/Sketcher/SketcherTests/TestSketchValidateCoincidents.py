@@ -100,6 +100,93 @@ class TestSketchValidateCoincidents(unittest.TestCase):
         sketch.detectMissingPointOnPointConstraints()
         self.assertEqual(len(sketch.MissingPointOnPointConstraints), 0)
 
+    def testNoMissingCoincidentThroughRootPoint(self):
+        """Two vertices that are both coincident with the root point already coincide,
+        although the root point is not one of the analysed vertices."""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        geo0 = sketch.addGeometry(Part.LineSegment(Vector(0, 0, 0), Vector(10, 0, 0)))
+        geo1 = sketch.addGeometry(Part.LineSegment(Vector(0, 0, 0), Vector(0, 10, 0)))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo0, 1, -1, 1))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo1, 1, -1, 1))
+        self.Doc.recompute()
+
+        self.assertEqual(sketch.detectMissingPointOnPointConstraints(), 0)
+        self.assertEqual(len(sketch.MissingPointOnPointConstraints), 0)
+        sketch.makeMissingPointOnPointCoincident()
+        self.Doc.recompute()
+        self.assertEqual(sketch.ConstraintCount, 2)
+        self.assertEqual(sketch.solve(), 0)
+
+    def testNoMissingCoincidentThroughUnanalysedGeometry(self):
+        """Vertices connected by a chain of coincidences already coincide, whatever the
+        points the chain goes through: a point, external geometry, or construction geometry
+        that the analysis was asked to ignore."""
+        box = self.Doc.addObject("Part::Box", "Box")
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        self.Doc.recompute()
+        sketch.addExternal("Box", "Edge12")
+        corner = sketch.getPoint(-3, 1)
+
+        # Through a point
+        v0 = Vector(5.0, 5.0, 0.0)
+        geo0 = sketch.addGeometry(Part.LineSegment(v0, Vector(8.0, 2.0, 0.0)))
+        geo1 = sketch.addGeometry(Part.LineSegment(v0, Vector(2.0, 8.0, 0.0)))
+        point = sketch.addGeometry(Part.Point(v0), True)
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo0, 1, point, 1))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo1, 1, point, 1))
+
+        # Through a vertex of external geometry
+        geo2 = sketch.addGeometry(Part.LineSegment(corner, corner + Vector(5.0, 1.0, 0.0)))
+        geo3 = sketch.addGeometry(Part.LineSegment(corner, corner + Vector(5.0, -1.0, 0.0)))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo2, 1, -3, 1))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo3, 1, -3, 1))
+
+        # Through a vertex of a construction line, and then through a second one
+        v1 = Vector(-5.0, -5.0, 0.0)
+        geo4 = sketch.addGeometry(Part.LineSegment(v1, Vector(-8.0, -2.0, 0.0)))
+        geo5 = sketch.addGeometry(Part.LineSegment(v1, Vector(-2.0, -8.0, 0.0)))
+        geo6 = sketch.addGeometry(Part.LineSegment(v1, Vector(-9.0, -9.0, 0.0)), True)
+        geo7 = sketch.addGeometry(Part.LineSegment(v1, Vector(-9.0, -5.0, 0.0)), True)
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo4, 1, geo6, 1))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo6, 1, geo7, 1))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo7, 1, geo5, 1))
+        self.Doc.recompute()
+        self.assertEqual(sketch.ConstraintCount, 7)
+
+        precision = 1.0e-4
+        for includeConstruction in (True, False):
+            self.assertEqual(
+                sketch.detectMissingPointOnPointConstraints(precision, includeConstruction), 0
+            )
+            sketch.makeMissingPointOnPointCoincident()
+            self.assertEqual(sketch.ConstraintCount, 7)
+        del box
+
+    def testMissingCoincidentBesideConstrainedVertex(self):
+        """A vertex constrained to something that is not one of its neighbours must still
+        be checked against its neighbours."""
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        # geo0 starts on the root point, geo1 only happens to start at the same place
+        geo0 = sketch.addGeometry(Part.LineSegment(Vector(0, 0, 0), Vector(10, 0, 0)))
+        geo1 = sketch.addGeometry(Part.LineSegment(Vector(0, 0, 0), Vector(0, 10, 0)))
+        sketch.addConstraint(Sketcher.Constraint("Coincident", geo0, 1, -1, 1))
+        # geo2 ends tangent to the circle, geo3 only happens to start at the same place
+        v0 = Vector(25.0, 5.0, 0.0)
+        circle = sketch.addGeometry(Part.Circle(Vector(20, 5, 0), Vector(0, 0, 1), 5.0))
+        geo2 = sketch.addGeometry(Part.LineSegment(Vector(25.0, 15.0, 0.0), v0))
+        geo3 = sketch.addGeometry(Part.LineSegment(v0, Vector(35.0, 0.0, 0.0)))
+        sketch.addConstraint(Sketcher.Constraint("Tangent", geo2, 2, circle))
+        self.Doc.recompute()
+
+        self.assertEqual(sketch.detectMissingPointOnPointConstraints(), 2)
+        missing = {c[:4] for c in sketch.MissingPointOnPointConstraints}
+        self.assertEqual(missing, {(geo0, 1, geo1, 1), (geo2, 2, geo3, 1)})
+        sketch.makeMissingPointOnPointCoincident()
+        self.Doc.recompute()
+        self.assertEqual(sketch.ConstraintCount, 4)
+        self.assertEqual(sketch.detectMissingPointOnPointConstraints(), 0)
+        self.assertEqual(sketch.solve(), 0)
+
     def testDegenratedGeometryCase(self):
         sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
         v0 = Vector(-47.680691, 18.824165000000004, 0.0)
