@@ -65,6 +65,15 @@ PRIMITIVES = {
 
 OPERATIONS = ("Additive", "Subtractive")
 
+# PartDesign::FeatureAddSub owns the Operation property of a Body feature and
+# derives the additive or subtractive type of the feature from its value.
+# These are the values of its additive and subtractive Python features; the
+# first one is the operation a Form computes.
+_NATIVE_OPERATIONS = {
+    "Additive": ("Union",),
+    "Subtractive": ("Subtraction", "Common"),
+}
+
 
 MATCH_CORNER_SHARPNESS = 10.0
 
@@ -109,7 +118,12 @@ def _partdesign_operation(obj):
     if "Operation" in obj.PropertiesList:
         operation = str(obj.Operation)
         if operation in OPERATIONS:
+            # A Form that is no Part Design add/sub feature, or a document
+            # saved when Forms replaced the native values by its own ones.
             return operation
+        for name, values in _NATIVE_OPERATIONS.items():
+            if operation in values:
+                return name
     if obj.isDerivedFrom("PartDesign::FeatureSubtractivePython"):
         return "Subtractive"
     return "Additive"
@@ -134,14 +148,35 @@ class PartDesignFormProxy(FormFeatureProxy):
         self.onChanged(obj, "CageMode")
 
     @staticmethod
+    def _ensure_native_operation(obj, operation):
+        """Keep the Operation of a Part Design add/sub feature, which Part
+        Design reads for patterns, dress-ups and previews, in line with the
+        Form's operation. Return whether it had to be changed."""
+        values = _NATIVE_OPERATIONS[operation]
+        if str(obj.Operation) in values:
+            return False
+        enumeration = obj.getEnumerationsOfProperty("Operation") or []
+        if not all(value in enumeration for value in values):
+            # Forms used to replace the native values by its own ones, which
+            # made a subtractive Form an additive feature for Part Design.
+            obj.Operation = list(values)
+        obj.Operation = values[0]
+        return True
+
+    @staticmethod
     def _ensure_partdesign_properties(obj, operation="Additive"):
+        """Return whether the native Operation of the feature was corrected."""
         group = "Part Design Form"
-        if "Operation" not in obj.PropertiesList:
-            obj.addProperty(
-                "App::PropertyEnumeration", "Operation", group, "Boolean operation"
-            )
-        obj.Operation = list(OPERATIONS)
-        obj.Operation = operation
+        migrated = False
+        if obj.isDerivedFrom("PartDesign::FeatureAddSub"):
+            migrated = PartDesignFormProxy._ensure_native_operation(obj, operation)
+        else:
+            if "Operation" not in obj.PropertiesList:
+                obj.addProperty(
+                    "App::PropertyEnumeration", "Operation", group, "Boolean operation"
+                )
+            obj.Operation = list(OPERATIONS)
+            obj.Operation = operation
         if "PrimitiveKind" not in obj.PropertiesList:
             obj.addProperty(
                 "App::PropertyString", "PrimitiveKind", group, "Primitive kind"
@@ -191,6 +226,7 @@ class PartDesignFormProxy(FormFeatureProxy):
             "CombinationStatus",
         ):
             obj.setEditorMode(name, 2)
+        return migrated
 
     def _topology(self, obj):
         proxy = _primitive_proxy(obj)
@@ -320,9 +356,14 @@ class PartDesignFormProxy(FormFeatureProxy):
         self._ensure_symmetry_properties(obj)
         self._ensure_sharpness_properties(obj)
         self._ensure_local_edit_properties(obj)
-        self._ensure_partdesign_properties(obj, _partdesign_operation(obj))
+        migrated = self._ensure_partdesign_properties(obj, _partdesign_operation(obj))
         obj.Proxy = self
         self.onChanged(obj, "CageMode")
+        if migrated:
+            # Part Design took a subtractive Form saved with the Forms values
+            # for an additive feature: the features computed from it, e.g. a
+            # pattern, were saved with its tool added instead of removed.
+            obj.Document.addRecomputeObject(obj)
         if obj.EditingForm:
             # Edit mode itself is not restored by FreeCAD. A document saved
             # while editing stores the uncombined tool shape here and in the
