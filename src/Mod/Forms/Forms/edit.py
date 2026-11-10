@@ -36,6 +36,7 @@ from .cage import (
     ControlElementMapper,
     canonical_subelement_name,
     control_surface_points,
+    local_form_shape,
 )
 from .controlcage import clear_match_data
 from .edit_tools import FormEditToolsMixin
@@ -604,7 +605,8 @@ class FormEditSession(FormEditToolsMixin):
         self._update_dimension_gizmos()
 
     def _dimension_value(self, property_name):
-        bounds = self.obj.Shape.BoundBox
+        # Dimensions are measured along the cage's own axes.
+        bounds = local_form_shape(self.obj.Shape).BoundBox
         form_type = str(self.obj.FormType)
         radial = [
             (point.x * point.x + point.y * point.y) ** 0.5 for point in self.obj.ControlPoints
@@ -647,7 +649,7 @@ class FormEditSession(FormEditToolsMixin):
         if current <= 1.0e-9 or requested <= 1.0e-9:
             return [App.Vector(point) for point in points]
         factor = requested / current
-        center = App.Vector(self.obj.Shape.BoundBox.Center)
+        center = App.Vector(local_form_shape(self.obj.Shape).BoundBox.Center)
         form_type = str(self.obj.FormType)
         # Measure radii from *points* (the drag baseline), not from the live
         # ControlPoints that earlier drag events have already overwritten.
@@ -1046,7 +1048,8 @@ class FormEditSession(FormEditToolsMixin):
     def _dimension_gizmo_placement(self, name):
         form_shape = getattr(self.obj, "FormShape", None)
         shape = form_shape if form_shape is not None and not form_shape.isNull() else self.obj.Shape
-        bounds = shape.BoundBox
+        # The gizmos are drawn under the object's transform, as the cage is.
+        bounds = local_form_shape(shape).BoundBox
         center = App.Vector(bounds.Center)
         rotation = (
             self.obj.FormPlacement.Rotation
@@ -1954,7 +1957,7 @@ class FormEditSession(FormEditToolsMixin):
         shape = getattr(self.obj, "FormShape", None)
         anchors = None
         if shape is not None and not shape.isNull():
-            bounds = shape.BoundBox
+            bounds = local_form_shape(shape).BoundBox
             anchors = [
                 App.Vector(
                     (bounds.XMin + bounds.XMax) * 0.5,
@@ -1986,6 +1989,8 @@ class FormEditSession(FormEditToolsMixin):
             tuple(str(value) for value in getattr(self.obj, "DissolvedEdges", ())),
             tuple(str(value) for value in getattr(self.obj, "FormSurfaceFaceMap", ())),
             float(self.obj.Shape.BoundBox.DiagonalLength) if not self.obj.Shape.isNull() else 0.0,
+            # The mapper holds the placed shape and its transform to the cage frame.
+            tuple(self.obj.Placement.Matrix.A),
         )
 
     def _control_element_mapper(self):
@@ -2387,7 +2392,8 @@ class FormEditSession(FormEditToolsMixin):
 
     def _element_frame_rotation(self, name):
         try:
-            element = self.obj.Shape.getElement(name)
+            # The dragger is drawn under the object's transform, as the cage is.
+            element = local_form_shape(self.obj.Shape).getElement(name)
             if name.startswith("Face"):
                 u, v = element.Surface.parameter(element.CenterOfMass)
                 z_axis = element.normalAt(u, v)
