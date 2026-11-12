@@ -1380,9 +1380,10 @@ private:
             }
 
             // The user parameters that the on-view parameters of this step created go with it,
-            // or the names could not be typed again and would be left in the sketch. The
-            // constraints bound to them went with the geometry. Last created first: a parameter
-            // of the step may use an earlier one of the same step.
+            // or the names could not be typed again and would be left in the document (they are
+            // on the object holding its user parameters, which stays). The constraints bound to
+            // them went with the geometry. Last created first: a parameter of the step may use
+            // an earlier one of the same step.
             std::vector<std::string> removedParameters;
             for (const std::string& name : step.userParameters | std::views::reverse) {
                 if (removeOnViewUserParameter(obj, name)) {

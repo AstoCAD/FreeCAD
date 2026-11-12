@@ -241,8 +241,9 @@ struct OnViewParameterBinding
 {
     /// The constraint is bound to the expression of the on-view parameter.
     bool bound = false;
-    /// The user parameter that was created on the sketch for it. Empty when the on-view parameter
-    /// names none (`= 2 * height`) or when nothing was created.
+    /// The user parameter that was created for it, on the holder of the user parameters of the
+    /// document (App::UserParameters::holder()). Empty when the on-view parameter names none
+    /// (`= 2 * height`) or when nothing was created.
     std::string createdParameter;
 };
 
@@ -251,8 +252,11 @@ struct OnViewParameterBinding
  *
  * The constraint is the last dimensional one in [@p firstConstraint, @p endConstraint) whose value
  * is the value of @p label (or its opposite, then the binding is negated). The user parameter
- * named in the label is created on @p sketch first. When no such constraint exists or binding
- * fails, nothing is created and a warning says that the parameter was not created.
+ * named in the label is created first, on the holder of the user parameters of the document
+ * (created with the first parameter), and the constraint refers to it there. The user parameters
+ * that the expression uses must exist: the ones typed in other on-view parameters of the tool are
+ * to be bound before. When no such constraint exists or binding fails, no parameter is created
+ * and a warning says so (a holder created for it stays, empty).
  */
 OnViewParameterBinding bindOnViewParameterExpression(
     Sketcher::SketchObject* sketch,
@@ -270,9 +274,10 @@ void warnOnViewParameterExpressionNotBound(
     const std::string& missingParameter
 );
 
-/// Removes the user parameter @p name that bindOnViewParameterExpression() created on @p sketch,
+/// Removes the user parameter @p name that bindOnViewParameterExpression() created for @p sketch,
 /// for a tool that takes back what it created (the polyline undoing its last point). The
-/// parameter is kept while an expression still uses it. Returns true when it was removed.
+/// parameter is kept while an expression still uses it, and so is the object holding the user
+/// parameters of the document, even empty. Returns true when the parameter was removed.
 bool removeOnViewUserParameter(Sketcher::SketchObject* sketch, const std::string& name);
 /// @p forceDimensional: always an Angle constraint, never Parallel/Perpendicular.
 void Constraint2LinesByAngle(

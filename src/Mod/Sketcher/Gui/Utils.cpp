@@ -897,22 +897,29 @@ void SketcherGui::warnOnViewParameterExpressionNotBound(
 
 bool SketcherGui::removeOnViewUserParameter(Sketcher::SketchObject* sketch, const std::string& name)
 {
-    if (!sketch
-        || !App::UserParameters::isUserParameter(sketch->getDynamicPropertyByName(name.c_str()))) {
+    if (!sketch) {
+        return false;
+    }
+    // The parameter is on the holder of the user parameters of the document, not on the sketch.
+    App::Property* parameter = App::UserParameters::findParameter(sketch->getDocument(), name);
+    const auto* holder = parameter
+        ? freecad_cast<App::DocumentObject*>(parameter->getContainer())
+        : nullptr;
+    if (!holder) {
         return false;
     }
     // Removing a parameter that is still used would leave an expression that cannot resolve.
-    // A reference without a path is only a guess (an object that depends on the sketch and has
-    // expressions of its own, e.g. a spreadsheet): nothing but the tool can use a parameter that
-    // the tool has just created.
-    const auto references = Gui::Parameters::findReferences(sketch, name);
+    // A reference without a path is only a guess (an object that depends on the holder and has
+    // expressions of its own, e.g. a spreadsheet using another parameter): nothing but the tool
+    // can use a parameter that the tool has just created.
+    const auto references = Gui::Parameters::findReferences(holder, name);
     const bool used = std::ranges::any_of(references, [](const auto& reference) {
         return !reference.path.empty();
     });
     if (used) {
         return false;
     }
-    return sketch->removeDynamicProperty(name.c_str());
+    return App::UserParameters::removeParameter(parameter);
 }
 
 SketcherGui::OnViewParameterBinding SketcherGui::bindOnViewParameterExpression(
@@ -970,18 +977,26 @@ SketcherGui::OnViewParameterBinding SketcherGui::bindOnViewParameterExpression(
     }
 
     const App::ObjectIdentifier path = sketch->Constraints.createPath(index);
-    bool created = false;
+    App::Property* parameter = nullptr;
     try {
-        std::shared_ptr<App::Expression> binding = expression;
+        // A bare name of the expression is a user parameter typed in another on-view parameter
+        // of the tool: pending when the expression was accepted, created by now on the holder
+        // (see DrawSketchController::bindOnViewParameterExpressions()), where the sketch only
+        // finds it by its qualified name. On a copy: the label keeps what was typed.
+        std::shared_ptr<App::Expression> binding(expression->copy());
+        App::UserParameters::qualifyReferences(sketch, *binding);
         if (!name.empty()) {
-            App::UserParameters::createParameter(
+            parameter = App::UserParameters::createParameter(
                 sketch,
                 name,
-                expression,
+                binding,
                 label.getUserExpressionUnit()
             );
-            created = true;
-            binding = App::ExpressionParser::parse(sketch, name.c_str());
+            // The parameter is a property of the holder: the sketch refers to it qualified.
+            binding = App::UserParameters::referenceTo(sketch, parameter);
+            if (!binding) {
+                throw Base::RuntimeError("Cannot refer to the user parameter '" + name + "'");
+            }
         }
         if (negate) {
             binding = App::ExpressionParser::parse(
@@ -996,12 +1011,15 @@ SketcherGui::OnViewParameterBinding SketcherGui::bindOnViewParameterExpression(
         sketch->setExpression(path, binding);
     }
     catch (const Base::Exception& e) {
-        if (created) {
-            sketch->removeDynamicProperty(name.c_str());
+        // No parameter is created when the constraint is not bound. A holder that was created
+        // for it stays, empty, as when a tool takes a parameter back (and as in
+        // Gui::QuantitySpinBox): it goes with the command of the tool when that is undone.
+        if (parameter) {
+            App::UserParameters::removeParameter(parameter);
         }
         return warn(QString::fromUtf8(e.what()));
     }
-    return {.bound = true, .createdParameter = created ? name : std::string()};
+    return {.bound = true, .createdParameter = parameter ? name : std::string()};
 }
 
 void SketcherGui::Constraint2LinesByAngle(

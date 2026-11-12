@@ -902,14 +902,30 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
     def user_parameter_names(self):
         return [(obj.Name, name) for obj, name in self.doc.getUserParameters()]
 
+    # The object holding the user parameters of a document (App::UserParameters::HolderName):
+    # a parameter typed in a sketch is created there, not on the sketch.
+    HOLDER = "UserParameters"
+
+    def holder(self):
+        """The object holding the user parameters of the document, None when it has none."""
+        return self.doc.getObject(self.HOLDER)
+
+    def assert_parameter_on_holder(self, name):
+        """The user parameter @p name exists, on the holder and not on the sketch."""
+        holder = self.holder()
+        self.assertIsNotNone(holder, "Expected the object holding the user parameters")
+        self.assertEqual(holder.getGroupOfProperty(name), "UserParameters")
+        self.assertNotIn(name, self.sketch.PropertiesList)
+        return holder
+
     def test_ovp_assignment_creates_bound_user_parameter(self):
         self.doc.UndoMode = 1
         viewport = self.draw_rectangle_with_ovp_texts("boxWidth=30", "20")
 
-        self.assertEqual(self.sketch.getGroupOfProperty("boxWidth"), "UserParameters")
-        self.assertAlmostEqual(self.sketch.boxWidth.Value, 30)
+        holder = self.assert_parameter_on_holder("boxWidth")
+        self.assertAlmostEqual(holder.boxWidth.Value, 30)
         index = self.bound_constraint("boxWidth")
-        self.assertEqual(self.sketch.ExpressionEngine[0][1], "boxWidth")
+        self.assertEqual(self.sketch.ExpressionEngine[0][1], self.HOLDER + ".boxWidth")
         self.assertEqual(self.sketch.Constraints[index].Type, "Distance")
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, 30)
 
@@ -919,16 +935,41 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         geometry_when_removed = None
         for _ in range(len(self.doc.UndoNames)):
             self.doc.undo()
-            if not hasattr(self.sketch, "boxWidth"):
+            if self.doc.findUserParameter("boxWidth") is None:
                 geometry_when_removed = self.sketch.GeometryCount
                 break
         self.assertEqual(geometry_when_removed, 0)
         self.assertEqual(len(self.sketch.ExpressionEngine), 0)
 
+    def test_ovp_undo_removes_the_first_parameter_with_its_holder(self):
+        # The first user parameter of a document comes with the object holding them, created
+        # inside the command of the tool: one undo step removes the rectangle, the parameter
+        # and that object.
+        self.doc.UndoMode = 1
+        self.assertIsNone(self.holder())
+        viewport = self.draw_rectangle_with_ovp_texts("boxWidth=30", "20")
+        self.assert_parameter_on_holder("boxWidth")
+        self.assertEqual(self.user_parameter_names(), [(self.HOLDER, "boxWidth")])
+        self.bound_constraint("boxWidth")
+
+        self.cancel_drawing_tool(viewport)
+        self.pump(100)
+        state_when_removed = None
+        for _ in range(len(self.doc.UndoNames)):
+            self.doc.undo()
+            if self.holder() is None:
+                state_when_removed = (self.sketch.GeometryCount, self.user_parameter_names())
+                break
+            # Not one step: the holder would outlive its parameter or the rectangle.
+            self.assertEqual(self.user_parameter_names(), [(self.HOLDER, "boxWidth")])
+            self.assertGreaterEqual(self.sketch.GeometryCount, 4)
+        self.assertEqual(state_when_removed, (0, []))
+        self.assertEqual(len(self.sketch.ExpressionEngine), 0)
+
     def test_ovp_assignment_drives_the_constraint(self):
         self.draw_rectangle_with_ovp_texts("boxWidth=30", "20")
         index = self.bound_constraint("boxWidth")
-        self.sketch.boxWidth = 45
+        self.holder().boxWidth = 45
         self.doc.recompute()
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, 45)
 
@@ -938,7 +979,7 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
 
         index = self.bound_constraint("base", "2")
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, 30)
-        self.assertEqual(self.user_parameter_names(), [(self.sketch.Name, "base")])
+        self.assertEqual(self.user_parameter_names(), [(self.HOLDER, "base")])
 
     def test_ovp_plain_numbers_create_no_parameter(self):
         self.draw_rectangle_with_ovp_texts("10", "20")
@@ -957,7 +998,7 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
 
         self.assertIs(self.active_spinbox(), first, "Expected the OVP to stay in edit")
         self.assertEqual(self.sketch.GeometryCount, 0)
-        self.assertAlmostEqual(self.sketch.taken.Value, 5)
+        self.assertAlmostEqual(self.holder().taken.Value, 5)
 
         # The refused expression is still being edited: letters go on to the field.
         editor = first.findChild(QtGui.QLineEdit)
@@ -973,10 +1014,10 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         self.draw_rectangle_with_ovp_texts(
             "10", "{}={}".format(name, degrees), command="Sketcher_CreateLine", min_geometry=1
         )
-        self.assertEqual(self.sketch.getGroupOfProperty(name), "UserParameters")
-        self.assertAlmostEqual(getattr(self.sketch, name).Value, degrees)
+        holder = self.assert_parameter_on_holder(name)
+        self.assertAlmostEqual(getattr(holder, name).Value, degrees)
         index = self.bound_constraint(name)
-        self.assertEqual(self.sketch.ExpressionEngine[0][1], name)
+        self.assertEqual(self.sketch.ExpressionEngine[0][1], self.HOLDER + "." + name)
         self.assertEqual(self.sketch.Constraints[index].Type, "Angle")
         self.doc.recompute()
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, math.radians(degrees), 9)
@@ -1086,7 +1127,7 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         self.key_click(second, QtCore.Qt.Key_Return, "\r")
         self.pump(500)
 
-        self.assertEqual(self.sketch.getGroupOfProperty("height"), "UserParameters")
+        self.assert_parameter_on_holder("height")
         self.bound_constraint("height")
 
     def test_ovp_equal_sign_drops_the_shown_value_and_unit(self):
@@ -1131,9 +1172,9 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         self.cancel_drawing_tool(viewport)
         self.pump(200)
 
-        self.assertEqual(self.sketch.getGroupOfProperty("seg"), "UserParameters")
+        self.assert_parameter_on_holder("seg")
         index = self.bound_constraint("seg")
-        self.assertEqual(self.sketch.ExpressionEngine[0][1], "seg")
+        self.assertEqual(self.sketch.ExpressionEngine[0][1], self.HOLDER + ".seg")
         self.assertEqual(self.sketch.Constraints[index].Type, "Distance")
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, 30)
 
@@ -1159,22 +1200,57 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         # accepted: the second one can use it all the same.
         self.draw_rectangle_with_ovp_texts("height=10", "=2*height")
 
-        self.assertEqual(self.user_parameter_names(), [(self.sketch.Name, "height")])
+        self.assertEqual(self.user_parameter_names(), [(self.HOLDER, "height")])
         bindings = dict(self.sketch.ExpressionEngine)
         self.assertEqual(len(bindings), 2, bindings)
         values = {}
         for path, expression in bindings.items():
             index = int(path[path.index("[") + 1 : path.index("]")])
             values[expression.replace(" ", "")] = self.sketch.Constraints[index].Value
-        self.assertAlmostEqual(values["height"], 10)
-        self.assertAlmostEqual(values["2*height"], 20)
+        # The name typed in the second OVP was bare, the parameter not being created yet: it is
+        # bound qualified, as the parameter is on the holder.
+        self.assertAlmostEqual(values[self.HOLDER + ".height"], 10)
+        self.assertAlmostEqual(values["2*" + self.HOLDER + ".height"], 20)
 
-        self.sketch.height = 15
+        self.holder().height = 15
         self.doc.recompute()
         for path, expression in self.sketch.ExpressionEngine:
             index = int(path[path.index("[") + 1 : path.index("]")])
             expected = 30 if "2" in expression else 15
             self.assertAlmostEqual(self.sketch.Constraints[index].Value, expected)
+
+    def test_ovp_assignment_uses_parameter_typed_in_the_other_ovp(self):
+        # `boxW = 2*boxH` with `boxH` typed in the other OVP: both are created on the holder,
+        # `boxH` first, `boxW` follows it and each constraint is bound to its parameter.
+        self.draw_rectangle_with_ovp_texts("boxH=10", "boxW=2*boxH")
+
+        holder = self.assert_parameter_on_holder("boxH")
+        self.assert_parameter_on_holder("boxW")
+        self.assertEqual(
+            sorted(self.user_parameter_names()), [(self.HOLDER, "boxH"), (self.HOLDER, "boxW")]
+        )
+        self.assertAlmostEqual(holder.boxH.Value, 10)
+        self.assertAlmostEqual(holder.boxW.Value, 20)
+        self.assertEqual(len(holder.ExpressionEngine), 1, holder.ExpressionEngine)
+        self.assertIn("boxH", holder.ExpressionEngine[0][1])
+
+        bindings = dict(self.sketch.ExpressionEngine)
+        self.assertEqual(
+            sorted(bindings.values()), [self.HOLDER + ".boxH", self.HOLDER + ".boxW"], bindings
+        )
+        constraint_of = {}
+        for path, expression in bindings.items():
+            constraint_of[expression] = int(path[path.index("[") + 1 : path.index("]")])
+        height = constraint_of[self.HOLDER + ".boxH"]
+        width = constraint_of[self.HOLDER + ".boxW"]
+        self.assertAlmostEqual(self.sketch.Constraints[height].Value, 10)
+        self.assertAlmostEqual(self.sketch.Constraints[width].Value, 20)
+
+        holder.boxH = 15
+        self.doc.recompute()
+        self.assertAlmostEqual(holder.boxW.Value, 30)
+        self.assertAlmostEqual(self.sketch.Constraints[height].Value, 15)
+        self.assertAlmostEqual(self.sketch.Constraints[width].Value, 30)
 
     def test_ovp_completer_offers_parameter_typed_in_the_other_ovp(self):
         self.begin_rectangle_with_visible_ovp()
@@ -1219,7 +1295,7 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         viewport = self.draw_rectangle_with_ovp_texts(
             "seg=30", "20", command="Sketcher_CreatePolyline", min_geometry=1
         )
-        self.assertEqual(self.sketch.getGroupOfProperty("seg"), "UserParameters")
+        self.assert_parameter_on_holder("seg")
 
         first = self.active_spinbox()
         self.assertIsNotNone(first, "Expected an OVP of the next segment to have focus")
@@ -1230,7 +1306,9 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         self.assertEqual(
             self.user_parameter_names(), [], "Expected the parameter of the undone segment to go"
         )
-        self.assertNotIn("seg", self.sketch.PropertiesList)
+        # Only the parameter is taken back: the object holding the parameters stays, empty.
+        self.assertIsNotNone(self.holder())
+        self.assertNotIn("seg", self.holder().PropertiesList)
 
         first = self.active_spinbox()
         self.assertIsNotNone(first, "Expected an OVP of the segment to have focus")
@@ -1245,7 +1323,7 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         self.key_click(second, QtCore.Qt.Key_Return, "\r")
         self.pump(500)
         self.assertGreaterEqual(self.sketch.GeometryCount, 1)
-        self.assertEqual(self.user_parameter_names(), [(self.sketch.Name, "seg")])
+        self.assertEqual(self.user_parameter_names(), [(self.HOLDER, "seg")])
         self.bound_constraint("seg")
 
         self.cancel_drawing_tool(viewport)
@@ -1253,11 +1331,13 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
         geometry_when_removed = None
         for _ in range(len(self.doc.UndoNames)):
             self.doc.undo()
-            if not hasattr(self.sketch, "seg"):
+            if self.doc.findUserParameter("seg") is None:
                 geometry_when_removed = self.sketch.GeometryCount
                 break
         self.assertEqual(geometry_when_removed, 0)
         self.assertEqual(len(self.sketch.ExpressionEngine), 0)
+        # The polyline created the holder with its first parameter: it goes with the command.
+        self.assertIsNone(self.holder())
 
     def test_ovp_home_in_refused_input_moves_the_caret(self):
         # Enter gives the keys back to the 3D view, also when the field refused the input. Its
@@ -1381,7 +1461,7 @@ class TestOnViewParameterGui(SketcherGuiTestCase):
     def test_ovp_short_length_with_many_decimals_binds(self):
         # 1 mm/3 is written as 0.333333 mm, 3.3e-7 away from the value of the expression.
         self.draw_rectangle_with_ovp_texts("w=1/3", "20")
-        self.assertEqual(self.sketch.getGroupOfProperty("w"), "UserParameters")
+        self.assert_parameter_on_holder("w")
         index = self.bound_constraint("w")
         self.doc.recompute()
         self.assertAlmostEqual(self.sketch.Constraints[index].Value, 1.0 / 3.0, 12)

@@ -32,6 +32,7 @@
 
 #include <App/Expression.h>
 #include <App/ObjectIdentifier.h>
+#include <App/UserParameters.h>
 #include <Base/Console.h>
 #include <Base/Tools2D.h>
 #include <Gui/EditableDatumLabel.h>
@@ -1079,14 +1080,22 @@ private:
     }
 
     /// Whether the expression typed in on-view parameter @p index, which has one, uses the user
-    /// parameter typed as @p name: on the sketch, so that the expression has the bare name.
+    /// parameter that an on-view parameter of the tool names @p name. The expression has the
+    /// bare name when the parameter was still to be created as it was typed (another on-view
+    /// parameter of the same step), and the name qualified with the holder of the user parameters
+    /// of the document when it was created already (an earlier segment of the polyline). The
+    /// holder is looked up by the object the path names, not by the property: the parameter may
+    /// be removed by now (unsetOnViewParametersUsing()).
     bool userExpressionUses(unsigned int index, const std::string& name) const
     {
         const auto expression = onViewParameters[index]->getUserExpression();
         for (const auto& identifier : expression->getIdentifiers()) {
             const App::ObjectIdentifier& path = identifier.first;
-            if (!path.hasDocumentObjectName() && path.getComponents().size() == 1
-                && path.getPropertyName() == name) {
+            if (path.getComponents().empty() || path.getPropertyName() != name) {
+                continue;
+            }
+            const bool bare = !path.hasDocumentObjectName() && path.getComponents().size() == 1;
+            if (bare || App::UserParameters::isHolder(path.getDocumentObject())) {
                 return true;
             }
         }
