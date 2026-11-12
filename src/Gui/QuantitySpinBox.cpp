@@ -122,6 +122,19 @@ public:
         return result;
     }
 
+    /// @p text without the unit the field shows behind its value, when it ends with it. A field
+    /// that gets the focus selects its number only, so that what is typed over it keeps the
+    /// unit: "height mm", "2*myVar mm".
+    QString withoutShownUnit(const QString& text) const
+    {
+        const QString shownUnit = QString::fromStdString(displayUnit.getSymbol());
+        const QString trimmed = text.trimmed();
+        if (shownUnit.isEmpty() || !trimmed.endsWith(shownUnit)) {
+            return text;
+        }
+        return trimmed.left(trimmed.size() - shownUnit.size()).trimmed();
+    }
+
     QLocale locale;
     bool validInput;
     bool pendingEmit;
@@ -523,12 +536,26 @@ bool QuantitySpinBox::commitUserParameterInput(const QString& text)
     std::string rhs;
     const bool assignment = App::UserParameters::splitAssignment(text.toUtf8().toStdString(), name, rhs);
     const App::ObjectIdentifier& path = getPath();
-    const auto result = d->interpretInput(
-        assignment ? QString::fromStdString(rhs) : text,
-        path,
-        App::QuantityInputGrammar::Expression,
-        App::InputPhase::Commit
-    );
+    const QString input = assignment ? QString::fromStdString(rhs) : text;
+    auto result
+        = d->interpretInput(input, path, App::QuantityInputGrammar::Expression, App::InputPhase::Commit);
+    if (result.status != App::InputStatus::Acceptable) {
+        // An expression typed over the number the field showed keeps the unit behind it
+        // ("2*myVar mm"), which no expression ends with: the unit was not typed. Only tried when
+        // the input is not valid as it is, so that no valid input changes its meaning.
+        const QString withoutUnit = d->withoutShownUnit(input);
+        if (withoutUnit != input) {
+            auto retried = d->interpretInput(
+                withoutUnit,
+                path,
+                App::QuantityInputGrammar::Expression,
+                App::InputPhase::Commit
+            );
+            if (retried.status == App::InputStatus::Acceptable) {
+                result = std::move(retried);
+            }
+        }
+    }
     if (!assignment && result.userParameterReferences == 0) {
         return false;
     }
@@ -846,8 +873,12 @@ void QuantitySpinBox::openFormulaDialog()
     if (!hasExpression()) {
         // A name that nothing uses yet, typed in a quantity field, can only be meant as a new
         // user parameter: opening the dialog on it, with `=` or with the icon, goes on with the
-        // assignment `name = `. Any other text is shown as it is.
-        box->continueAssignment(lineEdit()->text());
+        // assignment `name = `. Any other text is shown as it is. A name typed over the number
+        // the field showed has the unit left behind it ("height mm"): the unit was not typed.
+        const QString typed = lineEdit()->text();
+        if (!box->continueAssignment(typed)) {
+            box->continueAssignment(d->withoutShownUnit(typed));
+        }
     }
     // Until the dialog is finished (the focus moves to it asynchronously).
     d->formulaDialogOpen = true;

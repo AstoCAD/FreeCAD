@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 #include <QDebug>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QPlainTextEdit>
+#include <QPushButton>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QSignalBlocker>
@@ -15,6 +19,8 @@
 #include <App/Expression.h>
 #include <App/ObjectIdentifier.h>
 #include <App/Property.h>
+#include <App/PropertyExpressionEngine.h>
+#include <App/UserParameters.h>
 
 #include "Gui/QuantitySpinBox.h"
 #include "Gui/PrefWidgets.h"
@@ -1468,6 +1474,82 @@ private Q_SLOTS:
 
         QCOMPARE(spinBox.value(), Base::Quantity(10.0, "mm"));
         QCOMPARE(spinBox.valueFromText(QStringLiteral("10")), Base::Quantity(254.0, "mm"));
+    }
+
+    void test_NameTypedOverTheShownNumberStartsAnAssignment()  // NOLINT
+    {
+        // A field that gets the focus selects its number, not its unit: a name typed over it
+        // leaves the unit behind ("height mm"). '=' then continues the assignment of the name in
+        // the formula dialog, and the value typed there creates the user parameter.
+        ScopedExpressionOwner owner;
+        QuantitySpinBoxWithLineEdit spinBox;
+        spinBox.bind(owner.getPath());
+        spinBox.setUnit(Base::Unit::Length);
+        spinBox.setValue(Base::Quantity(10.0, "mm"));
+        spinBox.show();
+        spinBox.setFocus();
+        spinBox.selectNumber();
+        QVERIFY(spinBox.lineEdit()->hasSelectedText());
+
+        QTest::keyClicks(&spinBox, QStringLiteral("height "));
+        QVERIFY2(
+            spinBox.lineEdit()->text().endsWith(QStringLiteral("mm")),
+            qPrintable(spinBox.lineEdit()->text())
+        );
+        QTest::keyClicks(&spinBox, QStringLiteral("="));
+
+        auto* dialog = spinBox.findChild<QDialog*>(QStringLiteral("DlgExpressionInput"));
+        QVERIFY(dialog);
+        auto* text = dialog->findChild<QPlainTextEdit*>(QStringLiteral("expression"));
+        QVERIFY(text);
+        QCOMPARE(text->toPlainText(), QStringLiteral("height = "));
+
+        QTest::keyClicks(text, QStringLiteral("25 mm"));
+        QCOMPARE(text->toPlainText(), QStringLiteral("height = 25 mm"));
+        auto* buttons = dialog->findChild<QDialogButtonBox*>();
+        QVERIFY(buttons);
+        QPushButton* ok = buttons->button(QDialogButtonBox::Ok);
+        QVERIFY(ok && ok->isEnabled());
+        ok->click();
+        QCoreApplication::processEvents();
+
+        QVERIFY(App::UserParameters::isUserParameter(
+            owner.getObject()->getDynamicPropertyByName("height")
+        ));
+        QCOMPARE(spinBox.value(), Base::Quantity(25.0, "mm"));
+    }
+
+    void test_ExpressionTypedOverTheShownNumberIsBound()  // NOLINT
+    {
+        // "2*base" typed over the selected number leaves "2*base mm": the unit the field showed
+        // is not part of the expression, which is bound as typed.
+        ScopedExpressionOwner owner;
+        auto* holder = owner.getObject()->getDocument()->addObject("App::VarSet", "Holder");
+        App::UserParameters::createParameter(
+            holder,
+            "base",
+            std::shared_ptr<App::Expression>(App::Expression::parse(holder, "15 mm")),
+            Base::Unit::Length
+        );
+
+        QuantitySpinBoxWithLineEdit spinBox;
+        spinBox.bind(owner.getPath());
+        spinBox.setUnit(Base::Unit::Length);
+        spinBox.setValue(Base::Quantity(10.0, "mm"));
+        spinBox.show();
+        spinBox.setFocus();
+        spinBox.selectNumber();
+
+        QTest::keyClicks(&spinBox, QStringLiteral("2*base"));
+        QVERIFY2(
+            spinBox.lineEdit()->text().endsWith(QStringLiteral("mm")),
+            qPrintable(spinBox.lineEdit()->text())
+        );
+        QTest::keyClick(&spinBox, Qt::Key_Return);
+
+        QVERIFY(spinBox.hasValidInput());
+        QVERIFY(spinBox.hasExpression());
+        QCOMPARE(spinBox.value(), Base::Quantity(30.0, "mm"));
     }
 
     void test_ExpressionResultNotifiesListeners()  // NOLINT
