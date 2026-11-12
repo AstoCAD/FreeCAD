@@ -2165,8 +2165,29 @@ void PropertySheet::onRelabeledDocument(const App::Document& doc)
     }
 }
 
+namespace
+{
+
+// Renaming or moving a dynamic property is announced to every PropertySheet that exists. That
+// includes the copies kept by undo/redo transactions, which have no container, and the cells of a
+// deleted sheet that a transaction keeps alive. Neither has a sheet in the document to resolve
+// its identifiers against (ObjectIdentifier throws for both), so they keep their identifiers.
+// That is consistent when the rename or move is part of the undo history: it is undone, which
+// renames or moves back, before such a state is restored.
+bool isOfSheetInDocument(const PropertySheet& cells)
+{
+    const auto* sheet = freecad_cast<App::DocumentObject*>(cells.getContainer());
+    return sheet && sheet->isAttachedToDocument();
+}
+
+}  // namespace
+
 void PropertySheet::onRenameDynamicProperty(const App::Property& prop, const char* oldName)
 {
+    if (!isOfSheetInDocument(*this)) {
+        return;
+    }
+
     ObjectIdentifier oldNameId = ObjectIdentifier(prop.getContainer(), std::string(oldName));
     ObjectIdentifier newNameId = ObjectIdentifier(prop);
     std::map<ObjectIdentifier, ObjectIdentifier> paths = {
@@ -2180,6 +2201,10 @@ void PropertySheet::onRenameDynamicProperty(const App::Property& prop, const cha
 
 void PropertySheet::onMoveDynamicProperty(const App::Property& prop, const App::DocumentObject& targetObj)
 {
+    if (!isOfSheetInDocument(*this)) {
+        return;
+    }
+
     ObjectIdentifier oldNameId = ObjectIdentifier(prop);
     ObjectIdentifier newNameId = ObjectIdentifier(&targetObj, std::string(prop.getName()));
     std::map<ObjectIdentifier, ObjectIdentifier> paths = {
