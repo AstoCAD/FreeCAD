@@ -1999,6 +1999,15 @@ bool OverlayManager::eventFilter(QObject* o, QEvent* ev)
                 return false;
             }
 
+            // An open popup (a menu, the list of a combo box or of a completer) takes the mouse,
+            // also outside of its own area, where a press closes it. Do not start passing its
+            // events through an overlay: the view under the overlay would react behind the popup,
+            // and a filtered press would leave the popup open. A pass-through that is already in
+            // progress was handled above and ends with the release of its button.
+            if (QApplication::activePopupWidget()) {
+                return false;
+            }
+
             if (isTreeViewDragging()) {
                 return false;
             }
