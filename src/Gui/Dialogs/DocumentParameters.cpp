@@ -97,31 +97,6 @@ bool isEditableValue(const App::any& value)
         || type == typeid(std::string);
 }
 
-/**
- * The only place that scans the document for user parameters.  If the
- * document gets a helper that lists its user parameters, use it here.
- */
-std::vector<App::Property*> scanUserParameters(const App::Document* doc, bool includeVarSets)
-{
-    std::vector<App::Property*> result;
-    if (!doc) {
-        return result;
-    }
-    for (auto* obj : doc->getObjects()) {
-        if (!includeVarSets && isVarSet(obj)) {
-            continue;
-        }
-        std::vector<App::Property*> props;
-        obj->getPropertyList(props);
-        for (auto* prop : props) {
-            if (Parameters::isUserParameter(prop)) {
-                result.push_back(prop);
-            }
-        }
-    }
-    return result;
-}
-
 std::vector<App::DocumentObject*> sortedVarSets(const App::Document* doc)
 {
     std::vector<App::DocumentObject*> varSets;
@@ -188,25 +163,18 @@ void collectModelParameters(const App::Document* doc, std::vector<Parameters::En
 
 const char* Parameters::userParametersGroup()
 {
-    return "UserParameters";
+    return App::UserParameters::GroupName;
 }
 
 bool Parameters::isUserParameter(const App::Property* prop)
 {
-    if (!prop) {
-        return false;
-    }
-    const App::PropertyContainer* container = prop->getContainer();
-    if (!container) {
-        return false;
-    }
-    const char* group = container->getPropertyGroup(prop);
-    return group && std::strcmp(group, userParametersGroup()) == 0;
+    return App::UserParameters::isUserParameter(prop);
 }
 
 std::vector<App::Property*> Parameters::collectUserParameters(const App::Document* doc)
 {
-    std::vector<App::Property*> props = scanUserParameters(doc, false);
+    // What a user parameter is, and where the document keeps them, is decided in App.
+    std::vector<App::Property*> props = App::UserParameters::getParameters(doc);
     std::ranges::stable_sort(props, [](const App::Property* a, const App::Property* b) {
         return std::strcmp(a->getName(), b->getName()) < 0;
     });
@@ -280,7 +248,10 @@ std::vector<Parameters::Entry> Parameters::collect(const App::Document* doc, boo
         std::vector<App::Property*> props;
         varSet->getPropertyList(props);
         for (auto* prop : props) {
-            if (prop->testStatus(App::Property::PropDynamic) && isVisible(varSet, prop)) {
+            // The user parameters of a variable set, those of the holder of the document
+            // first of all, are already listed as such.
+            if (prop->testStatus(App::Property::PropDynamic) && !isUserParameter(prop)
+                && isVisible(varSet, prop)) {
                 entries.push_back(makeEntry(varSet, App::ObjectIdentifier(*prop), Category::VarSet));
             }
         }
@@ -298,7 +269,7 @@ App::Property* Parameters::findUserParameter(
     const App::Property* exclude
 )
 {
-    for (auto* prop : scanUserParameters(doc, true)) {
+    for (auto* prop : App::UserParameters::getParameters(doc)) {
         if (prop != exclude && name == prop->getName()) {
             return prop;
         }
@@ -333,8 +304,17 @@ Parameters::NameError Parameters::checkName(
         if (prop && prop != exclude) {
             return NameError::ExistsInObject;
         }
-        if (userParameter && findUserParameter(holder->getDocument(), name, exclude)) {
-            return NameError::ExistsInDocument;
+        if (userParameter) {
+            const App::Document* doc = holder->getDocument();
+            if (findUserParameter(doc, name, exclude)) {
+                return NameError::ExistsInDocument;
+            }
+            // A new user parameter becomes a property of the holder of the document.
+            const App::DocumentObject* userHolder = App::UserParameters::findHolder(doc);
+            prop = userHolder ? userHolder->getPropertyByName(name.c_str()) : nullptr;
+            if (prop && prop != exclude) {
+                return NameError::ExistsInObject;
+            }
         }
     }
     return NameError::None;

@@ -371,8 +371,8 @@ void DlgExpressionInput::checkExpression(const QString& text)
     DocumentObject* owner = path.getDocumentObject();
     userParameterName.clear();
 
-    // `name = expression` creates the user parameter `name` on the owner (see accept()). A single
-    // '=' is not expression syntax, so this does not change the meaning of any expression.
+    // `name = expression` creates the user parameter `name` of the document (see accept()). A
+    // single '=' is not expression syntax, so this does not change the meaning of any expression.
     std::string source = text.toUtf8().constData();
     std::string name;
     std::string rhs;
@@ -760,10 +760,11 @@ void DlgExpressionInput::acceptWithVarSet()
 
 void DlgExpressionInput::acceptUserParameter()
 {
-    // `name = expression`: create the parameter on the owner of the edited property, then bind
-    // the edited property to it, both in one transaction (one undo step). The caller binds
-    // `expression` again after the dialog is accepted, which then changes nothing
-    // (PropertyExpressionEngine::setValue ignores the same expression).
+    // `name = expression`: create the parameter on the object holding the user parameters of the
+    // document (created with the first one), then bind the edited property to it, all in one
+    // transaction (one undo step). The caller binds `expression` again after the dialog is
+    // accepted, which then changes nothing (PropertyExpressionEngine::setValue ignores the same
+    // expression).
     DocumentObject* owner = path.getDocumentObject();
     App::Document* doc = owner->getDocument();
     const bool ownTransaction = doc->getBookedTransactionID() == 0;
@@ -772,9 +773,17 @@ void DlgExpressionInput::acceptUserParameter()
     }
     bool created = false;
     try {
-        UserParameters::createParameter(owner, userParameterName, expression, impliedUnit);
+        const App::Property* parameter
+            = UserParameters::createParameter(owner, userParameterName, expression, impliedUnit);
         created = true;
-        std::shared_ptr<Expression> binding(ExpressionParser::parse(owner, userParameterName.c_str()));
+        // The parameter is a property of the holder, not of the owner: its bare name does not
+        // resolve from the owner.
+        const std::shared_ptr<Expression> binding = UserParameters::referenceTo(owner, parameter);
+        if (!binding) {
+            throw Base::RuntimeError(
+                "Cannot refer to the user parameter '" + userParameterName + "'"
+            );
+        }
         const std::string error = owner->ExpressionEngine.validateExpression(path, binding);
         if (!error.empty()) {
             throw Base::RuntimeError(error);
@@ -787,9 +796,11 @@ void DlgExpressionInput::acceptUserParameter()
             doc->abortTransaction();
         }
         // Not recorded when no transaction could be opened, and the transaction of a task
-        // dialog stays open: do not leave an unused parameter behind.
-        if (created && owner->getDynamicPropertyByName(userParameterName.c_str())) {
-            owner->removeDynamicProperty(userParameterName.c_str());
+        // dialog stays open: do not leave an unused parameter behind. Looked up by name:
+        // aborting the transaction deleted the property. A holder that was created for this
+        // parameter is only removed by the abort; otherwise it stays, empty.
+        if (created) {
+            UserParameters::removeParameter(UserParameters::findParameter(doc, userParameterName));
         }
         throw;
     }

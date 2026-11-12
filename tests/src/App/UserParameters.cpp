@@ -38,7 +38,9 @@ protected:
     {
         _docName = App::GetApplication().getUniqueDocumentName("userparams");
         _doc = App::GetApplication().newDocument(_docName.c_str(), "testUser");
-        holder = _doc->addObject("App::VarSet", "Holder");
+        // The holder of the user parameters of the document, as the first parameter creates it
+        // (createdOnTheHolderOfTheDocument): the parameters typed in it are its own properties.
+        holder = _doc->addObject("App::VarSet", UP::HolderName);
         other = _doc->addObject("App::VarSet", "Other");
         target = other->addDynamicProperty("App::PropertyDistance", "Target", "Base");
     }
@@ -240,7 +242,7 @@ TEST_F(UserParameters, qualifyReferencesOnlyAsFallback)
 
     auto expr = parse(other, "2 * myVar");
     EXPECT_EQ(UP::qualifyReferences(other, *expr), 1);
-    EXPECT_EQ(expr->toString(), "2 * Holder.myVar");
+    EXPECT_EQ(expr->toString(), "2 * UserParameters.myVar");
 
     // Owner-local reference: resolves today, left alone.
     auto local = parse(holder, "myVar + 1 mm");
@@ -254,7 +256,7 @@ TEST_F(UserParameters, qualifyReferencesOnlyAsFallback)
     EXPECT_EQ(shadowed->toString(), "myVar");
 
     // Explicit references are untouched.
-    auto explicitRef = parse(other, "Holder.myVar");
+    auto explicitRef = parse(other, "UserParameters.myVar");
     EXPECT_EQ(UP::qualifyReferences(other, *explicitRef), 0);
     EXPECT_EQ(prop, UP::findParameter(doc(), "myVar"));
 }
@@ -301,7 +303,7 @@ TEST_F(UserParameters, renameUpdatesReferences)
     EXPECT_EQ(holder->getPropertyByName("myVar"), nullptr);
     EXPECT_EQ(holder->getPropertyByName("width"), prop);
     EXPECT_EQ(other->getExpression(App::ObjectIdentifier(*target)).expression->toString(),
-              "2 * Holder.width");
+              "2 * UserParameters.width");
     EXPECT_EQ(holder->getExpression(App::ObjectIdentifier(*local)).expression->toString(),
               "width");
     doc()->recompute();
@@ -315,15 +317,15 @@ TEST_F(UserParameters, displayStringIsShortWhenUnambiguous)
     UP::qualifyReferences(other, *expr);
     EXPECT_EQ(UP::toDisplayString(other, *expr), "2 * myVar");
     // The stored, persistent form stays qualified.
-    EXPECT_EQ(expr->toString(true), "2 * Holder.myVar");
+    EXPECT_EQ(expr->toString(true), "2 * UserParameters.myVar");
 
     // A reference written explicitly and re-parsed (as after a file load) is shortened too.
-    auto reparsed = parse(other, "Holder.myVar / 2");
+    auto reparsed = parse(other, "UserParameters.myVar / 2");
     EXPECT_EQ(UP::toDisplayString(other, *reparsed), "myVar / 2");
 
     // Not shortened when the short name would mean something else for the owner.
     other->addDynamicProperty("App::PropertyDistance", "myVar", "Base");
-    EXPECT_EQ(UP::toDisplayString(other, *reparsed), "Holder.myVar / 2");
+    EXPECT_EQ(UP::toDisplayString(other, *reparsed), "UserParameters.myVar / 2");
 }
 
 TEST_F(UserParameters, quantityInputResolvesUserParameters)
@@ -350,7 +352,7 @@ TEST_F(UserParameters, quantityInputResolvesUserParameters)
     ASSERT_EQ(result.status, App::InputStatus::Acceptable);
     EXPECT_DOUBLE_EQ(result.quantity->getValue(), 46.0);
     ASSERT_NE(result.expression, nullptr);
-    EXPECT_EQ(result.expression->toString(), "2 * Holder.myVar");
+    EXPECT_EQ(result.expression->toString(), "2 * UserParameters.myVar");
     EXPECT_EQ(result.userParameterReferences, 1);
 
     // Ordinary input is unchanged and reports no user parameter.
@@ -386,7 +388,7 @@ TEST_F(UserParameters, pendingParametersAreKnownInTheirScope)
         EXPECT_EQ(result.userParameterReferences, 0);
         // Bare names only, and only for the expressions of the owner of the scope
         EXPECT_EQ(interpret("Other.height").status, App::InputStatus::Invalid);
-        EXPECT_EQ(interpret("Holder.height").status, App::InputStatus::Invalid);
+        EXPECT_EQ(interpret("UserParameters.height").status, App::InputStatus::Invalid);
         UP::PendingScope holderScope(holder, {{"width", height}});
         EXPECT_EQ(interpret("width").status, App::InputStatus::Invalid);
         EXPECT_EQ(interpret("height").status, App::InputStatus::Acceptable);
@@ -407,6 +409,115 @@ TEST_F(UserParameters, pendingParametersAreKnownInTheirScope)
     }
     // Nothing was added to the document
     EXPECT_EQ(other->getPropertyByName("height"), nullptr);
+}
+
+TEST_F(UserParameters, createdOnTheHolderOfTheDocument)
+{
+    // A document without holder: the first parameter creates it, whatever object it is typed in.
+    const std::string name = App::GetApplication().getUniqueDocumentName("userparamsholder");
+    App::Document* fresh = App::GetApplication().newDocument(name.c_str(), "testUser");
+    App::DocumentObject* typed = fresh->addObject("App::VarSet", "Typed");
+    EXPECT_EQ(UP::findHolder(fresh), nullptr);
+
+    App::Property* width = UP::createParameter(typed, "width", parse(typed, "10 mm"));
+    App::DocumentObject* created = UP::findHolder(fresh);
+    ASSERT_NE(created, nullptr);
+    EXPECT_TRUE(UP::isHolder(created));
+    EXPECT_FALSE(UP::isHolder(typed));
+    EXPECT_STREQ(created->getNameInDocument(), UP::HolderName);
+    EXPECT_STREQ(created->Label.getValue(), UP::HolderLabel);
+    EXPECT_EQ(width->getContainer(), created);
+    EXPECT_EQ(typed->getPropertyByName("width"), nullptr);
+    EXPECT_EQ(UP::holder(fresh), created);
+
+    // The second one goes to the same holder
+    App::Property* height = UP::createParameter(typed, "height", parse(typed, "2 mm"));
+    EXPECT_EQ(height->getContainer(), created);
+    EXPECT_EQ(fresh->getObjects().size(), 2U);
+
+    // A property is bound to a parameter with its qualified name, the holder with the bare one
+    EXPECT_EQ(UP::referenceTo(typed, width)->toString(), "UserParameters.width");
+    EXPECT_EQ(UP::referenceTo(created, width)->toString(), "width");
+    EXPECT_EQ(UP::referenceTo(typed, typed->getPropertyByName("Label")), nullptr);
+
+    EXPECT_TRUE(UP::removeParameter(height));
+    EXPECT_EQ(created->getPropertyByName("height"), nullptr);
+    EXPECT_FALSE(UP::removeParameter(typed->getPropertyByName("Label")));
+
+    App::GetApplication().closeDocument(name.c_str());
+}
+
+TEST_F(UserParameters, refusedParameterLeavesNoHolder)
+{
+    const std::string name = App::GetApplication().getUniqueDocumentName("userparamsrefused");
+    App::Document* fresh = App::GetApplication().newDocument(name.c_str(), "testUser");
+    App::DocumentObject* typed = fresh->addObject("App::VarSet", "Typed");
+
+    // The name, the value and the expression are refused at different steps of the creation
+    EXPECT_THROW(UP::createParameter(typed, "Label", parse(typed, "1 mm")), Base::Exception);
+    EXPECT_THROW(UP::createParameter(typed, "mm", parse(typed, "1 mm")), Base::Exception);
+    EXPECT_THROW(UP::createParameter(typed, "x", parse(typed, "missing + 1")), Base::Exception);
+    EXPECT_EQ(UP::findHolder(fresh), nullptr);
+    EXPECT_EQ(fresh->getObjects().size(), 1U);
+
+    // An object of another kind has the name of the holder
+    const std::string taken = App::GetApplication().getUniqueDocumentName("userparamstaken");
+    App::Document* other = App::GetApplication().newDocument(taken.c_str(), "testUser");
+    App::DocumentObject* feature = other->addObject("App::FeaturePython", UP::HolderName);
+    EXPECT_EQ(UP::findHolder(other), nullptr);
+    EXPECT_THROW(UP::holder(other), Base::RuntimeError);
+    EXPECT_THROW(UP::createParameter(feature, "x", parse(feature, "1 mm")), Base::RuntimeError);
+    EXPECT_EQ(other->getObjects().size(), 1U);
+
+    App::GetApplication().closeDocument(taken.c_str());
+    App::GetApplication().closeDocument(name.c_str());
+}
+
+TEST_F(UserParameters, valueTypedInAnObjectIsWrittenForTheHolder)
+{
+    // `Target` typed in Other means Other.Target; a user parameter keeps its meaning.
+    static_cast<App::PropertyDistance*>(target)->setValue(8.0);
+    UP::createParameter(other, "base", parse(other, "3 mm"));
+    auto value = parse(other, "Target + base");
+    UP::qualifyReferences(other, *value);
+    App::Property* sum = UP::createParameter(other, "sum", value);
+    ASSERT_EQ(sum->getContainer(), holder);
+    EXPECT_EQ(other->getPropertyByName("sum"), nullptr);
+    EXPECT_EQ(
+        holder->getExpression(App::ObjectIdentifier(*sum)).expression->toString(),
+        "Other.Target + base"
+    );
+    EXPECT_DOUBLE_EQ(static_cast<App::PropertyFloat*>(sum)->getValue(), 11.0);
+
+    // The local spelling too
+    App::Property* local = UP::createParameter(other, "local", parse(other, ".Target * 2"));
+    EXPECT_EQ(
+        holder->getExpression(App::ObjectIdentifier(*local)).expression->toString(),
+        "Other.Target * 2"
+    );
+}
+
+TEST_F(UserParameters, parametersOfOlderDocumentsAreStillUserParameters)
+{
+    // Before the holder existed, a parameter was a property of the object it was typed in.
+    App::DocumentObject* old = doc()->addObject("App::VarSet", "Old");
+    App::Property* legacy = old->addDynamicProperty("App::PropertyDistance", "legacy", UP::GroupName);
+    static_cast<App::PropertyDistance*>(legacy)->setValue(5.0);
+
+    EXPECT_TRUE(UP::isUserParameter(legacy));
+    EXPECT_EQ(UP::findParameter(doc(), "legacy"), legacy);
+    EXPECT_EQ(UP::checkName(doc(), "legacy", other), UP::NameStatus::UsedByParameter);
+    EXPECT_EQ(UP::referenceTo(other, legacy)->toString(), "Old.legacy");
+
+    auto expr = parse(other, "2 * legacy");
+    EXPECT_EQ(UP::qualifyReferences(other, *expr), 1);
+    EXPECT_EQ(expr->toString(), "2 * Old.legacy");
+
+    EXPECT_TRUE(UP::rename(legacy, "renamed"));
+    EXPECT_EQ(old->getPropertyByName("renamed"), legacy);
+    // A new parameter is not added to that object
+    App::Property* fresh = UP::createParameter(old, "fresh", parse(old, "1 mm"));
+    EXPECT_EQ(fresh->getContainer(), holder);
 }
 
 // NOLINTEND(readability-magic-numbers)

@@ -98,8 +98,8 @@ public:
      * Continue the assignment of a new user parameter, for a caller that knows the user typed
      * @p name in its field to name one (a quantity field in which `=` is pressed after a name).
      *
-     * When @p name is a name that a new user parameter of the edited object can take, the input
-     * becomes `name = ` and show() leaves the cursor after it, for the value to be typed.
+     * When @p name is a name that a new user parameter typed in the edited object can take, the
+     * input becomes `name = ` and show() leaves the cursor after it, for the value to be typed.
      * Otherwise nothing changes and false is returned. To be called before show(), for a
      * property that has no expression (the input would replace the text of the expression).
      */

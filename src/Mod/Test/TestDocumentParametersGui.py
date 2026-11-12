@@ -195,7 +195,7 @@ class TestDocumentParametersGui(unittest.TestCase):
     def testAddParameterWithBareUserParameter(self):
         def fill(dialog):
             holder = self.widget(QtWidgets.QComboBox, "comboBoxHolder", dialog)
-            holder.setCurrentIndex(0)  # a new variable set
+            holder.setCurrentIndex(holder.findData(""))  # a new variable set
             self.widget(QtWidgets.QLineEdit, "lineEditName", dialog).setText("depth")
             self.widget(QtWidgets.QLineEdit, "lineEditExpression", dialog).setText("myVar + 1 mm")
             Gui.updateGui()
@@ -295,12 +295,42 @@ class TestDocumentParametersGui(unittest.TestCase):
         self.assertEqual(self.doc.UndoNames[0], "Add parameter")
         self.assertIsNotNone(self.item("height"))
 
-    def testAddUserParameterToObject(self):
+    def holderTargets(self):
+        """The data of the holders that the Add dialog offers, and the one it proposes."""
+        state = {}
+
+        def read(dialog):
+            holder = self.widget(QtWidgets.QComboBox, "comboBoxHolder", dialog)
+            state["targets"] = [holder.itemData(i) for i in range(holder.count())]
+            state["current"] = holder.currentData()
+            self.widget(QtWidgets.QDialogButtonBox, "buttonBox", dialog).button(
+                QtWidgets.QDialogButtonBox.Cancel).click()
+
+        self.withModal(self.widget(QtWidgets.QPushButton, "pushButtonAdd").click, read)
+        return state["targets"], state["current"]
+
+    def groupTitles(self):
+        return [self.tree.topLevelItem(i).text(COLUMN_NAME)
+                for i in range(self.tree.topLevelItemCount())]
+
+    def userParameterNames(self):
+        user = self.group("User Parameters")
+        return [user.child(i).text(COLUMN_NAME) for i in range(user.childCount())]
+
+    def testOpeningCreatesNoHolder(self):
+        self.assertIsNone(self.doc.getObject("UserParameters"))
+        # the user parameters are offered although no object holds them yet, and are proposed
+        self.assertEqual(self.holderTargets(), (["UserParameters", "", "VarSet"], "UserParameters"))
+        self.assertIsNone(self.doc.getObject("UserParameters"))
+
+    def testAddUserParameterGoesToHolder(self):
+        # a row of a user parameter that an object of an older document still has: the new
+        # parameter does not go to that object
         self.tree.setCurrentItem(self.item("myVar"))
 
         def fill(dialog):
             holder = self.widget(QtWidgets.QComboBox, "comboBoxHolder", dialog)
-            self.assertEqual(holder.currentData(), "Feature")
+            self.assertEqual(holder.currentData(), "UserParameters")
             name = self.widget(QtWidgets.QLineEdit, "lineEditName", dialog)
             expression = self.widget(QtWidgets.QLineEdit, "lineEditExpression", dialog)
             buttons = self.widget(QtWidgets.QDialogButtonBox, "buttonBox", dialog)
@@ -309,19 +339,144 @@ class TestDocumentParametersGui(unittest.TestCase):
             Gui.updateGui()
             self.assertFalse(buttons.button(QtWidgets.QDialogButtonBox.Ok).isEnabled())
             name.setText("thickness")
+            self.widget(QtWidgets.QLineEdit, "lineEditComment", dialog).setText("of the plate")
             Gui.updateGui()
             buttons.button(QtWidgets.QDialogButtonBox.Ok).click()
 
+        before = [o.Name for o in self.doc.Objects]
         self.withModal(self.widget(QtWidgets.QPushButton, "pushButtonAdd").click, fill)
-        self.assertIn("thickness", self.feature.PropertiesList)
-        self.assertEqual(self.feature.getGroupOfProperty("thickness"), "UserParameters")
-        self.assertAlmostEqual(self.feature.thickness.Value, 5)
-        self.assertNotIn("thickness", dict(self.feature.ExpressionEngine))
+
+        # the first parameter creates the holder
+        self.assertNotIn("thickness", self.feature.PropertiesList)
+        holder = self.doc.getObject("UserParameters")
+        self.assertIsNotNone(holder)
+        self.assertEqual(holder.TypeId, "App::VarSet")
+        self.assertEqual(holder.Label, "User Parameters")
+        self.assertEqual(holder.getGroupOfProperty("thickness"), "UserParameters")
+        self.assertEqual(holder.getDocumentationOfProperty("thickness"), "of the plate")
+        self.assertAlmostEqual(holder.thickness.Value, 5)
+        self.assertNotIn("thickness", dict(holder.ExpressionEngine))
+
+        # it is listed with the user parameters, and the holder is no variable set of the list
+        self.assertEqual(self.userParameterNames(), ["myVar", "thickness"])
+        self.assertEqual(self.groupTitles(), ["User Parameters", "VarSet"])
+        self.assertEqual(self.tree.currentItem().text(COLUMN_NAME), "thickness")
+        self.assertEqual(self.holderTargets(), (["UserParameters", "", "VarSet"], "UserParameters"))
+
+        # the holder and its first parameter are one undo step
+        self.assertEqual(self.doc.UndoNames[0], "Add parameter")
+        self.widget(QtWidgets.QPushButton, "pushButtonUndo").click()
+        Gui.updateGui()
+        self.assertEqual([o.Name for o in self.doc.Objects], before)
+        self.assertEqual(self.userParameterNames(), ["myVar"])
+
+    def testSecondUserParameterKeepsHolder(self):
+        self.assertTrue(self.addDialogState("UserParameters", "thickness!", "5 mm"))
+        self.assertTrue(self.addDialogState("UserParameters", "twice!", "thickness * 2"))
+        holder = self.doc.getObject("UserParameters")
+        self.assertEqual(dict(holder.ExpressionEngine).get("twice"), "thickness * 2")
+        self.assertAlmostEqual(holder.twice.Value, 10)
+        # the name of a property of the holder
+        self.assertFalse(self.addDialogState("UserParameters", "Label", "5 mm"))
+        # undoing the second parameter keeps the holder and the first one
+        self.doc.undo()
+        self.assertIsNotNone(self.doc.getObject("UserParameters"))
+        self.assertIn("thickness", holder.PropertiesList)
+        self.assertNotIn("twice", holder.PropertiesList)
+
+    def testRefusedFirstUserParameterLeavesNoHolder(self):
+        # What only the holder can tell is found when the first parameter creates it: the dialog
+        # checked the name without it, and the value relative to another object (the variable
+        # set, which knows `width`).
+        before = [o.Name for o in self.doc.Objects]
+        for name, value in (("Label!", "5 mm"), ("twice!", "width * 2")):
+            self.assertTrue(self.addDialogState("UserParameters", name, value))
+            self.assertEqual([o.Name for o in self.doc.Objects], before, name)
+            self.assertNotEqual(self.widget(QtWidgets.QLabel, "labelMessage").text(), "", name)
+        self.assertIsNone(self.item("twice"))
+
+    def testParameterOfHolderIsEditedRenamedAndDeleted(self):
+        self.assertTrue(self.addDialogState("UserParameters", "thickness!", "5 mm"))
+        holder = self.doc.getObject("UserParameters")
+        other = self.doc.addObject("App::FeatureTest", "Other")
+        other.setExpression("Float", "UserParameters.thickness / 1 mm")
+        self.doc.recompute()
+
+        self.edit("thickness", COLUMN_VALUE, "7 mm")
+        self.assertAlmostEqual(holder.thickness.Value, 7)
+        self.assertAlmostEqual(other.Float, 7)
+
+        self.edit("thickness", COLUMN_EXPRESSION, "2 mm * 3")
+        self.assertEqual(dict(holder.ExpressionEngine).get("thickness"), "2 mm * 3")
+        self.assertAlmostEqual(other.Float, 6)
+
+        self.edit("thickness", COLUMN_NAME, "myVar")  # the name of a parameter of another object
+        self.assertIn("thickness", holder.PropertiesList)
+        self.edit("thickness", COLUMN_NAME, "plate")
+        self.assertIn("plate", holder.PropertiesList)
+        self.assertNotIn("thickness", holder.PropertiesList)
+        self.assertEqual(dict(other.ExpressionEngine).get("Float"), "UserParameters.plate / 1 mm")
+        self.assertIs(self.item("plate").parent(), self.group("User Parameters"))
+
+        self.widget(QtWidgets.QLineEdit, "lineEditFilter").setText("pla")
+        Gui.updateGui()
+        self.assertFalse(self.item("plate").isHidden())
+        self.assertTrue(self.item("myVar").isHidden())
+        self.widget(QtWidgets.QLineEdit, "lineEditFilter").setText("")
+        Gui.updateGui()
+
+        self.tree.setCurrentItem(self.item("plate"))
+        delete = self.widget(QtWidgets.QPushButton, "pushButtonDelete")
+        self.assertTrue(delete.isEnabled())
+        seen = []
+
+        def confirm(box):
+            seen.append(box.text())
+            box.button(QtWidgets.QMessageBox.Yes).click()
+
+        self.withModal(delete.click, confirm)
+        self.assertIn("Other.Float", seen[0])
+        self.assertNotIn("plate", holder.PropertiesList)
+        # the holder stays, without being listed, when its last parameter is deleted
+        self.assertIsNotNone(self.doc.getObject("UserParameters"))
+        self.assertEqual(self.userParameterNames(), ["myVar"])
+        self.assertEqual(self.groupTitles(), ["User Parameters", "VarSet"])
+
+    def testLegacyUserParameterIsListedAndRenamed(self):
+        # a document made before the holder existed: `myVar` stays on the object that has it
+        other = self.doc.addObject("App::FeatureTest", "Other")
+        other.setExpression("Float", "Feature.myVar / 1 mm")
+        self.doc.recompute()
+        item = self.item("myVar")
+        self.assertIs(item.parent(), self.group("User Parameters"))
+        self.assertIn(self.feature.Label, item.toolTip(COLUMN_NAME))
+
+        self.edit("myVar", COLUMN_NAME, "legacyVar")
+        self.assertIn("legacyVar", self.feature.PropertiesList)
+        self.assertNotIn("myVar", self.feature.PropertiesList)
+        self.assertEqual(self.feature.getGroupOfProperty("legacyVar"), "UserParameters")
+        self.assertEqual(dict(other.ExpressionEngine).get("Float"), "Feature.legacyVar / 1 mm")
+        self.assertIs(self.item("legacyVar").parent(), self.group("User Parameters"))
+        self.assertIsNone(self.doc.getObject("UserParameters"))  # nothing is moved
+
+    def testOtherPropertiesOfHolderAreListedApart(self):
+        self.assertTrue(self.addDialogState("UserParameters", "thickness!", "5 mm"))
+        holder = self.doc.getObject("UserParameters")
+        holder.addProperty("App::PropertyLength", "extra", "Base")
+        QtCore.QMetaObject.invokeMethod(self.dialog, "refresh")
+        Gui.updateGui()
+        self.assertIs(self.item("thickness").parent(), self.group("User Parameters"))
+        extra = self.item("extra")
+        self.assertIsNotNone(extra)
+        self.assertEqual(extra.parent().text(COLUMN_NAME), "User Parameters (other properties)")
+        # the holder is no variable set to add a parameter to: Add from there adds a user parameter
+        self.tree.setCurrentItem(extra)
+        self.assertEqual(self.holderTargets(), (["UserParameters", "", "VarSet"], "UserParameters"))
 
     def testAddToNewVarSet(self):
         def fill(dialog):
             holder = self.widget(QtWidgets.QComboBox, "comboBoxHolder", dialog)
-            holder.setCurrentIndex(0)  # a new variable set
+            holder.setCurrentIndex(holder.findData(""))  # a new variable set
             self.assertEqual(holder.currentData(), "")
             self.widget(QtWidgets.QLineEdit, "lineEditName", dialog).setText("angle")
             self.widget(QtWidgets.QLineEdit, "lineEditExpression", dialog).setText("30 deg")
@@ -364,23 +519,24 @@ class TestDocumentParametersGui(unittest.TestCase):
 
     def testUserParameterNamesFollowTheAppRules(self):
         # the same rules as `name = value` typed in an input (App::UserParameters::checkName)
-        self.assertFalse(self.addDialogState("Feature", "VarSet", "5 mm"))  # an object name
-        self.assertFalse(self.addDialogState("Feature", "_hidden", "5 mm"))  # reserved
-        self.assertTrue(self.addDialogState("Feature", "fresh", "5 mm"))
-        self.assertNotIn("fresh", self.feature.PropertiesList)  # cancelled
+        self.assertFalse(self.addDialogState("UserParameters", "VarSet", "5 mm"))  # an object name
+        self.assertFalse(self.addDialogState("UserParameters", "_hidden", "5 mm"))  # reserved
+        self.assertTrue(self.addDialogState("UserParameters", "fresh", "5 mm"))
+        self.assertIsNone(self.doc.getObject("UserParameters"))  # cancelled
 
     def testUserParameterLengthIsSignedDistance(self):
-        self.assertTrue(self.addDialogState("Feature", "offset!", "-5 mm"))
-        self.assertEqual(self.feature.getTypeIdOfProperty("offset"), "App::PropertyDistance")
-        self.assertEqual(self.feature.getGroupOfProperty("offset"), "UserParameters")
-        self.assertAlmostEqual(self.feature.offset.Value, -5)
+        self.assertTrue(self.addDialogState("UserParameters", "offset!", "-5 mm"))
+        holder = self.doc.getObject("UserParameters")
+        self.assertEqual(holder.getTypeIdOfProperty("offset"), "App::PropertyDistance")
+        self.assertEqual(holder.getGroupOfProperty("offset"), "UserParameters")
+        self.assertAlmostEqual(holder.offset.Value, -5)
 
     def testUnitWithoutPropertyTypeIsRefused(self):
         # a plain App::PropertyQuantity would lose the unit on save
         self.assertFalse(self.addDialogState("VarSet", "odd", "2 mm * 1 N * 1 N"))
-        self.assertFalse(self.addDialogState("Feature", "odd", "2 mm * 1 N * 1 N"))
+        self.assertFalse(self.addDialogState("UserParameters", "odd", "2 mm * 1 N * 1 N"))
         self.assertNotIn("odd", self.varset.PropertiesList)
-        self.assertNotIn("odd", self.feature.PropertiesList)
+        self.assertIsNone(self.doc.getObject("UserParameters"))
 
     def testRenameUserParameterFollowsTheAppRules(self):
         self.edit("myVar", COLUMN_NAME, "VarSet")

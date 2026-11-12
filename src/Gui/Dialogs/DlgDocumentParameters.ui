@@ -94,7 +94,7 @@
      <item>
       <widget class="QPushButton" name="pushButtonAdd">
        <property name="toolTip">
-        <string>Add a new parameter to a variable set or to an object</string>
+        <string>Add a user parameter, or a parameter to a variable set</string>
        </property>
        <property name="text">
         <string>Add…</string>

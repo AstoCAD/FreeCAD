@@ -11,6 +11,7 @@
 #include <App/ExpressionParser.h>
 #include <App/ObjectIdentifier.h>
 #include <App/PropertyUnits.h>
+#include <App/UserParameters.h>
 #include <Base/Unit.h>
 #include <Gui/Dialogs/DocumentParameters.h>
 #include <src/App/InitApplication.h>
@@ -51,6 +52,13 @@ protected:
         App::ObjectIdentifier path(*obj->getPropertyByName(prop));
         std::shared_ptr<App::Expression> expr(App::ExpressionParser::parse(obj, text));
         obj->setExpression(path, expr);
+    }
+
+    /// A user parameter as typed in `feature`: it is created on the holder of the document.
+    App::Property* createUserParameter(const char* name, const char* value)
+    {
+        std::shared_ptr<App::Expression> expr(App::ExpressionParser::parse(feature, value));
+        return App::UserParameters::createParameter(feature, name, expr);
     }
 
     static const Entry* find(const std::vector<Entry>& entries, const std::string& name)
@@ -94,13 +102,101 @@ TEST_F(DocumentParameters, collectsUserParametersAndVarSets)
 
 TEST_F(DocumentParameters, userParameterOfVarSetIsListedOnce)
 {
-    varSet->addDynamicProperty("App::PropertyLength", "shared", "UserParameters");
+    // The user parameters are properties of a variable set, the holder of the document: a
+    // property of the group UserParameters is a user parameter in a variable set too, as it is
+    // for the expressions (App::UserParameters::getParameters), and is not listed again as a
+    // property of that variable set.
+    auto* shared = varSet->addDynamicProperty("App::PropertyLength", "shared", "UserParameters");
 
     std::vector<Entry> entries = Gui::Parameters::collect(doc, false);
 
     ASSERT_EQ(entries.size(), 1U);
-    EXPECT_EQ(entries[0].category, Category::VarSet);
+    EXPECT_EQ(entries[0].category, Category::User);
+    EXPECT_EQ(entries[0].objectName, "VarSet");
+    EXPECT_EQ(Gui::Parameters::collectUserParameters(doc), std::vector<App::Property*> {shared});
+}
+
+TEST_F(DocumentParameters, listingCreatesNoHolder)
+{
+    EXPECT_TRUE(Gui::Parameters::collect(doc, true).empty());
     EXPECT_TRUE(Gui::Parameters::collectUserParameters(doc).empty());
+    EXPECT_EQ(Gui::Parameters::checkName(other, "fresh", true), NameError::None);
+
+    EXPECT_EQ(App::UserParameters::findHolder(doc), nullptr);
+}
+
+TEST_F(DocumentParameters, parametersOfHolderAreUserParameters)
+{
+    feature->addDynamicProperty("App::PropertyLength", "legacy", "UserParameters");
+    App::Property* width = createUserParameter("width", "5 mm");
+    App::DocumentObject* holder = App::UserParameters::findHolder(doc);
+    ASSERT_NE(holder, nullptr);
+
+    std::vector<Entry> entries = Gui::Parameters::collect(doc, false);
+
+    // the holder is a variable set, but is not listed as one
+    ASSERT_EQ(entries.size(), 2U);
+    EXPECT_EQ(entries[0].category, Category::User);
+    EXPECT_EQ(entries[0].name, "legacy");
+    EXPECT_EQ(entries[0].objectName, "Feature");
+    EXPECT_EQ(entries[1].category, Category::User);
+    EXPECT_EQ(entries[1].name, "width");
+    EXPECT_EQ(entries[1].objectName, App::UserParameters::HolderName);
+    EXPECT_EQ(entries[1].objectLabel, App::UserParameters::HolderLabel);
+    EXPECT_TRUE(entries[1].isDynamic);
+    EXPECT_TRUE(entries[1].valueEditable);
+    EXPECT_EQ(Gui::Parameters::findUserParameter(doc, "width"), width);
+}
+
+TEST_F(DocumentParameters, otherPropertiesOfHolderAreVarSetParameters)
+{
+    createUserParameter("width", "5 mm");
+    App::DocumentObject* holder = App::UserParameters::findHolder(doc);
+    ASSERT_NE(holder, nullptr);
+    holder->addDynamicProperty("App::PropertyLength", "extra", "Base");
+
+    std::vector<Entry> entries = Gui::Parameters::collect(doc, false);
+
+    ASSERT_EQ(entries.size(), 2U);
+    EXPECT_EQ(entries[0].category, Category::User);
+    EXPECT_EQ(entries[0].name, "width");
+    EXPECT_EQ(entries[1].category, Category::VarSet);
+    EXPECT_EQ(entries[1].name, "extra");
+    EXPECT_EQ(entries[1].objectName, App::UserParameters::HolderName);
+}
+
+TEST_F(DocumentParameters, checkNameWithHolder)
+{
+    App::Property* width = createUserParameter("width", "5 mm");
+    App::DocumentObject* holder = App::UserParameters::findHolder(doc);
+    ASSERT_NE(holder, nullptr);
+    holder->addDynamicProperty("App::PropertyLength", "extra", "Base");
+
+    // unique in the document, whatever the object in which the name is typed
+    EXPECT_EQ(Gui::Parameters::checkName(other, "width", true), NameError::ExistsInDocument);
+    // a new user parameter is a property of the holder
+    EXPECT_EQ(Gui::Parameters::checkName(other, "extra", true), NameError::ExistsInObject);
+    EXPECT_EQ(Gui::Parameters::checkName(holder, "width", true, width), NameError::None);
+    EXPECT_EQ(Gui::Parameters::checkName(other, "fresh", true), NameError::None);
+    // the properties of another variable set are its own
+    EXPECT_EQ(Gui::Parameters::checkName(varSet, "width", false), NameError::None);
+    EXPECT_EQ(Gui::Parameters::checkName(varSet, "extra", false), NameError::None);
+}
+
+TEST_F(DocumentParameters, findReferencesToParameterOfHolder)
+{
+    createUserParameter("factor", "2");
+    createUserParameter("unused", "3");
+    App::DocumentObject* holder = App::UserParameters::findHolder(doc);
+    ASSERT_NE(holder, nullptr);
+    setExpression(feature, "Float", "UserParameters.factor * 2");
+
+    auto refs = Gui::Parameters::findReferences(holder, "factor");
+    ASSERT_EQ(refs.size(), 1U);
+    EXPECT_EQ(refs[0].objectName, "Feature");
+    EXPECT_EQ(refs[0].path, "Float");
+
+    EXPECT_TRUE(Gui::Parameters::findReferences(holder, "unused").empty());
 }
 
 TEST_F(DocumentParameters, expressionIsShownAndValueIsNotEditable)

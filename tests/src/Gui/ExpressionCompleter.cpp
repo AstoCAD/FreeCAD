@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
+#include <memory>
 #include <string>
 
 #include <QAbstractProxyModel>
@@ -9,8 +10,10 @@
 #include <App/Application.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
+#include <App/Expression.h>
 #include <App/Property.h>
 #include <App/PropertyUnits.h>
+#include <App/UserParameters.h>
 #include <Base/Quantity.h>
 #include <Base/Unit.h>
 #include <Base/UnitsApi.h>
@@ -23,6 +26,9 @@
 namespace
 {
 /// A document with a user parameter `myVar` (23 mm) on `Holder` and an expression owner `Other`.
+/// `Holder` is an ordinary object, as in documents made before user parameters were created on
+/// the variable set `UserParameters` of the document; test_ParameterOfTheDocumentHolder() covers
+/// that one.
 class ScopedParameterDocument
 {
 public:
@@ -214,6 +220,41 @@ private Q_SLOTS:
         const auto rows = completions(edit, QStringLiteral("myV"));
         QVERIFY(hasCompletion(rows, QStringLiteral("myVar")));
         QCOMPARE(countBareParameterRows(rows), 0);
+    }
+
+    void test_ParameterOfTheDocumentHolder()  // NOLINT
+    {
+        // A parameter is created on the variable set `UserParameters` of the document, whatever
+        // the object it is typed in: it is offered there by its bare name, and shown with the
+        // holder.
+        ScopedParameterDocument doc;
+        const App::Property* width = App::UserParameters::createParameter(
+            doc.other,
+            "width",
+            std::shared_ptr<App::Expression>(App::Expression::parse(doc.other, "5 mm")),
+            Base::Unit::Length
+        );
+        App::DocumentObject* holder = App::UserParameters::findHolder(doc.document);
+        QVERIFY(holder);
+        QVERIFY(width && width->getContainer() == holder);
+
+        Gui::ExpressionLineEdit edit;
+        edit.setDocumentObject(doc.other);
+        const Base::Quantity value(5.0, Base::Unit::Length);
+        const QString display = QStringLiteral("width (UserParameters.width = ")
+            + QString::fromStdString(value.getUserString()) + QLatin1Char(')');
+        const auto rows = completions(edit, QStringLiteral("wid"));
+        const Row* row = findDisplay(rows, display);
+        QVERIFY2(row, "the parameter of the holder is listed by its bare name");
+        QCOMPARE(row->completion, QStringLiteral("width"));
+        QCOMPARE(countBareParameterRows(rows), 1);
+
+        // In the holder itself the parameter is one of its properties: listed once, as such.
+        Gui::ExpressionLineEdit own;
+        own.setDocumentObject(holder);
+        const auto ownRows = completions(own, QStringLiteral("wid"));
+        QVERIFY(hasCompletion(ownRows, QStringLiteral("width")));
+        QCOMPARE(countBareParameterRows(ownRows), 0);
     }
 
     void test_ShadowedOrAmbiguousNameNotOffered()  // NOLINT

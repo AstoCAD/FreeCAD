@@ -2,11 +2,16 @@
 """GUI tests for quick user-parameter input (`myVar = 23 mm`) in expression-capable fields.
 
 A bound Gui::QuantitySpinBox (as in task panels, the property editor and the Sketcher datum
-dialog) and its formula dialog create the parameter in the group 'UserParameters' of the owner
-of the bound property; `myVar` typed for another object resolves to that parameter.
+dialog) and its formula dialog create the parameter in the group 'UserParameters' of the variable
+set 'UserParameters' of the document, which is created with the first parameter and is not shown
+in the tree, and bind the property to it; `myVar` typed for any object resolves to that parameter.
 """
 
+import os
+import shutil
+import tempfile
 import unittest
+import zipfile
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -22,6 +27,8 @@ class TestUserParametersGui(unittest.TestCase):
     def setUp(self):
         self.doc = App.newDocument("UserParametersGui")
         self.doc.UndoMode = 1
+        # Two objects with a property to type in. The parameters are not created on them but on
+        # the variable set `UserParameters` of the document, see parameters().
         self.holder = self.doc.addObject("App::VarSet", "Holder")
         self.holder.addProperty("App::PropertyLength", "Length", "Base")
         self.holder.Length = 1
@@ -80,15 +87,47 @@ class TestUserParametersGui(unittest.TestCase):
     def lineEdit(self, editor=None):
         return (editor or self.spin).findChild(QtWidgets.QLineEdit)
 
+    def parameters(self):
+        """The object holding the user parameters of the document, None when it has none."""
+        return self.doc.getObject("UserParameters")
+
+    def commitText(self, text, editor=None):
+        """Commit @p text in a field, as pasted and confirmed with Return."""
+        editor = editor or self.spin
+        editor.setFocus()
+        self.lineEdit(editor).setText(text)
+        QtTest.QTest.keyClick(editor, QtCore.Qt.Key_Return)
+        Gui.updateGui()
+
+    def reopen(self, withViewProperties=True):
+        """Save the document and open it again, optionally as saved without the GUI."""
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, "UserParametersGui.FCStd")
+        self.doc.saveAs(path)
+        App.closeDocument(self.doc.Name)
+        if not withViewProperties:
+            saved = path
+            path = os.path.join(folder, "UserParametersApp.FCStd")
+            with zipfile.ZipFile(saved) as source:
+                with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as target:
+                    for item in source.infolist():
+                        if item.filename != "GuiDocument.xml":
+                            target.writestr(item, source.read(item.filename))
+        self.doc = App.openDocument(path)
+        Gui.updateGui()
+
     def test_dialog_assignment_creates_parameter_and_binds(self):
         self.bind(self.holder, "Length")
         self.openDialog().setPlainText("myVar = 23 mm")
         Gui.updateGui()
         self.acceptDialog()
-        self.assertIn("myVar", self.holder.PropertiesList)
-        self.assertEqual(self.holder.getGroupOfProperty("myVar"), "UserParameters")
-        self.assertAlmostEqual(self.holder.myVar.Value, 23.0)
-        self.assertEqual(self.expressions(self.holder)["Length"], "myVar")
+        parameters = self.parameters()
+        self.assertIsNotNone(parameters)
+        self.assertNotIn("myVar", self.holder.PropertiesList)
+        self.assertEqual(parameters.getGroupOfProperty("myVar"), "UserParameters")
+        self.assertAlmostEqual(parameters.myVar.Value, 23.0)
+        self.assertEqual(self.expressions(self.holder)["Length"], "UserParameters.myVar")
         self.doc.recompute()
         self.assertAlmostEqual(self.holder.Length.Value, 23.0)
 
@@ -100,7 +139,20 @@ class TestUserParametersGui(unittest.TestCase):
         self.acceptDialog()
         self.assertEqual(len(self.doc.UndoNames), undo_count + 1, self.doc.UndoNames)
         self.doc.undo()
-        self.assertNotIn("myVar", self.holder.PropertiesList)
+        self.assertEqual(self.doc.getUserParameters(), [])
+        self.assertIsNone(self.parameters())
+        self.assertNotIn("Length", self.expressions(self.holder))
+
+    def test_dialog_cancel_creates_nothing(self):
+        self.bind(self.holder, "Length")
+        self.openDialog().setPlainText("myVar = 23 mm")
+        Gui.updateGui()
+        self.assertTrue(self.okButton().isEnabled())
+        self.dialog.reject()
+        self.dialog = None
+        Gui.updateGui()
+        self.assertEqual(self.doc.getUserParameters(), [])
+        self.assertIsNone(self.parameters())
         self.assertNotIn("Length", self.expressions(self.holder))
 
     def test_dialog_assignment_whose_binding_fails_leaves_no_parameter(self):
@@ -110,6 +162,7 @@ class TestUserParametersGui(unittest.TestCase):
         Gui.updateGui()
         self.dialog.accept()  # even if the dialog would refuse it up front
         Gui.updateGui()
+        self.assertEqual(self.doc.getUserParameters(), [])
         self.assertNotIn("myVar", self.holder.PropertiesList)
         self.assertNotIn("Length", self.expressions(self.holder))
 
@@ -119,8 +172,8 @@ class TestUserParametersGui(unittest.TestCase):
         self.openDialog().setPlainText("2 * myVar")
         Gui.updateGui()
         self.acceptDialog()
-        self.assertEqual(self.expressions(self.other)["Target"], "2 * Holder.myVar")
-        self.assertIn(self.holder, self.other.OutList)
+        self.assertEqual(self.expressions(self.other)["Target"], "2 * UserParameters.myVar")
+        self.assertIn(self.parameters(), self.other.OutList)
         # Reopening shows the name as typed.
         self.assertEqual(self.openDialog().toPlainText(), "2 * myVar")
 
@@ -152,8 +205,8 @@ class TestUserParametersGui(unittest.TestCase):
         QtTest.QTest.keyClicks(text, "7 mm")
         Gui.updateGui()
         self.acceptDialog()
-        self.assertEqual(self.other.getGroupOfProperty("width"), "UserParameters")
-        self.assertEqual(self.expressions(self.other).get("Target"), "width")
+        self.assertEqual(self.parameters().getGroupOfProperty("width"), "UserParameters")
+        self.assertEqual(self.expressions(self.other).get("Target"), "UserParameters.width")
 
     def test_dialog_keeps_cursor_after_prefilled_assignment(self):
         # The value is typed next: a selected `width = ` would be replaced by it.
@@ -277,7 +330,7 @@ class TestUserParametersGui(unittest.TestCase):
         QtTest.QTest.keyClicks(self.spin, "2*myVar")
         QtTest.QTest.keyClick(self.spin, QtCore.Qt.Key_Return)
         Gui.updateGui()
-        self.assertEqual(self.expressions(self.other).get("Target"), "2 * Holder.myVar")
+        self.assertEqual(self.expressions(self.other).get("Target"), "2 * UserParameters.myVar")
 
     def test_spinbox_assignment_from_pasted_text(self):
         self.bind(self.other, "Target")
@@ -291,13 +344,78 @@ class TestUserParametersGui(unittest.TestCase):
         self.lineEdit().setText("w = 5 mm")
         QtTest.QTest.keyClick(self.spin, QtCore.Qt.Key_Return)
         Gui.updateGui()
-        self.assertEqual(self.other.getGroupOfProperty("w"), "UserParameters")
-        self.assertEqual(self.expressions(self.other).get("Target"), "w")
+        self.assertEqual(self.parameters().getGroupOfProperty("w"), "UserParameters")
+        self.assertEqual(self.expressions(self.other).get("Target"), "UserParameters.w")
         # no error after a successful commit (the nested validation parsed `w = 5 mm`)
         self.assertEqual(rejected, [])
         self.assertFalse(self.lineEdit().property("numericInputInvalid"))
         self.doc.undo()
         self.assertNotIn("w", self.other.PropertiesList)
+        self.assertEqual(self.doc.getUserParameters(), [])
+        self.assertNotIn("Target", self.expressions(self.other))
+
+    def test_first_assignment_creates_holder_hidden_in_tree(self):
+        self.assertIsNone(self.parameters())
+        self.bind(self.other, "Target")
+        self.commitText("w = 5 mm")
+        parameters = self.parameters()
+        self.assertIsNotNone(parameters)
+        self.assertEqual(parameters.TypeId, "App::VarSet")
+        self.assertEqual(parameters.Label, "User Parameters")
+        self.assertFalse(parameters.ViewObject.ShowInTree)
+        self.assertEqual(self.doc.getUserParameters(), [(parameters, "w")])
+        # The holder is created with its first parameter: undoing the input removes both.
+        self.doc.undo()
+        self.assertIsNone(self.parameters())
+        self.assertEqual(self.doc.getUserParameters(), [])
+        self.doc.redo()
+        parameters = self.parameters()
+        self.assertIsNotNone(parameters)
+        self.assertFalse(parameters.ViewObject.ShowInTree)
+        self.assertEqual(self.doc.getUserParameters(), [(parameters, "w")])
+
+    def test_second_parameter_reuses_holder(self):
+        self.bind(self.other, "Target")
+        self.commitText("depth = 1 mm")
+        parameters = self.parameters()
+        self.assertIsNotNone(parameters)
+        # The user shows the holder in the tree: creating a parameter does not hide it again.
+        parameters.ViewObject.ShowInTree = True
+        second = Gui.UiLoader().createWidget("Gui::QuantitySpinBox")
+        self.widget.layout().addWidget(second)
+        self.bind(self.holder, "Length", second)
+        self.commitText("height = 2 mm", second)
+        found = self.doc.getUserParameters()
+        self.assertEqual(sorted(name for _, name in found), ["depth", "height"])
+        self.assertEqual([obj for obj, _ in found], [parameters, parameters])
+        self.assertEqual(
+            [obj.Name for obj in self.doc.Objects if obj.Name.startswith("UserParameters")],
+            ["UserParameters"],
+        )
+        self.assertEqual(self.expressions(self.holder).get("Length"), "UserParameters.height")
+        self.assertTrue(parameters.ViewObject.ShowInTree)
+        # Undoing the second parameter leaves the holder with the first one.
+        self.doc.undo()
+        self.assertEqual(self.doc.getUserParameters(), [(self.parameters(), "depth")])
+
+    def test_holder_created_by_script_is_hidden_in_tree(self):
+        self.doc.addUserParameter(self.other, "w", "5 mm")
+        self.assertFalse(self.parameters().ViewObject.ShowInTree)
+
+    def test_reopened_document_keeps_choice_to_show_holder(self):
+        self.doc.addUserParameter(self.other, "w", "5 mm")
+        self.reopen()
+        self.assertFalse(self.parameters().ViewObject.ShowInTree)
+        self.parameters().ViewObject.ShowInTree = True
+        self.reopen()
+        self.assertTrue(self.parameters().ViewObject.ShowInTree)
+
+    def test_holder_of_document_saved_without_gui_is_hidden_in_tree(self):
+        # No view properties are saved without the GUI: the holder is new to it.
+        self.doc.addUserParameter(self.other, "w", "5 mm")
+        self.parameters().ViewObject.ShowInTree = True
+        self.reopen(withViewProperties=False)
+        self.assertFalse(self.parameters().ViewObject.ShowInTree)
 
     def assert_spinbox_failed_binding_leaves_no_parameter(self):
         # myVar = Length * 2 is valid, binding Length to myVar is a cycle
@@ -306,11 +424,14 @@ class TestUserParametersGui(unittest.TestCase):
         self.lineEdit().setText("myVar = Length * 2")
         QtTest.QTest.keyClick(self.spin, QtCore.Qt.Key_Return)
         Gui.updateGui()
+        self.assertEqual(self.doc.getUserParameters(), [])
         self.assertNotIn("myVar", self.holder.PropertiesList)
         self.assertNotIn("Length", self.expressions(self.holder))
 
     def test_spinbox_failed_binding_leaves_no_parameter(self):
         self.assert_spinbox_failed_binding_leaves_no_parameter()
+        # The transaction of the input is aborted: the holder created for it is gone as well.
+        self.assertIsNone(self.parameters())
 
     def test_spinbox_failed_binding_in_open_transaction_leaves_no_parameter(self):
         # as in a task dialog: its booked transaction is used and stays open, so nothing is
@@ -337,3 +458,4 @@ class TestUserParametersGui(unittest.TestCase):
         Gui.updateGui()
         self.assertNotIn("Target", self.expressions(self.other))
         self.assertEqual(self.doc.getUserParameters(), [])
+        self.assertIsNone(self.parameters())

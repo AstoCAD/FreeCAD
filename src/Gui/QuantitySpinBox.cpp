@@ -520,10 +520,11 @@ void QuantitySpinBox::validateInput()
 }
 
 // User parameters (App/UserParameters.h), bound fields only:
-// - `myVar = 23 mm` creates the user parameter `myVar` on the owner of the bound property and
-//   binds the property to it;
-// - an input that is only valid because it names a user parameter of another object (`2*myVar`)
-//   is bound as an expression instead of being reduced to its value.
+// - `myVar = 23 mm` creates the user parameter `myVar` on the object holding the user parameters
+//   of the document (the variable set `UserParameters`, created with the first parameter) and
+//   binds the property to it (`UserParameters.myVar`);
+// - an input that is only valid because it names a user parameter (`2*myVar`) is bound as an
+//   expression instead of being reduced to its value.
 // Any other input returns false and keeps its existing handling.
 bool QuantitySpinBox::commitUserParameterInput(const QString& text)
 {
@@ -608,9 +609,15 @@ bool QuantitySpinBox::commitUserParameterInput(const QString& text)
     try {
         std::shared_ptr<App::Expression> binding = result.expression;
         if (assignment) {
-            App::UserParameters::createParameter(owner, name, result.expression, d->unit);
+            const App::Property* parameter
+                = App::UserParameters::createParameter(owner, name, result.expression, d->unit);
             created = true;
-            binding = App::ExpressionParser::parse(owner, name.c_str());
+            // The parameter is a property of the holder, not of the owner: its bare name does
+            // not resolve from the owner.
+            binding = App::UserParameters::referenceTo(owner, parameter);
+            if (!binding) {
+                throw Base::RuntimeError("Cannot refer to the user parameter '" + name + "'");
+            }
         }
         const std::string error = owner->ExpressionEngine.validateExpression(path, binding);
         if (!error.empty()) {
@@ -625,9 +632,11 @@ bool QuantitySpinBox::commitUserParameterInput(const QString& text)
             doc->abortTransaction();
         }
         // Not recorded when no transaction could be opened (locked, or a transaction in
-        // progress), and the booked transaction of a task dialog stays open.
-        if (created && owner->getDynamicPropertyByName(name.c_str())) {
-            owner->removeDynamicProperty(name.c_str());
+        // progress), and the booked transaction of a task dialog stays open. Looked up by name:
+        // aborting the transaction deleted the property. A holder that was created for this
+        // parameter is only removed by the abort; otherwise it stays, empty.
+        if (created) {
+            App::UserParameters::removeParameter(App::UserParameters::findParameter(doc, name));
         }
         reject(QString::fromUtf8(e.what()));
         return true;
