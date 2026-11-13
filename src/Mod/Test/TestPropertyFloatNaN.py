@@ -129,6 +129,23 @@ class TestPropertyFloatNaN(unittest.TestCase):
                 self.obj.setExpression(prop, None)
                 self.doc.recompute()
 
+    def testExpressionOnAListItemGivingNaNFailsTheRecompute(self):
+        # an item bound to an expression follows the rule of a float property
+        self.obj.addProperty("App::PropertyFloatList", "Values", "Values")
+        self.obj.Values = [1.0, 2.0, 3.0]
+        for expression in ("sqrt(-1)", "asin(2)", "sqrt(-1) * 1 mm"):
+            with self.subTest(expression=expression):
+                self.obj.setExpression(".Values[1]", expression)
+                self.doc.recompute()
+                self.assertIn("Invalid", self.obj.State)
+                self.assertEqual(self.obj.Values, [1.0, 2.0, 3.0])
+                self.obj.setExpression(".Values[1]", None)
+                self.doc.recompute()
+        self.obj.setExpression(".Values[1]", "7 mm")
+        self.doc.recompute()
+        self.assertNotIn("Invalid", self.obj.State)
+        self.assertEqual(self.obj.Values, [1.0, 7.0, 3.0])
+
     def testNaNFromAFileStillLoads(self):
         for index, typeName in enumerate(self.TYPES):
             prop = "P%d" % index
@@ -277,6 +294,7 @@ class TestPropertyVectorNaN(unittest.TestCase):
         for path in (
             "V0.x",
             "V2.z",
+            "Points[1].x",
             "Plm.Base.x",
             "Plm.Rotation.Angle",
             "Plm.Rotation.Axis.x",
