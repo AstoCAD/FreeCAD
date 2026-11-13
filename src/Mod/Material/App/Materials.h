@@ -97,7 +97,7 @@ public:
     }
     double getFloat() const
     {
-        return getValue().toFloat();
+        return getValue().toDouble();
     }
     const Base::Quantity& getQuantity() const;
     QString getURL() const

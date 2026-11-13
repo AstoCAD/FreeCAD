@@ -298,6 +298,23 @@ class MaterialSaveTestCases(unittest.TestCase):
                 density = savedArray.getValue(0, 1).getValueAs("kg/m^3").Value
                 self.assertAlmostEqual(density, 7850.123456789, places=9)
 
+    def testSaveFloatsWithFullPrecision(self):
+        """Float values are kept and saved in double precision"""
+        uuids = Materials.UUIDs()
+        material = Materials.Material()
+        material.addPhysicalModel(uuids.TestModel)
+        material.addPhysicalModel(uuids.IsotropicLinearElastic)
+        material.setPhysicalValue("TestFloat", "0.123456789012345")
+        material.setPhysicalValue("PoissonRatio", "0.3")
+        self.assertEqual(material.getPhysicalValue("TestFloat"), 0.123456789012345)
+        self.assertEqual(material.getPhysicalValue("PoissonRatio"), 0.3)
+
+        self.MaterialManager.save("Custom", material, "Floats.FCMat")
+        self.MaterialManager.refresh()
+        saved = self.MaterialManager.getMaterialByPath("Floats.FCMat", "Custom")
+        self.assertEqual(saved.getPhysicalValue("TestFloat"), 0.123456789012345)
+        self.assertEqual(saved.getPhysicalValue("PoissonRatio"), 0.3)
+
     def testSaveChildOfParentWithSpecialName(self):
         """A card inheriting from a card named with YAML special characters can be read back"""
         uuids = Materials.UUIDs()
