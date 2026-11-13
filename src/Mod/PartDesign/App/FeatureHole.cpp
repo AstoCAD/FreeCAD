@@ -1546,6 +1546,10 @@ void Hole::onChanged(const App::Property* prop)
     else if (prop == &ThreadFit) {
         updateDiameterParam();
     }
+    else if (prop == &ThreadClass) {
+        // the clearance of a modeled thread depends on the class
+        updateDiameterParam();
+    }
     else if (prop == &Diameter) {
         // a changed diameter means we also need to check the hole cut
         // because the hole cut diameter must not be <= than the diameter
