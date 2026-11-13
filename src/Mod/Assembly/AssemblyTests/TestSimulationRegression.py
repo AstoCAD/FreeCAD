@@ -455,3 +455,30 @@ class TestSimulationRegression(unittest.TestCase):
                 self.assertEqual(simulation.Assembly, assembly)
                 self.assertEqual(simulation.Proxy.getAssembly(simulation), assembly)
                 self.assertEqual(Dynamics.inputs_for_study(simulation), [])
+
+    def test_global_input_membership_invalidates_studies_and_undo_restores(self):
+        # The tree moves inputs between a study and the Simulations group with
+        # plain removeObject/addObject; the App group alone invalidates studies.
+        import UtilsAssembly
+        with self.mechanism() as f:
+            body = f.box()
+            study, other = f.study(False), f.study(False)
+            group = UtilsAssembly.getSimulationGroup(f.assembly)
+            load = Dynamics.create_load(study, "Force", body)
+            data = {"SchemaVersion": 2, "Times": [0], "Bodies": {}}
+            f.doc.UndoMode = 1
+            for source, target in ((study, group), (group, study)):
+                with self.subTest(target=target.Name):
+                    for item in (study, other):
+                        Dynamics.save_results(item, data)
+                    f.doc.openTransaction("Move input")
+                    source.removeObject(load)
+                    target.addObject(load)
+                    f.doc.commitTransaction()
+                    self.assertEqual([item.Status for item in (study, other)], ["NotRun"] * 2)
+                    f.doc.undo()
+                    self.assertEqual([item.Status for item in (study, other)], ["Complete"] * 2)
+                    self.assertEqual(Dynamics.input_owner(load), source)
+                    f.doc.redo()
+                    self.assertEqual(Dynamics.input_owner(load), target)
+                    self.assertEqual([item.Status for item in (study, other)], ["NotRun"] * 2)

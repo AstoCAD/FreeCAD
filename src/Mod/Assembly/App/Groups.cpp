@@ -131,9 +131,15 @@ void SimulationGroup::onChanged(const App::Property* prop)
     std::set<std::string> inputs = collectGlobalInputs();
     const bool changed = inputs != globalInputs;
     globalInputs = std::move(inputs);
-    if (!changed || getDocument()->testStatus(App::Document::Restoring)) return;
-    // Global input membership affects every study, including headless edits,
-    // deletion and undo. View-provider drag/drop callbacks are not sufficient.
+    // Undo, redo and abort replay the study results recorded with the edit, in
+    // no fixed order: clearing them here would overwrite the restored values
+    // (Dynamics.invalidate_study skips the replay for the same reason).
+    if (!changed || getDocument()->testStatus(App::Document::Restoring)
+        || getDocument()->isPerformingTransaction()) {
+        return;
+    }
+    // Global input membership affects every study, including headless edits
+    // and deletion. View-provider drag/drop callbacks are not sufficient.
     for (auto* child : Group.getValues()) {
         if (!child) {
             continue;
