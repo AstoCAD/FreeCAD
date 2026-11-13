@@ -74,6 +74,17 @@ def _eligible_components(simulation, excluding=None):
     ]
 
 
+def _global_owner(assembly):
+    """Return the global simulation group, or the assembly before it exists.
+
+    The group is created with the first global input, inside its command.
+    """
+    return next(
+        (obj for obj in assembly.Group if obj.TypeId == "Assembly::SimulationGroup"),
+        assembly,
+    )
+
+
 def _show_task(initial, owner, resume_simulation=None):
     panel = TaskAssemblyCreateInitialVelocity(initial, owner, resume_simulation)
     dialog = Gui.Control.showDialog(panel)
@@ -99,17 +110,13 @@ class CommandCreateInitialVelocity:
         if task is None and not UtilsAssembly.isAssemblyCommandActive():
             return False
         assembly = task.assembly if task else UtilsAssembly.activeAssembly()
-        global_owner = next(
-            (obj for obj in assembly.Group if obj.TypeId == "Assembly::SimulationGroup"),
-            assembly,
-        )
-        owner = task.simFeaturePy if task else global_owner
+        owner = task.simFeaturePy if task else _global_owner(assembly)
         return bool((not Gui.Control.activeDialog() or task) and _eligible_components(owner))
 
     def Activated(self):
         task = CommandCreateSimulation.activeSimulationTask()
         simulation = task.simFeaturePy if task else None
-        owner = simulation or UtilsAssembly.getSimulationGroup(UtilsAssembly.activeAssembly())
+        owner = simulation or _global_owner(UtilsAssembly.activeAssembly())
         components = _eligible_components(owner)
         if not components:
             return
