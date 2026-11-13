@@ -101,10 +101,11 @@ class DrawViewBreakRemovalTest(unittest.TestCase):
         viewBreak = self._addBreak(view)
         view.Breaks = [line, viewBreak]
 
+        breakName = viewBreak.Name  # the object is deleted with the view
         self.doc.removeObject(view.Name)
 
         self.assertIsNotNone(self.doc.getObject(line.Name))
-        self.assertIsNone(self.doc.getObject(viewBreak.Name))
+        self.assertIsNone(self.doc.getObject(breakName))
 
     def testRemoveViewRemovesItsBrokenOutSections(self):
         """Removing a view removes its broken-out sections, suppressed or not, and only its own."""
