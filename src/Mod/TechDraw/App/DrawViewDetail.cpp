@@ -683,6 +683,7 @@ void DrawViewDetail::unsetupObject()
     if (base) {
         base->requestPaint();
     }
+    DrawViewPart::unsetupObject();
 }
 
 void DrawViewDetail::getParameters() {}

@@ -51,6 +51,35 @@ class DrawViewRemovalTest(unittest.TestCase):
         for name in self.dependents[1]:
             self.assertIsNotNone(self.doc.getObject(name), name)
 
+    def testRemoveDetailViewRemovesDependents(self):
+        """Removing a detail view removes its dimensions, balloons and hatches."""
+        detail = self.doc.addObject("TechDraw::DrawViewDetail", "Detail")
+        self.page.addView(detail)
+        detail.BaseView = self.views[0]
+        detail.AnchorPoint = FreeCAD.Vector(5.0, 5.0, 0.0)
+
+        dimension = self.doc.addObject("TechDraw::DrawViewDimension", "Dimension")
+        self.page.addView(dimension)
+        dimension.Type = "Distance"
+        dimension.References2D = [(detail, "Edge0")]
+
+        balloon = self.doc.addObject("TechDraw::DrawViewBalloon", "Balloon")
+        balloon.SourceView = detail
+        self.page.addView(balloon)
+
+        hatch = self.doc.addObject("TechDraw::DrawHatch", "Hatch")
+        hatch.Source = (detail, ["Face0"])
+        names = [dimension.Name, balloon.Name, hatch.Name]
+
+        self.doc.removeObject(detail.Name)
+
+        for name in names:
+            self.assertIsNone(self.doc.getObject(name), name)
+        # the base view and its dependents are untouched
+        self.assertIsNotNone(self.doc.getObject(self.views[0].Name))
+        for name in self.dependents[0]:
+            self.assertIsNotNone(self.doc.getObject(name), name)
+
     def testRemovePageRemovesEverything(self):
         """Removing a page with dimensioned views leaves no TechDraw object behind."""
         self.doc.removeObject(self.page.Name)
@@ -76,3 +105,32 @@ class DrawViewRemovalTest(unittest.TestCase):
         for name in names:
             self.assertIsNone(self.doc.getObject(name), name)
         self.assertIsNotNone(self.doc.getObject(self.views[0].Name))
+
+    def testRemoveComplexSectionKeepsSharedProfile(self):
+        """A generated section profile still used by another section is not removed."""
+        self.doc.UndoMode = 1
+        profile = self.doc.addObject("Part::Feature", "SectionProfile")
+        sections = []
+        for _ in range(2):
+            section =self.doc.addObject("TechDraw::DrawComplexSection", "ComplexSection")
+            self.page.addView(section)
+            section.BaseView = self.views[0]
+            section.CuttingToolWireObject = profile
+            sections.append(section)
+        profileName = profile.Name
+        firstName = sections[0].Name
+
+        self.doc.openTransaction("Remove section")
+        self.doc.removeObject(firstName)
+        self.doc.commitTransaction()
+        self.assertIsNone(self.doc.getObject(firstName))
+        self.assertIsNotNone(self.doc.getObject(profileName))
+        self.assertEqual(sections[1].CuttingToolWireObject, profile)
+
+        self.doc.undo()
+        self.assertEqual(self.doc.getObject(firstName).CuttingToolWireObject, profile)
+
+        # the profile still goes with the last section that uses it
+        self.doc.removeObject(firstName)
+        self.doc.removeObject(sections[1].Name)
+        self.assertIsNone(self.doc.getObject(profileName))
