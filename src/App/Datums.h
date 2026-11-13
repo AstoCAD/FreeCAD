@@ -196,6 +196,8 @@ public:
     /// Returns true on changing DatumElement set
     short mustExecute() const override;
 
+    PyObject* getPyObject() override;
+
     /// Axis types
     static constexpr const char* AxisRoles[3] = {"X_Axis", "Y_Axis", "Z_Axis"};
     /// Baseplane types
