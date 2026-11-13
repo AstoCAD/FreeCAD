@@ -25,6 +25,7 @@
 
 
 #include <Python.h>
+#include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <cstdlib>
@@ -1552,6 +1553,22 @@ void valueFromLine<double>(const std::string_view::iterator& it, int digits, dou
     value = std::strtof(sub.data(), nullptr);
 }
 
+// read the next line, without the carriage return of a CR LF line end (the file is read in
+// binary mode): the values are read from fixed columns up to the end of the line
+std::istream& getLine(std::istream& ifstr, std::string& line)
+{
+    if (std::getline(ifstr, line) && !line.empty() && line.back() == '\r') {
+        line.pop_back();
+    }
+    return ifstr;
+}
+
+// go to the next fixed-width field of a line, but never beyond the end of the line
+void nextField(std::string_view::iterator& it, const std::string_view::iterator& end, int width)
+{
+    it += std::min<std::ptrdiff_t>(width, end - it);
+}
+
 // add cell from sorted nodes
 template<typename T>
 void addCell(vtkCellArray* cellArray, const std::vector<int>& topoElem)
@@ -1713,7 +1730,7 @@ std::map<int, int> readNodes(
     points->SetNumberOfPoints(numNodes);
 
     std::string line;
-    while (nodeID < numNodes && std::getline(ifstr, line)) {
+    while (nodeID < numNodes && getLine(ifstr, line)) {
         std::vector<double> coords;
         std::string_view view {line};
         if (view.rfind(keyCodeCoord, 0) == 0) {
@@ -1722,7 +1739,7 @@ std::map<int, int> readNodes(
 
             std::string_view vi = view.substr(keyCodeCoord.length() + digits);
             double value;
-            for (auto it = vi.begin(); it != vi.end(); it += 12) {
+            for (auto it = vi.begin(); it != vi.end(); nextField(it, vi.end(), 12)) {
                 valueFromLine(it, 12, value);
                 coords.emplace_back(value);
             }
@@ -1773,7 +1790,7 @@ std::vector<int> readElements(
     sub = sub.substr(12 + 37);
     valueFromLine(sub.begin(), 1, indicator);
     int digits = getDigits(static_cast<Indicator>(indicator));
-    while (elemID < numElem && std::getline(ifstr, line)) {
+    while (elemID < numElem && getLine(ifstr, line)) {
         std::string_view view {line};
         if (view.rfind(keyCodeType, 0) == 0) {
             std::string_view v(line.data() + keyCodeType.length());
@@ -1782,14 +1799,14 @@ std::vector<int> readElements(
             std::string_view::iterator it1;
             std::vector<int>::iterator it2;
             for (it1 = v.begin(), it2 = info.begin(); it1 != v.end() && it2 != info.end();
-                 it1 += 5, ++it2) {
+                 nextField(it1, v.end(), 5), ++it2) {
                 valueFromLine(it1, 5, *it2);
             }
         }
         if (view.rfind(keyCodeNodes, 0) == 0) {
             std::string_view vi = view.substr(keyCodeNodes.length());
             int node;
-            for (auto it = vi.begin(); it != vi.end(); it += digits) {
+            for (auto it = vi.begin(); it != vi.end(); nextField(it, vi.end(), digits)) {
                 valueFromLine(it, digits, node);
                 topoElem.emplace_back(mapNodes.at(node));
             }
@@ -1852,7 +1869,7 @@ void readResults(
     std::string line;
     std::string keyDataSet = " -4";
     unsigned int numComps;
-    std::getline(ifstr, line);
+    getLine(ifstr, line);
     std::string_view view = line;
     std::string_view sub = view.substr(keyDataSet.length() + 2);
     std::string dataSetName {sub.substr(0, 8)};
@@ -1868,7 +1885,7 @@ void readResults(
     // phase) {type, row, col, exist}
     std::vector<std::vector<int>> entityTypes;
     unsigned int countComp = 0;
-    while (countComp < numComps && std::getline(ifstr, line)) {
+    while (countComp < numComps && getLine(ifstr, line)) {
         std::string_view view {line};
         if (view.rfind(keyEntity, 0) == 0) {
             sub = view.substr(keyEntity.length() + 2);
@@ -1881,7 +1898,7 @@ void readResults(
             std::string_view::iterator it1;
             std::vector<int>::iterator it2;
             for (it1 = sub.begin(), it2 = et.begin(); it1 != sub.end() && it2 != et.end();
-                 (it1 += 5), ++it2) {
+                 nextField(it1, sub.end(), 5), ++it2) {
                 valueFromLine(it1, digits, *it2);
             }
 
@@ -1937,7 +1954,7 @@ void readResults(
         }
     }
 
-    while (countNodes < info.numNodes && std::getline(ifstr, line)) {
+    while (countNodes < info.numNodes && getLine(ifstr, line)) {
         std::string_view view {line};
         if (view.rfind(code1, 0) == 0) {
             sub = view.substr(code1.length());
@@ -1951,7 +1968,8 @@ void readResults(
                 // so mapNodes.at() could throw an exception
                 nodes.emplace_back(mapNodes.at(node));
                 sub = sub.substr(digits);
-                for (auto it = sub.begin(); it != sub.end(); it += 12, ++countScaPos) {
+                for (auto it = sub.begin(); it != sub.end();
+                     nextField(it, sub.end(), 12), ++countScaPos) {
                     valueFromLine(it, 12, value);
                     // search if value is scalar or vector/matrix component
                     auto pos = std::ranges::find(scalarPos, countScaPos);
@@ -1970,7 +1988,7 @@ void readResults(
         }
         else if (view.rfind(code2, 0) == 0) {
             sub = view.substr(code2.length() + digits);
-            for (auto it = sub.begin(); it != sub.end(); it += 12) {
+            for (auto it = sub.begin(); it != sub.end(); nextField(it, sub.end(), 12)) {
                 valueFromLine(it, 12, value);
                 // search if value is scalar or vector/matrix component
                 auto pos = std::ranges::find(scalarPos, countScaPos);
@@ -2047,7 +2065,7 @@ vtkSmartPointer<vtkMultiBlockDataSet> readFRD(std::ifstream& ifstr)
     auto materialArray = vtkSmartPointer<vtkIntArray>::New();
     auto groupArray = vtkSmartPointer<vtkIntArray>::New();
 
-    while (std::getline(ifstr, line)) {
+    while (getLine(ifstr, line)) {
         std::string keyCode = "    2C";
         std::string_view view = line;
 
