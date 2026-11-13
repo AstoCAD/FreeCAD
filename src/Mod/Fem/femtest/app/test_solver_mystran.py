@@ -142,3 +142,47 @@ class TestSolverMystran(unittest.TestCase):
         # fcc_print("Comparing {}  to  {}".format(inpfile_given, inpfile_totest))
         ret = testtools.compare_inp_files(inpfile_given, inpfile_totest)
         self.assertFalse(ret, f"Mystran write_solver_input for {base_name} test failed.\n{ret}")
+
+
+class TestSolverMystranPrepare(unittest.TestCase):
+    """Prepare task of the Mystran solver, without pyNastran: the input writer is a stub."""
+
+    fcc_print("import TestSolverMystranPrepare")
+
+    # ********************************************************************************************
+    def setUp(self):
+        # setUp is executed before every test
+        self.document = FreeCAD.newDocument(self.__class__.__name__)
+
+    # ********************************************************************************************
+    def tearDown(self):
+        # tearDown is executed after every test
+        FreeCAD.closeDocument(self.document.Name)
+
+    # ********************************************************************************************
+    def test_prepare_passes_the_analysis_mesh_to_the_writer(self):
+        from unittest import mock
+        from femexamples.mystran_plate import setup
+        from femsolver.mystran import tasks
+
+        setup(self.document, "mystran")
+        self.document.recompute()
+        solver = self.document.SolverMystran
+        meshes = [
+            m for m in solver.getParentGroup().Group if m.isDerivedFrom("Fem::FemMeshObject")
+        ]
+        self.assertEqual(len(meshes), 1)
+
+        working_dir = testtools.get_fem_test_tmp_dir("solver_mystran_prepare")
+        machine = solver.Proxy.createMachine(solver, working_dir, True)
+        machine.target = femsolver.run.PREPARE
+        with mock.patch.object(tasks.writer, "FemInputWriterMystran") as writer_class:
+            writer_class.return_value.write_solver_input.return_value = join(
+                working_dir, "Mesh.bdf"
+            )
+            machine.start()
+            machine.join()
+
+        self.assertFalse(machine.failed, machine.status)
+        writer_class.assert_called_once()
+        self.assertEqual(writer_class.call_args.args[2].Name, meshes[0].Name)
