@@ -735,6 +735,7 @@ void DrawViewPart::setBreakSourceCentroid(const Base::Vector3d& centroid)
 {
     m_breakSourceCentroid = centroid;
     m_breakResultCentroid = centroid;
+    m_viewBreaksApplied = false;
 }
 
 TopoDS_Shape DrawViewPart::applyViewBreaks(const TopoDS_Shape& shape)
@@ -778,6 +779,7 @@ TopoDS_Shape DrawViewPart::applyViewBreaks(const TopoDS_Shape& shape)
     m_breakResultCentroid = Base::convertTo<Base::Vector3d>(
         ShapeUtils::findCentroid(result, getProjectionCS())
     );
+    m_viewBreaksApplied = true;
     return result;
 }
 

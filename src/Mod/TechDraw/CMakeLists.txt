@@ -208,6 +208,7 @@ SET(TDTest_SRCS
     TDTest/DrawDimensionCircleAlignmentTest.py
     TDTest/DrawDimension3dReferenceViewTest.py
     TDTest/DrawDimensionFilledAreaTest.py
+    TDTest/DrawDimensionViewBreakTest.py
     TDTest/DrawDxfRadialDimTest.py
     TDTest/DrawDxfAngle3PtDimTest.py
     TDTest/DrawViewScaledLinkTest.py
