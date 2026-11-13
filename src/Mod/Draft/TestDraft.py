@@ -109,14 +109,15 @@ from drafttests.test_draftgeomutils import TestDraftGeomUtils as DraftTest04
 # Handling of file formats tests
 from drafttests.test_svg import DraftSVGExportRegression as DraftTest05
 from drafttests.test_svg import DraftSVGImportRegression as DraftTest05b
+from drafttests.test_svg import DraftSVGImportContentRegression as DraftTest05c
 from drafttests.test_svg import DraftSVGColorRegression as DraftTest05d
 from drafttests.test_svg import DraftSVGExportLabelRegression as DraftTest05e
-from drafttests.test_svg import DraftSVGImportContentRegression as DraftTest05c
 from drafttests.test_dxf import DraftDXF as DraftTest06
 from drafttests.test_dwg import DraftDWGConverterFallback as DraftTest07b
 
 # from drafttests.test_dwg import DraftDWG as DraftTest07
 # from drafttests.test_oca import DraftOCA as DraftTest08
+from drafttests.test_oca import DraftOCARoundTrip as DraftTest08b
 # from drafttests.test_airfoildat import DraftAirfoilDAT as DraftTest09
 from drafttests.test_airfoildat import DraftAirfoilDATEncoding as DraftTest09b
 from drafttests.test_array import DraftArray as DraftTest10
@@ -131,13 +132,14 @@ True if DraftTest03 else False
 True if DraftTest04 else False
 True if DraftTest05 else False
 True if DraftTest05b else False
+True if DraftTest05c else False
 True if DraftTest05d else False
 True if DraftTest05e else False
-True if DraftTest05c else False
 True if DraftTest06 else False
 True if DraftTest07b else False
 # True if DraftTest07 else False
 # True if DraftTest08 else False
+True if DraftTest08b else False
 # True if DraftTest09 else False
 True if DraftTest09b else False
 True if DraftTest10 else False
