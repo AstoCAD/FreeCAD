@@ -175,7 +175,7 @@ class FemInputWriter:
         if self.split_inpfile is True:
             file_name_split = f"{self.mesh_name}_{write_name}.inp"
             f.write(f"*INCLUDE,INPUT={file_name_split}\n")
-            inpfile_split = open(join(self.dir_name, file_name_split), "w")
+            inpfile_split = open(join(self.dir_name, file_name_split), "w", encoding="utf-8")
             constraint_sets_loop_writing(inpfile_split, femobjs, write_before, write_after)
             inpfile_split.close()
         else:

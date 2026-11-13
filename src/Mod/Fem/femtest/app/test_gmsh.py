@@ -396,6 +396,31 @@ class TestGMSHRefinements(TestGMSHBase):
         self.assertEqual(tool.bl_setting_list[0]["CurvesList"], ["Face4"])
 
     # ********************************************************************************************
+    def test_GMSHGeoNonAsciiWorkingDirectory(self):
+        # the geo file holds the path of the working directory in its comments, written in the
+        # locale encoding it could not be written when the path had a character outside of it
+        import os
+        import ObjectsFem
+
+        work_dir = join(testtools.get_fem_test_tmp_dir("gmsh_geo_non_ascii"), "Pièce Ωμέγα 日本")
+        os.makedirs(work_dir)
+        box = self.document.addObject("Part::Box", "Box")
+        self.document.recompute()
+        mesh = ObjectsFem.makeMeshGmsh(self.document, "Mesh")
+        mesh.Shape = box
+        mesh.WorkingDirectory = work_dir
+
+        tool = gmshtools.GmshTools(mesh)
+        tool.load_properties()
+        tool.update_mesh_data()
+        tool.get_tmp_file_paths()
+        tool.gmsh_bin = "gmsh"
+        tool.write_part_file()
+        tool.write_geo()
+        with open(tool.model_file, encoding="utf-8") as geo:
+            self.assertIn(tool.model_file, geo.read())
+
+    # ********************************************************************************************
     @unittest.skipUnless(_has_ccx_binary(), "CalculiX binary not found")
     def test_GMSHAdaptiv(self):
 

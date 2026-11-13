@@ -210,6 +210,25 @@ class TestSolverElmer(unittest.TestCase):
         self.assertAlmostEqual(written().Value, 8.85419e-12, delta=1e-17)
 
     # ********************************************************************************************
+    def test_case_file_non_ascii_material_name(self):
+        # the case file holds the material name, written in the locale encoding it could not be
+        # written when the name had a character outside of it
+        from femexamples.boxanalysis_static import setup
+
+        setup(self.document, "elmer", test_mode=True)
+        material_obj = self.document.MechanicalMaterial
+        material = material_obj.Material
+        material["Name"] = "Acier Ωμέγα 日本"
+        material_obj.Material = material
+        self.document.recompute()
+
+        working_dir = testtools.get_fem_test_tmp_dir(self.pre_dir_name + "non_ascii")
+        w = writer.Writer(self.document.SolverElmer, working_dir, testmode=True)
+        w.write_solver_input()
+        with open(join(working_dir, self.infilename + self.ending), encoding="utf-8") as f:
+            self.assertIn('Name = String "Acier Ωμέγα 日本"', f.read())
+
+    # ********************************************************************************************
     def input_file_writing_test(self, base_name):
         self.document.recompute()
 

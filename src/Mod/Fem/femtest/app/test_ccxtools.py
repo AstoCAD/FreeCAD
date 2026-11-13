@@ -157,6 +157,31 @@ class TestCcxTools(unittest.TestCase):
         self.assertIn("EmptyDisplacement has empty references.", fea.check_prerequisites())
 
     # ********************************************************************************************
+    def test_split_input_files_non_ascii_label(self):
+        # the split input files hold the constraint labels, written in the locale encoding they
+        # could not be written when a label had a character outside of it
+        import os
+        from femexamples.ccx_cantilever_faceload import setup
+
+        setup(self.document, "ccxtools")
+        solver = self.document.CalculiXCcxTools
+        solver.SplitInputWriter = True
+        self.document.Fixed.Label = "Fixed Ωμέγα 日本"
+        self.document.recompute()
+
+        analysis_dir = testtools.get_fem_test_tmp_dir(self.pre_dir_name + "split_non_ascii")
+        fea = ccxtools.FemToolsCcx(self.document.Analysis, solver, test_mode=True)
+        fea.update_objects()
+        fea.setup_working_dir(analysis_dir)
+        fea.write_inp_file()
+        split_files = ""
+        for file_name in sorted(os.listdir(analysis_dir)):
+            if file_name.endswith(".inp") and file_name != self.mesh_name + ".inp":
+                with open(join(analysis_dir, file_name), encoding="utf-8") as f:
+                    split_files += f.read()
+        self.assertIn("** Fixed Ωμέγα 日本\n", split_files)
+
+    # ********************************************************************************************
     def test_rigidbody_node_ids_mesh_with_gaps(self):
         # the reference and rotation nodes were numbered after the node count: with gaps in the
         # node numbers of the mesh they overwrote existing mesh nodes

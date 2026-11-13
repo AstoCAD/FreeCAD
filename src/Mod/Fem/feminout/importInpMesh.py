@@ -100,7 +100,9 @@ def read_inp(file_name):
     nodes = {}
     model_definition = True
 
-    f = pyopen(file_name, "r")
+    # the keywords and data are ASCII, other characters are only expected in comments: they are
+    # UTF-8 in files written by FreeCAD, but may be in any encoding in files of other programs
+    f = pyopen(file_name, "r", encoding="utf-8", errors="replace")
     line = "\n"
     include = ""
     f_include = None
@@ -123,11 +125,11 @@ def read_inp(file_name):
                 include = line[start:].strip().strip('"')
                 include_path = os.path.normpath(include)
                 if os.path.isfile(include_path) is True:
-                    f_include = pyopen(include_path, "r")
+                    f_include = pyopen(include_path, "r", encoding="utf-8", errors="replace")
                 else:
                     path_start = os.path.split(file_name)[0]
                     include_full_path = os.path.join(path_start, include_path)
-                    f_include = pyopen(include_full_path, "r")
+                    f_include = pyopen(include_full_path, "r", encoding="utf-8", errors="replace")
                 continue
             read_node = False
             elm_category = []
