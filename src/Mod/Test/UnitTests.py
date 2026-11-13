@@ -139,6 +139,14 @@ class UnitBasicCases(unittest.TestCase):
                 delta=self.delta,
             )
 
+    def testImperialDecimalDensity(self):
+        # Imperial decimal (schema 3) shows a density in lb/in^3 like US customary,
+        # not in the internal kg/mm^3
+        density = FreeCAD.Units.Quantity("1 lb/in^3")
+        _, factor, unit = FreeCAD.Units.schemaTranslate(density, 3)
+        self.assertEqual(unit, "lb/in^3")
+        self.assertAlmostEqual(factor / density.Value, 1.0, places=12)
+
     def testSchemeTranslation(self):
         quantities = []
         for i in dir(FreeCAD.Units):

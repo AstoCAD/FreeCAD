@@ -83,6 +83,7 @@ inline const UnitsSchemaSpec s2
         { "Mass",         {{ 0 , "lb"      , lb                }}},
         { "MassMomentOfInertia", {{ 0 , "lb*in^2", lb * in * in }}},
         { "AreaMomentOfInertia", {{ 0 , "in^4", in * in * in * in }}},
+        { "Density",      {{ 0 , "lb/in^3" , lb / (in * in * in) }}},
         { "Pressure",     {{ 0 , "psi"     , psi               }}},
         { "Stiffness",    {{ 0 , "lbf/in"  , lbf / in * 1000   }}},
         { "Velocity",     {{ 0 , "in/min"  , in / 60           }}},
