@@ -196,6 +196,7 @@ SET(TDTest_SRCS
     TDTest/DrawMakeCanonicalPointTest.py
     TDTest/DrawClosedDocumentViewTest.py
     TDTest/DrawViewSectionCycleTest.py
+    TDTest/DrawBrokenOutSectionDepthTest.py
     TDTest/DrawLeaderParentLoopTest.py
     TDTest/SketchAnnotationsTest.py
     TDTest/SketchAnnotationsGuiTest.py

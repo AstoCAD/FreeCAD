@@ -73,6 +73,7 @@
 #include <TopoDS_Vertex.hxx>
 #include <TopoDS_Wire.hxx>
 #include <gp_Ax2.hxx>
+#include <gp_Ax3.hxx>
 #include <gp_Dir.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
@@ -276,6 +277,35 @@ std::pair<double, double> limitsAlong(const TopoDS_Shape& shape,
         high = std::max(high, value);
     }
     return {low, high};
+}
+
+//! the extent of shape along direction, taken from its geometry rather than from
+//! its vertices: a curved face can reach beyond every vertex, as the front of a
+//! cylinder seen from its side or of a sphere does
+std::pair<double, double> extentAlong(const TopoDS_Shape& shape,
+                                      const Base::Vector3d& direction)
+{
+    gp_Trsf toDirectionAxes;
+    toDirectionAxes.SetTransformation(
+        gp_Ax3(gp_Pnt(0.0, 0.0, 0.0), Base::convertTo<gp_Dir>(direction)));
+    const TopoDS_Shape moved =
+        BRepBuilderAPI_Transform(shape, toDirectionAxes, false).Shape();
+
+    Bnd_Box box;
+    box.SetGap(0.0);
+    constexpr bool useTriangulation{false};
+    BRepBndLib::AddOptimal(moved, box, useTriangulation, false);
+    if (box.IsVoid()) {
+        return {std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest()};
+    }
+    double xMin = 0.0;
+    double yMin = 0.0;
+    double zMin = 0.0;
+    double xMax = 0.0;
+    double yMax = 0.0;
+    double zMax = 0.0;
+    box.Get(xMin, yMin, zMin, xMax, yMax, zMax);
+    return {zMin, zMax};
 }
 
 Base::Vector3d breakShift(const Base::Vector3d& point,
@@ -572,7 +602,7 @@ TopoDS_Shape DrawViewPart::applyBrokenOutSections(const TopoDS_Shape& shape)
     }
     viewDirection.Normalize();
 
-    const auto shapeLimits = limitsAlong(shape, viewDirection);
+    const auto shapeLimits = extentAlong(shape, viewDirection);
     if (shapeLimits.second == std::numeric_limits<double>::lowest()) {
         return result;
     }
