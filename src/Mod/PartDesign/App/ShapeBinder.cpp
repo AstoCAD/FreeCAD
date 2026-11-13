@@ -1123,7 +1123,7 @@ void SubShapeBinder::onChanged(const App::Property* prop)
             if (!Support.getSubListValues().empty()) {
                 update();
                 if (BindMode.getValue() == 2) {
-                    Support.setValue(nullptr);
+                    detach();
                 }
             }
         }
@@ -1132,7 +1132,7 @@ void SubShapeBinder::onChanged(const App::Property* prop)
         }
         else if (prop == &BindMode) {
             if (BindMode.getValue() == 2) {
-                Support.setValue(nullptr);
+                detach();
             }
             else if (BindMode.getValue() == 0) {
                 update();
@@ -1147,6 +1147,15 @@ void SubShapeBinder::onChanged(const App::Property* prop)
         }
     }
     inherited::onChanged(prop);
+}
+
+void SubShapeBinder::detach()
+{
+    Support.setValue(nullptr);
+    // The context only serves to place the bound shape relative to its parent. Without a
+    // binding it is a leftover link, which can also point to another document (e.g. when the
+    // binder was copied there) and make that document load with this one.
+    Context.setValue(nullptr);
 }
 
 void SubShapeBinder::checkCopyOnChange(const App::Property& prop)
