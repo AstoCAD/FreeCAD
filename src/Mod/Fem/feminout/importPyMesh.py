@@ -83,7 +83,8 @@ def write(fem_mesh, filename):
     else:
         FreeCAD.Console.PrintError("Export of this FEM mesh to Python not supported.\n")
         return
-    f = open(filename, "w")
+    # the file is Python source: UTF-8, whatever the locale, as group names may hold any character
+    f = open(filename, "w", encoding="utf-8")
 
     mesh_name = "femmesh"
     # nodes
@@ -113,7 +114,7 @@ def write(fem_mesh, filename):
         g_type = fem_mesh.getGroupElementType(grp)
         g_name = fem_mesh.getGroupName(grp)
         g_elem = fem_mesh.getGroupElements(grp)
-        f.write(f"    g = {mesh_name}.addGroup('{g_name}', '{g_type}')\n")
+        f.write(f"    g = {mesh_name}.addGroup({g_name!r}, '{g_type}')\n")
         f.write(f"    {mesh_name}.addGroupElements(g, {list(g_elem)})\n")
 
     f.write("    return True\n")
