@@ -91,9 +91,16 @@ class ExplodeGroup:
                 else:
                     FreeCAD.Console.PrintError(translate('OpenSCAD', 'Unable to explode %s') % obj.Name + '\n')
 
-        for obj in FreeCADGui.Selection.getSelection():
-            if len(obj.InList) == 0: # allowed only for for top level objects
-                explode(obj)
+        doc = FreeCAD.ActiveDocument
+        doc.openTransaction(QtCore.QT_TRANSLATE_NOOP('Command', 'Explode Group'))
+        try:
+            for obj in FreeCADGui.Selection.getSelection():
+                if len(obj.InList) == 0: # allowed only for for top level objects
+                    explode(obj)
+        except Exception:
+            doc.abortTransaction()
+            raise
+        doc.commitTransaction()
 
     def GetResources(self):
         return {'Pixmap'  : 'OpenSCAD_Explode_Group',
@@ -144,12 +151,19 @@ class RefineShapeFeature:
         import Part
         import OpenSCADFeatures
         selection=FreeCADGui.Selection.getSelectionEx()
-        for selobj in selection:
-            newobj=selobj.Document.addObject("Part::FeaturePython",'refine')
-            OpenSCADFeatures.RefineShape(newobj,selobj.Object)
-            OpenSCADFeatures.ViewProviderTree(newobj.ViewObject)
-            newobj.Label='refine_%s' % selobj.Object.Label
-            selobj.Object.ViewObject.hide()
+        doc = FreeCAD.ActiveDocument
+        doc.openTransaction(QtCore.QT_TRANSLATE_NOOP('Command', 'Refine Shape Feature'))
+        try:
+            for selobj in selection:
+                newobj=selobj.Document.addObject("Part::FeaturePython",'refine')
+                OpenSCADFeatures.RefineShape(newobj,selobj.Object)
+                OpenSCADFeatures.ViewProviderTree(newobj.ViewObject)
+                newobj.Label='refine_%s' % selobj.Object.Label
+                selobj.Object.ViewObject.hide()
+        except Exception:
+            doc.abortTransaction()
+            raise
+        doc.commitTransaction()
         FreeCAD.ActiveDocument.recompute()
     def GetResources(self):
         return {'Pixmap'  : 'OpenSCAD_RefineShapeFeature',
@@ -254,12 +268,19 @@ class IncreaseToleranceFeature:
         import Part
         import OpenSCADFeatures
         selection=FreeCADGui.Selection.getSelectionEx()
-        for selobj in selection:
-            newobj=selobj.Document.addObject("Part::FeaturePython",'tolerance')
-            OpenSCADFeatures.IncreaseTolerance(newobj,selobj.Object)
-            OpenSCADFeatures.ViewProviderTree(newobj.ViewObject)
-            newobj.Label='tolerance_%s' % selobj.Object.Label
-            selobj.Object.ViewObject.hide()
+        doc = FreeCAD.ActiveDocument
+        doc.openTransaction(QtCore.QT_TRANSLATE_NOOP('Command', 'Increase Tolerance Feature'))
+        try:
+            for selobj in selection:
+                newobj=selobj.Document.addObject("Part::FeaturePython",'tolerance')
+                OpenSCADFeatures.IncreaseTolerance(newobj,selobj.Object)
+                OpenSCADFeatures.ViewProviderTree(newobj.ViewObject)
+                newobj.Label='tolerance_%s' % selobj.Object.Label
+                selobj.Object.ViewObject.hide()
+        except Exception:
+            doc.abortTransaction()
+            raise
+        doc.commitTransaction()
         FreeCAD.ActiveDocument.recompute()
     def GetResources(self):
         return {'Pixmap'  : 'OpenSCAD_IncreaseToleranceFeature',
@@ -275,8 +296,15 @@ class ExpandPlacements:
 
     def Activated(self):
         import expandplacements
-        for selobj in FreeCADGui.Selection.getSelectionEx():
-            expandplacements.expandplacements(selobj.Object,FreeCAD.Placement())
+        doc = FreeCAD.ActiveDocument
+        doc.openTransaction(QtCore.QT_TRANSLATE_NOOP('Command', 'Expand Placements'))
+        try:
+            for selobj in FreeCADGui.Selection.getSelectionEx():
+                expandplacements.expandplacements(selobj.Object,FreeCAD.Placement())
+        except Exception:
+            doc.abortTransaction()
+            raise
+        doc.commitTransaction()
         FreeCAD.ActiveDocument.recompute()
     def GetResources(self):
         return {'Pixmap'  : 'OpenSCAD_ExpandPlacements',
@@ -317,7 +345,14 @@ class RemoveSubtree:
     def Activated(self):
         import OpenSCADUtils
         import FreeCADGui
-        OpenSCADUtils.removesubtree(FreeCADGui.Selection.getSelection())
+        doc = FreeCAD.ActiveDocument
+        doc.openTransaction(QtCore.QT_TRANSLATE_NOOP('Command', 'Remove Objects and Children'))
+        try:
+            OpenSCADUtils.removesubtree(FreeCADGui.Selection.getSelection())
+        except Exception:
+            doc.abortTransaction()
+            raise
+        doc.commitTransaction()
 
     def GetResources(self):
         return {'Pixmap'  : 'OpenSCAD_RemoveSubtree',
