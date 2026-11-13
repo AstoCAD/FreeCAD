@@ -2319,6 +2319,32 @@ AssemblyObject::makeMbdJoint(App::DocumentObject* joint, bool dynamics)
                 );
             }
         };
+        // Swapping a min stop and a max stop given in the wrong order must keep
+        // each stop's behaviour with its value: a compliant stop must not turn
+        // rigid, nor its stiffness and damping pass to the other stop.
+        auto swapStopProperties = [joint](const std::string& axis) {
+            const auto property = [&](const char* side, const char* suffix) {
+                return joint->getPropertyByName((axis + side + suffix).c_str());
+            };
+            auto* minBehavior
+                = dynamic_cast<App::PropertyEnumeration*>(property("Min", "LimitBehavior"));
+            auto* maxBehavior
+                = dynamic_cast<App::PropertyEnumeration*>(property("Max", "LimitBehavior"));
+            if (minBehavior && maxBehavior) {
+                const long minValue = minBehavior->getValue();
+                minBehavior->setValue(maxBehavior->getValue());
+                maxBehavior->setValue(minValue);
+            }
+            for (const char* suffix : {"LimitStiffness", "LimitDamping"}) {
+                auto* minQuantity = dynamic_cast<App::PropertyQuantity*>(property("Min", suffix));
+                auto* maxQuantity = dynamic_cast<App::PropertyQuantity*>(property("Max", suffix));
+                if (minQuantity && maxQuantity) {
+                    const double minValue = minQuantity->getValue();
+                    minQuantity->setValue(maxQuantity->getValue());
+                    maxQuantity->setValue(minValue);
+                }
+            }
+        };
         if (jointType == JointType::Slider || jointType == JointType::Cylindrical) {
             auto* pLenMin = dynamic_cast<App::PropertyFloat*>(joint->getPropertyByName("LengthMin"));
             auto* pLenMax = dynamic_cast<App::PropertyFloat*>(joint->getPropertyByName("LengthMax"));
@@ -2346,6 +2372,8 @@ AssemblyObject::makeMbdJoint(App::DocumentObject* joint, bool dynamics)
                     pMaxEnabled->setValue(minEnabled);
                     minEnabled = maxEnabled;
                     maxEnabled = pMaxEnabled->getValue();
+
+                    swapStopProperties("Length");
                 }
 
                 if (minEnabled) {
@@ -2409,6 +2437,8 @@ AssemblyObject::makeMbdJoint(App::DocumentObject* joint, bool dynamics)
                     pMaxEnabled->setValue(minEnabled);
                     minEnabled = maxEnabled;
                     maxEnabled = pMaxEnabled->getValue();
+
+                    swapStopProperties("Angle");
                 }
 
                 if (minEnabled) {

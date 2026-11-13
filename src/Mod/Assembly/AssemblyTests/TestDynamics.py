@@ -1323,6 +1323,47 @@ class TestDynamics(unittest.TestCase):
         self.assertGreater(max(positions), 20)
         self.assertLess(result["Velocity"][-1][2], 0)
 
+    def test_limits_given_in_reverse_order_keep_their_compliance(self):
+        # Stops given in the wrong order are swapped into order. Each stop's
+        # behaviour belongs to its value: the compliant stop at +10 mm must
+        # stay compliant when it becomes the maximum, the rigid one rigid.
+        ground = self.box("Ground", density=None)
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        body = self.box()
+        joint = self.joint("Slider", ground, body)
+        joint.EnableLengthMin = True
+        joint.LengthMin = "10 mm"
+        joint.LengthMinLimitBehavior = "Compliant"
+        joint.LengthMinLimitStiffness = "0.001 N/mm"
+        joint.LengthMinLimitDamping = "0.0001 kg/s"
+        joint.EnableLengthMax = True
+        joint.LengthMax = "-100 mm"
+        joint.LengthMaxLimitBehavior = "Rigid"
+
+        study = self.study(gravity=False)
+        study.EndTime = "0.31 s"
+        study.OutputStep = "0.005 s"
+        study.MaximumStep = "0.001 s"
+        initial = Dynamics.create_initial_velocity(study, "Linear", body)
+        initial.Direction = App.Vector(0, 0, 1)
+        initial.LinearVelocity = "200 mm/s"
+
+        data = Dynamics.run(study)
+        self.assertEqual(joint.LengthMinLimitBehavior, "Rigid")
+        self.assertEqual(joint.LengthMaxLimitBehavior, "Compliant")
+        self.assertAlmostEqual(
+            joint.LengthMaxLimitStiffness.Value, App.Units.Quantity("0.001 N/mm").Value
+        )
+        self.assertAlmostEqual(
+            joint.LengthMaxLimitDamping.Value, App.Units.Quantity("0.0001 kg/s").Value
+        )
+        self.assertEqual(list(data["Limits"]), [joint.FullName + "-LimitLenMax"])
+        # The soft stop at +10 mm lets the body through and pushes it back.
+        result = data["Bodies"][body.Name]
+        positions = [pose[2] for pose in result["Placements"]]
+        self.assertGreater(max(positions), 20)
+        self.assertLess(result["Velocity"][-1][2], 0)
+
     def test_revolute_limit_stops_initial_angular_velocity(self):
         ground = self.box("Ground", density=None)
         ground.setPropertyStatus("Placement", "ReadOnly")
