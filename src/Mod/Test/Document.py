@@ -1358,6 +1358,50 @@ class DocumentDuplicateLabelCases(unittest.TestCase):
         self.assertNotEqual(obj.Label, other.Label)
         self.assertTrue(obj.Label.startswith(obj.Name))
 
+    def testOriginPointAddedOnRestoreHasUniqueLabel(self):
+        # An origin saved before origins had a point gets one when the file is opened.
+        # Its label is made unique like the one of a new origin, unless duplicate
+        # labels are allowed (issue #22342)
+        for duplicates in (False, True):
+            with self.subTest(DuplicateLabels=duplicates):
+                self.Params.SetBool("DuplicateLabels", duplicates)
+                doc = FreeCAD.newDocument("OriginPointLabelTest")
+                try:
+                    parts = [doc.addObject("App::Part", "Part") for _ in range(2)]
+                    pointLabel = None
+                    # Remove the points as in a file written before origins had one
+                    for part in parts:
+                        origin = part.Origin
+                        points = [o for o in origin.OriginFeatures if o.Role == "Origin"]
+                        pointLabel = pointLabel or points[0].Label
+                        origin.OriginFeatures = [
+                            o for o in origin.OriginFeatures if o not in points
+                        ]
+                        for point in points:
+                            doc.removeObject(point.Name)
+                    other = doc.addObject("App::FeatureTest", "Other")
+                    other.Label = pointLabel
+                    with tempfile.TemporaryDirectory() as directory:
+                        filename = os.path.join(directory, "OriginPointLabelTest.FCStd")
+                        doc.saveAs(filename)
+                        FreeCAD.closeDocument(doc.Name)
+                        doc = FreeCAD.openDocument(filename)
+                    points = []
+                    for part in doc.findObjects(Type="App::Part"):
+                        points += [o for o in part.Origin.OriginFeatures if o.Role == "Origin"]
+                    self.assertEqual(len(points), 2)
+                    self.assertEqual(doc.getObject("Other").Label, pointLabel)
+                    if duplicates:
+                        self.assertEqual([p.Label for p in points], [pointLabel] * 2)
+                    else:
+                        labels = [o.Label for o in doc.Objects]
+                        self.assertEqual(len(labels), len(set(labels)), labels)
+                        for point in points:
+                            self.assertTrue(point.Label.startswith(pointLabel))
+                finally:
+                    if "OriginPointLabelTest" in FreeCAD.listDocuments():
+                        FreeCAD.closeDocument("OriginPointLabelTest")
+
 
 class DocumentLinkLabelCases(unittest.TestCase):
     """Link instance labels when the link loses its linked object."""
