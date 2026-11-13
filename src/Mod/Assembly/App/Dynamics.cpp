@@ -592,6 +592,17 @@ std::vector<Object*> massChildren(Object* container)
     // (for example Box and Cylinder under a Cut) must not be counted again.
     std::set<Object*> consumed;
     for (auto* child : result) {
+        // Only a solid feature can have absorbed an operand's material. A
+        // sketch's external geometry, a measurement or a dimension references
+        // a solid without replacing it.
+        auto* source = child->getLinkedObject(true);
+        if (!source || !source->isDerivedFrom<Part::Feature>()) {
+            continue;
+        }
+        const auto shape = Part::Feature::getShape(child, Part::ShapeOption::ResolveLink);
+        if (shape.IsNull() || !TopExp_Explorer(shape, TopAbs_SOLID).More()) {
+            continue;
+        }
         // Expression references do not make one solid a modeling operand of
         // another and must not remove otherwise independent components.
         // Attachment supports and link sources are not operands either: an

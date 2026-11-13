@@ -108,6 +108,33 @@ class TestMassProperties(unittest.TestCase):
         self.assertAlmostEqual(mass["Volume"], cut.Shape.Volume)
         self.assertAlmostEqual(mass["Mass"], cut.Shape.Volume * 1e-6)
 
+    def test_reference_without_material_does_not_consume_solid(self):
+        import Sketcher  # noqa: F401  (registers Sketcher::SketchObject)
+
+        container = self.doc.addObject("App::Part", "Component")
+        box = self.box(container)
+        sketch = container.newObject("Sketcher::SketchObject", "Sketch")
+        sketch.Placement.Base = App.Vector(0, 0, 30)
+        self.doc.recompute()
+        # External geometry references the box without consuming its material.
+        sketch.addExternal(box.Name, "Edge1")
+        corners = [App.Vector(0, 0), App.Vector(5, 0), App.Vector(5, 5), App.Vector(0, 5)]
+        for start, end in zip(corners, corners[1:] + corners[:1]):
+            sketch.addGeometry(Part.LineSegment(start, end))
+        pad = container.newObject("Part::Extrusion", "Extrude")
+        pad.Base = sketch
+        pad.DirMode = "Custom"
+        pad.Dir = App.Vector(0, 0, 1)
+        pad.LengthFwd = 4
+        pad.Solid = True
+        pad.ShapeMaterial = box.ShapeMaterial
+        self.doc.recompute()
+        self.assertIn(box, sketch.OutList)
+
+        mass = self.assembly.getMassProperties(container)
+        self.assertAlmostEqual(mass["Volume"], box.Shape.Volume + pad.Shape.Volume)
+        self.assertAlmostEqual(mass["Mass"], (6000 + 100) * 1e-6)
+
     def test_link_to_part_scales_aggregate(self):
         source = self.part()
         scaled = self.link(source, 2)
