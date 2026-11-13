@@ -145,6 +145,23 @@ class TestMassProperties(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.assembly.getMassProperties(container)
 
+    def test_reference_sketch_without_shape_does_not_consume_solid(self):
+        import Sketcher  # noqa: F401  (registers Sketcher::SketchObject)
+
+        container = self.doc.addObject("App::Part", "Component")
+        box = self.box(container)
+        sketch = container.newObject("Sketcher::SketchObject", "Sketch")
+        self.doc.recompute()
+        sketch.addExternal(box.Name, "Edge1")
+        sketch.addGeometry(Part.LineSegment(App.Vector(0, 0), App.Vector(5, 5)), True)
+        self.doc.recompute()
+        # Up to date, but only external and construction geometry: no shape.
+        self.assertTrue(sketch.Shape.isNull())
+        self.assertIn(box, sketch.OutList)
+
+        mass = self.assembly.getMassProperties(container)
+        self.assertAlmostEqual(mass["Volume"], box.Shape.Volume)
+
     def test_link_to_part_scales_aggregate(self):
         source = self.part()
         scaled = self.link(source, 2)
