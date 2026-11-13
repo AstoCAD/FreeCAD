@@ -1090,26 +1090,33 @@ def run(study):
     study.Status = "Running"
     study.LastError = ""
     study.ResultData = ""  # Do not mislabel a previous run as this run's result.
-    stopped = ""
+    warnings = []
     try:
         with MotionProfile.prepared(study, inputs_for_study(study)):
             mode = analysis_type(study)
             if mode == "Dynamics":
                 data = study.Assembly.generateDynamics(study)
+                # Initial velocities the joints do not allow, for example.
+                warnings = list(data.pop("Warnings", []))
             else:
                 error = study.Assembly.generateSimulation(study)
                 if error:
                     raise RuntimeError(f"Kinematic simulation failed with error code {error}.")
                 data = study.Assembly.getSimulationResults()
                 stopped = _kinematic_stop(study, data["Times"])
+                if stopped:
+                    # Keep the samples up to the stop for playback, as upstream
+                    # does, but do not let the partial run pass for a complete one.
+                    warnings.append(stopped)
         data["AnalysisType"] = mode
         save_results(study, data)
-        if stopped:
-            # Keep the samples up to the stop for playback, as upstream does,
-            # but do not let the partial run pass for a complete one.
-            study.LastError = stopped
+        if warnings:
+            # A complete run that did not go entirely as specified keeps its
+            # warnings in LastError; a clean rerun clears them.
+            study.LastError = "\n".join(warnings)
             purge_touched(study)
-            App.Console.PrintWarning(f"{study.Label}: {stopped}\n")
+            for message in warnings:
+                App.Console.PrintWarning(f"{study.Label}: {message}\n")
         return data
     except Exception as error:
         study.Status = "Failed"

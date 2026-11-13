@@ -2091,6 +2091,7 @@ PyObject* AssemblyObject::generateDynamics(Object* sim)
         // The velocity initial-condition solve projects the requested initial
         // velocities onto what the joints and motions allow. Report a request
         // they do not allow rather than start silently from another state.
+        // Dynamics.run reports "Warnings" with the study (LastError, console).
         Py::List warnings;
         for (const auto& [part, state] : initialStates) {
             part->updateForFrame(1);  // The solved initial condition; 0 is the input.
@@ -2113,7 +2114,6 @@ PyObject* AssemblyObject::generateDynamics(Object* sim)
                 message << " instead of ";
                 write(requested);
                 message << ".";
-                Base::Console().warning("{}\n", message.str());
                 warnings.append(Py::String(message.str()));
             };
             if (state.angularSource) {

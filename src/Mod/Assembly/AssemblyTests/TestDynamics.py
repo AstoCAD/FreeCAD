@@ -732,18 +732,26 @@ class TestDynamics(unittest.TestCase):
             other = Dynamics.create_initial_velocity(study, kind, free)
             other.Direction = direction
             setattr(other, kind + "Velocity", value)
-        data = Dynamics.run(study)
-        self.assertEqual(data["Warnings"], [])
+        Dynamics.run(study)
+        self.assertEqual(study.Status, "Complete")
+        self.assertEqual(study.LastError, "")
 
         # The slider does not allow motion along X: the run starts at rest
-        # and says so, without failing.
+        # and says so in LastError (as a run that stops early), without failing.
         initial.Direction = App.Vector(1, 0, 0)
         data = Dynamics.run(study)
         self.assertEqual(study.Status, "Complete")
         self.assertVectorClose(data["Bodies"][body.Name]["Velocity"][0], (0, 0, 0))
-        self.assertEqual(len(data["Warnings"]), 1)
-        self.assertIn(initial.Label, data["Warnings"][0])
-        self.assertEqual(Dynamics.results(study)["Warnings"], data["Warnings"])
+        self.assertEqual(len(study.LastError.splitlines()), 1)
+        self.assertIn(initial.Label, study.LastError)
+        self.assertIn("do not allow this initial velocity", study.LastError)
+        # LastError is the single record: the saved result does not repeat it.
+        self.assertNotIn("Warnings", Dynamics.results(study))
+
+        # A clean rerun clears it.
+        initial.Direction = App.Vector(0, 0, 1)
+        Dynamics.run(study)
+        self.assertEqual(study.LastError, "")
 
     def test_force_units_and_reaction(self):
         box = self.box()

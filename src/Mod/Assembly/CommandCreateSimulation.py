@@ -1439,10 +1439,11 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.setFrameValue(self.form.frameSlider.maximum())
         self.refreshResults()
         if self.simFeaturePy.LastError:
-            # A complete study keeps an error only for a run that stopped early.
+            # A complete study keeps the warnings of its run (stopped early,
+            # initial velocity the joints do not allow), see Dynamics.run.
             QtWidgets.QMessageBox.warning(
                 self.form,
-                translate("Assembly", "Simulation stopped early"),
+                translate("Assembly", "Simulation warning"),
                 self.simFeaturePy.LastError,
             )
 
