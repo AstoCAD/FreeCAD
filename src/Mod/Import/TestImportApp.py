@@ -444,6 +444,32 @@ class DxfImportLayerTest(unittest.TestCase):
         self.assertEqual(links[0].Label, "Tür")
         self.assertIsNotNone(links[0].LinkedObject)
 
+    def testExportedLayerNameInFileCodePage(self):
+        """The writer's R12/R14 files declare ANSI_1252: names are written in it, the
+        characters outside it as \\U+XXXX, and read back unchanged"""
+        import Part
+
+        name = "Wände_Ωμέγα"
+        feature = self.target.addObject("Part::Feature", name)
+        feature.Shape = Part.makeLine(App.Vector(0, 0, 0), App.Vector(1, 0, 0))
+        self.target.recompute()
+        self.assertEqual(feature.Name, name)
+        for version in (12, 14):
+            with self.subTest(version=version):
+                Import.writeDXFObject([feature], self.fileName, version)
+                with open(self.fileName, "rb") as f:
+                    data = f.read()
+                self.assertIn(b"ANSI_1252", data)
+                self.assertIn(b"W\xe4nde_\\U+03A9\\U+03BC\\U+03AD\\U+03B3\\U+03B1", data)
+                doc = App.newDocument()
+                try:
+                    Import.readDXF(self.fileName, doc.Name, True, self.paramPath)
+                    layers = [o for o in doc.Objects if o.Label == name]
+                    self.assertEqual(len(layers), 1)
+                    self.assertEqual(len(layers[0].Group), 1)
+                finally:
+                    App.closeDocument(doc.Name)
+
 
 class DxfExportDegenerateEdgeTest(unittest.TestCase):
     """An OCCT exception while exporting a degenerate shape must not terminate the application"""

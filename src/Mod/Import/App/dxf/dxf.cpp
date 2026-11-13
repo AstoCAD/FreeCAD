@@ -4,6 +4,8 @@
 // SPDX-FileNotice: Part of the FreeCAD project.
 
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -76,6 +78,119 @@ std::string DxfUnitToString(DxfUnits::eDxfUnits_t unit)
         default:
             return "Unspecified";
     }
+}
+
+// Characters outside the code page of a pre-2007 file are written as \U+XXXX, the hexadecimal
+// UTF-16 code unit (AutoCAD convention; a pair of them for a character beyond the BMP)
+constexpr std::size_t unicodeEscapeLength = 7;  // \U+XXXX
+
+// The DXF R12 and R14 files written here declare $DWGCODEPAGE ANSI_1252 in their header (see
+// the DxfPlate templates): they cannot hold UTF-8. Characters of Windows-1252 are written in that
+// code page, the others as \U+XXXX.
+std::string utf8ToDxfCodePage(const std::string& utf8)
+{
+    if (std::all_of(utf8.begin(), utf8.end(), [](char c) {
+            return static_cast<unsigned char>(c) < 0x80;
+        })) {
+        return utf8;
+    }
+    Base::PyGILStateLocker lock;
+    PyObject* text
+        = PyUnicode_DecodeUTF8(utf8.c_str(), static_cast<Py_ssize_t>(utf8.size()), "replace");
+    if (text == nullptr) {
+        PyErr_Clear();
+        return utf8;
+    }
+    std::string encoded;
+    const Py_ssize_t length = PyUnicode_GetLength(text);
+    for (Py_ssize_t i = 0; i < length; ++i) {
+        Py_UCS4 code = PyUnicode_ReadChar(text, i);
+        if (code < 0x80) {
+            encoded += static_cast<char>(code);
+            continue;
+        }
+        PyObject* character = PyUnicode_FromOrdinal(static_cast<int>(code));
+        PyObject* bytes = character != nullptr
+            ? PyUnicode_AsEncodedString(character, "cp1252", "strict")
+            : nullptr;
+        if (bytes != nullptr) {
+            encoded.append(PyBytes_AsString(bytes), static_cast<std::size_t>(PyBytes_Size(bytes)));
+        }
+        else {
+            PyErr_Clear();
+            if (code > 0xFFFF) {
+                code -= 0x10000;
+                encoded += std::format(
+                    "\\U+{:04X}\\U+{:04X}",
+                    0xD800 + (code >> 10),
+                    0xDC00 + (code & 0x3FF)
+                );
+            }
+            else {
+                encoded += std::format("\\U+{:04X}", code);
+            }
+        }
+        Py_XDECREF(bytes);
+        Py_XDECREF(character);
+    }
+    Py_DECREF(text);
+    return encoded;
+}
+
+// Reads the code unit of a \U+XXXX escape starting at pos
+bool readUnicodeEscape(const std::string& text, std::size_t pos, unsigned long& unit)
+{
+    if (pos + unicodeEscapeLength > text.size() || text.compare(pos, 3, "\\U+") != 0) {
+        return false;
+    }
+    for (std::size_t i = pos + 3; i < pos + unicodeEscapeLength; ++i) {
+        if (std::isxdigit(static_cast<unsigned char>(text[i])) == 0) {
+            return false;
+        }
+    }
+    unit = std::stoul(text.substr(pos + 3, 4), nullptr, 16);
+    return true;
+}
+
+// Replaces the \U+XXXX escapes of a UTF-8 string by the characters. Must be called with the GIL.
+void decodeUnicodeEscapes(std::string& text)
+{
+    std::size_t pos = text.find("\\U+");
+    if (pos == std::string::npos) {
+        return;
+    }
+    std::string decoded(text, 0, pos);
+    while (pos < text.size()) {
+        unsigned long unit = 0;
+        unsigned long low = 0;
+        unsigned long code = 0;
+        std::size_t used = 0;
+        if (readUnicodeEscape(text, pos, unit)) {
+            if (unit >= 0xD800 && unit <= 0xDBFF
+                && readUnicodeEscape(text, pos + unicodeEscapeLength, low) && low >= 0xDC00
+                && low <= 0xDFFF) {
+                code = 0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00);
+                used = 2 * unicodeEscapeLength;
+            }
+            else if (unit != 0 && (unit < 0xD800 || unit > 0xDFFF)) {
+                code = unit;
+                used = unicodeEscapeLength;
+            }
+        }
+        PyObject* character = used != 0 ? PyUnicode_FromOrdinal(static_cast<int>(code)) : nullptr;
+        const char* utf8 = character != nullptr ? PyUnicode_AsUTF8(character) : nullptr;
+        if (utf8 != nullptr) {
+            decoded += utf8;
+            pos += used;
+        }
+        else {
+            // not an escape, or a lone surrogate: kept as it is
+            PyErr_Clear();
+            decoded += text[pos++];
+        }
+        Py_XDECREF(character);
+    }
+    text = std::move(decoded);
 }
 
 }  // namespace
@@ -564,8 +679,9 @@ void CDxfWrite::addBlockName(const std::string& name, const std::string& blkReco
 
 void CDxfWrite::setLayerName(std::string name)
 {
-    m_layerName = name;
-    m_layerList.push_back(name);
+    // the layer name also names the dimension blocks
+    m_layerName = utf8ToDxfCodePage(name);
+    m_layerList.push_back(m_layerName);
 }
 
 void CDxfWrite::writeLine(const double* start, const double* end)
@@ -1066,7 +1182,7 @@ void CDxfWrite::putText(
     (*outStream) << " 40" << endl;
     (*outStream) << height << endl;
     (*outStream) << "  1" << endl;
-    (*outStream) << text << endl;
+    (*outStream) << utf8ToDxfCodePage(text) << endl;
     //    (*outStream) << " 50"          << endl;
     //    (*outStream) << 0              << endl;    //rotation
     //    (*outStream) << " 41"          << endl;
@@ -1209,7 +1325,7 @@ void CDxfWrite::writeLinearDim(
     //    (*m_ssEntity) << " 71"          << endl;    // not R12
     //    (*m_ssEntity) << 1              << endl;    // attachPoint ??1 = topleft
     (*m_ssEntity) << "  1" << endl;
-    (*m_ssEntity) << dimText << endl;
+    (*m_ssEntity) << utf8ToDxfCodePage(dimText) << endl;
     (*m_ssEntity) << "  3" << endl;
     (*m_ssEntity) << "STANDARD" << endl;  // style
     // linear dims
@@ -1297,7 +1413,7 @@ void CDxfWrite::writeAngularDim(
     //    (*m_ssEntity) << " 71"          << endl;    // not R12?  not required?
     //    (*m_ssEntity) << 5              << endl;    // attachPoint 5 = middle
     (*m_ssEntity) << "  1" << endl;
-    (*m_ssEntity) << dimText << endl;
+    (*m_ssEntity) << utf8ToDxfCodePage(dimText) << endl;
     (*m_ssEntity) << "  3" << endl;
     (*m_ssEntity) << "STANDARD" << endl;  // style
     // angular dims
@@ -1382,7 +1498,7 @@ void CDxfWrite::writeRadialDim(
                                  //    (*m_ssEntity) << " 71"          << endl;    // not R12
     //    (*m_ssEntity) << 1              << endl;    // attachPoint 5 = middle center
     (*m_ssEntity) << "  1" << endl;
-    (*m_ssEntity) << dimText << endl;
+    (*m_ssEntity) << utf8ToDxfCodePage(dimText) << endl;
     (*m_ssEntity) << "  3" << endl;
     (*m_ssEntity) << "STANDARD" << endl;  // style
     // radial dims
@@ -1449,7 +1565,7 @@ void CDxfWrite::writeDiametricDim(
                                  //    (*m_ssEntity) << " 71"          << endl;    // not R12
     //    (*m_ssEntity) << 5              << endl;    // attachPoint 5 = middle center
     (*m_ssEntity) << "  1" << endl;
-    (*m_ssEntity) << dimText << endl;
+    (*m_ssEntity) << utf8ToDxfCodePage(dimText) << endl;
     (*m_ssEntity) << "  3" << endl;
     (*m_ssEntity) << "STANDARD" << endl;  // style
     // diametric dims
@@ -2758,6 +2874,8 @@ bool CDxfRead::GeneralToUTF8(std::string& encoded) const
     // converted has the same lifetime as decoded so we don't have to delete it.
     if (converted != nullptr) {
         encoded = converted;
+        // characters outside the code page
+        decodeUnicodeEscapes(encoded);
     }
     Py_DECREF(decoded);
     return converted != nullptr;
