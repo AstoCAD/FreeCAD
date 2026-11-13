@@ -23,6 +23,7 @@
 
 #include <string>
 
+#include <App/Application.h>
 #include <App/Document.h>
 #include <Base/Exception.h>
 #include <Base/Placement.h>
@@ -350,6 +351,19 @@ void LocalCoordinateSystem::migrateOriginPoint()
     };
     if (std::ranges::none_of(features, isOrigin)) {
         auto data = getData(PointRoles[0]);
+        // While the document is restoring, labels are kept as read from the file and a label
+        // set on a new object is not made unique (see DocumentObject::onProposedLabelChange()).
+        // This point is new, so make its label unique as for the point of a new coordinate
+        // system, unless duplicate labels are allowed.
+        App::Document* doc = getDocument();
+        const std::string label = data.label.toStdString();
+        const bool allowDuplicates =
+            App::GetApplication()
+                .GetParameterGroupByPath("User parameter:BaseApp/Preferences/Document")
+                ->GetBool("DuplicateLabels");
+        if (!allowDuplicates && doc->containsLabel(label)) {
+            data.label = QString::fromStdString(doc->makeUniqueLabel(label));
+        }
         auto* origin = createDatum(data);
         origin->purgeTouched();
         features.push_back(origin);
