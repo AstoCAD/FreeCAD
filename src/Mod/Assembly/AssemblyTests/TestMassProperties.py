@@ -135,6 +135,16 @@ class TestMassProperties(unittest.TestCase):
         self.assertAlmostEqual(mass["Volume"], box.Shape.Volume + pad.Shape.Volume)
         self.assertAlmostEqual(mass["Mass"], (6000 + 100) * 1e-6)
 
+    def test_feature_without_result_still_hides_operands(self):
+        container = self.doc.addObject("App::Part", "Component")
+        box = self.box(container)
+        tool = self.box(container, "Tool")
+        cut = container.newObject("Part::Cut", "Cut")
+        cut.Base, cut.Tool = box, tool
+        self.assertTrue(cut.Shape.isNull())  # Not recomputed: no result yet.
+        with self.assertRaises(ValueError):
+            self.assembly.getMassProperties(container)
+
     def test_link_to_part_scales_aggregate(self):
         source = self.part()
         scaled = self.link(source, 2)

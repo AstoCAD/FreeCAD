@@ -594,13 +594,14 @@ std::vector<Object*> massChildren(Object* container)
     for (auto* child : result) {
         // Only a solid feature can have absorbed an operand's material. A
         // sketch's external geometry, a measurement or a dimension references
-        // a solid without replacing it.
+        // a solid without replacing it. A feature with no result yet (failed
+        // or not recomputed) still hides its operands.
         auto* source = child->getLinkedObject(true);
         if (!source || !source->isDerivedFrom<Part::Feature>()) {
             continue;
         }
         const auto shape = Part::Feature::getShape(child, Part::ShapeOption::ResolveLink);
-        if (shape.IsNull() || !TopExp_Explorer(shape, TopAbs_SOLID).More()) {
+        if (!shape.IsNull() && !TopExp_Explorer(shape, TopAbs_SOLID).More()) {
             continue;
         }
         // Expression references do not make one solid a modeling operand of
