@@ -20,6 +20,8 @@
 #include <App/Part.h>
 #include <Base/Placement.h>
 
+#include <App/DocumentObjectGroup.h>
+#include <Mod/Part/App/Datums.h>
 #include <Mod/PartDesign/App/Body.h>
 #include <Mod/PartDesign/App/DatumPlane.h>
 #include <Mod/PartDesign/App/FeaturePad.h>
@@ -505,6 +507,131 @@ TEST_F(CopyPasteRulesPDTest, bodyPastedFromFeatureOfBodyInPartGoesAfterThatBody)
     EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, _sketch), _part);
     const std::vector<App::DocumentObject*> expected {_body1, roots.front(), other};
     EXPECT_EQ(_part->Group.getValues(), expected);
+}
+
+TEST_F(CopyPasteRulesPDTest, sketchOnUserDatumPlaneStaysAttachedAtRoot)
+{
+    auto datum = _doc->addObject<Part::DatumPlane>("UserDatum");
+    datum->Placement.setValue(Base::Placement(Base::Vector3d(0, 0, 7), Base::Rotation()));
+    auto sk = _doc->addObject<Sketcher::SketchObject>("RootSketch");
+    sk->AttachmentSupport.setValue(datum, "");
+    sk->MapMode.setValue("FlatFace");
+    _doc->recompute();
+    // Not a leftover of a coordinate system: it has no role
+    EXPECT_FALSE(CopyPasteRules::isOrphanDatum(datum));
+
+    auto pasted = copyPaste({sk});
+    auto newSketch = findOfType<Sketcher::SketchObject>(pasted);
+    auto newDatum = findOfType<Part::DatumPlane>(pasted);
+    ASSERT_NE(newSketch, nullptr);
+    ASSERT_NE(newDatum, nullptr);
+    CopyPasteRules::placePastedObjects(pasted, nullptr);
+    EXPECT_TRUE(newDatum->isAttachedToDocument());
+    ASSERT_FALSE(newSketch->AttachmentSupport.getValues().empty());
+    EXPECT_EQ(newSketch->AttachmentSupport.getValues().front(), newDatum);
+    EXPECT_STREQ(newSketch->MapMode.getValueAsString(), "FlatFace");
+}
+
+TEST_F(CopyPasteRulesPDTest, userDatumPlaneOnOriginPlaneIsDetachedAtRoot)
+{
+    auto datum = _doc->addObject<Part::DatumPlane>("UserDatum");
+    _part->addObject(datum);
+    datum->AttachmentSupport.setValue(_part->getOrigin()->getXY(), "");
+    datum->MapMode.setValue("FlatFace");
+    _doc->recompute();
+    auto pasted = copyPaste({datum});
+    auto newDatum = findOfType<Part::DatumPlane>(pasted);
+    ASSERT_NE(newDatum, nullptr);
+    CopyPasteRules::placePastedObjects(pasted, nullptr);
+    EXPECT_TRUE(newDatum->isAttachedToDocument());
+    EXPECT_STREQ(newDatum->MapMode.getValueAsString(), "Deactivated");
+    EXPECT_EQ(countOrphanDatums(), 0);
+}
+
+TEST_F(CopyPasteRulesPDTest, userDatumPlaneOnOriginPlaneIsReattachedInBody)
+{
+    auto datum = _doc->addObject<Part::DatumPlane>("UserDatum");
+    _part->addObject(datum);
+    datum->AttachmentSupport.setValue(_part->getOrigin()->getXY(), "");
+    datum->MapMode.setValue("FlatFace");
+    _doc->recompute();
+    auto pasted = copyPaste({datum});
+    auto newDatum = findOfType<Part::DatumPlane>(pasted);
+    ASSERT_NE(newDatum, nullptr);
+    EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, _body2), _body2);
+    EXPECT_TRUE(_body2->hasObject(newDatum));
+    ASSERT_FALSE(newDatum->AttachmentSupport.getValues().empty());
+    EXPECT_EQ(newDatum->AttachmentSupport.getValues().front(), _body2->getOrigin()->getXY());
+}
+
+TEST_F(CopyPasteRulesPDTest, sketchPastedIntoGroupInsidePartUsesThePartOrigin)
+{
+    auto grp = _doc->addObject<App::DocumentObjectGroup>("Grp");
+    _part->addObject(grp);
+    auto pasted = copyPaste({_sketch});
+    auto newSketch = findOfType<Sketcher::SketchObject>(pasted);
+    ASSERT_NE(newSketch, nullptr);
+    EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, grp), grp);
+    EXPECT_TRUE(grp->hasObject(newSketch));
+    EXPECT_EQ(App::GeoFeatureGroupExtension::getGroupOfObject(newSketch), _part);
+    ASSERT_FALSE(newSketch->AttachmentSupport.getValues().empty());
+    EXPECT_EQ(newSketch->AttachmentSupport.getValues().front(), _part->getOrigin()->getXY());
+    EXPECT_EQ(countOrphanDatums(), 0);
+}
+
+TEST_F(CopyPasteRulesPDTest, sketchPastedIntoRootGroupIsDetached)
+{
+    auto grp = _doc->addObject<App::DocumentObjectGroup>("Grp");
+    const auto global = App::GeoFeature::getGlobalPlacement(_sketch);
+    auto pasted = copyPaste({_sketch});
+    auto newSketch = findOfType<Sketcher::SketchObject>(pasted);
+    ASSERT_NE(newSketch, nullptr);
+    EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, grp, {{newSketch, global}}), grp);
+    EXPECT_TRUE(grp->hasObject(newSketch));
+    EXPECT_STREQ(newSketch->MapMode.getValueAsString(), "Deactivated");
+    EXPECT_EQ(countOrphanDatums(), 0);
+    EXPECT_EQ(grp->Group.getValues().size(), 1u);
+}
+
+TEST_F(CopyPasteRulesPDTest, padPastedInOtherDocumentDoesNotLinkToUnrelatedObjects)
+{
+    // BaseFeature and _Body are exported by name: in another document they can resolve to
+    // unrelated objects
+    addPad(_body1, "P0");
+    auto p1 = addPad(_body1, "P1");
+    auto otherName = App::GetApplication().getUniqueDocumentName("CopyPasteOther");
+    auto other = App::GetApplication().newDocument(otherName.c_str(), "testUser");
+    auto stray = other->addObject<PartDesign::Pad>("P0");
+    auto strayBody = other->addObject<PartDesign::Body>("Body1");
+    auto pasted = other->copyObject(CopyPasteRules::getObjectsToCopy({p1}), false, true);
+    auto newPad = findOfType<PartDesign::Pad>(pasted);
+    ASSERT_NE(newPad, nullptr);
+    EXPECT_EQ(newPad->getDocument(), other);
+    CopyPasteRules::placePastedObjects(pasted, nullptr);
+    EXPECT_NE(newPad->BaseFeature.getValue(), stray);
+    EXPECT_EQ(newPad->BaseFeature.getValue(), nullptr);
+    EXPECT_NE(newPad->_Body.getValue(), strayBody);
+    EXPECT_EQ(newPad->_Body.getValue(), nullptr);
+    App::GetApplication().closeDocument(otherName.c_str());
+}
+
+TEST_F(CopyPasteRulesPDTest, externalGeometryOfOriginAxisIsRelinked)
+{
+    auto ext = _doc->addObject<Sketcher::SketchObject>("ExtSketch");
+    _body1->addObject(ext);
+    ext->AttachmentSupport.setValue(_body1->getOrigin()->getXZ(), "");
+    ext->MapMode.setValue("FlatFace");
+    ext->addExternal(_body1->getOrigin()->getX(), "");
+    _doc->recompute();
+    EXPECT_TRUE(CopyPasteRules::canCopyWithoutAsking({ext}));
+    auto pasted = copyPaste({ext});
+    auto newSketch = findOfType<Sketcher::SketchObject>(pasted);
+    ASSERT_NE(newSketch, nullptr);
+    EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, _body2), _body2);
+    EXPECT_EQ(newSketch->AttachmentSupport.getValues().front(), _body2->getOrigin()->getXZ());
+    ASSERT_EQ(newSketch->ExternalGeometry.getValues().size(), 1u);
+    EXPECT_EQ(newSketch->ExternalGeometry.getValues().front(), _body2->getOrigin()->getX());
+    EXPECT_EQ(countOrphanDatums(), 0);
 }
 
 // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

@@ -2480,9 +2480,21 @@ static void addPastedObjectsToContainer(
     const std::map<const App::DocumentObject*, Base::Placement>& sourcePlacements
 )
 {
+    std::set<App::DocumentObject*> selected;
+    for (const auto& sel : Gui::Selection().getSelection(doc->getName())) {
+        if (sel.pObject) {
+            selected.insert(sel.pObject);
+        }
+    }
     std::vector<App::DocumentObjectGroup*> grp
         = Gui::Selection().getObjectsOfType<App::DocumentObjectGroup>();
-    if (grp.size() == 1) {
+    // A plain group selected alone is a paste container of the rules, which also re-link
+    // the copied origin features when the group is inside a part. The former way remains
+    // for specialised groups (analysis, layers...) and for a group among several selected
+    // objects.
+    const bool byRules = useCopyPasteRules() && selected.size() == 1 && grp.size() == 1
+        && App::CopyPasteRules::isPasteContainer(grp.front());
+    if (grp.size() == 1 && !byRules) {
         Gui::Document* gui = Application::Instance->getDocument(doc);
         if (gui) {
             gui->addRootObjectsToGroup(newObj, grp.front());
@@ -2499,12 +2511,6 @@ static void addPastedObjectsToContainer(
     }
     if (!useCopyPasteRules()) {
         return;
-    }
-    std::set<App::DocumentObject*> selected;
-    for (const auto& sel : Gui::Selection().getSelection(doc->getName())) {
-        if (sel.pObject) {
-            selected.insert(sel.pObject);
-        }
     }
     try {
         App::DocumentObject* target = nullptr;

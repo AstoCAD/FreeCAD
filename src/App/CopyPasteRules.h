@@ -83,8 +83,10 @@ public:
     }
 
     /// Called for each pasted object once all of them are placed, e.g. to clear a rebuilt
-    /// link that the target container could not re-create.
-    virtual void finishPastedObject(DocumentObject* /*obj*/) const
+    /// link that the target container could not re-create. @a pasted are all the objects of
+    /// the paste; some may have been removed since, so they can only be compared, not used.
+    virtual void finishPastedObject(DocumentObject* /*obj*/,
+                                    const std::vector<DocumentObject*>& /*pasted*/) const
     {}
 };
 
@@ -125,8 +127,9 @@ public:
     /// order of @a objs.
     static std::vector<DocumentObject*> getRootObjects(const std::vector<DocumentObject*>& objs);
 
-    /// True for a datum element (plane, axis, point) that is not part of a coordinate
-    /// system, e.g. a copied origin feature pasted without its Origin.
+    /// True for a datum element (plane, axis, point) that has a role in a coordinate system
+    /// but is not part of one, e.g. a copied origin feature pasted without its Origin.
+    /// False for a datum made on its own (e.g. Part::DatumPlane), which has no role.
     static bool isOrphanDatum(const DocumentObject* obj);
 
     /// True if pasted objects may be put into @a obj: a plain App::DocumentObjectGroup

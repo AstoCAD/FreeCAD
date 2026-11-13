@@ -261,6 +261,19 @@ class TestCopyPasteGui(unittest.TestCase):
         self.assertIn(new[0], part.Group)
         self.assertEqual(new[0].AttachmentSupport[0][0], self._origin_feature(part, "XY_Plane"))
 
+    def test_sketch_pasted_on_a_group_inside_a_part_uses_the_part_origin(self):
+        part = self.doc.addObject("App::Part", "Part")
+        group = self.doc.addObject("App::DocumentObjectGroup", "Group")
+        part.addObject(group)
+        self.doc.recompute()
+        self._select(self.sketch)
+        self._run("Std_Copy")
+        new = self._paste_and_get_new(group)
+        self.assertEqual(len(new), 1)
+        self.assertIn(new[0], group.Group)
+        self.assertEqual(new[0].AttachmentSupport[0][0], self._origin_feature(part, "XY_Plane"))
+        self.assertEqual(self._orphan_datums(), [])
+
     def test_body_pasted_with_an_active_body_goes_to_the_root(self):
         self._select(self.body1)
         self._run("Std_Copy")

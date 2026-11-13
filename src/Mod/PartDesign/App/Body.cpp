@@ -736,8 +736,14 @@ public:
     }
 
     // Links to a body or a previous feature that the paste could not re-create, e.g. a
-    // feature pasted outside a body, or a link resolved by name to another body
-    void finishPastedObject(App::DocumentObject* obj) const override
+    // feature pasted outside a body, or a link resolved by name to another body. The
+    // previous feature is not copied, so its name can also resolve to an unrelated object
+    // of the target document: the link is kept only to a feature of the same body or to a
+    // feature pasted together with this one.
+    void finishPastedObject(
+        App::DocumentObject* obj,
+        const std::vector<App::DocumentObject*>& pasted
+    ) const override
     {
         auto feature = freecad_cast<ProfileBased*>(obj);
         if (!feature || getRebuiltLinks(feature).empty()) {
@@ -745,7 +751,8 @@ public:
         }
         Body* body = Body::findBodyOf(feature);
         App::DocumentObject* base = feature->BaseFeature.getValue();
-        if (base && Body::findBodyOf(base) != body) {
+        if (base && !std::ranges::count(pasted, base)
+            && (!body || Body::findBodyOf(base) != body)) {
             feature->BaseFeature.setValue(nullptr);
         }
         if (feature->_Body.getValue() != body) {

@@ -270,7 +270,7 @@ void finish(const std::vector<DocumentObject*>& pasted,
             continue;
         }
         for (auto handler : getHandlers()) {
-            handler->finishPastedObject(obj);
+            handler->finishPastedObject(obj, pasted);
         }
     }
 }
@@ -405,8 +405,13 @@ CopyPasteRules::getRootObjects(const std::vector<DocumentObject*>& objs)
 
 bool CopyPasteRules::isOrphanDatum(const DocumentObject* obj)
 {
-    return obj && obj->isAttachedToDocument() && obj->isDerivedFrom<DatumElement>()
-        && !static_cast<const DatumElement*>(obj)->getLCS();
+    if (!obj || !obj->isAttachedToDocument() || !obj->isDerivedFrom<DatumElement>()) {
+        return false;
+    }
+    // A datum that the user made on its own (e.g. Part::DatumPlane) has no role: it is
+    // not a leftover of a coordinate system and must be kept like any other object.
+    auto datum = static_cast<const DatumElement*>(obj);
+    return !datum->getLCS() && !datum->Role.getStrValue().empty();
 }
 
 bool CopyPasteRules::isPasteContainer(const DocumentObject* obj)
