@@ -105,3 +105,32 @@ class DrawViewRemovalTest(unittest.TestCase):
         for name in names:
             self.assertIsNone(self.doc.getObject(name), name)
         self.assertIsNotNone(self.doc.getObject(self.views[0].Name))
+
+    def testRemoveComplexSectionKeepsSharedProfile(self):
+        """A generated section profile still used by another section is not removed."""
+        self.doc.UndoMode = 1
+        profile = self.doc.addObject("Part::Feature", "SectionProfile")
+        sections = []
+        for _ in range(2):
+            section =self.doc.addObject("TechDraw::DrawComplexSection", "ComplexSection")
+            self.page.addView(section)
+            section.BaseView = self.views[0]
+            section.CuttingToolWireObject = profile
+            sections.append(section)
+        profileName = profile.Name
+        firstName = sections[0].Name
+
+        self.doc.openTransaction("Remove section")
+        self.doc.removeObject(firstName)
+        self.doc.commitTransaction()
+        self.assertIsNone(self.doc.getObject(firstName))
+        self.assertIsNotNone(self.doc.getObject(profileName))
+        self.assertEqual(sections[1].CuttingToolWireObject, profile)
+
+        self.doc.undo()
+        self.assertEqual(self.doc.getObject(firstName).CuttingToolWireObject, profile)
+
+        # the profile still goes with the last section that uses it
+        self.doc.removeObject(firstName)
+        self.doc.removeObject(sections[1].Name)
+        self.assertIsNone(self.doc.getObject(profileName))
