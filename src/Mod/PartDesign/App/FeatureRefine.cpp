@@ -187,7 +187,7 @@ TopoShape FeatureRefine::refineShapeIfActive(
     }
     catch (Standard_Failure& err) {
         if (onError == RefineErrorPolicy::Warn) {
-            Base::Console().warning("Refine failed: {}", err.GetMessageString());
+            Base::Console().warning(getFullLabel(), "Refine failed: {}\n", err.GetMessageString());
         }
         else {
             throw;
