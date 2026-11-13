@@ -3327,6 +3327,7 @@ class DocumentGroupCases(unittest.TestCase):
         self.assertEqual(Asm.getSubObject("AsmSub.SubQ.QF.", retType=1), QF)
         self.Doc.recompute()
         self.assertFalse([o.Name for o in self.Doc.Objects if "Touched" in o.State])
+
     def testAddObjectsAddsEachObjectOnce(self):
         # addObjects() checked membership against Group, which it only updates at the
         # end, so an object listed twice, or a base shared by two added objects (moved
@@ -3349,6 +3350,7 @@ class DocumentGroupCases(unittest.TestCase):
         P.addObjects(users + [users[0]])
         self.assertEqual(sorted(o.Name for o in P.Group), ["Base", "User1", "User2"])
         self.Doc.recompute()
+
     def testRestoreCyclicGroup(self):
         # an old file with a cyclic group still opens with its Group as saved
         A = self.Doc.addObject("App::DocumentObjectGroup", "A")
@@ -4016,6 +4018,40 @@ class DocumentExpressionCases(unittest.TestCase):
         obj.setExpression(".Placement.Base.x", ".Placement.Base.y + 10mm")
         with self.assertRaises(RuntimeError):
             obj.setExpression(".Placement.Base.y", ".Placement.Base.x + 10mm")
+
+    def testOwnPropertyReferenceWithLocalDot(self):
+        # A property of the same object may be spelled with the local property dot (".Width")
+        # or without it ("Width"). An expression reading one spelling was not ordered after
+        # the expression bound with the other one: it read the value of the previous recompute.
+        # A cycle through the other spelling was not detected either.
+        for widthPath, heightPath, reference in (
+            ("Width", "Height", ".Width"),
+            (".Width", ".Height", "Width"),
+        ):
+            with self.subTest(widthPath=widthPath, reference=reference):
+                obj = self.Doc.addObject("App::FeaturePython", "Obj")
+                obj.addProperty("App::PropertyLength", "Width")
+                obj.addProperty("App::PropertyLength", "Height")
+                obj.setExpression(widthPath, "5 mm * 4")
+                obj.setExpression(heightPath, reference + " * 2")
+                self.Doc.recompute()
+                self.assertAlmostEqual(obj.Width.Value, 20)
+                self.assertAlmostEqual(obj.Height.Value, 40)
+                # the bindings keep their spelling
+                self.assertIn((widthPath, "5 mm * 4"), obj.ExpressionEngine)
+                self.assertIn((heightPath, reference + " * 2"), obj.ExpressionEngine)
+
+        obj = self.Doc.addObject("App::FeaturePython", "Cyclic")
+        obj.addProperty("App::PropertyLength", "Width")
+        obj.addProperty("App::PropertyLength", "Height")
+        with self.assertRaises(RuntimeError):
+            obj.setExpression("Width", ".Width + 1 mm")
+        obj.setExpression("Width", "Height + 1 mm")
+        with self.assertRaises(RuntimeError):
+            obj.setExpression("Height", ".Width + 1 mm")
+        with self.assertRaises(RuntimeError):
+            obj.setExpression(".Height", "Width + 1 mm")
+        self.assertEqual(obj.ExpressionEngine, [("Width", "Height + 1 mm")])
 
     def testConstructorFunctionsWithInvalidArguments(self):
         # vector(), placement(), matrix() and create() ignored a failing

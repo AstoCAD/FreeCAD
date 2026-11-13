@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 #include <algorithm>
+#include <iterator>
 
 #include <gtest/gtest.h>
 
+#include "Base/Exception.h"
 #include "Base/Quantity.h"
 
 #include "App/Application.h"
@@ -239,4 +241,88 @@ TEST_F(ExpressionDependencyLifetimeTest, OutListListsExpressionLinksOnce)
     EXPECT_EQ(countSource(dependent->getOutList(App::DocumentObject::OutListNoExpression)), 1);
     link->setValue(nullptr);
     EXPECT_TRUE(dependent->getOutList(App::DocumentObject::OutListNoExpression).empty());
+}
+
+// A property of the same object may be spelled with the local property dot ('.Width') or
+// without it ('Width'), in the path of a binding as in an expression. Both spellings must give
+// the same evaluation order and the same cycle detection.
+class LocalPropertyReferenceTest: public ::testing::Test
+{
+protected:
+    static void SetUpTestSuite()
+    {
+        tests::initApplication();
+    }
+
+    void SetUp() override
+    {
+        documentName = App::GetApplication().getUniqueDocumentName("LocalPropertyReference");
+        document = App::GetApplication().newDocument(documentName.c_str(), "testUser");
+        object = document->addObject("App::FeaturePython", "Object");
+        width = dynamic_cast<App::PropertyFloat*>(
+            object->addDynamicProperty("App::PropertyFloat", "Width")
+        );
+        height = dynamic_cast<App::PropertyFloat*>(
+            object->addDynamicProperty("App::PropertyFloat", "Height")
+        );
+    }
+
+    void TearDown() override
+    {
+        App::GetApplication().closeDocument(documentName.c_str());
+    }
+
+    void bind(const char* path, const char* expression)
+    {
+        object->setExpression(
+            App::ObjectIdentifier::parse(object, path),
+            std::shared_ptr<App::Expression>(App::Expression::parse(object, expression))
+        );
+    }
+
+    std::string documentName;
+    App::Document* document {};
+    App::DocumentObject* object {};
+    App::PropertyFloat* width {};
+    App::PropertyFloat* height {};
+};
+
+TEST_F(LocalPropertyReferenceTest, ReferenceWithDotIsEvaluatedAfterTheBinding)
+{
+    ASSERT_NE(width, nullptr);
+    ASSERT_NE(height, nullptr);
+    bind("Width", "5 * 4");
+    bind("Height", ".Width * 2");
+
+    object->ExpressionEngine.execute();
+
+    EXPECT_DOUBLE_EQ(width->getValue(), 20.0);
+    EXPECT_DOUBLE_EQ(height->getValue(), 40.0);
+}
+
+TEST_F(LocalPropertyReferenceTest, BindingWithDotIsEvaluatedBeforeTheReference)
+{
+    ASSERT_NE(width, nullptr);
+    ASSERT_NE(height, nullptr);
+    bind(".Width", "5 * 4");
+    bind(".Height", "Width * 2");
+
+    object->ExpressionEngine.execute();
+
+    EXPECT_DOUBLE_EQ(width->getValue(), 20.0);
+    EXPECT_DOUBLE_EQ(height->getValue(), 40.0);
+    // the bindings keep their spelling
+    const auto expressions = object->ExpressionEngine.getExpressions();
+    ASSERT_EQ(expressions.size(), 2);
+    EXPECT_EQ(expressions.begin()->first.toString(), ".Height");
+    EXPECT_EQ(std::next(expressions.begin())->first.toString(), ".Width");
+}
+
+TEST_F(LocalPropertyReferenceTest, CycleThroughTheOtherSpellingIsRejected)
+{
+    EXPECT_THROW(bind("Width", ".Width + 1"), Base::RuntimeError);
+    bind("Width", "Height + 1");
+    EXPECT_THROW(bind("Height", ".Width + 1"), Base::RuntimeError);
+    EXPECT_THROW(bind(".Height", "Width + 1"), Base::RuntimeError);
+    EXPECT_EQ(object->ExpressionEngine.numExpressions(), 1);
 }

@@ -127,15 +127,18 @@ struct PropertyExpressionEngine::Private
     std::vector<fastsignals::scoped_connection> conns;
     std::unordered_map<std::string, std::vector<ObjectIdentifier>> propMap;
 
+    // Map from a node id to the paths of the expressions bound to it
+    using RevNodes = boost::unordered_map<int, std::vector<ObjectIdentifier>>;
+
     /**
      * @brief Build a graph of all expressions in \a exprs.
      * @param exprs Expressions to use in graph
-     * @param revNodes Map from int[nodeid] to ObjectIndentifer.
+     * @param revNodes Map from int[nodeid] to the ObjectIdentifiers bound to it.
      * @param g Graph to update. May contain additional nodes than in revNodes, because of outside
      * dependencies.
      */
     static void buildGraph(const ExpressionMap& exprs,
-                    boost::unordered_map<int, App::ObjectIdentifier>& revNodes,
+                    RevNodes& revNodes,
                     DiGraph& g,
                     ExecuteOption option = ExecuteAll)
     {
@@ -182,29 +185,53 @@ struct PropertyExpressionEngine::Private
         depth_first_search(g, visitor(vis));
 
         if (has_cycle) {
-            std::string s = revNodes[src].toString() + " reference creates a cyclic dependency.";
+            const auto& paths = revNodes[src];
+            std::string s = (paths.empty() ? std::string() : paths.front().toString())
+                + " reference creates a cyclic dependency.";
 
             throw Base::RuntimeError(s.c_str());
         }
+    }
+
+    /**
+     * @brief The node of \a path in the graph.
+     *
+     * A property of the owner may be spelled with the local property dot ('.Width') or
+     * without it ('Width'), in the path of a binding as in an expression. ObjectIdentifier
+     * compares paths by their spelling, so both spellings are given the same node here.
+     * Otherwise an expression reading '.Width' is not ordered after the binding of 'Width',
+     * and a cycle through the other spelling is not detected.
+     */
+    static ObjectIdentifier nodePath(const ObjectIdentifier& path)
+    {
+        auto* owner = path.getOwner();
+        if (!path.isLocalProperty() || !path.getSubObjectName().empty() || !owner
+            || !owner->isAttachedToDocument()) {
+            return path;
+        }
+        ObjectIdentifier node(owner);
+        node.setDocumentObjectName(owner);
+        for (const auto& component : path.getComponents()) {
+            node << component;
+        }
+        return node;
     }
 
     static void buildGraphStructures(
     const ObjectIdentifier& path,
     const std::shared_ptr<Expression> expression,
     boost::unordered_map<ObjectIdentifier, int>& nodes,
-    boost::unordered_map<int, ObjectIdentifier>& revNodes,
+    RevNodes& revNodes,
     std::vector<Edge>& edges)
     {
         /* Insert target property into nodes structure */
-        if (nodes.find(path) == nodes.end()) {
+        const ObjectIdentifier target = nodePath(path);
+        if (nodes.find(target) == nodes.end()) {
             int s = nodes.size();
-
-            revNodes[s] = path;
-            nodes[path] = s;
+            nodes[target] = s;
         }
-        else {
-            revNodes[nodes[path]] = path;
-        }
+        // Several bindings share a node if they are spelled differently ('.Width' and 'Width')
+        revNodes[nodes[target]].push_back(path);
 
         /* Insert dependencies into nodes structure */
         ExpressionDeps deps;
@@ -218,12 +245,12 @@ struct PropertyExpressionEngine::Private
                     continue;
                 }
                 for (auto& oid : info.second) {
-                    ObjectIdentifier cPath(oid.canonicalPath());
+                    ObjectIdentifier cPath(nodePath(oid.canonicalPath()));
                     if (nodes.find(cPath) == nodes.end()) {
                         int s = nodes.size();
                         nodes[cPath] = s;
                     }
-                    edges.emplace_back(nodes[path], nodes[cPath]);
+                    edges.emplace_back(nodes[target], nodes[cPath]);
                 }
             }
         }
@@ -625,7 +652,7 @@ std::vector<App::ObjectIdentifier>
 PropertyExpressionEngine::computeEvaluationOrder(ExecuteOption option)
 {
     std::vector<App::ObjectIdentifier> evaluationOrder;
-    boost::unordered_map<int, ObjectIdentifier> revNodes;
+    Private::RevNodes revNodes;
     DiGraph g;
 
     Private::buildGraph(expressions, revNodes, g, option);
@@ -637,8 +664,9 @@ PropertyExpressionEngine::computeEvaluationOrder(ExecuteOption option)
     for (int i : c) {
         // we return the evaluation order for our properties, not the dependencies
         // the topo sort will contain node ids for both our props and their deps
-        if (revNodes.find(i) != revNodes.end()) {
-            evaluationOrder.push_back(revNodes[i]);
+        auto it = revNodes.find(i);
+        if (it != revNodes.end()) {
+            evaluationOrder.insert(evaluationOrder.end(), it->second.begin(), it->second.end());
         }
     }
 
@@ -873,7 +901,7 @@ PropertyExpressionEngine::validateExpression(const ObjectIdentifier& path,
 
     // Build graph; an exception will be thrown if it is not a DAG
     try {
-        boost::unordered_map<int, ObjectIdentifier> revNodes;
+        Private::RevNodes revNodes;
         DiGraph g;
 
         Private::buildGraph(newExpressions, revNodes, g);
