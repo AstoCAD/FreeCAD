@@ -372,6 +372,11 @@ DlgDocumentParameters::DlgDocumentParameters(App::Document* doc, QWidget* parent
         &DlgDocumentParameters::updateButtons
     );
 
+    // The rows and the columns are measured here, before the dialog is shown. Until the tree is
+    // polished, the style sheet rules for its items are not applied to it, and the rows would
+    // keep the height measured without them until the next refresh.
+    ui->treeParameters->ensurePolished();
+
     refresh();
 
     // The layout the dialog was closed with. The comment column takes the rest of the width.

@@ -189,6 +189,30 @@ class TestDocumentParametersGui(unittest.TestCase):
         self.openDialog()
         self.assertEqual([self.tree.columnWidth(column) for column in range(4)], default)
 
+    def testRowsKeepTheirHeightWhenTheListIsRebuilt(self):
+        # A style sheet rule for the items of a tree applies once the tree is polished. The rows
+        # were measured before that, without the rule, and grew the first time the list was
+        # rebuilt, which every edit does.
+        mainWindow = Gui.getMainWindow()
+        styleSheet = mainWindow.styleSheet()
+        self.addCleanup(mainWindow.setStyleSheet, styleSheet)
+        # a new dialog is needed: the one of setUp() is deleted now, not later
+        self.dialog.close()
+        self.dialog = None
+        QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.DeferredDelete.value)
+        mainWindow.setStyleSheet(
+            styleSheet + "\nQTreeView#treeParameters::item { margin: 3px 0px; }"
+        )
+        self.openDialog()
+
+        def rowHeight():
+            return self.tree.visualItemRect(self.item("width")).height()
+
+        height = rowHeight()
+        self.widget(QtWidgets.QCheckBox, "checkBoxModel").setChecked(True)  # rebuilds the list
+        Gui.updateGui()
+        self.assertEqual(rowHeight(), height)
+
     def testFilter(self):
         self.widget(QtWidgets.QLineEdit, "lineEditFilter").setText("wid")
         Gui.updateGui()
