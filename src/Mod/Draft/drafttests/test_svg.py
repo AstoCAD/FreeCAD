@@ -598,5 +598,29 @@ class DraftSVGImportContentRegression(test_base.DraftTestCaseDoc):
                 self.assertEqual(len(shapes), 1)
                 self.assertAlmostEqual(shapes[0].Area, 100.0, places=6)
 
+    def test_read_svg_text_with_entities(self):
+        """A text with entities is one text object, a tspan still makes its own."""
+        svg = (
+            '<?xml version="1.0"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="100mm" height="100mm" viewBox="0 0 100 100">'
+            '<text x="10" y="20" font-size="5">A &amp; B &lt;C&gt;</text>'
+            '<text x="10" y="40" font-size="5">'
+            '<tspan x="10" y="40">T1</tspan><tspan x="10" y="50">T2 &amp; 3</tspan>'
+            "</text>"
+            "</svg>\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "text_entities.svg")
+            with open(in_file, "w", encoding="utf-8") as svg_file:
+                svg_file.write(svg)
+            importSVG.insert(in_file, self.doc.Name)
+        texts = [
+            (obj.LabelText, round(obj.Position.y, 6))
+            for obj in self.doc.Objects
+            if obj.TypeId == "App::Annotation"
+        ]
+        self.assertEqual(texts, [(["A & B <C>"], -20.0), (["T1"], -40.0), (["T2 & 3"], -50.0)])
+
 
 ## @}
