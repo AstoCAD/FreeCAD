@@ -55,6 +55,8 @@
 #include <gp_Dir.hxx>
 #include <gp_Pnt.hxx>
 #include <TopLoc_Location.hxx>
+#include <TopoDS_Iterator.hxx>
+#include <gp_Trsf.hxx>
 #include <Standard_Failure.hxx>
 #include <GProp_GProps.hxx>
 #include <GProp_PrincipalProps.hxx>
@@ -84,21 +86,35 @@
 
 namespace Assembly
 {
-// What resolveContactMove() reuses between the mouse moves of one drag; the
-// shapes do not change while dragging. AssemblyObject resets it when a drag
-// starts or ends and when objects are deleted.
+// What resolveContactMove() reuses between mouse moves. Every entry records
+// the geometry it was computed from and is recomputed when that changes, so
+// it stays correct whether or not a drag is bracketed by preDrag() and
+// postDrag(), which reset it, as does deleting objects.
 struct ContactDragCache
 {
+    // A component's shape without its own placement: its leaf shapes (the
+    // non-compound shapes, held so that their addresses cannot be reused)
+    // with their transforms within the component.
+    using Leaves = std::vector<std::pair<TopoDS_Shape, gp_Trsf>>;
+    struct Bounds
+    {
+        Leaves leaves;
+        Bnd_Box box;  // Tight, in the component's own frame.
+        size_t generation = 0;
+    };
     struct Test
     {
         Base::Placement first;
         Base::Placement second;
+        size_t firstGeneration = 0;
+        size_t secondGeneration = 0;
         bool intersects = false;
     };
-    // Tight bounds of each component's shape in its own frame.
-    std::map<App::DocumentObject*, Bnd_Box> bounds;
+    std::map<App::DocumentObject*, Bounds> bounds;
+    size_t generations = 0;
     // The last two intersection tests of each pair (ordered by address), with
-    // the poses they were made at: a move starts where the previous one ended.
+    // the poses and geometry they were made with: a move starts where the
+    // previous one ended.
     std::map<std::pair<App::DocumentObject*, App::DocumentObject*>, std::vector<Test>> tests;
 };
 
@@ -535,6 +551,49 @@ struct PlacedBounds
         );
     }
 };
+
+// The geometry of a component's shape without its own placement (its top
+// location): a recomputed feature has new leaf shapes, a container whose
+// child changed or moved has a changed leaf or leaf transform.
+ContactDragCache::Leaves shapeLeaves(const TopoDS_Shape& shape)
+{
+    ContactDragCache::Leaves leaves;
+    const auto collect = [&leaves](const auto& self, const TopoDS_Shape& current) -> void {
+        if (current.ShapeType() != TopAbs_COMPOUND) {
+            leaves.emplace_back(current.Located(TopLoc_Location()), current.Location().Transformation());
+            return;
+        }
+        for (TopoDS_Iterator child(current, true, true); child.More(); child.Next()) {
+            self(self, child.Value());
+        }
+    };
+    if (!shape.IsNull()) {
+        collect(collect, shape.Located(TopLoc_Location()));
+    }
+    return leaves;
+}
+
+bool sameLeaves(const ContactDragCache::Leaves& first, const ContactDragCache::Leaves& second)
+{
+    if (first.size() != second.size()) {
+        return false;
+    }
+    for (size_t index = 0; index < first.size(); ++index) {
+        const auto& [shape, transform] = first[index];
+        const auto& [otherShape, otherTransform] = second[index];
+        if (!shape.IsSame(otherShape) || shape.Orientation() != otherShape.Orientation()) {
+            return false;
+        }
+        for (int row = 1; row <= 3; ++row) {
+            for (int column = 1; column <= 4; ++column) {
+                if (transform.Value(row, column) != otherTransform.Value(row, column)) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
 
 // True when two solids, each inside a box given in its own frame, cannot share
 // a volume thicker than the tolerance. Components assembled flush, the usual
@@ -1537,16 +1596,21 @@ void AssemblyObject::resolveContactMove(
         contactDragCache = std::make_shared<ContactDragCache>();
     }
     auto& cache = *contactDragCache;
-    // Tight bounds of a component in its own frame, from its shape at a pose.
+    // Tight bounds of a component in its own frame, from its shape at a pose,
+    // recomputed when the shape is not the one they were computed from.
     const auto bounds = [&cache](Object* component,
                                  const TopoDS_Shape& shape,
-                                 const Base::Placement& pose) -> const Bnd_Box& {
-        auto [entry, inserted] = cache.bounds.try_emplace(component);
-        if (inserted) {
+                                 const Base::Placement& pose) -> const ContactDragCache::Bounds& {
+        auto leaves = shapeLeaves(shape);
+        auto& entry = cache.bounds[component];
+        if (entry.generation == 0 || !sameLeaves(entry.leaves, leaves)) {
             const TopLoc_Location local(::Part::TopoShape::convert(pose.inverse().toMatrix()));
-            BRepBndLib::AddOptimal(shape.Moved(local), entry->second, false, false);
+            entry.box = Bnd_Box();
+            BRepBndLib::AddOptimal(shape.Moved(local), entry.box, false, false);
+            entry.leaves = std::move(leaves);
+            entry.generation = ++cache.generations;
         }
-        return entry->second;
+        return entry;
     };
     // Whether two components, given with their shapes at the given placements,
     // share a volume. Separated bounds answer most flush pairs; a pose tested
@@ -1561,20 +1625,21 @@ void AssemblyObject::resolveContactMove(
         const auto key = ordered ? std::pair {first, second} : std::pair {second, first};
         const auto& poseA = ordered ? firstPose : secondPose;
         const auto& poseB = ordered ? secondPose : firstPose;
+        const auto& firstBounds = bounds(first, firstShape, firstPose);
+        const auto& secondBounds = bounds(second, secondShape, secondPose);
+        const size_t generationA = ordered ? firstBounds.generation : secondBounds.generation;
+        const size_t generationB = ordered ? secondBounds.generation : firstBounds.generation;
         auto& tests = cache.tests[key];
         for (const auto& test : tests) {
-            if (test.first == poseA && test.second == poseB) {
+            if (test.first == poseA && test.second == poseB && test.firstGeneration == generationA
+                && test.secondGeneration == generationB) {
                 return test.intersects;
             }
         }
-        const bool result = !boxesSeparate(
-                                bounds(first, firstShape, firstPose),
-                                firstPose,
-                                bounds(second, secondShape, secondPose),
-                                secondPose
-                            )
+        const bool result
+            = !boxesSeparate(firstBounds.box, firstPose, secondBounds.box, secondPose)
             && shapesIntersect(firstShape, secondShape, timing);
-        tests.push_back({poseA, poseB, result});
+        tests.push_back({poseA, poseB, generationA, generationB, result});
         if (tests.size() > 2) {
             tests.erase(tests.begin());
         }
@@ -1699,10 +1764,10 @@ void AssemblyObject::resolveContactMove(
                         // Bounds that stay apart along the whole path need no
                         // sweep: sliding along or turning on a touched face.
                         if (boxesStaySeparated(
-                                bounds(driver, driverTargetShape, target),
+                                bounds(driver, driverTargetShape, target).box,
                                 driverPrevious->second,
                                 target,
-                                bounds(pushed, pushedShape, pushedPlacement->getValue()),
+                                bounds(pushed, pushedShape, pushedPlacement->getValue()).box,
                                 pushedPlacement->getValue()
                             )) {
                             continue;

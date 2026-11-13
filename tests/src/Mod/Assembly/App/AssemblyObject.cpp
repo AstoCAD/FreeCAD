@@ -665,6 +665,30 @@ TEST_F(AssemblyObjectTest, dragSlidesAComponentAlongAStepItTouches)  // NOLINT
     EXPECT_TRUE(step->Placement.getValue().isIdentity());
 }
 
+TEST_F(AssemblyObjectTest, dragSeesANeighbourThatChangedBetweenDrags)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* dragged = addDragBox(assembly, "Dragged", Base::Vector3d(0, 0, 0));
+    auto* neighbour = addDragBox(assembly, "Neighbour", Base::Vector3d(-40, 0, 0));
+    addGeneralDragContact(assembly);
+    const auto move = [&](double x) {
+        const auto previous = dragged->Placement.getValue();
+        dragged->Placement.setValue(Base::Placement(Base::Vector3d(x, 0, 0), Base::Rotation()));
+        assembly->resolveContactMove({dragged}, {{dragged, previous}});
+    };
+    // Dragging without preDrag()/postDrag(), as with SolveOnMove off.
+    move(1);
+    EXPECT_NEAR(neighbour->Placement.getValue().getPosition().x, -40, 1e-9);
+    // The neighbour grows towards the dragged box: [-40, -5].
+    neighbour->Length.setValue(35);
+    neighbour->execute();
+    // execute() outside a recompute takes the placement from the new shape.
+    neighbour->Placement.setValue(Base::Placement(Base::Vector3d(-40, 0, 0), Base::Rotation()));
+    move(-8);
+    EXPECT_NEAR(dragged->Placement.getValue().getPosition().x, -8, 1e-9);
+    EXPECT_NEAR(neighbour->Placement.getValue().getPosition().x, -43, 0.05);
+}
+
 TEST_F(AssemblyObjectTest, frameQueriesWithoutSolverSystem)  // NOLINT
 {
     auto* assembly = getObject();
