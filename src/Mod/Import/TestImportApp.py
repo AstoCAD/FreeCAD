@@ -387,6 +387,36 @@ class DxfImportLayerTest(unittest.TestCase):
         self.assertEqual(len(layers), 1)
         self.assertEqual(len(layers[0].Group), 1)
 
+    def testLayerNameInFileCodePage(self):
+        """Layer names of a pre-2007 file are in its code page, not in UTF-8"""
+        # "Wände" is in the LAYER table, "Böden" is only referenced by an entity
+        records = ["0", "SECTION", "2", "HEADER",
+                   "9", "$ACADVER", "1", "AC1015",
+                   "9", "$DWGCODEPAGE", "3", "ANSI_1252",
+                   "0", "ENDSEC",
+                   "0", "SECTION", "2", "TABLES",
+                   "0", "TABLE", "2", "LAYER", "70", "1",
+                   "0", "LAYER", "2", "Wände", "70", "0", "62", "7", "6", "CONTINUOUS",
+                   "0", "ENDTAB",
+                   "0", "ENDSEC",
+                   "0", "SECTION", "2", "ENTITIES",
+                   "0", "LINE", "8", "Wände",
+                   "10", "0.0", "20", "0.0", "30", "0.0",
+                   "11", "1.0", "21", "0.0", "31", "0.0",
+                   "0", "LINE", "8", "Böden",
+                   "10", "0.0", "20", "1.0", "30", "0.0",
+                   "11", "1.0", "21", "1.0", "31", "0.0",
+                   "0", "ENDSEC", "0", "EOF"]  # fmt: skip
+        with open(self.fileName, "w", encoding="cp1252") as f:
+            f.write("\n".join(records) + "\n")
+        Import.readDXF(self.fileName, self.target.Name, True, self.paramPath)
+        for name in ("Wände", "Böden"):
+            with self.subTest(layer=name):
+                layers = [o for o in self.target.Objects if o.Label == name]
+                self.assertEqual(len(layers), 1)
+                self.assertEqual(len(layers[0].Group), 1)
+                self.assertEqual(layers[0].Group[0].OriginalLayer, name)
+
 
 class DxfExportDegenerateEdgeTest(unittest.TestCase):
     """An OCCT exception while exporting a degenerate shape must not terminate the application"""
