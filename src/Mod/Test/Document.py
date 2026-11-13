@@ -3352,6 +3352,35 @@ class DocumentFileIncludeCases(unittest.TestCase):
         with open(obj.File, "r") as file:
             self.assertEqual(file.read(), "original content")
 
+    def testCopyIntoDocumentKeepsEachFile(self):
+        # The target already has Template.svg, so the first copy is renamed to Template1.svg,
+        # which is also the stored name of the second copy's file.
+        source_path = os.path.join(tempfile.gettempdir(), "FileIncludeCopySource.svg")
+
+        def include(doc, name, content):
+            with open(source_path, "w") as file:
+                file.write(content)
+            obj = doc.addObject("App::DocumentObjectFileIncluded", name)
+            obj.File = (source_path, "Template.svg")
+            return obj
+
+        include(self.Doc, "Target", "target content")
+        source = FreeCAD.newDocument("FileIncludeSource")
+        try:
+            first = include(source, "First", "first content")
+            second = include(source, "Second", "second content")
+            self.assertEqual(second.File.split("/")[-1], "Template1.svg")
+
+            copies = self.Doc.copyObject([first, second])
+        finally:
+            FreeCAD.closeDocument(source.Name)
+
+        files = [obj.File for obj in self.Doc.Objects]
+        self.assertEqual(len(set(files)), 3)
+        for copy, content in zip(copies, ("first content", "second content")):
+            with open(copy.File, "r") as file:
+                self.assertEqual(file.read(), content)
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("FileIncludeTests")

@@ -482,6 +482,12 @@ void PropertyFileIncluded::Restore(Base::XMLReader& reader)
             // deleting either object deletes the file of the other one.
             _cValue = getFreeFilePath(getDocTransientPath(), file);
             _BaseFileName = Base::FileInfo(_cValue).fileName();
+            // RestoreDocFile() only writes the content once the whole document is read.
+            // Create the file now to reserve its name, so that the next file restored
+            // until then cannot be given it too (a stored Template1.svg, when this
+            // Template.svg became Template1.svg).
+            Base::ofstream reserve(Base::FileInfo(_cValue), std::ios::out | std::ios::binary);
+            reserve.close();
             hasSetValue();
         }
     }
