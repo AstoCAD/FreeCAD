@@ -56,6 +56,199 @@ class TestSimulationRegression(unittest.TestCase):
             for a, b in zip(before["Position"], after["Position"]):
                 self.assertLess((a-b).Length, 1e-7)
 
+    # End-to-end scenarios checked against closed-form results.
+
+    @staticmethod
+    def connect(f, kind, first, second, frame):
+        """Joint whose connector is *frame*, given in assembly coordinates."""
+        joint = f.joint(kind, first, second)
+        joint.Placement1 = first.Placement.inverse() * frame
+        joint.Placement2 = second.Placement.inverse() * frame
+        return joint
+
+    @staticmethod
+    def upward_crossings(times, values):
+        return [t0 + (t1-t0) * -v0/(v1-v0)
+                for t0, t1, v0, v1 in zip(times, times[1:], values, values[1:]) if v0 < 0 <= v1]
+
+    @staticmethod
+    def add_motion(f, study, joint, kind, formula):
+        from CommandCreateSimulation import Motion
+        motion = f.doc.addObject("App::FeaturePython", "Motion")
+        Motion(motion, kind, joint, formula)
+        study.addObject(motion)
+        return motion
+
+    def test_compound_pendulum_period_energy_and_playback(self):
+        import Part
+        for variant in ("Part", "placed assembly", "scaled link"):
+            with self.subTest(variant=variant), self.mechanism() as f:
+                ground = f.box("Ground", density=None)
+                ground.setPropertyStatus("Placement", "ReadOnly")
+                rod = f.box("Rod")
+                rod.Shape = Part.makeBox(2, 2, 100, App.Vector(-1, -1, -100))  # Pivot at its top.
+                length, width = 100, 2
+                if variant == "scaled link":
+                    source = rod
+                    f.assembly.removeObject(source)
+                    rod = f.assembly.newObject("App::Link", "RodLink")
+                    rod.setLink(source)
+                    rod.Scale = 2
+                    length, width = 200, 4
+                if variant == "placed assembly":
+                    # Results and gravity are in assembly coordinates.
+                    f.assembly.Placement = App.Placement(App.Vector(30, 40, 50), App.Rotation(App.Vector(1, 2, 3), 70))
+                amplitude = 5
+                rod.Placement = App.Placement(App.Vector(), App.Rotation(App.Vector(1, 0, 0), amplitude))
+                f.doc.recompute()
+                self.connect(f, "Revolute", ground, rod, App.Placement(App.Vector(), App.Rotation(App.Vector(0, 1, 0), 90)))
+                study = f.study()
+                study.EndTime = "1.2 s"
+                study.OutputStep = "0.002 s"
+                data = Dynamics.run(study)
+                # I_pivot = m (L^2 + w^2)/12 + m (L/2)^2; finite-amplitude factor 1 + theta^2/16.
+                inertia = (length**2 + width**2)/12 + (length/2)**2
+                period = 2*math.pi*math.sqrt(inertia/(9810*length/2)) * (1 + math.radians(amplitude)**2/16)
+                body = data["Bodies"][rod.Name]
+                crossings = self.upward_crossings(data["Times"], [w[0] for w in body["AngularVelocity"]])
+                self.assertGreaterEqual(len(crossings), 2)
+                self.assertAlmostEqual((crossings[1]-crossings[0])/period, 1, delta=1e-4)
+                angles = [math.degrees(2*math.atan2(p[3], p[6])) for p in body["Placements"]]
+                self.assertAlmostEqual(max(angles), amplitude, delta=1e-3)
+                self.assertAlmostEqual(min(angles), -amplitude, delta=1e-3)
+                energy = data["Energy"]["System"]["MechanicalEnergy"]
+                self.assertLess(max(energy)-min(energy), 1e-5*max(data["Energy"]["System"]["KineticEnergy"]))
+                # Playback through the occurrence's parent frame reproduces the saved pose.
+                start = Dynamics.component_placement(rod)
+                self.assertTrue(App.Placement(App.Vector(*body["Placements"][0][:3]), App.Rotation(*body["Placements"][0][3:])).isSame(start, 1e-9))
+                pose = App.Placement(App.Vector(*body["Placements"][-1][:3]), App.Rotation(*body["Placements"][-1][3:]))
+                parent = start * rod.Placement.inverse()
+                rod.Placement = parent.inverse() * pose
+                self.assertTrue(Dynamics.component_placement(rod).isSame(pose, 1e-9))
+
+    def test_spring_damper_frequency_and_decay(self):
+        with self.mechanism() as f:
+            ground = f.box("Ground", density=None)
+            ground.setPropertyStatus("Placement", "ReadOnly")
+            body = f.box()  # 0.006 kg
+            self.connect(f, "Slider", ground, body, App.Placement(App.Vector(5, 10, 15), App.Rotation(App.Vector(0, 1, 0), 90)))
+            study = f.study(False)
+            study.EndTime = "0.05 s"
+            study.OutputStep = study.MaximumStep = "0.0001 s"
+            spring = Dynamics.create_load(study, "SpringDamper", body)
+            spring.AttachmentI = App.Placement(App.Vector(5, 10, 15), App.Rotation())
+            spring.AttachmentJ = App.Placement(App.Vector(-15, 10, 15), App.Rotation())  # Ground, 20 mm away.
+            spring.RestLength = "18 mm"
+            spring.Stiffness = "1 N/mm"
+            spring.Damping = "0.5 kg/s"
+            data = Dynamics.run(study)
+            k, c, m = 1000, 0.5, 0.006  # N/m, kg/s, kg
+            zeta = c/(2*math.sqrt(k*m))
+            damped = math.sqrt(k/m) * math.sqrt(1-zeta*zeta)
+            self.assertAlmostEqual(data["Loads"][spring.Name]["ForceX"][0], -2, delta=1e-9)  # 2 mm stretch.
+            x = [p[0] for p in data["Bodies"][body.Name]["Placements"]]
+            crossings = self.upward_crossings(data["Times"], [v[0] for v in data["Bodies"][body.Name]["Velocity"]])
+            self.assertGreaterEqual(len(crossings), 3)
+            measured = (crossings[-1]-crossings[0])/(len(crossings)-1)
+            self.assertAlmostEqual(measured*damped/(2*math.pi), 1, delta=1e-4)
+            # First overshoot below the equilibrium x = -2 mm.
+            overshoot = 2*math.exp(-zeta*math.pi/math.sqrt(1-zeta*zeta))
+            self.assertAlmostEqual(min(x), -2-overshoot, delta=1e-3)
+
+    def test_slider_crank_dynamics_matches_kinematics(self):
+        import Part
+        with self.mechanism() as f:
+            ground = f.box("Ground", density=None)
+            ground.setPropertyStatus("Placement", "ReadOnly")
+            r, l = 20, 60
+            s0 = math.sqrt(l*l - r*r)
+            crank, rod, slider = f.box("Crank"), f.box("Rod"), f.box("Slider")
+            crank.Shape = Part.makeBox(r+4, 4, 4, App.Vector(-2, -2, -2))
+            rod.Shape = Part.makeBox(l+4, 4, 4, App.Vector(-2, -2, -2))
+            slider.Shape = Part.makeBox(10, 10, 10, App.Vector(-5, -5, -5))
+            crank.Placement.Rotation = App.Rotation(App.Vector(0, 0, 1), 90)
+            rod.Placement = App.Placement(App.Vector(0, r, 0), App.Rotation(App.Vector(0, 0, 1), math.degrees(math.atan2(-r, s0))))
+            slider.Placement.Base = App.Vector(s0, 0, 0)
+            drive = self.connect(f, "Revolute", ground, crank, App.Placement())
+            self.connect(f, "Revolute", crank, rod, App.Placement(App.Vector(0, r, 0), App.Rotation()))
+            self.connect(f, "Revolute", rod, slider, App.Placement(App.Vector(s0, 0, 0), App.Rotation()))
+            self.connect(f, "Slider", ground, slider, App.Placement(App.Vector(s0, 0, 0), App.Rotation(App.Vector(0, 1, 0), 90)))
+            study = f.study(False)
+            study.EndTime = "0.5 s"
+            study.OutputStep = "0.005 s"
+            self.add_motion(f, study, drive, "Angular", "initialValue+2*pi*time")
+            results = {}
+            for mode in ("Kinematics", "Dynamics"):
+                study.AnalysisType = mode
+                data = results[mode] = Dynamics.run(study)
+                self.assertEqual(data["AnalysisType"], mode)
+                crank_poses = data["Bodies"]["Crank"]["Placements"]
+                for i in range(len(data["Times"])):
+                    theta = 2*math.atan2(crank_poses[i][5], crank_poses[i][6])
+                    root = math.sqrt(l*l - (r*math.sin(theta))**2)
+                    omega = data["Bodies"]["Crank"]["AngularVelocity"][i][2]
+                    self.assertAlmostEqual(omega, 2*math.pi, delta=1e-6)
+                    self.assertAlmostEqual(data["Bodies"]["Slider"]["Placements"][i][0], r*math.cos(theta) + root, delta=1e-6)
+                    velocity = (-r*math.sin(theta) - r*r*math.sin(theta)*math.cos(theta)/root) * omega
+                    self.assertAlmostEqual(data["Bodies"]["Slider"]["Velocity"][i][0], velocity, delta=1e-4)
+            system = results["Dynamics"]["Energy"]["System"]
+            self.assertAlmostEqual(system["EnergyBalanceResidual"][-1], 0, delta=1e-7)
+            for kinematic, dynamic in zip(results["Kinematics"]["Bodies"]["Slider"]["Placements"],
+                                          results["Dynamics"]["Bodies"]["Slider"]["Placements"]):
+                self.assertAlmostEqual(kinematic[0], dynamic[0], delta=1e-6)
+
+    def test_gear_train_motor_torque_balances_output_load(self):
+        with self.mechanism() as f:
+            ground = f.box("Ground", density=None)
+            ground.setPropertyStatus("Placement", "ReadOnly")
+            first, second = f.box("First"), f.box("Second")
+            drive = f.joint("Revolute", ground, first)
+            f.joint("Revolute", ground, second)
+            gears = f.joint("Gears", first, second)
+            gears.Distance = "10 mm"
+            gears.Distance2 = "20 mm"
+            study = f.study(False)
+            study.AnalysisType = "Dynamics"
+            self.add_motion(f, study, drive, "Angular", "initialValue+10*time")
+            load = Dynamics.create_load(study, "Torque", second)
+            load.Torque = "2 N*mm"
+            data = Dynamics.run(study)
+            omega_first = data["Bodies"]["First"]["AngularVelocity"][-1][2]
+            omega_second = data["Bodies"]["Second"]["AngularVelocity"][-1][2]
+            self.assertAlmostEqual(omega_first, 10, delta=1e-6)
+            self.assertAlmostEqual(omega_second, -5, delta=1e-6)
+            # Constant speed: the motor supplies the power the load absorbs, 2 N mm * 5 rad/s.
+            motor = data["JointReactions"][drive.FullName + "-AngularMotion"]
+            self.assertAlmostEqual(abs(motor["TorqueZ"][-1]), 1, delta=1e-6)
+            self.assertAlmostEqual(motor["Power"][-1], 10, delta=1e-5)
+            self.assertAlmostEqual(data["Loads"][load.Name]["Power"][-1], -10, delta=1e-5)
+
+    def test_rerun_after_input_edit_and_after_reopen(self):
+        import os
+        import tempfile
+        with self.mechanism() as f:
+            body = f.box()
+            study = f.study(False)
+            load = Dynamics.create_load(study, "Force", body)
+            load.AttachmentI.Base = App.Vector(5, 10, 15)
+            load.Force = "0.006 N"
+            self.assertAlmostEqual(Dynamics.run(study)["Bodies"][body.Name]["Velocity"][-1][2], 100, delta=1e-6)
+            load.Force = "0.012 N"
+            self.assertEqual(study.Status, "NotRun")
+            edited = Dynamics.run(study)
+            self.assertAlmostEqual(edited["Bodies"][body.Name]["Velocity"][-1][2], 200, delta=1e-6)
+            names = study.Name, body.Name
+            with tempfile.TemporaryDirectory() as folder:
+                path = os.path.join(folder, "Rerun.FCStd")
+                f.doc.saveAs(path)
+                App.closeDocument(f.doc.Name)
+                f.doc = App.openDocument(path)
+                study = f.doc.getObject(names[0])
+                self.assertEqual(study.Status, "Complete")
+                rerun = Dynamics.run(study)
+                self.assertEqual(rerun["Times"], edited["Times"])
+                self.assertEqual(rerun["Bodies"][names[1]]["Placements"], edited["Bodies"][names[1]]["Placements"])
+
     def test_event_activated_repeat_profile_and_shared_definition(self):
         import json
         import MotionProfile
