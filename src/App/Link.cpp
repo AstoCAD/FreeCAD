@@ -2798,11 +2798,17 @@ void Link::onChanged(const Property* prop)
 void Link::onParentLabelChanged(App::DocumentObject* parent)
 {
     auto target = getLabelTarget(*this);
-    if (target != parent) {
-        return;
+    if (target == parent) {
+        updateLabelUtility(this, target);
     }
-
-    updateLabelUtility(this, target);
+    // A link to the same object, like a link between this link and its linked object
+    // (this -> parent -> ... -> target), was relabeled. A link is relabeled when it is linked
+    // to another object, which changes the object at the end of this link's chain too, so the
+    // instance label must name the new one. A relabel of the link in between alone is no
+    // reason to replace any other label.
+    else if (parent->getLinkedObject() == target) {
+        updateLabelUtility(this, target, true);
+    }
 }
 
 void Link::onDocumentRestored()
@@ -2889,7 +2895,9 @@ void Link::migrateLabelUtility(App::DocumentObject* link, App::DocumentObject* l
     }
 }
 
-void Link::updateLabelUtility(App::DocumentObject* link, App::DocumentObject* linked)
+void Link::updateLabelUtility(App::DocumentObject* link,
+                              App::DocumentObject* linked,
+                              bool instanceLabelOnly)
 {
     // getLinkedObject() returns the link itself when it has no linked object.
     // Deriving the label from itself would append " <n>" again on each call,
@@ -2946,7 +2954,7 @@ void Link::updateLabelUtility(App::DocumentObject* link, App::DocumentObject* li
             link->Label.setValue(targetLabel + " <" + inst + ">");
         }
     }
-    else {
+    else if (!instanceLabelOnly) {
         // Pattern broken or new link: generate fresh label
         link->Label.setValue(link->getDocument()->makeUniqueLinkLabel(targetLabel));
     }

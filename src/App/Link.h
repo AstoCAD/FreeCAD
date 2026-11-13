@@ -1040,7 +1040,11 @@ public:
 
     void onParentLabelChanged(App::DocumentObject* parent) override;
 
-    static void updateLabelUtility(App::DocumentObject* link, App::DocumentObject* linked);
+    // instanceLabelOnly: rename only an instance label ("<linked label> <instance>") after
+    // the linked object, keep any other label
+    static void updateLabelUtility(App::DocumentObject* link,
+                                   App::DocumentObject* linked,
+                                   bool instanceLabelOnly = false);
     static void migrateLabelUtility(App::DocumentObject* link, App::DocumentObject* linked);
 
 

@@ -1503,6 +1503,45 @@ class DocumentLinkLabelCases(unittest.TestCase):
         self.assertEqual(child.Label, "Renamed")
         self.assertEqual(link.Label, "Renamed <1>")
 
+    def testLinkToLinkLabelFollowsRetargetedLink(self):
+        # The instance label of a link to a link names the object at the end of the chain.
+        # Linking the inner link to another object changes that object for the outer link
+        # too ("First <2>" was kept). Undo and redo restore the labels. A custom label is
+        # kept, and a relabel of the inner link alone changes no label.
+        self.Doc.UndoMode = 1
+        first = self.Doc.addObject("App::FeatureTest", "First")
+        second = self.Doc.addObject("App::FeatureTest", "Second")
+        inner = self.Doc.addObject("App::Link", "Inner")
+        inner.setLink(first)
+        outer = self.Doc.addObject("App::Link", "Outer")
+        outer.setLink(inner)
+        custom = self.Doc.addObject("App::Link", "Custom")
+        custom.setLink(inner)
+        custom.Label = "Custom"
+        self.assertEqual(inner.Label, "First <1>")
+        self.assertEqual(outer.Label, "First <2>")
+        self.Doc.clearUndos()
+        self.Doc.openTransaction("Link to second")
+        inner.LinkedObject = second
+        self.Doc.commitTransaction()
+        self.assertEqual(outer.getLinkedObject(), second)
+        self.assertEqual(inner.Label, "Second <1>")
+        self.assertEqual(outer.Label, "Second <2>")
+        self.assertEqual(custom.Label, "Custom")
+        self.Doc.undo()
+        self.assertEqual(inner.LinkedObject, first)
+        self.assertEqual(inner.Label, "First <1>")
+        self.assertEqual(outer.Label, "First <2>")
+        self.Doc.redo()
+        self.assertEqual(inner.LinkedObject, second)
+        self.assertEqual(inner.Label, "Second <1>")
+        self.assertEqual(outer.Label, "Second <2>")
+        inner.Label = "Inner link"
+        self.assertEqual(outer.Label, "Second <2>")
+        self.assertEqual(custom.Label, "Custom")
+        second.Label = "Renamed"
+        self.assertEqual(outer.Label, "Renamed <2>")
+
     def testCopyOnChangeLinkLabelNamesSource(self):
         # A copy-on-change link that made its private copy links to that copy, which is
         # replaced whenever it is synced. The label keeps naming the source and follows its

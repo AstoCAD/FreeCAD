@@ -1020,9 +1020,18 @@ bool AssemblyLink::isEmpty() const
 
 void AssemblyLink::onParentLabelChanged(App::DocumentObject* parent)
 {
-    if (getLinkedObject2() != parent) {
+    auto* linked = getLinkedObject2();
+    if (!linked) {
         return;
     }
-
-    App::Link::updateLabelUtility(this, getLinkedObject2());
+    if (linked == parent) {
+        App::Link::updateLabelUtility(this, linked);
+    }
+    // An assembly link to the same assembly, like the one this link links to, was relabeled.
+    // It is relabeled when it is linked to another assembly, which is then the assembly of
+    // this link too (see App::Link::onParentLabelChanged()).
+    else if (auto* parentLink = freecad_cast<AssemblyLink*>(parent);
+             parentLink && parentLink->getLinkedObject2() == linked) {
+        App::Link::updateLabelUtility(this, linked, true);
+    }
 }

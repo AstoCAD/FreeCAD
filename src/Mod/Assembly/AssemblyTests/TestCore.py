@@ -998,6 +998,24 @@ class TestCore(AssemblyTestBase):
         self.doc.recompute()
         self.assertEqual(instance.LinkedObject, other)
 
+    def test_assembly_link_to_link_label_follows_retargeted_link(self):
+        """The instance label of an assembly link to an assembly link names the assembly at
+        the end. Linking the inner link to another assembly kept the old name ("First <2>")."""
+        first = self.doc.addObject("Assembly::AssemblyObject", "First")
+        second = self.doc.addObject("Assembly::AssemblyObject", "Second")
+        inner = self.assembly.newObject("Assembly::AssemblyLink", "Inner")
+        inner.LinkedObject = first
+        outer = self.assembly.newObject("Assembly::AssemblyLink", "Outer")
+        outer.LinkedObject = inner
+        self.assertEqual(inner.Label, "First <1>")
+        self.assertEqual(outer.Label, "First <2>")
+        inner.LinkedObject = second
+        self.assertEqual(inner.Label, "Second <1>")
+        self.assertEqual(outer.Label, "Second <2>")
+        # a relabel of the inner link alone changes no label
+        inner.Label = "Inner link"
+        self.assertEqual(outer.Label, "Second <2>")
+
     def test_delete_linked_sub_assembly(self):
         """Deleting a sub-assembly used by a rigid assembly link crashed (access violation):
         the link synchronized while the document was breaking the links to the deleted
