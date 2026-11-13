@@ -494,6 +494,22 @@ class DraftModification(test_base.DraftTestCaseDoc):
         self.assertEqual(len(wire_1.Shape.Faces), 1)
         self.assertAlmostEqual(wire_1.Shape.Area, 20.0, places=6)
 
+    def test_join_wires_chain(self):
+        """join_wires returns only the remaining wires when joins need several passes."""
+        a = Vector(0, 0, 0)
+        b = Vector(4, 0, 0)
+        c = Vector(4, 4, 0)
+        d = Vector(8, 4, 0)
+        line_1 = Draft.make_line(a, b)
+        line_2 = Draft.make_line(c, b)
+        line_3 = Draft.make_line(c, d)
+        self.doc.recompute()
+        wires = Draft.join_wires([line_1, line_2, line_3])
+        self.assertEqual(len(wires), 1)
+        self.assertIs(wires[0], line_1)
+        self.assertEqual(line_1.Points, [a, b, c, d])
+        self.assertEqual(len(self.doc.Objects), 1)
+
     def test_join_closed_wire(self):
         """A closed wire has no end points and is not joined."""
         a = Vector(0, 0, 0)

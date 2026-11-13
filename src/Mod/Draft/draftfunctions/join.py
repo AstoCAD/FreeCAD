@@ -39,7 +39,7 @@ def join_wires(wires, joinAttempts=0):
     wires have a coincident start and end point"""
     wires = list(wires)
     if joinAttempts > len(wires):
-        return
+        return wires
     joinAttempts += 1
     for wire1Index, wire1 in enumerate(wires):
         for wire2Index, wire2 in enumerate(wires):
@@ -48,8 +48,9 @@ def join_wires(wires, joinAttempts=0):
             if join_two_wires(wire1, wire2):
                 wires.pop(wire2Index)
                 break
-    join_wires(wires, joinAttempts)
-    return wires
+    # The next passes work on a copy of the list: their result holds the
+    # remaining wires, without those they joined and deleted.
+    return join_wires(wires, joinAttempts)
 
 
 joinWires = join_wires
