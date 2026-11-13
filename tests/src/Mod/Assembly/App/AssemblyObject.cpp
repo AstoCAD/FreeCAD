@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <limits>
+#include <string>
+#include <vector>
 
 #include <FCConfig.h>
 
@@ -15,14 +18,17 @@
 #include <App/PropertyLinks.h>
 #include <App/PropertyStandard.h>
 #include <App/PropertyPythonObject.h>
+#include <Base/Console.h>
 #include <Base/Interpreter.h>
 #include <Mod/Assembly/App/ContactGeometry.h>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <gp_Ax2.hxx>
+#include <gp_Pln.hxx>
 #include <gp_Trsf.hxx>
 #include <Mod/Assembly/App/AssemblyObject.h>
 #include <Mod/Assembly/App/BomObject.h>
@@ -416,6 +422,82 @@ TEST_F(AssemblyObjectTest, contactSetsGateDraggingAndRespectExclusions)  // NOLI
     assembly->resolveContactMove({first}, {{first, previous}});
     EXPECT_GE(second->Placement.getValue().getPosition().x, 15.9);
     EXPECT_DOUBLE_EQ(other->Placement.getValue().getPosition().x, 50);
+}
+
+namespace
+{
+class ContactWarningCollector final: public Base::ILogger
+{
+public:
+    void sendLog(
+        const std::string& /*notifiername*/,
+        const std::string& msg,
+        Base::LogStyle level,
+        Base::IntendedRecipient /*recipient*/,
+        Base::ContentType /*content*/
+    ) override
+    {
+        if (level == Base::LogStyle::Warning) {
+            warnings.push_back(msg);
+        }
+    }
+
+    const char* name() override
+    {
+        return "AssemblyContactWarningCollector";
+    }
+
+    std::vector<std::string> warnings;
+};
+}  // namespace
+
+TEST_F(AssemblyObjectTest, dragReportsANonSolidContactComponentOnce)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* doc = assembly->getDocument();
+    auto* box = doc->addObject<Part::Box>("Box");
+    box->execute();
+    box->Placement.setValue(Base::Placement(Base::Vector3d(0, 0, 50), Base::Rotation()));
+    assembly->addObject(box);
+    // A sheet is not construction geometry: general contact refuses it.
+    // A name of its own: the once-per-message report is process wide.
+    auto* sheet = doc->addObject<Part::Feature>("DragNonSolidSheet");
+    sheet->Shape.setValue(BRepBuilderAPI_MakeFace(gp_Pln(), -50, 50, -50, 50).Shape());
+    assembly->addObject(sheet);
+
+    auto* contact = doc->addObject("App::FeaturePython", "GeneralContact");
+    contact->addDynamicProperty("App::PropertyString", "ContactType");
+    auto* mode = static_cast<App::PropertyEnumeration*>(
+        contact->addDynamicProperty("App::PropertyEnumeration", "Mode")
+    );
+    mode->setEnums({"Between two components", "General collision detection"});
+    mode->setValue("General collision detection");
+    contact->addDynamicProperty("App::PropertyBool", "Suppressed");
+    contact->addDynamicProperty("App::PropertyBool", "FrictionEnabled");
+    auto* group = doc->addObject<Assembly::SimulationGroup>("Simulations");
+    assembly->addObject(group);
+    group->addObject(contact);
+
+    ContactWarningCollector collector;
+    Base::Console().attachObserver(&collector);
+    try {
+        // Two mouse moves.
+        for (double z : {45.0, 40.0}) {
+            const auto previous = box->Placement.getValue();
+            box->Placement.setValue(Base::Placement(Base::Vector3d(0, 0, z), Base::Rotation()));
+            assembly->resolveContactMove({box}, {{box, previous}});
+        }
+    }
+    catch (...) {
+        Base::Console().detachObserver(&collector);
+        throw;
+    }
+    Base::Console().detachObserver(&collector);
+    const auto aboutSheet = std::ranges::count_if(collector.warnings, [&](const std::string& text) {
+        return text.find(sheet->getFullName()) != std::string::npos;
+    });
+    EXPECT_EQ(aboutSheet, 1);
+    EXPECT_NEAR(box->Placement.getValue().getPosition().z, 40, 1e-9);
 }
 
 TEST_F(AssemblyObjectTest, frameQueriesWithoutSolverSystem)  // NOLINT

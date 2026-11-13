@@ -1393,6 +1393,12 @@ void AssemblyObject::resolveContactMove(
                     );
                     continue;
                 }
+                catch (const std::invalid_argument& e) {
+                    // A component that cannot collide (contactShapesOf) is a
+                    // configuration problem, the same on every mouse move.
+                    warnSkippedContact(e.what());
+                    continue;
+                }
                 catch (const std::exception& e) {
                     Base::Console().warning("Assembly contact detection failed: {}\n", e.what());
                     continue;
