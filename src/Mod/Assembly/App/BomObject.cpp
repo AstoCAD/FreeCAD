@@ -128,7 +128,13 @@ void BomObject::saveCustomColumnData()
                 && columnName != "File Name") {
                 // Base::Console().warning("row col {} {}\n", row, col);
                 //  save custom data if any.
-                std::string text = getText(row, col);
+                // Keep the content as typed, with the quote of a text cell: it is
+                // restored through setCell(), which would otherwise turn a text that
+                // looks like a number or a formula ("'0042", "'1/2") into one.
+                std::string text;
+                if (const Spreadsheet::Cell* cell = getCell(App::CellAddress(row, col))) {
+                    cell->getStringContent(text);
+                }
                 if (text != "") {
                     std::string objName = getText(row, nameColIndex);
                     BomDataElement el(objName, columnName, text);
