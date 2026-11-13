@@ -482,6 +482,33 @@ class TestMeshCommon(unittest.TestCase):
             + result.stderr[-2000:],
         )
 
+    # ********************************************************************************************
+    def test_netgen_script_non_ascii_working_directory(self):
+        # the Netgen meshing script holds the paths of the working directory and is run by a
+        # Python interpreter, which reads source files as UTF-8. Written in the locale encoding,
+        # it could not be written, or did not compile, when the working directory (temporary
+        # directory, document folder, mesh label) had non-ASCII characters
+        import os
+        import ObjectsFem
+        from femmesh import netgentools
+
+        base_dir = testtools.get_fem_test_tmp_dir("mesh_common_netgen_non_ascii")
+        work_dir = join(base_dir, "Pièce Ωμέγα 日本")
+        os.makedirs(work_dir)
+
+        box = self.document.addObject("Part::Box", "Box")
+        self.document.recompute()
+        mesh = ObjectsFem.makeMeshNetgen(self.document)
+        mesh.Shape = box
+        mesh.WorkingDirectory = work_dir
+
+        tool = netgentools.NetgenTools(mesh)
+        tool.prepare()
+        with open(tool.model_file, "rb") as script:
+            source = script.read()
+        compile(source, tool.model_file, "exec")
+        self.assertIn(repr(tool.brep_file), source.decode("utf-8"))
+
 
 # ************************************************************************************************
 # ************************************************************************************************

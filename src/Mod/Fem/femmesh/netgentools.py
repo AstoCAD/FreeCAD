@@ -107,7 +107,8 @@ class NetgenTools(ObjectTools):
             "zrefine_direction": tuple(self.obj.ZRefineDirection),
         }
 
-        with open(self.model_file, "w") as file:
+        # the script is run by Python, which reads source files as UTF-8
+        with open(self.model_file, "w", encoding="utf-8") as file:
             file.write(
                 self.code.format(
                     kwds=self.mesh_params,
