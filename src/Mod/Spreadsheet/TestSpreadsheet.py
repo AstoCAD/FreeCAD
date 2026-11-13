@@ -3735,6 +3735,54 @@ class SpreadsheetEditing(unittest.TestCase):
         self.assertEqual(sheet.getContents("C2"), "=C1 + 1")
         self.assertEqual(sheet.C2, 11)
 
+    def testFillReplacesTheFormattingOfTheTargets(self):
+        sheet = self.sheet
+        self.doc.UndoMode = 1
+        sheet.set("A1", "1")
+        sheet.setStyle("A1", "italic")
+        sheet.set("A2", "2")
+        sheet.setAlias("A2", "second")
+        sheet.setStyle("A2", "bold")
+        sheet.setAlignment("A2", "right")
+        sheet.setForeground("A2", (0.0, 1.0, 0.0))
+        sheet.setBackground("A2", (1.0, 0.0, 0.0))
+        sheet.setDisplayUnit("A2", "mm")
+        sheet.setDecimals("A2", 4)
+        sheet.setNumberFormat("A2", "percent")
+        sheet.setFontSize("A2", 20)
+        sheet.setBorders("A2", "all")
+        sheet.set("B1", "3")
+        sheet.set("C1", "4")
+        sheet.setBorders("C1", "top")
+        self.doc.recompute()
+
+        self.doc.openTransaction("Fill Down")
+        sheet.fillDown("A1:A2")
+        self.doc.commitTransaction()
+        # The target is a copy of the source, but keeps its alias
+        self.assertEqual(sheet.getContents("A2"), "1")
+        self.assertEqual(sheet.getStyle("A2"), {"italic"})
+        self.assertEqual(sheet.getAlignment("A2"), sheet.getAlignment("A1"))
+        self.assertIsNone(sheet.getForeground("A2"))
+        self.assertIsNone(sheet.getBackground("A2"))
+        self.assertIsNone(sheet.getDisplayUnit("A2"))
+        self.assertIsNone(sheet.getDecimals("A2"))
+        self.assertIsNone(sheet.getNumberFormat("A2"))
+        self.assertIsNone(sheet.getFontSize("A2"))
+        self.assertIsNone(sheet.getBorders("A2"))
+        self.assertEqual(sheet.getAlias("A2"), "second")
+
+        # Undo gives the target its formatting back
+        self.doc.undo()
+        self.assertEqual(sheet.getContents("A2"), "2")
+        self.assertEqual(sheet.getStyle("A2"), {"bold"})
+        self.assertEqual(sheet.getFontSize("A2"), 20)
+        self.assertEqual(sheet.getBorders("A2"), {"top", "left", "bottom", "right"})
+
+        sheet.fillRight("B1:C1")
+        self.assertEqual(sheet.getContents("C1"), "3")
+        self.assertIsNone(sheet.getBorders("C1"))
+
     def testFillNormalizesRangeAndIgnoresSingleLine(self):
         sheet = self.sheet
         sheet.set("A1", "5")

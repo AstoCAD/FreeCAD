@@ -495,6 +495,10 @@ static void fillRange(Sheet* sheet, PropertySheet& cells, const Range& range, bo
         const Range target = down
             ? Range(CellAddress(from.row() + i, from.col()), CellAddress(from.row() + i, to.col()))
             : Range(CellAddress(from.row(), from.col() + i), CellAddress(to.row(), from.col() + i));
+        // Pasting a cell over an existing one sets only the formats the source
+        // cell has and keeps the others of the target: remove them first, so
+        // that each target cell gets exactly the formatting of its source.
+        cells.clearFormat(target);
         Base::StringIStreambuf buf(buffer);
         std::istream in(nullptr);
         in.rdbuf(&buf);
