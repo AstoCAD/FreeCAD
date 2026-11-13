@@ -68,6 +68,7 @@ from SketcherTests.TestSketchExtendUndo import TestSketchExtendUndo
 from SketcherTests.TestSketchDeleteOnPointUndo import TestSketchDeleteOnPointUndo
 from SketcherTests.TestSketchReversedConicArcs import TestSketchReversedConicArcs
 from SketcherTests.TestSketchBSplineEndToEnd import TestSketchBSplineEndToEnd
+from SketcherTests.TestSketchSetDatumUnits import TestSketchSetDatumUnits
 
 # Path and PartDesign tests use these functions that used to live here
 # but moved to SketcherTests/TestSketcherSolver.py
@@ -114,6 +115,7 @@ __all__ = [
     "TestSketchDeleteOnPointUndo",
     "TestSketchReversedConicArcs",
     "TestSketchBSplineEndToEnd",
+    "TestSketchSetDatumUnits",
     "CreateCircleSketch",
     "CreateRectangleSketch",
     "CreateSlotPlateSet",

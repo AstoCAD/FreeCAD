@@ -21,6 +21,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <utility>
 
@@ -1230,6 +1231,33 @@ PyObject* SketchObjectPy::setTextAndFont(PyObject* args, PyObject* /*kwd*/)
     Py_Return;
 }
 
+namespace
+{
+// The unit of the datum of a constraint type, as getDatum() and the datum dialog give it: a
+// length or an angle (also the angle that Tangent and Perpendicular keep), none for the ratio of
+// SnellsLaw and for Weight. Nothing for the types that take no datum.
+std::optional<Base::Unit> datumUnit(ConstraintType type)
+{
+    switch (type) {
+        case Distance:
+        case DistanceX:
+        case DistanceY:
+        case Radius:
+        case Diameter:
+            return Base::Unit::Length;
+        case Angle:
+        case Tangent:
+        case Perpendicular:
+            return Base::Unit::Angle;
+        case SnellsLaw:
+        case Weight:
+            return Base::Unit::One;
+        default:
+            return std::nullopt;
+    }
+}
+}  // namespace
+
 PyObject* SketchObjectPy::setDatum(PyObject* args)
 {
     double Datum;
@@ -1322,6 +1350,20 @@ PyObject* SketchObjectPy::setDatum(PyObject* args)
         PyErr_SetString(PyExc_TypeError, "Wrong arguments");
         return nullptr;
     } while (false);
+
+    // A datum given with a unit must have the unit of the constraint; a plain number is taken in
+    // the internal unit (mm, radian).
+    const std::vector<Constraint*>& vals = this->getSketchObjectPtr()->Constraints.getValues();
+    if (Index >= 0 && Index < static_cast<int>(vals.size())) {
+        const auto unit = datumUnit(vals[Index]->Type);
+        if (unit && !Quantity.isDimensionlessOrUnit(*unit)) {
+            std::stringstream str;
+            str << "The datum " << Quantity.getUserString()
+                << " does not have the unit of the constraint with index " << Index;
+            PyErr_SetString(PyExc_ValueError, str.str().c_str());
+            return nullptr;
+        }
+    }
 
     // SketchObject::setDatum() reports both its own argument checks and the result of solving
     // the sketch through the same status values, so tell them apart here to give the right

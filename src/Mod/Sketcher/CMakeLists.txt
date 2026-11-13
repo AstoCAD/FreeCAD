@@ -51,6 +51,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketchDeleteOnPointUndo.py
     SketcherTests/TestSketchReversedConicArcs.py
     SketcherTests/TestSketchBSplineEndToEnd.py
+    SketcherTests/TestSketchSetDatumUnits.py
 )
 
 if(BUILD_GUI)
