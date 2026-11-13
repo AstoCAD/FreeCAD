@@ -952,6 +952,12 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         return True
 
     def deactivate(self):
+        self.release()
+        if Gui.Control.activeDialog(self.gui_doc):
+            Gui.Control.closeDialog(self.gui_doc)
+
+    def release(self):
+        """Stop the timers and drop the observer, callback and global task."""
         global _active_simulation_task
         App.removeDocumentObserver(self)
         self.inputRefreshTimer.stop()
@@ -961,8 +967,11 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.simFeaturePy.Proxy.setMotionsChangedCallback(None)
         if _active_simulation_task is self:
             _active_simulation_task = None
-        if Gui.Control.activeDialog(self.gui_doc):
-            Gui.Control.closeDialog(self.gui_doc)
+
+    def autoClosedOnDeletedDocument(self):
+        # Closing the document removes this dialog without accept() or reject();
+        # the task view removes the dialog itself, so do not close it here.
+        self.release()
 
     def suspendForChildTask(self):
         """Commit the simulation edits and temporarily replace this task dialog."""

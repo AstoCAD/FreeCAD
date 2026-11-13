@@ -496,3 +496,18 @@ class TestSimulationTabs(unittest.TestCase):
         self.assertAlmostEqual(self.second.Placement.Base.z, 7)
         self.panel.setFrameValue(3)
         self.assertAlmostEqual(self.second.Placement.Base.z, 19)
+
+    def test_closing_the_document_releases_the_panel(self):
+        study = self.panel.simFeaturePy
+        self.panel.accept()
+        QtWidgets.QApplication.processEvents()
+        panel = SimulationCommand.TaskAssemblyCreateSimulation(study)
+        dialog = Gui.Control.showDialog(panel)
+        dialog.setAutoCloseOnDeletedDocument(True)
+        dialog.setDocumentName(self.doc.Name)
+        panel.animationTimer.start()
+        self.assertIs(SimulationCommand._active_simulation_task, panel)
+        App.closeDocument(self.doc.Name)
+        self.doc = App.newDocument("SimulationTabsTest")  # Closed by tearDown.
+        self.assertFalse(panel.animationTimer.isActive())
+        self.assertIsNone(SimulationCommand._active_simulation_task)
