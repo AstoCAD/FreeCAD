@@ -333,7 +333,7 @@ bool Reader3MF::LoadObject(DOMNodeList* nodes, const Component& comp)
                 DOMNode* nameAttr = attrs->getNamedItem(XStrLiteral("name").unicodeForm());
                 std::string name;
                 if (nameAttr) {
-                    name = StrX(nameAttr->getNodeValue()).c_str();
+                    name = StrXUTF8(nameAttr->getNodeValue()).str;
                 }
                 DOMNodeList* meshNode = elem->getElementsByTagName(XStrLiteral("mesh").unicodeForm());
                 if (meshNode->getLength() > 0) {
