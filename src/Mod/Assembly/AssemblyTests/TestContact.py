@@ -25,6 +25,8 @@
 
 import unittest
 import math
+import os
+import tempfile
 import time
 
 import AssemblyApp  # Registers Assembly::AssemblyObject.
@@ -398,6 +400,23 @@ class TestContact(unittest.TestCase):
         data = Dynamics.run(study)
         self.assertLess(data["Bodies"][first.Name]["Velocity"][-1][0], 0)
         self.assertGreater(data["Bodies"][second.Name]["Velocity"][-1][0], 0)
+
+    def test_kinematic_sphere_contact_limit_keeps_precision(self):
+        # Assembly solving models a sphere pair as a distance limit at the sum
+        # of the radii; it must not be rounded to six decimals.
+        radius = 1 / 3
+        first = self.sphere("First", -1)
+        second = self.sphere("Second", 1)
+        first.Shape = second.Shape = Part.makeSphere(radius)
+        Dynamics.create_contact(self.assembly, first, second)
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "Contact.asmt")
+            self.assembly.exportAsASMT(path)
+            with open(path, encoding="utf-8") as file:
+                lines = [line.strip() for line in file]
+        start = lines.index("DistanceLimit")
+        record = lines[start + 1 :]
+        self.assertEqual(float(record[record.index("Limit") + 1]), 2 * radius)
 
     def test_general_mode_expands_all_sphere_pairs(self):
         first = self.sphere("First", -15)

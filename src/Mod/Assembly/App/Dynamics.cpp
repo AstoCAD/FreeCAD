@@ -56,6 +56,7 @@
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <Base/Quantity.h>
+#include <Base/StringUtils.h>
 #include <App/PropertyUnits.h>
 #include <App/PropertyStandard.h>
 #include <App/GeoFeature.h>
@@ -1315,7 +1316,7 @@ size_t AssemblyObject::contactParts(std::vector<Object*> contacts, bool dynamics
             limit->setMarkerI(markerI->fullName(""));
             limit->setMarkerJ(markerJ->fullName(""));
             limit->settype("=>");
-            limit->setlimit(std::to_string(sphereI.radius + sphereJ.radius));
+            limit->setlimit(Base::StringUtils::formatDouble(sphereI.radius + sphereJ.radius));
             limit->settol("1.0e-9");
             mbdAssembly->addLimit(limit);
             ++solverContactCount;
