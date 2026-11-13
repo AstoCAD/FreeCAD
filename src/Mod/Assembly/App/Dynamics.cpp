@@ -31,6 +31,7 @@
 #include "EventRuntime.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <functional>
@@ -50,6 +51,12 @@
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
+#include <Bnd_OBB.hxx>
+#include <gp_Dir.hxx>
+#include <gp_Pnt.hxx>
+#include <TopLoc_Location.hxx>
+#include <TopoDS_Iterator.hxx>
+#include <gp_Trsf.hxx>
 #include <Standard_Failure.hxx>
 #include <GProp_GProps.hxx>
 #include <GProp_PrincipalProps.hxx>
@@ -79,6 +86,38 @@
 
 namespace Assembly
 {
+// What resolveContactMove() reuses between mouse moves. Every entry records
+// the geometry it was computed from and is recomputed when that changes, so
+// it stays correct whether or not a drag is bracketed by preDrag() and
+// postDrag(), which reset it, as does deleting objects.
+struct ContactDragCache
+{
+    // A component's shape without its own placement: its leaf shapes (the
+    // non-compound shapes, held so that their addresses cannot be reused)
+    // with their transforms within the component.
+    using Leaves = std::vector<std::pair<TopoDS_Shape, gp_Trsf>>;
+    struct Bounds
+    {
+        Leaves leaves;
+        Bnd_Box box;  // Tight, in the component's own frame.
+        size_t generation = 0;
+    };
+    struct Test
+    {
+        Base::Placement first;
+        Base::Placement second;
+        size_t firstGeneration = 0;
+        size_t secondGeneration = 0;
+        bool intersects = false;
+    };
+    std::map<App::DocumentObject*, Bounds> bounds;
+    size_t generations = 0;
+    // The last two intersection tests of each pair (ordered by address), with
+    // the poses and geometry they were made with: a move starts where the
+    // previous one ended.
+    std::map<std::pair<App::DocumentObject*, App::DocumentObject*>, std::vector<Test>> tests;
+};
+
 namespace
 {
 using Object = App::DocumentObject;
@@ -314,7 +353,37 @@ void ensureContactTriangulation(const TopoDS_Shape& shape, ContactTiming& timing
     timing.meshingMs += elapsedMilliseconds(phaseStart);
 }
 
-bool shapesOverlap(
+// The common part of two solids, null when the Boolean fails.
+TopoDS_Shape commonShape(
+    const TopoDS_Shape& firstShape,
+    const TopoDS_Shape& secondShape,
+    ContactTiming& timing
+)
+{
+    ++timing.booleanTests;
+    const auto phaseStart = ContactClock::now();
+    BRepAlgoAPI_Common common(firstShape, secondShape);
+    common.SetNonDestructive(true);
+    common.SetRunParallel(false);
+    common.Build();
+    TopoDS_Shape result;
+    if (common.IsDone()) {
+        result = common.Shape();
+    }
+    timing.booleanMs += elapsedMilliseconds(phaseStart);
+    return result;
+}
+
+// How two solids meet. Faces within the tolerance of each other either touch,
+// as parts assembled flush do, or cross; telling these apart needs a Boolean.
+enum class ShapeOverlap
+{
+    None,
+    Faces,
+    Volume
+};
+
+ShapeOverlap shapeOverlap(
     const TopoDS_Shape& firstShape,
     const TopoDS_Shape& secondShape,
     ContactTiming& timing
@@ -329,7 +398,7 @@ bool shapesOverlap(
     timing.broadPhaseMs += elapsedMilliseconds(phaseStart);
     if (firstBox.IsOut(secondBox)) {
         ++timing.broadPhaseRejects;
-        return false;
+        return ShapeOverlap::None;
     }
 
     const auto proximityOverlap = [&](bool& done) {
@@ -359,7 +428,7 @@ bool shapesOverlap(
     }
     if (proximityDone) {
         if (surfaceIntersection) {
-            return true;
+            return ShapeOverlap::Faces;
         }
 
         bool containment = false;
@@ -373,27 +442,215 @@ bool shapesOverlap(
             containment = representativePointInside(secondShape, firstShape);
         }
         timing.containmentMs += elapsedMilliseconds(phaseStart);
-        return surfaceIntersection || containment;
+        return containment ? ShapeOverlap::Volume : ShapeOverlap::None;
     }
 
     // ShapeProximity needs face triangulation. This exact fallback keeps
     // contact functional for unusual non-tessellated shapes, but the timing
     // log makes an unexpectedly frequent fallback immediately visible.
-    ++timing.booleanTests;
     ++timing.booleanFallbacks;
-    phaseStart = ContactClock::now();
-    BRepAlgoAPI_Common common(firstShape, secondShape);
-    common.SetNonDestructive(true);
-    common.SetRunParallel(false);
-    common.Build();
-    if (!common.IsDone() || common.Shape().IsNull()) {
-        timing.booleanMs += elapsedMilliseconds(phaseStart);
-        return false;
+    const auto common = commonShape(firstShape, secondShape, timing);
+    if (common.IsNull()) {
+        return ShapeOverlap::None;
     }
     GProp_GProps overlap;
-    BRepGProp::VolumeProperties(common.Shape(), overlap);
-    timing.booleanMs += elapsedMilliseconds(phaseStart);
-    return overlap.Mass() > 1e-9;
+    BRepGProp::VolumeProperties(common, overlap);
+    return overlap.Mass() > 1e-9 ? ShapeOverlap::Volume : ShapeOverlap::None;
+}
+
+// Touching counts: the first pose that reaches another component.
+bool shapesOverlap(
+    const TopoDS_Shape& firstShape,
+    const TopoDS_Shape& secondShape,
+    ContactTiming& timing
+)
+{
+    return shapeOverlap(firstShape, secondShape, timing) != ShapeOverlap::None;
+}
+
+// Touching does not count: the solids share a volume thicker than the
+// tolerance. Faces found within the tolerance whose Boolean fails are taken
+// as crossing, as shapesOverlap() takes them.
+bool shapesIntersect(
+    const TopoDS_Shape& firstShape,
+    const TopoDS_Shape& secondShape,
+    ContactTiming& timing
+)
+{
+    switch (shapeOverlap(firstShape, secondShape, timing)) {
+        case ShapeOverlap::None:
+            return false;
+        case ShapeOverlap::Volume:
+            return true;
+        case ShapeOverlap::Faces:
+            break;
+    }
+    const auto common = commonShape(firstShape, secondShape, timing);
+    if (common.IsNull()) {
+        return true;
+    }
+    GProp_GProps volume;
+    BRepGProp::VolumeProperties(common, volume);
+    if (!(volume.Mass() > 0)) {
+        return false;
+    }
+    // Twice the volume over the boundary area is the thickness of a thin
+    // common slab: flush faces leave none, numerical noise far less than the
+    // tolerance.
+    GProp_GProps area;
+    BRepGProp::SurfaceProperties(common, area);
+    return !(area.Mass() > 0) || 2 * volume.Mass() / area.Mass() > Precision::Confusion();
+}
+
+// A box given in a component's own frame, placed with the component and
+// shrunk by half the tolerance: two such boxes that do not overlap can only
+// hold solids that touch, without sharing a volume thicker than the tolerance.
+struct PlacedBounds
+{
+    Vec centre;
+    std::array<Vec, 3> axes;
+    std::array<double, 3> half {};
+
+    PlacedBounds(const Bnd_Box& bounds, const Base::Placement& placement)
+    {
+        double xMin, yMin, zMin, xMax, yMax, zMax;
+        bounds.Get(xMin, yMin, zMin, xMax, yMax, zMax);
+        const double shrink = bounds.GetGap() + 0.5 * Precision::Confusion();
+        placement.multVec(Vec(0.5 * (xMin + xMax), 0.5 * (yMin + yMax), 0.5 * (zMin + zMax)), centre);
+        const auto& rotation = placement.getRotation();
+        axes = {rotation.multVec(Vec(1, 0, 0)), rotation.multVec(Vec(0, 1, 0)), rotation.multVec(Vec(0, 0, 1))};
+        half = {
+            std::max(0.0, 0.5 * (xMax - xMin) - shrink),
+            std::max(0.0, 0.5 * (yMax - yMin) - shrink),
+            std::max(0.0, 0.5 * (zMax - zMin) - shrink)
+        };
+    }
+
+    // The extent of the box along a unit direction.
+    std::pair<double, double> along(const Vec& direction) const
+    {
+        double radius = 0;
+        for (size_t i = 0; i < 3; ++i) {
+            radius += half[i] * std::abs(axes[i].Dot(direction));
+        }
+        const double middle = centre.Dot(direction);
+        return {middle - radius, middle + radius};
+    }
+
+    Bnd_OBB oriented() const
+    {
+        const auto direction = [](const Vec& axis) { return gp_Dir(axis.x, axis.y, axis.z); };
+        return Bnd_OBB(
+            gp_Pnt(centre.x, centre.y, centre.z),
+            direction(axes[0]),
+            direction(axes[1]),
+            direction(axes[2]),
+            half[0],
+            half[1],
+            half[2]
+        );
+    }
+};
+
+// The geometry of a component's shape without its own placement (its top
+// location): a recomputed feature has new leaf shapes, a container whose
+// child changed or moved has a changed leaf or leaf transform.
+ContactDragCache::Leaves shapeLeaves(const TopoDS_Shape& shape)
+{
+    ContactDragCache::Leaves leaves;
+    const auto collect = [&leaves](const auto& self, const TopoDS_Shape& current) -> void {
+        if (current.ShapeType() != TopAbs_COMPOUND) {
+            leaves.emplace_back(current.Located(TopLoc_Location()), current.Location().Transformation());
+            return;
+        }
+        for (TopoDS_Iterator child(current, true, true); child.More(); child.Next()) {
+            self(self, child.Value());
+        }
+    };
+    if (!shape.IsNull()) {
+        collect(collect, shape.Located(TopLoc_Location()));
+    }
+    return leaves;
+}
+
+bool sameLeaves(const ContactDragCache::Leaves& first, const ContactDragCache::Leaves& second)
+{
+    if (first.size() != second.size()) {
+        return false;
+    }
+    for (size_t index = 0; index < first.size(); ++index) {
+        const auto& [shape, transform] = first[index];
+        const auto& [otherShape, otherTransform] = second[index];
+        if (!shape.IsSame(otherShape) || shape.Orientation() != otherShape.Orientation()) {
+            return false;
+        }
+        for (int row = 1; row <= 3; ++row) {
+            for (int column = 1; column <= 4; ++column) {
+                if (transform.Value(row, column) != otherTransform.Value(row, column)) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+// True when two solids, each inside a box given in its own frame, cannot share
+// a volume thicker than the tolerance. Components assembled flush, the usual
+// case, pass this test without any face-level computation.
+bool boxesSeparate(
+    const Bnd_Box& firstBounds,
+    const Base::Placement& firstPlacement,
+    const Bnd_Box& secondBounds,
+    const Base::Placement& secondPlacement
+)
+{
+    if (firstBounds.IsVoid() || secondBounds.IsVoid()) {
+        return false;
+    }
+    return PlacedBounds(firstBounds, firstPlacement)
+        .oriented()
+        .IsOut(PlacedBounds(secondBounds, secondPlacement).oriented());
+}
+
+// True when the first box stays separated from the fixed second one over the
+// whole drag path from start to end (positions interpolated linearly, rotation
+// by slerp): some face axis of either box separates them at both ends, and
+// the rotation of the path, if any, turns about that axis. Along such an axis
+// the moving box's extent then changes linearly, so separation at both ends
+// holds in between. Sliding or turning on a touched face passes this test.
+bool boxesStaySeparated(
+    const Bnd_Box& firstBounds,
+    const Base::Placement& start,
+    const Base::Placement& end,
+    const Bnd_Box& secondBounds,
+    const Base::Placement& secondPlacement
+)
+{
+    if (firstBounds.IsVoid() || secondBounds.IsVoid()) {
+        return false;
+    }
+    const PlacedBounds first(firstBounds, start);
+    const PlacedBounds last(firstBounds, end);
+    const PlacedBounds second(secondBounds, secondPlacement);
+    Vec turnAxis;
+    double turnAngle = 0;
+    (end.getRotation() * start.getRotation().inverse()).getValue(turnAxis, turnAngle);
+    const bool turns = std::abs(turnAngle) > 1e-12;
+    std::vector<Vec> candidates(second.axes.begin(), second.axes.end());
+    candidates.insert(candidates.end(), first.axes.begin(), first.axes.end());
+    for (const auto& axis : candidates) {
+        if (turns && std::abs(turnAxis.Dot(axis)) < 1 - 1e-12) {
+            continue;
+        }
+        const auto [low, high] = second.along(axis);
+        const auto [startLow, startHigh] = first.along(axis);
+        const auto [endLow, endHigh] = last.along(axis);
+        if ((startHigh <= low && endHigh <= low) || (startLow >= high && endLow >= high)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 TopoDS_Shape movedShape(
@@ -1335,6 +1592,60 @@ void AssemblyObject::resolveContactMove(
     std::set<Object*> moved(movedParts.begin(), movedParts.end());
     std::map<Object*, Base::Placement> previous = previousPlacements;
 
+    if (!contactDragCache) {
+        contactDragCache = std::make_shared<ContactDragCache>();
+    }
+    auto& cache = *contactDragCache;
+    // Tight bounds of a component in its own frame, from its shape at a pose,
+    // recomputed when the shape is not the one they were computed from.
+    const auto bounds = [&cache](Object* component,
+                                 const TopoDS_Shape& shape,
+                                 const Base::Placement& pose) -> const ContactDragCache::Bounds& {
+        auto leaves = shapeLeaves(shape);
+        auto& entry = cache.bounds[component];
+        if (entry.generation == 0 || !sameLeaves(entry.leaves, leaves)) {
+            const TopLoc_Location local(::Part::TopoShape::convert(pose.inverse().toMatrix()));
+            entry.box = Bnd_Box();
+            BRepBndLib::AddOptimal(shape.Moved(local), entry.box, false, false);
+            entry.leaves = std::move(leaves);
+            entry.generation = ++cache.generations;
+        }
+        return entry;
+    };
+    // Whether two components, given with their shapes at the given placements,
+    // share a volume. Separated bounds answer most flush pairs; a pose tested
+    // by the previous mouse move is not tested again.
+    const auto intersect = [&](Object* first,
+                               const Base::Placement& firstPose,
+                               const TopoDS_Shape& firstShape,
+                               Object* second,
+                               const Base::Placement& secondPose,
+                               const TopoDS_Shape& secondShape) {
+        const bool ordered = std::less<Object*> {}(first, second);
+        const auto key = ordered ? std::pair {first, second} : std::pair {second, first};
+        const auto& poseA = ordered ? firstPose : secondPose;
+        const auto& poseB = ordered ? secondPose : firstPose;
+        const auto& firstBounds = bounds(first, firstShape, firstPose);
+        const auto& secondBounds = bounds(second, secondShape, secondPose);
+        const size_t generationA = ordered ? firstBounds.generation : secondBounds.generation;
+        const size_t generationB = ordered ? secondBounds.generation : firstBounds.generation;
+        auto& tests = cache.tests[key];
+        for (const auto& test : tests) {
+            if (test.first == poseA && test.second == poseB && test.firstGeneration == generationA
+                && test.secondGeneration == generationB) {
+                return test.intersects;
+            }
+        }
+        const bool result
+            = !boxesSeparate(firstBounds.box, firstPose, secondBounds.box, secondPose)
+            && shapesIntersect(firstShape, secondShape, timing);
+        tests.push_back({poseA, poseB, generationA, generationB, result});
+        if (tests.size() > 2) {
+            tests.erase(tests.begin());
+        }
+        return result;
+    };
+
     // A contact response can move another component into a pair that was
     // visited earlier in component order. Revisit the contact graph until no
     // new component joins the moving island. The component count is also a
@@ -1348,6 +1659,21 @@ void AssemblyObject::resolveContactMove(
             std::vector<std::pair<Object*, Object*>> pairs;
             try {
                 pairs = contactComponentPairs(contact, components);
+            }
+            catch (const std::invalid_argument& error) {
+                warnSkippedContact(error.what());
+                continue;
+            }
+            bool friction = false;
+            double staticCoefficient = 0;
+            double dynamicCoefficient = 0;
+            try {
+                friction = property<App::PropertyBool>(contact, "FrictionEnabled").getValue();
+                if (friction) {
+                    staticCoefficient = std::max(0.0, number(contact, "StaticFriction"));
+                    dynamicCoefficient
+                        = std::clamp(number(contact, "DynamicFriction"), 0.0, staticCoefficient);
+                }
             }
             catch (const std::invalid_argument& error) {
                 warnSkippedContact(error.what());
@@ -1389,13 +1715,26 @@ void AssemblyObject::resolveContactMove(
                     if (!solids) {
                         continue;
                     }
-                    overlapping = shapesOverlap(driverTargetShape, pushedShape, timing);
+                    overlapping = intersect(
+                        driver,
+                        driverPlacement->getValue(),
+                        driverTargetShape,
+                        pushed,
+                        pushedPlacement->getValue(),
+                        pushedShape
+                    );
                 }
                 catch (const Standard_Failure& e) {
                     Base::Console().warning(
                         "Assembly contact detection failed: {}\n",
                         e.GetMessageString()
                     );
+                    continue;
+                }
+                catch (const std::invalid_argument& e) {
+                    // A component that cannot collide (contactShapesOf) is a
+                    // configuration problem, the same on every mouse move.
+                    warnSkippedContact(e.what());
                     continue;
                 }
                 catch (const std::exception& e) {
@@ -1410,16 +1749,40 @@ void AssemblyObject::resolveContactMove(
                     const auto shapeAt = [&](const Base::Placement& placement) {
                         return movedShape(driverTargetShape, placement * target.inverse(), timing);
                     };
-                    startedOverlapping
-                        = shapesOverlap(shapeAt(driverPrevious->second), pushedShape, timing);
+                    // Touching is not intersecting: a component assembled
+                    // flush against another is pushed, not let through.
+                    startedOverlapping = intersect(
+                        driver,
+                        driverPrevious->second,
+                        shapeAt(driverPrevious->second),
+                        pushed,
+                        pushedPlacement->getValue(),
+                        pushedShape
+                    );
                     if (!overlapping) {
                         if (startedOverlapping) continue; // Dragging out of an initial overlap.
+                        // Bounds that stay apart along the whole path need no
+                        // sweep: sliding along or turning on a touched face.
+                        if (boxesStaySeparated(
+                                bounds(driver, driverTargetShape, target).box,
+                                driverPrevious->second,
+                                target,
+                                bounds(pushed, pushedShape, pushedPlacement->getValue()).box,
+                                pushedPlacement->getValue()
+                            )) {
+                            continue;
+                        }
                         const auto localShape = BRepBuilderAPI_Transform(driverTargetShape,
                             ::Part::TopoShape::convert(target.inverse().toMatrix()), false).Shape();
                         ContactGeometry sweepGeometry(localShape, pushedShape, false);
                         freeFraction = sweepGeometry.sweep(driverPrevious->second, target,
                                                            Base::Placement(), Base::Placement(), true);
                         if (freeFraction == 1) continue;
+                        // The sweep cannot leave a start pose within the tolerance
+                        // of the other component when the move does not separate
+                        // them: the component slides along or turns on the surface
+                        // it touches, to a target that does not intersect.
+                        if (freeFraction == 0) continue;
                         collidingFraction = freeFraction;
                     }
                     if (!startedOverlapping && overlapping) {
@@ -1456,11 +1819,7 @@ void AssemblyObject::resolveContactMove(
                     const Vec normalTranslation = normal * normalDistance;
                     const Vec tangentTranslation = remainingTranslation - normalTranslation;
                     pushedTranslation = normalTranslation;
-                    if (property<App::PropertyBool>(contact, "FrictionEnabled").getValue()) {
-                        const double staticCoefficient
-                            = std::max(0.0, number(contact, "StaticFriction"));
-                        const double dynamicCoefficient
-                            = std::clamp(number(contact, "DynamicFriction"), 0.0, staticCoefficient);
+                    if (friction) {
                         const double tangentDistance = tangentTranslation.Length();
                         const double normalTravel = std::abs(normalDistance);
                         if (tangentDistance <= staticCoefficient * normalTravel) {

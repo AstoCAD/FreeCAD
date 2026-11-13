@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <limits>
 #include <string>
+#include <vector>
 
 #include <FCConfig.h>
 
@@ -19,14 +21,17 @@
 #include <App/ObjectIdentifier.h>
 #include <Base/Console.h>
 #include <App/PropertyPythonObject.h>
+#include <Base/Console.h>
 #include <Base/Interpreter.h>
 #include <Mod/Assembly/App/ContactGeometry.h>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <gp_Ax2.hxx>
+#include <gp_Pln.hxx>
 #include <gp_Trsf.hxx>
 #include <Mod/Assembly/App/AssemblyObject.h>
 #include <Mod/Assembly/App/BomObject.h>
@@ -521,6 +526,285 @@ TEST_F(AssemblyObjectTest, contactSetsGateDraggingAndRespectExclusions)  // NOLI
     assembly->resolveContactMove({first}, {{first, previous}});
     EXPECT_GE(second->Placement.getValue().getPosition().x, 15.9);
     EXPECT_DOUBLE_EQ(other->Placement.getValue().getPosition().x, 50);
+}
+
+namespace
+{
+class ContactWarningCollector final: public Base::ILogger
+{
+public:
+    void sendLog(
+        const std::string& /*notifiername*/,
+        const std::string& msg,
+        Base::LogStyle level,
+        Base::IntendedRecipient /*recipient*/,
+        Base::ContentType /*content*/
+    ) override
+    {
+        if (level == Base::LogStyle::Warning) {
+            warnings.push_back(msg);
+        }
+    }
+
+    const char* name() override
+    {
+        return "AssemblyContactWarningCollector";
+    }
+
+    std::vector<std::string> warnings;
+};
+}  // namespace
+
+TEST_F(AssemblyObjectTest, dragReportsANonSolidContactComponentOnce)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* doc = assembly->getDocument();
+    auto* box = doc->addObject<Part::Box>("Box");
+    box->execute();
+    box->Placement.setValue(Base::Placement(Base::Vector3d(0, 0, 50), Base::Rotation()));
+    assembly->addObject(box);
+    // A sheet is not construction geometry: general contact refuses it.
+    // A name of its own: the once-per-message report is process wide.
+    auto* sheet = doc->addObject<Part::Feature>("DragNonSolidSheet");
+    sheet->Shape.setValue(BRepBuilderAPI_MakeFace(gp_Pln(), -50, 50, -50, 50).Shape());
+    assembly->addObject(sheet);
+
+    auto* contact = doc->addObject("App::FeaturePython", "GeneralContact");
+    contact->addDynamicProperty("App::PropertyString", "ContactType");
+    auto* mode = static_cast<App::PropertyEnumeration*>(
+        contact->addDynamicProperty("App::PropertyEnumeration", "Mode")
+    );
+    mode->setEnums({"Between two components", "General collision detection"});
+    mode->setValue("General collision detection");
+    contact->addDynamicProperty("App::PropertyBool", "Suppressed");
+    contact->addDynamicProperty("App::PropertyBool", "FrictionEnabled");
+    auto* group = doc->addObject<Assembly::SimulationGroup>("Simulations");
+    assembly->addObject(group);
+    group->addObject(contact);
+
+    ContactWarningCollector collector;
+    Base::Console().attachObserver(&collector);
+    try {
+        // Two mouse moves.
+        for (double z : {45.0, 40.0}) {
+            const auto previous = box->Placement.getValue();
+            box->Placement.setValue(Base::Placement(Base::Vector3d(0, 0, z), Base::Rotation()));
+            assembly->resolveContactMove({box}, {{box, previous}});
+        }
+    }
+    catch (...) {
+        Base::Console().detachObserver(&collector);
+        throw;
+    }
+    Base::Console().detachObserver(&collector);
+    const auto aboutSheet = std::ranges::count_if(collector.warnings, [&](const std::string& text) {
+        return text.find(sheet->getFullName()) != std::string::npos;
+    });
+    EXPECT_EQ(aboutSheet, 1);
+    EXPECT_NEAR(box->Placement.getValue().getPosition().z, 40, 1e-9);
+}
+
+TEST_F(AssemblyObjectTest, dragSkipsAContactWithANonFiniteFrictionCoefficient)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* doc = assembly->getDocument();
+    const auto box = [&](const char* name, double x) {
+        auto* object = doc->addObject<Part::Box>(name);
+        object->execute();
+        object->Placement.setValue(Base::Placement(Base::Vector3d(x, 0, 0), Base::Rotation()));
+        assembly->addObject(object);
+        return object;
+    };
+    auto* dragged = box("Dragged", 0);
+    auto* other = box("Other", 11);
+
+    auto* contact = doc->addObject("App::FeaturePython", "FrictionContact");
+    contact->addDynamicProperty("App::PropertyString", "ContactType");
+    auto* mode = static_cast<App::PropertyEnumeration*>(
+        contact->addDynamicProperty("App::PropertyEnumeration", "Mode")
+    );
+    mode->setEnums({"Between two components", "General collision detection"});
+    mode->setValue("General collision detection");
+    contact->addDynamicProperty("App::PropertyBool", "Suppressed");
+    static_cast<App::PropertyBool*>(
+        contact->addDynamicProperty("App::PropertyBool", "FrictionEnabled")
+    )->setValue(true);
+    static_cast<App::PropertyFloat*>(
+        contact->addDynamicProperty("App::PropertyFloat", "StaticFriction")
+    )->setValue(std::numeric_limits<double>::quiet_NaN());
+    static_cast<App::PropertyFloat*>(
+        contact->addDynamicProperty("App::PropertyFloat", "DynamicFriction")
+    )->setValue(0.2);
+    auto* group = doc->addObject<Assembly::SimulationGroup>("Simulations");
+    assembly->addObject(group);
+    group->addObject(contact);
+
+    // A misconfigured contact is skipped and reported, as in solving; it
+    // must not throw out of the mouse handler.
+    const auto previous = dragged->Placement.getValue();
+    dragged->Placement.setValue(Base::Placement(Base::Vector3d(6, 0, 0), Base::Rotation()));
+    EXPECT_NO_THROW(assembly->resolveContactMove({dragged}, {{dragged, previous}}));
+    EXPECT_NEAR(dragged->Placement.getValue().getPosition().x, 6, 1e-9);
+    EXPECT_NEAR(other->Placement.getValue().getPosition().x, 11, 1e-9);
+}
+
+namespace
+{
+App::DocumentObject* addGeneralDragContact(Assembly::AssemblyObject* assembly)
+{
+    auto* doc = assembly->getDocument();
+    auto* contact = doc->addObject("App::FeaturePython", "GeneralContact");
+    contact->addDynamicProperty("App::PropertyString", "ContactType");
+    auto* mode = static_cast<App::PropertyEnumeration*>(
+        contact->addDynamicProperty("App::PropertyEnumeration", "Mode")
+    );
+    mode->setEnums({"Between two components", "General collision detection"});
+    mode->setValue("General collision detection");
+    contact->addDynamicProperty("App::PropertyBool", "Suppressed");
+    contact->addDynamicProperty("App::PropertyBool", "FrictionEnabled");
+    auto* group = doc->addObject<Assembly::SimulationGroup>("Simulations");
+    assembly->addObject(group);
+    group->addObject(contact);
+    return contact;
+}
+
+Part::Box* addDragBox(
+    Assembly::AssemblyObject* assembly,
+    const char* name,
+    const Base::Vector3d& position,
+    double length = 10
+)
+{
+    auto* object = assembly->getDocument()->addObject<Part::Box>(name);
+    object->Length.setValue(length);
+    object->Width.setValue(length);
+    object->Height.setValue(10);
+    object->execute();
+    object->Placement.setValue(Base::Placement(position, Base::Rotation()));
+    assembly->addObject(object);
+    return object;
+}
+}  // namespace
+
+TEST_F(AssemblyObjectTest, dragContactPushesAComponentItStartsTouching)  // NOLINT
+{
+    auto* assembly = getObject();
+    // Flush faces, as components are usually assembled.
+    auto* dragged = addDragBox(assembly, "Dragged", Base::Vector3d(0, 0, 0));
+    auto* touching = addDragBox(assembly, "Touching", Base::Vector3d(10, 0, 0));
+    addGeneralDragContact(assembly);
+    const auto previous = dragged->Placement.getValue();
+    dragged->Placement.setValue(Base::Placement(Base::Vector3d(3, 0, 0), Base::Rotation()));
+    assembly->resolveContactMove({dragged}, {{dragged, previous}});
+    EXPECT_NEAR(dragged->Placement.getValue().getPosition().x, 3, 1e-9);
+    EXPECT_NEAR(touching->Placement.getValue().getPosition().x, 13, 0.05);
+}
+
+TEST_F(AssemblyObjectTest, dragSlidesAComponentAlongAFaceItTouches)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* dragged = addDragBox(assembly, "Dragged", Base::Vector3d(0, 0, 0));
+    auto* touching = addDragBox(assembly, "Touching", Base::Vector3d(10, 0, 0));
+    addGeneralDragContact(assembly);
+    // Two mouse moves along the shared face: the second starts touching
+    // shapes that the first has meshed.
+    for (double y : {3.0, 6.0}) {
+        const auto previous = dragged->Placement.getValue();
+        dragged->Placement.setValue(Base::Placement(Base::Vector3d(0, y, 0), Base::Rotation()));
+        assembly->resolveContactMove({dragged}, {{dragged, previous}});
+        EXPECT_NEAR(dragged->Placement.getValue().getPosition().y, y, 1e-9);
+    }
+    EXPECT_NEAR(dragged->Placement.getValue().getPosition().x, 0, 1e-9);
+    EXPECT_TRUE(touching->Placement.getValue().isSame(
+        Base::Placement(Base::Vector3d(10, 0, 0), Base::Rotation()),
+        1e-9
+    ));
+}
+
+TEST_F(AssemblyObjectTest, dragTurnsAComponentOnAFaceItTouches)  // NOLINT
+{
+    auto* assembly = getObject();
+    // The dragged box sits on the plate's top face.
+    auto* plate = addDragBox(assembly, "Plate", Base::Vector3d(-10, -10, -10), 30);
+    auto* dragged = addDragBox(assembly, "Dragged", Base::Vector3d(0, 0, 0));
+    addGeneralDragContact(assembly);
+    const auto previous = dragged->Placement.getValue();
+    const Base::Placement turned(Base::Vector3d(0, 0, 0), Base::Rotation(Base::Vector3d(0, 0, 1), 0.5));
+    dragged->Placement.setValue(turned);
+    assembly->resolveContactMove({dragged}, {{dragged, previous}});
+    EXPECT_TRUE(dragged->Placement.getValue().isSame(turned, 1e-9));
+    EXPECT_TRUE(plate->Placement.getValue().isSame(
+        Base::Placement(Base::Vector3d(-10, -10, -10), Base::Rotation()),
+        1e-9
+    ));
+}
+
+TEST_F(AssemblyObjectTest, dragSlidesAComponentAlongAStepItTouches)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* doc = assembly->getDocument();
+    // A step: the bounding boxes overlap although the solids only touch, on
+    // the step's floor and on its wall.
+    auto* step = doc->addObject<Part::Feature>("Step");
+    step->Shape.setValue(
+        BRepAlgoAPI_Cut(
+            BRepPrimAPI_MakeBox(30, 10, 10).Shape(),
+            BRepPrimAPI_MakeBox(gp_Pnt(-1, -1, 5), 11, 12, 6).Shape()
+        )
+            .Shape()
+    );
+    assembly->addObject(step);
+    auto* dragged = doc->addObject<Part::Feature>("Dragged");
+    dragged->Shape.setValue(BRepPrimAPI_MakeBox(10, 10, 5).Shape());
+    dragged->Placement.setValue(Base::Placement(Base::Vector3d(0, 0, 5), Base::Rotation()));
+    assembly->addObject(dragged);
+    addGeneralDragContact(assembly);
+    for (double y : {-3.0, -6.0}) {
+        const auto previous = dragged->Placement.getValue();
+        const Base::Placement slid(Base::Vector3d(0, y, 5), Base::Rotation());
+        dragged->Placement.setValue(slid);
+        assembly->resolveContactMove({dragged}, {{dragged, previous}});
+        EXPECT_TRUE(dragged->Placement.getValue().isSame(slid, 1e-9));
+    }
+    EXPECT_TRUE(step->Placement.getValue().isIdentity());
+}
+
+TEST_F(AssemblyObjectTest, dragSeesANeighbourThatChangedBetweenDrags)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* dragged = addDragBox(assembly, "Dragged", Base::Vector3d(0, 0, 0));
+    auto* neighbour = addDragBox(assembly, "Neighbour", Base::Vector3d(-40, 0, 0));
+    addGeneralDragContact(assembly);
+    const auto move = [&](double x) {
+        const auto previous = dragged->Placement.getValue();
+        dragged->Placement.setValue(Base::Placement(Base::Vector3d(x, 0, 0), Base::Rotation()));
+        assembly->resolveContactMove({dragged}, {{dragged, previous}});
+    };
+    // Dragging without preDrag()/postDrag(), as with SolveOnMove off.
+    move(1);
+    EXPECT_NEAR(neighbour->Placement.getValue().getPosition().x, -40, 1e-9);
+    // The neighbour grows towards the dragged box: [-40, -5].
+    neighbour->Length.setValue(35);
+    neighbour->execute();
+    // execute() outside a recompute takes the placement from the new shape.
+    neighbour->Placement.setValue(Base::Placement(Base::Vector3d(-40, 0, 0), Base::Rotation()));
+    move(-8);
+    EXPECT_NEAR(dragged->Placement.getValue().getPosition().x, -8, 1e-9);
+    EXPECT_NEAR(neighbour->Placement.getValue().getPosition().x, -43, 0.05);
+}
+
+TEST_F(AssemblyObjectTest, frameQueriesWithoutSolverSystem)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* box = assembly->getDocument()->addObject<Part::Box>("Free");
+    box->execute();
+    assembly->addObject(box);
+
+    // An island drag with no joint or contact to solve drops the solver system.
+    assembly->preDrag({box});
+    EXPECT_EQ(assembly->numberOfFrames(), 0U);
+    EXPECT_EQ(assembly->updateForFrame(0), -1);
+    assembly->postDrag();
 }
 
 // https://github.com/FreeCAD/FreeCAD/issues/33405
