@@ -44,6 +44,7 @@ from SketcherTests.TestTextToolLastFontGui import TestTextToolLastFontGui
 from SketcherTests.TestAutoConstraintRedundancyGui import TestAutoConstraintRedundancyGui
 from SketcherTests.TestExternalInAssemblyGui import TestExternalInAssemblyGui
 from SketcherTests.TestSplitContinuousModeGui import TestSplitContinuousModeGui
+from SketcherTests.TestElementsExternalFilterGui import TestElementsExternalFilterGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -87,5 +88,6 @@ from SketcherTests.TestSplitContinuousModeGui import TestSplitContinuousModeGui
     and TestAutoConstraintRedundancyGui
     and TestExternalInAssemblyGui
     and TestSplitContinuousModeGui
+    and TestElementsExternalFilterGui
     else False
 )

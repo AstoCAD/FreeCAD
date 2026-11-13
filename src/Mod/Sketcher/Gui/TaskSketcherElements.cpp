@@ -235,14 +235,20 @@ public:
     ~ElementItem() override
     {}
 
+    // Defining and non-defining (construction) external geometry alike.
+    bool isExternal() const
+    {
+        return State == GeometryState::External || State == GeometryState::ConstructionExternal;
+    }
+
     bool canBeHidden() const
     {
-        return State != GeometryState::External && State != GeometryState::ConstructionExternal;
+        return !isExternal();
     }
 
     bool isVisible() const
     {
-        if (State != GeometryState::External && State != GeometryState::ConstructionExternal) {
+        if (!isExternal()) {
             const auto geo = sketchView->getSketchObject()->getGeometry(ElementNbr);
             if (geo) {
                 auto layer = getSafeGeomLayerId(geo);
@@ -1576,7 +1582,7 @@ void TaskSketcherElements::setItemVisibility(QListWidgetItem* it, const std::set
             && item->State == GeometryState::InternalAlignment)
         || (filterList->item(static_cast<int>(GeoFilterType::ExternalGeos))->checkState()
                 == Qt::Unchecked
-            && item->State == GeometryState::External)
+            && item->isExternal())
         || (filterList->item(static_cast<int>(GeoFilterType::PointGeos))->checkState()
                 == Qt::Unchecked
             && item->GeometryType == Part::GeomPoint::getClassTypeId())
