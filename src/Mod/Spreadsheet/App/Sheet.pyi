@@ -106,7 +106,8 @@ class Sheet(DocumentObject):
         Return the addresses, row by row, of the cells whose contents contain
         the text (or are the text, with wholeCell). Text cells are matched
         without their leading apostrophe. With values, the formatted values
-        are searched instead of the contents.
+        are searched instead of the contents; cells changed since the last
+        recompute have no value to match yet.
         """
         ...
 

@@ -4389,6 +4389,23 @@ class SpreadsheetEditing(unittest.TestCase):
         self.assertEqual(sheet.findCells("42", False, False, True), ["C1"])
         self.assertEqual(sheet.findCells("A3", False, False, True), [])
 
+    def testFindCellsInValuesBeforeRecompute(self):
+        """A cell changed since the last recompute has no value to match yet"""
+        sheet = self.sheet
+        self._findSample()
+        sheet.set("A3", "5")
+        self.assertEqual(sheet.findCells("21", False, False, True), [])
+        self.assertEqual(sheet.findCells("5", False, False, True), [])
+        self.assertEqual(sheet.findCells("5"), ["A3"])
+        self.doc.recompute()
+        self.assertEqual(sheet.findCells("5", False, False, True), ["A3"])
+        self.assertEqual(sheet.findCells("10", False, False, True), ["C1"])
+        # Moved cells are matched again once computed at their new place
+        sheet.insertRows("1", 1)
+        self.assertEqual(sheet.findCells("pear", False, False, True), [])
+        self.doc.recompute()
+        self.assertEqual(sheet.findCells("pear", False, False, True), ["A5"])
+
     def testReplaceCells(self):
         sheet = self.sheet
         self._findSample()

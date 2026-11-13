@@ -590,11 +590,7 @@ void Sheet::sortRows(const Range& range, int column, bool ascending)
         const CellAddress address(row, column);
         const Cell* cell = getCell(address);
         if (cell && cell->getExpression()) {
-            // A cell marked dirty (set, moved, ... since the last recompute) is
-            // not computed, as in the table view: its property, if any, can
-            // hold the value of the contents that were there before
-            const bool computed = cells.getDirty().count(address) == 0;
-            const Property* prop = computed ? getProperty(address) : nullptr;
+            const Property* prop = getComputedProperty(address);
             if (prop && prop->isDerivedFrom<App::PropertyFloat>()) {
                 key = {0, static_cast<const App::PropertyFloat*>(prop)->getValue(), QString()};
             }
@@ -673,7 +669,8 @@ static QString searchableContent(const Cell* cell, bool& isText)
 /**
  * Find the cells whose contents (or, with \a values, formatted values) contain
  * \a text, or are \a text with \a wholeCell. Text cells are matched without
- * their leading apostrophe. Returns the addresses row by row.
+ * their leading apostrophe. Cells not computed since they were set or moved
+ * have no value to match yet. Returns the addresses row by row.
  */
 
 std::vector<CellAddress> Sheet::findCells(const std::string& text, bool matchCase, bool wholeCell, bool values)
@@ -690,7 +687,7 @@ std::vector<CellAddress> Sheet::findCells(const std::string& text, bool matchCas
         }
         QString subject;
         if (values) {
-            if (!getProperty(address)) {
+            if (!getComputedProperty(address)) {
                 continue;
             }
             subject = QString::fromStdString(cell->getFormattedQuantity());
@@ -890,6 +887,19 @@ std::string Sheet::getCanonicalPropertyName(const char* name) const
 Property* Sheet::getProperty(const char* addr) const
 {
     return props.getDynamicPropertyByName(addr);
+}
+
+/**
+ * @brief Get the property holding the computed value of a cell.
+ * @param key Address of the cell.
+ * @return The property, or 0 if the cell has not been computed since it was
+ * set, moved or reformatted (dirty, shown as pending in the table view): its
+ * property, if any, can hold the value of the contents that were there before.
+ */
+
+Property* Sheet::getComputedProperty(CellAddress key)
+{
+    return cells.getDirty().count(key) == 0 ? getProperty(key) : nullptr;
 }
 
 /**
