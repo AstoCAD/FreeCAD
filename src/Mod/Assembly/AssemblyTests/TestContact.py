@@ -367,20 +367,39 @@ class TestContact(unittest.TestCase):
         self.assertLess(data["Bodies"][first.Name]["Velocity"][-1][0], 0)
         self.assertGreater(data["Bodies"][middle.Name]["Velocity"][-1][0], 0)
 
-    def test_general_mode_skips_grounded_components_without_solid(self):
+    def test_general_mode_skips_grounded_construction_geometry(self):
         first = self.sphere("First", -15)
         self.sphere("Second", 15)
-        sheet = self.assembly.newObject("Part::Plane", "Sheet")
-        sheet.setPropertyStatus("Placement", "ReadOnly")
+        construction = [
+            self.assembly.newObject(kind, kind.replace("::", "_"))
+            for kind in ("PartDesign::Plane", "Part::Line")
+        ]
+        for obj in construction:
+            obj.setPropertyStatus("Placement", "ReadOnly")
+        self.doc.recompute()
+        self.assertEqual([len(obj.Shape.Faces) for obj in construction], [1, 0])
         study = self.study("0.001 s")
         Dynamics.create_contact(study, mode="General collision detection")
         self.assertEqual(len(Dynamics.run(study)["Loads"]), 1)
 
         # An explicitly selected component must still be a solid.
         other = self.study("0.001 s")
-        Dynamics.create_contact(other, first, sheet)
+        Dynamics.create_contact(other, first, construction[0])
         with self.assertRaisesRegex(RuntimeError, "at least one solid"):
             Dynamics.run(other)
+
+        # A sheet may be meant as a contact surface, here a grounded wall at
+        # x = 0 that the first sphere would cross: never skip it silently.
+        sheet = self.assembly.newObject("Part::Plane", "Sheet")
+        sheet.Length = sheet.Width = 100
+        sheet.Placement = App.Placement(
+            App.Vector(0, -50, 50), App.Rotation(App.Vector(0, 1, 0), 90)
+        )
+        sheet.setPropertyStatus("Placement", "ReadOnly")
+        self.doc.recompute()
+        self.velocity(study, first, "100 mm/s")
+        with self.assertRaisesRegex(RuntimeError, "Sheet: Contact requires .* solid"):
+            Dynamics.run(study)
 
     def test_arbitrary_solid_contact_rebounds_in_dynamics(self):
         # Exercise conversion between solver-local coordinates and transformed

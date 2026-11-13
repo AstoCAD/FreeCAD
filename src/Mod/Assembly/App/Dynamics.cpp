@@ -60,8 +60,10 @@
 #include <App/PropertyStandard.h>
 #include <App/GeoFeature.h>
 #include <App/Part.h>
+#include <App/Datums.h>
 #include <App/DocumentObjectGroup.h>
 #include <Mod/Material/App/PropertyMaterial.h>
+#include <Mod/Part/App/DatumFeature.h>
 #include <Mod/Part/App/PartFeature.h>
 #include <OndselSolver/ASMTAssembly.h>
 #include <OndselSolver/ASMTPart.h>
@@ -201,22 +203,10 @@ struct ContactSphere
     double radius = 0;
 };
 
-// Null for a component without a solid.
-TopoDS_Shape contactShapeOf(Object* component)
-{
-    auto shape = Part::Feature::getShape(
-        component,
-        Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform
-    );
-    if (shape.IsNull() || !TopExp_Explorer(shape, TopAbs_SOLID).More()) {
-        return {};
-    }
-    return shape;
-}
-
 // Returns false when the pair has no contact: general collision detection pairs
-// every component, including grounded datums or sketches that cannot collide.
-// A component selected explicitly in a pair or a set must contain a solid.
+// every component, including construction geometry (datums, sketches, wires)
+// that cannot collide. A sheet or shell may be meant as a contact surface, so
+// it, like a component selected explicitly in a pair or a set, needs a solid.
 bool contactShapesOf(
     Object* contact,
     Object* first,
@@ -225,18 +215,27 @@ bool contactShapesOf(
     TopoDS_Shape& secondShape
 )
 {
-    firstShape = contactShapeOf(first);
-    secondShape = contactShapeOf(second);
-    if (!firstShape.IsNull() && !secondShape.IsNull()) {
-        return true;
+    const bool general = contactMode(contact) == "General collision detection";
+    bool collides = true;
+    for (auto [component, shape] : {std::pair {first, &firstShape}, std::pair {second, &secondShape}}) {
+        *shape = Part::Feature::getShape(
+            component,
+            Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform
+        );
+        if (!shape->IsNull() && TopExp_Explorer(*shape, TopAbs_SOLID).More()) {
+            continue;
+        }
+        auto* source = component->getLinkedObject(true);
+        const bool construction = shape->IsNull() || !TopExp_Explorer(*shape, TopAbs_FACE).More()
+            || (source
+                && (source->isDerivedFrom<App::DatumElement>()
+                    || source->isDerivedFrom<Part::Datum>()));
+        if (!general || !construction) {
+            invalid(component, "Contact requires a component containing at least one solid");
+        }
+        collides = false;
     }
-    if (contactMode(contact) == "General collision detection") {
-        return false;
-    }
-    invalid(
-        firstShape.IsNull() ? first : second,
-        "Contact requires a component containing at least one solid"
-    );
+    return collides;
 }
 
 bool boxContains(const Bnd_Box& container, const Bnd_Box& candidate)
