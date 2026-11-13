@@ -214,7 +214,7 @@ class TestSketchGroupsGui(SketcherGuiTestCase):
         self.assertEqual(s.solve(), 0)
         self.assertAlmostEqual(s.Geometry[circle].Radius, 4)
 
-        # Regeneration changes geometry indices and the order of the text constraints.
+        # Regeneration changes geometry indices.
         s.setTextAndFont(0, "ABC", font, True, False)
         self.assertEqual(s.solve(), 0)
         self.assertEqual(sum(c.Type == "Text" for c in s.Constraints), 2)
