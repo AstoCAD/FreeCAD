@@ -68,6 +68,7 @@ class AssemblyLink;
 class JointGroup;
 class ViewGroup;
 enum class JointType;
+struct ContactDragCache;
 
 
 struct ObjRef
@@ -297,6 +298,8 @@ private:
     std::vector<std::pair<App::DocumentObject*, double>> objMasses;
     std::vector<App::DocumentObject*> draggedParts;
     std::vector<App::DocumentObject*> motions;
+    // Geometry that resolveContactMove() reuses between the mouse moves of one drag.
+    std::shared_ptr<ContactDragCache> contactDragCache;
 
     // Weak pointers: the parts may be deleted before undoSolve() is called.
     std::vector<std::pair<App::DocumentObjectWeakPtrT, Base::Placement>> previousPositions;

@@ -635,6 +635,36 @@ TEST_F(AssemblyObjectTest, dragTurnsAComponentOnAFaceItTouches)  // NOLINT
     ));
 }
 
+TEST_F(AssemblyObjectTest, dragSlidesAComponentAlongAStepItTouches)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* doc = assembly->getDocument();
+    // A step: the bounding boxes overlap although the solids only touch, on
+    // the step's floor and on its wall.
+    auto* step = doc->addObject<Part::Feature>("Step");
+    step->Shape.setValue(
+        BRepAlgoAPI_Cut(
+            BRepPrimAPI_MakeBox(30, 10, 10).Shape(),
+            BRepPrimAPI_MakeBox(gp_Pnt(-1, -1, 5), 11, 12, 6).Shape()
+        )
+            .Shape()
+    );
+    assembly->addObject(step);
+    auto* dragged = doc->addObject<Part::Feature>("Dragged");
+    dragged->Shape.setValue(BRepPrimAPI_MakeBox(10, 10, 5).Shape());
+    dragged->Placement.setValue(Base::Placement(Base::Vector3d(0, 0, 5), Base::Rotation()));
+    assembly->addObject(dragged);
+    addGeneralDragContact(assembly);
+    for (double y : {-3.0, -6.0}) {
+        const auto previous = dragged->Placement.getValue();
+        const Base::Placement slid(Base::Vector3d(0, y, 5), Base::Rotation());
+        dragged->Placement.setValue(slid);
+        assembly->resolveContactMove({dragged}, {{dragged, previous}});
+        EXPECT_TRUE(dragged->Placement.getValue().isSame(slid, 1e-9));
+    }
+    EXPECT_TRUE(step->Placement.getValue().isIdentity());
+}
+
 TEST_F(AssemblyObjectTest, frameQueriesWithoutSolverSystem)  // NOLINT
 {
     auto* assembly = getObject();

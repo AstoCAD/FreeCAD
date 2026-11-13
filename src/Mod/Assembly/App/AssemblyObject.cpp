@@ -297,6 +297,7 @@ void AssemblyObject::forgetObjects(const std::function<bool(const App::DocumentO
     std::erase_if(objectPartMap, [&](const auto& entry) { return isGone(entry.first); });
     std::erase_if(rigidPlacementCache, [&](const auto& entry) { return isGone(entry.first); });
     std::erase_if(draggedParts, isGone);
+    contactDragCache.reset();  // Keyed by object: a new object may reuse the address.
 
     // The rigid clusters are rebuilt at the next solve. Until then they must not name a
     // deleted part: keep each cluster with its remaining members, as a rebuild would.
@@ -670,6 +671,7 @@ bool AssemblyObject::requiresContactSolveForMove(
 
 void AssemblyObject::preDrag(std::vector<App::DocumentObject*> dragParts)
 {
+    contactDragCache.reset();  // Shapes may have changed since the last drag.
     bundleFixed = true;
     bool hasUnconnectedDragPart = std::ranges::any_of(dragParts, [this](App::DocumentObject* part) {
         return part && !isPartConnected(part);
@@ -900,6 +902,7 @@ bool AssemblyObject::validateNewPlacements()
 
 void AssemblyObject::postDrag()
 {
+    contactDragCache.reset();
     if (!mbdAssembly) {
         return;
     }
