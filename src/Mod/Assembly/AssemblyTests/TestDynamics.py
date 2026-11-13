@@ -520,6 +520,24 @@ class TestDynamics(unittest.TestCase):
         self.assertVectorClose(load.Direction, (0, 1, 0), delta=1e-9)
         self.assertVectorClose(Dynamics.load_visual_direction(load), (0, 1, 0), delta=1e-9)
 
+    def test_torsional_spring_glyph_axis_is_the_simulated_axis(self):
+        body = self.box()
+        study = self.study(False)
+        study.EndTime = study.OutputStep = "0.001 s"
+        load = Dynamics.create_load(study, "TorsionalSpringDamper", body)
+        load.TorsionalStiffness = "1000 N*mm/rad"
+        # The component has turned since the spring was defined.
+        body.Placement = App.Placement(App.Vector(), App.Rotation(App.Vector(1, 0, 0), 90))
+        self.doc.recompute()
+        Dynamics.align_torsional_reference(load)
+        self.assertVectorClose(Dynamics.load_visual_direction(load), (0, -1, 0), delta=1e-9)
+        # Twisted by 0.3 rad from its free angle: the torque on the component
+        # is about the drawn axis.
+        load.FreeAngle = "-0.3 rad"
+        torque = Dynamics.run(study)["Loads"][load.Name]
+        actual = App.Vector(*(torque["Torque" + axis][0] for axis in "XYZ"))
+        self.assertVectorClose(actual, Dynamics.load_visual_direction(load) * 300, delta=1e-6)
+
     def test_follower_torque_tracks_component_rotation(self):
         body = self.box()
         study = self.study(False)

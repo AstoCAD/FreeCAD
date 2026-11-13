@@ -74,6 +74,10 @@ def attachment_placement(load, endpoint):
 
 def load_visual_direction(load):
     """Assembly-space arrow direction, including follower rotation in playback."""
+    if load.LoadType == "TorsionalSpringDamper":
+        # The spring twists about attachment I's Z axis, which turns with its
+        # component; Direction is a wrench input that the spring does not use.
+        return attachment_placement(load, "I").Rotation.multVec(App.Vector(0, 0, 1))
     direction = App.Vector(load.Direction)
     if load.Follower and load.LoadType in ("Force", "Torque"):
         local = load.Placement.Rotation.inverted().multVec(direction)
