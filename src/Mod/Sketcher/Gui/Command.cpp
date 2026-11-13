@@ -1031,25 +1031,16 @@ void CmdSketcherMirrorSketch::activated(int iMsg)
         std::vector<Sketcher::Constraint*> mirrorconstr(tempconstr.begin() + (addedConstraints + 1),
                                                         tempconstr.end());
 
-        for (std::vector<Sketcher::Constraint*>::const_iterator itc = mirrorconstr.begin();
-             itc != mirrorconstr.end();
-             ++itc) {
-
-            if ((*itc)->First != Sketcher::GeoEnum::GeoUndef
-                || (*itc)->First == Sketcher::GeoEnum::HAxis
-                || (*itc)->First == Sketcher::GeoEnum::VAxis)
-                // not x, y axes or origin
-                (*itc)->First -= (addedGeometries + 1);
-            if ((*itc)->Second != Sketcher::GeoEnum::GeoUndef
-                || (*itc)->Second == Sketcher::GeoEnum::HAxis
-                || (*itc)->Second == Sketcher::GeoEnum::VAxis)
-                // not x, y axes or origin
-                (*itc)->Second -= (addedGeometries + 1);
-            if ((*itc)->Third != Sketcher::GeoEnum::GeoUndef
-                || (*itc)->Third == Sketcher::GeoEnum::HAxis
-                || (*itc)->Third == Sketcher::GeoEnum::VAxis)
-                // not x, y axes or origin
-                (*itc)->Third -= (addedGeometries + 1);
+        // The mirrored constraints only name mirrored geometry, which follows the original
+        // geometry in the temporary sketch. Every element is shifted: Group and Text constraints
+        // list their further members past the first three.
+        for (Sketcher::Constraint* constr : mirrorconstr) {
+            for (int i = 0; constr->hasElement(i); ++i) {
+                const int geoId = constr->getGeoId(i);
+                if (geoId != Sketcher::GeoEnum::GeoUndef) {
+                    constr->setGeoId(i, geoId - (addedGeometries + 1));
+                }
+            }
         }
 
         mirrorsketch->addGeometry(mirrorgeo);
