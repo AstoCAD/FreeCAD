@@ -48,6 +48,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketchSymmetricCopy.py
     SketcherTests/TestSketchMoveUndo.py
     SketcherTests/TestSketchExtendUndo.py
+    SketcherTests/TestSketchDeleteOnPointUndo.py
     SketcherTests/TestSketchReversedConicArcs.py
     SketcherTests/TestSketchBSplineEndToEnd.py
 )
