@@ -511,3 +511,27 @@ class TestSimulationTabs(unittest.TestCase):
         self.doc = App.newDocument("SimulationTabsTest")  # Closed by tearDown.
         self.assertFalse(panel.animationTimer.isActive())
         self.assertIsNone(SimulationCommand._active_simulation_task)
+
+    def test_deferred_reopen_keeps_a_dialog_opened_meanwhile(self):
+        study = self.panel.simFeaturePy
+        self.panel.accept()
+        QtWidgets.QApplication.processEvents()
+
+        class OtherTask:
+            def __init__(self):
+                self.form = QtWidgets.QWidget()
+
+            def accept(self):
+                return True
+
+            def reject(self):
+                return True
+
+        other = OtherTask()
+        Gui.Control.showDialog(other)
+        try:
+            SimulationCommand.TaskAssemblyCreateSimulation.reopen(study, "motionsTab")
+            self.assertIsNone(SimulationCommand._active_simulation_task)
+            self.assertTrue(Gui.Control.activeDialog())
+        finally:
+            Gui.Control.closeDialog()

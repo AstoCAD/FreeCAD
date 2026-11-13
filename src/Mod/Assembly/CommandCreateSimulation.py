@@ -988,6 +988,10 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
     def reopen(simulation, tab=None):
         if not simulation or not simulation.Document:
             return
+        # A deferred reopen must not build a panel (transaction, observer,
+        # global task) when another dialog took the document in the meantime.
+        if Gui.Control.activeDialog(Gui.getDocument(simulation.Document)):
+            return
         panel = TaskAssemblyCreateSimulation(simulation)
         if tab and hasattr(panel.form, tab):
             panel.form.tabWidget.setCurrentWidget(getattr(panel.form, tab))
