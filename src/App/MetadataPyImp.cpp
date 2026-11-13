@@ -424,7 +424,8 @@ void MetadataPy::setUrls(Py::List args)
         throw Py::Exception();
     }
 
-    getMetadataPtr()->clearUrl();
+    // Convert every entry first, so an invalid entry leaves the URLs unchanged
+    std::vector<App::Meta::Url> newUrls;
     Py::List urls(list);
     for (const auto& url : urls) {
         Py::Dict pyUrl(url);
@@ -453,8 +454,13 @@ void MetadataPy::setUrls(Py::List args)
         }
         else {
             PyErr_SetString(Base::PyExc_FC_GeneralError, "Unrecognized URL type");
-            return;
+            throw Py::Exception();
         }
+        newUrls.push_back(std::move(newUrl));
+    }
+
+    getMetadataPtr()->clearUrl();
+    for (const auto& newUrl : newUrls) {
         getMetadataPtr()->addUrl(newUrl);
     }
 }
@@ -841,7 +847,7 @@ void MetadataPy::setFile(Py::List args)
         throw Py::Exception();
     }
 
-    getMetadataPtr()->clearTag();
+    getMetadataPtr()->clearFile();
     Py::List files(list);
     for (const auto& file : files) {
         Py::String pyFile(file);
@@ -897,19 +903,28 @@ Py::Dict MetadataPy::getContent() const
 void MetadataPy::setContent(Py::Dict arg)
 {
     PyObject* obj = nullptr;
-    if (!PyArg_Parse(arg.ptr(), "O!", &PyList_Type, &obj)) {
+    if (!PyArg_Parse(arg.ptr(), "O!", &PyDict_Type, &obj)) {
         throw Py::Exception();
     }
 
-    getMetadataPtr()->clearContent();
+    // Convert every entry first, so an invalid entry leaves the content unchanged
+    std::vector<std::pair<std::string, Metadata>> newContent;
     Py::Dict outerDict(obj);
     for (const auto& pyContentType : outerDict) {
         auto contentType = Py::String(pyContentType.first).as_std_string();
         auto contentList = Py::List(pyContentType.second);
         for (const auto& contentItem : contentList) {
+            if (!PyObject_TypeCheck(contentItem.ptr(), &MetadataPy::Type)) {
+                throw Py::TypeError("Content items must be Metadata objects");
+            }
             auto item = static_cast<MetadataPy*>(contentItem.ptr());
-            getMetadataPtr()->addContentItem(contentType, *(item->getMetadataPtr()));
+            newContent.emplace_back(contentType, *(item->getMetadataPtr()));
         }
+    }
+
+    getMetadataPtr()->clearContent();
+    for (const auto& [contentType, item] : newContent) {
+        getMetadataPtr()->addContentItem(contentType, item);
     }
 }
 
