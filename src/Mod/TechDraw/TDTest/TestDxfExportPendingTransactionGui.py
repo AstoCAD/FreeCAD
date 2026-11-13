@@ -254,7 +254,7 @@ class TestDxfExportPendingTransactionGui(unittest.TestCase):
 
     def _file_pairs(self, path):
         self.assertTrue(path.is_file())
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = path.read_text(encoding="cp1252").splitlines()
         self.assertEqual(len(lines) % 2, 0)
         pairs = [(int(code.strip()), value.strip()) for code, value in zip(lines[::2], lines[1::2])]
         self.assertEqual(pairs[-1], (0, "EOF"))

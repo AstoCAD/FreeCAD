@@ -20,7 +20,7 @@ from .TechDrawTestUtilities import createPageWithSVGTemplate
 
 def _dimensions(path):
     """The DIMENSION entities of a DXF file as {layer: {group code: value}}."""
-    lines = path.read_text(encoding="utf-8").splitlines()
+    lines = path.read_text(encoding="cp1252").splitlines()
     pairs = [(int(code.strip()), value.strip()) for code, value in zip(lines[::2], lines[1::2])]
     result = {}
     current = None

@@ -53,7 +53,7 @@ class DrawDxfLinearDimBlockTest(unittest.TestCase):
 
     @staticmethod
     def _blockLines(path, blockName):
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = path.read_text(encoding="cp1252").splitlines()
         pairs = [(int(code.strip()), value.strip()) for code, value in zip(lines[::2], lines[1::2])]
         result = []
         inBlock = False
