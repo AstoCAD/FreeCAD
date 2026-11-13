@@ -248,6 +248,46 @@ class TestMeshCommon(unittest.TestCase):
         )
 
     # ********************************************************************************************
+    def test_inp_import_unsupported_element_type_reported(self):
+        # the elements of an unsupported type are not read, this was reported only when their
+        # block was the last keyword of the file, otherwise the mesh was silently incomplete
+        from unittest import mock
+        from feminout import importInpMesh
+
+        inp_file = join(testtools.get_fem_test_tmp_dir("mesh_common_inp_unsupported"), "mixed.inp")
+        with open(inp_file, "w") as f:
+            f.write(
+                "*NODE, NSET=Nall\n"
+                "1, 0.0, 0.0, 0.0\n"
+                "2, 1.0, 0.0, 0.0\n"
+                "3, 0.0, 1.0, 0.0\n"
+                "4, 0.0, 0.0, 1.0\n"
+                "*ELEMENT, TYPE=C3D4H, ELSET=Ehybrid\n"
+                "1, 1, 2, 3, 4\n"
+                "*ELEMENT, TYPE=C3D4, ELSET=Eall\n"
+                "2, 1, 2, 3, 4\n"
+                "*ELEMENT, TYPE=CPS4H, ELSET=Eplane\n"
+                "3, 1, 2, 3, 4\n"
+                "*NSET, NSET=Nfix\n"
+                "1\n"
+                "*STEP\n"
+                "*STATIC\n"
+                "*ELEMENT OUTPUT\n"
+                "S\n"
+            )
+
+        with mock.patch.object(importInpMesh, "Console") as console:
+            mesh = importInpMesh.read(inp_file)
+        self.assertEqual(mesh.VolumeCount, 1)
+        self.assertEqual(
+            console.PrintError.call_args_list,
+            [
+                mock.call("Error: C3D4H not supported.\n"),
+                mock.call("Error: CPS4H not supported.\n"),
+            ],
+        )
+
+    # ********************************************************************************************
     def test_getNodesBySolid_near_boundary(self):
         # https://github.com/FreeCAD/FreeCAD/issues/33842
         # nodes just inside the solid (closer than 1e-3 to its boundary) were dropped
