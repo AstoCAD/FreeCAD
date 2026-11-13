@@ -1577,6 +1577,13 @@ PyObject* AssemblyObject::generateDynamics(Object* sim)
                             || !seen.insert(member).second) {
                             invalid(child, "Rigid group has missing, duplicate or out-of-scope members");
                         }
+                        // The solver's rigid groups (getRigidGroups) keep only members
+                        // of this assembly's Group. An element of a link array or link
+                        // group is a component but no such member: it would be left out
+                        // of its rigid group and simulated as a separate body.
+                        if (!hasObject(member)) {
+                            invalid(child, "A rigid group cannot contain an element of a link array");
+                        }
                     }
                     if (seen.size() < 2) {
                         invalid(child, "Rigid group needs at least two members");

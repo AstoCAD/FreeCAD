@@ -1464,6 +1464,20 @@ class TestDynamics(unittest.TestCase):
             Dynamics.run(study)
         self.assertEqual(group.ObjectsToRigidGroup, original)
 
+    def test_rigid_group_with_link_array_element_is_refused(self):
+        # The solver keeps only the assembly's own members in a rigid group. A
+        # link array element is a component, but it would be left out of the
+        # group and fall on its own, away from the grounded member.
+        element = self.link_array().ElementList[0]
+        ground = self.box("Ground", density=None, position=(0, 60, 0))
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        group = self.rigid_group([element, ground])
+        study = self.study()
+        with self.assertRaisesRegex(RuntimeError, "rigid group cannot contain an element"):
+            Dynamics.run(study)
+        self.assertEqual(study.Status, "Failed")
+        self.assertEqual(group.ObjectsToRigidGroup, [element, ground])
+
     def test_motion_only_dynamics_reports_analytical_motor_torque(self):
         ground = self.box("Ground", density=None)
         ground.setPropertyStatus("Placement", "ReadOnly")
