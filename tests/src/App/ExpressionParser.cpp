@@ -395,6 +395,28 @@ TEST_F(ExpressionParserTest, dimensionlessExpressionsParseAsLongOrDouble)
         << "dimensionless ratio of like units parses as long";
 }
 
+// https://github.com/FreeCAD/FreeCAD/issues/5629
+TEST_F(ExpressionParserTest, parseUnitAcceptsReciprocalOfUnitExpression)
+{
+    for (const auto& [unitText, valueText] : {
+             std::pair {"1/K", "1 / (1 K)"},
+             std::pair {"1/m^2", "1 / (1 m^2)"},
+             std::pair {"1/(m*K)", "1 / (1 m) / (1 K)"},
+             std::pair {"1/m/s", "1 / (1 m) / (1 s)"},
+             std::pair {"1/s^-1", "1 s"},
+         }) {
+        const auto unit = parseUnit(this_obj(), unitText);
+        ASSERT_NE(unit, nullptr) << unitText;
+        const auto expected = parse_expression_text_as_quantity(valueText);
+        EXPECT_EQ(unit->getUnit(), expected.getUnit()) << unitText;
+        EXPECT_DOUBLE_EQ(unit->getScaler(), expected.getValue()) << unitText;
+    }
+
+    for (const auto* text : {"2/m^2", "1/(2 m)", "1/sqrt(4)"}) {
+        EXPECT_ANY_THROW(parseUnit(this_obj(), text)) << text;
+    }
+}
+
 // https://github.com/FreeCAD/FreeCAD/issues/12173
 TEST_F(ExpressionParserTest, powerOfQuantityKeepsParenthesesWhenSerialized)
 {
