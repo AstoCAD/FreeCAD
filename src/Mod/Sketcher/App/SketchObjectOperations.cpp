@@ -1421,6 +1421,7 @@ int SketchObject::split(int GeoId, const Base::Vector3d& point)
     }
     const bool isConic = geoAsCurve->isDerivedFrom<Part::GeomConic>()
         || geoAsCurve->isDerivedFrom<Part::GeomArcOfConic>();
+    std::map<Constraint*, int> newToOldConstraintMap;
     for (const auto& oldConstrId : idsOfOldConstraints) {
         Constraint* con = allConstraints[oldConstrId];
         // Internal geometry stays with the first piece, as in trim
@@ -1430,7 +1431,11 @@ int SketchObject::split(int GeoId, const Base::Vector3d& point)
             newConstraints.push_back(newCon);
             continue;
         }
+        const size_t sizeBefore = newConstraints.size();
         deriveConstraintsForPieces(GeoId, newIds, newGeosConst, con, newConstraints, true);
+        for (size_t i = sizeBefore; i < newConstraints.size(); ++i) {
+            newToOldConstraintMap[newConstraints[i]] = oldConstrId;
+        }
     }
 
     Constraint* joint = nullptr;
@@ -1482,10 +1487,29 @@ int SketchObject::split(int GeoId, const Base::Vector3d& point)
         transferConstraints(GeoId, PointPos::mid, newIds.front(), PointPos::mid);
     }
 
+    // Deleting the old constraints deletes their expressions: keep them for the constraints
+    // derived from them, as trim does.
+    std::map<Constraint*, std::shared_ptr<App::Expression>> exprBackup;
+    for (const auto& [newConstr, oldId] : newToOldConstraintMap) {
+        auto exprInfo = getExpression(Constraints.createPath(oldId));
+        if (exprInfo.expression) {
+            exprBackup[newConstr] = std::shared_ptr<App::Expression>(exprInfo.expression->copy());
+        }
+    }
+
     delConstraints(std::move(idsOfOldConstraints), DeleteOption::NoSolve);
     replaceGeometries({GeoId}, newGeos);
     addPiecesToGroups(*this, GeoId, newIds);
-    addConstraints(newConstraints);
+    const int lastAddedIndex = addConstraints(newConstraints);
+
+    int newConstrId = lastAddedIndex - static_cast<int>(newConstraints.size()) + 1;
+    for (auto* newConstr : newConstraints) {
+        auto it = exprBackup.find(newConstr);
+        if (it != exprBackup.end()) {
+            setExpression(Constraints.createPath(newConstrId), it->second);
+        }
+        ++newConstrId;
+    }
 
     if (noRecomputes) {
         solve();
