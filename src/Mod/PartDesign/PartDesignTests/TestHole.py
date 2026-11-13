@@ -325,6 +325,24 @@ class TestHole(unittest.TestCase):
             if name in FreeCAD.listDocuments():
                 FreeCAD.closeDocument(name)
 
+    def testThreadClassUpdatesDiameter(self):
+        """The diameter of a modeled thread follows its thread class at once"""
+        self.Hole.ThreadType = "ISOMetricProfile"
+        self.Hole.ThreadSize = "M6x1.0"
+        self.Hole.Threaded = True
+        self.Hole.ModelThread = True
+        # tap drill 5.0, plus the ISO 965-1 G deviation for pitch 1.0
+        self.Hole.ThreadClass = "6H"
+        self.assertAlmostEqual(self.Hole.Diameter.Value, 5.0)
+        self.Hole.ThreadClass = "6G"
+        self.assertAlmostEqual(self.Hole.Diameter.Value, 5.026)
+        self.Hole.ThreadClass = "6H"
+        self.assertAlmostEqual(self.Hole.Diameter.Value, 5.0)
+        # without a modeled thread the class does not change the diameter
+        self.Hole.ModelThread = False
+        self.Hole.ThreadClass = "6G"
+        self.assertAlmostEqual(self.Hole.Diameter.Value, 5.0)
+
     def testThreadEnums(self):
         """Test thread enums for correct order"""
         # Due to the savefile use of indexes and not strings
