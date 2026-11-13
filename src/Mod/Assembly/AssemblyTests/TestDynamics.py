@@ -712,6 +712,39 @@ class TestDynamics(unittest.TestCase):
         ).multVec(App.Vector(5, 10, 15))
         self.assertVectorClose(tuple(final_center), tuple(center), delta=0.002)
 
+    def test_initial_velocity_the_joints_do_not_allow_is_reported(self):
+        ground = self.box("Ground", density=None)
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        body = self.box()
+        self.joint("Slider", ground, body)  # Slides along Z only.
+        free = self.box("Free", position=(100, 0, 0))
+        free.Placement.Rotation = App.Rotation(25, 40, 10)
+        study = self.study(gravity=False)
+        study.EndTime = study.OutputStep = "0.001 s"
+        initial = Dynamics.create_initial_velocity(study, "Linear", body)
+        initial.Direction = App.Vector(0, 0, 1)
+        initial.LinearVelocity = "100 mm/s"
+        # Requests that can be met, including at an offset centre of mass.
+        for kind, direction, value in (
+            ("Linear", App.Vector(1, 2, -1), "30 mm/s"),
+            ("Angular", App.Vector(1, -2, 3), "5 rad/s"),
+        ):
+            other = Dynamics.create_initial_velocity(study, kind, free)
+            other.Direction = direction
+            setattr(other, kind + "Velocity", value)
+        data = Dynamics.run(study)
+        self.assertEqual(data["Warnings"], [])
+
+        # The slider does not allow motion along X: the run starts at rest
+        # and says so, without failing.
+        initial.Direction = App.Vector(1, 0, 0)
+        data = Dynamics.run(study)
+        self.assertEqual(study.Status, "Complete")
+        self.assertVectorClose(data["Bodies"][body.Name]["Velocity"][0], (0, 0, 0))
+        self.assertEqual(len(data["Warnings"]), 1)
+        self.assertIn(initial.Label, data["Warnings"][0])
+        self.assertEqual(Dynamics.results(study)["Warnings"], data["Warnings"])
+
     def test_force_units_and_reaction(self):
         box = self.box()
         study = self.study(gravity=False)

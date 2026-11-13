@@ -2088,8 +2088,57 @@ PyObject* AssemblyObject::generateDynamics(Object* sim)
         });
         mbdAssembly->runDYNAMIC();
 
+        // The velocity initial-condition solve projects the requested initial
+        // velocities onto what the joints and motions allow. Report a request
+        // they do not allow rather than start silently from another state.
+        Py::List warnings;
+        for (const auto& [part, state] : initialStates) {
+            part->updateForFrame(1);  // The solved initial condition; 0 is the input.
+            const Vec omega(part->omexs->at(1), part->omeys->at(1), part->omezs->at(1));
+            const auto check = [&warnings](Object* source,
+                                           const Vec& requested,
+                                           const Vec& solved,
+                                           const char* unit) {
+                if ((solved - requested).Length() <= 1e-6 * std::max(1.0, requested.Length())) {
+                    return;
+                }
+                std::ostringstream message;
+                const auto write = [&message, unit](const Vec& value) {
+                    message << "(" << value.x << ", " << value.y << ", " << value.z << ") " << unit;
+                };
+                message << source->Label.getValue()
+                        << ": the joints and motions do not allow this initial velocity. "
+                           "The simulation starts at ";
+                write(solved);
+                message << " instead of ";
+                write(requested);
+                message << ".";
+                Base::Console().warning("{}\n", message.str());
+                warnings.append(Py::String(message.str()));
+            };
+            if (state.angularSource) {
+                check(state.angularSource, state.angular, omega, "rad/s");
+            }
+            if (state.linearSource) {
+                // The request is the velocity of the selected component's COM.
+                auto* component
+                    = property<App::PropertyLink>(state.linearSource, "Component").getValue();
+                const auto local = componentMasses.at(component).properties.CentreOfMass();
+                Vec centre;
+                objectPartMap.at(component).offsetPlc.multVec(
+                    Vec(local.X(), local.Y(), local.Z()),
+                    centre
+                );
+                const Vec origin(part->vxs->at(1), part->vys->at(1), part->vzs->at(1));
+                const Vec velocity
+                    = origin + omega.Cross(getMbdPlacement(part).getRotation().multVec(centre));
+                check(state.linearSource, state.linear, velocity, "mm/s");
+            }
+        }
+
         Py::Dict result, bodies, jointResults, loadResults, limitResults;
         result["SchemaVersion"] = Py::Long(2);
+        result["Warnings"] = warnings;
         Py::List eventLog;
         if (auto events = mbdAssembly->dynamicEvents) {
             for (const auto& firing : events->firings) {
