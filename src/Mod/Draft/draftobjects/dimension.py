@@ -360,8 +360,12 @@ class LinearDimension(DimensionBase):
                 )
 
         # Update the distance property by comparing the floats
-        # with the precision
-        net_length = (obj.Start.sub(obj.End)).Length
+        # with the precision. If a 'Direction' is set, the dimension
+        # measures along it, as the viewprovider draws and labels it.
+        delta = obj.End.sub(obj.Start)
+        if hasattr(obj, "Direction") and not DraftVecUtils.isNull(obj.Direction):
+            delta = DraftVecUtils.project(delta, obj.Direction)
+        net_length = delta.Length
         rounded_1 = round(obj.Distance.Value, utils.precision())
         rounded_2 = round(net_length, utils.precision())
 

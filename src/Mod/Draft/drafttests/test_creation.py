@@ -190,6 +190,31 @@ class DraftCreation(test_base.DraftTestCaseDoc):
         obj = Draft.make_linear_dimension_obj(line, i1=1, i2=2, dim_line=Vector(5, 3, 0))
         self.assertTrue(obj, "'{}' failed".format(operation))
 
+    def test_dimension_linear_distance_along_direction(self):
+        """The Distance of a linear dimension with a Direction is measured
+        along that direction, like the dimension is drawn and labelled."""
+        operation = "Draft Dimension Distance along Direction"
+        _msg("  Test '{}'".format(operation))
+        line = Draft.make_line(Vector(0, 0, 0), Vector(10, 5, 0))
+        self.doc.recompute()
+        linked = Draft.make_linear_dimension_obj(line, i1=1, i2=2, dim_line=Vector(5, 15, 0))
+        free = Draft.make_linear_dimension(Vector(0, 0, 0), Vector(10, 5, 0), Vector(15, 5, 0))
+        self.doc.recompute()
+        self.assertAlmostEqual(linked.Distance.Value, math.hypot(10, 5), places=6)
+        linked.Direction = Vector(1, 0, 0)
+        free.Direction = Vector(0, -2, 0)
+        self.doc.recompute()
+        self.assertAlmostEqual(linked.Distance.Value, 10, places=6)
+        self.assertAlmostEqual(free.Distance.Value, 5, places=6)
+        # The value follows a change of the linked geometry
+        line.End = Vector(20, 5, 0)
+        self.doc.recompute()
+        self.assertAlmostEqual(linked.Distance.Value, 20, places=6)
+        # Without a Direction the distance between the points is measured again
+        linked.Direction = Vector(0, 0, 0)
+        self.doc.recompute()
+        self.assertAlmostEqual(linked.Distance.Value, math.hypot(20, 5), places=6)
+
     def test_dimension_radial_obj(self):
         """Create a circle and then a radial and a diameter dimension."""
         operation = "Draft Dimension Radial"
