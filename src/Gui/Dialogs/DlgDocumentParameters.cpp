@@ -24,6 +24,7 @@
 #include <limits>
 #include <map>
 
+#include <QByteArray>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -32,12 +33,14 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QList>
 #include <QLocale>
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
 #include <QSet>
 #include <QSpinBox>
+#include <QStringList>
 #include <QStyledItemDelegate>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -51,6 +54,7 @@
 #include <App/UserParameters.h>
 #include <App/VarSet.h>
 #include <Base/Exception.h>
+#include <Base/Parameter.h>
 #include <Base/Quantity.h>
 
 #include "Dialogs/DlgDocumentParameters.h"
@@ -301,6 +305,33 @@ void checkUnit(const App::ObjectIdentifier& path, const App::Expression& expr)
 
 QPointer<DlgDocumentParameters> openDialog;  // NOLINT
 
+/// Where the dialog keeps its layout from one opening to the next.
+ParameterGrp::handle layoutSettings()
+{
+    return App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/ParametersDialog"
+    );
+}
+
+/// The widths stored as \a text for the columns before the comment, empty if it is not that.
+QList<int> columnWidthsFromText(const QString& text)
+{
+    const QStringList parts = text.split(QLatin1Char(';'));
+    if (parts.size() != DlgDocumentParameters::ColumnComment) {
+        return {};
+    }
+    QList<int> widths;
+    for (const QString& part : parts) {
+        bool ok = false;
+        const int width = part.toInt(&ok);
+        if (!ok || width <= 0) {
+            return {};
+        }
+        widths.append(width);
+    }
+    return widths;
+}
+
 }  // namespace
 
 /* TRANSLATOR Gui::Dialog::DlgDocumentParameters */
@@ -324,6 +355,10 @@ DlgDocumentParameters::DlgDocumentParameters(App::Document* doc, QWidget* parent
     ui->treeParameters->setItemDelegate(new ParameterItemDelegate(this));
     ui->treeParameters->header()->setStretchLastSection(true);
 
+    // Before the connections and the first refresh(): the list is built once, with this choice.
+    const ParameterGrp::handle settings = layoutSettings();
+    ui->checkBoxModel->setChecked(settings->GetBool("ShowModelParameters", false));
+
     connect(ui->lineEditFilter, &QLineEdit::textChanged, this, &DlgDocumentParameters::onFilterChanged);
     connect(ui->checkBoxModel, &QCheckBox::toggled, this, &DlgDocumentParameters::refresh);
     connect(ui->pushButtonAdd, &QPushButton::clicked, this, &DlgDocumentParameters::onAdd);
@@ -338,12 +373,46 @@ DlgDocumentParameters::DlgDocumentParameters(App::Document* doc, QWidget* parent
     );
 
     refresh();
+
+    // The layout the dialog was closed with. The comment column takes the rest of the width.
+    const QList<int> widths = columnWidthsFromText(
+        QString::fromStdString(settings->GetASCII("ColumnWidths", ""))
+    );
     for (int column = ColumnName; column < ColumnComment; ++column) {
-        ui->treeParameters->resizeColumnToContents(column);
+        if (widths.isEmpty()) {
+            ui->treeParameters->resizeColumnToContents(column);
+        }
+        else {
+            ui->treeParameters->setColumnWidth(column, widths[column]);
+        }
+    }
+    const std::string geometry = settings->GetASCII("Geometry", "");
+    if (!geometry.empty()) {
+        // leaves the dialog as it is if the data is not valid
+        restoreGeometry(QByteArray::fromBase64(QByteArray::fromStdString(geometry)));
     }
 }
 
 DlgDocumentParameters::~DlgDocumentParameters() = default;
+
+void DlgDocumentParameters::done(int result)
+{
+    // Every way to close the dialog ends here, while it still has its geometry.
+    saveLayout();
+    QDialog::done(result);
+}
+
+void DlgDocumentParameters::saveLayout() const
+{
+    const ParameterGrp::handle settings = layoutSettings();
+    settings->SetBool("ShowModelParameters", ui->checkBoxModel->isChecked());
+    QStringList widths;
+    for (int column = ColumnName; column < ColumnComment; ++column) {
+        widths.append(QString::number(ui->treeParameters->columnWidth(column)));
+    }
+    settings->SetASCII("ColumnWidths", widths.join(QLatin1Char(';')).toStdString());
+    settings->SetASCII("Geometry", saveGeometry().toBase64().toStdString());
+}
 
 DlgDocumentParameters* DlgDocumentParameters::showFor(App::Document* doc)
 {

@@ -12,9 +12,16 @@ COLUMN_NAME = 0
 COLUMN_EXPRESSION = 2
 COLUMN_VALUE = 3
 
+# where the dialog keeps its layout from one opening to the next
+LAYOUT_SETTINGS = "User parameter:BaseApp/Preferences/ParametersDialog"
+
 
 class TestDocumentParametersGui(unittest.TestCase):
     def setUp(self):
+        # every test starts with the default layout, and the stored one is put back afterwards
+        self.settings = App.ParamGet(LAYOUT_SETTINGS)
+        self.storedSettings = self.settings.GetContents() or []
+        self.settings.Clear()
         self.doc = App.newDocument("TestDocumentParametersGui")
         self.doc.UndoMode = 1
         self.varset = self.doc.addObject("App::VarSet", "VarSet")
@@ -38,8 +45,23 @@ class TestDocumentParametersGui(unittest.TestCase):
         finally:
             Gui.Selection.clearSelection()
             App.closeDocument(self.doc.Name)
+            self.settings.Clear()
+            for kind, name, value in self.storedSettings:
+                if kind == "String":
+                    self.settings.SetString(name, value)
+                elif kind == "Boolean":
+                    self.settings.SetBool(name, value)
 
     # helpers
+
+    def closeDialog(self):
+        self.dialog.close()
+        self.dialog = None
+        Gui.updateGui()
+
+    def reopenDialog(self):
+        self.closeDialog()
+        self.openDialog()
 
     def openDialog(self):
         Gui.runCommand("Std_Parameters", 0)
@@ -136,6 +158,36 @@ class TestDocumentParametersGui(unittest.TestCase):
         model = self.item("Feature.Float")
         self.assertIsNotNone(model)
         self.assertEqual(model.text(COLUMN_EXPRESSION), "VarSet.width / 1 mm")
+
+    def testShowModelParametersIsRemembered(self):
+        self.widget(QtWidgets.QCheckBox, "checkBoxModel").setChecked(True)
+        self.reopenDialog()
+        self.assertTrue(self.widget(QtWidgets.QCheckBox, "checkBoxModel").isChecked())
+        self.assertIsNotNone(self.item("Feature.Float"))
+
+        self.widget(QtWidgets.QCheckBox, "checkBoxModel").setChecked(False)
+        self.reopenDialog()
+        self.assertFalse(self.widget(QtWidgets.QCheckBox, "checkBoxModel").isChecked())
+        self.assertIsNone(self.item("Feature.Float"))
+
+    def testSizeAndColumnWidthsAreRemembered(self):
+        size = self.dialog.size() + QtCore.QSize(60, 40)
+        self.dialog.resize(size)
+        widths = [self.tree.columnWidth(column) + 15 + column for column in range(4)]
+        for column, width in enumerate(widths):
+            self.tree.setColumnWidth(column, width)
+        Gui.updateGui()
+        self.reopenDialog()
+        self.assertEqual(self.dialog.size(), size)
+        self.assertEqual([self.tree.columnWidth(column) for column in range(4)], widths)
+
+    def testInvalidStoredLayoutIsIgnored(self):
+        default = [self.tree.columnWidth(column) for column in range(4)]
+        self.closeDialog()
+        self.settings.SetString("ColumnWidths", "10;-5;abc;20")
+        self.settings.SetString("Geometry", "not a geometry")
+        self.openDialog()
+        self.assertEqual([self.tree.columnWidth(column) for column in range(4)], default)
 
     def testFilter(self):
         self.widget(QtWidgets.QLineEdit, "lineEditFilter").setText("wid")

@@ -54,6 +54,9 @@ class Ui_DlgDocumentParameters;
  * The dialog is application modal but not run with exec(), like the dialog of
  * ViewProviderVarSet: exec() would block the command that opens it before it
  * closes its own transaction.
+ *
+ * Its size and position, the widths of its columns and "Show model parameters"
+ * are kept in the user parameters when it closes, and restored when it opens.
  */
 class GuiExport DlgDocumentParameters: public QDialog
 {
@@ -110,6 +113,7 @@ public:
 
 public Q_SLOTS:
     void refresh();
+    void done(int result) override;
 
 protected:
     void changeEvent(QEvent* e) override;
@@ -132,6 +136,7 @@ private:
     /// holds the user parameters, which the document may not have yet.
     QString defaultAddTarget() const;
     void scheduleRefresh();
+    void saveLayout() const;
 
     std::string documentName;
     std::unique_ptr<Ui_DlgDocumentParameters> ui;
