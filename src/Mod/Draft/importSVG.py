@@ -1487,11 +1487,10 @@ def export(exportList, filename):
 # function to replace use tag to it's referenced object
 def replace_use_with_reference(file_path):
     # function that replace use tag to freecad:used
-    def register_svg_namespaces(svg_content):
-        # register namespaces
-        xmlns_attrs = re.findall(r'\s+xmlns(?::([a-zA-Z0-9_]+))?="([^"]+)"', svg_content)
-        for prefix, uri in xmlns_attrs:
-            ns_prefix = "" if prefix is None or prefix == "svg" else prefix
+    def register_svg_namespaces(file_path):
+        # register the namespaces declared in the file
+        for _event, (prefix, uri) in ET.iterparse(file_path, events=("start-ns",)):
+            ns_prefix = "" if prefix == "svg" else prefix
             ET.register_namespace(ns_prefix, uri)
 
     def used_ids(use, parent_map, expanded):
@@ -1577,23 +1576,12 @@ def replace_use_with_reference(file_path):
             parent = parent_map[deftag]
             parent.remove(deftag)
 
-    current_encoding = ""
-    try:
-        with pyopen(file_path, "r", encoding="UTF-8") as f:
-            f.readline()
-            current_encoding = "UTF-8"
-    except UnicodeError:
-        with pyopen(file_path, "r", encoding="UTF-16") as f:
-            f.readline()
-            current_encoding = "UTF-16"
-    FreeCAD.Console.PrintLog(f"ImportSVG - '{file_path}' is encoded using {current_encoding}\n")
-
-    # open file and read
-    svg_content = pyopen(file_path, encoding=current_encoding).read()
+    # The XML parser reads the file itself: it decodes it as its byte order
+    # mark or encoding declaration says (UTF-8, UTF-16, ISO-8859-1...).
     # register namespace before parsing
-    register_svg_namespaces(svg_content)
+    register_svg_namespaces(file_path)
     # parse as xml.
-    tree = ET.ElementTree(ET.fromstring(svg_content))
+    tree = ET.parse(file_path)
     root = tree.getroot()
 
     # create id dictionary.
