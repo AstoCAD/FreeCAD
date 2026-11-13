@@ -168,9 +168,7 @@ def getarc(data):
         if rad:
             c.Radius = rad
         else:
-            # Error: DraftVecUtils.new()
-            # doesn't exist
-            c.Radius = DraftVecUtils.new(verts[0], verts[1]).Length
+            c.Radius = DraftVecUtils.dist(verts[0], verts[1])
     elif data[0][0] == "L":
         # 2-lines circle
         lines = []
@@ -411,7 +409,8 @@ def export(exportList, filename):
         return
 
     # writing file
-    oca = pyopen(filename, "w")
+    # the lines end with an explicit "\r\n": no newline translation
+    oca = pyopen(filename, "w", newline="")
     oca.write("#oca file generated from FreeCAD\r\n")
     oca.write("# edges\r\n")
     count = 1
