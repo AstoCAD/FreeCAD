@@ -83,6 +83,16 @@ def orientEdge(edge, normal=None, make_arc=False):
             edge.Curve, edge.FirstParameter, edge.LastParameter, edge.Curve.Axis.z > 0
         )
     elif make_arc and isinstance(edge.Curve, Part.Ellipse) and not edge.Closed:
+        ellipse = edge.Curve
+        if ellipse.MajorRadius - ellipse.MinorRadius < 1e-9:
+            # An ellipse with equal radii is a circle (SVG arcs and rounded corners are written
+            # that way). A sketch cannot hold its arc as an arc of ellipse: the solver places the
+            # major axis with the focus, which is then the center, and moves the end points.
+            circle = Part.Circle(ellipse.Center, ellipse.Axis, ellipse.MajorRadius)
+            circle.XAxis = ellipse.XAxis  # same parametrization
+            return Part.ArcOfCircle(
+                circle, edge.FirstParameter, edge.LastParameter, ellipse.Axis.z > 0
+            )
         return Part.ArcOfEllipse(
             edge.Curve, edge.FirstParameter, edge.LastParameter, edge.Curve.Axis.z > 0
         )

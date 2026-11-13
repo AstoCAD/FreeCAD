@@ -329,6 +329,36 @@ class DraftSVGImportRegression(test_base.DraftTestCaseDoc):
         self.assertAlmostEqual(shape.BoundBox.XLength, 10, places=3)
         self.assertAlmostEqual(shape.BoundBox.YLength, 4, places=3)
 
+    def test_read_svg_circular_arcs_stay_connected_in_sketch(self):
+        """Circular corners and arcs (equal rx and ry) keep their end points in a sketch."""
+        bodies = {
+            "rounded_rect": '<rect x="1" y="2" width="30" height="20" rx="3" ry="3"/>',
+            "path_arc": '<path d="M 10,10 A 5,5 0 0 1 15,15 L 10,15 Z"/>',
+            "path_arc_other_sweep": '<path d="M 10,10 A 5,5 0 0 0 15,15 L 15,10 Z"/>',
+            "rotated": '<g transform="rotate(33)"><rect width="30" height="20" rx="3"/></g>',
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for name, body in bodies.items():
+                with self.subTest(name=name):
+                    in_file = os.path.join(temp_dir, name + ".svg")
+                    with open(in_file, "w", encoding="utf-8") as svg_file:
+                        svg_file.write(
+                            '<?xml version="1.0"?>\n'
+                            '<svg xmlns="http://www.w3.org/2000/svg" width="100mm" '
+                            'height="100mm" viewBox="0 0 100 100">'
+                            '<g fill="none" stroke="black">' + body + "</g></svg>\n"
+                        )
+                    source = importSVG.readShapes(in_file)
+                    self.assertEqual(len(source), 1)
+                    sketch = self.doc.addObject("Sketcher::SketchObject", "Sketch")
+                    for geometry in importSVG.readSketchGeometry(in_file):
+                        sketch.addGeometry(geometry, False)
+                    self.doc.recompute()
+                    wires = sketch.Shape.Wires
+                    self.assertEqual(len(wires), 1)
+                    self.assertTrue(wires[0].isClosed())
+                    self.assertAlmostEqual(wires[0].Length, source[0].Length, places=6)
+
 
 class DraftSVGExportRegression(test_base.DraftTestCaseDoc):
     """Regression tests for SVG export edge cases."""

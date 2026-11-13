@@ -26,6 +26,7 @@
 
 """Unit tests for the Draft Workbench, DraftGeomUtils module tests."""
 
+import FreeCAD
 import Part
 import DraftGeomUtils
 from FreeCAD import Vector
@@ -416,6 +417,41 @@ class TestDraftGeomUtils(test_base.DraftTestCaseNoDoc):
         # an untrimmed B-spline is returned as it is
         geom = DraftGeomUtils.orientEdge(curve.toShape(), Vector(0, 0, 1))
         self.assertAlmostEqual(geom.toShape().Length, curve.toShape().Length, places=6)
+
+    def test_orient_edge_circular_ellipse_arc(self):
+        """orientEdge makes an arc of circle from the arc of an ellipse with equal radii."""
+        mirror = FreeCAD.Matrix()
+        mirror.scale(1, -1, 1)
+        rotation = FreeCAD.Matrix()
+        rotation.rotateZ(0.7)
+        for first, last in ((0.3, 1.4), (4.0, 5.5), (5.5, 7.0), (0.5, 4.5)):
+            for name, matrices in (
+                ("plain", ()),
+                ("rotated", (rotation,)),
+                ("mirrored", (mirror,)),
+                ("rotated and mirrored", (rotation, mirror)),
+            ):
+                arc = Part.ArcOfEllipse(Part.Ellipse(Vector(1, 2, 0), 3, 3), first, last)
+                for matrix in matrices:
+                    arc.transform(matrix)
+                for edge in (arc.toShape(), arc.toShape().reversed()):
+                    with self.subTest(first=first, last=last, name=name, o=edge.Orientation):
+                        geom = DraftGeomUtils.orientEdge(edge, Vector(0, 0, 1), make_arc=True)
+                        self.assertIsInstance(geom, Part.ArcOfCircle)
+                        self.assertAlmostEqual(geom.Radius, 3, places=9)
+                        new = geom.toShape()
+                        self.assertAlmostEqual(new.Length, edge.Length, places=9)
+                        middle = edge.valueAt((edge.FirstParameter + edge.LastParameter) / 2)
+                        for point in [v.Point for v in edge.Vertexes] + [middle]:
+                            self.assertLess(new.distToShape(Part.Vertex(point))[0], 1e-9)
+                        ends = [v.Point for v in new.Vertexes]
+                        for vertex in edge.Vertexes:
+                            self.assertTrue(any(vertex.Point.isEqual(p, 1e-9) for p in ends))
+        # a real ellipse stays one
+        edge = Part.ArcOfEllipse(Part.Ellipse(Vector(1, 2, 0), 3, 2), 0.3, 1.4).toShape()
+        geom = DraftGeomUtils.orientEdge(edge, Vector(0, 0, 1), make_arc=True)
+        self.assertIsInstance(geom, Part.ArcOfEllipse)
+        self.assertAlmostEqual(geom.toShape().Length, edge.Length, places=9)
 
     def test_offset_circle(self):
         """offset of a circular edge returns the complete offset circle unless trim is True."""
