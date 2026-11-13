@@ -33,12 +33,17 @@ if ParGrp.HasGroup("CAM"):
 elif ParGrp.HasGroup("Path"):
     ParGrp.RenameGroup("Path", "CAM")
 
-ParGrp = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Path")
-parent = ParGrp.Parent()
-if parent.HasGroup("CAM"):
-    pass
-elif parent.HasGroup("Path"):
-    result = parent.RenameGroup("Path", "CAM")
+# Look the old group up from its parent: ParamGet() and GetGroup() create a missing group.
+ParGrp = App.ParamGet("User parameter:BaseApp/Preferences/Mod")
+if ParGrp.HasGroup("Path"):
+    # RenameGroup() and RemGroup() need the handle that GetGroup() adds. Keep no reference
+    # to it, or RemGroup() cannot drop it.
+    if not ParGrp.HasGroup("CAM"):
+        ParGrp.GetGroup("Path")
+        ParGrp.RenameGroup("Path", "CAM")
+    elif not ParGrp.GetGroup("Path").GetGroups() and not ParGrp.GetGroup("Path").GetContents():
+        # an empty group left behind by earlier versions of this code
+        ParGrp.RemGroup("Path")
 
 # Get the Parameter Group of this module
 ParGrp = App.ParamGet("System parameter:Modules").GetGroup("Path")
