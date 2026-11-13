@@ -711,6 +711,22 @@ class BRepConversionTest(unittest.TestCase):
         self.assertTrue(obj.Shape.isValid())
         self.assertGreater(obj.Shape.Volume, 0.0)
 
+    def test_make_editable_keeps_parameters_set_since_the_last_recompute(self):
+        document = App.newDocument("FormsTestEditableParameters")
+        obj = create_box(document)
+        document.recompute()
+        obj.Length = 40.0
+        obj.XSegments = 3
+
+        make_editable(obj)
+        document.recompute()
+
+        self.assertEqual(obj.CageMode, "Editable")
+        x_values = [point.x for point in obj.ControlPoints]
+        self.assertAlmostEqual(max(x_values) - min(x_values), 40.0, places=9)
+        self.assertEqual(len(obj.ControlFaces), 32)
+        self.assertAlmostEqual(obj.Shape.BoundBox.XLength, 40.0, delta=0.1)
+
     def test_generated_solid_survives_save_and_restore(self):
         handle, path = tempfile.mkstemp(suffix=".FCStd")
         os.close(handle)
