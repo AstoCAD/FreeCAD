@@ -51,6 +51,35 @@ class DrawViewRemovalTest(unittest.TestCase):
         for name in self.dependents[1]:
             self.assertIsNotNone(self.doc.getObject(name), name)
 
+    def testRemoveDetailViewRemovesDependents(self):
+        """Removing a detail view removes its dimensions, balloons and hatches."""
+        detail = self.doc.addObject("TechDraw::DrawViewDetail", "Detail")
+        self.page.addView(detail)
+        detail.BaseView = self.views[0]
+        detail.AnchorPoint = FreeCAD.Vector(5.0, 5.0, 0.0)
+
+        dimension = self.doc.addObject("TechDraw::DrawViewDimension", "Dimension")
+        self.page.addView(dimension)
+        dimension.Type = "Distance"
+        dimension.References2D = [(detail, "Edge0")]
+
+        balloon = self.doc.addObject("TechDraw::DrawViewBalloon", "Balloon")
+        balloon.SourceView = detail
+        self.page.addView(balloon)
+
+        hatch = self.doc.addObject("TechDraw::DrawHatch", "Hatch")
+        hatch.Source = (detail, ["Face0"])
+        names = [dimension.Name, balloon.Name, hatch.Name]
+
+        self.doc.removeObject(detail.Name)
+
+        for name in names:
+            self.assertIsNone(self.doc.getObject(name), name)
+        # the base view and its dependents are untouched
+        self.assertIsNotNone(self.doc.getObject(self.views[0].Name))
+        for name in self.dependents[0]:
+            self.assertIsNotNone(self.doc.getObject(name), name)
+
     def testRemovePageRemovesEverything(self):
         """Removing a page with dimensioned views leaves no TechDraw object behind."""
         self.doc.removeObject(self.page.Name)
