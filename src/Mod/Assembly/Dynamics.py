@@ -885,6 +885,9 @@ class Friction:
 
     def onDocumentRestored(self, obj):
         self._properties(obj)
+        if App.GuiUp and obj.ViewObject is not None and obj.ViewObject.Proxy is None:
+            from CommandCreateFriction import ViewProviderFriction
+            ViewProviderFriction(obj.ViewObject)
         purge_touched(obj)
 
     def onChanged(self, obj, prop):
@@ -992,6 +995,10 @@ def create_friction(owner, joint, name="Friction"):
     obj = owner.Document.addObject("App::FeaturePython", name)
     Friction(obj, joint)
     owner.addObject(obj)
+    if App.GuiUp:
+        # As for contacts, scripted frictions need the edit callback and icon.
+        from CommandCreateFriction import ViewProviderFriction
+        ViewProviderFriction(obj.ViewObject)
     invalidate_results(obj)
     purge_touched(owner, obj)
     return obj

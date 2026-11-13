@@ -98,7 +98,6 @@ class CommandCreateFriction:
         owner = resume or assembly
         Gui.ActiveDocument.openCommand("Add Joint Friction")
         friction = Dynamics.create_friction(owner, selected[0] if selected else joints[0])
-        ViewProviderFriction(friction.ViewObject)
         _show_task(friction, Dynamics.input_owner(friction), resume)
 
 

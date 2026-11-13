@@ -350,6 +350,10 @@ class TestSimulationTabs(unittest.TestCase):
         finally:
             task.form.deleteLater()
 
+    def test_scripted_friction_has_its_view_provider(self):
+        friction = Dynamics.create_friction(self.panel.simFeaturePy, self.joint)
+        self.assertIsInstance(friction.ViewObject.Proxy, CommandCreateFriction.ViewProviderFriction)
+
     def test_friction_editor_does_not_display_a_missing_joint(self):
         friction = Dynamics.create_friction(self.panel.simFeaturePy, self.joint)
         CommandCreateFriction.ViewProviderFriction(friction.ViewObject)
