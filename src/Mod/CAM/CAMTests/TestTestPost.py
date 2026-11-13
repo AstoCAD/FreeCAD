@@ -1667,3 +1667,14 @@ G40 G49
         # print(f"--------{nl}{gcode}--------{nl}")
         self.assertEqual(split_gcode[3], "M4 S3000")
         self.assertEqual(split_gcode[4], "G4 P1.23456")
+
+    def test00271(self):
+        """Test that wait-for-spindle outputs the spindle start only once."""
+
+        c = Path.Command("M3 S3000")
+        c1 = Path.Command("G0 X1")
+        self.profile_op.Path = Path.Path([c, c1])
+
+        self.job.PostProcessorArgs = "--wait-for-spindle=1.5"
+        gcode = self.post.export()[0][1]
+        self.assertEqual(gcode.splitlines()[3:], ["M3 S3000", "G4 P1.5", "G0 X1.000"])

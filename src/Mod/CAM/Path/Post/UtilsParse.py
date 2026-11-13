@@ -120,11 +120,10 @@ def check_for_machine_specific_commands(values: Values, gcode: Gcode, command: s
 def check_for_spindle_wait(
     values: Values, gcode: Gcode, command: str, command_line: CommandLine
 ) -> None:
-    """Check for commands that might need a wait command after them."""
+    """Output a wait command after a spindle start that has been output."""
     cmd: str
 
-    if values["SPINDLE_WAIT"] > 0 and command in ("M3", "M03", "M4", "M04"):
-        gcode.append(f"{linenumber(values)}{format_command_line(values, command_line)}")
+    if values["SPINDLE_WAIT"] > 0 and command in ("M3", "M03", "M4", "M04") and command_line:
         cmd = format_command_line(values, ["G4", f'P{values["SPINDLE_WAIT"]}'])
         gcode.append(f"{linenumber(values)}{cmd}")
 
@@ -767,7 +766,6 @@ def parse_a_path(values: Values, gcode: Gcode, pathobj) -> None:
             drill_retract_mode,
         ):
             command_line = []
-        check_for_spindle_wait(values, gcode, command, command_line)
         if check_for_tool_change(values, gcode, command, command_line):
             command_line = []
         if check_for_suppressed_commands(values, gcode, command, command_line):
@@ -787,6 +785,7 @@ def parse_a_path(values: Values, gcode: Gcode, pathobj) -> None:
                 # Add a line number to the front of the command line
                 gcode.append(f"{linenumber(values)}{format_command_line(values, command_line)}")
 
+        check_for_spindle_wait(values, gcode, command, command_line)
         check_for_tlo(values, gcode, command, c.Parameters)
         check_for_machine_specific_commands(values, gcode, command)
 
