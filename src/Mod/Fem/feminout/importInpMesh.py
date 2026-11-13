@@ -145,10 +145,10 @@ def read_inp(file_name):
         elif read_node is True:
             line_list = line.split(",")
             number = int(line_list[0])
-            x = float(line_list[1])
-            y = float(line_list[2])
-            z = float(line_list[3])
-            nodes[number] = [x, y, z]
+            # coordinates which are not given are zero, planar models give only two of them
+            coordinates = [c.strip() for c in line_list[1:4]]
+            coordinates += [""] * (3 - len(coordinates))
+            nodes[number] = [float(c) if c else 0.0 for c in coordinates]
 
         # reading elements
         elif line[:8].upper() == "*ELEMENT":
