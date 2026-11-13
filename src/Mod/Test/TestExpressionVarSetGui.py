@@ -341,6 +341,48 @@ class TestExpressionVarSetGui(unittest.TestCase):
         self.assertAlmostEqual(self.store(source, "Distance", "mm", '2"', "Inches"), 50.8)
         self.assertNotIn("Inches", dict(self.variables.ExpressionEngine))
 
+    def testFilletRadiusLiteral(self):
+        # The radius of a fillet is a plain quantity whose unit is given by the fillet: a new
+        # property of that type has no unit and rejected "1 mm" ("Not matching Unit!").
+        try:
+            import PartDesign  # noqa: F401
+        except ImportError as error:
+            self.skipTest(str(error))
+        fillet = self.doc.addObject("PartDesign::Fillet", "Fillet")
+        self.assertEqual(fillet.getTypeIdOfProperty("Radius"), "App::PropertyQuantityConstraint")
+        self.assertAlmostEqual(self.store(fillet, "Radius", "mm", "1 mm", "FilletRadius"), 1)
+        self.assertEqual(self.variables.getTypeIdOfProperty("FilletRadius"),
+                         "App::PropertyDistance")
+        self.assertNotIn("FilletRadius", dict(self.variables.ExpressionEngine))
+        self.assertTrue(any("FilletRadius" in expression for _path, expression
+                            in fillet.ExpressionEngine))
+
+    def testOwnerUnitQuantityExpression(self):
+        source = self.doc.addObject("App::FeatureTest", "Source")
+        self.doc.recompute()
+        self.assertEqual(source.getTypeIdOfProperty("QuantityLength"), "App::PropertyQuantity")
+        actual = self.store(source, "QuantityLength", "mm", "<<Variables>>.Length / 4", "Quarter")
+        with self.subTest(stage="immediate"):
+            self.assertAlmostEqual(actual, 5)
+        self.assertEqual(self.variables.getTypeIdOfProperty("Quarter"), "App::PropertyDistance")
+        self.assertIn("Quarter", dict(self.variables.ExpressionEngine))
+        self.variables.Length = 24
+        self.doc.recompute()
+        self.assertAlmostEqual(self.variables.Quarter.Value, 6)
+        self.assertAlmostEqual(source.QuantityLength.Value, 6)
+
+    def testDimensionlessOwnerQuantityKeepsType(self):
+        # Control: a plain quantity without a unit still gets a property of its own type.
+        try:
+            import Part  # noqa: F401
+        except ImportError as error:
+            self.skipTest(str(error))
+        spiral = self.doc.addObject("Part::Spiral", "Spiral")
+        self.doc.recompute()
+        self.assertAlmostEqual(self.store(spiral, "Rotations", "", "3", "Turns"), 3)
+        self.assertEqual(self.variables.getTypeIdOfProperty("Turns"),
+                         "App::PropertyQuantityConstraint")
+
     def testCancelPreservesExistingBinding(self):
         source = self.valueSource()
         source.setExpression("Scale", "<<Variables>>.Factor * 1.5")
