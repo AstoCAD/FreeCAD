@@ -147,6 +147,23 @@ G0 X11.250000 Y5.000000 Z23.000000"
         args["direction"] = "clock"
         self.assertRaises(ValueError, generator.generate, **args)
 
+    def test02(self):
+        """Test retract height of zero is used when the hole top is below zero"""
+        args = _resetArgs()
+        args["edge"] = Part.makeLine(FreeCAD.Vector(5, 5, -2), FreeCAD.Vector(5, 5, -4))
+        args["retract_height"] = 0.0
+        result = generator.generate(**args)
+        self.assertEqual(result[0].Name, "G0")
+        self.assertRoughly(result[0].z, 0.0)
+        self.assertEqual(result[-1].Name, "G0")
+        self.assertRoughly(result[-1].z, 0.0)
+
+        # without a retract height the tool retracts to the hole top
+        args["retract_height"] = None
+        result = generator.generate(**args)
+        self.assertRoughly(result[0].z, -2.0)
+        self.assertRoughly(result[-1].z, -2.0)
+
     def test07(self):
         """Test Basic Helix Generator verify linear edge is vertical"""
         # verify linear edge is vertical: X

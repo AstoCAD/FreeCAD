@@ -143,7 +143,7 @@ def generate(
     if inner_radius < 0:
         raise ValueError("inner_radius < 0")
 
-    if not retract_height or retract_height < topCenterPoint.z:
+    if retract_height is None or retract_height < topCenterPoint.z:
         retract_height = topCenterPoint.z
 
     if not isinstance(retract_height, (float, int)):
