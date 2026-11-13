@@ -607,6 +607,47 @@ class BRepConversionTest(unittest.TestCase):
         self.assertTrue(edited.is_closed)
         self.assertTrue(obj.Shape.isValid())
 
+    def test_insert_point_refuses_an_edge_its_face_split_does_not_reach(self):
+        document = App.newDocument("FormsTestInsertPointTJunction")
+        obj = create_box(document)
+        obj.XSegments = 1
+        obj.YSegments = 1
+        obj.ZSegments = 1
+        document.recompute()
+        original = ControlCage.from_object(obj)
+        face = original.faces[0]
+        shared = tuple(sorted((face[1], face[2])))
+        neighbor = next(
+            index
+            for index, candidate in enumerate(original.faces)
+            if index != 0 and shared[0] in candidate and shared[1] in candidate
+        )
+        # Subdividing the neighbor leaves a T-vertex at the middle of the
+        # shared side, which is where a split of face 0 ends.
+        subdivide_faces(obj, [neighbor])
+        document.recompute()
+        mesh = HierarchicalTMesh.decode(obj.TMeshData)
+        sides = mesh.faces[0].sides
+        side_index = next(index for index, side in enumerate(sides) if len(side) == 3)
+        _start, junction, end = sides[side_index]
+        half_edge = tuple(sorted((junction, end)))
+        opposite = sides[(side_index + 2) % 4]
+        opposite_edge = tuple(sorted((opposite[0], opposite[-1])))
+        encoded = obj.TMeshData
+        local_points = [App.Vector(point) for point in obj.LocalControlPoints]
+        volume = obj.Shape.Volume
+
+        with self.assertRaisesRegex(ValueError, "opposite sides of one control face"):
+            insert_point_face_target(mesh, half_edge, opposite_edge)
+        with self.assertRaisesRegex(ValueError, "opposite sides of one control face"):
+            insert_point_edges(obj, ((half_edge, 0.3), (opposite_edge, 0.3)))
+        document.recompute()
+
+        # The control shared with the subdivided neighbor did not move.
+        self.assertEqual(obj.TMeshData, encoded)
+        self.assertEqual(list(obj.LocalControlPoints), local_points)
+        self.assertAlmostEqual(obj.Shape.Volume, volume, places=6)
+
     def test_control_cage_rejects_non_finite_geometry_before_conversion(self):
         with self.assertRaisesRegex(ValueError, "finite 3D coordinates"):
             ControlCage([(0, 0, 0), (1, 0, 0), (0, float("nan"), 0)], [(0, 1, 2)])
