@@ -133,6 +133,10 @@ def make_editable(obj):
     """Detach a parametric Forms primitive into an editable control cage."""
     if not getattr(obj, "FormType", "").startswith("Forms::"):
         raise TypeError("The object is not a Forms primitive")
+    if obj.CageMode == "Parametric":
+        # Parameters changed since the last recompute are not in the cage yet.
+        # Once the cage is editable they are no longer applied to it.
+        obj.recompute()
     obj.CageMode = "Editable"
     obj.recompute()
     return obj
