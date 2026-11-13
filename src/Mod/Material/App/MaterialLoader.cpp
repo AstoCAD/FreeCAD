@@ -494,6 +494,21 @@ void MaterialLoader::showYaml(const YAML::Node& yaml)
     Base::Console().log("{}\n", logData);
 }
 
+namespace
+{
+
+// Give a property without a value the value of the parent material's property
+void inheritValue(MaterialProperty& property, const MaterialProperty& parentProperty)
+{
+    if (!property.isNull() || parentProperty.isNull()) {
+        return;
+    }
+    // Copy the value itself: the QVariant of getValue() doesn't hold the contents of a 2D or
+    // 3D array, and an undefined quantity set through it becomes 0
+    property.setValue(MaterialProperty(parentProperty).getMaterialValue());
+}
+
+}  // namespace
 
 void MaterialLoader::dereference(
     const std::shared_ptr<std::map<QString, std::shared_ptr<Material>>>& materialMap,
@@ -547,9 +562,7 @@ void MaterialLoader::dereference(
             auto name = itp.first;
             auto property = itp.second;
 
-            if (material->getPhysicalProperty(name)->isNull()) {
-                material->getPhysicalProperty(name)->setValue(property->getValue());
-            }
+            inheritValue(*material->getPhysicalProperty(name), *property);
         }
 
         properties = parent->getAppearanceProperties();
@@ -557,9 +570,7 @@ void MaterialLoader::dereference(
             auto name = itp.first;
             auto property = itp.second;
 
-            if (material->getAppearanceProperty(name)->isNull()) {
-                material->getAppearanceProperty(name)->setValue(property->getValue());
-            }
+            inheritValue(*material->getAppearanceProperty(name), *property);
         }
     }
 

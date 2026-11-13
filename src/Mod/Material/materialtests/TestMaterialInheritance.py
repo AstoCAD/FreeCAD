@@ -126,6 +126,52 @@ class MaterialInheritanceTestCases(unittest.TestCase):
             child.getPhysicalValue("Density").getValueAs("kg/m^3").Value, 2700.0
         )
 
+    def testInheritedUndefinedAndArrayValues(self):
+        """A child card keeps its parent's undefined values undefined and gets its arrays"""
+        uuids = Materials.UUIDs()
+        parent = _card("Parent", UUIDParent) + (
+            "Models:\n"
+            "  Isotropic Linear Elastic:\n"
+            '    UUID: "{}"\n'
+            '    YoungsModulus: "200 GPa"\n'
+            "  Test Model:\n"
+            '    UUID: "{}"\n'
+            "    TestArray2D:\n"
+            '      - [["10 K", "7850 kg/m^3"],\n'
+            '         ["20 K", "7800 kg/m^3"]]\n'
+            "    TestArray3D:\n"
+            '      - ["10 K": [["1 MPa", "2 MPa"],\n'
+            '                  ["3 MPa", "4 MPa"]],\n'
+            '         "20 K": [["5 MPa", "6 MPa"]]]\n'
+        ).format(uuids.IsotropicLinearElastic, uuids.TestModel)
+        self.loadCards(
+            {
+                "Parent.FCMat": parent,
+                "Child.FCMat": _card("Child", UUIDChild, parent=UUIDParent),
+            }
+        )
+        child = self.MaterialManager.getMaterial(UUIDChild)
+
+        self.assertAlmostEqual(
+            child.getPhysicalValue("YoungsModulus").getValueAs("GPa").Value, 200.0
+        )
+        properties = child.PropertyObjects
+        for name in ("BulkModulus", "ShearModulus", "TestQuantity"):
+            with self.subTest(name=name):
+                self.assertTrue(properties[name].Empty)
+        self.assertFalse(child.isPhysicalModelComplete(uuids.IsotropicLinearElastic))
+
+        array = child.getPhysicalValue("TestArray2D")
+        self.assertEqual(array.Rows, 2)
+        self.assertAlmostEqual(array.getValue(1, 0).getValueAs("K").Value, 20.0)
+        self.assertAlmostEqual(array.getValue(1, 1).getValueAs("kg/m^3").Value, 7800.0)
+
+        array = child.getPhysicalValue("TestArray3D")
+        self.assertEqual(array.Depth, 2)
+        self.assertEqual([array.getRows(0), array.getRows(1)], [2, 1])
+        self.assertAlmostEqual(array.getDepthValue(1).getValueAs("K").Value, 20.0)
+        self.assertAlmostEqual(array.getValue(1, 0, 1).getValueAs("MPa").Value, 6.0)
+
     def testSelfInheritance(self):
         """A card that inherits from itself must not recurse forever while loading"""
         self.loadCards({"CycleA.FCMat": _card("CycleA", UUIDCycleA, parent=UUIDCycleA)})
