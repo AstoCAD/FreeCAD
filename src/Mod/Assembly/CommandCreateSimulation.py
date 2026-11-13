@@ -1438,6 +1438,13 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.configurePlayback()
         self.setFrameValue(self.form.frameSlider.maximum())
         self.refreshResults()
+        if self.simFeaturePy.LastError:
+            # A complete study keeps an error only for a run that stopped early.
+            QtWidgets.QMessageBox.warning(
+                self.form,
+                translate("Assembly", "Simulation stopped early"),
+                self.simFeaturePy.LastError,
+            )
 
     def onFrameChanged(self, val):
         if not self.resultData or self.simFeaturePy.Status != "Complete":

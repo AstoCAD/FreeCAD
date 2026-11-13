@@ -205,7 +205,7 @@ class TestSimulationRegression(unittest.TestCase):
                                           results["Dynamics"]["Bodies"]["Slider"]["Placements"]):
                 self.assertAlmostEqual(kinematic[0], dynamic[0], delta=1e-6)
 
-    def test_kinematics_stopped_by_the_solver_is_not_complete(self):
+    def test_kinematics_stopped_by_the_solver_keeps_samples_and_reports_stop(self):
         # Driving the slider 50 mm has no kinematic solution past a dead
         # centre (slider 23 mm out or 17 mm in): the solver stops there.
         with self.mechanism() as f:
@@ -213,11 +213,19 @@ class TestSimulationRegression(unittest.TestCase):
             study = f.study(False)
             study.EndTime = "0.5 s"
             study.AnalysisType = "Kinematics"
-            self.add_motion(f, study, slide, "Linear", "initialValue+100*time")
-            with self.assertRaisesRegex(RuntimeError, "stopped at t = "):
-                Dynamics.run(study)
-            self.assertEqual(study.Status, "Failed")
-            self.assertFalse(study.ResultData)
+            motion = self.add_motion(f, study, slide, "Linear", "initialValue+100*time")
+            data = Dynamics.run(study)
+            stop = data["Times"][-1]
+            self.assertGreater(len(data["Times"]), 2)
+            self.assertLess(stop, 0.24)
+            # The samples up to the stop stay playable; the stop is reported.
+            self.assertEqual(study.Status, "Complete")
+            self.assertEqual(Dynamics.results(study)["Times"], data["Times"])
+            self.assertIn(f"stopped at t = {stop:g} s", study.LastError)
+            motion.Formula = "initialValue+10*time"
+            data = Dynamics.run(study)
+            self.assertAlmostEqual(data["Times"][-1], 0.5, delta=1e-9)
+            self.assertEqual(study.LastError, "")
 
     def test_gear_train_motor_torque_balances_output_load(self):
         with self.mechanism() as f:

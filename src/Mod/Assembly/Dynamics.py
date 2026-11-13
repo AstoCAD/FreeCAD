@@ -1047,8 +1047,8 @@ def analysis_type(study):
     return mode
 
 
-def _require_kinematic_end(study, times):
-    """Refuse kinematic results that end before the end time.
+def _kinematic_stop(study, times):
+    """Return a message when kinematic results end before the end time.
 
     The kinematic solver ends a run that it cannot continue (no position
     solution, for example past a dead centre) without an error, keeping the
@@ -1064,10 +1064,11 @@ def _require_kinematic_end(study, times):
     step = seconds("OutputStep", "cTimeStepOutput")
     direction = 1.0 if start < end else -1.0
     if step > 0 and direction * (end - times[-1]) >= 0.9 * step * (1 + 1e-6):
-        raise RuntimeError(
-            f"The kinematic analysis stopped at t = {times[-1]:g} s, before the end time. "
-            "The report view shows the solver message."
+        return (
+            f"The kinematic analysis stopped at t = {times[-1]:g} s, before the end time "
+            f"{end:g} s. The results end there; the report view shows the solver message."
         )
+    return ""
 
 
 def run(study):
@@ -1085,6 +1086,7 @@ def run(study):
     study.Status = "Running"
     study.LastError = ""
     study.ResultData = ""  # Do not mislabel a previous run as this run's result.
+    stopped = ""
     try:
         with MotionProfile.prepared(study, inputs_for_study(study)):
             mode = analysis_type(study)
@@ -1095,9 +1097,16 @@ def run(study):
                 if error:
                     raise RuntimeError(f"Kinematic simulation failed with error code {error}.")
                 data = study.Assembly.getSimulationResults()
-                _require_kinematic_end(study, data["Times"])
+                stopped = _kinematic_stop(study, data["Times"])
         data["AnalysisType"] = mode
-        return save_results(study, data)
+        save_results(study, data)
+        if stopped:
+            # Keep the samples up to the stop for playback, as upstream does,
+            # but do not let the partial run pass for a complete one.
+            study.LastError = stopped
+            purge_touched(study)
+            App.Console.PrintWarning(f"{study.Label}: {stopped}\n")
+        return data
     except Exception as error:
         study.Status = "Failed"
         study.LastError = str(error)
