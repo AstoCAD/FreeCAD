@@ -634,4 +634,15 @@ TEST_F(CopyPasteRulesPDTest, externalGeometryOfOriginAxisIsRelinked)
     EXPECT_EQ(countOrphanDatums(), 0);
 }
 
+TEST_F(CopyPasteRulesPDTest, partPastedOnItselfGoesBesideIt)
+{
+    auto pasted = copyPaste({_part});
+    auto roots = CopyPasteRules::getRootObjects(pasted);
+    ASSERT_EQ(roots.size(), 1u);
+    // Pasted on another part it goes into it; on the part it was copied from, next to it
+    EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, _part, {}, true), nullptr);
+    EXPECT_FALSE(_part->hasObject(roots.front()));
+    EXPECT_EQ(_part->Group.getValues().size(), 1u);
+}
+
 // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

@@ -143,3 +143,31 @@ TEST_F(CopyPasteRulesTest, pastedOnRootObjectStaysAtRoot)
     EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, nullptr), nullptr);
     EXPECT_FALSE(_group->hasObject(pasted.front()));
 }
+
+TEST_F(CopyPasteRulesTest, copyPastedOnItsSourceGoesBesideIt)
+{
+    auto outer = _doc->addObject<App::DocumentObjectGroup>("Outer");
+    outer->addObject(_group);
+    auto pasted = _doc->copyObject(
+        App::Document::getDependencyList({_group}, App::Document::DepSort),
+        false,
+        true
+    );
+    auto roots = CopyPasteRules::getRootObjects(pasted);
+    ASSERT_EQ(roots.size(), 1u);
+
+    // Ctrl+C, Ctrl+V on a group: next to it in its parent, not inside it
+    EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, _group, {}, true), outer);
+    EXPECT_FALSE(_group->hasObject(roots.front()));
+    const std::vector<App::DocumentObject*> expected {_group, roots.front()};
+    EXPECT_EQ(outer->Group.getValues(), expected);
+
+    // At the root it stays at the root
+    auto top = _doc->copyObject(
+        App::Document::getDependencyList({outer}, App::Document::DepSort),
+        false,
+        true
+    );
+    EXPECT_EQ(CopyPasteRules::placePastedObjects(top, outer, {}, true), nullptr);
+    EXPECT_EQ(outer->Group.getValues(), expected);
+}

@@ -274,6 +274,22 @@ class TestCopyPasteGui(unittest.TestCase):
         self.assertEqual(new[0].AttachmentSupport[0][0], self._origin_feature(part, "XY_Plane"))
         self.assertEqual(self._orphan_datums(), [])
 
+    def test_part_pasted_on_itself_goes_beside_it(self):
+        part = self.doc.addObject("App::Part", "Part")
+        other = self.doc.addObject("App::Part", "Other")
+        self.doc.recompute()
+        self._select(part)
+        self._run("Std_Copy")
+        # Ctrl+C, Ctrl+V: the selection is still the copied part
+        new = [o for o in self._paste_and_get_new(part) if o.isDerivedFrom("App::Part")]
+        self.assertEqual(len(new), 1)
+        self.assertNotIn(new[0], part.Group)
+        self.assertIsNone(new[0].getParentGeoFeatureGroup())
+        # On another part it goes into it
+        new = [o for o in self._paste_and_get_new(other) if o.isDerivedFrom("App::Part")]
+        self.assertEqual(len(new), 1)
+        self.assertIn(new[0], other.Group)
+
     def test_body_pasted_with_an_active_body_goes_to_the_root(self):
         self._select(self.body1)
         self._run("Std_Copy")

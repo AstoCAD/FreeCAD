@@ -436,7 +436,8 @@ DocumentObject* CopyPasteRules::getParentContainer(const DocumentObject* obj)
 }
 
 DocumentObject* CopyPasteRules::findPasteContainer(const std::vector<DocumentObject*>& pasted,
-                                                   const DocumentObject* selected)
+                                                   const DocumentObject* selected,
+                                                   bool beside)
 {
     if (!selected || !selected->isAttachedToDocument()) {
         return nullptr;
@@ -454,8 +455,9 @@ DocumentObject* CopyPasteRules::findPasteContainer(const std::vector<DocumentObj
     }
 
     std::set<const DocumentObject*> visited;
-    const DocumentObject* current = isPasteContainer(selected) ? selected
-                                                                : getParentContainer(selected);
+    const DocumentObject* current = !beside && isPasteContainer(selected)
+        ? selected
+        : getParentContainer(selected);
     // Climb only through paste containers: below anything else, paste to the root as before.
     while (isPasteContainer(current) && visited.insert(current).second) {
         auto grp = current->getExtensionByType<GroupExtension>(true);
@@ -474,10 +476,11 @@ DocumentObject* CopyPasteRules::findPasteContainer(const std::vector<DocumentObj
 DocumentObject* CopyPasteRules::placePastedObjects(
     const std::vector<DocumentObject*>& pasted,
     const DocumentObject* selected,
-    const std::map<const DocumentObject*, Base::Placement>& sourcePlacements)
+    const std::map<const DocumentObject*, Base::Placement>& sourcePlacements,
+    bool beside)
 {
     std::set<const DocumentObject*> removed;
-    auto container = findPasteContainer(pasted, selected);
+    auto container = findPasteContainer(pasted, selected, beside);
     auto grp = container ? container->getExtensionByType<GroupExtension>(true) : nullptr;
     if (grp) {
         // Computed before removing anything: removed objects must not be dereferenced.

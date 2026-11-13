@@ -142,21 +142,26 @@ public:
     /// The container that receives @a pasted objects when @a selected is the selected
     /// object: @a selected itself if it is a paste container, else its parent container,
     /// walking up through paste containers until one accepts all the pasted root objects.
+    /// With @a beside the search starts at the parent container of @a selected even if
+    /// @a selected is a paste container: for a copy pasted on the object it was copied
+    /// from, which goes next to it and not into it.
     /// Returns nullptr for the document root.
     static DocumentObject* findPasteContainer(const std::vector<DocumentObject*>& pasted,
-                                              const DocumentObject* selected);
+                                              const DocumentObject* selected,
+                                              bool beside = false);
 
     /// Put freshly @a pasted objects into the container found for @a selected (see
     /// findPasteContainer()), right after @a selected (or the child of the container that
     /// contains it) when the container supports it, else at its end. If the container has
     /// an origin, links of the pasted objects to orphan datums are re-pointed to the origin
     /// feature of the same role and the orphans left without users are removed. Then
-    /// finishPastedObjects().
+    /// finishPastedObjects(). @a beside as in findPasteContainer().
     /// Returns the container, or nullptr when the objects stay at the root.
     static DocumentObject*
     placePastedObjects(const std::vector<DocumentObject*>& pasted,
                        const DocumentObject* selected,
-                       const std::map<const DocumentObject*, Base::Placement>& sourcePlacements = {});
+                       const std::map<const DocumentObject*, Base::Placement>& sourcePlacements = {},
+                       bool beside = false);
 
     /// Pasted objects outside any container with an origin (document root or plain group)
     /// that are attached to orphan datums only are detached (see CopyPasteHandler) and get
