@@ -291,6 +291,18 @@ class TestSimulationTabs(unittest.TestCase):
         study.ViewObject.Proxy.dropObject(None, obj)
         self.assertEqual(Dynamics.input_owner(obj), study)
 
+    def test_motion_panel_rebinds_a_motion_whose_joint_is_gone(self):
+        study = self.panel.simFeaturePy
+        motion = SimulationCommand._createMotion(study, self.joint)
+        motion.Joint = None  # As after deleting its joint.
+        panel = SimulationCommand.TaskAssemblyCreateMotion(motion, study)
+        try:
+            self.assertEqual(panel.currentJoint(), self.joint)
+            self.assertEqual(motion.Joint[0], self.joint)
+            self.assertEqual(motion.MotionType, "Linear")
+        finally:
+            panel.form.deleteLater()
+
     def test_global_deletion_requires_confirmation(self):
         load = Dynamics.create_load(self.assembly, "Force", self.first)
         name = load.Name

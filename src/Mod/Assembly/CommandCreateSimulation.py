@@ -659,6 +659,13 @@ class TaskAssemblyCreateMotion:
         self.form.layout().insertWidget(1, self.profileField)
         self.form.FormulaLabel.hide()
         self.form.HelpButton.hide()
+        # A motion whose joint was deleted, or no longer allows its type, gets
+        # the joint and type the panel shows, so OK confirms what is displayed.
+        if self.joints and (
+            self.currentJoint() != current_joint
+            or self.form.MotionTypeComboBox.currentText() != motion.MotionType
+        ):
+            self.onJointChanged(self.form.JointComboBox.currentIndex())
         Dynamics.purge_touched(self.owner, self.motion)
 
     def updateMotionTypes(self):
