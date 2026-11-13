@@ -530,6 +530,10 @@ void AssemblyObject::updateSolveStatus()
 
 int AssemblyObject::generateSimulation(App::DocumentObject* sim)
 {
+    // As in solve(): link group elements are placed by their own Placement,
+    // which is assembly-relative only while the link group's is the identity.
+    ensureIdentityPlacements();
+
     mbdAssembly = makeMbdAssembly();
     objectPartMap.clear();
     // The rigid clusters left by the last solve may be out of date (rigid groups
