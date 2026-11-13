@@ -298,6 +298,35 @@ Base::Vector3d breakShift(const Base::Vector3d& point,
     return result;
 }
 
+//! Names of the objects of type T that the link list `links` of `view` lists and that belong to
+//! the view alone: objects of the view's document that no other view lists in its own `links`
+//! (a view pasted without its dependencies shares them).
+template<typename T>
+std::vector<std::string> objectsOwnedByView(const DrawViewPart& view,
+                                            App::PropertyLinkList DrawViewPart::*links)
+{
+    std::vector<std::string> names;
+    for (auto* object : (view.*links).getValues()) {
+        auto* owned = freecad_cast<T*>(object);
+        if (!owned || !owned->isAttachedToDocument()
+            || owned->getDocument() != view.getDocument()) {
+            continue;
+        }
+        const auto listedByOtherView = [&view, links, object](App::DocumentObject* user) {
+            auto* other = freecad_cast<DrawViewPart*>(user);
+            if (!other || other == &view) {
+                return false;
+            }
+            const auto& otherLinks = (other->*links).getValues();
+            return std::ranges::find(otherLinks, object) != otherLinks.end();
+        };
+        if (!std::ranges::any_of(owned->getInList(), listedByOtherView)) {
+            names.emplace_back(owned->getNameInDocument());
+        }
+    }
+    return names;
+}
+
 } // namespace
 
 DrawViewPart::DrawViewPart()
@@ -2167,30 +2196,17 @@ void DrawViewPart::unsetupObject()
         }
     }
 
-    // Remove the View's break objects. Breaks also holds the model objects (sketches, edges)
-    // that a DrawBrokenView uses as break definitions: those are not owned by the view.
-    // A break that another view also lists stays with that view.
-    // Removing a break changes Breaks, so collect the names first.
-    std::vector<std::string> breakNames;
-    for (auto* object : Breaks.getValues()) {
-        auto* viewBreak = freecad_cast<DrawViewBreak*>(object);
-        if (!viewBreak || !viewBreak->isAttachedToDocument() || viewBreak->getDocument() != doc) {
-            continue;
-        }
-        const bool usedByOtherView =
-            std::ranges::any_of(viewBreak->getInList(), [this, object](App::DocumentObject* user) {
-                auto* view = freecad_cast<DrawViewPart*>(user);
-                return view && view != this
-                    && std::ranges::find(view->Breaks.getValues(), object)
-                    != view->Breaks.getValues().end();
-            });
-        if (!usedByOtherView) {
-            breakNames.emplace_back(viewBreak->getNameInDocument());
-        }
-    }
-    for (const auto& breakName : breakNames) {
-        if (doc->getObject(breakName.c_str())) {
-            doc->removeObject(breakName.c_str());
+    // Remove the View's break and broken-out section objects. Breaks also holds the model
+    // objects (sketches, edges) that a DrawBrokenView uses as break definitions: those are not
+    // owned by the view. A break or section that another view also lists stays with that view.
+    // Removing them changes Breaks and BrokenOutSections, so collect the names first.
+    auto ownedNames = objectsOwnedByView<DrawViewBreak>(*this, &DrawViewPart::Breaks);
+    const auto sectionNames =
+        objectsOwnedByView<DrawViewBrokenOutSection>(*this, &DrawViewPart::BrokenOutSections);
+    ownedNames.insert(ownedNames.end(), sectionNames.begin(), sectionNames.end());
+    for (const auto& name : ownedNames) {
+        if (doc->getObject(name.c_str())) {
+            doc->removeObject(name.c_str());
         }
     }
 }
