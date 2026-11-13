@@ -73,6 +73,11 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
     sym : bool
         if sym is True, bind must be true too, and the offset is made on both
         sides, the total width being the given delta length.
+
+    occ : bool
+        If occ is True, the OCC-style offset is made: open wires, straight
+        lines included, get a closed outline around them. None is returned
+        if it cannot be made.
     """
     import Part
 
@@ -171,7 +176,8 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
         pass
     elif utils.get_type(obj) == "BSpline":
         pass
-    else:
+    elif not occ:
+        # The OCC-style offset is made below, without the classic one
         if sym:
             d1 = App.Vector(delta).multiply(0.5)
             d2 = d1.negative()
@@ -199,8 +205,14 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
             # An arc gets its new radius as delta. Its OCC-style offset goes
             # around it at the distance between both radii.
             delta = App.Vector(delta - obj.Shape.Edges[0].Curve.Radius, 0, 0)
+        newwire = geo_offsets.offsetWire(obj.Shape, delta, occ=True)
+        if newwire is None:
+            App.Console.PrintError(
+                "Draft.offset: Unable to create an OCC-style offset of {}\n".format(obj.Label)
+            )
+            return None
         newobj = App.ActiveDocument.addObject("Part::Feature", "Offset")
-        newobj.Shape = geo_offsets.offsetWire(obj.Shape, delta, occ=True)
+        newobj.Shape = newwire
         gui_utils.formatObject(newobj, obj)
         if not copy:
             delete = obj.Name

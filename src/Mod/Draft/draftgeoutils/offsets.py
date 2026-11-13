@@ -35,7 +35,7 @@ import FreeCAD as App
 import DraftVecUtils
 
 from draftgeoutils.general import geomType, vec
-from draftgeoutils.geometry import get_normal
+from draftgeoutils.geometry import get_normal, is_straight_line
 from draftgeoutils.wires import isReallyClosed
 from draftgeoutils.intersections import wiresIntersect, connect
 
@@ -183,6 +183,42 @@ def offset(edge, vector, trim=False):
         return None
 
 
+def _offset_straight_wire_occ(wire, dvec, distance, normal=None):
+    """Return the OCC-style offset of a straight wire, or None.
+
+    Like makeOffset() does for an open wire, the offset goes around the
+    wire at the given distance: two lines joined by two half circles.
+    A straight wire does not define a plane, the offset is made in the plane
+    perpendicular to `normal` if given, otherwise in the plane of the wire
+    and `dvec`. None is returned if that plane is not defined.
+    """
+    origin = wire.Edges[0].Vertexes[0].Point
+    direction = wire.Edges[0].Vertexes[-1].Point.sub(origin)
+    direction.normalize()
+    if normal:
+        side = normal.cross(direction)
+    else:
+        # the part of dvec perpendicular to the wire
+        side = dvec.sub(DraftVecUtils.project(dvec, direction))
+    if DraftVecUtils.isNull(side):
+        return None
+    side.normalize()
+    side.multiply(distance)
+
+    # The wire can go back on itself, the offset goes around all of it
+    params = [vertex.Point.sub(origin).dot(direction) for vertex in wire.Vertexes]
+    start = origin.add(App.Vector(direction).multiply(min(params)))
+    end = origin.add(App.Vector(direction).multiply(max(params)))
+    ahead = App.Vector(direction).multiply(distance)
+    edges = [
+        Part.LineSegment(start.add(side), end.add(side)).toShape(),
+        Part.Arc(end.add(side), end.add(ahead), end.sub(side)).toShape(),
+        Part.LineSegment(end.sub(side), start.sub(side)).toShape(),
+        Part.Arc(start.sub(side), start.sub(ahead), start.add(side)).toShape(),
+    ]
+    return Part.Wire(edges)
+
+
 def offsetWire(
     wire,
     dvec,
@@ -280,6 +316,10 @@ def offsetWire(
             wire = wire.Wires[0]
         else:
             wire = Part.Wire(edges)
+
+        if is_straight_line(wire):
+            # makeOffset() needs the plane of the wire
+            return _offset_straight_wire_occ(wire, dvec, length, normal)
 
         try:
             off = wire.makeOffset(length)

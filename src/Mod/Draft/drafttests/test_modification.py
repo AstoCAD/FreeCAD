@@ -222,6 +222,42 @@ class DraftModification(test_base.DraftTestCaseDoc):
                 distance = vertex.Point.distanceToPlane(place.Base, Vector(0, -1, 0))
                 self.assertAlmostEqual(distance, 0, 6, msg)
 
+    def test_offset_line_occ(self):
+        """OCC-style offsets of straight lines, which do not define a plane."""
+        # Regression test for:
+        # https://github.com/FreeCAD/FreeCAD/issues/10435
+        start = Vector(1, 2, 3)
+        for end, delta, normal in (
+            (Vector(11, 2, 3), Vector(0, 2, 0), Vector(0, 0, 1)),
+            (Vector(1, 2, 13), Vector(-2, 0, 0), Vector(0, 1, 0)),
+        ):
+            msg = "end={}".format(end)
+            line = Draft.make_line(start, end)
+            self.doc.recompute()
+            new = Draft.offset(line, delta, copy=True, occ=True)
+            self.doc.recompute()
+            # Like that of an open wire, it goes around the line, 2 mm on
+            # both sides, in the plane of the line and delta: two lines of
+            # length 10 joined by two half circles of radius 2
+            self.assertTrue(new.Shape.isValid(), msg)
+            self.assertTrue(new.Shape.Wires[0].isClosed(), msg)
+            self.assertAlmostEqual(new.Shape.Length, 20 + 4 * math.pi, 6, msg)
+            face = Part.Face(new.Shape.Wires[0])
+            self.assertAlmostEqual(face.Area, 40 + 4 * math.pi, 6, msg)
+            for vertex in new.Shape.Vertexes:
+                self.assertAlmostEqual(vertex.Point.distanceToPlane(start, normal), 0, 6, msg)
+                self.assertAlmostEqual(vertex.Point.distanceToLine(start, end - start), 2, 6, msg)
+
+    def test_offset_occ_failure(self):
+        """An OCC-style offset that cannot be made leaves no object."""
+        # A wire that is not planar
+        points = [Vector(0, 0, 0), Vector(10, 0, 0), Vector(10, 10, 0), Vector(10, 10, 10)]
+        wire = Draft.make_wire(points)
+        self.doc.recompute()
+        count = len(self.doc.Objects)
+        self.assertIsNone(Draft.offset(wire, Vector(0, 2, 0), copy=True, occ=True))
+        self.assertEqual(len(self.doc.Objects), count)
+
     def test_offset_rectangle_with_face(self):
         """Create a rectangle with a face, then produce an offset copy."""
         # Regression test for:
