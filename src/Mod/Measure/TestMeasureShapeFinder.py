@@ -198,3 +198,56 @@ class TestMeasurementSubElementCenterOfMass(unittest.TestCase):
         # placement) after scaling it; the array places the element.
         expected = array.Placement.multVec(element.multVec(App.Vector(-1, 4, 3)))
         self._checkCenter(array, "2.Solid1", expected, 96.0)
+
+
+class TestMeasureGetLocatedTopoShape(unittest.TestCase):
+    """Measure.getLocatedTopoShape() is available from Python and returns the
+    shape or sub-shape in global coordinates."""
+
+    def setUp(self):
+        previous = App.activeDocument()
+        self.previous_document = previous.Name if previous else None
+        self.doc = App.newDocument("MeasureGetLocatedTopoShape")
+        self.box = self.doc.addObject("Part::Box", "Box")
+        self.box.Length, self.box.Width, self.box.Height = 2, 4, 6
+        self.box.Placement = App.Placement(
+            App.Vector(7, 11, 13), App.Rotation(App.Vector(0, 1, 0), 90)
+        )
+        self.inner = self.doc.addObject("App::Part", "Inner")
+        self.inner.addObject(self.box)
+        self.inner.Placement = App.Placement(
+            App.Vector(10, -20, 30), App.Rotation(App.Vector(0, 0, 1), 90)
+        )
+        self.outer = self.doc.addObject("App::Part", "Outer")
+        self.outer.addObject(self.inner)
+        self.outer.Placement = App.Placement(
+            App.Vector(100, 200, 300), App.Rotation(App.Vector(1, 0, 0), 90)
+        )
+        self.doc.recompute()
+        # The center of the box, from its dimensions and the placements
+        center = self.box.Placement.multVec(App.Vector(1, 2, 3))
+        self.expected = self.outer.Placement.multVec(self.inner.Placement.multVec(center))
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+        if self.previous_document in App.listDocuments():
+            App.setActiveDocument(self.previous_document)
+
+    def _checkSolid(self, shape):
+        self.assertIsInstance(shape, Part.Shape)
+        self.assertEqual(len(shape.Solids), 1)
+        self.assertAlmostEqual(shape.Volume, 48.0, places=6)
+        actual = shape.Solids[0].CenterOfMass
+        self.assertLess(
+            (actual - self.expected).Length, 1e-7, f"got {actual}, expected {self.expected}"
+        )
+
+    def testElementThroughPath(self):
+        self._checkSolid(Measure.getLocatedTopoShape(self.outer, "Inner.Box.Solid1"))
+
+    def testObjectInParts(self):
+        # The containing groups place the whole object
+        self._checkSolid(Measure.getLocatedTopoShape(self.box, ""))
+
+    def testNoDocumentObject(self):
+        self.assertIsNone(Measure.getLocatedTopoShape(None, ""))
