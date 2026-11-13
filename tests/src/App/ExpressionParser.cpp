@@ -402,6 +402,9 @@ TEST_F(ExpressionParserTest, powerOfQuantityKeepsParenthesesWhenSerialized)
              std::pair {"(5 mm)^2", mm2(25)},
              std::pair {"(5mm)^2 / 2", mm2(12.5)},
              std::pair {"(-5 mm)^2", mm2(25)},
+             std::pair {"(--5 mm)^2", mm2(25)},
+             std::pair {"-(-5 mm)^2", mm2(25)},
+             std::pair {"(+-5 mm)^2", mm2(25)},
              std::pair {"5 mm^2", mm2(5)},
              std::pair {"(5 mm)^2^1", mm2(25)},
          }) {
