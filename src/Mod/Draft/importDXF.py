@@ -4681,19 +4681,15 @@ class DxfDraftPostProcessor:
         elif part_obj.isDerivedFrom(
             "Part::Vertex"
         ):  # Input `part_obj` is Part::Vertex (C++ primitive for a point location).
-            # For Draft.Point, the proxy expects an App::FeaturePython base.
+            # A Draft.Point is a Part::FeaturePython (see make_point) whose location is
+            # given by its X, Y and Z properties, which its Placement follows.
             new_obj = self.doc.addObject(
-                "App::FeaturePython", self.doc.getUniqueObjectName("Point")
+                "Part::FeaturePython", self.doc.getUniqueObjectName("Point")
             )
-            new_obj.addExtension(
-                "Part::AttachExtensionPython"
-            )  # Needed to provide Placement for App::FeaturePython.
-            # Transfer Placement explicitly from the original Part::Vertex.
-            if hasattr(part_obj, "Placement"):
-                new_obj.Placement = part_obj.Placement
-            else:
-                new_obj.Placement = FreeCAD.Placement()
-            point.Point(new_obj)  # Attach the Python proxy.
+            location = part_obj.Placement.multVec(
+                FreeCAD.Vector(part_obj.X.Value, part_obj.Y.Value, part_obj.Z.Value)
+            )
+            point.Point(new_obj, location.x, location.y, location.z)  # Attach the Python proxy.
             obj_type_str = "Point"
 
         elif part_obj.isDerivedFrom("Part::Ellipse"):
