@@ -265,9 +265,10 @@ def getDXFlibs():
 
 
 def deformat(text):
-    """Remove weird formats in texts and wipes UTF characters.
+    """Remove weird formats in texts and replace special character codes.
 
-    It removes `{}`, html codes, \\(U...) characters,
+    It removes `{}` and html codes, and replaces `\\U+XXXX` codes
+    and `%%d`, `%%c` codes by their characters.
 
     Parameters
     ----------
@@ -285,8 +286,7 @@ def deformat(text):
     t = text.strip("{}")
     t = re.sub(r"\\\\.*?;", "", t)
     # replace UTF codes by utf chars
-    sts = re.split("\\\\(U\\+....)", t)
-    t = "".join(sts)
+    t = re.sub(r"\\U\+([0-9A-Fa-f]{4})", lambda m: chr(int(m.group(1), 16)), t)
     # replace degrees, diameters chars
     t = re.sub(r"%%d", "°", t)
     t = re.sub(r"%%c", "Ø", t)
