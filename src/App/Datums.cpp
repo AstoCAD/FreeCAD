@@ -21,6 +21,7 @@
  *                                                                            *
  ******************************************************************************/
 
+#include <algorithm>
 #include <string>
 
 #include <App/Application.h>
@@ -347,8 +348,43 @@ void LocalCoordinateSystem::onDocumentRestored()
 {
     GeoFeature::onDocumentRestored();
 
+    if (getDocument()->testStatus(Document::Importing)) {
+        replaceSharedDatums();
+    }
+
     // In 0.22 origins did not have point.
     migrateOriginPoint();
+}
+
+void LocalCoordinateSystem::replaceSharedDatums()
+{
+    // A coordinate system imported without its elements, e.g. copied without its dependencies,
+    // links to the elements of its source. Those belong to the source and are deleted with either
+    // of them (see unsetupObject()), so the copy gets elements of its own.
+    auto features = OriginFeatures.getValues();
+    bool replaced = false;
+    for (auto& feature : features) {
+        if (!feature || !feature->isDerivedFrom<App::DatumElement>()) {
+            continue;
+        }
+        const auto inList = feature->getInList();
+        const bool shared = std::ranges::any_of(inList, [this, feature](App::DocumentObject* obj) {
+            return obj != this && obj->isDerivedFrom<LocalCoordinateSystem>()
+                && static_cast<LocalCoordinateSystem*>(obj)->hasObject(feature);
+        });
+        if (!shared) {
+            continue;
+        }
+        const auto data = getData(static_cast<App::DatumElement*>(feature)->Role.getValue());
+        if (!data.role) {
+            continue;
+        }
+        feature = createDatum(data);
+        replaced = true;
+    }
+    if (replaced) {
+        OriginFeatures.setValues(features);
+    }
 }
 
 void LocalCoordinateSystem::migrateOriginPoint()
