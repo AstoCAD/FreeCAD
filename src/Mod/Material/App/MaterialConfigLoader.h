@@ -78,7 +78,8 @@ private:
                                    const std::string& name,
                                    const QString& value)
     {
-        if (!value.isEmpty()) {
+        // The property is missing when the model having it was not added
+        if (!value.isEmpty() && finalModel->hasAppearanceProperty(QString::fromStdString(name))) {
             finalModel->setAppearanceValue(QString::fromStdString(name), value);
         }
     }
@@ -86,7 +87,7 @@ private:
                                    const std::string& name,
                                    const std::shared_ptr<QList<QVariant>>& value)
     {
-        if (!value->isEmpty()) {
+        if (!value->isEmpty() && finalModel->hasAppearanceProperty(QString::fromStdString(name))) {
             finalModel->setAppearanceValue(QString::fromStdString(name), value);
         }
     }
