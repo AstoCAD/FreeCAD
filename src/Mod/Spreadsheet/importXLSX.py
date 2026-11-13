@@ -757,6 +757,10 @@ def handleWorkBookRels(theBookRels):
     return idTarget
 
 
+# The cell of a defined name, an absolute reference like $B$3
+definedCellPattern = re.compile(r"\$([A-Z]{1,3})\$([0-9]+)")
+
+
 def handleWorkBook(theBook, theBookRels, sheetDict, Doc):
     theSheets = theBook.getElementsByTagName("sheet")
     theIdTargetMap = handleWorkBookRels(theBookRels)
@@ -779,19 +783,23 @@ def handleWorkBook(theBook, theBookRels, sheetDict, Doc):
         aliasName = getText(nameRef.childNodes)
         # print("aliasName: ", aliasName)
 
-        aliasRef = getText(theAlias.childNodes)  # aliasRef can be None
-        if aliasRef and "$" in aliasRef:
-            refList = aliasRef.split("!$")
-            addressList = refList[1].split("$")
-            # print("aliasRef: ", aliasRef)
-            # print('Sheet Name: ', refList[0])
-            # print('Address: ', addressList[0] + addressList[1])
-            sheetName = refList[0]
-            if len(sheetName) > 1 and sheetName[0] == "'" and sheetName[-1] == "'":
-                # Quoted sheet name, like '2024' or 'My sheet'
-                sheetName = sheetName[1:-1].replace("''", "'")
-            actSheet, sheetFile = sheetDict[sheetName]
-            actSheet.setAlias(addressList[0] + addressList[1], aliasName)
+        aliasRef = getText(theAlias.childNodes)
+        # Only a name of one cell of a worksheet of the file, like Data!$B$3, is an alias;
+        # names of ranges, rows or columns (like the print area), constants, formulas and
+        # references to other workbooks are skipped
+        sheetName, _, address = aliasRef.rpartition("!")
+        match = definedCellPattern.fullmatch(address)
+        if len(sheetName) > 1 and sheetName[0] == "'" and sheetName[-1] == "'":
+            # Quoted sheet name, like '2024' or 'My sheet'
+            sheetName = sheetName[1:-1].replace("''", "'")
+        if not match or sheetName not in sheetDict:
+            continue
+        actSheet, sheetFile = sheetDict[sheetName]
+        try:
+            actSheet.setAlias(match.group(1) + match.group(2), aliasName)
+        except ValueError as e:
+            # Excel names that are not valid aliases, like "my.name" or "mm"
+            print(f"Cannot set alias {aliasName} of cell {aliasRef}: {e}")
 
 
 def handleStrings(theStr, sList):
