@@ -26,7 +26,6 @@
 #include <App/DocumentObjectGroup.h>
 #include <App/GroupExtension.h>
 #include <App/GeoFeatureGroupExtension.h>
-#include <App/PropertyStandard.h>
 #include <App/PropertyLinks.h>
 #include <Base/Exception.h>
 #include <Gui/Application.h>
@@ -150,33 +149,6 @@ App::DocumentObject* simulationAssembly(const App::DocumentObject* owner)
     auto* parent = App::GeoFeatureGroupExtension::getGroupOfObject(owner);
     return dynamic_cast<Assembly::AssemblyObject*>(parent);
 }
-
-void invalidateStudies(Assembly::SimulationGroup* group)
-{
-    if (!group) {
-        return;
-    }
-    for (auto* child : group->Group.getValues()) {
-        auto* status = child
-            ? dynamic_cast<App::PropertyString*>(child->getPropertyByName("Status"))
-            : nullptr;
-        auto* data = child
-            ? dynamic_cast<App::PropertyString*>(child->getPropertyByName("ResultData"))
-            : nullptr;
-        if (!status || !data) {
-            continue;
-        }
-        data->setValue("");
-        status->setValue("NotRun");
-        if (auto* error = dynamic_cast<App::PropertyString*>(
-                child->getPropertyByName("LastError")
-            )) {
-            error->setValue("");
-        }
-        child->purgeTouched();
-    }
-    group->purgeTouched();
-}
 }  // namespace
 
 bool ViewProviderSimulationGroup::canDragObject(App::DocumentObject* obj) const
@@ -198,9 +170,11 @@ bool ViewProviderSimulationGroup::canDragAndDropObject(App::DocumentObject* obj)
 
 void ViewProviderSimulationGroup::dragObject(App::DocumentObject* obj)
 {
+    // SimulationGroup::onChanged invalidates the studies when its global inputs
+    // change; like the Python input factories, keep the group out of recompute.
     if (auto* group = getObject<Assembly::SimulationGroup>()) {
-        invalidateStudies(group);
         group->removeObject(obj);
+        group->purgeTouched();
     }
 }
 
@@ -212,7 +186,7 @@ void ViewProviderSimulationGroup::dropObject(App::DocumentObject* obj)
     }
     if (auto* group = getObject<Assembly::SimulationGroup>()) {
         group->addObject(obj);
-        invalidateStudies(group);
+        group->purgeTouched();
     }
 }
 
