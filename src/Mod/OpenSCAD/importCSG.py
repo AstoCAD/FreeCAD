@@ -879,8 +879,10 @@ def processSVG(fname, ext):
 
     # pathName is a Global
     filename = os.path.join(pathName,fname+'.'+ext)
-    # Use the native Python open which was saved as `pyopen`
-    parser.parse(pyopen(filename))
+    # Use the native Python open which was saved as `pyopen`. Binary mode:
+    # the XML parser takes the encoding from the file itself.
+    with pyopen(filename, 'rb') as svgfile:
+        parser.parse(svgfile)
 
     #combine SVG objects into one
     shapes = []
