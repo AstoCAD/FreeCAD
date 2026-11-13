@@ -2768,21 +2768,41 @@ bool Link::isLinkGroup() const
     return ElementCount.getValue() > 0;
 }
 
+namespace
+{
+// The object named by the instance label of a link. A copy-on-change link that has made its
+// private copy links to that copy, which is kept in a hidden group and replaced whenever it is
+// synced; the label names the source of the copy, as before the copy and for the other links
+// to it.
+App::DocumentObject* getLabelTarget(const App::Link& link)
+{
+    if (link.isLinkMutated()) {
+        if (auto source = link.LinkCopyOnChangeSource.getValue()) {
+            return source->getLinkedObject();
+        }
+    }
+    return link.getLinkedObject();
+}
+}  // namespace
+
 void Link::onChanged(const Property* prop)
 {
-    if (prop == &LinkedObject && !isRestoring()) {
-        updateLabelUtility(this, getLinkedObject());
-    }
     inherited::onChanged(prop);
+    // After the link extension has handled the change, which makes the new linked object the
+    // copy-on-change source unless it is the link's own copy
+    if (prop == &LinkedObject && !isRestoring()) {
+        updateLabelUtility(this, getLabelTarget(*this));
+    }
 }
 
 void Link::onParentLabelChanged(App::DocumentObject* parent)
 {
-    if (getLinkedObject() != parent) {
+    auto target = getLabelTarget(*this);
+    if (target != parent) {
         return;
     }
 
-    updateLabelUtility(this, getLinkedObject());
+    updateLabelUtility(this, target);
 }
 
 void Link::onDocumentRestored()
@@ -2790,7 +2810,7 @@ void Link::onDocumentRestored()
     LINK_PROPS_SET(LINK_PARAMS_LINK);
     inherited::onDocumentRestored();
 
-    migrateLabelUtility(this, getLinkedObject());
+    migrateLabelUtility(this, getLabelTarget(*this));
 }
 
 namespace

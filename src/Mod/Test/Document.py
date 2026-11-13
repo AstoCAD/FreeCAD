@@ -1481,6 +1481,46 @@ class DocumentLinkLabelCases(unittest.TestCase):
         self.assertEqual(child.Label, "Renamed")
         self.assertEqual(link.Label, "Renamed <1>")
 
+    def testCopyOnChangeLinkLabelNamesSource(self):
+        # A copy-on-change link that made its private copy links to that copy, which is
+        # replaced whenever it is synced. The label keeps naming the source and follows its
+        # relabels ("Src001 <1>", then "Src002 <1>", and the relabel was ignored).
+        src = self.Doc.addObject("App::FeaturePython", "Src")
+        src.addProperty("App::PropertyFloat", "Size")
+        src.addProperty("App::PropertyFloat", "Other")
+        src.setPropertyStatus("Size", "CopyOnChange")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(src)
+        link.LinkCopyOnChange = "Tracking"
+        self.Doc.recompute()
+        self.assertEqual(link.Label, "Src <1>")
+        link.Size = 5
+        self.Doc.recompute()
+        copy = link.LinkedObject
+        self.assertNotEqual(copy, src)
+        self.assertEqual(link.LinkCopyOnChangeSource, src)
+        self.assertEqual(link.Label, "Src <1>")
+        src.Other = 2
+        self.Doc.recompute()
+        self.assertNotIn(link.LinkedObject, (src, copy))
+        self.assertEqual(link.Label, "Src <1>")
+        src.Label = "Renamed"
+        self.assertEqual(link.Label, "Renamed <1>")
+
+    def testCopyOnChangeLinkLabelFollowsNewLinkedObject(self):
+        # Linking a copy-on-change link to another object makes it the source
+        src = self.Doc.addObject("App::FeaturePython", "Src")
+        src.addProperty("App::PropertyFloat", "Size")
+        src.setPropertyStatus("Size", "CopyOnChange")
+        other = self.Doc.addObject("App::FeatureTest", "Other")
+        link = self.Doc.addObject("App::Link", "Link")
+        link.setLink(src)
+        link.LinkCopyOnChange = "Enabled"
+        self.Doc.recompute()
+        link.LinkedObject = other
+        self.assertEqual(link.LinkCopyOnChangeSource, other)
+        self.assertEqual(link.Label, "Other <1>")
+
     def testRestoreMigratedLabelKeepsLabelReferences(self):
         # A link label that is not "<linked label> <instance>" (custom label, or a file
         # from FreeCAD) is migrated when the document is restored. The expressions that
