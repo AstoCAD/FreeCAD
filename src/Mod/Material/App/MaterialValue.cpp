@@ -300,12 +300,24 @@ QString MaterialValue::getYAMLStringImageList() const
 
 QString MaterialValue::getYAMLStringMultiLine() const
 {
+    // A literal block keeps every line, empty ones included. Its chomping indicator tells how
+    // the value ends: "-" without a line break, none with one, "+" with more (or only breaks).
+    // YAML reads any line break as "\n".
+    auto lines =
+        getValue().toString().split(QRegularExpression(QStringLiteral("\r\n|\r|\n")));
     QString yaml;
-    yaml = QStringLiteral(" |2");
-    auto list =
-        getValue().toString().split(QRegularExpression(QStringLiteral("[\r\n]")), Qt::SkipEmptyParts);
-    for (auto& it : list) {
-        yaml += QStringLiteral("\n      ") + it;
+    if (lines.size() > 1 && lines.last().isEmpty()) {
+        lines.removeLast();
+        yaml = lines.last().isEmpty() ? QStringLiteral(" |+2") : QStringLiteral(" |2");
+    }
+    else {
+        yaml = QStringLiteral(" |-2");
+    }
+    for (const auto& line : lines) {
+        yaml += QStringLiteral("\n");
+        if (!line.isEmpty()) {
+            yaml += QStringLiteral("      ") + line;
+        }
     }
     return yaml;
 }

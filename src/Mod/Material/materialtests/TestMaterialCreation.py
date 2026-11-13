@@ -377,6 +377,29 @@ class MaterialSaveTestCases(unittest.TestCase):
         self.assertEqual(saved.getPhysicalValue("TestString"), "one\ntwo")
         self.assertEqual(saved.getPhysicalValue("TestList"), ["a\nb", "c"])
 
+    def testSaveMultiLineStringsWithEmptyLines(self):
+        """Multi-line strings are read back with their empty lines and final line breaks"""
+        uuids = Materials.UUIDs()
+        values = (
+            ("first\n\n  indented\n\nlast", "first\n\n  indented\n\nlast"),
+            ("<svg>\n\n  <g/>\n</svg>\n", "<svg>\n\n  <g/>\n</svg>\n"),
+            ("\nends with empty lines\n\n", "\nends with empty lines\n\n"),
+            ("crlf\r\n\r\nlines", "crlf\n\nlines"),
+        )
+        for index, (value, expected) in enumerate(values):
+            with self.subTest(value=value):
+                material = Materials.Material()
+                material.addPhysicalModel(uuids.TestModel)
+                material.setPhysicalValue("TestMultiLineString", value)
+                material.setPhysicalValue("TestSVG", value)
+                path = "MultiLine{}.FCMat".format(index)
+                self.MaterialManager.save("Custom", material, path)
+                self.MaterialManager.refresh()
+
+                saved = self.MaterialManager.getMaterialByPath(path, "Custom")
+                self.assertEqual(saved.getPhysicalValue("TestMultiLineString"), expected)
+                self.assertEqual(saved.getPhysicalValue("TestSVG"), expected)
+
     def testSaveIntoReadOnlyLibraryRaises(self):
         """A read-only library (as the System one) does not accept saves"""
         with self.assertRaises(FreeCAD.Base.FreeCADError):
