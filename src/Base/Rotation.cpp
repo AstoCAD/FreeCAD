@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <algorithm>
 #include <limits>
 
 #include <boost/algorithm/string/predicate.hpp>
@@ -286,6 +287,12 @@ void Rotation::setValue(const Vector3d& rotateFrom, const Vector3d& rotateTo)
     // (0,u,v)
     const double dot = u * v;
     Vector3d w = u % v;
+    if (dot < 0.0) {
+        // For nearly opposite vectors u % v is dominated by rounding errors, so its direction can
+        // be far from perpendicular to u and v. u % (u + v) is the same vector, but u + v is
+        // computed (nearly) exactly, so the axis stays accurate.
+        w = u % (u + v);
+    }
     const double wlen = w.Length();
 
     if (wlen == 0.0) {  // Parallel vectors
@@ -306,7 +313,9 @@ void Rotation::setValue(const Vector3d& rotateFrom, const Vector3d& rotateTo)
         // Note: A quaternion is not well-defined by specifying a point and its transformed point.
         // Every quaternion with a rotation axis having the same angle to the vectors of both points
         // is okay.
-        double angle = acos(dot);
+        // Rounding can put the dot product of nearly (anti-)parallel unit vectors just outside
+        // [-1, 1], where acos() is not defined.
+        double angle = acos(std::clamp(dot, -1.0, 1.0));
         this->setValue(w, angle);
     }
 }
