@@ -466,6 +466,46 @@ class TestSketchGroups(unittest.TestCase):
         self.assertGreater(s.GeometryCount, count)
         self.assertTrue(self.textLabel().startswith("'NEW', "), self.textLabel())
 
+    def testEditedTextKeepsItsConstraint(self):
+        # Replacing the glyphs of a Text replaced the constraint by a new one at the end of the
+        # list: its name, virtual space, active state and label placement were lost.
+        s = self.sketch
+        text = self.textWithoutGlyphs()
+        s.setTextAndFont(text, "AB", self.font, True, False)
+        line = s.addGeometry(Part.LineSegment(App.Vector(0, 20, 0), App.Vector(10, 25, 0)))
+        length = s.addConstraint(Sketcher.Constraint("Distance", line, 12.0))
+        s.renameConstraint(length, "Length")
+        s.addProperty("App::PropertyLength", "TextLength")
+        s.TextLength = 14
+        s.setExpression(".Constraints.Length", "TextLength")
+        s.renameConstraint(text, "Title")
+        s.setVirtualSpace(text, True)
+        s.setActive(text, False)
+        s.setLabelDistance(text, 7.5)
+        s.setLabelPosition(text, 3.25)
+        self.doc.recompute()
+
+        def state():
+            c = s.Constraints[text]
+            return (c.Type, c.Name, s.getVirtualSpace(text), c.IsActive, c.LabelDistance,
+                    c.LabelPosition, s.Constraints[length].Name, s.ExpressionEngine)
+
+        before = state()
+        count = s.GeometryCount
+        self.doc.openTransaction("Edit text")
+        s.setTextAndFont(text, "CDE", self.font, True, False)
+        self.doc.commitTransaction()
+        self.assertEqual(state(), before)
+        self.assertGreater(s.GeometryCount, count)
+        self.assertTrue(self.textLabel().startswith("'CDE', "), self.textLabel())
+        self.assertValidIndices()
+        self.doc.recompute()
+        self.assertAlmostEqual(s.Constraints[length].Value, 14)
+
+        self.doc.undo()
+        self.assertEqual((state(), s.GeometryCount), (before, count))
+        self.assertTrue(self.textLabel().startswith("'AB', "), self.textLabel())
+
 
 if __name__ == "__main__":
     unittest.main()
