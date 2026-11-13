@@ -149,6 +149,34 @@ class TestBodyBulkRemoval(unittest.TestCase):
         with self.subTest(stage="redone"):
             self.assertConsistent(source, features)
 
+    def testBulkMoveLeavingUnrelatedObjects(self):
+        # An unused datum is not a dependency of the moved feature and stays in the
+        # source Body, which must not keep the moved feature as its Tip.
+        source, features = self.makeBody("Source", 1)
+        plane = source.newObject("PartDesign::Plane", "Plane")
+        target, _ = self.makeBody("Target", 0)
+        self.doc.recompute()
+        self.assertEqual(source.Group, features + [plane])
+        self.assertEqual(source.Tip, features[0])
+        self.doc.openTransaction("Move feature")
+        removed = source.removeObjects(features)
+        target.addObjects(removed)
+        self.doc.recompute()
+        self.doc.commitTransaction()
+        self.assertEqual(removed, features)
+        self.assertEqual(source.Group, [plane])
+        self.assertEqual(target.Tip, features[0])
+        self.assertIsNone(source.Tip)
+        self.assertConsistent(source, features)
+        self.doc.undo()
+        self.doc.recompute()
+        self.assertEqual(source.Group, features + [plane])
+        self.assertEqual(source.Tip, features[0])
+        self.doc.redo()
+        self.doc.recompute()
+        self.assertEqual(source.Group, [plane])
+        self.assertIsNone(source.Tip)
+
     def testOrdinaryGroupBulkRemovalControl(self):
         group = self.doc.addObject("App::DocumentObjectGroup", "Group")
         objects = [self.doc.addObject("App::FeaturePython", "Item%d" % index)
