@@ -480,11 +480,13 @@ def p_resize_action(p):
     resize_action : resize LPAREN keywordargument_list RPAREN OBRACE block_list EBRACE '''
     new_size = [float(s) for s in p[3]['newsize']]
     auto     = [a == '1' for a in p[3]['auto']]
-    p[6][0].recompute()
-    if p[6][0].Shape.isNull():
+    # Like OpenSCAD, resize the union of all children, sized by its bounding box
+    part = fuse(p[6], "Resize Union")
+    part.recompute()
+    if part.Shape.isNull():
         doc.recompute()
-    p[6][0].Shape.tessellate(0.05)
-    old_bbox = p[6][0].Shape.BoundBox
+    part.Shape.tessellate(0.05)
+    old_bbox = part.Shape.BoundBox
     old_size = [old_bbox.XLength, old_bbox.YLength, old_bbox.ZLength]
 
     # Same rules as OpenSCAD: a zero size keeps that dimension unchanged
@@ -504,7 +506,7 @@ def p_resize_action(p):
     transform_matrix.scale(FreeCAD.Vector(*scale))
 
     new_part=doc.addObject("Part::FeaturePython",'Matrix Deformation')
-    new_part.Shape = p[6][0].Shape.transformGeometry(transform_matrix)
+    new_part.Shape = part.Shape.transformGeometry(transform_matrix)
     if gui:
         if FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/OpenSCAD").\
             GetBool('useViewProviderTree'):
@@ -512,7 +514,7 @@ def p_resize_action(p):
             ViewProviderTree(new_part.ViewObject)
         else:
             new_part.ViewObject.Proxy = 0
-        p[6][0].ViewObject.hide()
+        part.ViewObject.hide()
     p[0] = [new_part]
 
 

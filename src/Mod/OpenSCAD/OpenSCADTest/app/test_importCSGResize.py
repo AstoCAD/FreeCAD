@@ -74,6 +74,17 @@ class TestCsgResize(unittest.TestCase):
         self._assertSize(shape, (20, 10, 0))
         self.assertAlmostEqual(shape.Area, 200.0, places=6)
 
+    def test_resize_several_children(self):
+        """All children are resized together, by the size of their union."""
+        moved_cube = (
+            "multmatrix([[1, 0, 0, 20], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]) {\n %s\n}" % CUBE
+        )
+        shape = self._resize((60, 0, 0), (0, 0, 0), CUBE + "\n " + moved_cube)
+        # the union spans x = 0..30: both cubes are scaled by 2 along X
+        self._assertSize(shape, (60, 5, 2))
+        self.assertEqual(len(shape.Solids), 2)
+        self.assertAlmostEqual(shape.Volume, 400.0, places=6)
+
 
 if __name__ == "__main__":
     unittest.main()
