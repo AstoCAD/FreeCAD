@@ -402,7 +402,16 @@ def insert_point_face_target(
         for side_index, side in enumerate(sides):
             if existing_vertex is not None and existing_vertex in side[1:-1]:
                 matches.append(side_index)
-            elif existing_vertex is None and edge[0] in side and edge[1] in side:
+            elif (
+                existing_vertex is None
+                and edge[0] in side
+                and edge[1] in side
+                # The point is the vertex that splits the side at half its
+                # knot interval. On a side with T-vertices that can be an
+                # existing control or lie on another edge of the side; the
+                # point would move it instead of splitting the selected edge.
+                and (len(side) == 2 or topology.side_midpoint_edge(side) == edge)
+            ):
                 matches.append(side_index)
         return matches
 
