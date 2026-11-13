@@ -117,7 +117,7 @@ string ProjectionAlgos::getSVG(ExtractionType type,
         H_style.insert({"stroke-width", "0.15"});
         H_style.insert({"stroke-linecap", "butt"});
         H_style.insert({"stroke-linejoin", "miter"});
-        H_style.insert({"stroke-dasharray", "0.2, 0.1)"});
+        H_style.insert({"stroke-dasharray", "0.2, 0.1"});
         H_style.insert({"fill", "none"});
         H_style.insert({"transform", "scale(1, -1)"});
         BRepMesh_IncrementalMesh(H, tolerance);
@@ -134,7 +134,7 @@ string ProjectionAlgos::getSVG(ExtractionType type,
         H0_style.insert({"stroke-width", "0.15"});
         H0_style.insert({"stroke-linecap", "butt"});
         H0_style.insert({"stroke-linejoin", "miter"});
-        H0_style.insert({"stroke-dasharray", "0.02, 0.1)"});
+        H0_style.insert({"stroke-dasharray", "0.02, 0.1"});
         H0_style.insert({"fill", "none"});
         H0_style.insert({"transform", "scale(1, -1)"});
         BRepMesh_IncrementalMesh(HO, tolerance);
@@ -199,7 +199,7 @@ string ProjectionAlgos::getSVG(ExtractionType type,
         H1_style.insert({"stroke-width", "0.15"});
         H1_style.insert({"stroke-linecap", "butt"});
         H1_style.insert({"stroke-linejoin", "miter"});
-        H1_style.insert({"stroke-dasharray", "0.09, 0.05)"});
+        H1_style.insert({"stroke-dasharray", "0.09, 0.05"});
         H1_style.insert({"fill", "none"});
         H1_style.insert({"transform", "scale(1, -1)"});
         BRepMesh_IncrementalMesh(H1, tolerance);
