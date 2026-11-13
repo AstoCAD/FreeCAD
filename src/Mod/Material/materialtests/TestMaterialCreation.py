@@ -264,6 +264,40 @@ class MaterialSaveTestCases(unittest.TestCase):
         self.MaterialManager.save("Custom", Materials.Material(), "/Custom/Prefixed.FCMat")
         self.assertTrue(os.path.isfile(os.path.join(self.libDir, "Prefixed.FCMat")))
 
+    def testSaveQuantitiesWithFullPrecision(self):
+        """Saved quantities read back unrounded, whatever the unit schema"""
+        uuids = Materials.UUIDs()
+        schema = FreeCAD.Units.getSchema()
+        self.addCleanup(FreeCAD.Units.setSchema, schema)
+        for name in ("Internal", "Imperial"):
+            with self.subTest(schema=name):
+                material = Materials.Material()
+                material.addPhysicalModel(uuids.Density)
+                material.addPhysicalModel(uuids.TestModel)
+                material.setPhysicalValue("Density", "7850.123456789 kg/m^3")
+                material.setPhysicalValue("TestQuantity", "7850 kg/m^3")
+                array = Materials.Array2D()
+                array.Columns = 2
+                array.Rows = 1
+                array.setValue(0, 0, "293.123456789 K")
+                array.setValue(0, 1, "7850.123456789 kg/m^3")
+                material.setValue("TestArray2D", array)
+
+                FreeCAD.Units.setSchema(FreeCAD.Units.listSchemas().index(name))
+                self.MaterialManager.save("Custom", material, name + ".FCMat")
+                self.MaterialManager.refresh()
+                saved = self.MaterialManager.getMaterialByPath(name + ".FCMat", "Custom")
+
+                density = saved.getPhysicalValue("Density").getValueAs("kg/m^3").Value
+                self.assertAlmostEqual(density, 7850.123456789, places=9)
+                quantity = saved.getPhysicalValue("TestQuantity").getValueAs("kg/m^3").Value
+                self.assertAlmostEqual(quantity, 7850.0, places=9)
+                savedArray = saved.getPhysicalValue("TestArray2D")
+                temperature = savedArray.getValue(0, 0).getValueAs("K").Value
+                self.assertAlmostEqual(temperature, 293.123456789, places=9)
+                density = savedArray.getValue(0, 1).getValueAs("kg/m^3").Value
+                self.assertAlmostEqual(density, 7850.123456789, places=9)
+
     def testSaveChildOfParentWithSpecialName(self):
         """A card inheriting from a card named with YAML special characters can be read back"""
         uuids = Materials.UUIDs()
