@@ -1067,3 +1067,35 @@ class TestMeshGroups(unittest.TestCase):
         self.assertEqual(topology.find("DataItem").text.split(), ["0", "1", "2", "3"])
         values = grid.find("Attribute/DataItem").text.split()
         self.assertEqual(values, ["1", "1", "0", "0"])
+
+    def test_group_python_export_any_name(self):
+        """
+        The Python mesh export writes group names with any character (non-ASCII, quotes)
+        as a Python file that reads back, whatever the locale encoding
+        """
+        from feminout import importPyMesh
+
+        mesh = Fem.FemMesh()
+        for i, (x, y, z) in enumerate([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]):
+            mesh.addNode(x, y, z, i + 1)
+        mesh.addVolume([1, 2, 3, 4], 1)
+        names = ["Pièce Ωμέγα 日本", "Bolt's face"]
+        for name, nodes in zip(names, [[1, 2], [3, 4]]):
+            mesh.addGroupElements(mesh.addGroup(name, "Node"), nodes)
+
+        testfile = join(testtools.get_fem_test_tmp_dir("mesh_groups_meshpy"), "groups.meshpy")
+        importPyMesh.write(mesh, testfile)
+
+        with open(testfile, encoding="utf-8") as f:
+            source = f.read()
+        namespace = {}
+        exec(source, namespace)
+        new_mesh = Fem.FemMesh()
+        namespace["create_nodes"](new_mesh)
+        namespace["create_elements"](new_mesh)
+
+        self.assertEqual(new_mesh.VolumeCount, 1)
+        self.assertEqual([new_mesh.getGroupName(g) for g in new_mesh.Groups], names)
+        self.assertEqual(
+            [list(new_mesh.getGroupElements(g)) for g in new_mesh.Groups], [[1, 2], [3, 4]]
+        )
