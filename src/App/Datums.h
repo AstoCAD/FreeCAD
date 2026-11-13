@@ -250,6 +250,7 @@ private:
     SetupData getData(const char* role);
 
     void migrateOriginPoint();
+    void replaceForeignDatums();
 };
 
 }  // namespace App

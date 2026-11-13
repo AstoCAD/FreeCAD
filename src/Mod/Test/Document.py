@@ -499,6 +499,62 @@ class DocumentBasicCases(unittest.TestCase):
         self.assertRaises(RuntimeError, lcs.getX)
         self.assertEqual(lcs.getY().Name, byRole["Y_Axis"].Name)
 
+    def testCopiedLocalCoordinateSystemOwnsItsElements(self):
+        lcs = self.Doc.addObject("App::LocalCoordinateSystem", "LCS")
+        roles = sorted(obj.Role for obj in lcs.OriginFeatures)
+        elements = {obj.Name for obj in lcs.OriginFeatures}
+
+        # Copied without its axes, planes and point: the copy gets its own
+        copy = self.Doc.copyObject(lcs)
+        self.assertEqual(sorted(obj.Role for obj in copy.OriginFeatures), roles)
+        self.assertFalse(elements & {obj.Name for obj in copy.OriginFeatures})
+
+        # Deleting the copy leaves the source complete
+        self.Doc.removeObject(copy.Name)
+        self.assertEqual({obj.Name for obj in lcs.OriginFeatures}, elements)
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", lcs.State)
+
+        # Copied with its elements: nothing more is created
+        count = len(self.Doc.Objects)
+        copy = self.Doc.copyObject(lcs, True)
+        self.assertEqual(len(self.Doc.Objects), count + 1 + len(roles))
+        self.assertFalse(elements & {obj.Name for obj in copy.OriginFeatures})
+
+    def testLocalCoordinateSystemCopiedToAnotherDocumentOwnsItsElements(self):
+        lcs = self.Doc.addObject("App::LocalCoordinateSystem", "LCS")
+        roles = sorted(obj.Role for obj in lcs.OriginFeatures)
+        doc = FreeCAD.newDocument("CopyTarget")
+        try:
+            # Copied without its elements to a document without objects of the same names:
+            # the copy gets a complete set of its own
+            copy = doc.copyObject(lcs)
+            self.assertEqual(sorted(obj.Role for obj in copy.OriginFeatures), roles)
+            self.assertTrue(all(obj.Document is doc for obj in copy.OriginFeatures))
+            doc.recompute()
+            self.assertNotIn("Invalid", copy.State)
+            doc.removeObject(copy.Name)
+
+            # Copied to a document where other objects have the names of its elements (the
+            # origin of a Part is named "Origin" like the origin point): it does not take them
+            part = doc.addObject("App::Part", "Part")
+            origin = part.Origin
+            partElements = {obj.Name for obj in origin.OriginFeatures}
+            copy = doc.copyObject(lcs)
+            features = copy.OriginFeatures
+            self.assertTrue(all(obj.isDerivedFrom("App::DatumElement") for obj in features))
+            self.assertEqual(sorted(obj.Role for obj in features), roles)
+            self.assertFalse(partElements & {obj.Name for obj in features})
+
+            # Deleting the copy leaves the Part and its origin complete
+            doc.removeObject(copy.Name)
+            self.assertIs(part.Origin, origin)
+            self.assertEqual({obj.Name for obj in origin.OriginFeatures}, partElements)
+            doc.recompute()
+            self.assertNotIn("Invalid", origin.State)
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
     def testExtensions(self):
         # we try to create a normal python object and add an extension to it
         obj = self.Doc.addObject("App::DocumentObject", "Extension_1")

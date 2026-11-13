@@ -21,6 +21,7 @@
  *                                                                            *
  ******************************************************************************/
 
+#include <algorithm>
 #include <string>
 
 #include <App/Application.h>
@@ -347,8 +348,57 @@ void LocalCoordinateSystem::onDocumentRestored()
 {
     GeoFeature::onDocumentRestored();
 
+    if (getDocument()->testStatus(Document::Importing)) {
+        replaceForeignDatums();
+    }
+
     // In 0.22 origins did not have point.
     migrateOriginPoint();
+}
+
+void LocalCoordinateSystem::replaceForeignDatums()
+{
+    // A coordinate system imported without its elements, e.g. copied without its dependencies,
+    // does not link elements of its own: an element name that was not imported resolves to the
+    // object of that name in the document, i.e. in the same document the element of its source,
+    // in another one any object of that name (another origin, an element of another coordinate
+    // system, a user object), or to nothing. The elements are deleted with the coordinate system
+    // (see unsetupObject()), so it only keeps those imported along with it and gets new ones for
+    // the others.
+    std::vector<App::DocumentObject*> features;
+    bool changed = false;
+    for (auto feature : OriginFeatures.getValues()) {
+        if (feature && feature->testStatus(ObjImporting)
+            && feature->isDerivedFrom<App::DatumElement>()) {
+            features.push_back(feature);
+            continue;
+        }
+        changed = true;
+        if (feature && feature->isDerivedFrom<App::DatumElement>()) {
+            const auto data = getData(static_cast<App::DatumElement*>(feature)->Role.getValue());
+            if (data.role) {
+                features.push_back(createDatum(data));
+            }
+        }
+    }
+    // Links to objects missing in the document are dropped when OriginFeatures is restored. A
+    // missing origin point is added by migrateOriginPoint(), as for files written before
+    // coordinate systems had one.
+    for (const auto& data : getSetupData()) {
+        if (strcmp(data.role, PointRoles[0]) == 0) {
+            continue;
+        }
+        const bool found = std::ranges::any_of(features, [&data](App::DocumentObject* obj) {
+            return strcmp(static_cast<App::DatumElement*>(obj)->Role.getValue(), data.role) == 0;
+        });
+        if (!found) {
+            features.push_back(createDatum(data));
+            changed = true;
+        }
+    }
+    if (changed) {
+        OriginFeatures.setValues(features);
+    }
 }
 
 void LocalCoordinateSystem::migrateOriginPoint()
