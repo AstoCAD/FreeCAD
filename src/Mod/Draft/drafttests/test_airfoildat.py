@@ -35,6 +35,9 @@
 # @{
 
 import os
+import shutil
+import tempfile
+from unittest import mock
 
 import FreeCAD as App
 import Draft
@@ -72,6 +75,51 @@ class DraftAirfoilDAT(test_base.DraftTestCaseDoc):
 
         obj = aux.fake_function(out_file)
         self.assertTrue(obj, "'{}' failed".format(operation))
+
+
+class DraftAirfoilDATEncoding(test_base.DraftTestCaseDoc):
+    """Test reading airfoil DAT files whose name line is not ASCII."""
+
+    NAME = "Profil_Größe"
+    COORDS = "1.0 0.0\n0.5 0.08\n0.0 0.0\n0.5 -0.04\n1.0 0.0\n"
+
+    def setUp(self):
+        super().setUp()
+        self.tmpdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmpdir, True)
+
+    def _read(self, encoding):
+        """Write the airfoil in `encoding`, import it and check the result."""
+        import importAirfoilDAT
+
+        path = os.path.join(self.tmpdir, "airfoil.dat")
+        with open(path, "wb") as f:
+            f.write((self.NAME + "\n" + self.COORDS).encode(encoding))
+
+        wire = importAirfoilDAT.process(path)
+        self.assertIsNotNone(wire)
+        self.doc.recompute()
+        self.assertEqual(len(wire.Shape.Vertexes), 4)
+        self.assertTrue(wire.Points[1].isEqual(App.Vector(0.5, 0.08, 0), 1e-9))
+        self.assertTrue(wire.Points[3].isEqual(App.Vector(0.5, -0.04, 0), 1e-9))
+
+        # The Part::Feature variant names the object after the name line
+        with mock.patch.object(importAirfoilDAT, "useDraftWire", False):
+            face = importAirfoilDAT.process(path)
+        self.assertIsNotNone(face)
+        self.assertEqual(face.Label, self.NAME)
+
+    def test_read_latin1_name(self):
+        """A Latin-1 name line is decoded, not an import error."""
+        self._read("latin-1")
+
+    def test_read_utf8_name(self):
+        """A UTF-8 name line is decoded."""
+        self._read("utf-8")
+
+    def test_read_utf8_bom_name(self):
+        """A UTF-8 byte order mark is not part of the name."""
+        self._read("utf-8-sig")
 
 
 ## @}
