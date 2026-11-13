@@ -520,4 +520,191 @@ TEST_F(UserParameters, parametersOfOlderDocumentsAreStillUserParameters)
     EXPECT_EQ(fresh->getContainer(), holder);
 }
 
+namespace
+{
+// An object with a length bound to the user parameter `name` of its document
+App::DocumentObject* addUser(App::Document* doc, const char* objName, const char* name)
+{
+    App::DocumentObject* user = doc->addObject("App::VarSet", objName);
+    App::Property* length = user->addDynamicProperty("App::PropertyDistance", "L", "Base");
+    user->setExpression(
+        App::ObjectIdentifier(*length),
+        UP::referenceTo(user, UP::findParameter(doc, name))
+    );
+    return user;
+}
+
+std::string boundTo(const App::DocumentObject* user)
+{
+    const auto expressions = user->ExpressionEngine.getExpressions();
+    return expressions.empty() ? std::string() : expressions.begin()->second->toString();
+}
+
+// What Copy exports for obj (the holder is a dependency), pasted into doc
+std::vector<App::DocumentObject*> copyTo(App::Document* doc, App::DocumentObject* obj)
+{
+    return doc->copyObject(
+        App::Document::getDependencyList({obj}, App::Document::DepSort),
+        false,
+        true
+    );
+}
+
+double valueOf(const App::Document* doc, const char* name)
+{
+    auto* prop = static_cast<App::PropertyFloat*>(UP::findParameter(doc, name));
+    return prop ? prop->getValue() : -1.0;
+}
+}  // namespace
+
+TEST_F(UserParameters, pastedInTheSameDocumentUsesItsParameters)
+{
+    UP::createParameter(other, "width", parse(other, "10 mm"));
+    UP::createParameter(other, "unused", parse(other, "3 mm"));
+    App::DocumentObject* user = addUser(doc(), "User", "width");
+    ASSERT_EQ(boundTo(user), "UserParameters.width");
+    const std::size_t parameters = UP::getParameters(doc()).size();
+
+    auto pasted = copyTo(doc(), user);
+    ASSERT_EQ(pasted.size(), 2U);  // a copy of the holder and of the user
+    EXPECT_TRUE(UP::pastedConflicts(pasted).empty());
+    UP::mergePasted(pasted);
+
+    ASSERT_EQ(pasted.size(), 1U);
+    EXPECT_NE(pasted.front(), user);
+    EXPECT_EQ(boundTo(pasted.front()), "UserParameters.width");
+    EXPECT_EQ(doc()->getObject("UserParameters001"), nullptr);
+    EXPECT_EQ(UP::getParameters(doc()).size(), parameters);
+    EXPECT_EQ(UP::findHolder(doc()), holder);
+
+    // Also when the value changed since the copy was made: it is the same parameter
+    static_cast<App::PropertyFloat*>(UP::findParameter(doc(), "width"))->setValue(12.0);
+    pasted = copyTo(doc(), user);
+    static_cast<App::PropertyFloat*>(holder->getPropertyByName("width"))->setValue(15.0);
+    UP::mergePasted(pasted);
+    EXPECT_EQ(boundTo(pasted.front()), "UserParameters.width");
+    EXPECT_DOUBLE_EQ(valueOf(doc(), "width"), 15.0);
+}
+
+TEST_F(UserParameters, pastedInADocumentWithoutParametersBringsTheUsedOnes)
+{
+    UP::createParameter(other, "width", parse(other, "10 mm"));
+    UP::createParameter(holder, "twice", parse(holder, "2 * width"));
+    UP::createParameter(other, "unused", parse(other, "3 mm"));
+    App::DocumentObject* user = addUser(doc(), "User", "twice");
+
+    const std::string name = App::GetApplication().getUniqueDocumentName("userparamspaste");
+    App::Document* fresh = App::GetApplication().newDocument(name.c_str(), "testUser");
+    auto pasted = copyTo(fresh, user);
+    EXPECT_TRUE(UP::pastedConflicts(pasted).empty());
+    UP::mergePasted(pasted);
+
+    ASSERT_EQ(pasted.size(), 1U);
+    App::DocumentObject* created = UP::findHolder(fresh);
+    ASSERT_NE(created, nullptr);
+    EXPECT_EQ(fresh->getObjects().size(), 2U);
+    EXPECT_EQ(boundTo(pasted.front()), "UserParameters.twice");
+    // `twice` is computed from `width`, which comes along; `unused` does not
+    EXPECT_EQ(UP::getParameters(fresh).size(), 2U);
+    EXPECT_NE(UP::findParameter(fresh, "width"), nullptr);
+    EXPECT_EQ(UP::findParameter(fresh, "unused"), nullptr);
+    fresh->recompute();
+    EXPECT_DOUBLE_EQ(valueOf(fresh, "twice"), 20.0);
+
+    App::GetApplication().closeDocument(name.c_str());
+}
+
+TEST_F(UserParameters, pastedInADocumentWithParametersAddsTheMissingOnes)
+{
+    UP::createParameter(other, "width", parse(other, "10 mm"));
+    UP::createParameter(holder, "twice", parse(holder, "2 * width"));
+    App::DocumentObject* user = addUser(doc(), "User", "twice");
+
+    const std::string name = App::GetApplication().getUniqueDocumentName("userparamspaste");
+    App::Document* fresh = App::GetApplication().newDocument(name.c_str(), "testUser");
+    App::DocumentObject* typed = fresh->addObject("App::VarSet", "Typed");
+    UP::createParameter(typed, "width", parse(typed, "10 mm"));
+    UP::createParameter(typed, "depth", parse(typed, "7 mm"));
+    App::DocumentObject* existing = UP::findHolder(fresh);
+
+    auto pasted = copyTo(fresh, user);
+    // Same name and value: it is used as it is
+    EXPECT_TRUE(UP::pastedConflicts(pasted).empty());
+    UP::mergePasted(pasted);
+
+    ASSERT_EQ(pasted.size(), 1U);
+    EXPECT_EQ(UP::findHolder(fresh), existing);
+    EXPECT_EQ(fresh->getObject("UserParameters001"), nullptr);
+    EXPECT_EQ(boundTo(pasted.front()), "UserParameters.twice");
+    EXPECT_EQ(UP::getParameters(fresh).size(), 3U);
+    App::Property* twice = UP::findParameter(fresh, "twice");
+    ASSERT_NE(twice, nullptr);
+    EXPECT_EQ(twice->getContainer(), existing);
+    // `twice` follows the width of this document
+    static_cast<App::PropertyFloat*>(UP::findParameter(fresh, "width"))->setValue(4.0);
+    fresh->recompute();
+    EXPECT_DOUBLE_EQ(valueOf(fresh, "twice"), 8.0);
+
+    App::GetApplication().closeDocument(name.c_str());
+}
+
+TEST_F(UserParameters, pastedParameterThatExistsWithAnotherValueIsAConflict)
+{
+    UP::createParameter(other, "width", parse(other, "10 mm"));
+    UP::createParameter(holder, "twice", parse(holder, "2 * width"));
+    App::DocumentObject* user = addUser(doc(), "User", "twice");
+
+    const std::string name = App::GetApplication().getUniqueDocumentName("userparamspaste");
+    App::Document* fresh = App::GetApplication().newDocument(name.c_str(), "testUser");
+    App::DocumentObject* typed = fresh->addObject("App::VarSet", "Typed");
+    UP::createParameter(typed, "width", parse(typed, "25 mm"));
+
+    // The values of the document
+    auto pasted = copyTo(fresh, user);
+    auto conflicts = UP::pastedConflicts(pasted);
+    ASSERT_EQ(conflicts.size(), 1U);
+    EXPECT_EQ(conflicts.front().name, "width");
+    EXPECT_NE(conflicts.front().existing, conflicts.front().pasted);
+    UP::mergePasted(pasted, UP::PastePolicy::UseExisting);
+    ASSERT_EQ(pasted.size(), 1U);
+    fresh->recompute();
+    EXPECT_DOUBLE_EQ(valueOf(fresh, "width"), 25.0);
+    EXPECT_DOUBLE_EQ(valueOf(fresh, "twice"), 50.0);
+    EXPECT_EQ(UP::getParameters(fresh).size(), 2U);
+    EXPECT_EQ(fresh->getObject("UserParameters001"), nullptr);
+
+    // The pasted values, under a new name
+    App::DocumentObject* direct = addUser(doc(), "Direct", "width");
+    pasted = copyTo(fresh, direct);
+    ASSERT_EQ(UP::pastedConflicts(pasted).size(), 1U);
+    UP::mergePasted(pasted, UP::PastePolicy::KeepPasted);
+    ASSERT_EQ(pasted.size(), 1U);
+    EXPECT_EQ(boundTo(pasted.front()), "UserParameters.width_2");
+    fresh->recompute();
+    EXPECT_DOUBLE_EQ(valueOf(fresh, "width"), 25.0);
+    EXPECT_DOUBLE_EQ(valueOf(fresh, "width_2"), 10.0);
+    EXPECT_EQ(fresh->getObject("UserParameters001"), nullptr);
+
+    App::GetApplication().closeDocument(name.c_str());
+}
+
+TEST_F(UserParameters, holderPastedAloneBringsAllItsParameters)
+{
+    UP::createParameter(other, "width", parse(other, "10 mm"));
+    UP::createParameter(other, "height", parse(other, "3 mm"));
+
+    const std::string name = App::GetApplication().getUniqueDocumentName("userparamspaste");
+    App::Document* fresh = App::GetApplication().newDocument(name.c_str(), "testUser");
+    App::DocumentObject* typed = fresh->addObject("App::VarSet", "Typed");
+    UP::createParameter(typed, "depth", parse(typed, "7 mm"));
+
+    auto pasted = fresh->copyObject({holder}, false, true);
+    UP::mergePasted(pasted);
+    EXPECT_TRUE(pasted.empty());
+    EXPECT_EQ(UP::getParameters(fresh).size(), 3U);
+    EXPECT_EQ(fresh->getObjects().size(), 2U);
+
+    App::GetApplication().closeDocument(name.c_str());
+}
+
 // NOLINTEND(readability-magic-numbers)

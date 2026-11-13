@@ -4,6 +4,9 @@
 
 #include "gtest/gtest.h"
 
+#include <algorithm>
+#include <memory>
+
 #include <src/App/InitApplication.h>
 
 #include <App/Application.h>
@@ -12,7 +15,12 @@
 #include <App/DocumentObjectGroup.h>
 #include <App/FeatureTest.h>
 #include <App/Origin.h>
+#include <App/Expression.h>
+#include <App/ExpressionParser.h>
+#include <App/ObjectIdentifier.h>
 #include <App/Part.h>
+#include <App/UserParameters.h>
+#include <App/VarSet.h>
 
 using App::CopyPasteRules;
 
@@ -142,6 +150,27 @@ TEST_F(CopyPasteRulesTest, pastedOnRootObjectStaysAtRoot)
     EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, other), nullptr);
     EXPECT_EQ(CopyPasteRules::placePastedObjects(pasted, nullptr), nullptr);
     EXPECT_FALSE(_group->hasObject(pasted.front()));
+}
+
+TEST_F(CopyPasteRulesTest, userParametersAreCopiedWithoutAsking)
+{
+    auto typed = _doc->addObject("App::VarSet", "Typed");
+    auto width = App::UserParameters::createParameter(
+        typed,
+        "width",
+        std::shared_ptr<App::Expression>(App::ExpressionParser::parse(typed, "10 mm"))
+    );
+    auto length = typed->addDynamicProperty("App::PropertyDistance", "L", "Base");
+    typed->setExpression(
+        App::ObjectIdentifier(*length),
+        App::UserParameters::referenceTo(typed, width)
+    );
+    auto holder = App::UserParameters::findHolder(_doc);
+    ASSERT_NE(holder, nullptr);
+    // The holder comes along: Paste merges it into the one of the target document
+    EXPECT_TRUE(CopyPasteRules::canCopyWithoutAsking({typed}));
+    auto objs = CopyPasteRules::getObjectsToCopy({typed});
+    EXPECT_NE(std::find(objs.begin(), objs.end(), holder), objs.end());
 }
 
 TEST_F(CopyPasteRulesTest, copyPastedOnItsSourceGoesBesideIt)

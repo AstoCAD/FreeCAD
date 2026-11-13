@@ -176,6 +176,49 @@ AppExport int qualifyReferences(
 /// wherever the short name refers to the same parameter.
 AppExport std::string toDisplayString(const DocumentObject* owner, const Expression& expr);
 
+/// A user parameter of pasted objects that the document already has with another value.
+struct PastedConflict
+{
+    std::string name;
+    /// The value in the document and the pasted one, as shown to the user.
+    std::string existing;
+    std::string pasted;
+};
+
+/// What mergePasted() does with a PastedConflict.
+enum class PastePolicy
+{
+    /// The pasted objects use the parameter of the document.
+    UseExisting,
+    /// The pasted parameter is added under a new name, which the pasted objects use.
+    KeepPasted
+};
+
+/**
+ * The user parameters that freshly pasted objects use and that the document already has with
+ * another type or value. Empty when the paste brought no copy of a holder, or when the document
+ * had no holder before.
+ */
+AppExport std::vector<PastedConflict> pastedConflicts(const std::vector<DocumentObject*>& pasted);
+
+/**
+ * Give freshly pasted objects the user parameters of the document.
+ *
+ * Objects that use user parameters are copied with the holder of their document, so a paste
+ * brings a copy of that holder. Its parameters that the pasted objects use are added to the
+ * holder of the document, the ones that the document already has are used as they are or added
+ * under a new name (@p policy), the expressions of the pasted objects are re-pointed and the
+ * copy is removed. When the document has no holder, the copy is its holder, with the used
+ * parameters only. A holder pasted alone brings all its parameters.
+ *
+ * The copy of the holder is taken out of @p pasted: it is removed, or it is the holder of the
+ * document, which stays at the root.
+ */
+AppExport void mergePasted(
+    std::vector<DocumentObject*>& pasted,
+    PastePolicy policy = PastePolicy::UseExisting
+);
+
 /// A user parameter that is going to be created, see PendingScope.
 struct PendingParameter
 {

@@ -40,6 +40,7 @@
 #include "OriginGroupExtension.h"
 #include "Part.h"
 #include "PropertyLinks.h"
+#include "UserParameters.h"
 
 using namespace App;
 
@@ -332,7 +333,9 @@ bool CopyPasteRules::canCopyWithoutAsking(const std::vector<DocumentObject*>& ob
     }
 
     for (auto dep : getObjectsToCopy(objs)) {
-        if (owned.count(dep) == 0 && !isOriginFeature(dep)) {
+        // The holder of the user parameters comes along: Paste gives the pasted objects the
+        // parameters of the target document (UserParameters::mergePasted()).
+        if (owned.count(dep) == 0 && !isOriginFeature(dep) && !UserParameters::isHolder(dep)) {
             return false;
         }
     }

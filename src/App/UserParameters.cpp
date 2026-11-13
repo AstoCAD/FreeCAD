@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstring>
+#include <set>
 
 #include <App/Document.h>
 #include <App/DocumentObject.h>
@@ -12,6 +14,8 @@
 #include <App/Expression.h>
 #include <App/ExpressionParser.h>
 #include <App/ObjectIdentifier.h>
+#include <App/PropertyExpressionEngine.h>
+#include <App/PropertyLinks.h>
 #include <App/PropertyStandard.h>
 #include <App/PropertyUnits.h>
 #include <App/Range.h>
@@ -700,5 +704,312 @@ std::string UserParameters::toDisplayString(const DocumentObject* owner, const E
     catch (const Base::Exception&) {
         // Display only: never fail where the plain text would have been shown.
         return expr.toString();
+    }
+}
+
+namespace
+{
+
+/// Import names a copy of the holder after it: `UserParameters` when the document has no object
+/// of that name, else `UserParameters001`...
+bool isHolderCopyName(const char* name)
+{
+    const std::size_t length = std::strlen(UserParameters::HolderName);
+    if (!name || std::strncmp(name, UserParameters::HolderName, length) != 0) {
+        return false;
+    }
+    const std::string suffix(name + length);
+    return std::all_of(suffix.begin(), suffix.end(), [](unsigned char c) {
+        return std::isdigit(c) != 0;
+    });
+}
+
+/// The copy of a holder among freshly pasted objects, or nullptr.
+DocumentObject* pastedHolder(const std::vector<DocumentObject*>& pasted)
+{
+    for (auto* obj : pasted) {
+        if (obj && obj->isAttachedToDocument() && obj->isDerivedFrom<VarSet>()
+            && isHolderCopyName(obj->getNameInDocument())) {
+            return obj;
+        }
+    }
+    return nullptr;
+}
+
+/// The holder that the document had before @p copy was pasted, or nullptr.
+DocumentObject* holderBeforePaste(const DocumentObject* copy)
+{
+    DocumentObject* existing = UserParameters::findHolder(copy->getDocument());
+    return existing == copy ? nullptr : existing;
+}
+
+std::vector<std::string> parameterNames(const DocumentObject* obj)
+{
+    std::vector<std::string> names;
+    for (const auto& name : obj->getDynamicPropertyNames()) {
+        if (UserParameters::isUserParameter(obj->getDynamicPropertyByName(name.c_str()))) {
+            names.push_back(name);
+        }
+    }
+    return names;
+}
+
+/// Add to @p names the properties of @p copy that the expressions of @p obj name. With @p only,
+/// just the expressions bound to those properties of @p obj.
+void addNamedProperties(
+    const DocumentObject* obj,
+    const DocumentObject* copy,
+    const std::set<std::string>* only,
+    std::set<std::string>& names
+)
+{
+    std::vector<Property*> props;
+    obj->getPropertyList(props);
+    for (const auto* prop : props) {
+        const auto* container = freecad_cast<const PropertyExpressionContainer*>(prop);
+        if (!container) {
+            continue;
+        }
+        for (const auto& [path, expr] : container->getExpressions()) {
+            if (!expr || (only && only->count(path.getPropertyName()) == 0)) {
+                continue;
+            }
+            for (const auto& [id, hidden] : expr->getIdentifiers()) {
+                const Property* named = id.getProperty();
+                if (named && named->getContainer() == copy) {
+                    names.insert(named->getName());
+                }
+            }
+        }
+    }
+}
+
+/// The user parameters of @p copy that the other pasted objects use, with the parameters that
+/// those are computed from. All of them when the holder was pasted alone.
+std::set<std::string>
+usedParameters(const DocumentObject* copy, const std::vector<DocumentObject*>& pasted)
+{
+    const std::vector<std::string> all = parameterNames(copy);
+    std::set<std::string> used;
+    bool alone = true;
+    for (const auto* obj : pasted) {
+        if (obj && obj != copy && obj->isAttachedToDocument()) {
+            alone = false;
+            addNamedProperties(obj, copy, nullptr, used);
+        }
+    }
+    if (alone) {
+        return {all.begin(), all.end()};
+    }
+    for (std::size_t count = 0; count != used.size();) {
+        count = used.size();
+        const std::set<std::string> known = used;
+        addNamedProperties(copy, copy, &known, used);
+    }
+    std::set<std::string> result;
+    for (const auto& name : all) {
+        if (used.count(name) != 0) {
+            result.insert(name);
+        }
+    }
+    return result;
+}
+
+Base::Quantity quantityOf(const Property* prop)
+{
+    if (const auto* quantity = freecad_cast<const PropertyQuantity*>(prop)) {
+        return quantity->getQuantityValue();
+    }
+    if (const auto* number = freecad_cast<const PropertyFloat*>(prop)) {
+        return Base::Quantity(number->getValue());
+    }
+    return {};
+}
+
+/// True when the parameter @p pasted cannot stand for @p existing: another type or value.
+bool differs(const Property* existing, const Property* pasted)
+{
+    if (existing->getTypeId() != pasted->getTypeId()) {
+        return true;
+    }
+    const double a = quantityOf(existing).getValue();
+    const double b = quantityOf(pasted).getValue();
+    return std::fabs(a - b) > 1e-9 * std::max({1.0, std::fabs(a), std::fabs(b)});
+}
+
+std::string freeName(const Document* doc, const std::string& name)
+{
+    for (int i = 2;; ++i) {
+        std::string candidate = name + "_" + std::to_string(i);
+        if (UserParameters::checkName(doc, candidate) == UserParameters::NameStatus::Available) {
+            return candidate;
+        }
+    }
+}
+
+/// Makes what an expression names of @p copy a property of @p target, the owner of the
+/// rewritten expression: `UserParameters001.width` and `width` of the copy become `width`.
+class OwnPropertyVisitor: public ExpressionVisitor
+{
+public:
+    OwnPropertyVisitor(const DocumentObject* copy, const DocumentObject* target)
+        : copy(copy)
+        , target(target)
+    {}
+
+    void visit(Expression& expr) override
+    {
+        auto* var = freecad_cast<VariableExpression*>(&expr);
+        if (!var) {
+            return;
+        }
+        ObjectIdentifier path = var->getPath();
+        const Property* prop = path.getProperty();
+        if (!prop || prop->getContainer() != copy) {
+            return;
+        }
+        int index = 0;
+        path.getPropertyComponent(0, &index);
+        ObjectIdentifier own(target);
+        const auto& components = path.getComponents();
+        for (std::size_t i = index; i < components.size(); ++i) {
+            own << components[i];
+        }
+        var->setPath(own);
+    }
+
+private:
+    const DocumentObject* copy;
+    const DocumentObject* target;
+};
+
+/// Re-point what @p obj links to @p from, expressions included, to @p to.
+void replaceLinks(DocumentObject* obj, DocumentObject* from, DocumentObject* to)
+{
+    std::vector<Property*> props;
+    obj->getPropertyList(props);
+    for (auto* prop : props) {
+        auto* link = freecad_cast<PropertyLinkBase*>(prop);
+        if (!link) {
+            continue;
+        }
+        std::unique_ptr<Property> replaced(link->CopyOnLinkReplace(obj, from, to));
+        if (replaced) {
+            prop->Paste(*replaced);
+        }
+    }
+}
+
+}  // namespace
+
+std::vector<UserParameters::PastedConflict>
+UserParameters::pastedConflicts(const std::vector<DocumentObject*>& pasted)
+{
+    std::vector<PastedConflict> conflicts;
+    const DocumentObject* copy = pastedHolder(pasted);
+    const DocumentObject* target = copy ? holderBeforePaste(copy) : nullptr;
+    if (!target) {
+        return conflicts;
+    }
+    for (const auto& name : usedParameters(copy, pasted)) {
+        const Property* existing = target->getPropertyByName(name.c_str());
+        const Property* source = copy->getDynamicPropertyByName(name.c_str());
+        if (existing && source && differs(existing, source)) {
+            conflicts.push_back(
+                {name, quantityOf(existing).getUserString(), quantityOf(source).getUserString()}
+            );
+        }
+    }
+    return conflicts;
+}
+
+void UserParameters::mergePasted(std::vector<DocumentObject*>& pasted, PastePolicy policy)
+{
+    DocumentObject* copy = pastedHolder(pasted);
+    if (!copy) {
+        return;
+    }
+    Document* doc = copy->getDocument();
+    const std::set<std::string> used = usedParameters(copy, pasted);
+    DocumentObject* target = holderBeforePaste(copy);
+    pasted.erase(std::remove(pasted.begin(), pasted.end(), copy), pasted.end());
+
+    if (!target) {
+        // The copy is the holder of the document, unless another kind of object has the name
+        // of the holder: then the copy is left as a variable set of its own.
+        if (isHolder(copy)) {
+            for (const auto& name : parameterNames(copy)) {
+                if (used.count(name) == 0) {
+                    removeParameter(copy->getDynamicPropertyByName(name.c_str()));
+                }
+            }
+        }
+        return;
+    }
+
+    std::set<std::string> added;
+    for (const auto& name : used) {
+        Property* source = copy->getDynamicPropertyByName(name.c_str());
+        if (!source) {
+            continue;
+        }
+        std::string finalName = name;
+        if (const Property* existing = target->getPropertyByName(name.c_str())) {
+            if (policy == PastePolicy::UseExisting || !differs(existing, source)) {
+                continue;
+            }
+            // The expressions that name the parameter follow the rename.
+            finalName = freeName(doc, name);
+            if (!copy->renameDynamicProperty(source, finalName.c_str())) {
+                continue;
+            }
+            source = copy->getDynamicPropertyByName(finalName.c_str());
+        }
+        Property* prop = source
+            ? target->addDynamicProperty(source->getTypeId().getName(), finalName.c_str(), GroupName)
+            : nullptr;
+        if (prop) {
+            prop->Paste(*source);
+            added.insert(finalName);
+        }
+    }
+
+    // Once every parameter is there: an expression may name the other ones.
+    for (const auto& [path, expr] : copy->ExpressionEngine.getExpressions()) {
+        const std::string name = path.getPropertyName();
+        Property* prop = added.count(name) != 0 ? target->getDynamicPropertyByName(name.c_str())
+                                                : nullptr;
+        if (!prop || !expr) {
+            continue;
+        }
+        try {
+            // Written for the target: what names a parameter of the copy names the parameter
+            // of the target, so that the target never depends on the copy.
+            const ExpressionPtr local = expr->copy();
+            OwnPropertyVisitor visitor(copy, target);
+            local->visit(visitor);
+            const std::shared_ptr<Expression> moved(
+                ExpressionParser::parse(target, local->toString().c_str())
+            );
+            target->setExpression(ObjectIdentifier(*prop), moved);
+        }
+        catch (const Base::Exception& e) {
+            // The parameter keeps the value it had
+            e.reportException();
+        }
+    }
+
+    for (auto* obj : pasted) {
+        if (obj && obj->isAttachedToDocument()) {
+            replaceLinks(obj, copy, target);
+        }
+    }
+    // Something else than expressions may link to the copy: then it stays. A parameter
+    // computed from another one makes the copy link to itself.
+    const auto users = copy->getInList();
+    if (std::all_of(users.begin(), users.end(), [copy](const DocumentObject* user) {
+            return user == copy;
+        })) {
+        doc->removeObject(copy->getNameInDocument());
     }
 }

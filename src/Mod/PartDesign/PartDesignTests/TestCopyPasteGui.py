@@ -290,6 +290,24 @@ class TestCopyPasteGui(unittest.TestCase):
         self.assertEqual(len(new), 1)
         self.assertIn(new[0], other.Group)
 
+    def test_sketch_using_a_user_parameter_keeps_using_it(self):
+        self.doc.addUserParameter(self.sketch, "width", "10 mm")
+        holder = self.doc.getObject("UserParameters")
+        self.assertIsNotNone(holder)
+        self.sketch.addConstraint(Sketcher.Constraint("DistanceX", 0, 1, 0, 2, 10))
+        self.sketch.setExpression("Constraints[0]", "UserParameters.width")
+        self.doc.recompute()
+
+        self._select(self.sketch)
+        self._run("Std_Copy")
+        self.assertEqual(self.dialogs, [])
+        new = self._paste_and_get_new(self.body2)
+        self.assertEqual(len(new), 1)
+        self.assertIn(("Constraints[0]", "UserParameters.width"), new[0].ExpressionEngine)
+        self.assertEqual(
+            [o for o in self.doc.Objects if o.isDerivedFrom("App::VarSet")], [holder]
+        )
+
     def test_body_pasted_with_an_active_body_goes_to_the_root(self):
         self._select(self.body1)
         self._run("Std_Copy")
