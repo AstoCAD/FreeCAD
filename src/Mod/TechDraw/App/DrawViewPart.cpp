@@ -2166,6 +2166,33 @@ void DrawViewPart::unsetupObject()
             }
         }
     }
+
+    // Remove the View's break objects. Breaks also holds the model objects (sketches, edges)
+    // that a DrawBrokenView uses as break definitions: those are not owned by the view.
+    // A break that another view also lists stays with that view.
+    // Removing a break changes Breaks, so collect the names first.
+    std::vector<std::string> breakNames;
+    for (auto* object : Breaks.getValues()) {
+        auto* viewBreak = freecad_cast<DrawViewBreak*>(object);
+        if (!viewBreak || !viewBreak->isAttachedToDocument() || viewBreak->getDocument() != doc) {
+            continue;
+        }
+        const bool usedByOtherView =
+            std::ranges::any_of(viewBreak->getInList(), [this, object](App::DocumentObject* user) {
+                auto* view = freecad_cast<DrawViewPart*>(user);
+                return view && view != this
+                    && std::ranges::find(view->Breaks.getValues(), object)
+                    != view->Breaks.getValues().end();
+            });
+        if (!usedByOtherView) {
+            breakNames.emplace_back(viewBreak->getNameInDocument());
+        }
+    }
+    for (const auto& breakName : breakNames) {
+        if (doc->getObject(breakName.c_str())) {
+            doc->removeObject(breakName.c_str());
+        }
+    }
 }
 
 bool DrawViewPart::checkXDirection() const

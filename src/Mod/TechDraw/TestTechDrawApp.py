@@ -33,6 +33,7 @@ from TDTest.DrawProjectionGroupTest import DrawProjectionGroupTest  # noqa: F401
 from TDTest.DrawViewScaleTypeTest import DrawViewScaleTypeTest  # noqa: F401
 from TDTest.PythonFeatureTest import PythonFeatureTest  # noqa: F401
 from TDTest.DrawViewRemovalTest import DrawViewRemovalTest  # noqa: F401
+from TDTest.DrawViewBreakRemovalTest import DrawViewBreakRemovalTest  # noqa: F401
 from TDTest.DrawViewDimensionSavedGeometryTest import DrawViewDimensionSavedGeometryTest  # noqa: F401
 from TDTest.DrawCosmeticCircleRadiusTest import DrawCosmeticCircleRadiusTest  # noqa: F401
 from TDTest.DrawCosmeticVertex3dTest import DrawCosmeticVertex3dTest  # noqa: F401
