@@ -96,6 +96,7 @@ if(BUILD_GUI)
           SketcherTests/TestAutoConstraintRedundancyGui.py
           SketcherTests/TestExternalInAssemblyGui.py
           SketcherTests/TestSplitContinuousModeGui.py
+          SketcherTests/TestElementsExternalFilterGui.py
     )
 endif(BUILD_GUI)
 
