@@ -139,8 +139,10 @@ class TaskAssemblyCreateFriction:
         self.joints = _eligible_joints(self.assembly)
         for joint in self.joints:
             self.form.JointComboBox.addItem(joint.Label, joint)
+        # A deleted joint, or one that is no longer a revolute or slider joint,
+        # is not displayed as another joint; the user must choose one.
         self.form.JointComboBox.setCurrentIndex(
-            self.joints.index(friction.Joint) if friction.Joint in self.joints else 0
+            self.joints.index(friction.Joint) if friction.Joint in self.joints else -1
         )
         self.rebuildModels()
         fields = {
@@ -178,7 +180,8 @@ class TaskAssemblyCreateFriction:
                 combo.addItem(translate("Assembly", model), model)
         combo.setCurrentIndex(max(0, combo.findData(preferred)))
         combo.blockSignals(False)
-        if preferred != combo.currentData():
+        # Without a displayed joint, keep the stored model until one is chosen.
+        if preferred != combo.currentData() and self.form.JointComboBox.currentData():
             self.friction.FrictionModel = combo.currentData()
 
     def onJointChanged(self, _index):
@@ -236,6 +239,10 @@ class TaskAssemblyCreateFriction:
         Dynamics.invalidate_results(self.friction)
 
     def accept(self):
+        if self.friction.Joint not in self.joints:
+            QtWidgets.QMessageBox.warning(self.form, translate("Assembly", "Invalid friction"),
+                translate("Assembly", "Select a revolute or slider joint."))
+            return False
         reaction = self.friction.FrictionModel != "Specified resistance"
         rotational = self.rotational()
         if not rotational and self.friction.FrictionModel in ("Rolling resistance", "Thrust bearing"):

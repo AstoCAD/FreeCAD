@@ -350,6 +350,21 @@ class TestSimulationTabs(unittest.TestCase):
         finally:
             task.form.deleteLater()
 
+    def test_friction_editor_does_not_display_a_missing_joint(self):
+        friction = Dynamics.create_friction(self.panel.simFeaturePy, self.joint)
+        CommandCreateFriction.ViewProviderFriction(friction.ViewObject)
+        friction.Joint = None  # As after deleting the joint.
+        task = CommandCreateFriction.TaskAssemblyCreateFriction(friction, self.panel.simFeaturePy)
+        try:
+            self.assertEqual(task.form.JointComboBox.currentIndex(), -1)
+            with patch.object(QtWidgets.QMessageBox, "warning") as warning:
+                self.assertFalse(task.accept())
+                warning.assert_called_once()
+            task.form.JointComboBox.setCurrentIndex(task.form.JointComboBox.findData(self.joint))
+            self.assertEqual(friction.Joint, self.joint)
+        finally:
+            task.form.deleteLater()
+
     def test_contacts_tab_creates_simulation_local_contact(self):
         self.panel.form.AddContactButton.click()
         QtWidgets.QApplication.processEvents()
