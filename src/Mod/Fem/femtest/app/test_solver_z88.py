@@ -99,6 +99,78 @@ class TestSolverZ88(unittest.TestCase):
         self.inputfile_writing_test(get_namefromdef("test_"))
 
     # ********************************************************************************************
+    def test_axisymmetric_pressure_radius(self):
+        # The pressure on an axisymmetric edge is multiplied by 2*pi*R, R taken from the
+        # mid node of the edge. Z88 renumbers the nodes, so the mesh node ids must not
+        # be used: an unused node (id 1) shifts the numbering, ids from 101 leave a gap.
+        import math
+        import Fem
+        import ObjectsFem
+        import Part
+
+        for first_id, unused_node in ((2, True), (101, False)):
+            with self.subTest(first_id=first_id, unused_node=unused_node):
+                doc = self.document
+                for obj in doc.Objects:
+                    doc.removeObject(obj.Name)
+                face = doc.addObject("Part::Feature", "Face")
+                # x is the radius: x from 10 to 20, y from 0 to 10
+                face.Shape = Part.makePlane(10, 10, FreeCAD.Vector(10, 0, 0))
+                analysis = ObjectsFem.makeAnalysis(doc, "Analysis")
+                solver = analysis.addObject(ObjectsFem.makeSolverZ88(doc, "SolverZ88"))[0]
+                solver.ModelSpace = "axisymmetric"
+                material = analysis.addObject(ObjectsFem.makeMaterialSolid(doc, "Material"))[0]
+                mat = material.Material
+                mat["Name"] = "Steel"
+                mat["YoungsModulus"] = "210000 MPa"
+                mat["PoissonRatio"] = "0.3"
+                material.Material = mat
+                fixed = analysis.addObject(ObjectsFem.makeConstraintFixed(doc, "Fixed"))[0]
+                pressure = analysis.addObject(ObjectsFem.makeConstraintPressure(doc, "Pressure"))[0]
+                pressure.Pressure = "1 MPa"
+                for i, edge in enumerate(face.Shape.Edges, start=1):
+                    bb = edge.BoundBox
+                    if math.isclose(bb.XMin, 20) and math.isclose(bb.XMax, 20):
+                        pressure.References = [(face, f"Edge{i}")]
+                    elif math.isclose(bb.YMin, 0) and math.isclose(bb.YMax, 0):
+                        fixed.References = [(face, f"Edge{i}")]
+
+                # one quad8 element, corner nodes first, then mid nodes
+                femmesh = Fem.FemMesh()
+                if unused_node:
+                    femmesh.addNode(0, 0, 0, 1)
+                coords = (
+                    (10, 0, 0),
+                    (20, 0, 0),
+                    (20, 10, 0),
+                    (10, 10, 0),
+                    (15, 0, 0),
+                    (20, 5, 0),
+                    (15, 10, 0),
+                    (10, 5, 0),
+                )
+                node_ids = []
+                for i, (x, y, z) in enumerate(coords):
+                    femmesh.addNode(x, y, z, first_id + i)
+                    node_ids.append(first_id + i)
+                femmesh.addFace(node_ids, 1)
+                mesh = analysis.addObject(ObjectsFem.makeMeshGmsh(doc, self.mesh_name))[0]
+                mesh.FemMesh = femmesh
+                mesh.Shape = face
+                doc.recompute()
+
+                working_dir = testtools.get_fem_test_tmp_dir("solver_z88_axisymmetric_pressure")
+                solver.WorkingDirectory = working_dir
+                z88tools.Z88Tools(solver).prepare()
+
+                with open(join(working_dir, "z88i5.txt")) as f:
+                    rows = f.read().split("\n")
+                self.assertEqual(rows[0], "1")
+                load = float(rows[1].split()[1])
+                # 1 MPa * 2 * pi * 20 mm
+                self.assertAlmostEqual(load, 2 * math.pi * 20, places=4)
+
+    # ********************************************************************************************
     def inputfile_writing_test(self, base_name):
         self.document.recompute()
 
