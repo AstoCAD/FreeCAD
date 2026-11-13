@@ -185,19 +185,24 @@ class TestEnumerationIntegerBoundary(unittest.TestCase):
                 self.doc.redo()
                 self.assertEqual(self.obj.Mode, expected)
 
-    def test_native_out_of_range_indices_keep_existing_valueerror_and_before_hook(self):
-        # This is the existing native-index rejection path, separate from a
-        # failed PyLong conversion. Preserve its current before-only callback.
+    def test_native_out_of_range_indices_raise_valueerror_before_notification(self):
+        # The native-index rejection path, separate from a failed PyLong
+        # conversion: the index is checked before the before-change callback,
+        # so nothing is signalled or recorded for undo.
         observer = self._observer("Mode")
         for value in (-1, 4, _LONG_MIN, _LONG_MAX):
             with self.subTest(value=str(value), native_long_bits=_LONG_BITS):
                 self._reset(observer)
+                self.doc.openTransaction("Rejected enumeration index")
                 error = self._assign(self.obj, "Mode", value)
+                self.doc.commitTransaction()
                 self.assertIsInstance(error, ValueError, repr(error))
                 self.assertEqual(self.obj.Mode, "One")
                 self.assertEqual(self.obj.getEnumerationsOfProperty("Mode"), self.choices)
-                self.assertEqual(observer.before, ["One"])
+                self.assertEqual(observer.before, [])
                 self.assertEqual(observer.after, [])
+                self.assertEqual(self.doc.UndoNames, [])
+                self.assertFalse(self.doc.HasPendingTransaction)
 
     def test_empty_native_indices_and_existing_type_admission_controls(self):
         empty = self._observer("EmptyMode")

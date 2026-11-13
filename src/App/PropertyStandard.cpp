@@ -513,8 +513,13 @@ void PropertyEnumeration::setPyObject(PyObject* value)
             throw Py::Exception();
         }
         if (_enum.isValid()) {
+            // Set the index on a copy first: an index out of range throws here,
+            // before aboutToSetValue() signals a change and records it for undo
+            Enumeration newEnum(_enum);
+            newEnum.setValue(val, true);
+
             aboutToSetValue();
-            _enum.setValue(val, true);
+            _enum = newEnum;
             hasSetValue();
         }
         return;
