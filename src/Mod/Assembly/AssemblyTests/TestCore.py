@@ -726,6 +726,31 @@ class TestCore(AssemblyTestBase):
         self.assertEqual(notes, [f"note {row}" for row in range(2, 2 + len(labels))])
         self.assertNotIn("Invalid", bom.State)
 
+    def test_bom_keeps_custom_column_content_as_typed(self):
+        """Custom column text that looks like a number, a fraction or a formula stays
+        text when the BOM regenerates; numbers and formulas stay what they are."""
+        contents = ["'0042", "'1/2", "'=1+1", "12.5", "=2*3"]
+        for i in range(len(contents)):
+            box = self.assembly.newObject("Part::Box", f"Component{i}")
+            box.Label = f"Component {i}"
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Name", "Notes"]
+        self.doc.recompute()
+
+        rows = range(2, 2 + len(contents))
+        for row, content in zip(rows, contents):
+            bom.set(f"B{row}", content)
+        self.doc.recompute()
+        bom.touch()
+        self.doc.recompute()
+
+        self.assertEqual(
+            [bom.getContents(f"B{row}") for row in rows],
+            ["'0042", "'1/2", "'=1+1", "12.5", "=2 * 3"],
+        )
+        self.assertEqual([bom.get(f"B{row}") for row in rows], ["0042", "1/2", "=1+1", 12.5, 6])
+        self.assertNotIn("Invalid", bom.State)
+
     def _check_bom_scale_vector_grouping(self, scale, mirrored, previous_scalar=None):
         source = self.doc.addObject("Part::Box", "VectorScaleComponent")
         source.Label = "Vector scale component"
