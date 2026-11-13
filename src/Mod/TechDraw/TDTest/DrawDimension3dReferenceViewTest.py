@@ -169,6 +169,14 @@ class DrawDimension3dReferenceViewTest(unittest.TestCase):
         view = self.makeView(30, 1)
         self.checkCornerOnDetail(self.makeDetail(view, App.Vector(11, 16, 0), 7))
 
+    def testDetailOfRotatedDetail(self):
+        # a detail of a detail is cut from the area of the first detail, so its AnchorPoint
+        # is in the coordinates of the first detail
+        view = self.makeView(0, 1)
+        detail = self.makeDetail(view, App.Vector(15, 5, 0), 10, rotation=30)
+        # the corner (40, 20) is (5, 5) from the first anchor, turned by 30 degrees
+        self.checkCornerOnDetail(self.makeDetail(detail, App.Vector(1, 6, 0), 3, rotation=30))
+
     def testDistanceXBetweenCirclesOnRotatedView(self):
         source = self.doc.addObject("Part::Feature", "Circles")
         source.Shape = Part.makeCompound([

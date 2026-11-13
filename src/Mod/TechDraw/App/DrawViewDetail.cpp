@@ -594,6 +594,8 @@ TopoDS_Shape DrawViewDetail::projectEdgesOntoFace(TopoDS_Shape& edgeShape, TopoD
 //! given a 3d point, find the corresponding point in this view (unscaled).
 //! The detail is cut from the base view's shape for detail, which is rotated by the base
 //! view's Rotation, around the AnchorPoint and is then rotated by this view's Rotation.
+//! A detail hands its own area, in its own coordinates, to the details based on it
+//! (getShapeForDetail), so a detail of a detail starts from the point in the base detail.
 Base::Vector3d DrawViewDetail::mapPoint3dToDetail(const Base::Vector3d& inPoint) const
 {
     auto baseObj = BaseView.getValue();
@@ -601,8 +603,17 @@ Base::Vector3d DrawViewDetail::mapPoint3dToDetail(const Base::Vector3d& inPoint)
     if (!baseDvp) {
         throw Base::RuntimeError("Detail has no BaseView");
     }
-    auto pointOnBase = baseDvp->projectPoint(inPoint, false);
-    pointOnBase.RotateZ(Base::toRadians(baseDvp->Rotation.getValue()));
+    Base::Vector3d pointOnBase;
+    if (auto baseDetail = freecad_cast<DrawViewDetail*>(baseDvp)) {
+        if (baseViewChainLoops(this)) {
+            throw Base::RuntimeError("BaseView chain leads back to a view in it");
+        }
+        pointOnBase = DU::invertY(baseDetail->mapPoint3dToDetail(inPoint));
+    }
+    else {
+        pointOnBase = baseDvp->projectPoint(inPoint, false);
+        pointOnBase.RotateZ(Base::toRadians(baseDvp->Rotation.getValue()));
+    }
     auto detailCenter = AnchorPoint.getValue();
     auto pointOnDetail = pointOnBase - detailCenter;
     pointOnDetail.RotateZ(Base::toRadians(Rotation.getValue()));
