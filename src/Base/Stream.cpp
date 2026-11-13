@@ -642,7 +642,11 @@ bool PyStreambuf::writeStr(const char* str, std::streamsize num)
             return true;
         }
         catch (Py::Exception& e) {
-            if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+            // A TypeError means the stream doesn't accept str (e.g. io.BytesIO). A
+            // UnicodeDecodeError means the data isn't UTF-8 text but binary data, which only a
+            // byte stream can take.
+            if (PyErr_ExceptionMatches(PyExc_TypeError)
+                || PyErr_ExceptionMatches(PyExc_UnicodeDecodeError)) {
                 e.clear();
                 arg.setItem(0, Py::Bytes(str, num));
                 meth.apply(arg);
