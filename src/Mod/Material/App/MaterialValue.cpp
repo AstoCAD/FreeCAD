@@ -24,6 +24,7 @@
 #include <format>
 #include <limits>
 
+#include <QLocale>
 #include <QMetaType>
 #include <QRegularExpression>
 
@@ -355,7 +356,8 @@ QString MaterialValue::getYAMLString() const
         else if (getType() == MaterialValue::Float) {
             auto value = getValue();
             if (!value.isNull()) {
-                yaml += QStringLiteral("%1").arg(value.toFloat(), 0, 'g', 6);
+                // The shortest form that reads back as the same double, in the C locale
+                yaml += QString::number(value.toDouble(), 'g', QLocale::FloatingPointShortest);
             }
         }
         else if (getType() == MaterialValue::List) {
