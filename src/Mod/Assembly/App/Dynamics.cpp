@@ -1117,6 +1117,9 @@ size_t AssemblyObject::contactParts(std::vector<Object*> contacts, bool dynamics
 {
     size_t solverContactCount = 0;
     std::set<std::pair<Object*, Object*>> processed;
+    // A component's contact geometry does not depend on its pair: general and
+    // set modes would otherwise rebuild it for every pair.
+    std::map<Object*, std::shared_ptr<const ContactGeometry::Shape>> contactGeometry;
     const auto components = getAssemblyComponents(this);
     const std::set<Object*> membership(components.begin(), components.end());
     for (auto* contact : contacts) {
@@ -1198,9 +1201,21 @@ size_t AssemblyObject::contactParts(std::vector<Object*> contacts, bool dynamics
                 if (!contactShapesOf(contact, componentI, componentJ, shapeI, shapeJ)) {
                     continue;
                 }
-                ContactTiming timing;
-                ensureContactTriangulation(shapeI, timing);
-                ensureContactTriangulation(shapeJ, timing);
+                const auto prepared = [&contactGeometry](Object* component, const TopoDS_Shape& shape) {
+                    auto& geometry = contactGeometry[component];
+                    if (!geometry) {
+                        ContactTiming timing;
+                        ensureContactTriangulation(shape, timing);
+                        // Sweep actual component frames, not interpolated deltas
+                        // about the assembly origin. The latter describes a
+                        // different path for off-origin rotations and grossly
+                        // overestimates travel.
+                        const auto reference = component->getPlacementProperty()->getValue();
+                        geometry = ContactGeometry::prepare(BRepBuilderAPI_Transform(shape,
+                            ::Part::TopoShape::convert(reference.inverse().toMatrix()), false).Shape());
+                    }
+                    return geometry;
+                };
 
                 Base::Placement placementI = dataI.offsetPlc;
                 Base::Placement placementJ = dataJ.offsetPlc;
@@ -1219,16 +1234,8 @@ size_t AssemblyObject::contactParts(std::vector<Object*> contacts, bool dynamics
                 load->setName(contact->getFullName() + suffix);
                 load->setMarkerI(markerI->fullName(""));
                 load->setMarkerJ(markerJ->fullName(""));
-                const auto referenceI = componentI->getPlacementProperty()->getValue();
-                const auto referenceJ = componentJ->getPlacementProperty()->getValue();
-                // Sweep actual component frames, not interpolated deltas about
-                // the assembly origin. The latter describes a different path
-                // for off-origin rotations and grossly overestimates travel.
-                shapeI = BRepBuilderAPI_Transform(shapeI,
-                    ::Part::TopoShape::convert(referenceI.inverse().toMatrix()), false).Shape();
-                shapeJ = BRepBuilderAPI_Transform(shapeJ,
-                    ::Part::TopoShape::convert(referenceJ.inverse().toMatrix()), false).Shape();
-                auto geometry = std::make_shared<ContactGeometry>(shapeI, shapeJ);
+                auto geometry = std::make_shared<ContactGeometry>(
+                    prepared(componentI, shapeI), prepared(componentJ, shapeJ));
                 load->setContactStepValidator([geometry, stiffness,
                                               partI = dataI.part, partJ = dataJ.part](
                     const auto& i0, const auto& i1, const auto& j0, const auto& j1) {

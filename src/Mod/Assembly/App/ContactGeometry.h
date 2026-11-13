@@ -46,6 +46,12 @@ struct ContactPoint
 class AssemblyExport ContactGeometry
 {
 public:
+    // Pose-independent geometry of one component. It can be shared by every
+    // pair of that component, so it is prepared once per component.
+    struct Shape;
+    static std::shared_ptr<const Shape> prepare(const TopoDS_Shape& shape,
+                                                bool prepareManifold = true);
+    ContactGeometry(std::shared_ptr<const Shape> first, std::shared_ptr<const Shape> second);
     ContactGeometry(const TopoDS_Shape& first, const TopoDS_Shape& second,
                     bool prepareManifold = true);
     std::vector<ContactPoint> points(
@@ -63,7 +69,6 @@ private:
     std::vector<ContactPoint> computePoints(
         const Base::Placement& firstDelta, const Base::Placement& secondDelta
     ) const;
-    struct Shape;
     double travel(const Shape& shape, const Base::Placement& start,
                   const Base::Placement& end) const;
     std::shared_ptr<const Shape> first;

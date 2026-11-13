@@ -29,6 +29,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepBndLib.hxx>
@@ -269,9 +270,19 @@ struct ContactGeometry::Shape
     }
 };
 
+std::shared_ptr<const ContactGeometry::Shape> ContactGeometry::prepare(
+    const TopoDS_Shape& shape, bool prepareManifold)
+{
+    return std::make_shared<const Shape>(shape, prepareManifold);
+}
+
+ContactGeometry::ContactGeometry(std::shared_ptr<const Shape> a, std::shared_ptr<const Shape> b)
+    : first(std::move(a)),
+      second(std::move(b))
+{}
+
 ContactGeometry::ContactGeometry(const TopoDS_Shape& a, const TopoDS_Shape& b, bool prepareManifold)
-    : first(std::make_shared<Shape>(a, prepareManifold)),
-      second(std::make_shared<Shape>(b, prepareManifold))
+    : ContactGeometry(prepare(a, prepareManifold), prepare(b, prepareManifold))
 {}
 
 double ContactGeometry::travel(const Shape& shape, const Base::Placement& start,
