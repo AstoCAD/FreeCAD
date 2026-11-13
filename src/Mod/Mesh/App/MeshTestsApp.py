@@ -1265,6 +1265,8 @@ class MeshRead3mfObjectName(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpDir:
             fileName = os.path.join(tmpDir, "named.3mf")
             Mesh.export([mesh], fileName)
+            # free the label: labels are unique in a document
+            mesh.Label = "Source"
             Mesh.insert(fileName, self.doc.Name)
         imported = [obj for obj in self.doc.Objects if obj is not mesh]
         self.assertEqual(len(imported), 1)
