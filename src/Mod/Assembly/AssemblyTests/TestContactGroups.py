@@ -145,6 +145,26 @@ class TestContactGroups(unittest.TestCase):
         self.assertEqual(len(Dynamics.contact_exclusions(self.contact)), 1)
         panel.form.deleteLater()
 
+    def test_pair_mode_does_not_display_a_missing_component(self):
+        if not App.GuiUp:
+            self.skipTest("GUI required")
+        import CommandCreateContact
+
+        self.contact.Mode = "Between two components"
+        self.contact.ComponentI, self.contact.ComponentJ = None, self.b  # A deleted component.
+        panel = CommandCreateContact.TaskAssemblyCreateContact(
+            self.contact, Dynamics.input_owner(self.contact)
+        )
+        try:
+            self.assertEqual(panel.form.FirstComponentComboBox.currentIndex(), -1)
+            self.assertEqual(panel.form.SecondComponentComboBox.currentData(), self.b.Name)
+            panel.form.FirstComponentComboBox.setCurrentIndex(
+                panel.form.FirstComponentComboBox.findData(self.a.Name)
+            )
+            self.assertEqual(Dynamics.contact_pairs(self.contact), [(self.a, self.b)])
+        finally:
+            panel.form.deleteLater()
+
     def test_switch_to_pair_mode_initializes_displayed_components(self):
         if not App.GuiUp:
             self.skipTest("GUI required")

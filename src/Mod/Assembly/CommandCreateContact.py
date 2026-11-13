@@ -173,14 +173,17 @@ class TaskAssemblyCreateContact:
         for component in self.components:
             self.form.FirstComponentComboBox.addItem(component.Label, component.Name)
             self.form.SecondComponentComboBox.addItem(component.Label, component.Name)
-        if contact.ComponentI in self.components:
-            self.form.FirstComponentComboBox.setCurrentIndex(
-                self.components.index(contact.ComponentI)
-            )
-        if contact.ComponentJ in self.components:
-            self.form.SecondComponentComboBox.setCurrentIndex(
-                self.components.index(contact.ComponentJ)
-            )
+        pair = contact.Mode == Dynamics.Contact.MODES[0]
+        for combo, component in (
+            (self.form.FirstComponentComboBox, contact.ComponentI),
+            (self.form.SecondComponentComboBox, contact.ComponentJ),
+        ):
+            if component in self.components:
+                combo.setCurrentIndex(self.components.index(component))
+            elif pair:
+                # A deleted component leaves the link empty. Do not display an
+                # item that is not stored; the user must choose the component.
+                combo.setCurrentIndex(-1)
         self.form.StiffnessSpinBox.setProperty("value", contact.Stiffness)
         self.form.DampingSpinBox.setProperty("value", contact.Damping)
         self.form.FrictionGroupBox.setChecked(contact.FrictionEnabled)
