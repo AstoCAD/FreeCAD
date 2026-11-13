@@ -52,6 +52,48 @@ class TestUserParameters(unittest.TestCase):
         self.assertIsNone(self.doc.findUserParameter("nothing"))
         self.assertEqual(self.doc.getUserParameters(), [(holder, "myVar")])
 
+    def check_values(self, cases):
+        for name, value, typeId, internal in cases:
+            self.doc.addUserParameter(self.typed, name, value)
+            holder = self.holder()
+            self.assertEqual(holder.getTypeIdOfProperty(name), typeId, value)
+            self.assertAlmostEqual(getattr(holder, name).Value, internal, msg=value)
+        self.assertEqual(self.holder().ExpressionEngine, [])
+
+    def test_time(self):
+        # The type of a time is App::PropertyTime, not named after the unit type (TimeSpan)
+        self.check_values(
+            (
+                ("seconds", "5 s", "App::PropertyTime", 5.0),
+                ("minutes", "2 min", "App::PropertyTime", 120.0),
+            )
+        )
+
+    def test_number_with_compound_unit_is_a_value(self):
+        # Like `10 N`: a value, not an expression bound to the parameter
+        self.check_values(
+            (
+                ("speed", "3 m/s", "App::PropertyVelocity", 3000.0),
+                ("negative", "-3 m/s", "App::PropertyVelocity", -3000.0),
+                ("area", "5 mm^2", "App::PropertyArea", 5.0),
+                ("inverse", "2 m^-1", "App::PropertyInverseLength", 0.002),
+                ("acceleration", "9.81 m/s^2", "App::PropertyAcceleration", 9810.0),
+            )
+        )
+        # A computation stays an expression
+        self.doc.addUserParameter(self.typed, "computed", "3 m/s * 2")
+        self.assertEqual(
+            [path for path, _ in self.holder().ExpressionEngine], ["computed"]
+        )
+        self.assertAlmostEqual(self.holder().computed.Value, 6000.0)
+
+    def test_unit_without_property_type_is_refused(self):
+        # No property type stores a concentration: refused before anything is created
+        with self.assertRaises(TypeError):
+            self.doc.addUserParameter(self.typed, "molar", "2 mol/m^3")
+        self.assertIsNone(self.holder())
+        self.assertEqual(self.doc.getUserParameters(), [])
+
     def test_parameters_share_one_holder(self):
         self.doc.addUserParameter(self.typed, "first", "1 mm")
         self.doc.addUserParameter(self.other, "second", "2 mm")

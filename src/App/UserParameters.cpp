@@ -233,6 +233,29 @@ expressionFor(DocumentObject* target, const DocumentObject* owner, const Express
     );
 }
 
+bool isLiteral(const Expression* expr);
+
+/// The unit of a number as the parser builds it: `mm`, `m/s`, `mm^2`, `m^-1`.
+bool isUnit(const Expression* expr)
+{
+    if (freecad_cast<const UnitExpression*>(expr)) {
+        return !freecad_cast<const VariableExpression*>(expr);
+    }
+    const auto* op = freecad_cast<const OperatorExpression*>(expr);
+    if (!op) {
+        return false;
+    }
+    switch (op->getOperator()) {
+        case OperatorExpression::MUL:
+        case OperatorExpression::DIV:
+            return isUnit(op->getLeft()) && isUnit(op->getRight());
+        case OperatorExpression::POW:
+            return isUnit(op->getLeft()) && isLiteral(op->getRight());
+        default:
+            return false;
+    }
+}
+
 bool isLiteral(const Expression* expr)
 {
     if (freecad_cast<const NumberExpression*>(expr)) {
@@ -244,8 +267,7 @@ bool isLiteral(const Expression* expr)
     }
     switch (op->getOperator()) {
         case OperatorExpression::UNIT:
-            return isLiteral(op->getLeft()) && freecad_cast<const UnitExpression*>(op->getRight())
-                && !freecad_cast<const VariableExpression*>(op->getRight());
+            return isLiteral(op->getLeft()) && isUnit(op->getRight());
         case OperatorExpression::NEG:
         case OperatorExpression::POS:
             return isLiteral(op->getLeft());
@@ -424,7 +446,12 @@ Base::Type UserParameters::propertyTypeForUnit(const Base::Unit& unit)
     if (unit == Base::Unit::Length) {
         return PropertyDistance::getClassTypeId();
     }
+    // The only property type not named after its unit type (TimeSpan).
+    if (unit == Base::Unit::TimeSpan) {
+        return PropertyTime::getClassTypeId();
+    }
     // The unit must come from the property type: a plain PropertyQuantity does not save its unit.
+    // A unit without a property type of its own (a concentration, m^5) has none.
     const std::string unitType = unit.getTypeString();
     if (!unitType.empty()) {
         const std::string typeName = "App::Property" + unitType;

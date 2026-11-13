@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <App/Application.h>
 #include <App/Document.h>
@@ -196,6 +197,103 @@ TEST_F(UserParameters, propertyTypes)
 
     auto* angle = UP::addParameter(holder, "turn", Base::Unit::Angle);
     EXPECT_EQ(angle->getTypeId(), App::PropertyAngle::getClassTypeId());
+
+    // Not named after the unit type, TimeSpan
+    EXPECT_EQ(UP::propertyTypeForUnit(Base::Unit::TimeSpan), App::PropertyTime::getClassTypeId());
+    // No property type stores a concentration
+    EXPECT_TRUE(UP::propertyTypeForUnit(Base::Unit::Concentration).isBad());
+}
+
+TEST_F(UserParameters, everyNamedUnitHasAPropertyTypeOfThatUnit)
+{
+    // Every unit of Base::Unit except Concentration, which no property type has
+    const std::vector<Base::Unit> units {
+        Base::Unit::Acceleration,
+        Base::Unit::AmountOfSubstance,
+        Base::Unit::Angle,
+        Base::Unit::AngleOfFriction,
+        Base::Unit::Area,
+        Base::Unit::CompressiveStrength,
+        Base::Unit::CurrentDensity,
+        Base::Unit::Density,
+        Base::Unit::DissipationRate,
+        Base::Unit::DynamicViscosity,
+        Base::Unit::ElectricalCapacitance,
+        Base::Unit::ElectricalConductance,
+        Base::Unit::ElectricalConductivity,
+        Base::Unit::ElectricalInductance,
+        Base::Unit::ElectricalResistance,
+        Base::Unit::ElectricCharge,
+        Base::Unit::ElectricCurrent,
+        Base::Unit::ElectricPotential,
+        Base::Unit::ElectromagneticPotential,
+        Base::Unit::Force,
+        Base::Unit::Frequency,
+        Base::Unit::HeatFlux,
+        Base::Unit::MassMomentOfInertia,
+        Base::Unit::AreaMomentOfInertia,
+        Base::Unit::InverseArea,
+        Base::Unit::InverseLength,
+        Base::Unit::InverseVolume,
+        Base::Unit::KinematicViscosity,
+        Base::Unit::Length,
+        Base::Unit::LuminousIntensity,
+        Base::Unit::MagneticFieldStrength,
+        Base::Unit::MagneticFlux,
+        Base::Unit::MagneticFluxDensity,
+        Base::Unit::Magnetization,
+        Base::Unit::Mass,
+        Base::Unit::Moment,
+        Base::Unit::Pressure,
+        Base::Unit::Power,
+        Base::Unit::ShearModulus,
+        Base::Unit::SpecificEnergy,
+        Base::Unit::SpecificHeat,
+        Base::Unit::Stiffness,
+        Base::Unit::StiffnessDensity,
+        Base::Unit::Stress,
+        Base::Unit::SurfaceChargeDensity,
+        Base::Unit::Temperature,
+        Base::Unit::TimeSpan,
+        Base::Unit::ThermalConductivity,
+        Base::Unit::ThermalExpansionCoefficient,
+        Base::Unit::ThermalTransferCoefficient,
+        Base::Unit::UltimateTensileStrength,
+        Base::Unit::VacuumPermittivity,
+        Base::Unit::Velocity,
+        Base::Unit::Volume,
+        Base::Unit::VolumeChargeDensity,
+        Base::Unit::VolumeFlowRate,
+        Base::Unit::VolumetricThermalExpansionCoefficient,
+        Base::Unit::Work,
+        Base::Unit::YieldStrength,
+        Base::Unit::YoungsModulus,
+    };
+    int index = 0;
+    for (const Base::Unit& unit : units) {
+        const std::string name = "u" + std::to_string(index++);
+        App::Property* prop = UP::addParameter(holder, name, unit);
+        const auto* quantity = freecad_cast<App::PropertyQuantity*>(prop);
+        ASSERT_NE(quantity, nullptr) << unit.getTypeString();
+        EXPECT_EQ(quantity->getUnit(), unit) << unit.getTypeString();
+    }
+}
+
+TEST_F(UserParameters, numberWithCompoundUnitIsALiteral)
+{
+    for (const char* text : {"3 m/s", "-3 m/s", "5 mm^2", "2 m^-1", "9.81 m/s^2"}) {
+        auto* prop = UP::createParameter(holder, "v", parse(holder, text));
+        const auto quantity = parse(holder, text)->eval();
+        EXPECT_DOUBLE_EQ(
+            freecad_cast<App::PropertyFloat*>(prop)->getValue(),
+            freecad_cast<App::NumberExpression*>(quantity.get())->getQuantity().getValue()
+        ) << text;
+        EXPECT_EQ(holder->getExpression(App::ObjectIdentifier(*prop)).expression, nullptr) << text;
+        UP::removeParameter(prop);
+    }
+    // A computation is bound
+    auto* computed = UP::createParameter(holder, "computed", parse(holder, "3 m/s * 2"));
+    EXPECT_NE(holder->getExpression(App::ObjectIdentifier(*computed)).expression, nullptr);
 }
 
 TEST_F(UserParameters, createLiteralParameter)
