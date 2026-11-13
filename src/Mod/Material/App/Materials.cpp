@@ -319,6 +319,13 @@ void MaterialProperty::setValue(const QString& value)
         // This value can't be directly assigned
     }
     else if (_valuePtr->getType() == MaterialValue::Quantity) {
+        if (value.trimmed().isEmpty()) {
+            // No value. Quantity::parse() would return its placeholder, the smallest double
+            Base::Quantity quantity;
+            quantity.setInvalid();
+            _valuePtr->setValue(QVariant::fromValue(quantity));
+            return;
+        }
         try {
             setQuantity(Base::Quantity::parse(value.toStdString()));
         }
@@ -615,6 +622,49 @@ void Material::addModel(const QString& uuid)
     }
 }
 
+void Material::removeModel(const Model& model,
+                           QSet<QString>& modelUuids,
+                           std::map<QString, std::shared_ptr<MaterialProperty>>& properties)
+{
+    auto& manager = ModelManager::getManager();
+
+    modelUuids.remove(model.getUUID());
+
+    // The models it inherits stay as long as another model of the material inherits them too
+    _allUuids.clear();
+    for (const auto& uuid : std::as_const(_physicalUuids)) {
+        addModel(uuid);
+    }
+    for (const auto& uuid : std::as_const(_appearanceUuids)) {
+        addModel(uuid);
+    }
+
+    // Its properties, and their values, stay when a remaining model has them too
+    std::map<QString, QString> remaining;
+    for (const auto& uuid : std::as_const(modelUuids)) {
+        try {
+            auto remainingModel = manager.getModel(uuid);
+            for (const auto& it : *remainingModel) {
+                remaining.emplace(it.first, uuid);
+            }
+        }
+        catch (ModelNotFound const&) {
+        }
+    }
+    for (const auto& it : model) {
+        auto provider = remaining.find(it.first);
+        if (provider == remaining.end()) {
+            properties.erase(it.first);
+            continue;
+        }
+        auto property = properties.find(it.first);
+        if (property != properties.end()
+            && property->second->getModelUUID() == model.getUUID()) {
+            property->second->setModelUUID(provider->second);
+        }
+    }
+}
+
 void Material::clearModels()
 {
     _physicalUuids.clear();
@@ -766,18 +816,7 @@ void Material::removePhysical(const QString& uuid)
 
     try {
         auto model = manager.getModel(uuid);
-
-        auto& inheritance = model->getInheritance();
-        for (auto& it : inheritance) {
-            removeUUID(_physicalUuids, it);
-            removeUUID(_allUuids, it);
-        }
-        removeUUID(_physicalUuids, uuid);
-        removeUUID(_allUuids, uuid);
-
-        for (auto& it : *model) {
-            _physical.erase(it.first);
-        }
+        removeModel(*model, _physicalUuids, _physical);
 
         setEditStateAlter();
     }
@@ -837,18 +876,7 @@ void Material::removeAppearance(const QString& uuid)
 
     try {
         auto model = manager.getModel(uuid);
-
-        auto& inheritance = model->getInheritance();
-        for (auto& it : inheritance) {
-            removeUUID(_appearanceUuids, it);
-            removeUUID(_allUuids, it);
-        }
-        removeUUID(_appearanceUuids, uuid);
-        removeUUID(_allUuids, uuid);
-
-        for (auto& it : *model) {
-            _appearance.erase(it.first);
-        }
+        removeModel(*model, _appearanceUuids, _appearance);
 
         setEditStateAlter();
     }
@@ -882,15 +910,11 @@ void Material::setPhysicalEditState(const QString& name)
 
 void Material::setAppearanceEditState(const QString& name)
 {
-    try {
-        if (getAppearanceProperty(name)->isNull()) {
-            setEditStateExtend();
-        }
-        else {
-            setEditStateAlter();
-        }
+    if (getAppearanceProperty(name)->isNull()) {
+        setEditStateExtend();
     }
-    catch (const PropertyNotFound&) {
+    else {
+        setEditStateAlter();
     }
 }
 

@@ -187,6 +187,102 @@ class MaterialValueTestCases(unittest.TestCase):
         value = material.getPhysicalValue("Density")
         self.assertAlmostEqual(value.getValueAs("kg/m^3").Value, 7850.123, delta=1e-6)
 
+    def testEmptyStringClearsQuantity(self):
+        """An empty string removes the value of a quantity"""
+        uuids = Materials.UUIDs()
+        material = Materials.Material()
+        material.addPhysicalModel(uuids.Density)
+        material.setPhysicalValue("Density", "7850 kg/m^3")
+        self.assertTrue(material.isPhysicalModelComplete(uuids.Density))
+
+        material.setPhysicalValue("Density", "")
+        self.assertFalse(material.isPhysicalModelComplete(uuids.Density))
+        self.assertTrue(material.PropertyObjects["Density"].Empty)
+
+    def testUnknownPropertyRaises(self):
+        """Setting a property that no model of the material has raises, physical or appearance"""
+        uuids = Materials.UUIDs()
+        material = Materials.Material()
+        material.addPhysicalModel(uuids.Density)
+        material.addAppearanceModel(uuids.BasicRendering)
+        with self.assertRaises(FreeCAD.Base.FreeCADError):
+            material.setPhysicalValue("DiffuseColor", "(0.1, 0.2, 0.3, 1.0)")
+        with self.assertRaises(FreeCAD.Base.FreeCADError):
+            material.setAppearanceValue("Density", "7850 kg/m^3")
+        self.assertIsNone(material.getAppearanceValue("Density"))
+
+
+class MaterialModelTestCases(unittest.TestCase):
+    """
+    Models added to and removed from a material in memory (no library, no files)
+    """
+
+    def setUp(self):
+        self.uuids = Materials.UUIDs()
+
+    def testRemoveModelKeepsSharedPhysicalProperties(self):
+        """Removing a model keeps the models and values another model of the material has too"""
+        uuids = self.uuids
+        for removed, kept in ((uuids.Fluid, uuids.LinearElastic),
+                              (uuids.LinearElastic, uuids.Fluid)):
+            with self.subTest(removed=removed):
+                material = Materials.Material()
+                material.addPhysicalModel(uuids.LinearElastic)
+                material.addPhysicalModel(uuids.Fluid)
+                material.setPhysicalValue("Density", "7850 kg/m^3")
+                material.setPhysicalValue("YoungsModulus", "200 GPa")
+                material.setPhysicalValue("KinematicViscosity", "1 m^2/s")
+
+                material.removePhysicalModel(removed)
+
+                self.assertEqual(material.PhysicalModels, [kept])
+                self.assertFalse(material.hasPhysicalModel(removed))
+                # Both models inherit Density
+                self.assertTrue(material.hasPhysicalModel(uuids.Density))
+                self.assertTrue(material.hasPhysicalProperty("Density"))
+                density = material.getPhysicalValue("Density").getValueAs("kg/m^3").Value
+                self.assertAlmostEqual(density, 7850.0)
+                fluid = kept == uuids.Fluid
+                self.assertEqual(material.hasPhysicalModel(uuids.IsotropicLinearElastic), not fluid)
+                self.assertEqual(material.hasPhysicalProperty("YoungsModulus"), not fluid)
+                self.assertEqual(material.hasPhysicalProperty("KinematicViscosity"), fluid)
+
+    def testRemoveModelKeepsSharedAppearanceProperties(self):
+        """Removing an appearance model keeps the properties of the models still inherited"""
+        uuids = self.uuids
+        material = Materials.Material()
+        material.addAppearanceModel(uuids.AdvancedRendering)
+        material.addAppearanceModel(uuids.TextureRendering)
+        material.setAppearanceValue("DiffuseColor", "(0.1, 0.2, 0.3, 1.0)")
+        material.setAppearanceValue("TexturePath", "texture.png")
+
+        material.removeAppearanceModel(uuids.TextureRendering)
+
+        self.assertEqual(material.AppearanceModels, [uuids.AdvancedRendering])
+        self.assertTrue(material.hasAppearanceModel(uuids.BasicRendering))
+        self.assertEqual(material.getAppearanceValue("DiffuseColor"), "(0.1, 0.2, 0.3, 1.0)")
+        self.assertFalse(material.hasAppearanceProperty("TexturePath"))
+
+    def testRemoveModelRemovesWhatOnlyItProvides(self):
+        """The inherited models and properties no other model has go with the removed model"""
+        uuids = self.uuids
+        material = Materials.Material()
+        material.addPhysicalModel(uuids.LinearElastic)
+        material.addPhysicalModel(uuids.Thermal)
+        material.setPhysicalValue("Density", "7850 kg/m^3")
+
+        # An inherited model is not removed on its own
+        material.removePhysicalModel(uuids.Density)
+        self.assertTrue(material.hasPhysicalModel(uuids.Density))
+        self.assertTrue(material.hasPhysicalProperty("Density"))
+
+        material.removePhysicalModel(uuids.LinearElastic)
+        self.assertEqual(material.PhysicalModels, [uuids.Thermal])
+        for uuid in (uuids.LinearElastic, uuids.Density, uuids.IsotropicLinearElastic):
+            self.assertFalse(material.hasPhysicalModel(uuid))
+        self.assertFalse(material.hasPhysicalProperty("Density"))
+        self.assertTrue(material.hasPhysicalProperty("ThermalConductivity"))
+
 
 class MaterialSaveTestCases(unittest.TestCase):
     """
@@ -399,6 +495,22 @@ class MaterialSaveTestCases(unittest.TestCase):
                 saved = self.MaterialManager.getMaterialByPath(path, "Custom")
                 self.assertEqual(saved.getPhysicalValue("TestMultiLineString"), expected)
                 self.assertEqual(saved.getPhysicalValue("TestSVG"), expected)
+
+    def testSaveAfterRemovingModel(self):
+        """A material saves after removing a model whose inherited properties another model has"""
+        uuids = Materials.UUIDs()
+        material = Materials.Material()
+        material.addPhysicalModel(uuids.LinearElastic)
+        material.addPhysicalModel(uuids.Fluid)
+        material.setPhysicalValue("Density", "7850 kg/m^3")
+        material.removePhysicalModel(uuids.Fluid)
+
+        self.MaterialManager.save("Custom", material, "Removed.FCMat")
+        self.MaterialManager.refresh()
+        saved = self.MaterialManager.getMaterialByPath("Removed.FCMat", "Custom")
+        self.assertEqual(saved.PhysicalModels, [uuids.LinearElastic])
+        density = saved.getPhysicalValue("Density").getValueAs("kg/m^3").Value
+        self.assertAlmostEqual(density, 7850.0)
 
     def testSaveIntoReadOnlyLibraryRaises(self):
         """A read-only library (as the System one) does not accept saves"""
