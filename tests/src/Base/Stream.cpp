@@ -4,6 +4,10 @@
 
 #include <gtest/gtest.h>
 
+#include <Python.h>
+
+#include <CXX/Objects.hxx>
+
 #ifdef _MSC_VER
 # pragma warning(disable : 4996)
 #endif
@@ -169,6 +173,71 @@ TEST_F(StringStreambufTest, RoundTripBinaryData)
     in.clear();
     in.seekg(3);
     EXPECT_EQ(0, in.get());
+}
+
+
+class PyStreambufTest: public ::testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        Py_Initialize();
+        gilState = PyGILState_Ensure();
+    }
+
+    void TearDown() override
+    {
+        PyErr_Clear();
+        PyGILState_Release(gilState);
+    }
+
+    // Writes data through a PyStreambuf to a new object of the given io class and returns
+    // the value of that object
+    static Py::Object writeTo(const char* ioClass, const std::string& data)
+    {
+        Py::Module io(PyImport_ImportModule("io"), true);
+        Py::Object stream = io.callMemberFunction(ioClass);
+        {
+            Base::PyStreambuf buf(stream.ptr());
+            std::ostream out(&buf);
+            out.write(data.data(), static_cast<std::streamsize>(data.size()));
+        }
+        return stream.callMemberFunction("getvalue");
+    }
+
+private:
+    PyGILState_STATE gilState {};
+};
+
+TEST_F(PyStreambufTest, writeBinaryDataToBytesIO)
+{
+    // Not valid UTF-8 and larger than the buffer of the PyStreambuf
+    std::string data;
+    for (int i = 0; i < 1000; ++i) {
+        data.push_back(static_cast<char>(255 - (i % 256)));
+    }
+
+    Py::Object value = writeTo("BytesIO", data);
+    ASSERT_TRUE(value.isBytes());
+    EXPECT_EQ(Py::Bytes(value).as_std_string(), data);
+}
+
+TEST_F(PyStreambufTest, writeTextToBytesIO)
+{
+    const std::string data("solid box\nendsolid box\n");
+
+    Py::Object value = writeTo("BytesIO", data);
+    ASSERT_TRUE(value.isBytes());
+    EXPECT_EQ(Py::Bytes(value).as_std_string(), data);
+}
+
+TEST_F(PyStreambufTest, writeTextToStringIO)
+{
+    const std::string data("solid Pi\xc3\xa8" "ce\nendsolid\n");
+
+    Py::Object value = writeTo("StringIO", data);
+    ASSERT_TRUE(value.isString());
+    EXPECT_EQ(Py::String(value).as_std_string("utf-8"), data);
 }
 
 
