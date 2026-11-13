@@ -1406,6 +1406,19 @@ protected:
     mutable std::string tmpShadow;
 };
 
+/** The PropertyXLink that is hidden from dependency checking
+ */
+class AppExport PropertyXLinkHidden: public PropertyXLink
+{
+    TYPESYSTEM_HEADER();
+
+public:
+    PropertyXLinkHidden()
+    {
+        _pcScope = LinkScope::Hidden;
+    }
+};
+
 
 /** Link to one or more (sub)object from the same or different document
  */
