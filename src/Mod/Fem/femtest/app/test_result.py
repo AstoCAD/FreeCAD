@@ -384,6 +384,59 @@ class TestResult(unittest.TestCase):
             self.assertTrue(all(n in mesh_nodes for n in res.NodeNumbers), res.Name)
 
     # ********************************************************************************************
+    def test_frd_to_vtk_crlf_line_ends(self):
+        # the frd converter reads the values of a line from fixed columns up to the line end: with
+        # CR LF line ends (as CalculiX writes them on Windows) it stepped over the carriage return
+        # and read past the end of the line (access violation)
+        if "BUILD_FEM_VTK" not in FreeCAD.__cmake__:
+            self.skipTest("FEM was built without VTK")
+        import os
+        import xml.etree.ElementTree as ET
+        import Fem
+
+        frd_file = join(testtools.get_fem_test_home_dir(), "calculix", "box_static.frd")
+        with open(frd_file) as f:
+            lines = f.read().splitlines()
+        tmp = testtools.get_fem_test_tmp_dir("result_frd_crlf")
+        outputs = {}
+        for name, newline in (("lf", "\n"), ("crlf", "\r\n")):
+            work_dir = join(tmp, name)
+            os.makedirs(work_dir)
+            test_frd = join(work_dir, "box_static.frd")
+            with open(test_frd, "w", newline="") as f:
+                f.write(newline.join(lines) + newline)
+            Fem.frdToVTK(test_frd, False)
+            files = {}
+            for root, _, names in os.walk(work_dir):
+                for file_name in names:
+                    path = join(root, file_name)
+                    if path != test_frd:
+                        with open(path, "rb") as f:
+                            files[os.path.relpath(path, work_dir)] = f.read()
+            outputs[name] = files
+
+        # both give the same files
+        self.assertEqual(sorted(outputs["crlf"]), sorted(outputs["lf"]))
+        for file_name, content in outputs["lf"].items():
+            self.assertEqual(outputs["crlf"][file_name], content, file_name)
+
+        # with the nodes, the elements and the results of the frd file
+        grids = [c for f, c in outputs["lf"].items() if f.endswith(".vtu")]
+        self.assertEqual(len(grids), 1, sorted(outputs["lf"]))
+        root = ET.fromstring(grids[0])
+        piece = root.find(".//Piece")
+        self.assertEqual(piece.get("NumberOfPoints"), "280")
+        self.assertEqual(piece.get("NumberOfCells"), "129")
+        arrays = {a.get("Name"): a.text.split() for a in root.iter("DataArray")}
+        # node 2 is at (0, 0, 10)
+        self.assertEqual([float(v) for v in arrays["Points"][3:6]], [0.0, 0.0, 10.0])
+        # stress of node 1: SXX ... SZX
+        stress = [float(v) for v in arrays["STRESS"][0:6]]
+        expected = [-2.62033e03, -8.71861e02, -8.00594e02, -4.29349e02, -1.21884e02, -5.42662e02]
+        for value, exp in zip(stress, expected):
+            self.assertAlmostEqual(value, exp, delta=abs(exp) * 1e-5)
+
+    # ********************************************************************************************
     def test_vtk_result_read_write_bad_input(self):
         # Fem.readResult(file) without an object name, a file VTK could not read and
         # Fem.writeResult with an object without a FEM mesh crashed
@@ -445,7 +498,6 @@ class TestResult(unittest.TestCase):
         with open(frd_file) as f:
             lines = f.read().splitlines()
         test_frd = join(tmp, "box_static.frd")
-        # LF line ends: the converter does not handle CR LF line ends
         with open(test_frd, "w", newline="\n") as f:
             f.write("\n".join(lines) + "\n")
         Fem.frdToVTK(test_frd, False)
