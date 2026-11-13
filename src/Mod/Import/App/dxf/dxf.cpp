@@ -2358,7 +2358,8 @@ bool CDxfRead::ReadInsert()
     SetupValueAttribute(eAngleDegrees1, rotationDegrees);
     SetupStringAttribute(eName, blockName);
     ProcessAllEntityAttributes();
-    OnReadInsert(center, scale, blockName, Base::toRadians(rotationDegrees));
+    // The name is converted like the name of the BLOCK it refers to, so that the two still match
+    OnReadInsert(center, scale, NameToUTF8(blockName, "block"), Base::toRadians(rotationDegrees));
     return (true);
 }
 
@@ -2418,7 +2419,7 @@ bool CDxfRead::ReadBlockInfo()
     SetupValueAttribute(eInteger1, blockType);
     ProcessAllAttributes();
 
-    return OnReadBlock(blockName, blockType);
+    return OnReadBlock(NameToUTF8(blockName, "block"), blockType);
 }
 bool CDxfRead::ReadBlockContents()
 {
@@ -2762,11 +2763,11 @@ bool CDxfRead::GeneralToUTF8(std::string& encoded) const
     return converted != nullptr;
 }
 
-std::string CDxfRead::LayerNameToUTF8(const std::string& name) const
+std::string CDxfRead::NameToUTF8(const std::string& name, const char* kind) const
 {
     std::string converted(name);
     if (!(this->*stringToUTF8)(converted)) {
-        ImportError("Unable to process encoding for layer name '{}'\n", name);
+        ImportError("Unable to process encoding for {} name '{}'\n", kind, name);
     }
     return converted;
 }
@@ -2867,7 +2868,7 @@ void CDxfRead::ProcessLayerReference(CDxfRead* object, void* target)
         // We need to take copies of the string arguments because MakeLayer uses them as move
         // inputs.
         object->Layers[object->m_record_data] = object->MakeLayer(
-            object->LayerNameToUTF8(object->m_record_data),
+            object->NameToUTF8(object->m_record_data, "layer"),
             DefaultColor,
             std::string(DefaultLineType)
         );
@@ -3141,7 +3142,8 @@ bool CDxfRead::ReadLayer()
     }
     // The Layers map is keyed by the name as it appears in the file, which is what the entities
     // refer to, while the layer itself gets the UTF-8 name.
-    Layers[layername] = MakeLayer(LayerNameToUTF8(layername), layerColor, std::move(lineTypeName));
+    Layers[layername]
+        = MakeLayer(NameToUTF8(layername, "layer"), layerColor, std::move(lineTypeName));
     return true;
 }
 CDxfRead::Layer* CDxfRead::MakeLayer(const std::string& name, ColorIndex_t color, std::string&& lineType)
