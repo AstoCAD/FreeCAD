@@ -1301,6 +1301,36 @@ class MeshDumpContent(unittest.TestCase):
         self.assertIsInstance(self.mesh.Mesh.dumpContent(3), bytearray)
 
 
+class MeshWriteStream(unittest.TestCase):
+    """Writing to a Python stream gives the same data as writing to a file"""
+
+    def setUp(self):
+        self.mesh = Mesh.createBox(1.0, 2.0, 3.0)
+
+    def fileContent(self, fmt):
+        with tempfile.TemporaryDirectory() as tmpDir:
+            fileName = os.path.join(tmpDir, "box.dat")
+            self.mesh.write(Filename=fileName, Format=fmt)
+            with open(fileName, "rb") as f:
+                return f.read()
+
+    def testBinaryFormatsToBytesIO(self):
+        # Binary data is not valid UTF-8, so the stream buffer failed to find out that
+        # a bytes object must be written and silently dropped the data
+        for fmt in ("STL", "PLY", "BMS"):
+            with self.subTest(format=fmt):
+                stream = io.BytesIO()
+                self.mesh.write(Stream=stream, Format=fmt)
+                self.assertEqual(stream.getvalue(), self.fileContent(fmt))
+
+    def testTextFormatsToStringIO(self):
+        for fmt in ("AST", "OBJ"):
+            with self.subTest(format=fmt):
+                stream = io.StringIO(newline="")
+                self.mesh.write(Stream=stream, Format=fmt)
+                self.assertEqual(stream.getvalue(), self.fileContent(fmt).decode("utf-8"))
+
+
 class MeshExportObjNormals(unittest.TestCase):
     """The normals of an OBJ file must match its vertices for a placed mesh"""
 
