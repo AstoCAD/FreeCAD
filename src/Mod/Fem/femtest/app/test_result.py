@@ -426,3 +426,49 @@ class TestResult(unittest.TestCase):
         Fem.readResult(bad, "NoSuchObject")
         Fem.readResult(join(tmp, "bad.xyz"), "NoSuchObject")
         self.assertIsNone(self.document.getObject("ResultMesh"))
+
+    # ********************************************************************************************
+    def test_result_files_non_ascii_path(self):
+        # The frd converter and the pvd reader opened the file with a narrow std::ifstream, which
+        # on Windows does not take the UTF-8 path: in a folder with non-ASCII characters the frd
+        # results were silently lost and reading a pvd file failed
+        if "BUILD_FEM_VTK" not in FreeCAD.__cmake__:
+            self.skipTest("FEM was built without VTK")
+        import os
+        import Fem
+
+        tmp = join(testtools.get_fem_test_tmp_dir("result_non_ascii_path"), "Pièce Ωμέγα 日本")
+        os.makedirs(tmp)
+
+        # frd: the static results become a block of their own next to the frd file
+        frd_file = join(testtools.get_fem_test_home_dir(), "calculix", "box_static.frd")
+        with open(frd_file) as f:
+            lines = f.read().splitlines()
+        test_frd = join(tmp, "box_static.frd")
+        # LF line ends: the converter does not handle CR LF line ends
+        with open(test_frd, "w", newline="\n") as f:
+            f.write("\n".join(lines) + "\n")
+        Fem.frdToVTK(test_frd, False)
+        self.assertTrue(os.path.isfile(join(tmp, "box_staticStatic.vtm")), os.listdir(tmp))
+
+        # pvd: a collection of two time steps
+        mesh = Fem.FemMesh()
+        for i, p in enumerate([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)], 1):
+            mesh.addNode(*p, i)
+        mesh.addVolume([1, 2, 3, 4], 1)
+        mesh.write(join(tmp, "step0.vtu"))
+        mesh.write(join(tmp, "step1.vtu"))
+        pvd_file = join(tmp, "case.pvd")
+        with open(pvd_file, "w", encoding="utf-8") as f:
+            f.write(
+                '<?xml version="1.0"?>\n'
+                '<VTKFile type="Collection" version="0.1">\n'
+                "<Collection>\n"
+                '<DataSet timestep="0" group="" part="0" file="step0.vtu"/>\n'
+                '<DataSet timestep="2.5" group="" part="0" file="step1.vtu"/>\n'
+                "</Collection>\n"
+                "</VTKFile>\n"
+            )
+        pipeline = self.document.addObject("Fem::FemPostPipeline", "Pipeline")
+        pipeline.read(pvd_file)
+        self.assertEqual(len(pipeline.getEnumerationsOfProperty("Frame")), 2)
