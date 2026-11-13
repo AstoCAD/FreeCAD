@@ -32,7 +32,9 @@
 
 
 #include <App/Application.h>
+#include <Base/FileInfo.h>
 #include <Base/Interpreter.h>
+#include <Base/Stream.h>
 
 
 #include "Exceptions.h"
@@ -164,7 +166,7 @@ void MaterialConfigLoader::splitTextureObject(const QString& value,
 
 QString MaterialConfigLoader::getAuthorAndLicense(const QString& path)
 {
-    std::ifstream infile(path.toStdString());
+    Base::ifstream infile(Base::FileInfo(path.toStdString()));
     QString noAuthor;
 
     // Skip the first line
