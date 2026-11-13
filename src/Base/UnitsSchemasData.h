@@ -639,7 +639,7 @@ inline const UnitsSchemaSpec s6
         { "Mass",   {
             { 0             , "t"            , 1e3              }}
         },
-        { "Inertia", {
+        { "MassMomentOfInertia", {
             { 0             , "t*mm^2"       , 1e3              }}
         },
         { "Density", {
