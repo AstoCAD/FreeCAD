@@ -411,7 +411,8 @@ class Load:
             # Derived from the attachment, which is unchanged: not an edit.
             return
         if prop in ("Placement", "BodyI") and not self._updating_attachment:
-            self.update_attachment(obj)
+            # Another component keeps the load where it is: it is not turned.
+            self.update_attachment(obj, reorient=prop == "Placement")
         elif (
             prop == "AttachmentI"
             and obj.LoadType == "Bushing"
@@ -476,7 +477,7 @@ class Load:
         finally:
             self._syncing_placement = False
 
-    def update_attachment(self, obj):
+    def update_attachment(self, obj, reorient=True):
         if not hasattr(obj, "BodyI") or not obj.BodyI or not hasattr(obj, "Placement"):
             return
         if getattr(self, "_syncing_placement", False):
@@ -492,10 +493,11 @@ class Load:
             # The direction is the Z axis of the frame the editor orients. An
             # edit that only moves the load leaves it alone: after its
             # component has turned, a direction fixed in assembly coordinates
-            # is no longer that Z axis.
-            reoriented = not (component_placement * obj.AttachmentI).Rotation.isSame(
-                placement.Rotation, 1e-9
-            )
+            # is no longer that Z axis. Nor does a change of component, which
+            # leaves Placement as it is (reorient False).
+            reoriented = reorient and not (
+                component_placement * obj.AttachmentI
+            ).Rotation.isSame(placement.Rotation, 1e-9)
             obj.AttachmentI = attachment
             if reoriented:
                 obj.Direction = placement.Rotation.multVec(App.Vector(0, 0, 1))

@@ -507,6 +507,23 @@ class TestDynamics(unittest.TestCase):
         load.Placement = placement
         self.assertVectorClose(load.Direction, (0, 1, 0), delta=1e-9)
 
+    def test_load_moved_to_another_component_keeps_its_direction(self):
+        body = self.box()
+        other = self.box("Other", position=(50, 0, 0))
+        other.Placement.Rotation = App.Rotation(App.Vector(0, 0, 1), 90)
+        study = self.study(False)
+        load = Dynamics.create_load(study, "Force", body)
+        self.assertVectorClose(load.Direction, (0, 0, 1), delta=1e-9)
+        # The component turns; the direction stays fixed in the assembly.
+        body.Placement = App.Placement(App.Vector(), App.Rotation(App.Vector(1, 0, 0), 90))
+        self.doc.recompute()
+        self.assertVectorClose(load.Direction, (0, 0, 1), delta=1e-9)
+        # Attaching the load to another component, as the editor's component
+        # selector does, does not turn it either.
+        load.BodyI = other
+        self.assertVectorClose(load.Direction, (0, 0, 1), delta=1e-9)
+        self.assertTrue(load.Placement.isSame(other.Placement * load.AttachmentI, 1e-9))
+
     def test_follower_load_direction_turns_with_its_component(self):
         body = self.box()
         study = self.study(False)
