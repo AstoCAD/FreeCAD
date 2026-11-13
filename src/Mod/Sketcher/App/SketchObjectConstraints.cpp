@@ -1257,6 +1257,10 @@ int SketchObject::delConstraintOnPoint(int geoId, PointPos posId, bool onlyCoinc
         }
     };
 
+    // The constraints are redirected on copies: the stored ones must stay as they are until
+    // setValues(), which keeps them for undo. Owned here until then.
+    std::vector<Constraint*> copies;
+
     // remove or redirect any constraints associated with the given point
     for (auto& constr : vals) {
         // keep the constraint if it doesn't involve the point
@@ -1274,8 +1278,10 @@ int SketchObject::delConstraintOnPoint(int geoId, PointPos posId, bool onlyCoinc
             newVals.push_back(constr);
             continue;
         }
-        if (performAllConstraintChecksOrChanges(constr).value_or(true)) {
-            newVals.push_back(constr);
+        std::unique_ptr<Constraint> copy(constr->clone());
+        if (performAllConstraintChecksOrChanges(copy).value_or(true)) {
+            copies.push_back(copy.release());
+            newVals.push_back(copies.back());
         }
     }
 
@@ -1285,6 +1291,9 @@ int SketchObject::delConstraintOnPoint(int geoId, PointPos posId, bool onlyCoinc
         return 0;
     }
 
+    for (auto* copy : copies) {
+        delete copy;
+    }
     return -1;  // no such constraint
 }
 
