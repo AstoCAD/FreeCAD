@@ -2983,7 +2983,37 @@ bool SketchObject::AutoLockTangencyAndPerpty(Constraint* cstr, bool bForce, bool
                 angleDesire = pi / 2;
             }
 
-            double angleErr = calculateAngleViaPoint(geoId1, geoId2, p.x, p.y) - angleDesire;
+            // Both points are ends of the same clamped B-spline: once they are joined, the point
+            // cannot tell its start from its end, so the angle is taken at the end parameters, as
+            // Sketch::addAngleAtPointConstraint() does.
+            const auto* bsp = dynamic_cast<const Part::GeomBSplineCurve*>(getGeometry(geoId1));
+            bool bsplineEndToEnd = false;
+            if (bsp && geoId1 == geoId2 && cstr->Third == GeoEnum::GeoUndef
+                && cstr->SecondPos != PointPos::none && !bsp->isPeriodic()) {
+                std::vector<int> mults = bsp->getMultiplicities();
+                bsplineEndToEnd = mults.front() > bsp->getDegree()
+                    && mults.back() > bsp->getDegree();
+            }
+
+            double angle = 0.0;
+            if (bsplineEndToEnd) {
+                auto endParameter = [bsp](PointPos pos) {
+                    return pos == PointPos::start ? bsp->getFirstParameter()
+                                                  : bsp->getLastParameter();
+                };
+                Sketcher::Sketch sk;
+                int id = sk.addGeometry(bsp);
+                angle = sk.calculateAngleViaParams(
+                    id,
+                    id,
+                    endParameter(cstr->FirstPos),
+                    endParameter(cstr->SecondPos)
+                );
+            }
+            else {
+                angle = calculateAngleViaPoint(geoId1, geoId2, p.x, p.y);
+            }
+            double angleErr = angle - angleDesire;
 
             // bring angleErr to -pi..pi
             if (angleErr > pi)

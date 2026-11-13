@@ -49,6 +49,7 @@ set(Sketcher_TestScripts
     SketcherTests/TestSketchMoveUndo.py
     SketcherTests/TestSketchExtendUndo.py
     SketcherTests/TestSketchReversedConicArcs.py
+    SketcherTests/TestSketchBSplineEndToEnd.py
 )
 
 if(BUILD_GUI)
