@@ -60,9 +60,13 @@ target_link_libraries(Gui_tests_run PRIVATE
 
 target_link_libraries(GuiSelection_tests_run PRIVATE
     GTest::gmock_main
+    ${Python3_LIBRARIES}
     FreeCADApp
     FreeCADGui
 )
+# This runner is not in the TestExecutables list, so the loop in tests/CMakeLists.txt
+# does not do this for it.
+keep_python_linked(GuiSelection_tests_run)
 
 if(WIN32)
     target_compile_definitions(Gui_tests_run PRIVATE QUARTER_DLL)
