@@ -548,6 +548,7 @@ class svgHandler(xml.sax.ContentHandler):
         self.lastdim = None
         self.viewbox = None
         self.svgdpi = 1.0
+        self.text_chunks = []
 
         global Part
 
@@ -612,6 +613,7 @@ class svgHandler(xml.sax.ContentHandler):
         attrs : iterable
             Dictionary of content of the elements
         """
+        self.makeCollectedText()
         self.count += 1
         precision = svg_precision()
 
@@ -1051,7 +1053,24 @@ class svgHandler(xml.sax.ContentHandler):
     # startElement()
 
     def characters(self, content):
-        """Read characters from the given string."""
+        """Collect characters of the current text.
+
+        The parser can give the characters of one text in several calls,
+        for example around an entity such as &amp;. They are collected
+        and the text is made when the next tag starts or ends.
+        """
+        if self.text:
+            self.text_chunks.append(content)
+
+    def makeCollectedText(self):
+        """Make a text of the characters collected since the last tag."""
+        if self.text_chunks:
+            content = "".join(self.text_chunks)
+            self.text_chunks = []
+            self.makeText(content)
+
+    def makeText(self, content):
+        """Make a text object from the given string."""
         if self.text:
             self._msg("reading characters {}".format(content))
             obj = self.doc.addObject("App::Annotation", "Text")
@@ -1081,6 +1100,7 @@ class svgHandler(xml.sax.ContentHandler):
         name : str
             The name of the element
         """
+        self.makeCollectedText()
         if name not in ["tspan"]:
             self.transform = None
             self.text = None
