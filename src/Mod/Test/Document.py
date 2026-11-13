@@ -3985,6 +3985,40 @@ class DocumentExpressionCases(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             obj.setExpression(".Placement.Base.y", ".Placement.Base.x + 10mm")
 
+    def testOwnPropertyReferenceWithLocalDot(self):
+        # A property of the same object may be spelled with the local property dot (".Width")
+        # or without it ("Width"). An expression reading one spelling was not ordered after
+        # the expression bound with the other one: it read the value of the previous recompute.
+        # A cycle through the other spelling was not detected either.
+        for widthPath, heightPath, reference in (
+            ("Width", "Height", ".Width"),
+            (".Width", ".Height", "Width"),
+        ):
+            with self.subTest(widthPath=widthPath, reference=reference):
+                obj = self.Doc.addObject("App::FeaturePython", "Obj")
+                obj.addProperty("App::PropertyLength", "Width")
+                obj.addProperty("App::PropertyLength", "Height")
+                obj.setExpression(widthPath, "5 mm * 4")
+                obj.setExpression(heightPath, reference + " * 2")
+                self.Doc.recompute()
+                self.assertAlmostEqual(obj.Width.Value, 20)
+                self.assertAlmostEqual(obj.Height.Value, 40)
+                # the bindings keep their spelling
+                self.assertIn((widthPath, "5 mm * 4"), obj.ExpressionEngine)
+                self.assertIn((heightPath, reference + " * 2"), obj.ExpressionEngine)
+
+        obj = self.Doc.addObject("App::FeaturePython", "Cyclic")
+        obj.addProperty("App::PropertyLength", "Width")
+        obj.addProperty("App::PropertyLength", "Height")
+        with self.assertRaises(RuntimeError):
+            obj.setExpression("Width", ".Width + 1 mm")
+        obj.setExpression("Width", "Height + 1 mm")
+        with self.assertRaises(RuntimeError):
+            obj.setExpression("Height", ".Width + 1 mm")
+        with self.assertRaises(RuntimeError):
+            obj.setExpression(".Height", "Width + 1 mm")
+        self.assertEqual(obj.ExpressionEngine, [("Width", "Height + 1 mm")])
+
     def testConstructorFunctionsWithInvalidArguments(self):
         # vector(), placement(), matrix() and create() ignored a failing
         # constructor and returned the default object with a Python error
