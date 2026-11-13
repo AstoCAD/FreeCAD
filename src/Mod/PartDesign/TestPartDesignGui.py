@@ -250,6 +250,29 @@ class PartDesignGuiTestCases(unittest.TestCase):
             if Gui.Control.activeDialog():
                 Gui.Control.closeDialog()
 
+    def testPadShapeFaceButtonKeepsItsLabel(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33888
+        feature, _ = self.makeLcsPlaneExtrusion("Pad")
+        try:
+            self.assertTrue(Gui.getDocument(self.Doc.Name).setEdit(feature.Name))
+            Gui.updateGui()
+            for name in ("buttonShapeFace", "buttonShapeFace2"):
+                with self.subTest(button=name):
+                    button = Gui.getMainWindow().findChild(QtGui.QToolButton, name)
+                    self.assertIsNotNone(button)
+                    self.assertFalse(button.isChecked())
+                    label = button.text()
+                    button.setChecked(True)
+                    Gui.updateGui()
+                    self.assertNotEqual(button.text(), label)
+                    button.setChecked(False)
+                    Gui.updateGui()
+                    self.assertEqual(button.text(), label)
+        finally:
+            Gui.getDocument(self.Doc.Name).resetEdit()
+            if Gui.Control.activeDialog():
+                Gui.Control.closeDialog()
+
     def dressUpGizmoSwitches(self):
         from pivy import coin
 

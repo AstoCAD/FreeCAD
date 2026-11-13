@@ -378,7 +378,7 @@ void TaskExtrudeParameters::onSelectShapeFacesToggle(bool checked, Side side)
     }
     else {
         setSelectionMode(None);
-        sideCtrl.buttonShapeFace->setText(tr("Select Faces"));
+        sideCtrl.buttonShapeFace->setText(tr("Select"));
     }
 }
 
