@@ -50,6 +50,7 @@ SET(OpenSCADTestsApp_SRCS
 
 SET(OpenSCADTestsGui_SRCS
     OpenSCADTest/gui/__init__.py
+    OpenSCADTest/gui/test_commandUndo.py
     OpenSCADTest/gui/test_dummy.py
     OpenSCADTest/gui/test_importCSGVisibility.py
     OpenSCADTest/gui/test_replaceObject.py
