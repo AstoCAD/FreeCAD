@@ -548,7 +548,7 @@ class MaterialEditor:
         if "DiffuseColor" in mat:
             diffcol = mat["DiffuseColor"]
         elif "ViewColor" in mat:
-            diffcol = mat["ViwColor"]
+            diffcol = mat["ViewColor"]
         elif "Color" in mat:
             diffcol = mat["Color"]
         if "SpecularColor" in mat:
