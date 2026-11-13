@@ -267,6 +267,9 @@ bool isLiteral(const Expression* expr)
     }
     switch (op->getOperator()) {
         case OperatorExpression::UNIT:
+        case OperatorExpression::MUL:
+        case OperatorExpression::DIV:
+            // `9.81 m/s^2` is read as (9.81 m) / (s^2)
             return isLiteral(op->getLeft()) && isUnit(op->getRight());
         case OperatorExpression::NEG:
         case OperatorExpression::POS:
