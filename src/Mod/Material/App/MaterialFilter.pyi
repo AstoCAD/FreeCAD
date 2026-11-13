@@ -28,3 +28,6 @@ class MaterialFilter(BaseClass):
 
     RequiredCompleteModels: List = ...
     """Materials must have complete versions of the specified models."""
+
+    RequirePhysical: bool = ...
+    """Materials must have at least one physical model."""

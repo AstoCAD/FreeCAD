@@ -111,6 +111,16 @@ void MaterialFilterPy::setRequiredCompleteModels(Py::List value)
     }
 }
 
+Py::Boolean MaterialFilterPy::getRequirePhysical() const
+{
+    return getMaterialFilterPtr()->physicalRequired();
+}
+
+void MaterialFilterPy::setRequirePhysical(const Py::Boolean value)
+{
+    getMaterialFilterPtr()->requirePhysical(value);
+}
+
 PyObject* MaterialFilterPy::getCustomAttributes(const char* /*attr*/) const
 {
     return nullptr;

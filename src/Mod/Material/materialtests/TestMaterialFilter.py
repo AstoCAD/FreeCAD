@@ -194,6 +194,25 @@ class MaterialFilterTestCases(unittest.TestCase):
 
         filtered = self.MaterialManager.filterMaterials(filter, includeLegacy=True)
 
+    def testRequirePhysical(self):
+        """Test that a filter can exclude materials without physical properties"""
+
+        filter = Materials.MaterialFilter()
+        self.assertFalse(filter.RequirePhysical)
+
+        filter.RequirePhysical = True
+        self.assertTrue(filter.RequirePhysical)
+
+        filtered = self.MaterialManager.filterMaterials(filter)
+        self.assertEqual(
+            sorted(material.UUID for material in filtered),
+            sorted([UUIDAluminumMixed, UUIDAluminumPhysical]),
+        )
+
+        filter.RequirePhysical = False
+        filtered = self.MaterialManager.filterMaterials(filter)
+        self.assertEqual(len(filtered), 4)
+
     def testErrorInput(self):
 
         self.assertRaises(TypeError, self.MaterialManager.filterMaterials, [])

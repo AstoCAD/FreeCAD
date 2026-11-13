@@ -175,6 +175,10 @@ public:
     /* Require that the materials have physical properties defined.
      */
     void requirePhysical(bool required) { _requirePhysical = required; }
+    bool physicalRequired() const
+    {
+        return _requirePhysical;
+    }
 
     /* Require that the materials have appearance properties defined.
      */

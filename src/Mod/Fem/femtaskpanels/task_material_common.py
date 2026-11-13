@@ -127,8 +127,8 @@ class _TaskPanel(base_femtaskpanel._BaseTaskPanel):
         self.toggleInputFieldsReadOnly()
 
         # hide some groupBox according to material category
+        self.filter_models(self.obj.Category)
         if self.obj.Category == "Fluid":
-            self.filter_models(self.obj.Category)
             self.parameterWidget.groupBox_mechanical.setVisible(0)
         else:
             self.parameterWidget.groupBox_fluidic.setVisible(0)
@@ -164,11 +164,13 @@ class _TaskPanel(base_femtaskpanel._BaseTaskPanel):
     # choose material ****************************************************************************
     def filter_models(self, category):
         material_filter = Materials.MaterialFilter()
+        # materials without physical properties (e.g. hatch patterns) are useless for FEM
+        material_filter.RequirePhysical = True
         models = set(Materials.ModelManager().Models.keys())
         uuids = Materials.UUIDs()
         if category == "Fluid":
             material_filter.RequiredModels = [uuids.Fluid]
-            self.material_tree.setFilter(material_filter)
+        self.material_tree.setFilter(material_filter)
 
     def toggleInputFieldsReadOnly(self):
         if self.parameterWidget.chbu_allow_edit.isChecked():
