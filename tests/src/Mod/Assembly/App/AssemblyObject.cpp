@@ -544,6 +544,97 @@ TEST_F(AssemblyObjectTest, dragSkipsAContactWithANonFiniteFrictionCoefficient)  
     EXPECT_NEAR(other->Placement.getValue().getPosition().x, 11, 1e-9);
 }
 
+namespace
+{
+App::DocumentObject* addGeneralDragContact(Assembly::AssemblyObject* assembly)
+{
+    auto* doc = assembly->getDocument();
+    auto* contact = doc->addObject("App::FeaturePython", "GeneralContact");
+    contact->addDynamicProperty("App::PropertyString", "ContactType");
+    auto* mode = static_cast<App::PropertyEnumeration*>(
+        contact->addDynamicProperty("App::PropertyEnumeration", "Mode")
+    );
+    mode->setEnums({"Between two components", "General collision detection"});
+    mode->setValue("General collision detection");
+    contact->addDynamicProperty("App::PropertyBool", "Suppressed");
+    contact->addDynamicProperty("App::PropertyBool", "FrictionEnabled");
+    auto* group = doc->addObject<Assembly::SimulationGroup>("Simulations");
+    assembly->addObject(group);
+    group->addObject(contact);
+    return contact;
+}
+
+Part::Box* addDragBox(
+    Assembly::AssemblyObject* assembly,
+    const char* name,
+    const Base::Vector3d& position,
+    double length = 10
+)
+{
+    auto* object = assembly->getDocument()->addObject<Part::Box>(name);
+    object->Length.setValue(length);
+    object->Width.setValue(length);
+    object->Height.setValue(10);
+    object->execute();
+    object->Placement.setValue(Base::Placement(position, Base::Rotation()));
+    assembly->addObject(object);
+    return object;
+}
+}  // namespace
+
+TEST_F(AssemblyObjectTest, dragContactPushesAComponentItStartsTouching)  // NOLINT
+{
+    auto* assembly = getObject();
+    // Flush faces, as components are usually assembled.
+    auto* dragged = addDragBox(assembly, "Dragged", Base::Vector3d(0, 0, 0));
+    auto* touching = addDragBox(assembly, "Touching", Base::Vector3d(10, 0, 0));
+    addGeneralDragContact(assembly);
+    const auto previous = dragged->Placement.getValue();
+    dragged->Placement.setValue(Base::Placement(Base::Vector3d(3, 0, 0), Base::Rotation()));
+    assembly->resolveContactMove({dragged}, {{dragged, previous}});
+    EXPECT_NEAR(dragged->Placement.getValue().getPosition().x, 3, 1e-9);
+    EXPECT_NEAR(touching->Placement.getValue().getPosition().x, 13, 0.05);
+}
+
+TEST_F(AssemblyObjectTest, dragSlidesAComponentAlongAFaceItTouches)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* dragged = addDragBox(assembly, "Dragged", Base::Vector3d(0, 0, 0));
+    auto* touching = addDragBox(assembly, "Touching", Base::Vector3d(10, 0, 0));
+    addGeneralDragContact(assembly);
+    // Two mouse moves along the shared face: the second starts touching
+    // shapes that the first has meshed.
+    for (double y : {3.0, 6.0}) {
+        const auto previous = dragged->Placement.getValue();
+        dragged->Placement.setValue(Base::Placement(Base::Vector3d(0, y, 0), Base::Rotation()));
+        assembly->resolveContactMove({dragged}, {{dragged, previous}});
+        EXPECT_NEAR(dragged->Placement.getValue().getPosition().y, y, 1e-9);
+    }
+    EXPECT_NEAR(dragged->Placement.getValue().getPosition().x, 0, 1e-9);
+    EXPECT_TRUE(touching->Placement.getValue().isSame(
+        Base::Placement(Base::Vector3d(10, 0, 0), Base::Rotation()),
+        1e-9
+    ));
+}
+
+TEST_F(AssemblyObjectTest, dragTurnsAComponentOnAFaceItTouches)  // NOLINT
+{
+    auto* assembly = getObject();
+    // The dragged box sits on the plate's top face.
+    auto* plate = addDragBox(assembly, "Plate", Base::Vector3d(-10, -10, -10), 30);
+    auto* dragged = addDragBox(assembly, "Dragged", Base::Vector3d(0, 0, 0));
+    addGeneralDragContact(assembly);
+    const auto previous = dragged->Placement.getValue();
+    const Base::Placement turned(Base::Vector3d(0, 0, 0), Base::Rotation(Base::Vector3d(0, 0, 1), 0.5));
+    dragged->Placement.setValue(turned);
+    assembly->resolveContactMove({dragged}, {{dragged, previous}});
+    EXPECT_TRUE(dragged->Placement.getValue().isSame(turned, 1e-9));
+    EXPECT_TRUE(plate->Placement.getValue().isSame(
+        Base::Placement(Base::Vector3d(-10, -10, -10), Base::Rotation()),
+        1e-9
+    ));
+}
+
 TEST_F(AssemblyObjectTest, frameQueriesWithoutSolverSystem)  // NOLINT
 {
     auto* assembly = getObject();

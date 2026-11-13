@@ -314,7 +314,37 @@ void ensureContactTriangulation(const TopoDS_Shape& shape, ContactTiming& timing
     timing.meshingMs += elapsedMilliseconds(phaseStart);
 }
 
-bool shapesOverlap(
+// The common part of two solids, null when the Boolean fails.
+TopoDS_Shape commonShape(
+    const TopoDS_Shape& firstShape,
+    const TopoDS_Shape& secondShape,
+    ContactTiming& timing
+)
+{
+    ++timing.booleanTests;
+    const auto phaseStart = ContactClock::now();
+    BRepAlgoAPI_Common common(firstShape, secondShape);
+    common.SetNonDestructive(true);
+    common.SetRunParallel(false);
+    common.Build();
+    TopoDS_Shape result;
+    if (common.IsDone()) {
+        result = common.Shape();
+    }
+    timing.booleanMs += elapsedMilliseconds(phaseStart);
+    return result;
+}
+
+// How two solids meet. Faces within the tolerance of each other either touch,
+// as parts assembled flush do, or cross; telling these apart needs a Boolean.
+enum class ShapeOverlap
+{
+    None,
+    Faces,
+    Volume
+};
+
+ShapeOverlap shapeOverlap(
     const TopoDS_Shape& firstShape,
     const TopoDS_Shape& secondShape,
     ContactTiming& timing
@@ -329,7 +359,7 @@ bool shapesOverlap(
     timing.broadPhaseMs += elapsedMilliseconds(phaseStart);
     if (firstBox.IsOut(secondBox)) {
         ++timing.broadPhaseRejects;
-        return false;
+        return ShapeOverlap::None;
     }
 
     const auto proximityOverlap = [&](bool& done) {
@@ -359,7 +389,7 @@ bool shapesOverlap(
     }
     if (proximityDone) {
         if (surfaceIntersection) {
-            return true;
+            return ShapeOverlap::Faces;
         }
 
         bool containment = false;
@@ -373,27 +403,64 @@ bool shapesOverlap(
             containment = representativePointInside(secondShape, firstShape);
         }
         timing.containmentMs += elapsedMilliseconds(phaseStart);
-        return surfaceIntersection || containment;
+        return containment ? ShapeOverlap::Volume : ShapeOverlap::None;
     }
 
     // ShapeProximity needs face triangulation. This exact fallback keeps
     // contact functional for unusual non-tessellated shapes, but the timing
     // log makes an unexpectedly frequent fallback immediately visible.
-    ++timing.booleanTests;
     ++timing.booleanFallbacks;
-    phaseStart = ContactClock::now();
-    BRepAlgoAPI_Common common(firstShape, secondShape);
-    common.SetNonDestructive(true);
-    common.SetRunParallel(false);
-    common.Build();
-    if (!common.IsDone() || common.Shape().IsNull()) {
-        timing.booleanMs += elapsedMilliseconds(phaseStart);
-        return false;
+    const auto common = commonShape(firstShape, secondShape, timing);
+    if (common.IsNull()) {
+        return ShapeOverlap::None;
     }
     GProp_GProps overlap;
-    BRepGProp::VolumeProperties(common.Shape(), overlap);
-    timing.booleanMs += elapsedMilliseconds(phaseStart);
-    return overlap.Mass() > 1e-9;
+    BRepGProp::VolumeProperties(common, overlap);
+    return overlap.Mass() > 1e-9 ? ShapeOverlap::Volume : ShapeOverlap::None;
+}
+
+// Touching counts: the first pose that reaches another component.
+bool shapesOverlap(
+    const TopoDS_Shape& firstShape,
+    const TopoDS_Shape& secondShape,
+    ContactTiming& timing
+)
+{
+    return shapeOverlap(firstShape, secondShape, timing) != ShapeOverlap::None;
+}
+
+// Touching does not count: the solids share a volume thicker than the
+// tolerance. Faces found within the tolerance whose Boolean fails are taken
+// as crossing, as shapesOverlap() takes them.
+bool shapesIntersect(
+    const TopoDS_Shape& firstShape,
+    const TopoDS_Shape& secondShape,
+    ContactTiming& timing
+)
+{
+    switch (shapeOverlap(firstShape, secondShape, timing)) {
+        case ShapeOverlap::None:
+            return false;
+        case ShapeOverlap::Volume:
+            return true;
+        case ShapeOverlap::Faces:
+            break;
+    }
+    const auto common = commonShape(firstShape, secondShape, timing);
+    if (common.IsNull()) {
+        return true;
+    }
+    GProp_GProps volume;
+    BRepGProp::VolumeProperties(common, volume);
+    if (!(volume.Mass() > 0)) {
+        return false;
+    }
+    // Twice the volume over the boundary area is the thickness of a thin
+    // common slab: flush faces leave none, numerical noise far less than the
+    // tolerance.
+    GProp_GProps area;
+    BRepGProp::SurfaceProperties(common, area);
+    return !(area.Mass() > 0) || 2 * volume.Mass() / area.Mass() > Precision::Confusion();
 }
 
 TopoDS_Shape movedShape(
@@ -1404,7 +1471,7 @@ void AssemblyObject::resolveContactMove(
                     if (!solids) {
                         continue;
                     }
-                    overlapping = shapesOverlap(driverTargetShape, pushedShape, timing);
+                    overlapping = shapesIntersect(driverTargetShape, pushedShape, timing);
                 }
                 catch (const Standard_Failure& e) {
                     Base::Console().warning(
@@ -1431,8 +1498,10 @@ void AssemblyObject::resolveContactMove(
                     const auto shapeAt = [&](const Base::Placement& placement) {
                         return movedShape(driverTargetShape, placement * target.inverse(), timing);
                     };
+                    // Touching is not intersecting: a component assembled
+                    // flush against another is pushed, not let through.
                     startedOverlapping
-                        = shapesOverlap(shapeAt(driverPrevious->second), pushedShape, timing);
+                        = shapesIntersect(shapeAt(driverPrevious->second), pushedShape, timing);
                     if (!overlapping) {
                         if (startedOverlapping) continue; // Dragging out of an initial overlap.
                         const auto localShape = BRepBuilderAPI_Transform(driverTargetShape,
@@ -1441,6 +1510,11 @@ void AssemblyObject::resolveContactMove(
                         freeFraction = sweepGeometry.sweep(driverPrevious->second, target,
                                                            Base::Placement(), Base::Placement(), true);
                         if (freeFraction == 1) continue;
+                        // The sweep cannot leave a start pose within the tolerance
+                        // of the other component when the move does not separate
+                        // them: the component slides along or turns on the surface
+                        // it touches, to a target that does not intersect.
+                        if (freeFraction == 0) continue;
                         collidingFraction = freeFraction;
                     }
                     if (!startedOverlapping && overlapping) {
