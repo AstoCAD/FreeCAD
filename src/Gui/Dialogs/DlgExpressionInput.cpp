@@ -35,6 +35,7 @@
 #include <App/DocumentObject.h>
 #include <App/ExpressionParser.h>
 #include <App/ExpressionTokenizer.h>
+#include <App/PropertyUnits.h>
 #include <App/UserParameters.h>
 #include <App/VarSet.h>
 #include <Base/Console.h>
@@ -198,6 +199,15 @@ Base::Type DlgExpressionInput::getTypePath()
 Base::Type DlgExpressionInput::determineTypeVarSet()
 {
     Base::Type typePath = getTypePath();
+
+    // A plain quantity property, such as the radius of a fillet, has the unit that its owner
+    // gives it: a new one in the varset would have no unit and reject the value with its unit.
+    // The type of the unit is used instead.
+    if ((typePath == App::PropertyQuantity::getClassTypeId()
+         || typePath == App::PropertyQuantityConstraint::getClassTypeId())
+        && impliedUnit != Base::Unit::One) {
+        return App::UserParameters::propertyTypeForUnit(impliedUnit);
+    }
 
     // The type of the path is leading.  If it is one of the types below, we
     // can create a property in the varset.
