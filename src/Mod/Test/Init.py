@@ -40,6 +40,7 @@ FreeCAD.__unit_test__ += [
     "TestFloatConstraintQuantityIntegerConversion",
     "TestPropertyFloatNaN",
     "TestHelpFallback",
+    "TestHelpStyleSheet",
     "TestProjectUtility",
     "TestUserParameters",
     "Metadata",

@@ -418,7 +418,9 @@ def convert(content, force=None):
         css = '<link rel="stylesheet" type="text/css" href="' + cssfile + '"/>'
     else:
         if os.path.exists(cssfile):
-            with open(cssfile) as cf:
+            # decoded as a browser decodes a UTF-8 stylesheet (optional BOM,
+            # invalid bytes replaced): the page declares charset utf-8
+            with open(cssfile, encoding="utf-8-sig", errors="replace") as cf:
                 css = cf.read()
             if css:
                 css = "<style>\n" + css + "\n</style>"
