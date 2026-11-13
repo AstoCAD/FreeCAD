@@ -1615,7 +1615,7 @@ class GmshTools(ObjectTools):
 
     def write_geo(self):
         temp_dir = os.path.dirname(self.model_file)
-        geo = open(self.model_file, "w")
+        geo = open(self.model_file, "w", encoding="utf-8")
         geo.write("// geo file for meshing with Gmsh meshing software created by FreeCAD\n")
         geo.write("\n")
 
@@ -2001,7 +2001,7 @@ class GmshPreviewTools(GmshTools):
         # size fields
 
         temp_dir = os.path.dirname(self.model_file)
-        geo = open(self.model_file, "w")
+        geo = open(self.model_file, "w", encoding="utf-8")
 
         # first create other models that may be required for adaptive meshing
         self.write_result_data(geo)

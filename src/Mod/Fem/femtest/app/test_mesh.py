@@ -195,6 +195,29 @@ class TestMeshCommon(unittest.TestCase):
         )
 
     # ********************************************************************************************
+    def test_inp_import_non_ascii_comments(self):
+        # the CalculiX writer writes object labels as comments in UTF-8, read in the locale
+        # encoding such a file and its included files could not be read back by the importer
+        from feminout import importInpMesh
+
+        tetra4 = Fem.FemMesh()
+        tetra4.addNode(0, 0, 0, 1)
+        tetra4.addNode(1, 0, 0, 2)
+        tetra4.addNode(0, 1, 0, 3)
+        tetra4.addNode(0, 0, 1, 4)
+        tetra4.addVolume([1, 2, 3, 4])
+        inp_dir = testtools.get_fem_test_tmp_dir("mesh_common_inp_non_ascii")
+        tetra4.writeABAQUS(join(inp_dir, "Mesh_femesh.inp"), 1, False)
+        with open(join(inp_dir, "Mesh_femesh.inp"), "a", encoding="utf-8") as f:
+            f.write("** Ávila Ωμέγα 日本\n")
+        with open(join(inp_dir, "Mesh.inp"), "w", encoding="utf-8") as f:
+            f.write("** Ávila Ωμέγα 日本\n*INCLUDE,INPUT=Mesh_femesh.inp\n")
+
+        mesh = importInpMesh.read(join(inp_dir, "Mesh.inp"))
+        self.assertEqual(mesh.NodeCount, 4)
+        self.assertEqual(mesh.VolumeCount, 1)
+
+    # ********************************************************************************************
     def test_getNodesBySolid_near_boundary(self):
         # https://github.com/FreeCAD/FreeCAD/issues/33842
         # nodes just inside the solid (closer than 1e-3 to its boundary) were dropped
