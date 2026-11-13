@@ -5564,7 +5564,7 @@ void PropertyXLinkSubList::getLinksTo(std::vector<App::ObjectIdentifier>& identi
                                       const char* subname,
                                       bool all) const
 {
-    if (!all && _pcScope != LinkScope::Hidden) {
+    if (!all && _pcScope == LinkScope::Hidden) {
         return;
     }
     for (auto& l : _Links) {
