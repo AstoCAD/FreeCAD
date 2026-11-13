@@ -83,6 +83,47 @@ class DrawViewAnnotationTest(unittest.TestCase):
             document.recompute()
             self.assertCountEqual(exported_texts(path), control + ["Recovered annotation"])
 
+    def testDxfExportNonAsciiText(self):
+        """DXF text is written in the code page the file declares and reads back unchanged"""
+        from pathlib import Path
+        import tempfile
+        import Import
+        import TechDraw
+
+        text = "Wände Ωμέγα 日本 ±45° ⌀ \U0001f600"
+        document = FreeCAD.ActiveDocument
+        annotation = document.addObject("TechDraw::DrawViewAnnotation", "NonAsciiText")
+        annotation.Text = [text]
+        self.page.addView(annotation)
+        document.recompute()
+
+        parent = "User parameter:BaseApp/Preferences/Mod/Import"
+        options = FreeCAD.ParamGet(parent).GetGroup("TestTechDrawDxfText")
+        self.addCleanup(FreeCAD.ParamGet(parent).RemGroup, "TestTechDrawDxfText")
+        options.SetBool("dxftext", True)
+        options.SetBool("dxfUseDraftVisGroups", False)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "text.dxf"
+            TechDraw.writeDXFPage(self.page, str(path))
+            data = path.read_bytes()
+            # R12/R14 files have no UTF-8: Windows-1252, the others as \U+XXXX (UTF-16 units)
+            self.assertIn(b"ANSI_1252", data)
+            expected = (
+                "Wände \\U+03A9\\U+03BC\\U+03AD\\U+03B3\\U+03B1 \\U+65E5\\U+672C"
+                " ±45° \\U+2300 \\U+D83D\\U+DE00"
+            )
+            self.assertIn(expected.encode("cp1252"), data)
+
+            imported = FreeCAD.newDocument("TDAnnoDxfImport")
+            try:
+                Import.readDXF(str(path), imported.Name, True, f"{parent}/TestTechDrawDxfText")
+                texts = [list(o.Text) for o in imported.Objects if hasattr(o, "Text")]
+            finally:
+                FreeCAD.closeDocument(imported.Name)
+                FreeCAD.setActiveDocument("TDAnno")
+        self.assertIn([text], texts)
+
 
 if __name__ == "__main__":
     unittest.main()
