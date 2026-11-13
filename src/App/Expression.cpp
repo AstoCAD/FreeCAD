@@ -4336,6 +4336,49 @@ ExpressionPtr App::ExpressionParser::parseUserInput(
     return parse(owner, canonical.c_str());
 }
 
+namespace {
+// True if expr is made of units only, combined the way the unit_exp grammar rule
+// combines them: multiplied, divided or raised to an integer power, e.g. "m^2/s".
+bool isUnitOnlyExpression(Expression* expr)
+{
+    if (expr->is<UnitExpression>()) {
+        return true;
+    }
+    auto* op = freecad_cast<OperatorExpression*>(expr);
+    if (!op) {
+        return false;
+    }
+    switch (op->getOperator()) {
+        case OperatorExpression::MUL:
+        case OperatorExpression::DIV:
+            return isUnitOnlyExpression(op->getLeft()) && isUnitOnlyExpression(op->getRight());
+        case OperatorExpression::POW: {
+            Expression* exponent = op->getRight();
+            auto* negation = freecad_cast<OperatorExpression*>(exponent);
+            if (negation && negation->getOperator() == OperatorExpression::NEG) {
+                exponent = negation->getLeft();
+            }
+            return isUnitOnlyExpression(op->getLeft()) && exponent->is<NumberExpression>();
+        }
+        default:
+            return false;
+    }
+}
+
+// True for the reciprocal of a unit expression: "1/K", "1/m^2", "1/(m*K)" or "1/m/s".
+bool isReciprocalUnitExpression(Expression* expr)
+{
+    auto* fraction = freecad_cast<OperatorExpression*>(expr);
+    if (!fraction || fraction->getOperator() != OperatorExpression::DIV
+        || !isUnitOnlyExpression(fraction->getRight())) {
+        return false;
+    }
+    auto* nom = freecad_cast<NumberExpression*>(fraction->getLeft());
+    return (nom && essentiallyEqual(nom->getValue(), 1.0))
+        || isReciprocalUnitExpression(fraction->getLeft());
+}
+}  // namespace
+
 std::unique_ptr<UnitExpression> ExpressionParser::parseUnit(
     const App::DocumentObject* owner,
     const char* buffer
@@ -4359,17 +4402,10 @@ std::unique_ptr<UnitExpression> ExpressionParser::parseUnit(
     // Simplify expression
     ExpressionPtr simplified = ScanResult->simplify();
 
-    if (!unitExpression) {
-        auto* fraction = freecad_cast<OperatorExpression*>(ScanResult.get());
-
-        if (fraction && fraction->getOperator() == OperatorExpression::DIV) {
-            NumberExpression * nom = freecad_cast<NumberExpression*>(fraction->getLeft());
-            UnitExpression * denom = freecad_cast<UnitExpression*>(fraction->getRight());
-
-            // If not initially a unit expression, but value is equal to 1, it means the expression is something like 1/unit
-            if (denom && nom && essentiallyEqual(nom->getValue(), 1.0))
-                unitExpression = true;
-        }
+    // The grammar only recognizes a bare unit expression as a unit. The reciprocal of
+    // a unit expression ("1/K", "1/m^2") is parsed as a value; accept it as a unit too.
+    if (!unitExpression && isReciprocalUnitExpression(ScanResult.get())) {
+        unitExpression = true;
     }
     ScanResult.reset();
 

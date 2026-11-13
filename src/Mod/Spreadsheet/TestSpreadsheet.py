@@ -990,6 +990,24 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.A10, Units.Quantity("5 K^-1"))
         self.assertEqual(sheet.A11, Units.Quantity("9.8 m/s^2"))
 
+    def testReciprocalDisplayUnits(self):
+        """Display units can be the reciprocal of a compound unit."""
+        # https://github.com/FreeCAD/FreeCAD/issues/5629
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        for address, unit in (
+            ("A1", "1/K"),
+            ("A2", "1/m^2"),
+            ("A3", "1/(m*K)"),
+            ("A4", "1/m/s"),
+            ("A5", "1/s^-1"),
+        ):
+            sheet.set(address, "1")
+            sheet.setDisplayUnit(address, unit)
+            self.assertEqual(sheet.getDisplayUnit(address), unit)
+        for unit in ("2/m^2", "1/(2 m)"):
+            with self.assertRaises(ValueError, msg=unit):
+                sheet.setDisplayUnit("B1", unit)
+
     def testPrecedence(self):
         """Precedence -- test precedence for relational operators and conditional operator."""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
