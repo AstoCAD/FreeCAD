@@ -111,3 +111,90 @@ class TestMeasureShapeFinder(unittest.TestCase):
         # With LinkTransform the linked object's own placement is kept under
         # the link's placement.
         self._checkLink(App.Vector(1, 1, 1), linkTransform=True)
+
+
+class TestMeasurementSubElementCenterOfMass(unittest.TestCase):
+    """Measurement.com() of a reference with a sub-element is the center of
+    mass of that sub-element, not of the whole referenced object."""
+
+    def setUp(self):
+        previous = App.activeDocument()
+        self.previous_document = previous.Name if previous else None
+        self.doc = App.newDocument("MeasurementSubElementCenterOfMass")
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+        if self.previous_document in App.listDocuments():
+            App.setActiveDocument(self.previous_document)
+
+    def _checkCenter(self, root, subName, expected, volume):
+        measurement = Measure.Measurement()
+        try:
+            measurement.addReference3D(root.Name, subName)
+            self.assertAlmostEqual(measurement.volume(), volume, places=6)
+            result = measurement.com()
+            actual = App.Vector(result[0], result[1], result[2])
+            self.assertLess(
+                (actual - expected).Length, 1e-7, f"{subName}: got {actual}, expected {expected}"
+            )
+        finally:
+            measurement.clear()
+
+    def testSolidOfCompound(self):
+        compound = self.doc.addObject("Part::Feature", "Compound")
+        compound.Shape = Part.makeCompound(
+            [Part.makeBox(10, 10, 10), Part.makeBox(2, 4, 6, App.Vector(100, 0, 0))]
+        )
+        compound.Placement = App.Placement(
+            App.Vector(7, 11, 13), App.Rotation(App.Vector(0, 1, 0), 90)
+        )
+        self.doc.recompute()
+        # The center of the second box, from its dimensions and position
+        expected = compound.Placement.multVec(App.Vector(101, 2, 3))
+        self._checkCenter(compound, "Solid2", expected, 48.0)
+
+    def testObjectInNestedParts(self):
+        box = self.doc.addObject("Part::Box", "Box")
+        box.Length, box.Width, box.Height = 2, 4, 6
+        box.Placement = App.Placement(App.Vector(7, 11, 13), App.Rotation(App.Vector(0, 1, 0), 90))
+        other = self.doc.addObject("Part::Box", "Other")
+        other.Placement.Base = App.Vector(-50, 0, 0)
+        inner = self.doc.addObject("App::Part", "Inner")
+        inner.addObject(box)
+        inner.addObject(other)
+        inner.Placement = App.Placement(
+            App.Vector(10, -20, 30), App.Rotation(App.Vector(0, 0, 1), 90)
+        )
+        outer = self.doc.addObject("App::Part", "Outer")
+        outer.addObject(inner)
+        outer.Placement = App.Placement(
+            App.Vector(100, 200, 300), App.Rotation(App.Vector(1, 0, 0), 90)
+        )
+        self.doc.recompute()
+        center = box.Placement.multVec(App.Vector(1, 2, 3))
+        expected = outer.Placement.multVec(inner.Placement.multVec(center))
+        self._checkCenter(outer, "Inner.Box.Solid1", expected, 48.0)
+
+    def testLinkArrayElement(self):
+        box = self.doc.addObject("Part::Box", "Box")
+        box.Length, box.Width, box.Height = 2, 4, 6
+        array = self.doc.addObject("App::Link", "Array")
+        array.LinkedObject = box
+        array.ShowElement = False
+        array.ElementCount = 3
+        array.Placement = App.Placement(
+            App.Vector(0, 0, 200), App.Rotation(App.Vector(0, 0, 1), -30)
+        )
+        self.doc.recompute()
+        element = App.Placement(App.Vector(60, 0, 0), App.Rotation(App.Vector(1, 1, 0), 20))
+        placements = list(array.PlacementList)
+        placements[2] = element
+        array.PlacementList = placements
+        scales = list(array.ScaleList)
+        scales[2] = App.Vector(-1, 2, 1)
+        array.ScaleList = scales
+        self.doc.recompute()
+        # The element places the box (the link ignores the box's own
+        # placement) after scaling it; the array places the element.
+        expected = array.Placement.multVec(element.multVec(App.Vector(-1, 4, 3)))
+        self._checkCenter(array, "2.Solid1", expected, 96.0)
