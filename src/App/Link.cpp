@@ -2854,6 +2854,7 @@ void Link::migrateLabelUtility(App::DocumentObject* link, App::DocumentObject* l
     }
 
     std::string newInst;
+    const std::string separators {" -_"};
 
     // Case 2: Standard Numeric Uniqueness (e.g., "Cube001" -> "Cube <1>")
     // We use decomposeLabel to see if the existing label is just the target + numbers.
@@ -2862,11 +2863,14 @@ void Link::migrateLabelUtility(App::DocumentObject* link, App::DocumentObject* l
         newInst = val.toString();
     }
     else if (currentLabel.size() > targetLabel.size()
-             && currentLabel.compare(0, targetLabel.size(), targetLabel) == 0) {
-        // Case 3: Prefixed custom name (e.g., "Cube left" -> "Cube <left>")
+             && currentLabel.compare(0, targetLabel.size(), targetLabel) == 0
+             && separators.find(currentLabel[targetLabel.size()]) != std::string::npos) {
+        // Case 3: Prefixed custom name, a separate word after the target label (e.g.,
+        // "Cube left" -> "Cube <left>"). A label that only starts with the target label
+        // ("Bolts" or "Armrest" for "Bolt" or "Arm") is one word, kept whole (Case 4).
         newInst = currentLabel.substr(targetLabel.size());
         // Clean up separators like "Cube-left" or "Cube left"
-        auto firstPos = newInst.find_first_not_of(" -_");
+        auto firstPos = newInst.find_first_not_of(separators);
         newInst = (firstPos != std::string::npos) ? newInst.substr(firstPos) : currentLabel;
     }
     else {

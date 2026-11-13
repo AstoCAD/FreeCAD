@@ -1602,6 +1602,32 @@ class DocumentLinkLabelCases(unittest.TestCase):
                 if "LinkLabelTestRes" in FreeCAD.listDocuments():
                     FreeCAD.closeDocument("LinkLabelTestRes")
 
+    def testRestoreMigratedLabelKeepsWordsWhole(self):
+        # A link label that starts with the linked label without a separator is a word of
+        # its own, not the linked label with an instance name ("Bolts" became "Bolt <s>").
+        # The numeric suffix of unique labels and a separate word are instance names.
+        labels = {
+            "Bolt": ("Bolts", "Bolt <Bolts>"),
+            "Arm": ("Armrest", "Arm <Armrest>"),
+            "Nut": ("Nut001", "Nut <1>"),
+            "Cube": ("Cube left", "Cube <left>"),
+        }
+        for index, (target, (label, migrated)) in enumerate(labels.items()):
+            obj = self.Doc.addObject("App::FeatureTest", f"Target{index}")
+            obj.Label = target
+            link = self.Doc.addObject("App::Link", f"Link{index}")
+            link.setLink(obj)
+            link.Label = label
+            self.assertEqual(link.Label, label)
+        with tempfile.TemporaryDirectory() as directory:
+            filename = os.path.join(directory, "LinkLabelTest.FCStd")
+            self.Doc.saveAs(filename)
+            FreeCAD.closeDocument(self.Doc.Name)
+            self.Doc = FreeCAD.openDocument(filename)
+            for index, (label, migrated) in enumerate(labels.values()):
+                with self.subTest(label=label):
+                    self.assertEqual(self.Doc.getObject(f"Link{index}").Label, migrated)
+
     def testLabelWithGreaterThanInExpression(self):
         # quote() escapes '>' in a <<label>>, the parser must read it back
         child = self.Doc.addObject("App::VarSet", "Child")
