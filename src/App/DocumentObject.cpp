@@ -977,14 +977,20 @@ void DocumentObject::arrangeMoveProperty(Property* toBeMovedProp,
         targetObj->_pDoc->arrangeMovePropertyOfObject(targetObj, toBeMovedProp, targetObj, newProp);
     }
 
-    // Phase 2: Move an expression that targets the current property
+    {
+        // do not record the paste since we are defining a transaction
+        auto guard = targetObj->_pDoc->setDefiningTransaction();
+
+        // Phase 2: Paste the property. This comes before moving the expressions bound to it:
+        // binding an expression checks its path on the value, e.g. the index of '.Values[1]'.
+        newProp->Paste(*toBeMovedProp);
+    }
+
+    // Phase 3: Move the expressions that target the current property
     moveExpressionTargetingProp(toBeMovedProp, newProp, targetObj);
 
     // do not record the following changes since we are defining a transaction
     auto guard = targetObj->_pDoc->setDefiningTransaction();
-
-    // Phase 3: Paste the property
-    newProp->Paste(*toBeMovedProp);
 
     // Phase 4: Rewrite expressions that reference the property to be moved
     GetApplication().signalMoveDynamicProperty(*toBeMovedProp, *targetObj);
