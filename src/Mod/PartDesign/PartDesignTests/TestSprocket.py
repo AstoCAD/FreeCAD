@@ -15,10 +15,13 @@
 # *                                                                         *
 # ***************************************************************************
 
+import pathlib
 import unittest
+from xml.etree import ElementTree
 
 import FreeCAD
 import Part
+import SprocketFeature
 from fcsprocket import fcsprocket, sprocket
 
 EDGES_PER_TOOTH = 8
@@ -52,3 +55,24 @@ class TestSprocket(unittest.TestCase):
             for tooth in (1, teeth // 2, teeth - 1):
                 other = edges[EDGES_PER_TOOTH * tooth : EDGES_PER_TOOTH * (tooth + 1)]
                 self.assertToothMatches(first, other, -360.0 * tooth / teeth)
+
+    def testMakeSprocket(self):
+        """A script creates a sprocket feature, also without the GUI"""
+        doc = FreeCAD.newDocument("PartDesignTestSprocket")
+        try:
+            feature = SprocketFeature.makeSprocket("Sprocket")
+            doc.recompute()
+            self.assertTrue(feature.isValid())
+            self.assertTrue(feature.Shape.isClosed())
+            self.assertEqual(len(feature.Shape.Edges), EDGES_PER_TOOTH * feature.NumberOfTeeth)
+            references = feature.getEnumerationsOfProperty("SprocketReference")
+            self.assertEqual(
+                len(references), len(SprocketFeature.Sprocket.SprocketReferenceRollerTable)
+            )
+            if not FreeCAD.GuiUp:
+                # nothing is translated: the references are the texts of the task panel
+                ui = ElementTree.parse(pathlib.Path(SprocketFeature.__file__).with_suffix(".ui"))
+                combo = ui.find(".//widget[@name='comboBox_SprocketReference']")
+                self.assertEqual(references, [s.text for s in combo.iter("string")])
+        finally:
+            FreeCAD.closeDocument(doc.Name)
