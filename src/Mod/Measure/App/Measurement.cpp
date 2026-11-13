@@ -1101,7 +1101,7 @@ Base::Vector3d Measurement::massCenter() const
                 // Compute inertia properties
 
                 GProp_GProps props = GProp_GProps();
-                TopoDS_Shape shape = ShapeFinder::getLocatedShape(*(*obj), "");
+                TopoDS_Shape shape = ShapeFinder::getLocatedShape(*(*obj), *subEl);
                 if (shape.IsNull()) {
                     continue;
                 }
