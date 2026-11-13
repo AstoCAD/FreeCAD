@@ -572,4 +572,31 @@ class DraftSVGExportLabelRegression(test_base.DraftTestCaseDoc):
         self.assertEqual(titles[0].firstChild.data, label)
 
 
+class DraftSVGImportContentRegression(test_base.DraftTestCaseDoc):
+    """Regression tests for how the SVG importer reads the content of a file."""
+
+    def test_read_svg_declared_encoding(self):
+        """A file is decoded as its byte order mark or encoding declaration says."""
+        body = (
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="100mm" height="100mm" viewBox="0 0 100 100">\n'
+            "<desc>Café</desc>\n"
+            '<rect x="0" y="0" width="10" height="10"/>\n'
+            "</svg>\n"
+        )
+        # Python writes a byte order mark for UTF-16
+        for encoding in ("ISO-8859-1", "windows-1252", "UTF-16", "UTF-8"):
+            with self.subTest(encoding=encoding):
+                svg = '<?xml version="1.0" encoding="{}"?>\n'.format(encoding) + body
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    in_file = os.path.join(temp_dir, "encoding.svg")
+                    with open(in_file, "wb") as svg_file:
+                        svg_file.write(svg.encode(encoding))
+                    result = importSVG.replace_use_with_reference(in_file)
+                    shapes = importSVG.readShapes(in_file)
+                self.assertIn("<desc>Café</desc>", result)
+                self.assertEqual(len(shapes), 1)
+                self.assertAlmostEqual(shapes[0].Area, 100.0, places=6)
+
+
 ## @}
