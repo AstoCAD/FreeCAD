@@ -71,4 +71,5 @@ from TDTest.HoleShaftFitTest import HoleShaftFitTest  # noqa: F401
 
 from TDTest.SketchAnnotationsTest import SketchAnnotationsTest  # noqa: F401
 from TDTest.TechDrawModuleApiTest import TechDrawModuleApiTest  # noqa: F401
+from TDTest.ProjectToSVGTest import ProjectToSVGTest  # noqa: F401
 from TDTest.DrawViewCollectionLoopTest import DrawViewCollectionLoopTest  # noqa: F401
