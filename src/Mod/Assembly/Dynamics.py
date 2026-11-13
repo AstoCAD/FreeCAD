@@ -373,15 +373,30 @@ class Load:
         self._restoring = True
         try:
             self._properties(obj)
+            self._clear_blank_formula(obj)
         finally:
             self._restoring = False
         purge_touched(obj)
+
+    @staticmethod
+    def _clear_blank_formula(obj):
+        """Store a blank expression as no expression.
+
+        The solver applies any nonempty Formula, while the editor and the 3D
+        view read a blank one as the constant magnitude. Keep one value.
+        """
+        if obj.Formula and not obj.Formula.strip():
+            obj.Formula = ""
+            return True
+        return False
 
     def onChanged(self, obj, prop):
         if App.isRestoring() or getattr(self, "_restoring", False) or is_replaying(obj):
             return
         if prop == "Formula" and getattr(self, "_updating_profile", False):
             return
+        if prop == "Formula" and self._clear_blank_formula(obj):
+            return  # Handled by the change to the empty Formula.
         if prop == "LoadType":
             MotionProfile.follow_type(obj)
         if prop == "Formula" and getattr(obj, "ProfileData", ""):

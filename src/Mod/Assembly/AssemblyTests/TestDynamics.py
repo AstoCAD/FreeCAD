@@ -671,6 +671,19 @@ class TestDynamics(unittest.TestCase):
             data["Bodies"][box.Name]["Acceleration"][-1][0], 1000, delta=0.02
         )
 
+    def test_blank_load_formula_applies_the_constant_magnitude(self):
+        # The editor and the 3D view read a blank formula as no formula.
+        box = self.box()
+        study = self.study(gravity=False)
+        load = Dynamics.create_load(study, "Force", box)
+        load.Direction = App.Vector(1, 0, 0)
+        load.Force = "0.002 N"
+        load.Formula = " \t "
+        self.assertEqual(load.Formula, "")
+        self.assertEqual(Dynamics.constant_load_magnitude(load), load.Force.Value)
+        data = Dynamics.run(study)
+        self.assertAlmostEqual(data["Loads"][load.Name]["ForceX"][0], 0.002, delta=1e-12)
+
     def test_torque_uses_physical_inertia(self):
         box = self.box()
         study = self.study(gravity=False)
