@@ -44,6 +44,23 @@ def _assembly_for_owner(owner):
     return Dynamics.assembly_for_owner(owner)
 
 
+def _selected_components(assembly, components):
+    """Components picked in the tree or the 3D view, in selection order.
+
+    The unresolved selection keeps the path from the root object, so a face
+    picked inside a Body or through a link still names its component.
+    """
+    selected = []
+    for entry in Gui.Selection.getSelectionEx("*", 0):
+        for path in entry.SubElementNames or [""]:
+            component, _ = UtilsAssembly.getComponentReference(assembly, entry.Object, path)
+            if component is None and entry.Object in components:
+                component = entry.Object
+            if component in components and component not in selected:
+                selected.append(component)
+    return selected
+
+
 def _show_task(contact, owner, resume_simulation=None):
     panel = TaskAssemblyCreateContact(contact, owner, resume_simulation)
     dialog = Gui.Control.showDialog(panel)
@@ -105,7 +122,7 @@ class CommandCreateContact:
         if len(components) < 2:
             return
 
-        selected = [obj for obj in Gui.Selection.getSelection() if obj in components]
+        selected = _selected_components(assembly, components)
         first = selected[0] if selected else components[0]
         second = next((obj for obj in selected[1:] if obj != first), None)
         if second is None:
@@ -345,15 +362,9 @@ class TaskAssemblyCreateContact:
         self.refreshPairCount()
 
     def useSelection(self, column):
-        selected = set()
-        for entry in Gui.Selection.getSelectionEx():
-            if entry.Object in self.components:
-                selected.add(entry.Object.Name)
-            else:
-                for path in entry.SubElementNames or [""]:
-                    component, _ = UtilsAssembly.getComponentReference(self.assembly, entry.Object, path)
-                    if component in self.components:
-                        selected.add(component.Name)
+        selected = {
+            component.Name for component in _selected_components(self.assembly, self.components)
+        }
         self._updating = True
         for row in range(self.members.topLevelItemCount()):
             item = self.members.topLevelItem(row)

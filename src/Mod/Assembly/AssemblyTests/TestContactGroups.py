@@ -145,6 +145,28 @@ class TestContactGroups(unittest.TestCase):
         self.assertEqual(len(Dynamics.contact_exclusions(self.contact)), 1)
         panel.form.deleteLater()
 
+    def test_add_selection_accepts_a_face_picked_through_a_link(self):
+        if not App.GuiUp:
+            self.skipTest("GUI required")
+        import FreeCADGui as Gui
+        import CommandCreateContact
+
+        panel = CommandCreateContact.TaskAssemblyCreateContact(
+            self.contact, Dynamics.input_owner(self.contact)
+        )
+        try:
+            Gui.Selection.clearSelection()
+            Gui.Selection.addSelection(
+                self.fixture.doc.Name,
+                self.fixture.assembly.Name,
+                self.c.Name + ".LinkedPartShape.Face1",
+            )
+            panel.useSelection(1)
+            self.assertIn(self.c, self.contact.ComponentsI)
+        finally:
+            Gui.Selection.clearSelection()
+            panel.form.deleteLater()
+
     def test_pair_mode_does_not_display_a_missing_component(self):
         if not App.GuiUp:
             self.skipTest("GUI required")
