@@ -72,6 +72,7 @@
 #include <App/DocumentObject.h>
 #include <Base/Console.h>
 #include <Base/FileInfo.h>
+#include <Base/Stream.h>
 #include <Base/TimeInfo.h>
 #include <Base/Type.h>
 
@@ -2143,7 +2144,7 @@ void FemVTKTools::frdToVTK(const char* filename, bool binary)
         throw Base::FileException("File to load not existing or not readable", filename);
     }
 
-    std::ifstream ifstr(filename, std::ios::in | std::ios::binary);
+    Base::ifstream ifstr(fi, std::ios::in | std::ios::binary);
 
     vtkSmartPointer<vtkMultiBlockDataSet> multiBlock = FRDReader::readFRD(ifstr);
 

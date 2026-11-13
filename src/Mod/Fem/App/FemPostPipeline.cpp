@@ -47,6 +47,7 @@
 
 #include <Base/Console.h>
 #include <Base/Reader.h>
+#include <Base/Stream.h>
 
 #include "FemMesh.h"
 #include "FemMeshObject.h"
@@ -176,7 +177,7 @@ vtkSmartPointer<vtkDataObject> FemPostPipeline::readPVD(const Base::FileInfo& fi
 {
     std::string path = file.filePath();
 
-    std::ifstream ifstr(path, std::ios::in | std::ios::binary);
+    Base::ifstream ifstr(file, std::ios::in | std::ios::binary);
     Base::XMLReader reader(path.c_str(), ifstr);
     reader.readElement("DataSet");
     std::map<double, std::string> values;

@@ -562,6 +562,46 @@ class TestMeshCommon(unittest.TestCase):
         compile(source, tool.model_file, "exec")
         self.assertIn(repr(tool.brep_file), source.decode("utf-8"))
 
+    # ********************************************************************************************
+    def test_stl_dat_non_ascii_path(self):
+        # SMESH writes and reads STL and DAT files with narrow file functions too: on Windows
+        # nothing was written (or a file under a garbled name) and an STL file read back empty
+        # when the path had non-ASCII characters
+        import os
+        import sys
+
+        char = None
+        for candidate in ("é", "ü", "ж", "中"):
+            try:
+                if sys.platform == "win32":
+                    candidate.encode("mbcs")
+                char = candidate
+                break
+            except UnicodeEncodeError:
+                pass
+        if char is None:
+            return
+        base_dir = testtools.get_fem_test_tmp_dir("mesh_common_stl_dat_non_ascii")
+        non_ascii_dir = join(base_dir, f"d{char}r")
+        os.makedirs(non_ascii_dir)
+
+        tetra4 = Fem.FemMesh()
+        tetra4.addNode(0, 0, 0, 1)
+        tetra4.addNode(1, 0, 0, 2)
+        tetra4.addNode(0, 1, 0, 3)
+        tetra4.addNode(0, 0, 1, 4)
+        tetra4.addVolume([1, 2, 3, 4])
+        dat_file = join(non_ascii_dir, "tetra4_mesh.dat")
+        tetra4.write(dat_file)
+        self.assertTrue(os.path.exists(dat_file), "DAT file was not written")
+        stl_file = join(non_ascii_dir, "tetra4_mesh.stl")
+        tetra4.write(stl_file)
+        self.assertTrue(os.path.exists(stl_file), "STL file was not written")
+        newmesh = Fem.read(stl_file)
+        self.assertEqual(newmesh.NodeCount, 4)
+        self.assertEqual(newmesh.FaceCount, 4)
+        self.assertEqual(sorted(os.listdir(non_ascii_dir)), ["tetra4_mesh.dat", "tetra4_mesh.stl"])
+
 
 # ************************************************************************************************
 # ************************************************************************************************

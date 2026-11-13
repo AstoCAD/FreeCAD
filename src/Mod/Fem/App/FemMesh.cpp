@@ -86,9 +86,10 @@ SMESH_Gen* FemMesh::_mesh_gen = nullptr;
 
 namespace
 {
-// SMESH opens UNV files with a narrow std::fstream. On Windows such a path is interpreted in
-// the ANSI code page and not as UTF-8, so a non-ASCII path (e.g. a temporary directory below
-// a user name with accents or Cyrillic characters) cannot be opened.
+// SMESH opens UNV, STL and DAT files with narrow file APIs (std::fstream, CreateFileA, fopen).
+// On Windows such a path is interpreted in the ANSI code page and not as UTF-8, so a non-ASCII
+// path (e.g. a temporary directory below a user name with accents or Cyrillic characters) cannot
+// be opened.
 std::string smeshFilePath(const Base::FileInfo& fi)
 {
 #ifdef _WIN32
@@ -1690,7 +1691,7 @@ void FemMesh::read(const char* FileName)
     }
     else if (File.hasExtension("stl")) {
         // read brep-file
-        myMesh->STLToMesh(File.filePath().c_str());
+        myMesh->STLToMesh(smeshFilePath(File).c_str());
     }
     else if (File.hasExtension("bdf")) {
         // read Nastran-file
@@ -2376,12 +2377,12 @@ void FemMesh::write(const char* FileName) const
     else if (File.hasExtension("stl")) {
         Base::Console().log("FEM mesh object will be exported to stl format.\n");
         // export to stl file
-        myMesh->ExportSTL(File.filePath().c_str(), false);
+        myMesh->ExportSTL(smeshFilePath(File).c_str(), false);
     }
     else if (File.hasExtension("dat")) {
         Base::Console().log("FEM mesh object will be exported to dat format.\n");
         // export to dat file
-        myMesh->ExportDAT(File.filePath().c_str());
+        myMesh->ExportDAT(smeshFilePath(File).c_str());
     }
     else if (File.hasExtension("inp")) {
         Base::Console().log("FEM mesh object will be exported to inp format.\n");
