@@ -20,6 +20,7 @@
  ******************************************************************************/
 
 #include <format>
+#include <limits>
 
 #include <QMetaType>
 #include <QRegularExpression>
@@ -27,6 +28,7 @@
 
 #include <App/Application.h>
 #include <Base/Quantity.h>
+#include <Base/UnitsApi.h>
 #include <Gui/MetaTypes.h>
 
 #include "Exceptions.h"
@@ -307,6 +309,28 @@ QString MaterialValue::getYAMLStringMultiLine() const
     return yaml;
 }
 
+QString MaterialValue::getYAMLStringQuantity(const Base::Quantity& quantity)
+{
+    // A card stores the value, not its display: getUserString() rounds it to the display
+    // precision and formats it for the user's unit schema and locale. Use the units of the
+    // default schema, as a card written with the default preferences does, and the C locale,
+    // which Base::Quantity::parse() reads. digits10 keeps every value given with up to 15
+    // significant digits exactly, without the rounding noise of the unit conversion.
+    static const auto defaultSchema = Base::UnitsApi::createSchema(
+        Base::UnitsApi::getDefSchemaNum()
+    );
+    constexpr int significantDigits = std::numeric_limits<double>::digits10;
+    double factor {1.0};
+    std::string unitString;
+    defaultSchema->translate(quantity, factor, unitString);
+
+    QString yaml = QString::number(quantity.getValue() / factor, 'g', significantDigits);
+    if (!unitString.empty()) {
+        yaml += QStringLiteral(" ") + QString::fromStdString(unitString);
+    }
+    return yaml;
+}
+
 QString MaterialValue::getYAMLString() const
 {
     QString yaml;
@@ -324,8 +348,7 @@ QString MaterialValue::getYAMLString() const
             return getYAMLStringMultiLine();
         }
         if (getType() == MaterialValue::Quantity) {
-            auto quantity = getValue().value<Base::Quantity>();
-            yaml += QString::fromStdString(quantity.getUserString());
+            yaml += getYAMLStringQuantity(getValue().value<Base::Quantity>());
         }
         else if (getType() == MaterialValue::Float) {
             auto value = getValue();
@@ -589,8 +612,7 @@ QString Array2D::getYAMLString() const
                 first = false;
             }
             yaml += QStringLiteral("\"");
-            auto quantity = column.value<Base::Quantity>();
-            yaml += QString::fromStdString(quantity.getUserString());
+            yaml += getYAMLStringQuantity(column.value<Base::Quantity>());
             yaml += QStringLiteral("\"");
         }
 
@@ -992,7 +1014,7 @@ QString Array3D::getYAMLString() const
         }
 
         yaml += QStringLiteral("\"");
-        auto value = QString::fromStdString(getDepthValue(depth).getUserString());
+        auto value = getYAMLStringQuantity(getDepthValue(depth));
         yaml += value;
         yaml += QStringLiteral("\": [");
 
@@ -1021,8 +1043,7 @@ QString Array3D::getYAMLString() const
                     first = false;
                 }
                 yaml += QStringLiteral("\"");
-                // Base::Quantity quantity = column.value<Base::Quantity>();
-                yaml += QString::fromStdString(column.getUserString());
+                yaml += getYAMLStringQuantity(column);
                 yaml += QStringLiteral("\"");
             }
 

@@ -127,6 +127,7 @@ protected:
     QString getYAMLStringList() const;
     QString getYAMLStringImageList() const;
     QString getYAMLStringMultiLine() const;
+    static QString getYAMLStringQuantity(const Base::Quantity& quantity);
 
     ValueType _valueType;
     QVariant _value;
