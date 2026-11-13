@@ -238,6 +238,10 @@ class Simulation(Dynamics.Study):
 
     def onChanged(self, feaPy, prop):
         super().onChanged(feaPy, prop)
+        # Undo/redo replays a partially restored study (undoing its creation
+        # clears Assembly before Group); listeners refresh once it is done.
+        if Dynamics.is_replaying(feaPy):
+            return
         if prop == "Group" and hasattr(self, "motionsChangedCallback"):
             if self.motionsChangedCallback is not None:
                 self.motionsChangedCallback()
@@ -910,6 +914,10 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         App.addDocumentObserver(self)
 
     def slotChangedObject(self, obj, prop):
+        # Undo/redo of this document closes the panel when it is done; until
+        # then the study may be half restored (no Assembly link yet).
+        if Dynamics.is_replaying(obj):
+            return
         if obj == self.simFeaturePy and prop in ("Status", "ResultData"):
             self.resultRefreshTimer.start(0)
         if prop in ("Suppressed", "Label") and obj.Document == self.doc:

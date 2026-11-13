@@ -456,6 +456,36 @@ class TestSimulationRegression(unittest.TestCase):
                 self.assertEqual(simulation.Proxy.getAssembly(simulation), assembly)
                 self.assertEqual(Dynamics.inputs_for_study(simulation), [])
 
+    def test_simulation_inputs_callback_waits_for_undo_to_finish(self):
+        # The simulation panel refreshes its input lists from this callback and
+        # closes after undo/redo. Undoing "Create Simulation" clears the study's
+        # Assembly link before its Group: a refresh during that replay read a
+        # half-removed study.
+        import CommandCreateSimulation
+        import UtilsAssembly
+        with self.mechanism() as f:
+            body = f.box()
+            f.doc.UndoMode = 1
+            f.doc.openTransaction("Create Simulation")
+            group = UtilsAssembly.getSimulationGroup(f.assembly)
+            simulation = group.newObject("App::FeaturePython", "Simulation")
+            CommandCreateSimulation.Simulation(simulation)
+            name = simulation.Name
+            refreshes, errors = [], []
+
+            def refresh():
+                try:
+                    refreshes.append(Dynamics.inputs_for_study(simulation))
+                except Exception as error:  # onChanged would only print it
+                    errors.append(error)
+
+            simulation.Proxy.setMotionsChangedCallback(refresh)
+            load = Dynamics.create_load(simulation, "Force", body)
+            self.assertEqual(refreshes[-1], [load])
+            f.doc.undo()
+            self.assertIsNone(f.doc.getObject(name))
+            self.assertEqual(errors, [])
+
     def test_global_input_membership_invalidates_studies_and_undo_restores(self):
         # The tree moves inputs between a study and the Simulations group with
         # plain removeObject/addObject; the App group alone invalidates studies.
