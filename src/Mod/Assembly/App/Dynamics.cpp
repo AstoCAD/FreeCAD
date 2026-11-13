@@ -201,6 +201,7 @@ struct ContactSphere
     double radius = 0;
 };
 
+// Null for a component without a solid.
 TopoDS_Shape contactShapeOf(Object* component)
 {
     auto shape = Part::Feature::getShape(
@@ -208,9 +209,34 @@ TopoDS_Shape contactShapeOf(Object* component)
         Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform
     );
     if (shape.IsNull() || !TopExp_Explorer(shape, TopAbs_SOLID).More()) {
-        invalid(component, "Contact requires a component containing at least one solid");
+        return {};
     }
     return shape;
+}
+
+// Returns false when the pair has no contact: general collision detection pairs
+// every component, including grounded datums or sketches that cannot collide.
+// A component selected explicitly in a pair or a set must contain a solid.
+bool contactShapesOf(
+    Object* contact,
+    Object* first,
+    Object* second,
+    TopoDS_Shape& firstShape,
+    TopoDS_Shape& secondShape
+)
+{
+    firstShape = contactShapeOf(first);
+    secondShape = contactShapeOf(second);
+    if (!firstShape.IsNull() && !secondShape.IsNull()) {
+        return true;
+    }
+    if (contactMode(contact) == "General collision detection") {
+        return false;
+    }
+    invalid(
+        firstShape.IsNull() ? first : second,
+        "Contact requires a component containing at least one solid"
+    );
 }
 
 bool boxContains(const Bnd_Box& container, const Bnd_Box& candidate)
@@ -1116,8 +1142,11 @@ size_t AssemblyObject::contactParts(std::vector<Object*> contacts, bool dynamics
                 }
             }
             else {
-                TopoDS_Shape shapeI = contactShapeOf(componentI);
-                TopoDS_Shape shapeJ = contactShapeOf(componentJ);
+                TopoDS_Shape shapeI;
+                TopoDS_Shape shapeJ;
+                if (!contactShapesOf(contact, componentI, componentJ, shapeI, shapeJ)) {
+                    continue;
+                }
                 ContactTiming timing;
                 ensureContactTriangulation(shapeI, timing);
                 ensureContactTriangulation(shapeJ, timing);
@@ -1269,9 +1298,12 @@ void AssemblyObject::resolveContactMove(
                 bool overlapping = false;
                 try {
                     auto phaseStart = ContactClock::now();
-                    driverTargetShape = contactShapeOf(driver);
-                    pushedShape = contactShapeOf(pushed);
+                    const bool solids
+                        = contactShapesOf(contact, driver, pushed, driverTargetShape, pushedShape);
                     timing.extractionMs += elapsedMilliseconds(phaseStart);
+                    if (!solids) {
+                        continue;
+                    }
                     overlapping = shapesOverlap(driverTargetShape, pushedShape, timing);
                 }
                 catch (const Standard_Failure& e) {

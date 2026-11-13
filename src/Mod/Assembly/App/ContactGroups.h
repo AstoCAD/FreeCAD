@@ -35,6 +35,12 @@
 
 namespace Assembly
 {
+inline std::string contactMode(App::DocumentObject* contact)
+{
+    auto* property = dynamic_cast<App::PropertyEnumeration*>(contact->getPropertyByName("Mode"));
+    return property ? property->getValueAsString() : "Between two components";
+}
+
 // Shared by drag activation, drag response and forward dynamics. Sets contain
 // occurrences, never their linked sources or the children of consolidated Parts.
 inline std::vector<std::pair<App::DocumentObject*, App::DocumentObject*>> contactComponentPairs(
@@ -67,8 +73,7 @@ inline std::vector<std::pair<App::DocumentObject*, App::DocumentObject*>> contac
         return std::less<Object*> {}(a, b) ? Pair {a, b} : Pair {b, a};
     };
     std::set<Pair> excluded, seen;
-    auto* property = dynamic_cast<App::PropertyEnumeration*>(contact->getPropertyByName("Mode"));
-    const std::string mode = property ? property->getValueAsString() : "Between two components";
+    const std::string mode = contactMode(contact);
     // Each key names a two-link property. FreeCAD remaps both links during
     // copy/import; deletion makes that pair incomplete, never a different pair.
     auto* exclusions = dynamic_cast<App::PropertyStringList*>(

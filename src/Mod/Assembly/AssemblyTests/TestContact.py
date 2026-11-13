@@ -367,6 +367,21 @@ class TestContact(unittest.TestCase):
         self.assertLess(data["Bodies"][first.Name]["Velocity"][-1][0], 0)
         self.assertGreater(data["Bodies"][middle.Name]["Velocity"][-1][0], 0)
 
+    def test_general_mode_skips_grounded_components_without_solid(self):
+        first = self.sphere("First", -15)
+        self.sphere("Second", 15)
+        sheet = self.assembly.newObject("Part::Plane", "Sheet")
+        sheet.setPropertyStatus("Placement", "ReadOnly")
+        study = self.study("0.001 s")
+        Dynamics.create_contact(study, mode="General collision detection")
+        self.assertEqual(len(Dynamics.run(study)["Loads"]), 1)
+
+        # An explicitly selected component must still be a solid.
+        other = self.study("0.001 s")
+        Dynamics.create_contact(other, first, sheet)
+        with self.assertRaisesRegex(RuntimeError, "at least one solid"):
+            Dynamics.run(other)
+
     def test_arbitrary_solid_contact_rebounds_in_dynamics(self):
         # Exercise conversion between solver-local coordinates and transformed
         # document geometry, not just an Assembly at the document origin.
