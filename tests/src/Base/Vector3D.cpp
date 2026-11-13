@@ -240,6 +240,23 @@ TEST(Vector, TestDistanceLineSegment)
     EXPECT_EQ(vec.DistanceToLineSegment(Base::Vector3d(), Base::Vector3d(2, 4, 6)).Length(), 0.0);
 }
 
+TEST(Vector, TestZeroLengthLineSegment)
+{
+    // a segment whose end points coincide is a single point
+    Base::Vector3d pnt(5, 5, 5);
+    Base::Vector3d vec(1, 2, 3);
+    EXPECT_EQ(vec.DistanceToLineSegment(pnt, pnt), Base::Vector3d(4, 3, 2));
+    EXPECT_EQ(pnt.DistanceToLineSegment(pnt, pnt), Base::Vector3d(0, 0, 0));
+    EXPECT_FALSE(vec.IsOnLineSegment(pnt, pnt));
+    EXPECT_TRUE(pnt.IsOnLineSegment(pnt, pnt));
+
+    Base::Vector3f pntf(5, 5, 5);
+    Base::Vector3f vecf(1, 2, 3);
+    EXPECT_EQ(vecf.DistanceToLineSegment(pntf, pntf), Base::Vector3f(4, 3, 2));
+    EXPECT_FALSE(vecf.IsOnLineSegment(pntf, pntf));
+    EXPECT_TRUE(pntf.IsOnLineSegment(pntf, pntf));
+}
+
 TEST(Vector, TestProjectToPlane)
 {
     Base::Vector3d vec(1, 2, 3);
