@@ -91,8 +91,9 @@ protected:
         ASSERT_NE(visible, nullptr);
         ASSERT_NE(hidden, nullptr);
         hidden->setScope(App::LinkScope::Hidden);
-        visible->setValue(target, nullptr);
-        hidden->setValue(target, nullptr);
+        // no sub-element: an empty name, which every link list type accepts
+        visible->setValue(target, "");
+        hidden->setValue(target, "");
 
         std::vector<App::ObjectIdentifier> identifiers;
         visible->getLinksTo(identifiers, target, nullptr, false);
