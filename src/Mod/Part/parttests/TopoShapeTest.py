@@ -1106,3 +1106,18 @@ class TopoShapeTest(unittest.TestCase, TopoShapeAssertions):
     def testTopoShapeVertexRepr(self):
         self.assertEqual(repr(Part.Vertex(1, 2, 3)), "<Part.Vertex (1, 2, 3)>")
         self.assertEqual(repr(Part.Vertex()), "<Part.Vertex()>")
+
+    def testExportStlNonAsciiPath(self):
+        # With OCCT 8 the STL file was opened with a narrow file name: on Windows nothing was
+        # written in a folder with non-ASCII characters, or a file under a garbled name
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = os.path.join(tmp, "Pièce Ωμέγα 日本")
+            os.makedirs(folder)
+            stl = os.path.join(folder, "box.stl")
+            Part.makeBox(1, 2, 3).exportStl(stl)
+            self.assertEqual(os.listdir(folder), ["box.stl"])
+            with open(stl, encoding="ascii") as f:
+                self.assertEqual(f.read().count("facet normal"), 12)

@@ -165,6 +165,7 @@
 #include <Base/Tools.h>
 #include <Base/Vector3D.h>
 #include <Base/Reader.h>
+#include <Base/Stream.h>
 #include <Base/Writer.h>
 
 #include "BRepMesh.h"
@@ -1011,7 +1012,17 @@ void TopoShape::exportStl(const char* filename, double deflection) const
         defaultAngularDeflection(deflection),
         /*isInParallel*/ true
     );
+#if OCC_VERSION_HEX >= 0x080000
+    // OCCT 8 opens the file with a narrow std::ofstream, which on Windows interprets the UTF-8
+    // file name in the ANSI code page: open it here and pass the stream instead.
+    Base::ofstream stream(
+        Base::FileInfo(filename),
+        writer.ASCIIMode() ? std::ios::out : std::ios::out | std::ios::binary
+    );
+    writer.Write(this->_Shape, stream);
+#else
     writer.Write(this->_Shape, encodeFilename(filename).c_str());
+#endif
 }
 
 void TopoShape::exportFaceSet(

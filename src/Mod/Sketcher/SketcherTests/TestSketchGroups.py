@@ -301,6 +301,7 @@ class TestSketchGroups(unittest.TestCase):
             s.Geometry[mirroredLast].StartPoint,
             mirroredBefore + App.Vector(-delta.x, delta.y, 0),
         )
+
     def testCarbonCopyKeepsWholeGroup(self):
         # Carbon copy offset only the first three elements of each constraint: the later members
         # of a group kept their source indices, so in a sketch that already had geometry they
@@ -451,6 +452,22 @@ class TestSketchGroups(unittest.TestCase):
         s.setTextAndFont(text, "NEWER", self.font, True, False)
         label = self.textLabel()
         self.assertTrue(label.startswith("'NEWER', ") and label.endswith(", True))"), label)
+
+    def testTextFontInNonAsciiFolder(self):
+        # The font file was opened with a narrow file name: on Windows a font in a folder with
+        # non-ASCII characters (e.g. the fonts installed for a user) gave no glyphs
+        import shutil
+
+        s = self.sketch
+        text = self.textWithoutGlyphs()
+        count = s.GeometryCount
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = os.path.join(tmp, "Pièce Ωμέγα 日本")
+            os.makedirs(folder)
+            font = os.path.join(folder, "osifont.ttf")
+            shutil.copy(self.font, font)
+            s.setTextAndFont(text, "AB", font, True, False)
+        self.assertGreater(s.GeometryCount, count)
 
     def testSetTextAndFontFailureKeepsTextOfGlyphs(self):
         # A failed solve leaves the new glyphs in the sketch (undoing them is the transaction's

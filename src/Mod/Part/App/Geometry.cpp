@@ -139,6 +139,7 @@
 #include <Base/Exception.h>
 #include <Base/FileInfo.h>
 #include <Base/Reader.h>
+#include <Base/Stream.h>
 #include <Base/Tools.h>
 #include <Base/Writer.h>
 #include <Mod/Part/App/TopoShapePy.h>
@@ -7671,7 +7672,7 @@ std::vector<TopoDS_Shape> makeTextWires(
         return allWires;
     }
 
-    std::ifstream fontStream(fontFile, std::ios::binary);
+    Base::ifstream fontStream(Base::FileInfo(fontFile), std::ios::in | std::ios::binary);
     if (!fontStream) {
         Base::Console().error("makeTextWires: Cannot open font file: {}\n", fontFile);
         FT_Done_FreeType(ftLib);
