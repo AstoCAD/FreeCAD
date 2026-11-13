@@ -39,11 +39,15 @@ translate = App.Qt.translate
 
 
 def _available_types(simulation, component, excluding=None):
-    children = (
-        Dynamics.inputs_for_study(simulation)
-        if Dynamics.is_study(simulation)
-        else getattr(simulation, "Group", [])
-    )
+    if Dynamics.is_study(simulation):
+        children = Dynamics.inputs_for_study(simulation)
+    else:
+        # Every study uses a global initial velocity together with its own
+        # local ones, and a component takes one velocity of each type.
+        children = list(getattr(simulation, "Group", []))
+        children += [
+            child for study in children if Dynamics.is_study(study) for child in study.Group
+        ]
     occupied = {
         child.InitialVelocityType
         for child in children
