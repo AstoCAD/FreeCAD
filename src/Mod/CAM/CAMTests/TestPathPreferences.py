@@ -21,6 +21,10 @@
 # *                                                                         *
 # ***************************************************************************
 
+import os
+import unittest
+
+import FreeCAD
 import Path
 import CAMTests.PathTestUtils as PathTestUtils
 
@@ -132,3 +136,58 @@ class TestPathPreferences(PathTestUtils.PathTestBase):
             str(Path.Preferences.getBuiltinShapePath()),
         )
         self.assertEqual(Path.Preferences.getToolBitPath().name, "Bit")
+
+
+def _isEmptyGroup(group):
+    return not group.GetGroups() and not group.GetContents()
+
+
+class TestPreferenceGroupRename(unittest.TestCase):
+    """The start-up code of the workbench (Init.py) renames the preference group of the
+    former Path workbench to "CAM". It must not leave an empty "Path" group behind."""
+
+    def setUp(self):
+        self.prefs = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod")
+        self.hadPath = self.prefs.HasGroup("Path")
+        if self.hadPath and not _isEmptyGroup(self.prefs.GetGroup("Path")):
+            self.skipTest("the user preferences hold settings in the old 'Path' group")
+        self.prefs.RemGroup("Path")
+        # The settings were renamed already, which is the usual case at start-up.
+        self.createdCam = not self.prefs.HasGroup("CAM")
+        self.prefs.GetGroup("CAM")
+        self.unitTests = list(FreeCAD.__unit_test__)
+
+    def tearDown(self):
+        FreeCAD.__unit_test__[:] = self.unitTests
+        if self.prefs.HasGroup("Path"):
+            self.prefs.GetGroup("Path")  # RemGroup needs the group handle
+            self.prefs.RemGroup("Path")
+        if self.hadPath:
+            self.prefs.GetGroup("Path")  # restore the empty group found at setUp
+        if self.createdCam:
+            self.prefs.RemGroup("CAM")
+
+    def runStartupCode(self):
+        camDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        initPy = os.path.join(camDir, "Init.py")
+        with open(initPy, encoding="utf-8") as f:
+            code = compile(f.read(), initPy, "exec")
+        exec(code, {"App": FreeCAD, "FreeCAD": FreeCAD})
+
+    def test_no_path_group_created(self):
+        """Starting the workbench does not create a 'Path' preference group."""
+        self.runStartupCode()
+        self.assertFalse(self.prefs.HasGroup("Path"))
+
+    def test_empty_path_group_removed(self):
+        """An empty 'Path' group left behind by earlier versions is removed."""
+        self.prefs.GetGroup("Path")
+        self.runStartupCode()
+        self.assertFalse(self.prefs.HasGroup("Path"))
+
+    def test_path_group_with_settings_kept(self):
+        """A 'Path' group that still holds settings is left alone once 'CAM' exists."""
+        self.prefs.GetGroup("Path").SetBool("TestPreferenceGroupRename", True)
+        self.runStartupCode()
+        self.assertTrue(self.prefs.HasGroup("Path"))
+        self.assertTrue(self.prefs.GetGroup("Path").GetBool("TestPreferenceGroupRename", False))
