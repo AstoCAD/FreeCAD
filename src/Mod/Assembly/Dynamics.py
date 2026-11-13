@@ -34,11 +34,26 @@ import UtilsAssembly
 import MotionProfile
 
 
+def _parent_container(obj):
+    """Return the GeoFeatureGroup or link positioning *obj*.
+
+    Elements of a link array are positioned by their link, which is not a
+    GeoFeatureGroup: they have no GeoFeatureGroup parent of their own.
+    """
+    parent = obj.getParentGeoFeatureGroup()
+    if parent is None:
+        parent = next(
+            (owner for owner in obj.InList if obj in getattr(owner, "ElementList", [])),
+            None,
+        )
+    return parent
+
+
 def _component_placement(component):
     """Return the occurrence placement relative to its containing Assembly."""
-    parent = component.getParentGeoFeatureGroup()
+    parent = _parent_container(component)
     while parent and not parent.isDerivedFrom("Assembly::AssemblyObject"):
-        parent = parent.getParentGeoFeatureGroup()
+        parent = _parent_container(parent)
     world = UtilsAssembly.getGlobalPlacement((component, [""]))
     if parent:
         return UtilsAssembly.getGlobalPlacement((parent, [""])).inverse() * world

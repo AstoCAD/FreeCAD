@@ -189,6 +189,36 @@ class TestDynamics(unittest.TestCase):
             self.assertAlmostEqual(Dynamics.spring_length(load), 0, delta=1e-9)
             self.assertAlmostEqual(Dynamics.torsional_angle(load), 0, delta=1e-9)
 
+    def test_link_array_element_frames_match_solver_in_transformed_assembly(self):
+        # A link array element has no GeoFeatureGroup parent. Its frame is still
+        # relative to the assembly, as the solver places it, not the world.
+        self.assembly.Placement = App.Placement(
+            App.Vector(0, 0, 50), App.Rotation(App.Vector(0, 0, 1), 90)
+        )
+        source = self.doc.addObject("Part::Feature", "Source")
+        source.Shape = Part.makeBox(10, 20, 30)
+        material = Materials.Material()
+        material.addPhysicalModel(Materials.UUIDs().Density)
+        material.setPhysicalValue("Density", "1000 kg/m^3")
+        source.ShapeMaterial = material
+        array = self.assembly.newObject("App::Link", "Array")
+        array.LinkedObject = source
+        array.ElementCount = 2
+        study = self.study(False)
+        element = array.ElementList[1]
+        self.assertIn(element, self.assembly.getComponents())
+        load = Dynamics.create_load(study, "SpringDamper", element)
+        load.AttachmentI = App.Placement(App.Vector(5, 10, 15), App.Rotation())
+        load.Stiffness = "1 N/mm"
+        load.RestLength = Dynamics.spring_length(load)
+
+        data = Dynamics.run(study)
+        pose = data["Bodies"][element.Name]["Placements"][0]
+        solved = App.Placement(App.Vector(*pose[:3]), App.Rotation(*pose[3:]))
+        self.assertTrue(Dynamics.component_placement(element).isSame(solved, 1e-6))
+        # The spring is at its free length where the solver attaches it too.
+        self.assertAlmostEqual(data["Loads"][load.Name]["StoredEnergy"][0], 0, delta=1e-9)
+
     def test_angular_stop_energy_and_damping_use_radians(self):
         ground = self.box("Ground", density=None)
         ground.setPropertyStatus("Placement", "ReadOnly")
