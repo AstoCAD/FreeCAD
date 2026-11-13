@@ -238,6 +238,39 @@ class TestDynamics(unittest.TestCase):
         self.doc.recompute()
         self.assertSpringSimulatedWhereShown(study, array.ElementList[1])
 
+    def test_kinematics_starts_a_moved_link_array_where_it_is_shown(self):
+        ground = self.box("Ground", density=None)
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        driven = self.joint("Revolute", ground, self.box())
+        array = self.link_array()
+        study = self.study(False)
+        array.Placement = App.Placement(
+            App.Vector(0, 0, 100), App.Rotation(App.Vector(0, 0, 1), 20)
+        )
+        element = array.ElementList[0]
+        element.Placement = App.Placement(App.Vector(0, 7, 0), App.Rotation())
+        self.doc.recompute()
+        shown = Dynamics.component_placement(element)
+        # The element turns freely about this joint's axis: the run keeps the
+        # angle it starts from.
+        joint = self.joint("Revolute", ground, element)
+        joint.Placement1 = App.Placement()
+        joint.Placement2 = shown.inverse()
+        motion = self.doc.addObject("App::FeaturePython", "Motion")
+        motion.addProperty("App::PropertyEnumeration", "MotionType")
+        motion.MotionType = ["Angular", "Linear"]
+        motion.addProperty("App::PropertyXLinkSubHidden", "Joint")
+        motion.Joint = driven
+        motion.addProperty("App::PropertyString", "Formula")
+        motion.Formula = "time"
+        study.addObject(motion)
+        study.AnalysisType = "Kinematics"
+
+        pose = Dynamics.run(study)["Bodies"][element.Name]["Placements"][0]
+        solved = App.Placement(App.Vector(*pose[:3]), App.Rotation(*pose[3:]))
+        self.assertTrue(shown.isSame(solved, 1e-6))
+        self.assertTrue(Dynamics.component_placement(element).isSame(shown, 1e-9))
+
     def test_selected_components_are_the_picked_occurrences(self):
         # Add Load and Add Initial Velocity act on the selected components. A
         # pick in the 3D view names the element of a component's content: it
@@ -450,23 +483,6 @@ class TestDynamics(unittest.TestCase):
                     actual = [force["Force" + axis][index] for axis in "XYZ"]
                     self.assertVectorClose(actual, expected, delta=1e-8)
 
-    def test_torsional_spring_glyph_axis_is_the_simulated_axis(self):
-        body = self.box()
-        study = self.study(False)
-        study.EndTime = study.OutputStep = "0.001 s"
-        load = Dynamics.create_load(study, "TorsionalSpringDamper", body)
-        load.TorsionalStiffness = "1000 N*mm/rad"
-        # The component has turned since the spring was defined.
-        body.Placement = App.Placement(App.Vector(), App.Rotation(App.Vector(1, 0, 0), 90))
-        self.doc.recompute()
-        Dynamics.align_torsional_reference(load)
-        self.assertVectorClose(Dynamics.load_visual_direction(load), (0, -1, 0), delta=1e-9)
-        # Twisted by 0.3 rad from its free angle: the torque on the component
-        # is about the drawn axis.
-        load.FreeAngle = "-0.3 rad"
-        torque = Dynamics.run(study)["Loads"][load.Name]
-        actual = App.Vector(*(torque["Torque" + axis][0] for axis in "XYZ"))
-        self.assertVectorClose(actual, Dynamics.load_visual_direction(load) * 300, delta=1e-6)
     def test_load_stays_on_its_component_after_the_component_moved(self):
         body = self.box()
         study = self.study(False)
@@ -600,6 +616,25 @@ class TestDynamics(unittest.TestCase):
         self.assertVectorClose(force.Placement.Rotation.inverted().multVec(force.Direction), local, delta=1e-9)
         self.assertTrue((Dynamics.attachment_placement(spring, "I").inverse()
                          * Dynamics.attachment_placement(spring, "J")).isSame(twist, 1e-9))
+
+    def test_torsional_spring_glyph_axis_is_the_simulated_axis(self):
+        body = self.box()
+        study = self.study(False)
+        study.EndTime = study.OutputStep = "0.001 s"
+        load = Dynamics.create_load(study, "TorsionalSpringDamper", body)
+        load.TorsionalStiffness = "1000 N*mm/rad"
+        # The component has turned since the spring was defined.
+        body.Placement = App.Placement(App.Vector(), App.Rotation(App.Vector(1, 0, 0), 90))
+        self.doc.recompute()
+        Dynamics.align_torsional_reference(load)
+        self.assertVectorClose(Dynamics.load_visual_direction(load), (0, -1, 0), delta=1e-9)
+        # Twisted by 0.3 rad from its free angle: the torque on the component
+        # is about the drawn axis.
+        load.FreeAngle = "-0.3 rad"
+        torque = Dynamics.run(study)["Loads"][load.Name]
+        actual = App.Vector(*(torque["Torque" + axis][0] for axis in "XYZ"))
+        self.assertVectorClose(actual, Dynamics.load_visual_direction(load) * 300, delta=1e-6)
+
     def test_follower_torque_tracks_component_rotation(self):
         body = self.box()
         study = self.study(False)
