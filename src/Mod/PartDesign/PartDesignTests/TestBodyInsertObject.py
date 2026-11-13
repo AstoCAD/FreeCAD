@@ -63,3 +63,11 @@ class TestBodyInsertObject(unittest.TestCase):
         self.assertEqual(self.body.Tip, pocket)
         self.assertIsNone(self.pad.BaseFeature)
         self.assertEqual(pocket.BaseFeature, self.pad)
+
+    def testAddObjectsReturnsOnlyAddedObjects(self):
+        # As addObject() and GroupExtension.addObjects(): a member is not added again, so it is
+        # not in the result either
+        pocket = self.doc.addObject("PartDesign::Pocket", "Pocket")
+        self.assertEqual(self.body.addObjects([self.pad]), [])
+        self.assertEqual(self.body.addObjects([self.pad, pocket, pocket]), [pocket])
+        self.assertEqual(self.body.Group, [self.pad, pocket])

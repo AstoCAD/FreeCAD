@@ -274,12 +274,14 @@ std::vector<App::DocumentObject*> Body::addObject(App::DocumentObject* feature)
 
 std::vector<App::DocumentObject*> Body::addObjects(std::vector<App::DocumentObject*> objs)
 {
-
+    // Only what was added, as GroupExtension::addObjects(): addObject() of a member adds nothing
+    std::vector<App::DocumentObject*> added;
     for (auto obj : objs) {
-        addObject(obj);
+        auto ret = addObject(obj);
+        added.insert(added.end(), ret.begin(), ret.end());
     }
 
-    return objs;
+    return added;
 }
 
 
