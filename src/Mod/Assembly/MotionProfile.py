@@ -349,7 +349,16 @@ class Profile:
                                       or mode == "Segments" and any(s[2] == "Linear" for s in spec["segments"])):
             self.warnings.append("Linear position segments can introduce instantaneous velocity changes at joins.")
         # Catch invalid domains before a formula reaches the native parser.
-        for i in range(101): self.sample(start + (end-start)*i/100)
+        # The solver also differentiates a motion twice: t^0.5 has no finite
+        # velocity at t=0, so the motion is rejected here, not in the solver.
+        for i in range(101):
+            time = start + (end-start)*i/100
+            self.sample(time)
+            for n in range(1, 1 if quantity == "Magnitude" else 3):
+                try:
+                    self.sample(time, n)
+                except (ValueError, TypeError, ZeroDivisionError, OverflowError) as error:
+                    raise ValueError(f"The motion velocity or acceleration is not finite at t = {time:g} s.") from error
 
     def sample(self, time, derivative_order=0):
         index = bisect.bisect_right(self.transitions, time)

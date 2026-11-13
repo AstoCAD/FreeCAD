@@ -115,6 +115,20 @@ class TestMotionProfile(unittest.TestCase):
         for expr in ("__import__('os')", "t.__class__", "[1,2]", "2**1000000"):
             with self.assertRaises(ValueError): MP.expression(expr)
 
+    def test_motion_derivatives_must_be_finite(self):
+        spec = MP.defaults("rad", "Expression")
+        for quantity, expression in (("Position", "t^0.5"), ("Position", "t^1.5"),
+                                     ("Velocity", "t^0.5")):
+            spec.update(quantity=quantity, expression=expression)
+            with self.assertRaisesRegex(ValueError, "not finite at t = 0 s"):
+                MP.Profile(spec)
+        spec.update(quantity="Position", expression="t^2.5")
+        self.assertAlmostEqual(MP.Profile(spec).sample(0, 2), 0)
+        # A load magnitude is not differentiated.
+        spec = MP.defaults("N", "Expression")
+        spec.update(quantity="Magnitude", expression="t^0.5")
+        self.assertAlmostEqual(MP.Profile(spec).sample(.25), .5)
+
     def test_dialog_preview_import_and_cancel(self):
         import FreeCAD as App
         if not App.GuiUp: self.skipTest("Requires GUI")
