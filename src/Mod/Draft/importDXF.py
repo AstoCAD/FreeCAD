@@ -2842,6 +2842,14 @@ def _import_dxf_file(filename, doc_name=None):
     use_legacy = hGrp.GetBool("dxfUseLegacyImporter", False)
     readPreferences()
 
+    if use_legacy:
+        # Without the DXF libraries nothing can be imported:
+        # stop before creating or changing a document.
+        getDXFlibs()
+        if not dxfReader:
+            errorDXFLib(gui)
+            return None, None, None, None
+
     # --- Dialog Workflow ---
     try:
         if gui:
@@ -2900,12 +2908,7 @@ def _import_dxf_file(filename, doc_name=None):
 
     stats = None  # For C++ importer stats
     if use_legacy:
-        getDXFlibs()
-        if dxfReader:
-            processdxf(doc, filename)
-        else:
-            errorDXFLib(gui)
-            return None, None
+        processdxf(doc, filename)
     else:  # Modern C++ Importer
         if gui:
             import ImportGui
