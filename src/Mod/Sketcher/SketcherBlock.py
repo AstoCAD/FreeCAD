@@ -165,6 +165,99 @@ def _read_text(text, filename, with_constraints=False):
     return (geometry, constraints) if with_constraints else geometry
 
 
+# The sketch joins edges into a wire only when their ends are closer than this
+# (Precision::Confusion).
+_JOINED = 1e-7
+
+
+def _near_coincident_ends(geometry, tolerance):
+    """Return the groups of curve ends that lie within `tolerance` of each other without meeting.
+
+    Each group is a list of (geometry index, is end point, point). Ends that already meet, to
+    the precision the sketch joins edges with, are left out.
+    """
+    if not tolerance > 0:
+        raise ValueError("The tolerance must be greater than zero")
+    ends = []
+    for index, geo in enumerate(geometry):
+        if isinstance(geo, Part.BSplineCurve) and geo.isPeriodic():
+            continue
+        if isinstance(geo, (Part.LineSegment, Part.BSplineCurve, Part.ArcOfConic)):
+            ends.append((index, False, geo.StartPoint))
+            ends.append((index, True, geo.EndPoint))
+
+    parent = list(range(len(ends)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    cells = {}
+    for i, (_, _, point) in enumerate(ends):
+        cx, cy = math.floor(point.x / tolerance), math.floor(point.y / tolerance)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for j in cells.get((cx + dx, cy + dy), ()):
+                    if point.distanceToPoint(ends[j][2]) <= tolerance:
+                        parent[find(i)] = find(j)
+        cells.setdefault((cx, cy), []).append(i)
+
+    clusters = {}
+    for i, end in enumerate(ends):
+        clusters.setdefault(find(i), []).append(end)
+    return [
+        cluster
+        for cluster in clusters.values()
+        if any(end[2].distanceToPoint(cluster[0][2]) > _JOINED for end in cluster)
+    ]
+
+
+def count_near_coincident(geometry, tolerance):
+    """Return the number of places where curve ends lie within `tolerance` without meeting."""
+    return len(_near_coincident_ends(geometry, tolerance))
+
+
+def weld_endpoints(geometry, tolerance):
+    """Give curve ends that lie within `tolerance` of each other one shared point, in place.
+
+    The members of a Group follow its handle and are not moved by the solver, so a Coincident
+    constraint between two of them cannot close a gap: their end points have to be equal.
+    The ends of lines and the end poles of B-splines are moved. The ends of arcs follow from
+    their center, radius and angles: they stay, and the other ends are moved onto them.
+
+    Returns the number of places that were welded.
+    """
+
+    def movable(geo, last):
+        if isinstance(geo, Part.LineSegment):
+            return True
+        if isinstance(geo, Part.BSplineCurve):
+            # only a clamped end is a pole
+            return geo.getMultiplicity(geo.NbKnots if last else 1) == geo.Degree + 1
+        return False
+
+    clusters = _near_coincident_ends(geometry, tolerance)
+    for cluster in clusters:
+        fixed = [end for end in cluster if not movable(geometry[end[0]], end[1])]
+        target = (fixed or cluster)[0][2]
+        for index, last, point in cluster:
+            geo = geometry[index]
+            if not movable(geo, last) or point.distanceToPoint(target) <= _JOINED:
+                continue
+            if isinstance(geo, Part.LineSegment):
+                if (index, not last) in [(end[0], end[1]) for end in cluster]:
+                    continue  # shorter than the tolerance: it would collapse to a point
+                if last:
+                    geo.EndPoint = target
+                else:
+                    geo.StartPoint = target
+            else:
+                geo.setPole(geo.NbPoles if last else 1, target)
+    return len(clusters)
+
+
 def insert_geometry(sketch, geometry, filename, fixed_size=False, origin=None, angle=0.0):
     """Import geometry at its native size and location as a file-backed Group."""
     if not geometry:

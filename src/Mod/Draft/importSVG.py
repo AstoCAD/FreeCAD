@@ -1345,6 +1345,7 @@ def insert(filename, docname):
             import SketcherBlock
             sketch = editing.Object
             geometry = readSketchGeometry(filename)
+            offerEndpointWeld(geometry)
             SketcherBlock.insert_geometry(sketch, geometry, filename)
             if sketch.solve() != 0:
                 raise ValueError("The imported SVG group could not be solved")
@@ -1652,9 +1653,71 @@ def readSketchGeometry(filename):
     return geometry
 
 
+def offerEndpointWeld(geometry):
+    """Ask whether the end points of `geometry` that nearly meet are made coincident.
+
+    An SVG outline often has small gaps where its segments should meet, and a sketch joins
+    edges only when their ends are equal. The geometry is changed in place when the user
+    agrees, with the tolerance chosen in the dialog. Nothing is asked without the GUI, or
+    when no end points nearly meet at the precision of the SVG import.
+
+    Returns the number of places that were welded.
+    """
+    if not FreeCAD.GuiUp:
+        return 0
+    import FreeCADGui
+    import SketcherBlock
+
+    tolerance = 10 ** -svg_precision()
+    if not SketcherBlock.count_near_coincident(geometry, tolerance):
+        return 0
+
+    dialog = QtWidgets.QDialog(FreeCADGui.getMainWindow())
+    dialog.setWindowTitle(translate("ImportSVG", "Nearly Coincident Points"))
+    label = QtWidgets.QLabel(dialog)
+    label.setWordWrap(True)
+    spinBox = QtWidgets.QDoubleSpinBox(dialog)
+    spinBox.setDecimals(6)
+    spinBox.setRange(1e-6, 1000.0)
+    spinBox.setSingleStep(tolerance)
+    spinBox.setSuffix(" mm")
+    spinBox.setValue(tolerance)
+    buttons = QtWidgets.QDialogButtonBox(
+        QtWidgets.QDialogButtonBox.Yes | QtWidgets.QDialogButtonBox.No, dialog
+    )
+    buttons.accepted.connect(dialog.accept)
+    buttons.rejected.connect(dialog.reject)
+    form = QtWidgets.QFormLayout()
+    form.addRow(translate("ImportSVG", "Tolerance"), spinBox)
+    layout = QtWidgets.QVBoxLayout(dialog)
+    layout.addWidget(label)
+    layout.addLayout(form)
+    layout.addWidget(buttons)
+
+    def update(value):
+        count = SketcherBlock.count_near_coincident(geometry, value)
+        label.setText(
+            translate(
+                "ImportSVG",
+                "Some points of the imported SVG are nearly coincident ({} places). "
+                "Do you want to make them coincident?",
+            ).format(count)
+        )
+        buttons.button(QtWidgets.QDialogButtonBox.Yes).setEnabled(count > 0)
+
+    spinBox.valueChanged.connect(update)
+    update(tolerance)
+
+    if dialog.exec_() != QtWidgets.QDialog.Accepted:
+        return 0
+    return SketcherBlock.weld_endpoints(geometry, spinBox.value())
+
+
 def reloadSketchGroup(sketch, constraint_index):
     """Reload an SVG Group; the caller owns the undo transaction."""
     group = sketch.Constraints[constraint_index]
     if group.Type != "Group" or not group.File:
         raise ValueError("The selected group has no source file")
-    return sketch.replaceGroupGeometry(constraint_index, readSketchGeometry(group.File))
+    geometry = readSketchGeometry(group.File)
+    offerEndpointWeld(geometry)
+    return sketch.replaceGroupGeometry(constraint_index, geometry)

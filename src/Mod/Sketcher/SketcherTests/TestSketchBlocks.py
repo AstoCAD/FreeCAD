@@ -281,6 +281,47 @@ class TestSketchBlocks(unittest.TestCase):
             1e-6,
         )
 
+    def testWeldEndpointsClosesGaps(self):
+        # https://github.com/AstoCAD/FreeCAD/issues/79: the members of a group are not moved by
+        # the solver, so an outline with gaps can only be closed by moving its end points.
+        v = App.Vector
+        spline = Part.BSplineCurve()
+        spline.buildFromPoles([v(10.00004, 5, 0), v(8, 8, 0), v(2, 8, 0), v(0, 5.00003, 0)])
+        arc = Part.ArcOfCircle(Part.Circle(v(5, -5, 0), v(0, 0, 1), 5), 0, math.pi)
+        arcEnds = (arc.StartPoint, arc.EndPoint)
+        geometry = [
+            Part.LineSegment(v(0, 0, 0), v(10, 0.00005, 0)),
+            Part.LineSegment(v(10, 0, 0), v(10, 5, 0)),
+            spline,
+            Part.LineSegment(v(0, 5, 0), v(0, 0.00002, 0)),
+            arc,
+            Part.LineSegment(v(10.00003, -5, 0), v(20, -5, 0)),
+            # too far to be the same point
+            Part.LineSegment(v(20.01, -5, 0), v(30, -5, 0)),
+            # shorter than the tolerance
+            Part.LineSegment(v(40, 0, 0), v(40.00005, 0, 0)),
+        ]
+        self.assertEqual(SketcherBlock.count_near_coincident(geometry, 1e-6), 0)
+        self.assertEqual(SketcherBlock.count_near_coincident(geometry, 1e-3), 6)
+        self.assertEqual(SketcherBlock.weld_endpoints(geometry, 1e-3), 6)
+
+        self.assertEqual(geometry[0].EndPoint, geometry[1].StartPoint)
+        self.assertEqual(geometry[1].EndPoint, geometry[2].StartPoint)
+        self.assertEqual(geometry[2].EndPoint, geometry[3].StartPoint)
+        self.assertEqual(geometry[3].EndPoint, geometry[0].StartPoint)
+        # an arc keeps its ends: the line is moved onto it
+        self.assertEqual((arc.StartPoint, arc.EndPoint), arcEnds)
+        self.assertEqual(geometry[5].StartPoint, arc.StartPoint)
+        self.assertEqual(geometry[6].StartPoint, v(20.01, -5, 0))
+        self.assertEqual(geometry[7].EndPoint, v(40.00005, 0, 0))
+        self.assertEqual(SketcherBlock.count_near_coincident(geometry[:7], 1e-3), 0)
+
+        for geo in geometry[:4]:
+            self.sketch.addGeometry(geo, False)
+        self.doc.recompute()
+        self.assertEqual(len(self.sketch.Shape.Wires), 1)
+        self.assertTrue(self.sketch.Shape.Wires[0].isClosed())
+
     def testFixedBlockRejectsNonPlanarReload(self):
         index = SketcherBlock.insert_geometry(
             self.sketch, SketcherBlock.read(self.file), self.file, fixed_size=True
