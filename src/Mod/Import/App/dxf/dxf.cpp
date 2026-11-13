@@ -2748,6 +2748,9 @@ bool CDxfRead::GeneralToUTF8(std::string& encoded) const
     PyObject* decoded
         = PyUnicode_Decode(encoded.c_str(), (Py_ssize_t)encoded.length(), m_encoding.c_str(), "strict");
     if (decoded == nullptr) {
+        // The failure is reported through the return value, so the Python error must not be left
+        // pending for the next Python call.
+        PyErr_Clear();
         return false;
     }
     const char* converted = PyUnicode_AsUTF8(decoded);
@@ -2757,6 +2760,15 @@ bool CDxfRead::GeneralToUTF8(std::string& encoded) const
     }
     Py_DECREF(decoded);
     return converted != nullptr;
+}
+
+std::string CDxfRead::LayerNameToUTF8(const std::string& name) const
+{
+    std::string converted(name);
+    if (!(this->*stringToUTF8)(converted)) {
+        ImportError("Unable to process encoding for layer name '{}'\n", name);
+    }
+    return converted;
 }
 
 void CDxfRead::DoRead(const bool ignore_errors /* = false */)
@@ -2854,8 +2866,11 @@ void CDxfRead::ProcessLayerReference(CDxfRead* object, void* target)
         // Synthesize the Layer so we don't get the same error again.
         // We need to take copies of the string arguments because MakeLayer uses them as move
         // inputs.
-        object->Layers[object->m_record_data]
-            = object->MakeLayer(object->m_record_data, DefaultColor, std::string(DefaultLineType));
+        object->Layers[object->m_record_data] = object->MakeLayer(
+            object->LayerNameToUTF8(object->m_record_data),
+            DefaultColor,
+            std::string(DefaultLineType)
+        );
     }
     *static_cast<Layer**>(target) = object->Layers.at(object->m_record_data);
 }
@@ -3124,7 +3139,9 @@ bool CDxfRead::ReadLayer()
         // TODO: Should have an import option to omit frozen layers.
         UnsupportedFeature("Frozen layers");
     }
-    Layers[layername] = MakeLayer(layername, layerColor, std::move(lineTypeName));
+    // The Layers map is keyed by the name as it appears in the file, which is what the entities
+    // refer to, while the layer itself gets the UTF-8 name.
+    Layers[layername] = MakeLayer(LayerNameToUTF8(layername), layerColor, std::move(lineTypeName));
     return true;
 }
 CDxfRead::Layer* CDxfRead::MakeLayer(const std::string& name, ColorIndex_t color, std::string&& lineType)
