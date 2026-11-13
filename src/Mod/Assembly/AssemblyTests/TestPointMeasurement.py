@@ -194,6 +194,44 @@ class TestPointMeasurement(unittest.TestCase):
         self.assertIsNone(self.doc.getObject("PointMeasurement"))
 
     @unittest.skipUnless(App.GuiUp, "Requires GUI")
+    def test_closing_restores_a_played_back_mesh_component(self):
+        # Playback moves every simulated component, a mesh included, which
+        # UtilsAssembly does not list as a movable part.
+        import FreeCADGui as Gui
+        import Mesh
+        import CommandPointMeasurement as Command
+        import CommandCreateSimulation as Simulation
+        from PySide import QtWidgets
+
+        solid = self.assembly.newObject("Part::Feature", "Solid")
+        solid.Shape = Part.makeBox(2, 3, 4)
+        mesh = self.assembly.newObject("Mesh::Feature", "MeshComponent")
+        mesh.Mesh = Mesh.createBox(5, 5, 5)
+        self.doc.recompute()
+        study = Dynamics.create_study(self.assembly)
+        body = self.body()
+        for key in body:
+            body[key].append(body[key][0])
+        poses = [[0, 0, z, 0, 0, 0, 1] for z in (0, 25)]
+        data = {"SchemaVersion": 2, "Times": [0, 1], "Bodies": {
+            solid.Name: body, mesh.Name: {"Placements": poses},
+        }}
+        Dynamics.save_results(study, data)
+        self.doc.openTransaction("Measurement")
+        obj = PM.create(study)
+        obj.Point = (solid, ["Vertex2"])
+        panel = Command.TaskPointMeasurement(study, obj)
+        with patch.object(Simulation.TaskAssemblyCreateSimulation, "reopen"):
+            try:
+                Gui.Control.showDialog(panel)
+                panel.slider.setValue(1)
+                self.assertVector(mesh.Placement.Base, (0, 0, 25))
+            finally:
+                panel.reject()
+                QtWidgets.QApplication.processEvents()
+        self.assertVector(mesh.Placement.Base, (0, 0, 0))
+
+    @unittest.skipUnless(App.GuiUp, "Requires GUI")
     def test_simulation_child_workflow(self):
         import FreeCADGui as Gui
         import CommandPointMeasurement as Command

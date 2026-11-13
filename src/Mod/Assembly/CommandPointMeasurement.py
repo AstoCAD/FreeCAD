@@ -101,6 +101,7 @@ class TaskPointMeasurement:
         self.assembly = study.Assembly
         self.data = Dynamics.results(study)
         self.initial = UtilsAssembly.saveAssemblyPartsPlacements(self.assembly)
+        self.played = {}
         self.view = Gui.getDocument(study.Document.Name).activeView()
         self.samples = None
         self.closed = False
@@ -190,7 +191,7 @@ class TaskPointMeasurement:
             self.refresh()
         except Exception:
             self.view.getSceneGraph().removeChild(self.root)
-            UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initial)
+            self.restorePlacements()
             raise
 
     def useSelection(self, point):
@@ -267,6 +268,8 @@ class TaskPointMeasurement:
         for name, body in self.data["Bodies"].items():
             component = self.study.Document.getObject(name)
             if component is not None and hasattr(component, "Placement"):
+                if name not in self.initial:
+                    self.played.setdefault(name, component.Placement)
                 parent = Dynamics.component_placement(component) * component.Placement.inverse()
                 component.Placement = parent.inverse() * PM.placement(body["Placements"][index])
         for obj in Dynamics.inputs_for_study(self.study):
@@ -348,13 +351,24 @@ class TaskPointMeasurement:
         self.finish(False)
         return True
 
+    def restorePlacements(self):
+        """Put back the poses the components had before playback."""
+        UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initial)
+        # Playback also moves simulated components that UtilsAssembly does not
+        # list as movable parts (a mesh, for example): restore those as well.
+        for name, placement in self.played.items():
+            component = self.study.Document.getObject(name)
+            if component is not None:
+                component.Placement = placement
+                component.purgeTouched()
+
     def finish(self, accepted):
         if self.closed:
             return
         self.closed = True
         self.timer.stop()
         self.view.getSceneGraph().removeChild(self.root)
-        UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initial)
+        self.restorePlacements()
         if accepted:
             Dynamics.purge_touched(self.measurement, self.study)
             self.study.Document.commitTransaction()
