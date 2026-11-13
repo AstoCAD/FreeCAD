@@ -30,10 +30,6 @@ class TestCsgTextEncoding(unittest.TestCase):
 
     def _cleanup(self):
         for name in set(App.listDocuments()) - self.before:
-            # The SVG import sets App.ActiveDocument back to the imported
-            # document without making it active: activate it so that closing
-            # it also resets App.ActiveDocument.
-            App.setActiveDocument(name)
             App.closeDocument(name)
         if self.previous in App.listDocuments():
             App.setActiveDocument(self.previous)
