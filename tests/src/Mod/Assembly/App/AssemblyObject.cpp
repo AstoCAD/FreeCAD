@@ -500,6 +500,50 @@ TEST_F(AssemblyObjectTest, dragReportsANonSolidContactComponentOnce)  // NOLINT
     EXPECT_NEAR(box->Placement.getValue().getPosition().z, 40, 1e-9);
 }
 
+TEST_F(AssemblyObjectTest, dragSkipsAContactWithANonFiniteFrictionCoefficient)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* doc = assembly->getDocument();
+    const auto box = [&](const char* name, double x) {
+        auto* object = doc->addObject<Part::Box>(name);
+        object->execute();
+        object->Placement.setValue(Base::Placement(Base::Vector3d(x, 0, 0), Base::Rotation()));
+        assembly->addObject(object);
+        return object;
+    };
+    auto* dragged = box("Dragged", 0);
+    auto* other = box("Other", 11);
+
+    auto* contact = doc->addObject("App::FeaturePython", "FrictionContact");
+    contact->addDynamicProperty("App::PropertyString", "ContactType");
+    auto* mode = static_cast<App::PropertyEnumeration*>(
+        contact->addDynamicProperty("App::PropertyEnumeration", "Mode")
+    );
+    mode->setEnums({"Between two components", "General collision detection"});
+    mode->setValue("General collision detection");
+    contact->addDynamicProperty("App::PropertyBool", "Suppressed");
+    static_cast<App::PropertyBool*>(
+        contact->addDynamicProperty("App::PropertyBool", "FrictionEnabled")
+    )->setValue(true);
+    static_cast<App::PropertyFloat*>(
+        contact->addDynamicProperty("App::PropertyFloat", "StaticFriction")
+    )->setValue(std::numeric_limits<double>::quiet_NaN());
+    static_cast<App::PropertyFloat*>(
+        contact->addDynamicProperty("App::PropertyFloat", "DynamicFriction")
+    )->setValue(0.2);
+    auto* group = doc->addObject<Assembly::SimulationGroup>("Simulations");
+    assembly->addObject(group);
+    group->addObject(contact);
+
+    // A misconfigured contact is skipped and reported, as in solving; it
+    // must not throw out of the mouse handler.
+    const auto previous = dragged->Placement.getValue();
+    dragged->Placement.setValue(Base::Placement(Base::Vector3d(6, 0, 0), Base::Rotation()));
+    EXPECT_NO_THROW(assembly->resolveContactMove({dragged}, {{dragged, previous}}));
+    EXPECT_NEAR(dragged->Placement.getValue().getPosition().x, 6, 1e-9);
+    EXPECT_NEAR(other->Placement.getValue().getPosition().x, 11, 1e-9);
+}
+
 TEST_F(AssemblyObjectTest, frameQueriesWithoutSolverSystem)  // NOLINT
 {
     auto* assembly = getObject();

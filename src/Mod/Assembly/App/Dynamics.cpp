@@ -1353,6 +1353,21 @@ void AssemblyObject::resolveContactMove(
                 warnSkippedContact(error.what());
                 continue;
             }
+            bool friction = false;
+            double staticCoefficient = 0;
+            double dynamicCoefficient = 0;
+            try {
+                friction = property<App::PropertyBool>(contact, "FrictionEnabled").getValue();
+                if (friction) {
+                    staticCoefficient = std::max(0.0, number(contact, "StaticFriction"));
+                    dynamicCoefficient
+                        = std::clamp(number(contact, "DynamicFriction"), 0.0, staticCoefficient);
+                }
+            }
+            catch (const std::invalid_argument& error) {
+                warnSkippedContact(error.what());
+                continue;
+            }
             for (auto [first, second] : pairs) {
                 ++timing.pairs;
                 if (!first || !second || first == second) {
@@ -1462,11 +1477,7 @@ void AssemblyObject::resolveContactMove(
                     const Vec normalTranslation = normal * normalDistance;
                     const Vec tangentTranslation = remainingTranslation - normalTranslation;
                     pushedTranslation = normalTranslation;
-                    if (property<App::PropertyBool>(contact, "FrictionEnabled").getValue()) {
-                        const double staticCoefficient
-                            = std::max(0.0, number(contact, "StaticFriction"));
-                        const double dynamicCoefficient
-                            = std::clamp(number(contact, "DynamicFriction"), 0.0, staticCoefficient);
+                    if (friction) {
                         const double tangentDistance = tangentTranslation.Length();
                         const double normalTravel = std::abs(normalDistance);
                         if (tangentDistance <= staticCoefficient * normalTravel) {
