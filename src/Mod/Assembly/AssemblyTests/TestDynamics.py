@@ -583,6 +583,16 @@ class TestDynamics(unittest.TestCase):
         self.assertVectorClose(follower.Direction, (1, 0, 0), delta=1e-9)
         self.assertTrue(spring.AttachmentI.isSame(attachment, 1e-9))
         self.assertTrue(spring.AttachmentJ.isSame(reference, 1e-9))
+        # Nothing is rewritten, so rounding does not build up over recomputes.
+        frames = [(load.AttachmentI, load.AttachmentJ, load.Direction) for load in (force, follower, spring)]
+        for _ in range(1000):
+            body.touch()
+            self.doc.recompute()
+        for load, (frame_i, frame_j, direction) in zip((force, follower, spring), frames):
+            for actual, expected in ((load.AttachmentI, frame_i), (load.AttachmentJ, frame_j)):
+                self.assertEqual(actual.Base, expected.Base)
+                self.assertEqual(actual.Rotation.Q, expected.Rotation.Q)
+            self.assertEqual(load.Direction, direction)
 
         # The component turns: the loads stay on the face, a fixed direction
         # stays in the assembly, a follower turns with the component.

@@ -63,6 +63,12 @@ def _component_placement(component):
 component_placement = _component_placement
 
 
+def _negligible(rotation):
+    """Return True for a rotation by less than about 2e-12 rad."""
+    x, y, z, _w = rotation.Q
+    return math.sqrt(x * x + y * y + z * z) <= 1e-12
+
+
 def attachment_placement(load, endpoint):
     """Return endpoint I or J in assembly coordinates."""
     if endpoint not in ("I", "J"):
@@ -395,7 +401,7 @@ class Load:
         return False
 
     def onBeforeChange(self, obj, prop):
-        if prop == "Placement":
+        if prop == "Placement" and not getattr(self, "_reset_pending", False):
             # The frame follow_support moves the load from.
             self._previous_placement = App.Placement(obj.Placement)
 
@@ -504,12 +510,20 @@ class Load:
         turns with the frame's change relative to the component (none when
         only the component moved), a follower Direction turns with the frame
         itself, and the reference frame J of a torsional spring or bushing
-        keeps its pose relative to I. Every step is a rigid transport, so the
-        engine's intermediate reset of Placement to the identity
-        (AttachExtension::positionBySupport) cancels out.
+        keeps its pose relative to I.
+
+        The engine first resets Placement to the identity, then writes the
+        support's frame (AttachExtension::positionBySupport): the load moves
+        once, from where it was to that frame. When that is where it already
+        is (a recompute of an unmoved support), nothing is written, so that
+        rounding does not accumulate over recomputes.
         """
-        component = _component_placement(obj.BodyI)
         current = obj.Placement
+        if current.isIdentity() and not getattr(self, "_reset_pending", False):
+            self._reset_pending = True
+            return
+        self._reset_pending = False
+        component = _component_placement(obj.BodyI)
         before = component * obj.AttachmentI
         previous = getattr(self, "_previous_placement", None)
         if previous is None:
@@ -520,20 +534,24 @@ class Load:
             turn = current.Rotation * previous.Rotation.inverted()
         else:
             turn = change.Rotation
+        moved = change.Base.Length > 1e-9 or not _negligible(change.Rotation)
         self._following_support = True
         try:
-            obj.AttachmentI = component.inverse() * current
-            obj.Direction = turn.multVec(obj.Direction)
-            if obj.LoadType in ("TorsionalSpringDamper", "Bushing"):
-                body = _component_placement(obj.BodyJ) if obj.BodyJ else App.Placement()
-                obj.AttachmentJ = body.inverse() * change * body * obj.AttachmentJ
+            if moved:
+                obj.AttachmentI = component.inverse() * current
+                if obj.LoadType in ("TorsionalSpringDamper", "Bushing"):
+                    body = _component_placement(obj.BodyJ) if obj.BodyJ else App.Placement()
+                    obj.AttachmentJ = body.inverse() * change * body * obj.AttachmentJ
+            if not _negligible(turn):
+                obj.Direction = turn.multVec(obj.Direction)
         finally:
             self._following_support = False
 
     def update_attachment(self, obj, reorient=True):
         if not hasattr(obj, "BodyI") or not obj.BodyI or not hasattr(obj, "Placement"):
             return
-        if getattr(self, "_syncing_placement", False):
+        if getattr(self, "_syncing_placement", False) or getattr(self, "_reset_pending", False):
+            # Placement is the attachment engine's intermediate reset (follow_support).
             return
         self._updating_attachment = True
         try:
