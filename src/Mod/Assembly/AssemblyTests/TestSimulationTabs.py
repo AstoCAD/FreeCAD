@@ -549,6 +549,27 @@ class TestSimulationTabs(unittest.TestCase):
         self.panel.accept()
         self.assertAlmostEqual(mesh.Placement.Base.z, 0)
 
+    def test_accept_keeps_a_moved_link_group_in_place(self):
+        # Every run first moves a link group's Placement onto its elements, as
+        # solve() does. Accept restores the element placements recorded when
+        # the panel opened: recorded before that move, they displaced them.
+        self.clickTaskButton(QtWidgets.QDialogButtonBox.Cancel)
+        array = self.assembly.newObject("App::Link", "Array")
+        array.LinkedObject = self.doc.addObject("Part::Box", "Source")
+        array.ElementCount = 2
+        self.doc.recompute()
+        array.Placement = App.Placement(
+            App.Vector(100, 0, 0), App.Rotation(App.Vector(0, 0, 1), 30)
+        )
+        self.doc.recompute()
+        element = array.ElementList[1]
+        shown = Dynamics.component_placement(element)
+        self.panel = SimulationCommand.TaskAssemblyCreateSimulation()
+        Gui.Control.showDialog(self.panel)
+        self.assembly.ensureIdentityPlacements()  # What a run does first.
+        self.clickTaskButton(QtWidgets.QDialogButtonBox.Ok)
+        self.assertTrue(Dynamics.component_placement(element).isSame(shown, 1e-9))
+
     def test_closing_the_document_releases_the_panel(self):
         study = self.panel.simFeaturePy
         self.panel.accept()

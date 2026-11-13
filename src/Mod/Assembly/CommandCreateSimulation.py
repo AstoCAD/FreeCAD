@@ -732,7 +732,6 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
 
         self.assembly = UtilsAssembly.activeAssembly()
 
-        self.initialPlcs = UtilsAssembly.saveAssemblyPartsPlacements(self.assembly)
         self.playedPlcs = {}
         self.frameTimes = {}
 
@@ -853,6 +852,12 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         else:
             self.gui_doc.openCommand("Create Simulation")
             self.createSimulationObject()
+
+        # Every run first moves a link group's Placement onto its elements, as
+        # solve() does. Do it here, inside this command, so that the poses
+        # restored after playback are recorded in that same form.
+        self.assembly.ensureIdentityPlacements()
+        self.initialPlcs = UtilsAssembly.saveAssemblyPartsPlacements(self.assembly)
 
         self.setUiInitialValues()
         self.form.AnalysisTypeComboBox.currentIndexChanged.connect(self.onAnalysisTypeChanged)
