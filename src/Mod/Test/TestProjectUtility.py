@@ -72,6 +72,37 @@ class TestProjectUtility(unittest.TestCase):
         os.remove(target)
         self.assertFalse(os.path.exists(target))
 
+    def test_round_trip_keeps_non_ascii_included_file(self):
+        # FreeCAD stores UTF-8 entry names without the UTF-8 flag of the zip format
+        import FreeCAD
+
+        source = os.path.join(self.tmpdir, "Bildé_ü.txt")
+        with open(source, "wb") as stream:
+            stream.write(b"payload")
+        saved = os.path.join(self.tmpdir, "Included.FCStd")
+        doc = FreeCAD.newDocument("ProjectUtilityIncluded")
+        try:
+            obj = doc.addObject("App::FeaturePython", "Holder")
+            obj.addProperty("App::PropertyFileIncluded", "File")
+            obj.File = source
+            doc.saveAs(saved)
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
+        project_utility.extractDocument(saved, self.outdir)
+        self.assertEqual(self._read("Bildé_ü.txt"), b"payload")
+
+        repacked = os.path.join(self.tmpdir, "Repacked.FCStd")
+        project_utility.createDocument(os.path.join(self.outdir, "Document.xml"), repacked)
+        doc = FreeCAD.openDocument(repacked)
+        try:
+            included = doc.getObject("Holder").File
+            self.assertEqual(os.path.basename(included), "Bildé_ü.txt")
+            with open(included, "rb") as stream:
+                self.assertEqual(stream.read(), b"payload")
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
     def test_failed_extract_releases_source_file(self):
         # Make the extraction fail by blocking a directory with a plain file
         with open(os.path.join(self.outdir, "sub"), "w") as stream:
