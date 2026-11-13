@@ -862,6 +862,65 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.get("A2"), 6)
         self.assertEqual(sheet.get("B2"), "\u00e9")
 
+    def testImportFailureKeepsSheet(self):
+        """A CSV import that fails (a file that cannot be read, an unknown escape sequence such
+        as the backslash of "C:\\temp") cleared the sheet first and left it empty or partly
+        filled"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "keep")
+        sheet.set("B2", "42")
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "bad.csv")
+            with open(path, "wb") as csv_file:
+                csv_file.write(b"x,y\nC:\\temp\\file,z\n")
+            self.assertFalse(sheet.importFile(path, ",", '"', "\\"))
+            self.assertFalse(sheet.importFile(os.path.join(temp_dir, "missing.csv")))
+        self.doc.recompute()
+        self.assertEqual(sorted(sheet.getNonEmptyCells()), ["A1", "B2"])
+        self.assertEqual(sheet.get("A1"), "keep")
+        self.assertEqual(sheet.get("B2"), 42)
+
+    def testImportDoubledQuoteChar(self):
+        """In a quoted CSV field, a doubled quote character is one quote character (RFC 4180,
+        as Excel and LibreOffice write it); the import dropped both"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "doubled.csv")
+            with open(path, "wb") as csv_file:
+                csv_file.write(b'x,"Bob ""B"" Smith"\n"""quoted""","",z\n')
+            for escape in ("\\", ""):
+                sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+                self.assertTrue(sheet.importFile(path, ",", '"', escape))
+                self.doc.recompute()
+                self.assertEqual(sheet.get("B1"), 'Bob "B" Smith', repr(escape))
+                self.assertEqual(sheet.get("A2"), '"quoted"', repr(escape))
+                self.assertEqual(sheet.get("C2"), "z", repr(escape))
+                self.assertEqual(sorted(sheet.getNonEmptyCells()), ["A1", "A2", "B1", "C2"])
+                self.doc.removeObject(sheet.Name)
+
+    def testExportWithoutEscapeCharDoublesQuoteChar(self):
+        """Without an escape character, CSV export doubles the quote character (RFC 4180)
+        instead of writing a NUL byte before it, and the import reads the text back"""
+        texts = ['say "hi"', "a,b", "a\tb", "C:\\temp", '"']
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        for col, text in enumerate(texts):
+            sheet.set("ABCDE"[col] + "1", "'" + text)
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for delimiter in (",", "\t"):
+                path = os.path.join(temp_dir, "noescape.csv")
+                self.assertTrue(sheet.exportFile(path, delimiter, '"', ""))
+                with open(path, "rb") as csv_file:
+                    data = csv_file.read()
+                self.assertNotIn(b"\0", data)
+                self.assertIn(b'"say ""hi"""', data)
+                other = self.doc.addObject("Spreadsheet::Sheet", "Imported")
+                self.assertTrue(other.importFile(path, delimiter, '"', ""))
+                self.doc.recompute()
+                for col, text in enumerate(texts):
+                    self.assertEqual(other.get("ABCDE"[col] + "1"), text, repr(delimiter))
+                self.doc.removeObject(other.Name)
+
     def testNumericLiteralIsStableAcrossSaveRestore(self):
         """Numeric literals retain their value and type across save and restore."""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")

@@ -211,6 +211,71 @@ bool Sheet::getCharsFromPrefs(char& delim, char& quote, char& escape, std::strin
 
 
 /**
+ * Split one line of a CSV file into its fields, the way exportToFile() writes them.
+ *
+ * Fields are separated by \a delimiter. A \a quoteChar starts or ends a quoted part, in which
+ * the delimiter is plain text; inside a quoted part, a doubled quote character stands for one
+ * quote character (RFC 4180, as e.g. Excel and LibreOffice write it). \a escapeChar followed by
+ * 'n', the quote character, the delimiter or the escape character stands for a newline or that
+ * character.
+ *
+ * @returns False on an unknown escape sequence or an escape character at the end of the line.
+ */
+
+static bool splitFields(
+    std::string const& line,
+    char delimiter,
+    char quoteChar,
+    char escapeChar,
+    std::vector<std::string>& fields
+)
+{
+    bool inQuote = false;
+
+    fields.emplace_back();
+    for (std::size_t i = 0; i < line.size(); ++i) {
+        const char c = line[i];
+
+        if (c == escapeChar) {
+            if (++i == line.size()) {
+                return false;
+            }
+            const char next = line[i];
+            if (next == 'n') {
+                fields.back() += '\n';
+            }
+            else if (next == quoteChar || next == delimiter || next == escapeChar) {
+                fields.back() += next;
+            }
+            else {
+                return false;
+            }
+        }
+        else if (c == delimiter) {
+            if (inQuote) {
+                fields.back() += c;
+            }
+            else {
+                fields.emplace_back();
+            }
+        }
+        else if (c == quoteChar) {
+            if (inQuote && i + 1 < line.size() && line[i + 1] == quoteChar) {
+                fields.back() += c;
+                ++i;
+            }
+            else {
+                inQuote = !inQuote;
+            }
+        }
+        else {
+            fields.back() += c;
+        }
+    }
+    return true;
+}
+
+/**
  * Import a file into the spreadsheet object.
  *
  * @param filename   Name of file to import
@@ -218,67 +283,61 @@ bool Sheet::getCharsFromPrefs(char& delim, char& quote, char& escape, std::strin
  * @param quoteChar  Quote character, if any (set to '\0' to disable).
  * @param escapeChar The escape character used, if any (set to '0' to disable).
  *
- * @returns True if successful, false if something failed.
+ * @returns True if successful, false if something failed. The sheet is left as it was when
+ *          the file cannot be opened or read.
  */
 
 bool Sheet::importFromFile(const std::string& filename, char delimiter, char quoteChar, char escapeChar)
 {
     Base::FileInfo fi(filename);
     Base::ifstream file(fi, std::ios::in);
-    int row = 0;
+
+    if (!file.is_open()) {
+        return false;
+    }
+
+    // Read the whole file before clearing the sheet, so that a file that cannot be read does
+    // not leave the sheet empty or partly filled
+    std::vector<std::vector<std::string>> rows;
+    std::string line;
+
+    while (std::getline(file, line)) {
+        // Files saved as "CSV UTF-8" (e.g. by Excel) start with a byte order mark, which is
+        // not part of the first cell
+        if (rows.empty() && line.starts_with("\xEF\xBB\xBF")) {
+            line.erase(0, 3);
+        }
+
+        rows.emplace_back();
+        if (!splitFields(line, delimiter, quoteChar, quoteChar ? escapeChar : '\0', rows.back())) {
+            return false;
+        }
+    }
+    file.close();
 
     PropertySheet::AtomicPropertyChange signaller(cells);
 
     clearAll();
 
-    if (file.is_open()) {
-        std::string line;
+    try {
+        for (std::size_t row = 0; row < rows.size(); ++row) {
+            int col = 0;
 
-        while (std::getline(file, line)) {
-            using namespace boost;
-
-            // Files saved as "CSV UTF-8" (e.g. by Excel) start with a byte order mark, which is
-            // not part of the first cell
-            if (row == 0 && line.starts_with("\xEF\xBB\xBF")) {
-                line.erase(0, 3);
-            }
-
-            try {
-                escaped_list_separator<char> e;
-                int col = 0;
-
-                if (quoteChar) {
-                    e = escaped_list_separator<char>(escapeChar, delimiter, quoteChar);
+            for (const auto& field : rows[row]) {
+                if (!field.empty()) {
+                    setCell(CellAddress(static_cast<int>(row), col), field.c_str());
                 }
-                else {
-                    e = escaped_list_separator<char>('\0', delimiter, '\0');
-                }
-
-                tokenizer<escaped_list_separator<char>> tok(line, e);
-
-                for (tokenizer<escaped_list_separator<char>>::iterator i = tok.begin();
-                     i != tok.end();
-                     ++i) {
-                    if (!i->empty()) {
-                        setCell(CellAddress(row, col), (*i).c_str());
-                    }
-                    col++;
-                }
+                col++;
             }
-            catch (...) {
-                signaller.tryInvoke();
-                return false;
-            }
-
-            ++row;
         }
-        file.close();
-        signaller.tryInvoke();
-        return true;
     }
-    else {
+    catch (...) {
+        signaller.tryInvoke();
         return false;
     }
+
+    signaller.tryInvoke();
+    return true;
 }
 
 /**
@@ -295,8 +354,10 @@ static void writeEscaped(std::string const& s, char quoteChar, char escapeChar, 
 {
     out << quoteChar;
     for (char c : s) {
+        // Without an escape character, the quote character is doubled (RFC 4180), which
+        // importFromFile() reads back as one quote character
         if (c == quoteChar) {
-            out << escapeChar;
+            out << (escapeChar ? escapeChar : quoteChar);
             out << c;
         }
         // importFromFile() reads the escape character as the start of an escape sequence and a
