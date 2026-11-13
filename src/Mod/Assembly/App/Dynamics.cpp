@@ -204,6 +204,13 @@ struct ContactSphere
     double radius = 0;
 };
 
+// A feature without an up-to-date result: failed, or not recomputed since a change.
+// Its shape tells nothing about what it models.
+bool hasPendingResult(const Object* object)
+{
+    return object && (object->isError() || object->isTouched() || object->mustExecute() != 0);
+}
+
 // Returns false when the pair has no contact: general collision detection pairs
 // every component, including construction geometry (datums, sketches, wires)
 // that cannot collide. A sheet or shell may be meant as a contact surface, so
@@ -227,7 +234,12 @@ bool contactShapesOf(
             continue;
         }
         auto* source = component->getLinkedObject(true);
-        const bool construction = shape->IsNull() || !TopExp_Explorer(*shape, TopAbs_FACE).More()
+        // An up-to-date empty result (a sketch with only construction geometry,
+        // an empty body) is construction geometry; a missing one may be a solid.
+        const bool empty = shape->IsNull()
+            ? !hasPendingResult(component) && !hasPendingResult(source)
+            : !TopExp_Explorer(*shape, TopAbs_FACE).More();
+        const bool construction = empty
             || (source
                 && (source->isDerivedFrom<App::DatumElement>()
                     || source->isDerivedFrom<Part::Datum>()));
@@ -603,8 +615,7 @@ std::vector<Object*> massChildren(Object* container)
             continue;
         }
         const auto shape = Part::Feature::getShape(child, Part::ShapeOption::ResolveLink);
-        const bool pending = child->isError() || child->isTouched() || child->mustExecute() != 0;
-        if (shape.IsNull() ? !pending : !TopExp_Explorer(shape, TopAbs_SOLID).More()) {
+        if (shape.IsNull() ? !hasPendingResult(child) : !TopExp_Explorer(shape, TopAbs_SOLID).More()) {
             continue;
         }
         // Expression references do not make one solid a modeling operand of

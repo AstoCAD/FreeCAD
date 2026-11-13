@@ -451,6 +451,21 @@ class TestContact(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Sheet: Contact requires .* solid"):
             Dynamics.run(study)
 
+    def test_general_mode_does_not_skip_a_component_without_its_result(self):
+        # A failed feature has no shape: unlike construction geometry, it may
+        # model a solid, here a grounded wall. Never skip it silently.
+        self.sphere("First", -15)
+        self.sphere("Second", 15)
+        wall = self.assembly.newObject("Part::Cut", "Wall")  # No operands: fails.
+        wall.setPropertyStatus("Placement", "ReadOnly")
+        self.doc.recompute()
+        self.assertTrue(wall.Shape.isNull())
+        self.assertIn("Invalid", wall.State)
+        study = self.study("0.001 s")
+        Dynamics.create_contact(study, mode="General collision detection")
+        with self.assertRaisesRegex(RuntimeError, "Wall: Contact requires .* solid"):
+            Dynamics.run(study)
+
     def test_arbitrary_solid_contact_rebounds_in_dynamics(self):
         # Exercise conversion between solver-local coordinates and transformed
         # document geometry, not just an Assembly at the document origin.
