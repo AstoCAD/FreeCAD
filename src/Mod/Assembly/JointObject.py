@@ -1160,21 +1160,23 @@ class Joint:
 
         # If only part1 is unconnected and part2 is connected, swap references and related properties
         if not part1Connected and part2Connected:
-            ref1 = joint.Reference1
-            joint.Reference1 = joint.Reference2
-            joint.Reference2 = ref1
+            ref1, ref2 = joint.Reference1, joint.Reference2
+            plc1, plc2 = joint.Placement1, joint.Placement2
+            off1, off2 = joint.Offset1, joint.Offset2
+            det1, det2 = joint.Detach1, joint.Detach2
 
-            plc1 = joint.Placement1
-            joint.Placement1 = joint.Placement2
+            # Swap while the joint is incomplete: an offset change on a complete joint
+            # pre-solves and solves the assembly, which would move the part before the
+            # caller records where to put it back or measures it to preserve its position.
+            joint.Reference2 = None
+            joint.Reference1 = ref2
+            joint.Placement1 = plc2
             joint.Placement2 = plc1
-
-            off1 = joint.Offset1
-            joint.Offset1 = joint.Offset2
+            joint.Offset1 = off2
             joint.Offset2 = off1
-
-            det1 = joint.Detach1
-            joint.Detach1 = joint.Detach2
+            joint.Detach1 = det2
             joint.Detach2 = det1
+            joint.Reference2 = ref1
 
             if activeTask and activeTask.joint == joint:
                 activeTask.updateTaskboxFromJoint()

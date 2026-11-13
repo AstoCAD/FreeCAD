@@ -538,6 +538,48 @@ class TestCore(AssemblyTestBase):
         self.assertTrue(joint.Offset1.isIdentity(), str(joint.Offset1))
         self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
 
+    def test_preserve_position_when_moving_part_is_picked_first(self):
+        """Picking the moving part first swaps the references; Preserve position must still
+        keep the part where it is."""
+        moving, joint, refs = self._fixed_joint_between_boxes()
+        before = App.Placement(moving.Placement)
+
+        joint.Proxy.setJointConnectors(joint, refs[::-1], True)
+
+        self.assertEqual(joint.Reference2[0], moving)
+        self.assertFalse(joint.Offset2.isIdentity())
+        self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
+        jcs1 = UtilsAssembly.getJcsGlobalPlc(joint.Placement1, joint.Reference1)
+        jcs2 = UtilsAssembly.getJcsGlobalPlc(joint.Placement2, joint.Reference2)
+        self.assertTrue(jcs1.isSame(jcs2, 1e-6), f"{jcs1} != {jcs2}")
+
+    def test_clearing_second_reference_restores_part_picked_first(self):
+        """Removing the second reference puts the moving part back also when it was picked
+        first, so that the references were swapped."""
+        for joint_type in ("Fixed", "Revolute", "Angle", "Perpendicular"):
+            with self.subTest(joint_type=joint_type):
+                grounded = self.assembly.newObject("Part::Box", "Grounded")
+                moving = self.assembly.newObject("Part::Box", "Moving")
+                moving.Placement = App.Placement(App.Vector(40, 50, 60), App.Rotation(10, 20, 30))
+                self.doc.recompute()
+                ground = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+                JointObject.GroundedJoint(ground, grounded)
+                joint = self.jointgroup.newObject("App::FeaturePython", joint_type)
+                JointObject.Joint(joint, JointObject.JointTypes.index(joint_type))
+                if joint_type == "Angle":
+                    joint.Angle = 30
+                before = App.Placement(moving.Placement)
+                first = [moving, ["Face6", "Vertex7"]]
+
+                joint.Proxy.setJointConnectors(joint, [first, [grounded, ["Face6", "Vertex7"]]])
+                self.assertEqual(joint.Reference2[0], moving)
+                self.assertFalse(moving.Placement.isSame(before, 1e-6))
+                joint.Proxy.setJointConnectors(joint, [first])
+
+                self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
+                for obj in (joint, ground, moving, grounded):
+                    self.doc.removeObject(obj.Name)
+
     def test_plain_part_matching_still_moves_second_component(self):
         part = self.doc.addObject("App::Part", "OrdinaryPart")
         first = part.newObject("Part::Box", "First")
