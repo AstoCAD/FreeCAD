@@ -3152,6 +3152,57 @@ class SpreadsheetCases(unittest.TestCase):
         finally:
             FreeCAD.closeDocument(doc.Name)
 
+    def testImportXLSXDefinedNamesOtherThanCells(self):
+        """Defined names that are not one cell (print area, filter, ranges,
+        rows, constants, other workbooks) or not valid aliases are skipped,
+        they do not stop the import of the file"""
+        import zipfile
+        import importXLSX
+
+        main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        names = (
+            '<definedName name="_xlnm.Print_Area" localSheetId="0">Data!$A$1:$B$2</definedName>'
+            '<definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'
+            "Data!$A$1:$B$2</definedName>"
+            '<definedName name="_xlnm.Print_Titles" localSheetId="0">Data!$1:$1</definedName>'
+            '<definedName name="values">Data!$A$1:$A$2</definedName>'
+            '<definedName name="mixed">Data!$A1</definedName>'
+            '<definedName name="other">[1]Other!$A$1</definedName>'
+            '<definedName name="rate">0.5</definedName>'
+            '<definedName name="my.rate">Data!$A$2</definedName>'
+            '<definedName name="width">Data!$B$1</definedName>'
+        )
+        workbook = (
+            f'<workbook xmlns="{main}" xmlns:r="{rels}"><sheets>'
+            '<sheet name="Data" sheetId="1" r:id="rId1"/></sheets>'
+            f"<definedNames>{names}</definedNames></workbook>"
+        )
+        workbookRels = (
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'<Relationship Id="rId1" Type="{rels}/worksheet" Target="worksheets/sheet1.xml"/>'
+            "</Relationships>"
+        )
+        worksheet = (
+            f'<worksheet xmlns="{main}"><sheetData>'
+            '<row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>2</v></c></row>'
+            '<row r="2"><c r="A2"><v>3</v></c><c r="B2"><f>A2*B1</f><v>6</v></c></row>'
+            "</sheetData></worksheet>"
+        )
+        filename = os.path.join(self.TempPath, "SpreadsheetDefinedNamesOtherThanCells.xlsx")
+        with zipfile.ZipFile(filename, "w") as z:
+            z.writestr("xl/workbook.xml", workbook)
+            z.writestr("xl/_rels/workbook.xml.rels", workbookRels)
+            z.writestr("xl/worksheets/sheet1.xml", worksheet)
+        importXLSX.insert(filename, self.doc.Name)
+        sheet = self.doc.getObject("Data")
+        self.assertEqual(sheet.getAlias("B1"), "width")
+        self.assertIsNone(sheet.getAlias("A1"))
+        self.assertIsNone(sheet.getAlias("A2"))
+        self.assertEqual((sheet.A1, sheet.B1, sheet.A2), (1, 2, 3))
+        self.assertEqual(sheet.getContents("B2"), "=A2 * B1")
+        self.assertEqual(sheet.B2, 6)
+
     def testRemoveRowsAliasReuseName(self):
         """Regression test for issue 4492; deleted aliases remains in database"""
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
