@@ -791,9 +791,6 @@ SketchSolveStatus SketchObject::setTextAndFont(
     }
 
     // First we replace the old geometries by the new text.
-    const std::string oldText = constr->getText();
-    const std::string oldFont = constr->getFont();
-    const bool oldIsHeight = constr->getIsTextHeight();
     int handleGeoId = constr->getGeoId(0);
     int firstTextGeoId = constr->getGeoId(1);
     bool hasExistingText = firstTextGeoId != GeoEnum::GeoUndef;
@@ -882,16 +879,9 @@ SketchSolveStatus SketchObject::setTextAndFont(
         addConstraint(std::move(replacement));
     }
 
-    auto status = solve();
-
-    // The replacement constraint is stored as is and keeps the new text.
-    if (status == SketchSolveStatus::Success && !hasExistingText) {
-        constr->setText(oldText);
-        constr->setFont(oldFont);
-        constr->setIsTextHeight(oldIsHeight);
-    }
-
-    return status;
+    // The new glyphs stay in the sketch whatever the solver says, so the constraint keeps
+    // describing them. Undoing a failed edit is the transaction's job.
+    return solve();
 }
 // clang-format off
 

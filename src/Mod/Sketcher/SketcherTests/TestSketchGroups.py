@@ -426,6 +426,46 @@ class TestSketchGroups(unittest.TestCase):
         self.assertEqual(s.solve(), 0)
         self.assertAlmostEqual(s.Geometry[circle].Radius, 4)
 
+    def textWithoutGlyphs(self):
+        self.font = os.path.join(App.getResourceDir(), "examples", "osifont-lgpl3fe.ttf")
+        s = self.sketch
+        handle = s.addGeometry(Part.LineSegment(App.Vector(0, 0, 0), App.Vector(10, 0, 0)), True)
+        return s.addConstraint(Sketcher.Constraint("Text", [handle, 0], "OLD", self.font, True))
+
+    def textLabel(self):
+        # The text, font and height flag of the Text constraint, as the sketch writes them.
+        line = next(l for l in self.sketch.toPythonCommands() if "Constraint('Text'" in l)
+        return line[line.rindex("], ") + 3 :]
+
+    def testSetTextAndFontKeepsNewText(self):
+        # Giving glyphs to a Text constraint that had none set its text and height flag back to
+        # the old values when the solve succeeded, so the label no longer matched the glyphs.
+        s = self.sketch
+        text = self.textWithoutGlyphs()
+        s.setTextAndFont(text, "NEW", self.font, False, False)
+        self.assertEqual(s.solve(), 0)
+        label = self.textLabel()
+        self.assertTrue(label.startswith("'NEW', ") and label.endswith(", False))"), label)
+
+        # Replacing existing glyphs keeps the new values too.
+        s.setTextAndFont(text, "NEWER", self.font, True, False)
+        label = self.textLabel()
+        self.assertTrue(label.startswith("'NEWER', ") and label.endswith(", True))"), label)
+
+    def testSetTextAndFontFailureKeepsTextOfGlyphs(self):
+        # A failed solve leaves the new glyphs in the sketch (undoing them is the transaction's
+        # job), so the constraint keeps describing them instead of going back to the old text.
+        s = self.sketch
+        text = self.textWithoutGlyphs()
+        line = s.addGeometry(Part.LineSegment(App.Vector(0, 5, 0), App.Vector(10, 5, 0)))
+        s.addConstraint(Sketcher.Constraint("DistanceX", line, 1, line, 2, 10.0))
+        s.addConstraint(Sketcher.Constraint("DistanceX", line, 1, line, 2, 20.0))
+        count = s.GeometryCount
+        with self.assertRaises(ValueError):
+            s.setTextAndFont(text, "NEW", self.font, True, False)
+        self.assertGreater(s.GeometryCount, count)
+        self.assertTrue(self.textLabel().startswith("'NEW', "), self.textLabel())
+
 
 if __name__ == "__main__":
     unittest.main()
