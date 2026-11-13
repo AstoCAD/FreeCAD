@@ -499,6 +499,28 @@ class DocumentBasicCases(unittest.TestCase):
         self.assertRaises(RuntimeError, lcs.getX)
         self.assertEqual(lcs.getY().Name, byRole["Y_Axis"].Name)
 
+    def testCopiedLocalCoordinateSystemOwnsItsElements(self):
+        lcs = self.Doc.addObject("App::LocalCoordinateSystem", "LCS")
+        roles = sorted(obj.Role for obj in lcs.OriginFeatures)
+        elements = {obj.Name for obj in lcs.OriginFeatures}
+
+        # Copied without its axes, planes and point: the copy gets its own
+        copy = self.Doc.copyObject(lcs)
+        self.assertEqual(sorted(obj.Role for obj in copy.OriginFeatures), roles)
+        self.assertFalse(elements & {obj.Name for obj in copy.OriginFeatures})
+
+        # Deleting the copy leaves the source complete
+        self.Doc.removeObject(copy.Name)
+        self.assertEqual({obj.Name for obj in lcs.OriginFeatures}, elements)
+        self.Doc.recompute()
+        self.assertNotIn("Invalid", lcs.State)
+
+        # Copied with its elements: nothing more is created
+        count = len(self.Doc.Objects)
+        copy = self.Doc.copyObject(lcs, True)
+        self.assertEqual(len(self.Doc.Objects), count + 1 + len(roles))
+        self.assertFalse(elements & {obj.Name for obj in copy.OriginFeatures})
+
     def testExtensions(self):
         # we try to create a normal python object and add an extension to it
         obj = self.Doc.addObject("App::DocumentObject", "Extension_1")

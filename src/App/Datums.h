@@ -252,6 +252,7 @@ private:
     SetupData getData(const char* role);
 
     void migrateOriginPoint();
+    void replaceSharedDatums();
 };
 
 }  // namespace App
