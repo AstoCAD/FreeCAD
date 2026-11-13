@@ -121,7 +121,7 @@ class CommandCreateLoad:
 
     def Activated(self):
         simulation_task = CommandCreateSimulation.activeSimulationTask()
-        selected = Gui.Selection.getSelection()
+        selected = Gui.Selection.getSelectionEx("*", 0)
         simulation = simulation_task.suspendForChildTask() if simulation_task else None
         assembly = UtilsAssembly.activeAssembly()
         components = list(assembly.getComponents())
@@ -130,7 +130,7 @@ class CommandCreateLoad:
                 CommandCreateSimulation.TaskAssemblyCreateSimulation.reopen(simulation)
             return
 
-        selected_components = [obj for obj in selected if obj in components]
+        selected_components = UtilsAssembly.getSelectedComponents(assembly, selected)
         component = selected_components[0] if selected_components else components[0]
         reaction_component = selected_components[1] if len(selected_components) > 1 else None
         Gui.ActiveDocument.openCommand("Add Load")

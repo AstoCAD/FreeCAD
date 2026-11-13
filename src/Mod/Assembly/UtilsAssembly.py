@@ -1386,6 +1386,26 @@ def getComponentReference(assembly, root_obj, sub_string):
     return component, new_sub
 
 
+def getSelectedComponents(assembly, selection):
+    """Return the components of the assembly holding the selection, in selection order.
+
+    Takes an unresolved selection, Gui.Selection.getSelectionEx("*", 0). A pick
+    inside a component (a face, a body feature, the content of a link) selects
+    that component occurrence, not the resolved sub-object or linked source.
+    """
+    components = assembly.getComponents()
+    selected = []
+    for sel in selection:
+        for sub in sel.SubElementNames or [""]:
+            if sub:
+                component, _ = getComponentReference(assembly, sel.Object, sub)
+            else:
+                component = sel.Object
+            if component in components and component not in selected:
+                selected.append(component)
+    return selected
+
+
 def truncateSubAtFirst(sub, target):
     # target=part1 & sub=asm.part1.link1.part1.obj -> asm.part1.
     names = sub.split(".")

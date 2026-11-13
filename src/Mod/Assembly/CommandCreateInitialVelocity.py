@@ -120,7 +120,13 @@ class CommandCreateInitialVelocity:
         components = _eligible_components(owner)
         if not components:
             return
-        selected = [obj for obj in Gui.Selection.getSelection() if obj in components]
+        selected = [
+            obj
+            for obj in UtilsAssembly.getSelectedComponents(
+                Dynamics.assembly_for_owner(owner), Gui.Selection.getSelectionEx("*", 0)
+            )
+            if obj in components
+        ]
         component = selected[0] if selected else components[0]
         velocity_type = _available_types(owner, component)[0]
         resume = task.suspendForChildTask() if task else None

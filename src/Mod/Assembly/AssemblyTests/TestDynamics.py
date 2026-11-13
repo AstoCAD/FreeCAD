@@ -219,6 +219,36 @@ class TestDynamics(unittest.TestCase):
         # The spring is at its free length where the solver attaches it too.
         self.assertAlmostEqual(data["Loads"][load.Name]["StoredEnergy"][0], 0, delta=1e-9)
 
+    def test_selected_components_are_the_picked_occurrences(self):
+        # Add Load and Add Initial Velocity act on the selected components. A
+        # pick in the 3D view names the element of a component's content: it
+        # must select that occurrence, not the linked source or another one.
+        from types import SimpleNamespace
+        import UtilsAssembly
+
+        source = self.doc.addObject("Part::Feature", "Source")
+        source.Shape = Part.makeBox(10, 20, 30)
+        link = self.assembly.newObject("App::Link", "Link")
+        link.LinkedObject = source
+        box = self.box()
+        self.doc.recompute()
+
+        def pick(obj, *subs):
+            return SimpleNamespace(Object=obj, SubElementNames=subs)
+
+        selection = [
+            pick(self.assembly, "Box.Face3"),
+            pick(self.assembly, "Link.Face1", "Link.Edge2"),
+            pick(source),
+            pick(self.assembly, "Box.Vertex1"),
+        ]
+        self.assertEqual(
+            UtilsAssembly.getSelectedComponents(self.assembly, selection), [box, link]
+        )
+        self.assertEqual(
+            UtilsAssembly.getSelectedComponents(self.assembly, [pick(link)]), [link]
+        )
+
     def test_angular_stop_energy_and_damping_use_radians(self):
         ground = self.box("Ground", density=None)
         ground.setPropertyStatus("Placement", "ReadOnly")
