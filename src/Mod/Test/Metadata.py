@@ -186,6 +186,54 @@ class TestMetadata(unittest.TestCase):
                 f, f"One of the expected workbenches was not found in the metadata file"
             )
 
+    def test_file_setter_replaces_files(self):
+        md = FreeCAD.Metadata()
+        md.Tag = ["Tag A", "Tag B"]
+        md.File = ["first.py"]
+        md.File = ["second.py", "third.py"]
+        self.assertEqual(md.File, ["second.py", "third.py"])
+        self.assertEqual(md.Tag, ["Tag A", "Tag B"])
+
+    def test_name_setter_validates_new_name(self):
+        md = FreeCAD.Metadata()
+        with self.assertRaises(RuntimeError):
+            md.Name = "invalid/name"
+        self.assertEqual(md.Name, "")
+        md.Name = "Valid Name"
+        self.assertEqual(md.Name, "Valid Name")
+
+    def test_content_setter(self):
+        workbench = FreeCAD.Metadata()
+        workbench.Name = "Test Workbench"
+        workbench.Classname = "TestWorkbench"
+        pack = FreeCAD.Metadata()
+        pack.Name = "Test Pack"
+
+        md = FreeCAD.Metadata()
+        md.Content = {"workbench": [workbench], "preferencepack": [pack]}
+        content = md.Content
+        self.assertEqual(sorted(content.keys()), ["preferencepack", "workbench"])
+        self.assertEqual([item.Classname for item in content["workbench"]], ["TestWorkbench"])
+        self.assertEqual([item.Name for item in content["preferencepack"]], ["Test Pack"])
+
+        md.Content = {"macro": [pack]}
+        self.assertEqual(list(md.Content.keys()), ["macro"])
+
+        with self.assertRaises(TypeError):
+            md.Content = {"workbench": ["not a Metadata object"]}
+        self.assertEqual(list(md.Content.keys()), ["macro"])
+
+    def test_urls_setter_rejects_unknown_type(self):
+        md = FreeCAD.Metadata()
+        website = {"location": "https://www.freecad.org", "type": "website"}
+        md.Urls = [website]
+        with self.assertRaises(FreeCAD.Base.FreeCADError):
+            md.Urls = [
+                {"location": "https://wiki.freecad.org", "type": "documentation"},
+                {"location": "https://example.com", "type": "unknown_type"},
+            ]
+        self.assertEqual(md.Urls, [website])
+
     def test_last_supported_version(self):
         pass
 
