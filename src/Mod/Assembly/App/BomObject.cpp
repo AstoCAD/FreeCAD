@@ -389,22 +389,29 @@ void BomObject::addObjectToBom(
 
 std::string BomObject::getBomPropertyValue(App::DocumentObject* obj, const std::string& baseName)
 {
+    // The result is the content given to setCell(), which parses it. Text goes in with
+    // the quote that marks a text cell, so that "0042" or "=1+1" is listed as it is
+    // instead of as a number or a formula. Numbers and quantities stay numeric.
+    const auto asText = [](const std::string& text) {
+        return text.empty() ? text : "'" + text;
+    };
+
     App::Property* prop = obj->getPropertyByName(baseName.c_str());
 
     if (!prop) {
         Base::Console().warning("Property not found: {}\n", baseName);
-        return QObject::tr("N/A").toStdString();
+        return asText(QObject::tr("N/A").toStdString());
     }
 
     // Only support a subset of property types for BOM
     if (auto propStr = freecad_cast<App::PropertyString*>(prop)) {
-        return propStr->getValue();
+        return asText(propStr->getValue());
     }
     if (auto propQuantity = freecad_cast<App::PropertyQuantity*>(prop)) {
         return propQuantity->getQuantityValue().getUserString();
     }
     if (auto propEnum = freecad_cast<App::PropertyEnumeration*>(prop)) {
-        return propEnum->getValueAsString();
+        return asText(propEnum->getValueAsString());
     }
     if (auto propFloat = freecad_cast<App::PropertyFloat*>(prop)) {
         return std::to_string(propFloat->getValue());
@@ -413,11 +420,11 @@ std::string BomObject::getBomPropertyValue(App::DocumentObject* obj, const std::
         return std::to_string(propInt->getValue());
     }
     if (auto propBool = freecad_cast<App::PropertyBool*>(prop)) {
-        return propBool->getValue() ? "True" : "False";
+        return asText(propBool->getValue() ? "True" : "False");
     }
 
     Base::Console().warning("Property type not supported for: {}\n", prop->getName());
-    return QObject::tr("Not supported").toStdString();
+    return asText(QObject::tr("Not supported").toStdString());
 }
 
 AssemblyObject* BomObject::getAssembly() const
