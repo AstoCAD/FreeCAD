@@ -3568,6 +3568,42 @@ class BRepConversionTest(unittest.TestCase):
         document.recompute()
         self.assertEqual(len(ControlCage.from_object(obj).faces), original_face_count)
 
+    def test_control_edits_reject_an_object_that_is_not_a_form(self):
+        document = App.newDocument("FormsTestNotAForm")
+        box = document.addObject("Part::Box", "Box")
+        document.recompute()
+        for name, operation in (
+            ("Crease", lambda: set_edge_crease(box, [(0, 1)], 10.0)),
+            ("Straighten", lambda: straighten_control_points(box, [0, 1, 2])),
+            ("Straighten surface", lambda: straighten_control_points(box, [0, 1, 2], None, True)),
+            ("Flatten", lambda: flatten_control_points(box, [0, 1, 2])),
+        ):
+            with self.subTest(operation=name):
+                with self.assertRaisesRegex(TypeError, "not a Forms object"):
+                    operation()
+
+    def test_symmetric_edge_edits_reject_an_unknown_control_edge(self):
+        document = App.newDocument("FormsTestSymmetricUnknownEdge")
+        obj = create_box(document)
+        obj.Symmetric = True
+        obj.SymmetryPlane = "YZ"
+        document.recompute()
+        points = [App.Vector(point) for point in obj.ControlPoints]
+        unknown = (0, len(points) + 100)
+        for name, operation in (
+            ("Fill Hole", lambda: fill_holes(obj, [unknown])),
+            ("Crease", lambda: set_edge_crease(obj, [unknown], 10.0)),
+            ("Delete Edge", lambda: dissolve_edges(obj, [unknown])),
+        ):
+            with self.subTest(operation=name):
+                with self.assertRaisesRegex(ValueError, "unknown control edge"):
+                    operation()
+        self.assertEqual(list(obj.ControlPoints), points)
+        self.assertEqual(list(obj.EdgeSharpness), [])
+        self.assertEqual(list(obj.DissolvedEdges), [])
+        document.recompute()
+        self.assertEqual(obj.ConversionStatus, "Valid solid")
+
 
 def suite():
     return unittest.defaultTestLoader.loadTestsFromTestCase(BRepConversionTest)
