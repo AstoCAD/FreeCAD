@@ -34,6 +34,7 @@
 #include <Base/Tools.h>
 #include <Base/Vector3D.h>
 
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -950,6 +951,31 @@ int SketchObject::addConstraints(const std::vector<Constraint*>& ConstraintList)
     return this->Constraints.getSize() - 1;
 }
 
+static App::ObjectIdentifier localPropertySpelling(const App::ObjectIdentifier& path);
+
+namespace
+{
+// Gives the paths of an expression the new paths that the map assigns to them.
+class CopiedPathsExpressionVisitor: public App::ExpressionVisitor
+{
+public:
+    explicit CopiedPathsExpressionVisitor(
+        const std::map<App::ObjectIdentifier, App::ObjectIdentifier>& paths)
+        : paths(paths)
+    {}
+
+    void visit(App::Expression& e) override
+    {
+        // no owner path: the new paths are used as they are
+        renameObjectIdentifier(e, paths, noOwner);
+    }
+
+private:
+    const std::map<App::ObjectIdentifier, App::ObjectIdentifier>& paths;
+    const App::ObjectIdentifier noOwner;
+};
+}  // namespace
+
 int SketchObject::addCopyOfConstraints(const SketchObject& orig)
 {
     // no need to check input data validity as this is an sketchobject managed operation.
@@ -958,6 +984,17 @@ int SketchObject::addCopyOfConstraints(const SketchObject& orig)
     const std::vector<Constraint*>& vals = this->Constraints.getValues();
 
     const std::vector<Constraint*>& origvals = orig.Constraints.getValues();
+
+    // the copies follow the constraints already in this sketch
+    const int offset = static_cast<int>(vals.size());
+    const int count = static_cast<int>(origvals.size());
+
+    // a copy named like one of these cannot be addressed by its name
+    std::set<std::string> names;
+    for (const auto* v : vals) {
+        if (!v->Name.empty())
+            names.insert(v->Name);
+    }
 
     std::vector<Constraint*> newVals(vals);
 
@@ -968,22 +1005,56 @@ int SketchObject::addCopyOfConstraints(const SketchObject& orig)
 
     this->Constraints.setValues(std::move(newVals));
 
-    auto& uvals = this->Constraints.getValues();
+    // An expression that refers to a constraint of the source sketch refers to the copy of that
+    // constraint, as in the source. The paths are given in both spellings, as in
+    // constraintsRenamed().
+    // (Constraints[i] gives no constraint while the copies still refer to the geometry of the
+    // source, see Constraints.hasInvalidGeometry())
+    const std::vector<Constraint*>& copies = this->Constraints.getValues();
+    std::map<App::ObjectIdentifier, App::ObjectIdentifier> paths;
+    for (int j = 0; j < count; j++) {
+        App::ObjectIdentifier oldPath = orig.Constraints.createPath(j);
+        App::ObjectIdentifier newPath = this->Constraints.createPath(offset + j);
+        if (!names.count(copies[offset + j]->Name))
+            newPath = newPath.canonicalPath();
+        paths[oldPath.canonicalPath()] = newPath;
+        paths.emplace(localPropertySpelling(oldPath).canonicalPath(),
+                      localPropertySpelling(newPath));
+    }
 
-    std::size_t uvalssize = uvals.size();
+    for (int j = 0; j < count; j++) {
+        const Constraint* constr = copies[offset + j];
+        if (!constr->isDriving || !constr->isDimensional())
+            continue;
 
-    for (std::size_t i = uvalssize, j = 0; i < uvals.size(); i++, j++) {
-        if (uvals[i]->isDriving && uvals[i]->isDimensional()) {
+        auto expr = orig.getExpression(orig.Constraints.createPath(j)).expression;
+        if (!expr)// no expression on the source dimensional
+            continue;
 
-            App::ObjectIdentifier spath = orig.Constraints.createPath(j);
+        if (names.count(constr->Name)) {
+            // its path would bind the expression to the constraint of that name already here
+            Base::Console().warning(this->getFullLabel(),
+                                    "The expression of the copied constraint '{}' is not copied: "
+                                    "the sketch already has a constraint with that name\n",
+                                    constr->Name);
+            continue;
+        }
 
-            App::PropertyExpressionEngine::ExpressionInfo expr_info = orig.getExpression(spath);
-
-            if (expr_info.expression) {// if there is an expression on the source dimensional
-                App::ObjectIdentifier dpath = this->Constraints.createPath(i);
-                setExpression(dpath,
-                              std::shared_ptr<App::Expression>(expr_info.expression->copy()));
-            }
+        try {
+            App::ExpressionPtr copy = expr->copy();
+            CopiedPathsExpressionVisitor visitor(paths);
+            copy->visit(visitor);
+            // Parsed again so that it belongs to this sketch, as when the document is reopened.
+            std::shared_ptr<App::Expression> newExpr =
+                App::Expression::parse(this, copy->toString(true));
+            newExpr->comment = expr->comment;
+            setExpression(this->Constraints.createPath(offset + j), std::move(newExpr));
+        }
+        catch (const Base::Exception& e) {
+            Base::Console().error(this->getFullLabel(),
+                                  "Failed to copy the expression of constraint {}: {}\n",
+                                  offset + j + 1,
+                                  e.what());
         }
     }
 
