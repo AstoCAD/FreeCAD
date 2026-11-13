@@ -25,6 +25,10 @@ These tests deliberately avoid loading documents from disk and avoid building
 a full Job/Stock/ToolController graph. The operation is small
 """
 
+import os
+import shutil
+import tempfile
+
 import FreeCAD
 import Path
 import Path.Main.Job as PathJob
@@ -140,5 +144,57 @@ G1 X1.000
 (Begin Custom)
  ;EX1: REFERENCE LEFT 0
   G68 R#100 X#150 Y#151
+(End Custom)""",
+        )
+
+    def _make_file_op(self, content):
+        """make the op and postable from a G-code file holding the given bytes"""
+        tmpdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmpdir, ignore_errors=True)
+        gcode_file = os.path.join(tmpdir, "custom.nc")
+        with open(gcode_file, "wb") as f:
+            f.write(content)
+
+        op, _ = self._make_op("G0 X0")
+        op.Source = "File"
+        op.GcodeFile = gcode_file
+        op.recompute()
+
+        postable = Postable(
+            label="test custom",
+            item_type="operation",
+            data={},
+            path=op.Path,
+            source=op,
+        )
+        return op, postable
+
+    def test_file_utf8(self):
+        """A G-code file is read as UTF-8, the encoding the post-processors write"""
+        _, postable = self._make_file_op("(Ávila Ωμέγα)\nG1 X1\n".encode("utf-8"))
+
+        output = []
+        self.pp._convert_item_commands(postable, output)
+        self.assertEqual(
+            "\n".join(output),
+            """(Custom)
+(Begin Custom)
+(Ávila Ωμέγα)
+G1 X1.000
+(End Custom)""",
+        )
+
+    def test_file_not_utf8(self):
+        """A G-code file that is not valid UTF-8 is still read, invalid bytes are replaced"""
+        _, postable = self._make_file_op("(École)\nG1 X1\n".encode("cp1252"))
+
+        output = []
+        self.pp._convert_item_commands(postable, output)
+        self.assertEqual(
+            "\n".join(output),
+            """(Custom)
+(Begin Custom)
+(�cole)
+G1 X1.000
 (End Custom)""",
         )
