@@ -629,6 +629,10 @@ int Assembly::AssemblyObject::updateForFrame(size_t index)
 
 size_t Assembly::AssemblyObject::numberOfFrames()
 {
+    // A drag that found nothing to solve, or whose solve failed, drops the solver system.
+    if (!mbdAssembly) {
+        return 0;
+    }
     return mbdAssembly->numberOfFrames();
 }
 

@@ -418,6 +418,20 @@ TEST_F(AssemblyObjectTest, contactSetsGateDraggingAndRespectExclusions)  // NOLI
     EXPECT_DOUBLE_EQ(other->Placement.getValue().getPosition().x, 50);
 }
 
+TEST_F(AssemblyObjectTest, frameQueriesWithoutSolverSystem)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* box = assembly->getDocument()->addObject<Part::Box>("Free");
+    box->execute();
+    assembly->addObject(box);
+
+    // An island drag with no joint or contact to solve drops the solver system.
+    assembly->preDrag({box});
+    EXPECT_EQ(assembly->numberOfFrames(), 0U);
+    EXPECT_EQ(assembly->updateForFrame(0), -1);
+    assembly->postDrag();
+}
+
 // https://github.com/FreeCAD/FreeCAD/issues/33405
 // Dragging must not run drag steps or postDrag on the half-built solver system left by a
 // failed solve: postDrag used to rethrow the solver error out of the GUI event handler.
