@@ -56,6 +56,67 @@ class TestRemoveAxesAlignment(unittest.TestCase):
         self.assertAlmostEqual(start.y, 1.0)
         self.assertAlmostEqual(self.sketch.Geometry[line].length(), 10.0)
 
+    def _assertSolvedWithoutMoving(self, expectedGeometry):
+        self.assertEqual(self.sketch.solve(), 0)
+        self.assertEqual(list(self.sketch.ConflictingConstraints), [])
+        for geo, (start, end) in zip(self.sketch.Geometry, expectedGeometry):
+            for point, expected in ((geo.StartPoint, start), (geo.EndPoint, end)):
+                self.assertAlmostEqual(point.x, expected[0])
+                self.assertAlmostEqual(point.y, expected[1])
+
+    def testDistancesAcrossTheAxisOfUnalignedPointsAreKept(self):
+        # The end points of a slanted line are 8 apart horizontally and 6 vertically. Distance
+        # constraints of 8 and 6 between the same points would conflict.
+        geometry = [((0, 0), (8, 6))]
+        line = self._addLine(*geometry[0])
+        self.sketch.addConstraint(Sketcher.Constraint("DistanceX", line, 1, line, 2, 8))
+        self.sketch.addConstraint(Sketcher.Constraint("DistanceY", line, 1, line, 2, 6))
+        self.assertEqual(self.sketch.solve(), 0)
+
+        self.sketch.removeAxesAlignment([line])
+
+        constraints = self.sketch.Constraints
+        self.assertEqual([c.Type for c in constraints], ["DistanceX", "DistanceY"])
+        self.assertEqual([c.Value for c in constraints], [8, 6])
+        self._assertSolvedWithoutMoving(geometry)
+
+    def testZeroDistanceOfUnalignedPointsDoesNotMergeThem(self):
+        # The start points are vertically aligned, 10 apart: a Distance of 0 would merge them.
+        geometry = [((0, 0), (20, 0)), ((0, 10), (10, 10))]
+        first = self._addLine(*geometry[0])
+        second = self._addLine(*geometry[1])
+        self.sketch.addConstraint(Sketcher.Constraint("Horizontal", first))
+        self.sketch.addConstraint(Sketcher.Constraint("DistanceX", first, 1, second, 1, 0))
+        self.assertEqual(self.sketch.solve(), 0)
+
+        self.sketch.removeAxesAlignment([first, second])
+
+        types = [c.Type for c in self.sketch.Constraints]
+        self.assertEqual(types, ["DistanceX"])
+        self._assertSolvedWithoutMoving(geometry)
+
+    def testOnlyDistancesAlongTheirAxisBecomeDistances(self):
+        # FreeCAD#9269: the vertical distance between end points that are not above each other,
+        # and the horizontal length of a slanted line, are not their true distances.
+        geometry = [((0, 0), (0, 5)), ((10, 0), (30, 10)), ((40, 0), (40, 7))]
+        vertical = self._addLine(*geometry[0])
+        slanted = self._addLine(*geometry[1])
+        other = self._addLine(*geometry[2])
+        self.sketch.addConstraint(Sketcher.Constraint("DistanceY", vertical, 5))
+        self.sketch.addConstraint(Sketcher.Constraint("DistanceX", slanted, 20))
+        self.sketch.addConstraint(Sketcher.Constraint("DistanceY", vertical, 1, slanted, 2, 10))
+        self.sketch.addConstraint(Sketcher.Constraint("DistanceY", other, 1, other, 2, 7))
+        self.assertEqual(self.sketch.solve(), 0)
+
+        self.sketch.removeAxesAlignment([vertical, slanted, other])
+
+        constraints = self.sketch.Constraints
+        self.assertEqual(
+            [c.Type for c in constraints], ["Distance", "DistanceX", "DistanceY", "Distance"]
+        )
+        self.assertEqual([c.Value for c in constraints], [5, 20, 10, 7])
+        self._assertSolvedWithoutMoving(geometry)
+
     def testRectangleStaysRectangular(self):
         # Regression from upstream #27451: the horizontal and vertical references lost the
         # Perpendicular constraint that keeps their angle.

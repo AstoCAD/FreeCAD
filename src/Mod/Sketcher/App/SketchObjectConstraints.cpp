@@ -1911,6 +1911,34 @@ int SketchObject::removeAxesAlignment(const std::vector<int>& geoIdList)
         {Sketcher::Vertical,   GeoEnum::GeoUndef}
     };
 
+    // Whether a DistanceX/DistanceY can become a Distance with the same value without moving the
+    // current geometry: its two points are apart along the measured axis only, and not zero.
+    auto isDistanceAlongItsAxis = [this](const Constraint* constr) {
+        int firstGeoId = constr->First;
+        int secondGeoId = constr->Second;
+        PointPos firstPos = constr->FirstPos;
+        PointPos secondPos = constr->SecondPos;
+        if (firstPos == PointPos::none) {
+            // The extent of an edge along the axis
+            secondGeoId = firstGeoId;
+            firstPos = PointPos::start;
+            secondPos = PointPos::end;
+        }
+        if (secondPos == PointPos::none) {
+            return false;
+        }
+        Base::Vector3d offset;
+        try {
+            offset = getPoint(secondGeoId, secondPos) - getPoint(firstGeoId, firstPos);
+        }
+        catch (const Base::Exception&) {
+            return false;
+        }
+        double across = (constr->Type == Sketcher::DistanceX) ? offset.y : offset.x;
+        return std::abs(across) <= Precision::Confusion()
+            && std::abs(constr->getValue()) > Precision::Confusion();
+    };
+
     for (Constraint* constr : currentConstraints) {
         bool involvesSelection = false;
         for (const auto& geoid : geoIdList) {
@@ -1988,6 +2016,14 @@ int SketchObject::removeAxesAlignment(const std::vector<int>& geoIdList)
             // whole edge instead, so keep it as it is.
             if (constr->FirstPos != Sketcher::PointPos::none
                 && constr->Second == GeoEnum::GeoUndef) {
+                newConstraints.push_back(constr);
+                break;
+            }
+            // The X/Y distance is the true distance between its two points only if they lie on
+            // a parallel to the measured axis (and do not coincide: a Distance cannot be zero).
+            // Otherwise a Distance with the same value would move the geometry, or conflict with
+            // the distance along the other axis, so keep the constraint as it is.
+            if (!isDistanceAlongItsAxis(constr)) {
                 newConstraints.push_back(constr);
                 break;
             }
