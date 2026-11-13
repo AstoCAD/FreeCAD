@@ -209,7 +209,11 @@ void Array3D::onSelectDepth(const QItemSelection& selected, const QItemSelection
 
     // This should be a list of length 1
     for (auto it = indexes.begin(); it != indexes.end(); it++) {
-        _value->setCurrentDepth(it->row());
+        // The trailing empty row only adds a new depth once a value is entered in it, so it is
+        // not a depth yet. Keep the current depth until then.
+        if (!newDepthRow(*it)) {
+            _value->setCurrentDepth(it->row());
+        }
         break;
     }
 
