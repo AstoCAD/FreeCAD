@@ -296,7 +296,14 @@ class ReplaceObject:
         objs=FreeCADGui.Selection.getSelection()
         if len(objs)==3 or \
                 tuple((len(obj.InList)) for obj in objs) in ((0,1),(1,0)):
-            replaceobj.replaceobjfromselection(objs)
+            doc = objs[0].Document
+            doc.openTransaction(QtCore.QT_TRANSLATE_NOOP('Command', 'Replace Object'))
+            try:
+                replaceobj.replaceobjfromselection(objs)
+            except Exception:
+                doc.abortTransaction()
+                raise
+            doc.commitTransaction()
         else:
             FreeCAD.Console.PrintError(translate('OpenSCAD', 'Select 3 objects first')+ '\n')
     def GetResources(self):
