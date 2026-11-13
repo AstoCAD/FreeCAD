@@ -1608,6 +1608,25 @@ PyObject* AssemblyObject::generateDynamics(Object* sim)
             }
         }
         jointParts(joints, true);
+        // jointParts() skips, with only a console warning, a joint whose connector
+        // cannot be resolved (for example a reference to a deleted sub-object). A
+        // study must not run without it. A joint inside one rigid body is redundant
+        // and is skipped on purpose.
+        for (auto* joint : joints) {
+            const std::string name = joint->getFullName();
+            const bool built = std::any_of(
+                mbdAssembly->joints->begin(),
+                mbdAssembly->joints->end(),
+                [&name](const std::shared_ptr<MbD::ASMTJoint>& candidate) {
+                    return candidate && candidate->name == name;
+                }
+            );
+            if (!built
+                && getMbDPart(getMovingPartFromRef(joint, "Reference1"))
+                    != getMbDPart(getMovingPartFromRef(joint, "Reference2"))) {
+                invalid(joint, "Repair the incomplete or invalid joint before running dynamics");
+            }
+        }
         for (auto* frictionObject : inputs) {
             if (!frictionObject->getPropertyByName("FrictionModel")) {
                 continue;

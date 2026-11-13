@@ -1259,6 +1259,33 @@ class TestDynamics(unittest.TestCase):
             Dynamics.run(study)
         self.assertIsNotNone(self.doc.getObject(joint.Name))
 
+    def test_joint_to_deleted_sub_object_rejected(self):
+        # The joint keeps its moving part, but its connector names a child that
+        # was deleted: the solver cannot build it, so the study must not run
+        # as if the part were free.
+        ground = self.box("Ground", density=None)
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        container = self.assembly.newObject("App::Part", "Container")
+        for name, x in (("Inner", 0), ("Other", 20)):
+            child = container.newObject("Part::Feature", name)
+            child.Shape = Part.makeBox(10, 20, 30, App.Vector(x, 0, 0))
+            material = Materials.Material()
+            material.addPhysicalModel(Materials.UUIDs().Density)
+            material.setPhysicalValue("Density", "1000 kg/m^3")
+            child.ShapeMaterial = material
+        import JointObject
+        joint = self.joints.newObject("App::FeaturePython", "Joint")
+        JointObject.Joint(joint, JointObject.JointTypes.index("Fixed"))
+        joint.Detach1 = True
+        joint.Detach2 = True
+        joint.Reference1 = (ground, ["Face1"])
+        joint.Reference2 = (container, ["Inner.Face1"])
+        self.doc.removeObject("Inner")
+        study = self.study()
+        with self.assertRaisesRegex(RuntimeError, "incomplete or invalid joint"):
+            Dynamics.run(study)
+        self.assertEqual(study.Status, "Failed")
+
     def test_invalid_rigid_group_not_silently_repaired(self):
         first = self.box()
         second = self.box("Second")
