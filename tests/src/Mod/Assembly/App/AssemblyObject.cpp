@@ -109,6 +109,22 @@ TEST(ContactGeometry, MirroredFacesKeepOutwardSampleNormals)
     }
 }
 
+TEST(ContactGeometry, ClearanceHasNoContactWhileThinCrossingSolidsDo)
+{
+    const auto outer = BRepPrimAPI_MakeBox(gp_Pnt(-1, -5, -5), 2, 10, 10).Shape();
+    const auto hole = BRepPrimAPI_MakeBox(gp_Pnt(-2, -2, -2), 4, 4, 4).Shape();
+    const auto bore = BRepAlgoAPI_Cut(outer, hole).Shape();
+    const auto shaft = BRepPrimAPI_MakeBox(gp_Pnt(-3, -1, -1), 6, 2, 2).Shape();
+    // No quadrature point of these crossing plates lies inside the other plate.
+    const auto first = BRepPrimAPI_MakeBox(gp_Pnt(-5, -0.05, -5), 10, 0.1, 10).Shape();
+    const auto second = BRepPrimAPI_MakeBox(gp_Pnt(-0.05, -5, -5), 0.1, 10, 10).Shape();
+    for (const auto& shape : {bore, shaft, first, second}) {
+        BRepMesh_IncrementalMesh(shape, 0.1);
+    }
+    EXPECT_TRUE(Assembly::ContactGeometry(shaft, bore).points({}, {}).empty());
+    EXPECT_FALSE(Assembly::ContactGeometry(first, second).points({}, {}).empty());
+}
+
 class AssemblyObjectTest: public ::testing::Test
 {
 protected:

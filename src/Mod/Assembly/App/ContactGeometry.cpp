@@ -447,7 +447,14 @@ std::vector<ContactPoint> ContactGeometry::computePoints(
     if (candidates.empty()) {
         // Thin crossing solids may intersect between all quadrature points.
         // Obtain samples from their actual clipped face patches in that case.
-        BRepAlgoAPI_Common common(moved(first->solid, firstDelta), moved(second->solid, secondDelta));
+        const auto movedFirst = moved(first->solid, firstDelta);
+        const auto movedSecond = moved(second->solid, secondDelta);
+        // Most pairs reaching this point are separated although their boxes
+        // overlap, such as a shaft in a bore with clearance. Reject them by
+        // distance instead of running a Boolean on every solver residual.
+        BRepExtrema_DistShapeShape separation(movedFirst, movedSecond);
+        if (separation.IsDone() && separation.Value() > tolerance) return {};
+        BRepAlgoAPI_Common common(movedFirst, movedSecond);
         common.SetNonDestructive(true);
         common.Build();
         if (!common.IsDone()) throw std::runtime_error("Contact intersection failed");
