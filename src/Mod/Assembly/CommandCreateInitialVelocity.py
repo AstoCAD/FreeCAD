@@ -281,7 +281,9 @@ class ViewProviderInitialVelocity:
             "LinearVelocity",
             "AngularVelocity",
         ):
-            self.updateLabel(obj)
+            # The label names the component and the type, nothing else.
+            if prop in ("InitialVelocityType", "Component"):
+                self.updateLabel(obj)
             self.updateVisual(obj)
 
     def updateVisual(self, obj):
