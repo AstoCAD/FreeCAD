@@ -205,6 +205,31 @@ protected:
         return stream.callMemberFunction("getvalue");
     }
 
+    // Returns a new object of the given io class that holds the given data
+    static Py::Object makeStream(const char* ioClass, const Py::Object& data)
+    {
+        Py::Module io(PyImport_ImportModule("io"), true);
+        return io.callMemberFunction(ioClass, Py::TupleN(data));
+    }
+
+    // Returns text that is larger than the buffer of the PyStreambuf and doesn't repeat itself
+    static std::string numberedLines()
+    {
+        std::string data;
+        for (int i = 1000; i < 1200; ++i) {
+            data += std::to_string(i) + "\n";
+        }
+        return data;
+    }
+
+    static std::string readString(std::istream& in, std::streamsize num)
+    {
+        std::string str(static_cast<std::size_t>(num), '\0');
+        in.read(str.data(), num);
+        str.resize(static_cast<std::size_t>(in.gcount()));
+        return str;
+    }
+
 private:
     PyGILState_STATE gilState {};
 };
@@ -238,6 +263,81 @@ TEST_F(PyStreambufTest, writeTextToStringIO)
     Py::Object value = writeTo("StringIO", data);
     ASSERT_TRUE(value.isString());
     EXPECT_EQ(Py::String(value).as_std_string("utf-8"), data);
+}
+
+TEST_F(PyStreambufTest, tellAfterPartialRead)
+{
+    const std::string data = numberedLines();
+    Py::Object stream = makeStream("BytesIO", Py::Bytes(data));
+    Base::PyStreambuf buf(stream.ptr());
+    std::istream in(&buf);
+
+    EXPECT_EQ(readString(in, 10), data.substr(0, 10));
+    EXPECT_EQ(static_cast<std::streamoff>(in.tellg()), 10);
+    EXPECT_EQ(readString(in, 300), data.substr(10, 300));
+    EXPECT_EQ(static_cast<std::streamoff>(in.tellg()), 310);
+    // asking for the position doesn't change what is read next
+    EXPECT_EQ(readString(in, 10), data.substr(310, 10));
+}
+
+TEST_F(PyStreambufTest, seekAfterPartialRead)
+{
+    const std::string data = numberedLines();
+    Py::Object stream = makeStream("BytesIO", Py::Bytes(data));
+    Base::PyStreambuf buf(stream.ptr());
+    std::istream in(&buf);
+
+    EXPECT_EQ(readString(in, 300), data.substr(0, 300));
+    in.seekg(0);
+    EXPECT_EQ(readString(in, 20), data.substr(0, 20));
+    in.seekg(500);
+    EXPECT_EQ(readString(in, 10), data.substr(500, 10));
+    EXPECT_EQ(static_cast<std::streamoff>(in.tellg()), 510);
+}
+
+TEST_F(PyStreambufTest, seekRelativeAfterPartialRead)
+{
+    const std::string data = numberedLines();
+    Py::Object stream = makeStream("BytesIO", Py::Bytes(data));
+    Base::PyStreambuf buf(stream.ptr());
+    std::istream in(&buf);
+
+    EXPECT_EQ(readString(in, 10), data.substr(0, 10));
+    in.seekg(5, std::ios::cur);
+    EXPECT_EQ(static_cast<std::streamoff>(in.tellg()), 15);
+    EXPECT_EQ(readString(in, 10), data.substr(15, 10));
+    in.seekg(-20, std::ios::cur);
+    EXPECT_EQ(readString(in, 10), data.substr(5, 10));
+}
+
+TEST_F(PyStreambufTest, seekFromEndAfterPartialRead)
+{
+    const std::string data = numberedLines();
+    const auto size = static_cast<std::streamoff>(data.size());
+    Py::Object stream = makeStream("BytesIO", Py::Bytes(data));
+    Base::PyStreambuf buf(stream.ptr());
+    std::istream in(&buf);
+
+    EXPECT_EQ(readString(in, 10), data.substr(0, 10));
+    in.seekg(0, std::ios::end);
+    EXPECT_EQ(static_cast<std::streamoff>(in.tellg()), size);
+    EXPECT_EQ(in.get(), std::char_traits<char>::eof());
+    in.clear();
+    in.seekg(-10, std::ios::end);
+    EXPECT_EQ(readString(in, 10), data.substr(data.size() - 10));
+}
+
+TEST_F(PyStreambufTest, seekBackInStringIO)
+{
+    const std::string data = numberedLines();
+    Py::Object stream = makeStream("StringIO", Py::String(data));
+    Base::PyStreambuf buf(stream.ptr());
+    std::istream in(&buf);
+
+    EXPECT_EQ(readString(in, 300), data.substr(0, 300));
+    in.seekg(0);
+    EXPECT_EQ(readString(in, static_cast<std::streamsize>(data.size())), data);
+    EXPECT_EQ(in.get(), std::char_traits<char>::eof());
 }
 
 
