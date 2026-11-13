@@ -82,7 +82,8 @@ class AssemblyObject(Part):
         """Run a headless dynamics study. Raises on invalid input or solver failure.
 
         Returns sampled placements, velocities, accelerations and reactions.
-        Document placements are not changed. Length units are mm, mass kg,
+        Components are not moved; as solve() does, a link group's placement is
+        first moved onto its elements. Length units are mm, mass kg,
         force N and torque N mm. Existing joints are reused.
         """
         ...
