@@ -1047,6 +1047,29 @@ def analysis_type(study):
     return mode
 
 
+def _require_kinematic_end(study, times):
+    """Refuse kinematic results that end before the end time.
+
+    The kinematic solver ends a run that it cannot continue (no position
+    solution, for example past a dead centre) without an error, keeping the
+    samples computed so far. It outputs a sample every OutputStep while the
+    time does not pass EndTime by more than a tenth of a step, so the last
+    sample of a complete run is less than 0.9 steps before EndTime.
+    """
+    def seconds(name, legacy):
+        return float(getattr(study, legacy) if hasattr(study, legacy) else getattr(study, name))
+
+    start = seconds("StartTime", "aTimeStart")
+    end = seconds("EndTime", "bTimeEnd")
+    step = seconds("OutputStep", "cTimeStepOutput")
+    direction = 1.0 if start < end else -1.0
+    if step > 0 and direction * (end - times[-1]) >= 0.9 * step * (1 + 1e-6):
+        raise RuntimeError(
+            f"The kinematic analysis stopped at t = {times[-1]:g} s, before the end time. "
+            "The report view shows the solver message."
+        )
+
+
 def run(study):
     """Run the selected analysis and save a snapshot without playing back the CAD pose.
 
@@ -1072,6 +1095,7 @@ def run(study):
                 if error:
                     raise RuntimeError(f"Kinematic simulation failed with error code {error}.")
                 data = study.Assembly.getSimulationResults()
+                _require_kinematic_end(study, data["Times"])
         data["AnalysisType"] = mode
         return save_results(study, data)
     except Exception as error:

@@ -155,24 +155,32 @@ class TestSimulationRegression(unittest.TestCase):
             overshoot = 2*math.exp(-zeta*math.pi/math.sqrt(1-zeta*zeta))
             self.assertAlmostEqual(min(x), -2-overshoot, delta=1e-3)
 
-    def test_slider_crank_dynamics_matches_kinematics(self):
+    def slider_crank(self, f, r, l):
+        """Crank of length r at 90 deg, rod of length l, slider on the X axis.
+
+        Return the crank's revolute joint and the slider's joint.
+        """
         import Part
+        ground = f.box("Ground", density=None)
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        s0 = math.sqrt(l*l - r*r)
+        crank, rod, slider = f.box("Crank"), f.box("Rod"), f.box("Slider")
+        crank.Shape = Part.makeBox(r+4, 4, 4, App.Vector(-2, -2, -2))
+        rod.Shape = Part.makeBox(l+4, 4, 4, App.Vector(-2, -2, -2))
+        slider.Shape = Part.makeBox(10, 10, 10, App.Vector(-5, -5, -5))
+        crank.Placement.Rotation = App.Rotation(App.Vector(0, 0, 1), 90)
+        rod.Placement = App.Placement(App.Vector(0, r, 0), App.Rotation(App.Vector(0, 0, 1), math.degrees(math.atan2(-r, s0))))
+        slider.Placement.Base = App.Vector(s0, 0, 0)
+        drive = self.connect(f, "Revolute", ground, crank, App.Placement())
+        self.connect(f, "Revolute", crank, rod, App.Placement(App.Vector(0, r, 0), App.Rotation()))
+        self.connect(f, "Revolute", rod, slider, App.Placement(App.Vector(s0, 0, 0), App.Rotation()))
+        slide = self.connect(f, "Slider", ground, slider, App.Placement(App.Vector(s0, 0, 0), App.Rotation(App.Vector(0, 1, 0), 90)))
+        return drive, slide
+
+    def test_slider_crank_dynamics_matches_kinematics(self):
         with self.mechanism() as f:
-            ground = f.box("Ground", density=None)
-            ground.setPropertyStatus("Placement", "ReadOnly")
             r, l = 20, 60
-            s0 = math.sqrt(l*l - r*r)
-            crank, rod, slider = f.box("Crank"), f.box("Rod"), f.box("Slider")
-            crank.Shape = Part.makeBox(r+4, 4, 4, App.Vector(-2, -2, -2))
-            rod.Shape = Part.makeBox(l+4, 4, 4, App.Vector(-2, -2, -2))
-            slider.Shape = Part.makeBox(10, 10, 10, App.Vector(-5, -5, -5))
-            crank.Placement.Rotation = App.Rotation(App.Vector(0, 0, 1), 90)
-            rod.Placement = App.Placement(App.Vector(0, r, 0), App.Rotation(App.Vector(0, 0, 1), math.degrees(math.atan2(-r, s0))))
-            slider.Placement.Base = App.Vector(s0, 0, 0)
-            drive = self.connect(f, "Revolute", ground, crank, App.Placement())
-            self.connect(f, "Revolute", crank, rod, App.Placement(App.Vector(0, r, 0), App.Rotation()))
-            self.connect(f, "Revolute", rod, slider, App.Placement(App.Vector(s0, 0, 0), App.Rotation()))
-            self.connect(f, "Slider", ground, slider, App.Placement(App.Vector(s0, 0, 0), App.Rotation(App.Vector(0, 1, 0), 90)))
+            drive, _slide = self.slider_crank(f, r, l)
             study = f.study(False)
             study.EndTime = "0.5 s"
             study.OutputStep = "0.005 s"
@@ -196,6 +204,20 @@ class TestSimulationRegression(unittest.TestCase):
             for kinematic, dynamic in zip(results["Kinematics"]["Bodies"]["Slider"]["Placements"],
                                           results["Dynamics"]["Bodies"]["Slider"]["Placements"]):
                 self.assertAlmostEqual(kinematic[0], dynamic[0], delta=1e-6)
+
+    def test_kinematics_stopped_by_the_solver_is_not_complete(self):
+        # Driving the slider 50 mm has no kinematic solution past a dead
+        # centre (slider 23 mm out or 17 mm in): the solver stops there.
+        with self.mechanism() as f:
+            _drive, slide = self.slider_crank(f, 20, 60)
+            study = f.study(False)
+            study.EndTime = "0.5 s"
+            study.AnalysisType = "Kinematics"
+            self.add_motion(f, study, slide, "Linear", "initialValue+100*time")
+            with self.assertRaisesRegex(RuntimeError, "stopped at t = "):
+                Dynamics.run(study)
+            self.assertEqual(study.Status, "Failed")
+            self.assertFalse(study.ResultData)
 
     def test_gear_train_motor_torque_balances_output_load(self):
         with self.mechanism() as f:
