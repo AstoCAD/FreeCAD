@@ -14,7 +14,7 @@ Models:
     UUID: '1ae66d8c-1ba1-4211-ad12-b9917573b202'
     Density: "1.641 kg/m^3"
     DynamicViscosity: "22.3e-6 kg/m/s"
-    KinematicViscosity: "13.59-6 m^2/s"
+    KinematicViscosity: "13.59e-6 m^2/s"
     PrandtlNumber: "0.7"
   Thermal:
     UUID: '9959d007-a970-4ea7-bae4-3eb1b8b883c7'

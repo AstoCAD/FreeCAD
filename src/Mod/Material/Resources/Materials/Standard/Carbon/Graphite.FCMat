@@ -21,7 +21,7 @@ Models:
     Density: "1750.000 kg/m^3"
     PoissonRatio: "0.20"
     UltimateTensileStrength: "34 MPa"
-    YoungsModulus: "11.7 MPa"
+    YoungsModulus: "11.7 GPa"
   Thermal:
     UUID: '9959d007-a970-4ea7-bae4-3eb1b8b883c7'
     SpecificHeat: "0.72 kJ/kg/K"

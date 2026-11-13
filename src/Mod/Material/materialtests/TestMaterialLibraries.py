@@ -29,11 +29,14 @@ FreeCADCmd process with its own user configuration.
 """
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import unittest
 import zipfile
+
+import yaml
 
 import FreeCAD
 import Materials
@@ -424,3 +427,75 @@ class EmbeddedMaterialTestCases(unittest.TestCase):
         self.assertAlmostEqual(
             restored.getPhysicalValue("Density").getValueAs("kg/m^3").Value, 7777.0
         )
+
+
+# A single number followed by its unit: "7900 kg/m^3", "0.000012 m/m/K", "3.43e-3 1/K".
+# The quantity parser evaluates expressions, so "13.59-6 m^2/s" would load as 7.59 m^2/s.
+NUMBER_WITH_UNIT = re.compile(
+    r"\A[-+]?(\d+([.,]\d*)?|[.,]\d+)([eE][-+]?\d+)?(\s*[^-+*/^\d\s.,].*|\s+1/\S.*)?\Z"
+)
+
+
+class BuiltInLibraryTestCases(unittest.TestCase):
+    """
+    The cards of the built-in material library
+    """
+
+    def setUp(self):
+        resources = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Material/Resources")
+        if not resources.GetBool("UseBuiltInMaterials", True):
+            self.skipTest("the built-in materials are disabled")
+        self.directory = os.path.join(
+            FreeCAD.getResourceDir(), "Mod", "Material", "Resources", "Materials"
+        )
+        if not os.path.isdir(self.directory):
+            self.skipTest("the built-in materials are not installed")
+        self.MaterialManager = Materials.MaterialManager()
+        self.ModelManager = Materials.ModelManager()
+
+    def cards(self):
+        """The path and the contents of every card of the library"""
+        for root, _, files in os.walk(self.directory):
+            for name in sorted(files):
+                if name.endswith(".FCMat"):
+                    path = os.path.join(root, name)
+                    with open(path, encoding="utf-8") as f:
+                        yield os.path.relpath(path, self.directory), yaml.safe_load(f)
+
+    def models(self, card):
+        """The models of a card with their values"""
+        for section in ("Models", "AppearanceModels"):
+            for model in (card.get(section) or {}).values():
+                yield model
+
+    def testCardsLoad(self):
+        """Every card is loaded, with its parent and models, and without unknown properties"""
+        materials = self.MaterialManager.Materials
+        models = self.ModelManager.Models
+        for path, card in self.cards():
+            with self.subTest(card=path):
+                uuid = card["General"]["UUID"]
+                self.assertIn(uuid, materials)
+                for parent in (card.get("Inherits") or {}).values():
+                    self.assertIn(parent["UUID"], materials)
+                for model in self.models(card):
+                    self.assertIn(model["UUID"], models)
+                self.assertFalse(self.MaterialManager.getMaterial(uuid).hasLegacyProperties())
+
+    def testValuesMatchTheirModel(self):
+        """Every quantity is a number with a unit of the dimension its model declares"""
+        parse = FreeCAD.Units.parseQuantity
+        for path, card in self.cards():
+            for model in self.models(card):
+                properties = self.ModelManager.getModel(model["UUID"]).Properties
+                for name, value in model.items():
+                    if name == "UUID":
+                        continue
+                    with self.subTest(card=path, property=name, value=value):
+                        self.assertIn(name, properties)
+                        prop = properties[name]
+                        if prop.Type == "Quantity":
+                            self.assertRegex(str(value), NUMBER_WITH_UNIT)
+                            self.assertEqual(parse(str(value)).Unit, parse("1 " + prop.Units).Unit)
+                        elif prop.Type == "Float":
+                            float(value)
