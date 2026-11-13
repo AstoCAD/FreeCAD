@@ -107,8 +107,8 @@ class Sprocket:
         11: [2.250, 1.460, 1.301, "ANSI 180"],
         12: [2.500, 1.562, 1.389, "ANSI 200"],
         13: [3.000, 1.875, 1.738, "ANSI 240"],
-        14: [0.500, 0.3125, 0.11, "Bicycle with Derailleur"],
-        15: [0.500, 0.3125, 0.084, "Bicycle without Derailleur"],
+        14: [0.500, 0.3125, 0.11, "Bicycle with derailleur"],
+        15: [0.500, 0.3125, 0.084, "Bicycle without derailleur"],
         16: [0.375, 6.35 / 25.4, 5.2 / 25.4, "ISO 606 06B"],
         17: [0.500, 8.51 / 25.4, 7.0 / 25.4, "ISO 606 08B"],
         18: [0.625, 10.16 / 25.4, 9.1 / 25.4, "ISO 606 10B"],
@@ -129,14 +129,18 @@ class Sprocket:
         self.Type = "Sprocket"
         self.indx = 0
         self.sprockRef = []
-        # As the UI file combobox has been translated the reference field needs populating here
-        tempForm = FreeCADGui.PySideUic.loadUi(
-            FreeCAD.getHomePath() + "Mod/PartDesign/SprocketFeature.ui"
-        )
-        for sKey in self.SprocketReferenceRollerTable:
-            tempForm.comboBox_SprocketReference.setCurrentIndex(self.indx)
-            self.sprockRef.append(tempForm.comboBox_SprocketReference.currentText())
-            self.indx += 1
+        if FreeCAD.GuiUp:
+            # As the UI file combobox has been translated the reference field needs populating here
+            tempForm = FreeCADGui.PySideUic.loadUi(
+                FreeCAD.getHomePath() + "Mod/PartDesign/SprocketFeature.ui"
+            )
+            for sKey in self.SprocketReferenceRollerTable:
+                tempForm.comboBox_SprocketReference.setCurrentIndex(self.indx)
+                self.sprockRef.append(tempForm.comboBox_SprocketReference.currentText())
+                self.indx += 1
+        else:
+            # Without the GUI nothing is translated: the table holds the untranslated combobox texts
+            self.sprockRef = [row[3] for row in self.SprocketReferenceRollerTable.values()]
         self._ensure_properties(obj, is_restore=False)
         obj.addProperty(
             "App::PropertyEnumeration",
