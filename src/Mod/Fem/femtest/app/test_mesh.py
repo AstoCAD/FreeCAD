@@ -218,6 +218,36 @@ class TestMeshCommon(unittest.TestCase):
         self.assertEqual(mesh.VolumeCount, 1)
 
     # ********************************************************************************************
+    def test_inp_import_planar_node_coordinates(self):
+        # the nodes of planar models are given with two coordinates only (the third is zero),
+        # reading them raised an IndexError (a trailing comma a ValueError)
+        from feminout import importInpMesh
+
+        inp_file = join(testtools.get_fem_test_tmp_dir("mesh_common_inp_planar"), "planar.inp")
+        with open(inp_file, "w") as f:
+            f.write(
+                "*NODE, NSET=Nall\n"
+                "1, 0.0, 0.0\n"
+                "2, 2.0, 0.0\n"
+                "3, 2.0, 1.0,\n"
+                "4, 0.0, 1.0, 0.5\n"
+                "*ELEMENT, TYPE=CPS4, ELSET=Eall\n"
+                "1, 1, 2, 3, 4\n"
+            )
+
+        mesh = importInpMesh.read(inp_file)
+        self.assertEqual(mesh.FaceCount, 1)
+        self.assertEqual(
+            mesh.Nodes,
+            {
+                1: FreeCAD.Vector(0, 0, 0),
+                2: FreeCAD.Vector(2, 0, 0),
+                3: FreeCAD.Vector(2, 1, 0),
+                4: FreeCAD.Vector(0, 1, 0.5),
+            },
+        )
+
+    # ********************************************************************************************
     def test_getNodesBySolid_near_boundary(self):
         # https://github.com/FreeCAD/FreeCAD/issues/33842
         # nodes just inside the solid (closer than 1e-3 to its boundary) were dropped
