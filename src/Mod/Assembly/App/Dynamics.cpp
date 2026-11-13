@@ -1239,10 +1239,15 @@ size_t AssemblyObject::contactParts(std::vector<Object*> contacts, bool dynamics
                 load->setContactStepValidator([geometry, stiffness,
                                               partI = dataI.part, partJ = dataJ.part](
                     const auto& i0, const auto& i1, const auto& j0, const auto& j1) {
-                    const auto a0 = contactFramePlacement(i0);
-                    const auto a1 = contactFramePlacement(i1);
-                    const auto b0 = contactFramePlacement(j0);
-                    const auto b1 = contactFramePlacement(j1);
+                    // Contact depends on the relative pose only. Sweep J in
+                    // I's frame: motion the two components share (falling or
+                    // being carried together while touching) is no relative
+                    // travel. Swept in world frames, a touching pair never had
+                    // a clear sweep, so every step was held below impactStep,
+                    // or below the geometric tolerance for very stiff contacts.
+                    const Base::Placement a0, a1;
+                    const auto b0 = contactFramePlacement(i0).inverse() * contactFramePlacement(j0);
+                    const auto b1 = contactFramePlacement(i1).inverse() * contactFramePlacement(j1);
                     // Geometric travel alone is insufficient for a small,
                     // stiff projectile: its elastic compression can be much
                     // smaller than any feature of the contacting geometry.

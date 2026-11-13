@@ -25,6 +25,7 @@
 
 import unittest
 import math
+import time
 
 import AssemblyApp  # Registers Assembly::AssemblyObject.
 import FreeCAD as App
@@ -316,6 +317,26 @@ class TestContact(unittest.TestCase):
                 self.assertLess((App.Vector(*pose[:3]) - component.Placement.Base).Length, 1e-4)
                 self.assertLess(App.Vector(*velocity).Length, 0.01)
                 self.assertLess(App.Vector(*omega).Length, 1e-4)
+
+    def test_touching_free_components_fall_together(self):
+        # Two free cubes touching face to face fall together. Their shared
+        # motion is no contact travel: the run must not crawl in tiny steps.
+        lower = self.centered_box("Lower", (10, 10, 10))
+        upper = self.centered_box("Upper", (10, 10, 10), (0, 0, 10))
+        study = self.study("0.01 s")
+        study.OutputStep = "0.001 s"
+        study.GravityEnabled = True
+        contact = Dynamics.create_contact(study, lower, upper)
+        contact.Stiffness = "1000 N/mm"
+        started = time.monotonic()
+        data = Dynamics.run(study)
+        self.assertLess(time.monotonic() - started, 30)
+        self.assertAlmostEqual(data["Times"][-1], 0.01, delta=1e-12)
+        bottom = data["Bodies"][lower.Name]["Placements"]
+        top = data["Bodies"][upper.Name]["Placements"]
+        self.assertAlmostEqual(bottom[-1][2], -0.5 * 9810 * 0.01**2, delta=1e-6)
+        for low, high in zip(bottom, top):
+            self.assertAlmostEqual(high[2] - low[2], 10, delta=1e-6)
 
     def test_falling_box_settles_with_step_refinement(self):
         ground = self.centered_box("Ground", (40, 40, 10), (0, 0, -10))
