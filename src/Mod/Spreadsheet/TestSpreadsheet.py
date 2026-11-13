@@ -3875,6 +3875,26 @@ class SpreadsheetEditing(unittest.TestCase):
             ["=5 mm", "9", "10", "=1 m", "'abc"],
         )
 
+    def testSortRowsAfterChangesBeforeRecompute(self):
+        """Cells changed since the last recompute do not sort by their old values"""
+        sheet = self.sheet
+        sheet.set("A1", "3")
+        sheet.set("A2", "1")
+        sheet.set("A3", "2")
+        sheet.set("C1", "2.5")
+        sheet.set("A4", "=C1")
+        self.doc.recompute()
+        sheet.set("A3", "0")
+        sheet.sortRows("A1:A4", "A")
+        self.assertEqual(
+            [sheet.getContents(f"A{row}") for row in range(1, 5)], ["0", "1", "=C1", "3"]
+        )
+        # The sort changed the cells too: sorting again goes by the moved contents
+        sheet.sortRows("A1:A2", "A", False)
+        self.assertEqual([sheet.getContents(f"A{row}") for row in range(1, 3)], ["1", "0"])
+        self.doc.recompute()
+        self.assertEqual([sheet.get(f"A{row}") for row in range(1, 5)], [1, 0, 2.5, 3])
+
     def testSortRowsReferences(self):
         sheet = self.sheet
         sheet.set("A1", "100")

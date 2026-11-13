@@ -556,7 +556,9 @@ static bool constantSortKey(const Expression* expression, int& kind, double& num
  * a column of the range. Numbers (and quantities, by value) come before text,
  * text is compared without case, empty cells always come last, and rows with
  * equal keys keep their order. Descending order reverses all but the empty
- * cells, like other spreadsheets.
+ * cells, like other spreadsheets. Cells not computed since they were set or
+ * moved (dirty) sort by their contents: a typed number, quantity or text by
+ * its value, a formula with references by its text.
  *
  * Only the cells of the range move, with their formatting. Their references
  * keep referring to the same data, and references from outside the range keep
@@ -588,7 +590,11 @@ void Sheet::sortRows(const Range& range, int column, bool ascending)
         const CellAddress address(row, column);
         const Cell* cell = getCell(address);
         if (cell && cell->getExpression()) {
-            const Property* prop = getProperty(address);
+            // A cell marked dirty (set, moved, ... since the last recompute) is
+            // not computed, as in the table view: its property, if any, can
+            // hold the value of the contents that were there before
+            const bool computed = cells.getDirty().count(address) == 0;
+            const Property* prop = computed ? getProperty(address) : nullptr;
             if (prop && prop->isDerivedFrom<App::PropertyFloat>()) {
                 key = {0, static_cast<const App::PropertyFloat*>(prop)->getValue(), QString()};
             }
@@ -607,8 +613,8 @@ void Sheet::sortRows(const Range& range, int column, bool ascending)
                 };
             }
             else if (!prop && constantSortKey(cell->getExpression(), key.kind, key.number, key.text)) {
-                // Not computed yet (no recompute since it was set): a constant
-                // such as "10" or "5 mm" sorts by its value, not its text
+                // Not computed yet: a constant such as "10" or "5 mm" sorts
+                // by its value, not its text
             }
             else {
                 std::string content;
