@@ -59,7 +59,8 @@ class WriterPressure(WriterList):
                             load = f"{pressure * thickness:E} 0."
                         case 8 | 15:
                             # quad8, tria6 axisymmetric, multiply pressure by 2*pi*R
-                            n_index = self.writer.node_id_map(nodes_array[mask][2])
+                            # the element nodes are Z88 node numbers (from 1), not mesh ids
+                            n_index = nodes_array[mask][2] - 1
                             x_coord = self.writer.nodes["coords"][n_index][0]
                             load = f"{pressure*2*np.pi*x_coord:E} 0."
                         case _:
