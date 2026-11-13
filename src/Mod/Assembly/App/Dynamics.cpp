@@ -1519,6 +1519,10 @@ PyObject* AssemblyObject::generateDynamics(Object* sim)
     auto previousMotions = motions;
     const bool previousBundle = bundleFixed;
     try {
+        // As in solve(): the solver places link group elements by their own
+        // Placement, which is assembly-relative only while the link group's
+        // Placement is the identity. Moving the link group does not keep it so.
+        ensureIdentityPlacements();
         mbdAssembly = makeMbdAssembly();
         objectPartMap.clear();
         motions.clear();

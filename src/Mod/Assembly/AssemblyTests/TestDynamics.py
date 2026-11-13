@@ -189,12 +189,7 @@ class TestDynamics(unittest.TestCase):
             self.assertAlmostEqual(Dynamics.spring_length(load), 0, delta=1e-9)
             self.assertAlmostEqual(Dynamics.torsional_angle(load), 0, delta=1e-9)
 
-    def test_link_array_element_frames_match_solver_in_transformed_assembly(self):
-        # A link array element has no GeoFeatureGroup parent. Its frame is still
-        # relative to the assembly, as the solver places it, not the world.
-        self.assembly.Placement = App.Placement(
-            App.Vector(0, 0, 50), App.Rotation(App.Vector(0, 0, 1), 90)
-        )
+    def link_array(self):
         source = self.doc.addObject("Part::Feature", "Source")
         source.Shape = Part.makeBox(10, 20, 30)
         material = Materials.Material()
@@ -204,20 +199,44 @@ class TestDynamics(unittest.TestCase):
         array = self.assembly.newObject("App::Link", "Array")
         array.LinkedObject = source
         array.ElementCount = 2
-        study = self.study(False)
-        element = array.ElementList[1]
+        return array
+
+    def assertSpringSimulatedWhereShown(self, study, element):
         self.assertIn(element, self.assembly.getComponents())
         load = Dynamics.create_load(study, "SpringDamper", element)
         load.AttachmentI = App.Placement(App.Vector(5, 10, 15), App.Rotation())
         load.Stiffness = "1 N/mm"
         load.RestLength = Dynamics.spring_length(load)
+        shown = Dynamics.component_placement(element)
 
         data = Dynamics.run(study)
         pose = data["Bodies"][element.Name]["Placements"][0]
         solved = App.Placement(App.Vector(*pose[:3]), App.Rotation(*pose[3:]))
-        self.assertTrue(Dynamics.component_placement(element).isSame(solved, 1e-6))
+        self.assertTrue(shown.isSame(solved, 1e-6))
+        self.assertTrue(Dynamics.component_placement(element).isSame(shown, 1e-9))
         # The spring is at its free length where the solver attaches it too.
         self.assertAlmostEqual(data["Loads"][load.Name]["StoredEnergy"][0], 0, delta=1e-9)
+
+    def test_link_array_element_frames_match_solver_in_transformed_assembly(self):
+        # A link array element has no GeoFeatureGroup parent. Its frame is still
+        # relative to the assembly, as the solver places it, not the world.
+        self.assembly.Placement = App.Placement(
+            App.Vector(0, 0, 50), App.Rotation(App.Vector(0, 0, 1), 90)
+        )
+        array = self.link_array()
+        study = self.study(False)
+        self.assertSpringSimulatedWhereShown(study, array.ElementList[1])
+
+    def test_moved_link_array_is_simulated_where_it_is_shown(self):
+        # Moving a link array changes its own Placement. Interactive solving
+        # moves that placement to the elements; a study run must do the same.
+        array = self.link_array()
+        study = self.study(False)
+        array.Placement = App.Placement(
+            App.Vector(100, 0, 0), App.Rotation(App.Vector(0, 0, 1), 30)
+        )
+        self.doc.recompute()
+        self.assertSpringSimulatedWhereShown(study, array.ElementList[1])
 
     def test_selected_components_are_the_picked_occurrences(self):
         # Add Load and Add Initial Velocity act on the selected components. A
