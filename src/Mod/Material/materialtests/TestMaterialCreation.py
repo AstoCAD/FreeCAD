@@ -308,6 +308,24 @@ class MaterialSaveTestCases(unittest.TestCase):
         copy = self.MaterialManager.getMaterialByPath("Copy.FCMat", "Custom")
         self.assertEqual(sorted(copy.Tags), ["back\\slash", 'say "hi"'])
 
+    def testSaveStringsWithLineBreaks(self):
+        """Line breaks and control characters in the strings of a card are read back"""
+        uuids = Materials.UUIDs()
+        description = "First paragraph.\n\nSecond paragraph:\n---\n...\r\nend\x07"
+        material = Materials.Material()
+        material.Name = "Line breaks"
+        material.Description = description
+        material.addPhysicalModel(uuids.TestModel)
+        material.setPhysicalValue("TestString", "one\ntwo")
+        material.setValue("TestList", ["a\nb", "c"])
+        self.MaterialManager.save("Custom", material, "LineBreaks.FCMat", overwrite=True)
+        self.MaterialManager.refresh()
+
+        saved = self.MaterialManager.getMaterialByPath("LineBreaks.FCMat", "Custom")
+        self.assertEqual(saved.Description, description)
+        self.assertEqual(saved.getPhysicalValue("TestString"), "one\ntwo")
+        self.assertEqual(saved.getPhysicalValue("TestList"), ["a\nb", "c"])
+
     def testSaveIntoReadOnlyLibraryRaises(self):
         """A read-only library (as the System one) does not accept saves"""
         with self.assertRaises(FreeCAD.Base.FreeCADError):

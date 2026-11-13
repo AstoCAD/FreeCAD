@@ -366,6 +366,27 @@ class EmbeddedMaterialTestCases(unittest.TestCase):
         self.assertAlmostEqual(restored.getPhysicalValue("PoissonRatio"), 0.3, places=6)
         self.assertEqual(restored.getAppearanceValue("DiffuseColor"), "(0.2, 0.4, 0.6, 1.0)")
 
+    def testMaterialWithLineBreaksSurvivesSaveAndReopen(self):
+        """A line such as "---" in a description does not lose the embedded material"""
+        material = Materials.Material()
+        material.Name = "Notes"
+        material.Description = "Notes:\n---\nmore"
+        material.addPhysicalModel(self.uuids.Density)
+        material.setPhysicalValue("Density", "7850 kg/m^3")
+
+        doc = self.newDocument()
+        box = doc.addObject("Part::Box", "Box")
+        box.ShapeMaterial = material
+        doc.recompute()
+
+        doc = self.saveAndReopen(doc)
+        restored = doc.getObject("Box").ShapeMaterial
+        self.assertEqual(restored.UUID, material.UUID)
+        self.assertEqual(restored.Description, "Notes:\n---\nmore")
+        self.assertAlmostEqual(
+            restored.getPhysicalValue("Density").getValueAs("kg/m^3").Value, 7850.0
+        )
+
     def testLibraryMaterialIsNotEmbedded(self):
         """A library material is still saved as its UUID only and comes from the library"""
         steel = self.MaterialManager.getMaterial(UUIDSteel)
