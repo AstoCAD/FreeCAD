@@ -48,6 +48,10 @@ def edit(study, measurement=None):
         task.suspendForChildTask()
     elif Gui.Control.activeDialog():
         return False
+    # Closing the task reopens the simulation panel, which needs its assembly
+    # in edit mode, as when the measurement is opened from that panel.
+    if study.Assembly and UtilsAssembly.activeAssembly() != study.Assembly:
+        Gui.ActiveDocument.setEdit(study.Assembly)
     study.Document.openTransaction(translate("Assembly", "Point measurement"))
     try:
         if measurement is None:
