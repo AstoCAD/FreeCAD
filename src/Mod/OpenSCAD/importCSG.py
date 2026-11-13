@@ -867,31 +867,36 @@ def process_import_file(fname,ext,layer):
 def processSVG(fname, ext):
     from importSVG import svgHandler
     if printverbose: print("SVG Handler")
-    doc = FreeCAD.ActiveDocument
+    # The SVG file is read into a temporary document, which newDocument makes
+    # the active one. Afterwards the document that was active is activated
+    # again: assigning FreeCAD.ActiveDocument would not activate it.
+    active = FreeCAD.activeDocument()
     docSVG = FreeCAD.newDocument(fname+'_tmp')
-    FreeCAD.ActiveDocument = docSVG
+    try:
+        # Set up the parser
+        parser = xml.sax.make_parser()
+        parser.setFeature(xml.sax.handler.feature_external_ges, False)
+        parser.setContentHandler(svgHandler())
+        parser._cont_handler.doc = docSVG
 
-    # Set up the parser
-    parser = xml.sax.make_parser()
-    parser.setFeature(xml.sax.handler.feature_external_ges, False)
-    parser.setContentHandler(svgHandler())
-    parser._cont_handler.doc = docSVG
+        # pathName is a Global
+        filename = os.path.join(pathName,fname+'.'+ext)
+        # Use the native Python open which was saved as `pyopen`. Binary mode:
+        # the XML parser takes the encoding from the file itself.
+        with pyopen(filename, 'rb') as svgfile:
+            parser.parse(svgfile)
 
-    # pathName is a Global
-    filename = os.path.join(pathName,fname+'.'+ext)
-    # Use the native Python open which was saved as `pyopen`. Binary mode:
-    # the XML parser takes the encoding from the file itself.
-    with pyopen(filename, 'rb') as svgfile:
-        parser.parse(svgfile)
-
-    #combine SVG objects into one
-    shapes = []
-    for obj in FreeCAD.ActiveDocument.Objects:
-        if printverbose: print(obj.Name)
-        if printverbose: print(obj.Shape)
-        shapes.append(obj.Shape)
-    FreeCAD.closeDocument(docSVG.Name)
-    FreeCAD.ActiveDocument=doc
+        #combine SVG objects into one
+        shapes = []
+        for obj in docSVG.Objects:
+            if printverbose: print(obj.Name)
+            if printverbose: print(obj.Shape)
+            shapes.append(obj.Shape)
+    finally:
+        FreeCAD.closeDocument(docSVG.Name)
+        if active is not None:
+            FreeCAD.setActiveDocument(active.Name)
+    # doc is the document imported into (a global)
     obj=doc.addObject('Part::Feature',fname)
     obj.Shape=Part.Compound(shapes)
     return obj
