@@ -77,4 +77,27 @@ TEST(Rotation, TestRotationDecompose)
     // decompose rotation part
     EXPECT_TRUE(Base::Rotation {mat}.isIdentity());
 }
+
+TEST(Rotation, TestNearlyParallelAndOppositeVectors)
+{
+    // Rotations between vectors that differ only by rounding-sized amounts must still map the
+    // first vector onto the second one (neither NaN nor a wrong rotation axis).
+    for (int a = 1; a <= 5; ++a) {
+        for (int b = 1; b <= 5; ++b) {
+            for (int c = 1; c <= 5; ++c) {
+                for (double delta : {1e-15, 2e-15, 3e-15, 1e-14, 1e-13, 1e-12}) {
+                    for (double sign : {1.0, -1.0}) {
+                        Base::Vector3d from(a, b, c);
+                        Base::Vector3d to(sign * a, sign * b, sign * (c + delta));
+                        Base::Rotation rot(from, to);
+                        Base::Vector3d result = rot.multVec(from).Normalize();
+                        double error = (result - to.Normalize()).Length();
+                        EXPECT_LT(error, 1e-7) << "from (" << a << ", " << b << ", " << c
+                                               << ") delta " << delta << " sign " << sign;
+                    }
+                }
+            }
+        }
+    }
+}
 // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)

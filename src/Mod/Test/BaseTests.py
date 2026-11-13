@@ -21,6 +21,7 @@
 # *                                                                         *
 # ***************************************************************************/
 
+import itertools
 import math
 import os
 import sys
@@ -357,6 +358,19 @@ class AlgebraTestCase(unittest.TestCase):
         self.assertAlmostEqual(a[1], -90.0)
         self.assertAlmostEqual(a[2], 30.0)
         self.assertTrue(r.isSame(s, 1e-12))
+
+    def testRotationNearlyParallelVectors(self):
+        # vectors that differ only by rounding-sized amounts must not give NaN or a wrong axis
+        for a, b, c in itertools.product(range(1, 6), repeat=3):
+            for delta in (1e-15, 2e-15, 3e-15, 1e-14, 1e-13, 1e-12):
+                for sign in (1, -1):
+                    v1 = FreeCAD.Vector(a, b, c)
+                    v2 = FreeCAD.Vector(sign * a, sign * b, sign * (c + delta))
+                    r = FreeCAD.Rotation(v1, v2)
+                    msg = "Rotation({}, {})".format(v1, v2)
+                    self.assertFalse(any(math.isnan(q) for q in r.Q), msg)
+                    error = (r.multVec(v1).normalize() - v2.normalize()).Length
+                    self.assertLess(error, 1e-7, msg)
 
     def testInverted(self):
         p = FreeCAD.Placement()
