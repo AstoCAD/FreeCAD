@@ -170,6 +170,13 @@ class Task:
         self._formLayout = form
         self.updateUi()
         self.initialValues = self.values()
+        # A link combo shows its first entry when the stored link is not
+        # offered (deleted or suppressed event, component outside this
+        # assembly). Compare links with the document, so that the displayed
+        # choice is what accept() writes.
+        for prop in ("PreviousEvent", "Component", "ReferenceComponent"):
+            if prop in self.initialValues:
+                self.initialValues[prop] = getattr(event, prop)
 
     def updatePoint(self):
         self.pointButton.setText("({:.4g}, {:.4g}, {:.4g}) mm — ".format(*self.point) + translate("Assembly", "Use selection"))

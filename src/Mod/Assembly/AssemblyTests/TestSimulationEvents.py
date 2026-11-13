@@ -355,6 +355,31 @@ class TestSimulationEvents(unittest.TestCase):
         finally:
             panel.form.deleteLater()
 
+    def test_displayed_fallback_links_are_written(self):
+        if not App.GuiUp:
+            self.skipTest("GUI required")
+        from unittest.mock import patch
+        import CommandSimulationEvent
+        load = self.force()
+        first, stale = self.event(load), self.event(load)
+        after = self.event(load)
+        after.Trigger = "After event"
+        after.PreviousEvent = stale
+        stale.Suppressed = True
+        measured = self.event(load)
+        measured.Trigger = "Measurement"  # Component is empty.
+        for event, prop, shown in ((after, "PreviousEvent", first),
+                                   (measured, "Component", self.body)):
+            self.study.Document.openTransaction("Edit event")
+            panel = CommandSimulationEvent.Task(self.study, event)
+            try:
+                self.assertEqual(getattr(panel, "previous" if prop == "PreviousEvent" else "component").currentData(), shown)
+                with patch.object(panel, "finish"):
+                    self.assertTrue(panel.accept(), panel.message.text())
+                self.assertEqual(getattr(event, prop), shown)
+            finally:
+                panel.form.deleteLater()
+
     def test_rejected_event_edit_preserves_results_and_allows_recovery(self):
         if not App.GuiUp:
             self.skipTest("GUI required")
