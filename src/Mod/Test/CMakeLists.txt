@@ -30,6 +30,7 @@ SET(Test_SRCS
     TestFloatConstraintQuantityIntegerConversion.py
     TestPropertyFloatNaN.py
     TestHelpFallback.py
+    TestHelpStyleSheet.py
     TestProjectUtility.py
     TestUserParameters.py
     TestGui.py
