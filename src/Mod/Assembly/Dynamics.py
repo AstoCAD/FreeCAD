@@ -415,12 +415,16 @@ class Load:
             self.update_attachment(obj, reorient=prop == "Placement")
         elif (
             prop == "AttachmentI"
-            and obj.LoadType == "Bushing"
+            and obj.LoadType in ("TorsionalSpringDamper", "Bushing")
             and not self._updating_attachment
         ):
+            # As for an edit of Placement (update_attachment).
             self._updating_attachment = True
             try:
-                align_bushing_reference(obj)
+                if obj.LoadType == "Bushing":
+                    align_bushing_reference(obj)
+                else:
+                    align_torsional_reference(obj)
             finally:
                 self._updating_attachment = False
         if prop == "AttachmentI" and not self._updating_attachment:

@@ -340,6 +340,21 @@ class TestDynamics(unittest.TestCase):
         data = Dynamics.run(study)["Loads"][load.Name]
         self.assertTrue(all(abs(t) < 1e-8 for t in data["TorqueZ"]))
 
+    def test_torsional_attachment_edits_realign_the_free_frame(self):
+        # Moving attachment I redefines the stress-free pose, whether the
+        # editor writes Placement or a script writes AttachmentI (as a bushing).
+        body = self.box(position=(7, -3, 2))
+        study = self.study(False)
+        load = Dynamics.create_load(study, "TorsionalSpringDamper", body)
+        for prop, angle in (("Placement", 30), ("AttachmentI", 50)):
+            with self.subTest(prop=prop):
+                load.AttachmentJ = App.Placement(App.Vector(), App.Rotation(App.Vector(0, 0, 1), 40))
+                turned = App.Placement(App.Vector(5, 10, 15), App.Rotation(App.Vector(1, 0, 0), angle))
+                setattr(load, prop, body.Placement * turned if prop == "Placement" else turned)
+                self.assertTrue(load.AttachmentI.isSame(turned, 1e-9))
+                self.assertTrue(load.AttachmentJ.isSame(body.Placement * turned, 1e-9))
+                self.assertAlmostEqual(Dynamics.torsional_angle(load), 0, delta=1e-9)
+
     def test_multiaxis_bushing_force_is_conjugate_to_elastic_energy(self):
         body = self.box()
         rotation = App.Rotation(App.Vector(1, 2, 3), 60)
