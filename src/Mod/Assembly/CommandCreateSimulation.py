@@ -733,6 +733,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.assembly = UtilsAssembly.activeAssembly()
 
         self.initialPlcs = UtilsAssembly.saveAssemblyPartsPlacements(self.assembly)
+        self.playedPlcs = {}
         self.frameTimes = {}
 
         self.doc = self.assembly.Document
@@ -950,7 +951,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
 
     def accept(self):
         self.deactivate()
-        UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initialPlcs)
+        self.restorePlacements()
         Dynamics.purge_touched(self.simFeaturePy, *self.simFeaturePy.Group)
         self.gui_doc.commitCommand()
         return True
@@ -991,7 +992,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         """Commit the simulation edits and temporarily replace this task dialog."""
         self.animationTimer.stop()
         self.runKinematicsTimer.stop()
-        UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initialPlcs)
+        self.restorePlacements()
         self.simFeaturePy.Proxy.setMotionsChangedCallback(None)
         Dynamics.purge_touched(self.simFeaturePy, *self.simFeaturePy.Group)
         self.gui_doc.commitCommand()
@@ -1412,7 +1413,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.form.groupBox_player.hide()
         self.form.SaveAnimationButton.hide()
         # Playback must never become the input pose of the next run.
-        UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initialPlcs)
+        self.restorePlacements()
         try:
             self.resultData = Dynamics.run(self.simFeaturePy)
         except Exception as error:
@@ -1434,6 +1435,8 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         for name, body in self.resultData.get("Bodies", {}).items():
             component = self.doc.getObject(name)
             if component is not None and hasattr(component, "Placement"):
+                if name not in self.initialPlcs:
+                    self.playedPlcs.setdefault(name, component.Placement)
                 pose = body["Placements"][index]
                 parent = Dynamics.component_placement(component) * component.Placement.inverse()
                 component.Placement = parent.inverse() * App.Placement(
@@ -1447,6 +1450,17 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         self.form.FrameLabel.setText(translate("Assembly", "Frame") + f" {val}")
         sample_time = self.frameTimes[val]
         self.form.FrameTimeLabel.setText(f"{sample_time:.6g} s")
+
+    def restorePlacements(self):
+        """Put back the poses the components had before playback."""
+        UtilsAssembly.restoreAssemblyPartsPlacements(self.assembly, self.initialPlcs)
+        # Playback also moves simulated components that UtilsAssembly does not
+        # list as movable parts (a mesh, for example): restore those as well.
+        for name, placement in self.playedPlcs.items():
+            component = self.doc.getObject(name)
+            if component is not None:
+                component.Placement = placement
+                component.purgeTouched()
 
     def onFramesPerSecondChanged(self):
         self.simFeaturePy.jFramesPerSecond = self.form.FramesPerSecondSpinBox.value()

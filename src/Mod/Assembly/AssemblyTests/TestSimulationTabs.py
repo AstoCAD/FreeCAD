@@ -528,6 +528,27 @@ class TestSimulationTabs(unittest.TestCase):
         self.panel.setFrameValue(3)
         self.assertAlmostEqual(self.second.Placement.Base.z, 19)
 
+    def test_accept_restores_a_played_back_mesh_component(self):
+        # The solver simulates any GeoFeature component, a mesh included, but
+        # UtilsAssembly does not list a mesh among the movable parts.
+        import Mesh
+        mesh = self.assembly.newObject("Mesh::Feature", "MeshComponent")
+        mesh.Mesh = Mesh.createBox(5, 5, 5)
+        study = self.panel.simFeaturePy
+        poses = [[0, 0, z, 0, 0, 0, 1] for z in (0, 7, 19)]
+        data = {"SchemaVersion": 2, "Times": [0.0, 0.01, 0.02], "Bodies": {
+            mesh.Name: {"Placements": poses},
+        }}
+        Dynamics.save_results(study, data)
+        self.panel.accept()
+        QtWidgets.QApplication.processEvents()
+        self.panel = SimulationCommand.TaskAssemblyCreateSimulation(study)
+        Gui.Control.showDialog(self.panel)
+        self.panel.setFrameValue(3)
+        self.assertAlmostEqual(mesh.Placement.Base.z, 19)
+        self.panel.accept()
+        self.assertAlmostEqual(mesh.Placement.Base.z, 0)
+
     def test_closing_the_document_releases_the_panel(self):
         study = self.panel.simFeaturePy
         self.panel.accept()
