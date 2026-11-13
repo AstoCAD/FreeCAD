@@ -114,9 +114,11 @@ def getarea(data):
         if data[1] == "POL":
             pts = data[2:]
             verts = []
-            for p in pts:
-                if p[0] == "P":
-                    verts.append(getpoint([p]))
+            for p in range(len(pts)):
+                if pts[p] == "P":
+                    verts.append(getpoint(pts[p : p + 4]))
+                elif pts[p][0] == "P":
+                    verts.append(getpoint([pts[p]]))
             w = Part.makePolygon(verts)
             return w
 
@@ -142,7 +144,7 @@ def getarc(data):
         verts = []
         for p in range(len(pts)):
             if pts[p] == "P":
-                verts.append(getpoint(pts[p : p + 3]))
+                verts.append(getpoint(pts[p : p + 4]))
             elif pts[p][0] == "P":
                 verts.append(getpoint([pts[p]]))
         if verts[0] and verts[1] and verts[2]:
@@ -431,18 +433,21 @@ def export(exportList, filename):
             else:
                 oca.write("C" + str(count) + "= ")
                 oca.write(writepoint(e.Curve.Center))
-                oca.write(" ")
+                oca.write(" VAL(")
                 oca.write(str(e.Curve.Radius))
+                oca.write(")")
             oca.write("\r\n")
         count += 1
     oca.write("# faces\r\n")
     for f in faces:
         oca.write("A" + str(count) + "=S(POL")
-        for v in f.Vertexes:
+        # follow the outer wire: f.Vertexes is not in wire order
+        verts = f.OuterWire.OrderedVertexes
+        for v in verts:
             oca.write(" ")
             oca.write(writepoint(v.Point))
         oca.write(" ")
-        oca.write(writepoint(f.Vertexes[0].Point))
+        oca.write(writepoint(verts[0].Point))
         oca.write(")\r\n")
         count += 1
 
