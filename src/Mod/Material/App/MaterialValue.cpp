@@ -142,9 +142,31 @@ void MaterialValue::validate(const MaterialValue& other) const
 
 QString MaterialValue::escapeString(const QString& source)
 {
-    QString res = source;
-    res.replace(QStringLiteral("\\"), QStringLiteral("\\\\"));
-    res.replace(QStringLiteral("\""), QStringLiteral("\\\""));
+    // The result is written between double quotes in a YAML card. Line breaks must be escaped
+    // too: a raw one is read back as a space, and a line such as "---" ends the YAML document,
+    // so the whole card can't be read. Other control characters are not allowed in YAML.
+    QString res;
+    res.reserve(source.size());
+    for (const QChar character : source) {
+        if (character == QLatin1Char('\\') || character == QLatin1Char('"')) {
+            res += QLatin1Char('\\');
+            res += character;
+        }
+        else if (character == QLatin1Char('\n')) {
+            res += QStringLiteral("\\n");
+        }
+        else if (character == QLatin1Char('\r')) {
+            res += QStringLiteral("\\r");
+        }
+        else if (character.category() == QChar::Other_Control && character != QLatin1Char('\t')) {
+            // U+0000 to U+001F and U+007F to U+009F
+            const auto code = static_cast<unsigned int>(character.unicode());
+            res += QStringLiteral("\\x%1").arg(code, 2, 16, QLatin1Char('0'));
+        }
+        else {
+            res += character;
+        }
+    }
     return res;
 }
 
