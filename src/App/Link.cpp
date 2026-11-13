@@ -1918,7 +1918,15 @@ void LinkBaseExtension::update(App::DocumentObject* parent, const Property* prop
         }
     }
     else if (prop == _getShowElementProperty()) {
-        if (_getShowElementValue()) {
+        if (parent->getDocument()->isPerformingTransaction()) {
+            // Undo and redo restore the elements and the lists that collapsing or expanding
+            // derives. Deriving them again during the rollback would read elements that are
+            // being restored or removed and change lists that no transaction records.
+            if (_getShowElementValue()) {
+                update(parent, getVisibilityListProperty());
+            }
+        }
+        else if (_getShowElementValue()) {
             update(parent, _getElementCountProperty());
         }
         else {
@@ -2066,11 +2074,12 @@ void LinkBaseExtension::update(App::DocumentObject* parent, const Property* prop
                     }
                     objs.push_back(obj);
                 }
-                if (getPlacementListProperty()) {
-                    getPlacementListProperty()->setSize(0);
+                // clear the values (not only the size) so that undo restores them
+                if (placementProp && placementProp->getSize()) {
+                    placementProp->setValue(std::vector<Base::Placement>());
                 }
-                if (getScaleListProperty()) {
-                    getScaleListProperty()->setSize(0);
+                if (scaleProp && scaleProp->getSize()) {
+                    scaleProp->setValue(std::vector<Base::Vector3d>());
                 }
 
                 getElementListProperty()->setValue(objs);
@@ -2149,7 +2158,10 @@ void LinkBaseExtension::update(App::DocumentObject* parent, const Property* prop
             }
         }
         syncElementList();
+        // Undo and redo restore the count with the list; they may restore the list first, while
+        // ShowElement still has the other value, so the sizes differ only for the moment.
         if (_getShowElementValue() && _getElementCountProperty() && getElementListProperty()
+            && !parent->getDocument()->isPerformingTransaction()
             && getElementCountValue() != getElementListProperty()->getSize()) {
             getElementCountProperty()->setValue(getElementListProperty()->getSize());
         }

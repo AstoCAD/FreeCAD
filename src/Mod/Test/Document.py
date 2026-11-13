@@ -2820,6 +2820,66 @@ class UndoRedoCases(unittest.TestCase):
         self.assertEqual(state(), before)
         self.assertEqual(array.ElementCount, 3)
 
+    def testUndoRedoLinkArrayShowElement(self):
+        """Undo/redo of collapsing or expanding a link array keeps its count and placements."""
+        src = self.Doc.addObject("App::FeaturePython", "Src")
+        array = self.Doc.addObject("App::Link", "Array")
+        array.LinkedObject = src
+        array.ElementCount = 3
+        array.ElementList[1].Placement = FreeCAD.Placement(
+            FreeCAD.Vector(20, 0, 0), FreeCAD.Rotation()
+        )
+        array.ElementList[2].ScaleVector = FreeCAD.Vector(1, 2, 3)
+        array.setElementVisible(array.ElementList[2].Name, False)
+
+        def state():
+            if array.ShowElement:
+                placements = [e.Placement.Base.x for e in array.ElementList]
+                scales = [tuple(e.ScaleVector) for e in array.ElementList]
+            else:
+                placements = [p.Base.x for p in array.PlacementList]
+                scales = [tuple(s) for s in array.ScaleList]
+            return (
+                array.ShowElement,
+                array.ElementCount,
+                len(array.ElementList),
+                list(array.VisibilityList),
+                placements,
+                scales,
+            )
+
+        expanded = state()
+        self.assertEqual(expanded[1:], (3, 3, [True, True, False], [0, 20, 2], expanded[5]))
+        self.assertEqual(expanded[5][2], (1, 2, 3))
+
+        self.Doc.openTransaction("Collapse")
+        array.ShowElement = False
+        self.Doc.commitTransaction()
+        collapsed = state()
+        self.assertEqual(collapsed[1:], (3, 0) + expanded[3:])
+
+        self.Doc.undo()
+        self.assertEqual(state(), expanded)
+        self.Doc.redo()
+        self.assertEqual(state(), collapsed)
+
+        self.Doc.openTransaction("Expand")
+        array.ShowElement = True
+        self.Doc.commitTransaction()
+        self.assertEqual(state(), expanded)
+
+        self.Doc.undo()
+        self.assertEqual(state(), collapsed)
+        self.Doc.redo()
+        self.assertEqual(state(), expanded)
+
+        # the hidden element stays hidden when the array grows after the undo
+        self.Doc.undo()
+        self.Doc.undo()
+        self.assertEqual(state(), expanded)
+        array.ElementCount = 4
+        self.assertEqual(list(array.VisibilityList), [True, True, False, True])
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("UndoTest")
