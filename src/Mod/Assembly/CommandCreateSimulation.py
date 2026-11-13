@@ -101,10 +101,7 @@ class CommandCreateSimulation:
             return
 
         self.panel = TaskAssemblyCreateSimulation()
-        dialog = Gui.Control.showDialog(self.panel)
-        if dialog is not None:
-            dialog.setAutoCloseOnDeletedDocument(True)
-            dialog.setDocumentName(App.ActiveDocument.Name)
+        _showSimulationTask(self.panel)
 
 
 class CommandCreateMotion:
@@ -368,10 +365,7 @@ class ViewProviderSimulation:
             Gui.ActiveDocument.setEdit(assembly)
 
         panel = TaskAssemblyCreateSimulation(vpDoc.Object)
-        dialog = Gui.Control.showDialog(panel)
-        if dialog is not None:
-            dialog.setAutoCloseOnDeletedDocument(True)
-            dialog.setDocumentName(App.ActiveDocument.Name)
+        _showSimulationTask(panel)
 
         return True
 
@@ -562,6 +556,14 @@ def _motionTypesForJoint(joint):
     if joint.JointType == "Slider":
         return ["Linear"]
     return ["Angular", "Linear"]
+
+
+def _showSimulationTask(panel):
+    dialog = Gui.Control.showDialog(panel)
+    if dialog is not None:
+        dialog.setAutoCloseOnDeletedDocument(True)
+        dialog.setAutoCloseOnTransactionChange(True)
+        dialog.setDocumentName(panel.doc.Name)
 
 
 def _showMotionTask(motion, owner, resume_simulation=None):
@@ -980,6 +982,11 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         # the task view removes the dialog itself, so do not close it here.
         self.release()
 
+    def autoClosedOnTransactionChange(self):
+        # Undo/redo committed and replayed this panel's pending transaction,
+        # placements included; there is nothing left to commit or abort.
+        self.release()
+
     def suspendForChildTask(self):
         """Commit the simulation edits and temporarily replace this task dialog."""
         self.animationTimer.stop()
@@ -1002,10 +1009,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
         panel = TaskAssemblyCreateSimulation(simulation)
         if tab and hasattr(panel.form, tab):
             panel.form.tabWidget.setCurrentWidget(getattr(panel.form, tab))
-        dialog = Gui.Control.showDialog(panel)
-        if dialog is not None:
-            dialog.setAutoCloseOnDeletedDocument(True)
-            dialog.setDocumentName(simulation.Document.Name)
+        _showSimulationTask(panel)
 
     def onTimeStartChanged(self, quantity):
         self.simFeaturePy.aTimeStart = self.form.TimeStartSpinBox.property("rawValue")

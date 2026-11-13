@@ -524,6 +524,26 @@ class TestSimulationTabs(unittest.TestCase):
         self.assertFalse(panel.animationTimer.isActive())
         self.assertIsNone(SimulationCommand._active_simulation_task)
 
+    def test_undo_closes_the_panel(self):
+        study = self.panel.simFeaturePy
+        self.panel.accept()
+        QtWidgets.QApplication.processEvents()
+        self.doc.UndoMode = 1
+        SimulationCommand.TaskAssemblyCreateSimulation.reopen(study)
+        panel = SimulationCommand._active_simulation_task
+        self.assertIsNotNone(panel)
+        end = study.bTimeEnd.Value
+        panel.form.TimeEndSpinBox.setProperty("rawValue", end + 1)
+        self.assertAlmostEqual(study.bTimeEnd.Value, end + 1)
+        panel.animationTimer.start()
+        # Undo commits the panel's pending transaction, then undoes it.
+        self.doc.undo()
+        QtWidgets.QApplication.processEvents()
+        self.assertAlmostEqual(study.bTimeEnd.Value, end)
+        self.assertFalse(Gui.Control.activeDialog())
+        self.assertFalse(panel.animationTimer.isActive())
+        self.assertIsNone(SimulationCommand._active_simulation_task)
+
     def test_deferred_reopen_keeps_a_dialog_opened_meanwhile(self):
         study = self.panel.simFeaturePy
         self.panel.accept()
