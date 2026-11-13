@@ -123,6 +123,22 @@ class TestDynamics(unittest.TestCase):
         self.assertEqual(study.Status, "NotRun")
         self.assertEqual(study.ResultData, "")
 
+    def test_friction_label_and_visibility_keep_results(self):
+        body = self.box()
+        ground = self.box("Ground", density=None)
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        friction = Dynamics.create_friction(self.assembly, self.joint("Slider", ground, body))
+        study = self.study(gravity=False)
+        study.Status = "Complete"
+        study.ResultData = "{}"
+        friction.Label = "Renamed friction"
+        friction.Visibility = not friction.Visibility
+        self.assertEqual(study.Status, "Complete")
+        self.assertEqual(study.ResultData, "{}")
+        friction.StaticCoefficient = 0.4
+        self.assertEqual(study.Status, "NotRun")
+        self.assertEqual(study.ResultData, "")
+
     def test_box_mass_and_local_inertia(self):
         box = self.box(position=(43, -21, 109))
         box.Placement.Rotation = App.Rotation(App.Vector(1, 2, 3), 47)

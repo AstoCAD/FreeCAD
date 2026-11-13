@@ -835,6 +835,13 @@ class Friction:
     """Simulation-only resistance on a revolute or slider joint."""
 
     MODELS = ("Specified resistance", "Reaction based", "Rolling resistance", "Thrust bearing")
+    # Solver inputs. Label, Visibility and other base properties are not.
+    INPUT_PROPERTIES = {
+        "Suppressed", "Joint", "FrictionModel", "StaticForce", "DynamicForce",
+        "StaticTorque", "DynamicTorque", "LinearTransitionVelocity",
+        "AngularTransitionVelocity", "LinearViscousDamping", "AngularViscousDamping",
+        "StaticCoefficient", "DynamicCoefficient", "EffectiveRadius",
+    }
 
     def __init__(self, obj, joint=None):
         obj.Proxy = self
@@ -864,7 +871,7 @@ class Friction:
         purge_touched(obj)
 
     def onChanged(self, obj, prop):
-        if not App.isRestoring() and prop in obj.PropertiesList:
+        if not App.isRestoring() and prop in self.INPUT_PROPERTIES:
             invalidate_results(obj)
 
     def execute(self, obj):
