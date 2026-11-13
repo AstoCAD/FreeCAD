@@ -818,7 +818,27 @@ SketchSolveStatus SketchObject::setTextAndFont(
             }
         }
 
+        // Deleting geometry deletes the constraints on it. Take the glyphs out of the Text
+        // first, so that it stays the same constraint: its place, name, flags and label.
+        // Refuse a locked glyph before the Text is changed.
+        for (int geoId : geoIdsToDelete) {
+            checkGeometryUnlocked(geoId);
+        }
+        std::unique_ptr<Constraint> handleOnly(constr->clone());
+        handleOnly->truncateElements(1);
+        Constraints.set1Value(ConstrId, handleOnly.get());
+
         delGeometries(geoIdsToDelete);
+
+        // Constraints placed on the glyphs went with them: find the Text again by its handle.
+        const auto& remaining = Constraints.getValues();
+        auto text = std::ranges::find_if(remaining, [handleGeoId](const Constraint* c) {
+            return c->Type == Text && c->getGeoId(0) == handleGeoId;
+        });
+        if (text == remaining.end()) {
+            return SketchSolveStatus::SolverError;
+        }
+        ConstrId = static_cast<int>(std::distance(remaining.begin(), text));
     }
 
     auto* line = dynamic_cast<const Part::GeomLineSegment*>(getGeometry(handleGeoId));
@@ -858,26 +878,14 @@ SketchSolveStatus SketchObject::setTextAndFont(
 
     int newLastGeoid = getHighestCurveIndex();
 
-    // If there was text geos, they were deleted, which deleted the text constraint.
-    // In this case create a new constraint to replace it.
-    std::unique_ptr<Constraint> replacement;
-    if (hasExistingText) {
-        replacement = std::make_unique<Constraint>();
-        constr = replacement.get();
-        constr->Type = Text;
-        constr->truncateElements(0);  // remove the First/Second/Third that are created automatically
-        constr->addElement(GeoElementId(handleGeoId));
-    }
+    std::unique_ptr<Constraint> updated(Constraints.getValues()[ConstrId]->clone());
     for (int i = lastGeoid + 1; i <= newLastGeoid; ++i) {
-        constr->addElement(GeoElementId(i));
+        updated->addElement(GeoElementId(i));
     }
-    constr->setText(newText);
-    constr->setFont(newFont);
-    constr->setIsTextHeight(isHeight);
-
-    if (hasExistingText) {
-        addConstraint(std::move(replacement));
-    }
+    updated->setText(newText);
+    updated->setFont(newFont);
+    updated->setIsTextHeight(isHeight);
+    Constraints.set1Value(ConstrId, updated.get());
 
     // The new glyphs stay in the sketch whatever the solver says, so the constraint keeps
     // describing them. Undoing a failed edit is the transaction's job.
