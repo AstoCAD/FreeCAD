@@ -215,6 +215,7 @@ bool hasPendingResult(const Object* object)
 // every component, including construction geometry (datums, sketches, wires)
 // that cannot collide. A sheet or shell may be meant as a contact surface, so
 // it, like a component selected explicitly in a pair or a set, needs a solid.
+// So does geometry without a BRep shape, such as a mesh used as a floor.
 bool contactShapesOf(
     Object* contact,
     Object* first,
@@ -236,8 +237,11 @@ bool contactShapesOf(
         auto* source = component->getLinkedObject(true);
         // An up-to-date empty result (a sketch with only construction geometry,
         // an empty body) is construction geometry; a missing one may be a solid.
+        // Geometry without a BRep shape (a mesh, a point cloud) is not empty.
+        const bool otherGeometry = source && !source->isDerivedFrom<Part::Feature>()
+            && App::GeoFeature::getPropertyOfGeometry(source);
         const bool empty = shape->IsNull()
-            ? !hasPendingResult(component) && !hasPendingResult(source)
+            ? !hasPendingResult(component) && !hasPendingResult(source) && !otherGeometry
             : !TopExp_Explorer(*shape, TopAbs_FACE).More();
         const bool construction = empty
             || (source

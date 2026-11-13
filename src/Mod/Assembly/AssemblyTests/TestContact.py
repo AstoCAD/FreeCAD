@@ -466,6 +466,24 @@ class TestContact(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Wall: Contact requires .* solid"):
             Dynamics.run(study)
 
+    def test_general_mode_does_not_skip_a_mesh(self):
+        try:
+            import Mesh
+        except ImportError:
+            self.skipTest("Mesh module unavailable")
+        sphere = self.sphere("Ball", -40)
+        # A grounded mesh wall that the sphere would cross. Contact cannot use
+        # it, so the run must say so instead of letting the sphere through.
+        wall = self.assembly.newObject("Mesh::Feature", "Wall")
+        wall.Mesh = Mesh.createBox(10, 100, 100)
+        wall.setPropertyStatus("Placement", "ReadOnly")
+        self.doc.recompute()
+        study = self.study("0.001 s")
+        self.velocity(study, sphere, "100 mm/s")
+        Dynamics.create_contact(study, mode="General collision detection")
+        with self.assertRaisesRegex(RuntimeError, "Wall: Contact requires .* solid"):
+            Dynamics.run(study)
+
     def test_arbitrary_solid_contact_rebounds_in_dynamics(self):
         # Exercise conversion between solver-local coordinates and transformed
         # document geometry, not just an Assembly at the document origin.
