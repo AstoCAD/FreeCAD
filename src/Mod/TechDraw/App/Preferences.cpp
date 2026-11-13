@@ -666,6 +666,13 @@ double Preferences::SnapDimensionsChainFactor()
     return getPreferenceGroup("Dimensions")->GetFloat("SnapDimensionsChainFactor", 0.2);
 }
 
+//! default distance in mm between parallel (cascaded, chained) dimensions placed or snapped by the
+//! dimension tools
+double Preferences::cascadeSpacing()
+{
+    return getPreferenceGroup("Dimensions")->GetFloat("CascadeSpacing", 7.0);
+}
+
 
 //! returns the key combination that simulates multiple selection. Traditionally Ctrl+pick, as that
 //! is how QGraphicsScene implements multiple selection.  This method is likely to only be used by

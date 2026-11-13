@@ -27,6 +27,7 @@
 
 #include <Mod/TechDraw/App/LineGenerator.h>
 #include <Mod/TechDraw/App/LineGroup.h>
+#include <Mod/TechDraw/App/Preferences.h>
 
 #include "ui_TaskSelectLineAttributes.h"
 #include "TaskSelectLineAttributes.h"
@@ -61,13 +62,18 @@ enum class EdgeColor {
 
 dimAttributes::dimAttributes()
 {
-    cascadeSpacing = 7.0;
     lineStretch = 2.0;
 }
 
 void dimAttributes::setCascadeSpacing(double spacing)
 {
     cascadeSpacing = spacing;
+}
+
+double dimAttributes::getCascadeSpacing() const
+{
+    // read on use, so a changed preference applies without a restart
+    return cascadeSpacing.value_or(Preferences::cascadeSpacing());
 }
 
 void dimAttributes::setLineStretch(double stretch)

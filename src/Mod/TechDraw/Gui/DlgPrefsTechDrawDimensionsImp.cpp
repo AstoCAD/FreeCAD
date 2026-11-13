@@ -46,6 +46,8 @@ DlgPrefsTechDrawDimensionsImp::DlgPrefsTechDrawDimensionsImp( QWidget* parent )
     ui->plsb_FontSize->setMinimum(0);
     ui->plsb_ArrowSize->setUnit(Base::Unit::Length);
     ui->plsb_ArrowSize->setMinimum(0);
+    ui->plsb_CascadeSpacing->setUnit(Base::Unit::Length);
+    ui->plsb_CascadeSpacing->setMinimum(0);
 }
 
 DlgPrefsTechDrawDimensionsImp::~DlgPrefsTechDrawDimensionsImp()
@@ -71,6 +73,7 @@ void DlgPrefsTechDrawDimensionsImp::saveSettings()
     ui->cbSnapDims->onSave();
     ui->dsbTextFactor->onSave();
     ui->dsbChainFactor->onSave();
+    ui->plsb_CascadeSpacing->onSave();
 
     enum
     {
@@ -195,6 +198,9 @@ void DlgPrefsTechDrawDimensionsImp::loadSettings()
     ui->cbSnapDims->onRestore();
     ui->dsbTextFactor->onRestore();
     ui->dsbChainFactor->onRestore();
+
+    ui->plsb_CascadeSpacing->setValue(Preferences::cascadeSpacing());
+    ui->plsb_CascadeSpacing->onRestore();
 }
 
 void DlgPrefsTechDrawDimensionsImp::dimensioningModeChanged(int index)

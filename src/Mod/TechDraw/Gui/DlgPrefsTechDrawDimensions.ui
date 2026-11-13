@@ -580,6 +580,29 @@ This affects only the toolbar; all tools remain available via the menu and short
         </property>
        </widget>
       </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="cascadeSpacingLabel">
+        <property name="text">
+         <string>Cascade spacing</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="Gui::PrefUnitSpinBox" name="plsb_CascadeSpacing" native="true">
+        <property name="toolTip">
+         <string>Distance between parallel dimensions placed by the dimension tools, also used when snapping dimensions. The Select Line Attributes tool can change it for the current session.</string>
+        </property>
+        <property name="value" stdset="0">
+         <double>7.000000000000000</double>
+        </property>
+        <property name="prefEntry" stdset="0">
+         <cstring>CascadeSpacing</cstring>
+        </property>
+        <property name="prefPath" stdset="0">
+         <cstring>Mod/TechDraw/Dimensions</cstring>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
