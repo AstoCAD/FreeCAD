@@ -44,7 +44,6 @@ from .brep import (
     dissolved_control_faces,
     materialize_tmesh,
     seed_tmesh_vertices,
-    validate_dissolved_edges,
 )
 from .tmesh import HierarchicalTMesh
 from .symmetry import (
@@ -55,6 +54,7 @@ from .symmetry import (
     vertex_map,
 )
 from .topology import (
+    cage_edges,
     flatten_points,
     straighten_points,
 )
@@ -727,13 +727,18 @@ def dissolve_edges(obj, edges):
         except (TypeError, ValueError):
             raise ValueError("A dissolved edge record is invalid")
     dissolved.update(selected)
-    validate_dissolved_edges(cage.faces, dissolved)
+    logical_faces, _groups = dissolved_control_faces(cage.faces, dissolved)
+    # A merged face hides every seam inside it, not only the selected ones
+    # (a 2x2 block with three of its four seams dissolved hides the fourth).
+    # A crease left on a hidden seam would still shape the surface while no
+    # longer being an editable edge.
+    hidden = set(cage.edge_counts()).difference(cage_edges(logical_faces))
     obj.CageMode = "Editable"
     obj.DissolvedEdges = [f"{edge[0]} {edge[1]}" for edge in sorted(dissolved)]
     obj.EdgeSharpness = [
         encoded
         for encoded in obj.EdgeSharpness
-        if tuple(sorted(int(value) for value in str(encoded).split()[:2])) not in dissolved
+        if tuple(sorted(int(value) for value in str(encoded).split()[:2])) not in hidden
     ]
     obj.touch()
     return obj

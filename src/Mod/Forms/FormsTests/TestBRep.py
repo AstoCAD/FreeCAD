@@ -2013,6 +2013,44 @@ class BRepConversionTest(unittest.TestCase):
         self.assertEqual(len(mapper.logical_faces), 1)
         self.assertEqual(mapper.logical_face_groups, [(0, 1, 2)])
 
+    def test_delete_edge_removes_crease_of_a_seam_it_hides(self):
+        document = App.newDocument("FormsTestDissolveHiddenSeamCrease")
+        obj = create_box(document)
+        document.recompute()
+        volume = obj.Shape.Volume
+        counts = ControlCage.from_object(obj).edge_counts()
+        # Three of the four seams around a valence-4 vertex merge its 2x2
+        # block of faces, which also hides the fourth seam.
+        hidden, *dissolved = next(
+            seams
+            for seams in (
+                sorted(edge for edge in counts if vertex in edge)
+                for vertex in range(len(obj.ControlPoints))
+            )
+            if len(seams) == 4
+        )
+        set_edge_crease(obj, [hidden], 10.0)
+        document.recompute()
+        self.assertGreater(abs(obj.Shape.Volume - volume), 1.0)
+
+        document.openTransaction("Dissolve edges")
+        dissolve_edges(obj, dissolved)
+        document.recompute()
+        document.commitTransaction()
+
+        mapper = ControlElementMapper(obj)
+        self.assertNotIn(hidden, set(cage_edges(mapper.logical_faces)))
+        self.assertEqual(list(obj.EdgeSharpness), [])
+        self.assertEqual(obj.ConversionStatus, "Valid solid")
+        # The crease changed the volume by more than 30; refitting the merged
+        # face moves it by about 0.001.
+        self.assertAlmostEqual(obj.Shape.Volume, volume, delta=0.01)
+
+        document.undo()
+        document.recompute()
+        self.assertEqual(list(obj.DissolvedEdges), [])
+        self.assertEqual(list(obj.EdgeSharpness), [f"{hidden[0]} {hidden[1]} 10"])
+
     def test_delete_edge_rejects_surface_boundary(self):
         document = App.newDocument("FormsTestDissolveBoundaryEdge")
         obj = create_face(document)
