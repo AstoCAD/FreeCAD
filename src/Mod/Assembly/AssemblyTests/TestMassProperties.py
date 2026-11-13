@@ -230,6 +230,61 @@ class TestMassProperties(unittest.TestCase):
                     ):
                         self.assertAlmostEqual(actual, expected)
 
+    def assertMassOfSolids(self, obj, solids):
+        """Compare the mass of obj with the same solids as plain features."""
+        reference = self.doc.addObject("App::Part", "Reference")
+        for solid in solids:
+            self.box(reference, "Solid").Shape = solid
+        expected = self.assembly.getMassProperties(reference)
+        actual = self.assembly.getMassProperties(obj)
+        self.assertAlmostEqual(actual["Mass"], expected["Mass"])
+        self.assertAlmostEqual(actual["Volume"], expected["Volume"], places=5)
+        for a, e in zip(actual["CenterOfMass"], expected["CenterOfMass"]):
+            self.assertAlmostEqual(a, e)
+        for actual_row, expected_row in zip(actual["Inertia"], expected["Inertia"]):
+            for a, e in zip(actual_row, expected_row):
+                self.assertAlmostEqual(a, e, places=6)
+
+    def test_link_array_in_part_counts_every_element(self):
+        bolt = self.box(self.doc, "Bolt")
+        for show_element in (False, True):
+            with self.subTest(show_element=show_element):
+                container = self.doc.addObject("App::Part", "Component")
+                self.box(container, "Plate")
+                array = container.newObject("App::Link", "Array")
+                array.setLink(bolt)
+                array.ElementCount = 3
+                array.PlacementList = [
+                    App.Placement(App.Vector(50 * i, 0, 0), App.Rotation(App.Vector(0, 0, 1), 30 * i))
+                    for i in range(3)
+                ]
+                array.ShowElement = show_element
+                if show_element:
+                    array.ElementList[1].Scale = 2  # One scaled element.
+                else:
+                    array.Scale = 2  # The whole array is scaled.
+                self.doc.recompute()
+                shape = Part.getShape(container, transform=False)
+                self.assertEqual(len(shape.Solids), 4)
+                volume = 6000 * (1 + 1 + 8 + 1) if show_element else 6000 * (1 + 3 * 8)
+                self.assertAlmostEqual(shape.Volume, volume, places=5)
+                self.assertMassOfSolids(container, shape.Solids)
+
+    def test_link_array_component(self):
+        bolt = self.box(self.doc, "Bolt")
+        array = self.assembly.newObject("Part::LinkArrayLinear", "Array")
+        array.setLink(bolt)
+        array.Placement = App.Placement(App.Vector(5, 6, 7), App.Rotation(App.Vector(1, 0, 0), 40))
+        array.Scale = 2
+        self.doc.recompute()
+        shape = Part.getShape(array, transform=False)
+        self.assertGreater(len(shape.Solids), 1)
+        self.assertMassOfSolids(array, shape.Solids)
+
+        outer = self.link(array)
+        with self.assertRaises(ValueError):
+            self.assembly.getMassProperties(outer)
+
     def test_assembly_folder_does_not_duplicate_components(self):
         folder = self.assembly.newObject("App::DocumentObjectGroup", "Folder")
         component = self.box(folder)

@@ -62,6 +62,7 @@
 #include <App/Part.h>
 #include <App/Datums.h>
 #include <App/DocumentObjectGroup.h>
+#include <App/Link.h>
 #include <Mod/Material/App/PropertyMaterial.h>
 #include <Mod/Part/App/DatumFeature.h>
 #include <Mod/Part/App/PartFeature.h>
@@ -729,6 +730,14 @@ ContactSphere contactSphereOf(Object* object)
     return contactSphereOfTree(object, Base::Matrix4D(), {});
 }
 
+// A link array, or a link group, does not resolve to a linked object but to
+// itself. Its elements are the bodies.
+bool hasLinkElements(Object* source)
+{
+    return !source->isDerivedFrom<Part::Feature>()
+        && source->hasExtension(App::LinkBaseExtension::getExtensionClassTypeId());
+}
+
 Mass massOfTree(
     Object* object,
     const Base::Matrix4D& offset,
@@ -747,45 +756,73 @@ Mass massOfTree(
     // PartDesign bodies expose the tip shape/material without counting their
     // feature history. Containers need per-child materials, not a guessed density.
     if (!source->isDerivedFrom<Part::Feature>()) {
+        const bool elements = hasLinkElements(source);
         auto* group = dynamic_cast<App::PropertyLinkList*>(source->getPropertyByName("Group"));
-        if (!group
-            || (!source->isDerivedFrom<App::Part>()
-                && !source->isDerivedFrom<App::DocumentObjectGroup>())) {
+        if (!elements
+            && (!group
+                || (!source->isDerivedFrom<App::Part>()
+                    && !source->isDerivedFrom<App::DocumentObjectGroup>()))) {
             invalid(object, "A solid Part feature/Body or an App::Part is required");
+        }
+        if (elements && source != object) {
+            // Resolving the array through another link already applies the
+            // array's own scale, which resolving its elements applies again.
+            invalid(object, "A link to a link array or link group has no mass properties");
         }
         Mass result;
         result.aggregate = true;
-        for (auto* child : massChildren(source)) {
+        const auto add = [&](Object* child, const Base::Matrix4D& transform) {
             auto* childSource = child->getLinkedObject(true);
             auto* suppressed = dynamic_cast<App::PropertyBool*>(
                 child->getPropertyByName("Suppressed")
             );
             if (!childSource || (suppressed && suppressed->getValue())) {
-                continue;
+                return;
             }
             if (childSource->isDerivedFrom<Part::Feature>()) {
                 // Construction geometry has no mass. A Body's tip is visited once,
                 // never its feature history, irrespective of visibility.
                 auto shape = Part::Feature::getShape(child, Part::ShapeOption::ResolveLink);
                 if (shape.IsNull() || !TopExp_Explorer(shape, TopAbs_SOLID).More()) {
-                    continue;
+                    return;
                 }
             }
             else if (!childSource->isDerivedFrom<App::Part>()
-                     && !childSource->isDerivedFrom<App::DocumentObjectGroup>()) {
-                continue;
-            }
-            auto transform = offset * linkTransform;
-            if (auto* placement
-                = dynamic_cast<App::PropertyPlacement*>(child->getPropertyByName("Placement"))) {
-                transform *= placement->getValue().toMatrix();
+                     && !childSource->isDerivedFrom<App::DocumentObjectGroup>()
+                     && !hasLinkElements(childSource)) {
+                return;
             }
             auto mass = massOfTree(child, transform, ancestors, true);
             if (mass.volume == 0) {
-                continue;  // Empty folders and nested Parts add no material.
+                return;  // Empty folders and nested Parts add no material.
             }
             result.properties.Add(mass.properties);
             result.volume += mass.volume;
+        };
+        if (elements) {
+            // Resolve each element the way Part::Feature::getShape() builds the
+            // array's compound: the link applies the array scale, the element
+            // placement and scale, and leaves out suppressed elements.
+            for (const auto& name : source->getSubObjects()) {
+                Base::Matrix4D elementTransform;
+                auto* element
+                    = source->getSubObject(name.c_str(), nullptr, &elementTransform, false);
+                if (element) {
+                    add(element, offset * elementTransform);
+                }
+            }
+        }
+        else {
+            for (auto* child : massChildren(source)) {
+                auto transform = offset * linkTransform;
+                auto* placement = dynamic_cast<App::PropertyPlacement*>(
+                    child->getPropertyByName("Placement")
+                );
+                if (placement) {
+                    transform *= placement->getValue().toMatrix();
+                }
+                add(child, transform);
+            }
         }
         if (result.volume <= 0) {
             // Only the component itself must contain material; a nested Part
