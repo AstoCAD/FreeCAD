@@ -80,6 +80,8 @@ def _write_all_points(obj, points):
 
 def set_edge_crease(obj, edges, sharpness):
     """Set selected control edges to a semi-sharp subdivision value."""
+    if not getattr(obj, "FormType", "").startswith("Forms::"):
+        raise TypeError("The object is not a Forms object")
     reject_form_surface(obj, "Crease")
     cage = ControlCage.from_object(obj)
     encoded = str(getattr(obj, "TMeshData", "") or "")
@@ -121,6 +123,8 @@ def set_edge_crease(obj, edges, sharpness):
 
 def straighten_control_points(obj, indices, line=None, surface_points=False):
     """Straighten selected control or surface points to a chosen line."""
+    if not getattr(obj, "FormType", "").startswith("Forms::"):
+        raise TypeError("The object is not a Forms object")
     points = (
         _surface_straightened_controls(obj, indices, line)
         if surface_points
@@ -132,6 +136,8 @@ def straighten_control_points(obj, indices, line=None, surface_points=False):
 
 def flatten_control_points(obj, indices, plane=None):
     """Flatten selected base or hierarchical controls to a chosen plane."""
+    if not getattr(obj, "FormType", "").startswith("Forms::"):
+        raise TypeError("The object is not a Forms object")
     _write_all_points(obj, flatten_points(_all_points(obj), indices, plane))
     return obj
 
