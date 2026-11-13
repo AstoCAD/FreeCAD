@@ -124,6 +124,56 @@ class TestSketchSplitTrimConstraints(unittest.TestCase):
         self.assertEqual(lengths, [(0, 1, 1, 2)])
         self._assertSolveKeepsGeometry()
 
+    def testSplitArcKeepsTheExpressionsOfItsConstraints(self):
+        # The radius and the edge distance move to the first piece: their expressions must move
+        # with them, as they do in trim(). The expressions differ from the current values, so
+        # only the recompute after the split gives the expected values.
+        arc = Part.ArcOfCircle(Part.Circle(V(0, 0, 0), V(0, 0, 1), 6), 0.3, 2.8)
+        self.sketch.addGeometry(arc)  # 0
+        self.sketch.addGeometry(Part.Circle(V(0, 12, 0), V(0, 0, 1), 3))  # 1
+        radius = self.sketch.addConstraint(Sketcher.Constraint("Radius", 0, 6.0))
+        self.sketch.renameConstraint(radius, "r")
+        self.sketch.setExpression(".Constraints.r", "2 mm * 4")
+        distance = self.sketch.addConstraint(Sketcher.Constraint("Distance", 0, 1, 3.0))
+        self.sketch.setExpression("Constraints[%d]" % distance, "1 mm * 2")
+        # control: a constraint of another curve, renumbered by the split
+        other = self.sketch.addConstraint(Sketcher.Constraint("Radius", 1, 3.0))
+        self.sketch.setExpression("Constraints[%d]" % other, "1 mm * 4")
+
+        self.sketch.split(0, arc.value(1.5))
+        self.doc.recompute()
+
+        self.assertEqual(len(self.sketch.ExpressionEngine), 3)
+        values = {}
+        for c in self.sketch.Constraints:
+            if c.Type in ("Radius", "Distance"):
+                values[(c.Type, c.First, c.Name)] = c.Value
+        self.assertEqual(
+            values,
+            {("Radius", 0, "r"): 8.0, ("Distance", 0, ""): 2.0, ("Radius", 1, ""): 4.0},
+        )
+        self.assertEqual(self.sketch.solve(), 0)
+        self.assertAlmostEqual(self.sketch.Geometry[0].Radius, 8.0)
+        self.assertAlmostEqual(self.sketch.Geometry[2].Radius, 8.0)
+        self.assertAlmostEqual(self.sketch.Geometry[1].Radius, 4.0)
+
+    def testSplitLineKeepsTheExpressionOfItsLength(self):
+        self.sketch.addGeometry(Part.LineSegment(V(-10, 0, 0), V(10, 0, 0)))  # 0
+        self.sketch.addConstraint(Sketcher.Constraint("Horizontal", 0))
+        length = self.sketch.addConstraint(Sketcher.Constraint("Distance", 0, 20.0))
+        self.sketch.setExpression("Constraints[%d]" % length, "4 mm * 6")
+
+        self.sketch.split(0, V(-2, 0, 0))
+        self.doc.recompute()
+
+        self.assertEqual(len(self.sketch.ExpressionEngine), 1)
+        lengths = [c.Value for c in self.sketch.Constraints if c.Type == "Distance"]
+        self.assertEqual(lengths, [24.0])
+        self.assertEqual(self.sketch.solve(), 0)
+        start = self.sketch.Geometry[0].StartPoint
+        end = self.sketch.Geometry[1].EndPoint
+        self.assertAlmostEqual((end - start).Length, 24.0)
+
     def _bspline(self):
         poles = [V(-10, 0, 0), V(-5, 6, 0), V(0, 6, 0), V(5, 6, 0), V(10, 0, 0)]
         curve = Part.BSplineCurve()
