@@ -235,7 +235,7 @@ void CosmeticEdge::Save(Base::Writer &writer) const
     }
 
     writer.Stream() << writer.ind() << "<LineNumber value=\"" <<  m_format.getLineNumber() << "\"/>" << endl;
-
+    Tag::Save(writer);
 }
 
 void CosmeticEdge::Restore(Base::XMLReader &reader)
@@ -298,6 +298,11 @@ void CosmeticEdge::Restore(Base::XMLReader &reader)
             // TODO: line number should be set to DashedLineGenerator.fromQtStyle(m_format.m_style)
             m_format.setLineNumber(LineFormat::InvalidLine);
         }
+    }
+    // documents saved before the tag was written keep the new tag made by the constructor
+    if (strcmp(reader.localName(), "LineNumber") == 0 && reader.readNextElement()
+        && strcmp(reader.localName(), "Tag") == 0) {
+        setTag(Tag::fromString(reader.getAttribute<const char*>("value")));
     }
 }
 
