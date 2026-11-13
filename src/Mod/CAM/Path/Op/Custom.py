@@ -236,7 +236,9 @@ class ObjectCustom(PathOp.ObjectOp):
                 )
                 obj.Path = Path.Path()
                 return
-            with open(gcode_file) as fd:
+            # UTF-8 is what the post-processors write. A byte that is not UTF-8 can only
+            # be in a comment or an as-is line (G-code words are ASCII): replace it.
+            with open(gcode_file, encoding="utf-8", errors="replace") as fd:
                 self.processLines(obj, fd.readlines())
 
         if self.errors:
