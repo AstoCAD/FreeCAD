@@ -4109,6 +4109,25 @@ class DocumentExpressionCases(unittest.TestCase):
         self.Doc.recompute()
         self.assertEqual(obj.Value, 10)
 
+    def testExpressionReferenceToSubObject(self):
+        # A path through a sub-object (Part.<<Inner.>>.Placement) did not resolve: the
+        # sub-object was looked up by its quoted name, "Sub-object ... not found"
+        part = self.Doc.addObject("App::Part", "Part")
+        inner = self.Doc.addObject("App::Part", "Inner")
+        part.addObject(inner)
+        part.Placement.Base.x = 100
+        inner.Placement.Base.x = 5
+        obj = self.Doc.addObject("App::FeaturePython", "Obj")
+        obj.addProperty("App::PropertyDistance", "Value")
+        self.assertAlmostEqual(obj.evalExpression("Part.<<Inner.>>.Placement.Base.x").Value, 5)
+        # _pla is the placement of the sub-object as seen from Part
+        self.assertAlmostEqual(obj.evalExpression("Part.<<Inner.>>._pla.Base.x").Value, 105)
+        self.assertAlmostEqual(part.evalExpression(".<<Inner.>>.Placement.Base.x").Value, 5)
+        obj.setExpression("Value", "Part.<<Inner.>>.Placement.Base.x * 2")
+        self.Doc.recompute()
+        self.assertTrue(obj.isValid())
+        self.assertAlmostEqual(obj.Value.Value, 10)
+
     def testLongNumberLiteral(self):
         # A decimal number of 40 characters or more overflowed the lexer's buffer
         # and read as 0
