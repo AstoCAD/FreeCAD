@@ -1331,6 +1331,37 @@ class MeshWriteStream(unittest.TestCase):
                 self.assertEqual(stream.getvalue(), self.fileContent(fmt).decode("utf-8"))
 
 
+class MeshReadStream(unittest.TestCase):
+    """Reading from a Python stream gives the same mesh as reading from a file"""
+
+    def setUp(self):
+        self.mesh = Mesh.createBox(1.0, 2.0, 3.0)
+
+    def fileContent(self, fmt):
+        with tempfile.TemporaryDirectory() as tmpDir:
+            fileName = os.path.join(tmpDir, "box.dat")
+            self.mesh.write(Filename=fileName, Format=fmt)
+            with open(fileName, "rb") as f:
+                return f.read()
+
+    def checkRead(self, stream, fmt):
+        mesh = Mesh.Mesh()
+        mesh.read(Stream=stream, Format=fmt)
+        self.assertEqual(mesh.CountPoints, self.mesh.CountPoints)
+        self.assertEqual(mesh.CountFacets, self.mesh.CountFacets)
+
+    def testAsciiStlFromBytesIO(self):
+        # The ASCII STL reader seeks back to the start after counting the facets. The data
+        # still buffered from the stream was read again, which added a facet.
+        self.checkRead(io.BytesIO(self.fileContent("AST")), "AST")
+
+    def testAsciiStlFromStringIO(self):
+        self.checkRead(io.StringIO(self.fileContent("AST").decode("utf-8"), newline=""), "AST")
+
+    def testBinaryStlFromBytesIO(self):
+        self.checkRead(io.BytesIO(self.fileContent("STL")), "STL")
+
+
 class MeshExportObjNormals(unittest.TestCase):
     """The normals of an OBJ file must match its vertices for a placed mesh"""
 

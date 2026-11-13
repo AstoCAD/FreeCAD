@@ -549,9 +549,15 @@ PyStreambuf::int_type PyStreambuf::underflow()
         Py::Object res(meth.apply(arg));
         if (res.isBytes()) {
             c = static_cast<std::string>(Py::Bytes(res));
+            if (type == Unknown) {
+                type = BytesIO;
+            }
         }
         else if (res.isString()) {
             c = static_cast<std::string>(Py::String(res));
+            if (type == Unknown) {
+                type = StringIO;
+            }
         }
         else {
             // wrong type
@@ -694,6 +700,18 @@ PyStreambuf::pos_type PyStreambuf::
             return {off_type(-1)};
     }
 
+    // The get area holds data that was read from the Python object but not consumed yet, so the
+    // position of this stream is that many bytes before the position of the Python object. This
+    // can only be accounted for when the Python object counts its position in bytes. A text stream
+    // counts characters (io.StringIO) or uses an opaque number (text file), so its position is
+    // used as it is.
+    const off_type unread = (type == BytesIO) ? off_type(egptr() - gptr()) : off_type(0);
+    // Only asks for the current position, so the buffered data stays valid
+    const bool tellOnly = (dir == std::ios_base::cur && offset == 0);
+    if (dir == std::ios_base::cur && !tellOnly) {
+        offset -= unread;
+    }
+
     try {
         Py::Tuple arg(2);
         arg.setItem(0, Py::Long(static_cast<long>(offset)));
@@ -701,11 +719,20 @@ PyStreambuf::pos_type PyStreambuf::
         Py::Callable seek(Py::Object(inp).getAttr("seek"));
         seek.apply(arg);
 
+        if (!tellOnly) {
+            // the buffered data belongs to the old position
+            char* end = &buffer.front() + buffer.size();
+            setg(end, end, end);
+        }
+
         // get current position
         Py::Tuple arg2;
         Py::Callable tell(Py::Object(inp).getAttr("tell"));
         Py::Long pos(tell.apply(arg2));
         long cur_pos = static_cast<long>(pos);
+        if (tellOnly) {
+            cur_pos -= static_cast<long>(unread);
+        }
         return static_cast<pos_type>(cur_pos);
     }
     catch (Py::Exception& e) {
