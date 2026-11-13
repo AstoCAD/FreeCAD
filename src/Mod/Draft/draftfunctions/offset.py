@@ -57,9 +57,10 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
     ----------
     obj :
 
-    delta : Base.Vector or list of Base.Vector
+    delta : Base.Vector or list of Base.Vector or float
         If offsetting a BSpline, the delta must not be a Vector but a list
         of Vectors, one for each node of the spline.
+        If offsetting a circle or an arc, the delta is its new radius.
 
     copy : bool
         If copymode is True, another object is created, otherwise the same
@@ -160,6 +161,11 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
         else:
             return nr * math.cos(math.pi / obj.FacesNumber)
 
+    if occ and isinstance(delta, float) and obj.Shape.Edges[0].isClosed():
+        # A circle gets its new radius as delta. Its OCC-style offset is
+        # the concentric circle of the classic offset.
+        occ = False
+
     newwire = None
     if utils.get_type(obj) == "Circle":
         pass
@@ -189,6 +195,10 @@ def offset(obj, delta, copy=False, bind=False, sym=False, occ=False):
                 else:
                     p = geo_general.getVerts(newwire)
     if occ:
+        if isinstance(delta, float):
+            # An arc gets its new radius as delta. Its OCC-style offset goes
+            # around it at the distance between both radii.
+            delta = App.Vector(delta - obj.Shape.Edges[0].Curve.Radius, 0, 0)
         newobj = App.ActiveDocument.addObject("Part::Feature", "Offset")
         newobj.Shape = geo_offsets.offsetWire(obj.Shape, delta, occ=True)
         gui_utils.formatObject(newobj, obj)

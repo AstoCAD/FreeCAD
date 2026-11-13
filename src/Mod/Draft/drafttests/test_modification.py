@@ -34,6 +34,8 @@
 ## \addtogroup drafttests
 # @{
 
+import math
+
 import FreeCAD as App
 import Part
 import Draft
@@ -191,6 +193,34 @@ class DraftModification(test_base.DraftTestCaseDoc):
         for vec_copy, vec in zip(copy.Shape.Vertexes, spline.Shape.Vertexes):
             self.assertTrue(vec_copy.Point.isEqual(vec.Point, 1e-6))
         self.assertTrue(copy.Shape.Vertexes[0].Point.isEqual(Vector(1, 2, 4), 1e-6))
+
+    def test_offset_circle_occ(self):
+        """OCC-style offsets of a circle and an arc, which get their new radius."""
+        # Regression test for:
+        # https://github.com/FreeCAD/FreeCAD/issues/10435
+        place = App.Placement(Vector(1, 2, 3), App.Rotation(Vector(1, 0, 0), 90))
+        for radius in (12.0, 8.0):
+            msg = "radius={}".format(radius)
+            # The OCC-style offset of a circle is the concentric circle
+            circle = Draft.make_circle(10, placement=place)
+            self.doc.recompute()
+            new = Draft.offset(circle, radius, copy=True, occ=True)
+            self.doc.recompute()
+            self.assertEqual(utils.get_type(new), "Circle", msg)
+            self.assertAlmostEqual(new.Radius.Value, radius, 6, msg)
+            self.assertTrue(new.Placement.isSame(place, 1e-6), msg)
+            # That of an arc goes around it, 2 mm on both sides: two arcs
+            # of radius 8 and 12, joined by two half circles of radius 2
+            arc = Draft.make_circle(10, placement=place, startangle=0, endangle=90)
+            self.doc.recompute()
+            new = Draft.offset(arc, radius, copy=True, occ=True)
+            self.doc.recompute()
+            self.assertTrue(new.Shape.isValid(), msg)
+            self.assertTrue(new.Shape.Wires[0].isClosed(), msg)
+            self.assertAlmostEqual(new.Shape.Length, 14 * math.pi, 6, msg)
+            for vertex in new.Shape.Vertexes:
+                distance = vertex.Point.distanceToPlane(place.Base, Vector(0, -1, 0))
+                self.assertAlmostEqual(distance, 0, 6, msg)
 
     def test_offset_rectangle_with_face(self):
         """Create a rectangle with a face, then produce an offset copy."""
