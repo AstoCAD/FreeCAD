@@ -59,6 +59,73 @@ TEST(PropertyLink, TestSetValues)
     EXPECT_EQ(sub[1], "Sub2");
 }
 
+class PropertyLinkScope: public ::testing::Test
+{
+protected:
+    static void SetUpTestSuite()
+    {
+        tests::initApplication();
+    }
+
+    void SetUp() override
+    {
+        docName = App::GetApplication().getUniqueDocumentName("test");
+        doc = App::GetApplication().newDocument(docName.c_str(), "testUser");
+        owner = doc->addObject("App::VarSet", "Owner");
+        target = doc->addObject("App::VarSet", "Target");
+    }
+
+    void TearDown() override
+    {
+        App::GetApplication().closeDocument(docName.c_str());
+    }
+
+    // getLinksTo() must report a link to target unless the property has the hidden scope and
+    // 'all' is false, the same contract as getLinks().
+    template<typename LinkProperty>
+    void expectGetLinksToHonoursScope(const char* type)
+    {
+        auto* visible =
+            freecad_cast<LinkProperty*>(owner->addDynamicProperty(type, "VisibleLinks"));
+        auto* hidden = freecad_cast<LinkProperty*>(owner->addDynamicProperty(type, "HiddenLinks"));
+        ASSERT_NE(visible, nullptr);
+        ASSERT_NE(hidden, nullptr);
+        hidden->setScope(App::LinkScope::Hidden);
+        // no sub-element: an empty name, which every link list type accepts
+        visible->setValue(target, "");
+        hidden->setValue(target, "");
+
+        std::vector<App::ObjectIdentifier> identifiers;
+        visible->getLinksTo(identifiers, target, nullptr, false);
+        EXPECT_EQ(identifiers.size(), 1);
+        identifiers.clear();
+        visible->getLinksTo(identifiers, target, nullptr, true);
+        EXPECT_EQ(identifiers.size(), 1);
+
+        identifiers.clear();
+        hidden->getLinksTo(identifiers, target, nullptr, false);
+        EXPECT_TRUE(identifiers.empty());
+        identifiers.clear();
+        hidden->getLinksTo(identifiers, target, nullptr, true);
+        EXPECT_EQ(identifiers.size(), 1);
+    }
+
+    std::string docName;
+    App::Document* doc {};
+    App::DocumentObject* owner {};
+    App::DocumentObject* target {};
+};
+
+TEST_F(PropertyLinkScope, linkSubListGetLinksTo)
+{
+    expectGetLinksToHonoursScope<App::PropertyLinkSubList>("App::PropertyLinkSubList");
+}
+
+TEST_F(PropertyLinkScope, xLinkSubListGetLinksTo)
+{
+    expectGetLinksToHonoursScope<App::PropertyXLinkSubList>("App::PropertyXLinkSubList");
+}
+
 class PropertyFloatTest: public ::testing::Test
 {
 protected:
