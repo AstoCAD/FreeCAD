@@ -26,6 +26,7 @@
 #include <gtest/gtest.h>
 
 #include "App/Metadata.h"
+#include <Base/Exception.h>
 #include <xercesc/util/PlatformUtils.hpp>
 
 // NOLINTBEGIN(readability-named-parameter)
@@ -234,6 +235,45 @@ TEST_F(MetadataTest, MetadataInMemoryConstruction)
     auto xml = GivenSimpleMetadataXMLString();
     auto testObject = App::Metadata(std::string {xml});
     AssertMetadataMatches(testObject);
+}
+
+TEST_F(MetadataTest, MetadataSatisfiesVersionBounds)
+{
+    App::Metadata testObject;
+    testObject.setName("TestAddon");
+    testObject.setVersion(App::Meta::Version("1.2.3"));
+
+    App::Meta::Dependency dependency("TestAddon");
+    dependency.version_lte = "1.2.3";
+    EXPECT_TRUE(testObject.satisfies(dependency));
+    dependency.version_lte = "1.2.2";
+    EXPECT_FALSE(testObject.satisfies(dependency));
+
+    dependency = App::Meta::Dependency("TestAddon");
+    dependency.version_gt = "1.2.2";
+    EXPECT_TRUE(testObject.satisfies(dependency));
+    dependency.version_gt = "1.2.3";
+    EXPECT_FALSE(testObject.satisfies(dependency));
+
+    dependency = App::Meta::Dependency("TestAddon");
+    dependency.version_gte = "1.2.3";
+    EXPECT_TRUE(testObject.satisfies(dependency));
+    dependency.version_gte = "1.2.4";
+    EXPECT_FALSE(testObject.satisfies(dependency));
+
+    dependency = App::Meta::Dependency("TestAddon");
+    dependency.version_gte = "1.0.0";
+    dependency.version_lt = "2.0.0";
+    EXPECT_TRUE(testObject.satisfies(dependency));
+}
+
+TEST_F(MetadataTest, MetadataSetNameRejectsInvalidName)
+{
+    App::Metadata testObject;
+    EXPECT_THROW(testObject.setName("Invalid/Name"), Base::RuntimeError);
+    EXPECT_EQ(testObject.name(), "");
+    EXPECT_NO_THROW(testObject.setName("Valid Name"));
+    EXPECT_EQ(testObject.name(), "Valid Name");
 }
 
 // NOLINTEND(readability-named-parameter)

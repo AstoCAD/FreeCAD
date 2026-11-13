@@ -286,7 +286,7 @@ XERCES_CPP_NAMESPACE::DOMElement* Metadata::dom() const
 void Metadata::setName(const std::string& name)
 {
     std::string invalidCharacters = "/\\?%*:|\"<>";  // Should cover all OSes
-    if (_name.find_first_of(invalidCharacters) != std::string::npos) {
+    if (name.find_first_of(invalidCharacters) != std::string::npos) {
         throw Base::RuntimeError("Name cannot contain any of: " + invalidCharacters);
     }
     _name = name;
@@ -693,17 +693,17 @@ bool Metadata::satisfies(const Meta::Dependency& dep)
         }
     }
     if (!dep.version_lte.empty()) {
-        if (!(_version <= Meta::Version(dep.version_lt))) {
+        if (!(_version <= Meta::Version(dep.version_lte))) {
             return false;
         }
     }
     if (!dep.version_gt.empty()) {
-        if (!(_version > Meta::Version(dep.version_lt))) {
+        if (!(_version > Meta::Version(dep.version_gt))) {
             return false;
         }
     }
     if (!dep.version_gte.empty()) {
-        if (!(_version >= Meta::Version(dep.version_lt))) {
+        if (!(_version >= Meta::Version(dep.version_gte))) {
             return false;
         }
     }
