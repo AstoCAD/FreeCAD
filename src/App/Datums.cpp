@@ -32,6 +32,7 @@
 #include <Base/Tools.h>
 
 #include "Datums.h"
+#include "LocalCoordinateSystemPy.h"
 
 using namespace App;
 
@@ -235,6 +236,15 @@ short LocalCoordinateSystem::mustExecute() const
         return 1;
     }
     return DocumentObject::mustExecute();
+}
+
+PyObject* LocalCoordinateSystem::getPyObject()
+{
+    if (PythonObject.is(Py::_None())) {
+        // ref counter is set to 1
+        PythonObject = Py::Object(new LocalCoordinateSystemPy(this), true);
+    }
+    return Py::new_reference_to(PythonObject);
 }
 
 App::DocumentObjectExecReturn* LocalCoordinateSystem::execute()

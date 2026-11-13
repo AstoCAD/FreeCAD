@@ -477,6 +477,28 @@ class DocumentBasicCases(unittest.TestCase):
         for i in obj2.OutList:
             self.assertEqual(obj2.getSubObject(i.Name + ".", retType=1).Name, i.Name)
 
+    def testLocalCoordinateSystemAccessors(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/5859
+        for typeName in ("App::Origin", "App::LocalCoordinateSystem"):
+            lcs = self.Doc.addObject(typeName)
+            byRole = {obj.Role: obj for obj in lcs.OriginFeatures}
+            accessors = {
+                "Origin": lcs.getOrigin,
+                "X_Axis": lcs.getX,
+                "Y_Axis": lcs.getY,
+                "Z_Axis": lcs.getZ,
+                "XY_Plane": lcs.getXY,
+                "XZ_Plane": lcs.getXZ,
+                "YZ_Plane": lcs.getYZ,
+            }
+            for role, accessor in accessors.items():
+                self.assertEqual(accessor().Name, byRole[role].Name, f"{typeName} {role}")
+
+        # A missing element is reported as an exception
+        lcs.OriginFeatures = [obj for obj in lcs.OriginFeatures if obj.Role != "X_Axis"]
+        self.assertRaises(RuntimeError, lcs.getX)
+        self.assertEqual(lcs.getY().Name, byRole["Y_Axis"].Name)
+
     def testExtensions(self):
         # we try to create a normal python object and add an extension to it
         obj = self.Doc.addObject("App::DocumentObject", "Extension_1")

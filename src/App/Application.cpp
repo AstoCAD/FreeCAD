@@ -142,6 +142,7 @@
 #include "MeasureManagerPy.h"
 #include "Origin.h"
 #include "Datums.h"
+#include "LocalCoordinateSystemPy.h"
 #include "OriginGroupExtension.h"
 #include "OriginGroupExtensionPy.h"
 #include "ProgramInformation.h"
@@ -502,6 +503,7 @@ void Application::setupPythonTypes()
     Base::InterpreterSingleton::addType(&DocumentObjectPy::Type, pAppModule, "DocumentObject");
     Base::InterpreterSingleton::addType(&DocumentObjectGroupPy::Type, pAppModule, "DocumentObjectGroup");
     Base::InterpreterSingleton::addType(&GeoFeaturePy::Type, pAppModule, "GeoFeature");
+    Base::InterpreterSingleton::addType(&LocalCoordinateSystemPy::Type, pAppModule, "LocalCoordinateSystem");
 
     // Add extension types
     Base::InterpreterSingleton::addType(&ExtensionPy::Type, pAppModule, "Extension");

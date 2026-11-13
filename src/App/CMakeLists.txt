@@ -109,6 +109,7 @@ generate_from_py(SuppressibleExtension)
 generate_from_py(Metadata)
 generate_from_py(OriginGroupExtension)
 generate_from_py(Part)
+generate_from_py(LocalCoordinateSystem)
 generate_from_py(StringHasher)
 generate_from_py(StringID)
 
@@ -141,6 +142,7 @@ SET(FreeCADApp_Pyi_SRCS
     OriginGroupExtension.pyi
     SuppressibleExtension.pyi
     Part.pyi
+    LocalCoordinateSystem.pyi
     Document.pyi
     PropertyContainer.pyi
     ComplexGeoData.pyi
@@ -199,6 +201,7 @@ SET(Document_CPP_SRCS
     InventorObject.cpp
     Placement.cpp
     ProjectFile.cpp
+    LocalCoordinateSystemPyImp.cpp
     Datums.cpp
     Range.cpp
     Transactions.cpp
