@@ -1320,6 +1320,12 @@ void Hole::onChanged(const App::Property* prop)
     else if (prop == &ThreadType) {
         std::string type;
 
+        // A file stores the index of ThreadFit, and ThreadFit is read before ThreadType, so
+        // it is restored into the default (metric) names. Matching those names against the
+        // list of the restored type would turn e.g. a "Loose" UNC fit into "Normal". All fit
+        // lists give the same fits in the same order, so keep the restored index.
+        const long restoredFit = isRestoring() ? ThreadFit.getValue() : -1;
+
         if (ThreadType.isValid()) {
             type = ThreadType.getValueAsString();
             ThreadSize.setEnums(getThreadDesignations(ThreadType.getValue()));
@@ -1384,6 +1390,10 @@ void Hole::onChanged(const App::Property* prop)
         else if (type == "ISOTyre") {
             ThreadClass.setEnums(ThreadClass_None_Enums);
             HoleCutType.setEnums(HoleCutType_None_Enums);
+        }
+
+        if (restoredFit >= 0 && ThreadFit.getValue() != restoredFit) {
+            ThreadFit.setValue(restoredFit);
         }
 
         bool isNone = type == "None";
