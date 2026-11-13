@@ -1074,8 +1074,7 @@ class svgHandler(xml.sax.ContentHandler):
         if self.text:
             self._msg("reading characters {}".format(content))
             obj = self.doc.addObject("App::Annotation", "Text")
-            # use ignore to not break import if char is not found in latin1
-            obj.LabelText = content.encode("latin1", "ignore")
+            obj.LabelText = content
             vec = Vector(self.x, -self.y, 0)
             if self.transform:
                 vec = self.translateVec(vec, self.transform)

@@ -391,6 +391,32 @@ class DraftSVGImportRegression(test_base.DraftTestCaseDoc):
                     self.assertAlmostEqual(wires[0].Length, source[0].Length, places=6)
 
 
+    def test_read_svg_text_non_ascii(self):
+        """Non-ASCII text is imported unchanged, not reduced to Latin-1."""
+        # accented Latin, Greek and CJK characters
+        texts = [
+            "Caf\u00e9 \u00c9t\u00e9",
+            "\u03a9\u03bc\u03ad\u03b3\u03b1",
+            "\u65e5\u672c\u8a9e",
+        ]
+        body = "".join(
+            '<text x="10" y="{}" font-size="5">{}</text>'.format(10 * (i + 1), text)
+            for i, text in enumerate(texts)
+        )
+        svg = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="100mm" height="100mm" viewBox="0 0 100 100">' + body + "</svg>\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "non_ascii_text.svg")
+            with open(in_file, "w", encoding="utf-8") as svg_file:
+                svg_file.write(svg)
+            importSVG.insert(in_file, self.doc.Name)
+        labels = [o.LabelText for o in self.doc.Objects if o.isDerivedFrom("App::Annotation")]
+        self.assertEqual(labels, [[text] for text in texts])
+
+
 class DraftSVGExportRegression(test_base.DraftTestCaseDoc):
     """Regression tests for SVG export edge cases."""
 
