@@ -182,6 +182,61 @@ class DraftDXF(test_base.DraftTestCaseDoc):
                 if doc:
                     App.closeDocument(doc.Name)
 
+    def test_read_dxf_point_as_draft(self):
+        """A POINT imported as editable Draft objects becomes a Draft Point at its location."""
+
+        lines = ["0", "SECTION", "2", "ENTITIES"]
+        lines += ["0", "POINT", "8", "0", "10", "5", "20", "7", "30", "2"]
+        lines += ["0", "LINE", "8", "0", "10", "0", "20", "0", "30", "0"]
+        lines += ["11", "10", "21", "0", "31", "0"]
+        lines += ["0", "ENDSEC", "0", "EOF"]
+
+        hGrp = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Draft")
+        modes = (
+            "dxfImportAsDraft",
+            "dxfImportAsPrimitives",
+            "dxfImportAsShapes",
+            "dxfImportAsFused",
+        )
+        wasModes = [hGrp.GetBool(mode, False) for mode in modes]
+        wasShowDialog = hGrp.GetBool("dxfShowDialog", True)
+        wasUseLegacyImporter = hGrp.GetBool("dxfUseLegacyImporter", False)
+        wasImportMode = hGrp.GetInt("DxfImportMode", 2)
+        wasImportPoints = hGrp.GetBool("dxfImportPoints", True)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "point.dxf")
+            with open(in_file, "w", encoding="utf-8") as dxf_file:
+                dxf_file.write("\n".join(lines) + "\n")
+            doc = None
+            try:
+                hGrp.SetBool("dxfShowDialog", False)
+                hGrp.SetBool("dxfUseLegacyImporter", False)
+                hGrp.SetBool("dxfImportPoints", True)
+                for mode in modes:
+                    hGrp.SetBool(mode, mode == "dxfImportAsDraft")
+                doc = importDXF.open(in_file)
+                points = [o for o in doc.Objects if Draft.get_type(o) == "Point"]
+                self.assertEqual(len(points), 1)
+                point = points[0]
+                self.assertTrue(point.isDerivedFrom("Part::FeaturePython"))
+                expected = App.Vector(5, 7, 2)
+                self.assertTrue(App.Vector(point.X, point.Y, point.Z).isEqual(expected, 1e-9))
+                self.assertTrue(point.Shape.Vertexes[0].Point.isEqual(expected, 1e-9))
+                # the rest of the drawing is converted too
+                wires = [o for o in doc.Objects if Draft.get_type(o) == "Wire"]
+                self.assertEqual(len(wires), 1)
+                self.assertFalse([o for o in doc.Objects if o.isDerivedFrom("Part::Vertex")])
+                self.assertFalse([o for o in doc.Objects if o.isDerivedFrom("Part::Line")])
+            finally:
+                for mode, was in zip(modes, wasModes):
+                    hGrp.SetBool(mode, was)
+                hGrp.SetBool("dxfShowDialog", wasShowDialog)
+                hGrp.SetBool("dxfUseLegacyImporter", wasUseLegacyImporter)
+                hGrp.SetInt("DxfImportMode", wasImportMode)
+                hGrp.SetBool("dxfImportPoints", wasImportPoints)
+                if doc:
+                    App.closeDocument(doc.Name)
+
     def test_legacy_draw_invalid_ellipse(self):
         """The legacy importer reports an invalid ellipse instead of raising."""
         from unittest import mock
