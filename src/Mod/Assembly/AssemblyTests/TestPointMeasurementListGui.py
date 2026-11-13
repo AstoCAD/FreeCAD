@@ -47,8 +47,6 @@ class TestPointMeasurementListGui(unittest.TestCase):
         self.study = simulation_group.newObject("App::FeaturePython", "Simulation")
         Simulation.Simulation(self.study)
         Simulation.ViewProviderSimulation(self.study.ViewObject)
-        # The real GUI sets this existing owner backlink in setUiInitialValues.
-        self.study.Assembly = self.assembly
         self.assertEqual(self.study.Assembly, self.assembly)
         self.assertIsInstance(self.study.Proxy, Simulation.Simulation)
         self.assertTrue(callable(self.study.Proxy.setMotionsChangedCallback))

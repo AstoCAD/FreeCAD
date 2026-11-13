@@ -236,3 +236,29 @@ class TestSimulationRegression(unittest.TestCase):
             self.assertAlmostEqual(data["Bodies"][body.Name]["Placements"][-1][2],
                                    3.5-20000*.05**3/6, delta=.003)
             self.assertAlmostEqual(data["Bodies"][body.Name]["Velocity"][-1][2], -25, delta=.03)
+
+    def test_simulation_knows_its_assembly_when_created_and_restored(self):
+        import os
+        import tempfile
+        import CommandCreateSimulation
+        import UtilsAssembly
+        with self.mechanism() as f:
+            group = UtilsAssembly.getSimulationGroup(f.assembly)
+            simulation = group.newObject("App::FeaturePython", "Simulation")
+            CommandCreateSimulation.Simulation(simulation)
+            self.assertEqual(simulation.Assembly, f.assembly)
+            # A Simulation saved before the dynamics schema has no backlink.
+            for name in ("Assembly", "AnalysisType", "SchemaVersion", "GravityEnabled",
+                         "GravityMagnitude", "GravityDirection", "MinimumStep",
+                         "MaximumStep", "Status", "LastError", "ResultData"):
+                simulation.removeProperty(name)
+            with tempfile.TemporaryDirectory() as folder:
+                path = os.path.join(folder, "LegacySimulation.FCStd")
+                names = simulation.Name, f.assembly.Name
+                f.doc.saveAs(path)
+                App.closeDocument(f.doc.Name)
+                f.doc = App.openDocument(path)
+                simulation, assembly = (f.doc.getObject(name) for name in names)
+                self.assertEqual(simulation.Assembly, assembly)
+                self.assertEqual(simulation.Proxy.getAssembly(simulation), assembly)
+                self.assertEqual(Dynamics.inputs_for_study(simulation), [])

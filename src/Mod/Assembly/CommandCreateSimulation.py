@@ -210,14 +210,28 @@ class Simulation(Dynamics.Study):
 
         self.motionsChangedCallback = None
         self._properties(feaPy, legacy=True)
+        self._setOwningAssembly(feaPy)
 
     def onDocumentRestored(self, feaPy):
         self._properties(feaPy, legacy=True)
+        self._setOwningAssembly(feaPy)
         self.motionsChangedCallback = None
         if feaPy.Status == "Running":
             feaPy.Status = "Failed"
             feaPy.LastError = translate("Assembly", "The previous run did not finish.")
         Dynamics.purge_touched(feaPy)
+
+    @staticmethod
+    def _setOwningAssembly(feaPy):
+        """Set the Assembly backlink from the Simulations group holding the study.
+
+        Simulations saved before the backlink existed only have that group to
+        tell which assembly they belong to.
+        """
+        if feaPy.Assembly is None:
+            assembly = Dynamics.assembly_for_owner(Dynamics.input_owner(feaPy))
+            if assembly is not None:
+                feaPy.Assembly = assembly
 
     def dumps(self):
         return None
@@ -885,10 +899,6 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
                 self.inputRefreshTimer.start(0)
 
     def setUiInitialValues(self):
-        # Schema migration happens during restore. Avoid rewriting properties
-        # merely because the user opened this task panel.
-        if self.simFeaturePy.Assembly != self.assembly:
-            self.simFeaturePy.Assembly = self.assembly
         for name, label in (
             ("Automatic", translate("Assembly", "Automatic")),
             ("Kinematics", translate("Assembly", "Kinematics")),
