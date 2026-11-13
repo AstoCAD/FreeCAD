@@ -33,6 +33,7 @@ from OpenSCADTest.app.test_importCSGCircle import TestCsgCircle as OpenSCADTestC
 from OpenSCADTest.app.test_importCSGRotateExtrude import TestCsgRotateExtrudePrism as OpenSCADTestCsgRotateExtrudePrism
 from OpenSCADTest.app.test_importCSGPolyhedron import TestCsgPolyhedron as OpenSCADTestCsgPolyhedron
 from OpenSCADTest.app.test_exportCSGShapes import TestExportCSGShapes as OpenSCADTestExportCSGShapes
+from OpenSCADTest.app.test_importCSGMeshFile import TestCsgImportMeshFile as OpenSCADTestCsgImportMeshFile
 
 # dummy usage to get flake8 and lgtm quiet
 False if OpenSCADTestImportCSG.__name__ else True
@@ -48,3 +49,4 @@ False if OpenSCADTestCsgCircle.__name__ else True
 False if OpenSCADTestCsgRotateExtrudePrism.__name__ else True
 False if OpenSCADTestCsgPolyhedron.__name__ else True
 False if OpenSCADTestExportCSGShapes.__name__ else True
+False if OpenSCADTestCsgImportMeshFile.__name__ else True

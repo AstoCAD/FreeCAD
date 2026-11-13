@@ -65,6 +65,8 @@ original_root_objects = []
 # Objects whose geometry was copied into a non-parametric feature: they stay
 # orphaned root objects in the document but must remain hidden.
 consumed_objects = []
+# Mesh objects made by import() of a mesh file, by file path
+imported_meshes = {}
 
 # Get the token map from the lexer. This is required.
 import tokrules
@@ -176,6 +178,7 @@ def processcsg(filename):
 
     if printverbose: print('Start Parser')
 
+    imported_meshes.clear()
     result = parser.parse(f.read())
     f.close()
     if printverbose:
@@ -897,10 +900,16 @@ def process_mesh_file(fname,ext):
     fullname = fname+'.'+ext
     filename = os.path.join(pathName,fullname)
     objname = os.path.split(fname)[1]
-    mesh1 = doc.getObject(objname) #reuse imported object
-    if not mesh1:
-        Mesh.insert(filename)
-        mesh1 = doc.getObject(objname)
+    # Reuse the mesh object made for the same file earlier in this import,
+    # never an unrelated object that only has the same name
+    key = os.path.normcase(os.path.abspath(filename))
+    mesh1 = imported_meshes.get(key)
+    if mesh1 is None:
+        mesh = Mesh.Mesh(filename)
+        if mesh.CountFacets > 0:
+            mesh1 = doc.addObject('Mesh::Feature',objname)
+            mesh1.Mesh = mesh
+            imported_meshes[key] = mesh1
     if mesh1 is not None:
         if gui:
             mesh1.ViewObject.hide()
