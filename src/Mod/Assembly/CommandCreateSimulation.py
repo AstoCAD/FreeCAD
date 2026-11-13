@@ -1465,7 +1465,7 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
                 child.ViewObject.Proxy.updateVisual(child)
             if hasattr(child, "InitialVelocityType") and child.ViewObject.Proxy:
                 child.ViewObject.Proxy.updateVisual(child)
-        self.form.FrameLabel.setText(translate("Assembly", "Frame" + " " + str(val)))
+        self.form.FrameLabel.setText(translate("Assembly", "Frame") + f" {val}")
         sample_time = self.frameTimes[val]
         self.form.FrameTimeLabel.setText(f"{sample_time:.6g} s")
 
