@@ -751,6 +751,38 @@ class TestCore(AssemblyTestBase):
         self.assertEqual([bom.get(f"B{row}") for row in rows], ["0042", "1/2", "=1+1", 12.5, 6])
         self.assertNotIn("Invalid", bom.State)
 
+    def test_bom_lists_text_property_values_as_text(self):
+        """Property columns list text values (strings, labels, enumerations) as they are,
+        even when they look like a number or a formula; numbers and quantities stay numeric."""
+        values = [
+            ("App::PropertyString", "0042"),
+            ("App::PropertyString", "=1+1"),
+            ("App::PropertyString", "'quoted"),
+            ("App::PropertyEnumeration", "007"),
+            ("App::PropertyBool", True),
+            ("App::PropertyInteger", 7),
+            ("App::PropertyLength", 12.5),
+        ]
+        for i, (propType, value) in enumerate(values):
+            box = self.assembly.newObject("Part::Box", f"Component{i}")
+            box.Label = f"00{i}"
+            box.addProperty(propType, "PartNumber")
+            if propType == "App::PropertyEnumeration":
+                box.PartNumber = ["Steel", value]
+            box.PartNumber = value
+        bom = self.assembly.newObject("Assembly::BomObject", "BillOfMaterials")
+        bom.columnsNames = ["Name", ".PartNumber", ".Label"]
+        self.doc.recompute()
+
+        rows = range(2, 2 + len(values))
+        self.assertEqual(
+            [bom.get(f"B{row}") for row in rows],
+            ["0042", "=1+1", "'quoted", "007", "True", 7, App.Units.Quantity("12.5 mm")],
+        )
+        labels = [f"00{i}" for i in range(len(values))]
+        self.assertEqual([bom.get(f"C{row}") for row in rows], labels)
+        self.assertNotIn("Invalid", bom.State)
+
     def _check_bom_scale_vector_grouping(self, scale, mirrored, previous_scalar=None):
         source = self.doc.addObject("Part::Box", "VectorScaleComponent")
         source.Label = "Vector scale component"
