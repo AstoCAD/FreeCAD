@@ -1413,7 +1413,15 @@ TEST_F(SchemaTest, sweep_fem)
     sweepCheck({
         {"1 mm", "10 mm", "100 mm", "1000 mm"},
         {"1 t", "10 t", "100 t"},
+        {"1 t*mm^2", "10 t*mm^2", "100 t*mm^2"},
     });
+}
+
+TEST_F(SchemaTest, fem_mass_moment_of_inertia_uses_t_mm2)
+{
+    const auto result = setWithPrecision("FEM", 1e3, Unit::MassMomentOfInertia, 6);
+
+    EXPECT_EQ(result, "1.000000 t*mm^2");
 }
 
 TEST_F(SchemaTest, sweep_mmmin)
