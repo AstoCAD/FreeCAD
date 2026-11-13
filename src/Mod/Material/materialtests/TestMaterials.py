@@ -55,6 +55,23 @@ class MaterialTestCases(unittest.TestCase):
         self.assertIn("MaterialLibraries", dir(self.MaterialManager))
         self.assertIn("Materials", dir(self.MaterialManager))
 
+    def testLegacyCardAuthorNonAsciiPath(self):
+        """ The author line of an old style card is read from a folder with non-ASCII characters """
+        # it was read with a narrow file name, which Windows does not take as UTF-8
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = os.path.join(tmp, "Pièce Ωμέγα 日本")
+            os.makedirs(folder)
+            path = os.path.join(folder, "LegacyAuthor.FCMat")
+            with open(path, "w", encoding="utf-8") as card:
+                card.write("; LegacyAuthor\n; Jane Doe (CC-BY 3.0)\n\n"
+                           "[General]\nName = LegacyAuthor\n\n"
+                           "[Mechanical]\nDensity = 7900 kg/m^3\n")
+            material = self.MaterialManager.getMaterialByPath(path)
+            self.assertEqual(material.Author, "Jane Doe (CC-BY 3.0)")
+
     def testNoLibrary(self):
         """ A material or model without a library has empty library attributes """
         # these dereferenced a null library ("Unknown exception", a crash on Linux)
