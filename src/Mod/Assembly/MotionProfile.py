@@ -435,12 +435,34 @@ def prepared(study, inputs):
                 obj.Proxy._updating_profile = False
 
 
-def validate_for_object(obj, spec):
+def allowed_units(obj):
     if hasattr(obj, "MotionType"):
-        allowed = ("rad", "deg") if obj.MotionType == "Angular" else ("mm", "m")
+        return ("rad", "deg") if obj.MotionType == "Angular" else ("mm", "m")
+    return ("N",) if obj.LoadType == "Force" else ("N mm", "N m")
+
+
+def follow_type(obj):
+    """Keep a stored profile in the units of its motion or load type.
+
+    Called when MotionType or LoadType changes. Like a scalar or a formula,
+    the numbers are kept and only the unit changes. Other load laws do not
+    use the profile.
+    """
+    if not getattr(obj, "ProfileData", ""):
+        return
+    if hasattr(obj, "LoadType") and obj.LoadType not in ("Force", "Torque"):
+        return
+    spec = json.loads(obj.ProfileData)
+    if spec["unit"] not in allowed_units(obj):
+        spec["unit"] = allowed_units(obj)[0]
+        assign(obj, spec)
+
+
+def validate_for_object(obj, spec):
+    allowed = allowed_units(obj)
+    if hasattr(obj, "MotionType"):
         quantities = ("Position", "Velocity", "Acceleration")
     else:
-        allowed = ("N",) if obj.LoadType == "Force" else ("N mm", "N m")
         quantities = ("Magnitude",)
     if spec["unit"] not in allowed or spec["quantity"] not in quantities:
         raise ValueError("Profile units or prescribed quantity do not match this motion/load type.")

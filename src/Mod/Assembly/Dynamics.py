@@ -382,6 +382,8 @@ class Load:
             return
         if prop == "Formula" and getattr(self, "_updating_profile", False):
             return
+        if prop == "LoadType":
+            MotionProfile.follow_type(obj)
         if prop == "Formula" and getattr(obj, "ProfileData", ""):
             obj.ProfileData = ""
         if prop == "ProfileData":

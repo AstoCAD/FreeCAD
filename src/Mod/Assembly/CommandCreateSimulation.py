@@ -448,6 +448,9 @@ class Motion:
             return
         if prop == "Formula" and getattr(self, "_updating_profile", False):
             return
+        if prop == "MotionType":
+            import MotionProfile
+            MotionProfile.follow_type(feaPy)
         if prop == "Formula" and getattr(feaPy, "ProfileData", ""):
             feaPy.ProfileData = ""
         if prop in ("Joint", "Formula", "MotionType", "Suppressed", "ProfileData"):

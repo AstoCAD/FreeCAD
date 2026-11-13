@@ -235,6 +235,40 @@ class TestMotionProfile(unittest.TestCase):
         finally:
             fixture.tearDown()
 
+    def test_type_change_keeps_profile_valid(self):
+        import json
+        import Dynamics
+        from CommandCreateSimulation import Motion
+        from AssemblyTests.TestDynamics import TestDynamics
+        fixture = TestDynamics()
+        fixture.setUp()
+        try:
+            study = fixture.study(False)
+            motion = fixture.doc.addObject("App::FeaturePython", "Motion")
+            Motion(motion, "Linear", None, "")
+            study.addObject(motion)
+            spec = MP.defaults("m")
+            spec["segments"] = [[1, 2, "Smooth"]]
+            MP.assign(motion, spec)
+            load = Dynamics.create_load(study, "Force", fixture.box())
+            spec = MP.defaults("N")
+            spec["quantity"] = "Magnitude"
+            MP.assign(load, spec)
+            for obj, prop, value, unit in ((motion, "MotionType", "Angular", "rad"),
+                                           (load, "LoadType", "Torque", "N mm"),
+                                           (load, "LoadType", "SpringDamper", "N mm"),
+                                           (load, "LoadType", "Force", "N")):
+                setattr(obj, prop, value)
+                stored = json.loads(obj.ProfileData)
+                self.assertEqual(stored["unit"], unit)
+                # The numbers are kept, as for a scalar or a formula.
+                self.assertEqual(stored["segments"], [[1, 2, "Smooth"]] if obj is motion
+                                 else [[1.0, 1.0, "Smooth"]])
+                MP.validate_for_object(obj, stored)
+                self.assertEqual(obj.Formula, MP.Profile(stored).formula())
+        finally:
+            fixture.tearDown()
+
     def test_solver_load_profile_and_persistence(self):
         import os
         import tempfile
