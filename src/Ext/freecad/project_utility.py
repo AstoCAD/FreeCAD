@@ -34,13 +34,25 @@ class DocumentHandler(xml.sax.handler.ContentHandler):
     def endElement(self, name):
         return
 
+def _entryName(info):
+    """ Name of an archive entry as FreeCAD stores it
+
+    FreeCAD writes the entry names in UTF-8 without setting the UTF-8 flag of
+    the zip format, so the zipfile module decodes them as CP437.
+    """
+    if info.flag_bits & 0x800:
+        return info.filename
+    try:
+        return info.filename.encode("cp437").decode("utf-8")
+    except UnicodeError:
+        return info.filename
+
 def extractDocument(filename, outpath):
     """ Extract files from project archive """
     with zipfile.ZipFile(filename) as zfile:
-        files = zfile.namelist()
-
-        for i in files:
-            data = zfile.read(i)
+        for info in zfile.infolist():
+            i = _entryName(info)
+            data = zfile.read(info)
             dirs = i.split("/")
             if len(dirs) > 1:
                 dirs.pop()
