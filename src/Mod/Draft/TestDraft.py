@@ -111,6 +111,7 @@ from drafttests.test_svg import DraftSVGExportRegression as DraftTest05
 from drafttests.test_svg import DraftSVGImportRegression as DraftTest05b
 from drafttests.test_svg import DraftSVGColorRegression as DraftTest05d
 from drafttests.test_svg import DraftSVGExportLabelRegression as DraftTest05e
+from drafttests.test_svg import DraftSVGImportContentRegression as DraftTest05c
 from drafttests.test_dxf import DraftDXF as DraftTest06
 from drafttests.test_dwg import DraftDWGConverterFallback as DraftTest07b
 
@@ -131,6 +132,7 @@ True if DraftTest05 else False
 True if DraftTest05b else False
 True if DraftTest05d else False
 True if DraftTest05e else False
+True if DraftTest05c else False
 True if DraftTest06 else False
 True if DraftTest07b else False
 # True if DraftTest07 else False
