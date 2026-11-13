@@ -104,7 +104,8 @@ public:
     bool isChildOf(const GroupExtension* group, bool recursive = true) const;
     /**
      * Checks whether having \a obj in Group would make this group contain itself: \a obj is
-     * this group's own object, or a group that holds it, directly or through sub-groups.
+     * this group's own object or depends on it, like a group that holds it (directly or through
+     * sub-groups) or a link to it.
      */
     bool isCyclicMember(const DocumentObject* obj) const;
     /** Returns a list of all objects this group does have.

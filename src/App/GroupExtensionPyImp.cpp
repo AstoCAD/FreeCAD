@@ -79,10 +79,10 @@ PyObject* GroupExtensionPy::addObject(PyObject* args)
         PyErr_SetString(Base::PyExc_FC_GeneralError, "Cannot add a group object to itself");
         return nullptr;
     }
-    // also through sub-groups: addObject() would skip it silently
+    // also through sub-groups or links: addObject() would skip it silently
     if (getGroupExtensionPtr()->isCyclicMember(docObj->getDocumentObjectPtr())) {
         PyErr_SetString(Base::PyExc_FC_GeneralError,
-                        "Cannot add a group object to a child group");
+                        "Cannot add an object to a group it depends on");
         return nullptr;
     }
 

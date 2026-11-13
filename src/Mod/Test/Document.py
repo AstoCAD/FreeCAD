@@ -3061,6 +3061,96 @@ class DocumentGroupCases(unittest.TestCase):
         self.assertEqual(P2.Group, [G])
         self.Doc.recompute()
 
+    def testGroupCannotContainLinkToItself(self):
+        # A link to a group depends on the group. Inside it, the group depended on
+        # itself: recompute reported that the graph is not a DAG, sub-objects and shapes
+        # recursed until the link depth limit, and a STEP export crashed.
+        P = self.Doc.addObject("App::Part", "P")
+        F = self.Doc.addObject("App::FeatureTest", "F")
+        G = self.Doc.addObject("App::DocumentObjectGroup", "G")
+        P.addObjects([F, G])
+        L = self.Doc.addObject("App::Link", "L")
+        L.setLink(P)
+        with self.assertRaises(RuntimeError):
+            P.Group = P.Group + [L]
+        self.assertEqual(P.Group, [F, G])
+        with self.assertRaises(Exception):
+            P.addObject(L)
+        self.assertEqual(P.addObjects([L]), [])
+
+        # through a sub-group, a link to the link, a link array, and for a plain group
+        with self.assertRaises(RuntimeError):
+            G.Group = [L]
+        self.assertEqual(G.addObjects([L]), [])
+        L2 = self.Doc.addObject("App::Link", "L2")
+        L2.setLink(L)
+        self.assertEqual(P.addObjects([L2]), [])
+        A = self.Doc.addObject("App::Link", "A")
+        A.setLink(P)
+        A.ElementCount = 3
+        self.assertEqual(G.addObjects([A]), [])
+        L3 = self.Doc.addObject("App::Link", "L3")
+        L3.setLink(G)
+        with self.assertRaises(RuntimeError):
+            G.Group = [L3]
+        self.assertEqual(P.Group, [F, G])
+        self.assertEqual(G.Group, [])
+
+        # a sub-assembly cannot hold a link to an assembly that links to it
+        Sub = self.Doc.addObject("App::Part", "Sub")
+        Asm = self.Doc.addObject("App::Part", "Asm")
+        asmSub = self.Doc.addObject("App::Link", "AsmSub")
+        asmSub.setLink(Sub)
+        Asm.addObject(asmSub)
+        toAsm = self.Doc.addObject("App::Link", "ToAsm")
+        toAsm.setLink(Asm)
+        self.assertEqual(Sub.addObjects([toAsm]), [])
+        self.assertEqual(Sub.Group, [])
+        self.assertIsNone(L.getParentGeoFeatureGroup())
+        self.Doc.recompute()
+        self.assertFalse([o.Name for o in self.Doc.Objects if "Touched" in o.State])
+
+    def testGroupCanContainLinksNotLeadingToIt(self):
+        # links that do not depend on the group stay allowed in it
+        P = self.Doc.addObject("App::Part", "P")
+        F = self.Doc.addObject("App::FeatureTest", "F")
+        G = self.Doc.addObject("App::DocumentObjectGroup", "G")
+        P.addObjects([F, G])
+        Q = self.Doc.addObject("App::Part", "Q")
+        Q.addObject(self.Doc.addObject("App::FeatureTest", "QF"))
+
+        # to an object inside the group, to another Part, as a link array
+        inner = self.Doc.addObject("App::Link", "Inner")
+        inner.setLink(F)
+        toQ = self.Doc.addObject("App::Link", "ToQ")
+        toQ.setLink(Q)
+        arrayQ = self.Doc.addObject("App::Link", "ArrayQ")
+        arrayQ.setLink(Q)
+        arrayQ.ElementCount = 2
+        self.assertEqual(P.addObjects([inner, toQ]), [inner, toQ])
+        G.addObject(arrayQ)
+        self.assertEqual(P.Group, [F, G, inner, toQ, arrayQ])
+        self.assertEqual(G.Group, [arrayQ])
+
+        # an assembly holding links to a sub-assembly and to a part the sub-assembly
+        # links to as well
+        Sub = self.Doc.addObject("App::Part", "Sub")
+        Asm = self.Doc.addObject("App::Part", "Asm")
+        subQ = self.Doc.addObject("App::Link", "SubQ")
+        subQ.setLink(Q)
+        Sub.addObject(subQ)
+        asmSub = self.Doc.addObject("App::Link", "AsmSub")
+        asmSub.setLink(Sub)
+        asmQ = self.Doc.addObject("App::Link", "AsmQ")
+        asmQ.setLink(Q)
+        self.assertEqual(Asm.addObjects([asmSub, asmQ]), [asmSub, asmQ])
+        self.assertEqual(Asm.Group, [asmSub, asmQ])
+        self.assertEqual(Asm.getSubObjects(), ("AsmSub.", "AsmQ."))
+        QF = self.Doc.getObject("QF")
+        self.assertEqual(Asm.getSubObject("AsmSub.SubQ.QF.", retType=1), QF)
+        self.Doc.recompute()
+        self.assertFalse([o.Name for o in self.Doc.Objects if "Touched" in o.State])
+
     def testAddObjectsAddsEachObjectOnce(self):
         # addObjects() checked membership against Group, which it only updates at the
         # end, so an object listed twice, or a base shared by two added objects (moved

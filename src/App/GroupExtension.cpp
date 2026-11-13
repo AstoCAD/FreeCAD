@@ -330,27 +330,13 @@ bool GroupExtension::isChildOf(const GroupExtension* group, bool recursive) cons
 
 bool GroupExtension::isCyclicMember(const DocumentObject* obj) const
 {
-    // Walk the Group of obj and of its sub-groups. Already visited groups are skipped, so a
-    // cycle that exists below obj (e.g. restored from a file) cannot make this loop forever.
-    auto owner = getExtendedObject();
-    std::vector<const DocumentObject*> pending {obj};
-    std::set<const DocumentObject*> visited;
-    while (!pending.empty()) {
-        auto current = pending.back();
-        pending.pop_back();
-        if (current == owner) {
-            return true;
-        }
-        if (!current || !visited.insert(current).second) {
-            continue;
-        }
-        auto ext = current->getExtensionByType<GroupExtension>(true);
-        if (ext) {
-            const auto& children = ext->Group.getValues();
-            pending.insert(pending.end(), children.begin(), children.end());
-        }
-    }
-    return false;
+    // Group links this group to its members, so a member that already depends on this group makes
+    // the group depend on itself: a group holding it (through the Group of its sub-groups), a link
+    // to it (App::Link refuses to be set to its own container in the same way) or any other link
+    // or expression. Ask the dependency graph, like for any other link: its in-lists are walked
+    // with a visited set, so a cycle that already exists (e.g. restored from a file) cannot make
+    // this loop forever.
+    return !getExtendedObject()->testIfLinkDAGCompatible(const_cast<DocumentObject*>(obj));
 }
 
 bool GroupExtension::isNewCyclicMember(const DocumentObject* obj) const
@@ -436,8 +422,8 @@ void GroupExtension::extensionOnChanged(const Property* p)
             auto corrected = Group.getValues();
             for (auto obj : Group.getValues()) {
 
-                // a group inside itself, directly or through sub-groups, makes every walk down
-                // the group tree loop forever
+                // a group inside itself, directly, through sub-groups or through a link to it,
+                // makes every walk down the group tree loop forever
                 if (isNewCyclicMember(obj)) {
                     cycle = true;
                     corrected.erase(std::remove(corrected.begin(), corrected.end(), obj),
@@ -466,9 +452,9 @@ void GroupExtension::extensionOnChanged(const Property* p)
             if (error || cycle) {
                 Base::ObjectStatusLocker<Property::Status, Property> guard(Property::User3, &Group);
                 Group.setValues(corrected);
-                throw Base::RuntimeError(cycle
-                                             ? "A group cannot contain itself or a group holding it"
-                                             : "Object can only be in a single Group");
+                throw Base::RuntimeError(
+                    cycle ? "A group cannot contain itself or an object that depends on it"
+                          : "Object can only be in a single Group");
             }
         }
     }
@@ -523,7 +509,7 @@ void GroupExtension::onExtendedDocumentRestored()
     auto owner = getExtendedObject();
     for (auto obj : Group.getValues()) {
         if (isCyclicMember(obj)) {
-            Base::Console().warning("'{}' contains itself through its Group member '{}'\n",
+            Base::Console().warning("'{}' depends on itself through its Group member '{}'\n",
                                     owner->getFullName(),
                                     obj->getFullName());
             break;

@@ -271,9 +271,9 @@ void GeoFeatureGroupExtension::extensionOnChanged(const Property* p)
             if (error || cycle) {
                 Base::ObjectStatusLocker<Property::Status, Property> guard(Property::User3, &Group);
                 Group.setValues(corrected);
-                throw Base::RuntimeError(cycle
-                                             ? "A group cannot contain itself or a group holding it"
-                                             : "Object can only be in a single GeoFeatureGroup");
+                throw Base::RuntimeError(
+                    cycle ? "A group cannot contain itself or an object that depends on it"
+                          : "Object can only be in a single GeoFeatureGroup");
             }
         }
 
