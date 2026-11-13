@@ -2222,6 +2222,35 @@ class BRepConversionTest(unittest.TestCase):
         document.recompute()
         self.assertEqual(obj.ConversionStatus, "Valid solid")
 
+    def test_crease_rejects_a_dissolved_edge(self):
+        document = App.newDocument("FormsTestCreaseDissolvedEdge")
+        obj = create_box(document)
+        document.recompute()
+        cage = ControlCage.from_object(obj)
+        dissolved = next(edge for edge, count in cage.edge_counts().items() if count == 2)
+        dissolve_edges(obj, [dissolved])
+        document.recompute()
+        volume = obj.Shape.Volume
+
+        with self.assertRaisesRegex(ValueError, "valid control edges"):
+            set_edge_crease(obj, [dissolved], 10.0)
+        self.assertEqual(list(obj.EdgeSharpness), [])
+        document.recompute()
+        self.assertAlmostEqual(obj.Shape.Volume, volume, places=6)
+
+        # The edges that remain visible around the merged face can still be creased.
+        mapper = ControlElementMapper(obj)
+        merged = next(
+            face
+            for face, group in zip(mapper.logical_faces, mapper.logical_face_groups)
+            if len(group) == 2
+        )
+        visible = tuple(sorted(merged[:2]))
+        set_edge_crease(obj, [visible], 10.0)
+        self.assertEqual(list(obj.EdgeSharpness), [f"{visible[0]} {visible[1]} 10"])
+        document.recompute()
+        self.assertEqual(obj.ConversionStatus, "Valid solid")
+
     def test_delete_edge_keeps_pipe_valid(self):
         document = App.newDocument("FormsTestDissolvePipeEdge")
         path = document.addObject("Part::Feature", "Path")
