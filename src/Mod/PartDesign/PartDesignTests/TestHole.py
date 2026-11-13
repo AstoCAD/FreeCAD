@@ -22,6 +22,8 @@
 #   USA                                                                   *
 # **************************************************************************
 from math import pi
+import os
+import tempfile
 import unittest
 
 import FreeCAD
@@ -294,6 +296,34 @@ class TestHole(unittest.TestCase):
             self.Hole.ThreadType = "ISOMetricProfile"
             self.assertEqual(self.Hole.HoleCutType, cut)
             self.assertIn("ReadOnly", self.Hole.getEditorMode("HoleCutCustomValues"), msg=cut)
+
+    def testClearanceFitKeptOnReload(self):
+        """The clearance fit of every thread standard survives saving and reopening"""
+        doc = FreeCAD.newDocument("PartDesignTestHoleFit")
+        name = doc.Name
+        try:
+            saved = []
+            for threadType in ("ISOMetricProfile", "UNC", "UNF", "UNEF", "NPT", "BSP", "BSW", "BSF"):
+                for fit in range(3):
+                    hole = doc.addObject("PartDesign::Hole", "FitHole")
+                    hole.ThreadType = threadType
+                    hole.ThreadSize = 5
+                    hole.ThreadFit = fit
+                    saved.append((hole.Name, hole.ThreadFit, hole.Diameter.Value))
+            with tempfile.TemporaryDirectory() as tmp:
+                path = os.path.join(tmp, "PartDesignTestHoleFit.FCStd")
+                doc.saveAs(path)
+                FreeCAD.closeDocument(name)
+                doc = FreeCAD.openDocument(path)
+                name = doc.Name
+                for holeName, fit, diameter in saved:
+                    hole = doc.getObject(holeName)
+                    msg = f"{hole.ThreadType} {fit}"
+                    self.assertEqual(hole.ThreadFit, fit, msg=msg)
+                    self.assertAlmostEqual(hole.Diameter.Value, diameter, msg=msg)
+        finally:
+            if name in FreeCAD.listDocuments():
+                FreeCAD.closeDocument(name)
 
     def testThreadEnums(self):
         """Test thread enums for correct order"""
