@@ -394,8 +394,18 @@ class Load:
             return True
         return False
 
+    def onBeforeChange(self, obj, prop):
+        if prop == "Placement":
+            # The frame follow_support moves the load from.
+            self._previous_placement = App.Placement(obj.Placement)
+
     def onChanged(self, obj, prop):
         if App.isRestoring() or getattr(self, "_restoring", False) or is_replaying(obj):
+            return
+        if getattr(self, "_following_support", False):
+            return  # Derived by follow_support, not an edit.
+        if prop == "Placement" and getattr(obj, "BodyI", None) and self._positioned_by_support(obj):
+            self.follow_support(obj)
             return
         if prop == "Formula" and getattr(self, "_updating_profile", False):
             return
@@ -438,6 +448,8 @@ class Load:
             *("Bushing" + kind + axis for kind in (
                 "LinearStiffness", "LinearDamping", "AngularStiffness", "AngularDamping"
             ) for axis in "XYZ"),
+            # With a support, these place the load (follow_support).
+            "AttachmentSupport", "MapMode", "AttachmentOffset", "MapReversed", "MapPathParameter",
         }:
             invalidate_results(obj)
 
@@ -481,6 +493,43 @@ class Load:
         finally:
             self._syncing_placement = False
 
+    def follow_support(self, obj):
+        """Move the load with the support that places it.
+
+        With an attachment support, the attachment engine computes Placement
+        from the support geometry (Placement is then read-only); the user
+        edits the support, map mode and offset instead, and those edits
+        invalidate results. Each Placement the engine writes moves frame I:
+        AttachmentI is the new frame on the component, a fixed Direction
+        turns with the frame's change relative to the component (none when
+        only the component moved), a follower Direction turns with the frame
+        itself, and the reference frame J of a torsional spring or bushing
+        keeps its pose relative to I. Every step is a rigid transport, so the
+        engine's intermediate reset of Placement to the identity
+        (AttachExtension::positionBySupport) cancels out.
+        """
+        component = _component_placement(obj.BodyI)
+        current = obj.Placement
+        before = component * obj.AttachmentI
+        previous = getattr(self, "_previous_placement", None)
+        if previous is None:
+            previous = before
+        self._previous_placement = None
+        change = current * before.inverse()
+        if obj.Follower and obj.LoadType in ("Force", "Torque"):
+            turn = current.Rotation * previous.Rotation.inverted()
+        else:
+            turn = change.Rotation
+        self._following_support = True
+        try:
+            obj.AttachmentI = component.inverse() * current
+            obj.Direction = turn.multVec(obj.Direction)
+            if obj.LoadType in ("TorsionalSpringDamper", "Bushing"):
+                body = _component_placement(obj.BodyJ) if obj.BodyJ else App.Placement()
+                obj.AttachmentJ = body.inverse() * change * body * obj.AttachmentJ
+        finally:
+            self._following_support = False
+
     def update_attachment(self, obj, reorient=True):
         if not hasattr(obj, "BodyI") or not obj.BodyI or not hasattr(obj, "Placement"):
             return
@@ -502,7 +551,10 @@ class Load:
             reoriented = reorient and not (
                 component_placement * obj.AttachmentI
             ).Rotation.isSame(placement.Rotation, 1e-9)
-            obj.AttachmentI = attachment
+            if attachment_changed:
+                # The view provider calls this again after each Placement
+                # change: rewriting the same attachment is not an edit.
+                obj.AttachmentI = attachment
             if reoriented:
                 obj.Direction = placement.Rotation.multVec(App.Vector(0, 0, 1))
             # Attachment task initialization may assign the same Placement.

@@ -552,6 +552,61 @@ class TestDynamics(unittest.TestCase):
         self.assertVectorClose(load.Direction, (0, 1, 0), delta=1e-9)
         self.assertVectorClose(Dynamics.load_visual_direction(load), (0, 1, 0), delta=1e-9)
 
+    def test_load_on_a_support_moves_with_it(self):
+        # The attachment engine first resets Placement to the identity, then
+        # writes the support's frame (AttachExtension::positionBySupport).
+        body = self.box()
+        other = self.box("Other", position=(50, 0, 0))
+        body.Placement.Rotation = App.Rotation(App.Vector(0, 0, 1), 90)
+        study = self.study(False)
+        force = Dynamics.create_load(study, "Force", body)
+        follower = Dynamics.create_load(study, "Force", body)
+        follower.Follower = True
+        spring = Dynamics.create_load(study, "TorsionalSpringDamper", body, body_j=other)
+        for load in (force, follower, spring):
+            load.AttachmentSupport = [(body, "Face6")]
+            load.MapMode = "FlatFace"
+        self.doc.recompute()
+        for load in (force, follower):
+            load.Direction = App.Vector(1, 0, 0)
+        reference = App.Placement(App.Vector(1, 2, 3), App.Rotation(App.Vector(0, 0, 1), 30))
+        spring.AttachmentJ = reference
+        attachment = App.Placement(spring.AttachmentI)
+        study.Status = "Complete"
+        study.ResultData = "{}"
+
+        # Recomputing the support puts the loads back where they are.
+        body.touch()
+        self.doc.recompute()
+        self.assertEqual(study.Status, "Complete")
+        self.assertVectorClose(force.Direction, (1, 0, 0), delta=1e-9)
+        self.assertVectorClose(follower.Direction, (1, 0, 0), delta=1e-9)
+        self.assertTrue(spring.AttachmentI.isSame(attachment, 1e-9))
+        self.assertTrue(spring.AttachmentJ.isSame(reference, 1e-9))
+
+        # The component turns: the loads stay on the face, a fixed direction
+        # stays in the assembly, a follower turns with the component.
+        body.Placement.Rotation = App.Rotation(App.Vector(0, 0, 1), 180)
+        self.doc.recompute()
+        self.assertEqual(study.Status, "Complete")
+        self.assertTrue(spring.AttachmentI.isSame(attachment, 1e-9))
+        self.assertTrue(spring.AttachmentJ.isSame(reference, 1e-9))
+        self.assertVectorClose(force.Direction, (1, 0, 0), delta=1e-9)
+        self.assertVectorClose(follower.Direction, (0, 1, 0), delta=1e-9)
+
+        # Turning the attachment is an edit: the direction turns with the
+        # frame and the spring's reference frame keeps its pose relative to I.
+        local = force.Placement.Rotation.inverted().multVec(force.Direction)
+        twist = Dynamics.attachment_placement(spring, "I").inverse() * Dynamics.attachment_placement(spring, "J")
+        offset = App.Placement(App.Vector(1, 2, 3), App.Rotation(App.Vector(0, 1, 0), 90))
+        force.AttachmentOffset = offset
+        spring.AttachmentOffset = offset
+        self.assertEqual(study.Status, "NotRun")
+        self.assertTrue(force.Placement.isSame(body.Placement * App.Placement(App.Vector(0, 0, 30), App.Rotation()) * offset, 1e-9))
+        self.assertVectorClose(force.Placement.Rotation.inverted().multVec(force.Direction), local, delta=1e-9)
+        self.assertTrue((Dynamics.attachment_placement(spring, "I").inverse()
+                         * Dynamics.attachment_placement(spring, "J")).isSame(twist, 1e-9))
+
     def test_torsional_spring_glyph_axis_is_the_simulated_axis(self):
         body = self.box()
         study = self.study(False)
