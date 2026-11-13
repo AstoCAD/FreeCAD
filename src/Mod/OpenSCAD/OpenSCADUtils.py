@@ -193,8 +193,9 @@ def call_openscad_with_pipes(input_filename, output_filename, output_extension, 
     # this could be changed to keep everything in memory, if desired.
     transfer_directory = tempfile.gettempdir()
 
-    # Load the data back in from our tempfile:
-    with open(input_filename) as datafile:
+    # Load the data back in from our tempfile, as bytes: OpenSCAD gets the
+    # file as it would read it itself.
+    with open(input_filename, "rb") as datafile:
         openscad_data = datafile.read()
         # On the command line this looks like:
         #   $ cat myfile.scad | openscad --export-format csg -o - -
@@ -202,7 +203,7 @@ def call_openscad_with_pipes(input_filename, output_filename, output_extension, 
                              stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
-        stdoutd,stderrd = p.communicate (input = openscad_data.encode('utf8'), timeout=15)
+        stdoutd,stderrd = p.communicate (input = openscad_data, timeout=15)
         stdoutd = stdoutd.decode("utf8")
         stderrd = stderrd.decode("utf8")
         if p.returncode != 0:
@@ -216,7 +217,7 @@ def call_openscad_with_pipes(input_filename, output_filename, output_extension, 
             else:
                 output_filename=os.path.join(dir1,'%s.%s' % \
                     (next(tempfilenamegen),output_extension))
-        with open(output_filename,"w") as outfile:
+        with open(output_filename, "w", encoding="utf-8") as outfile:
             outfile.write(stdoutd)
             return output_filename
 
