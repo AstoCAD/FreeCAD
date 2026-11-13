@@ -1246,6 +1246,34 @@ class MeshModuleExport(unittest.TestCase):
             Mesh.export([self.mesh], name, tolerance=0.1, exportAmfCompressed=False)
 
 
+class MeshRead3mfObjectName(unittest.TestCase):
+    """The object name of a 3MF file is read as UTF-8"""
+
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("Mesh3mfNameTest")
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)
+
+    def testNonAsciiName(self):
+        # The name attribute was converted to the local code page, so the imported
+        # object got a label that is not valid UTF-8 (e.g. on Windows)
+        label = "Pièce 测试"
+        mesh = self.doc.addObject("Mesh::Feature", "Box")
+        mesh.Mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        mesh.Label = label
+        with tempfile.TemporaryDirectory() as tmpDir:
+            fileName = os.path.join(tmpDir, "named.3mf")
+            Mesh.export([mesh], fileName)
+            # free the label: labels are unique in a document
+            mesh.Label = "Source"
+            Mesh.insert(fileName, self.doc.Name)
+        imported = [obj for obj in self.doc.Objects if obj is not mesh]
+        self.assertEqual(len(imported), 1)
+        self.assertEqual(imported[0].Label, label)
+        self.assertEqual(imported[0].Mesh.CountFacets, 12)
+
+
 class MeshDumpContent(unittest.TestCase):
     def setUp(self):
         self.doc = FreeCAD.newDocument("MeshDumpContentTest")
