@@ -192,6 +192,12 @@ bool Vector3<float_type>::IsOnLineSegment(
 {
     Vector3<float_type> vectorAB = endVct - startVct;
     Vector3<float_type> vectorAC = *this - startVct;
+
+    // a zero-length segment is a single point
+    if (vectorAB.Sqr() == 0) {
+        return *this == startVct;
+    }
+
     Vector3<float_type> crossproduct = vectorAB.Cross(vectorAC);
     float_type dotproduct = vectorAB.Dot(vectorAC);
 
@@ -309,7 +315,7 @@ Vector3<float_type> Vector3<float_type>::DistanceToLineSegment(
 {
     float_type len2 = Base::DistanceP2(rclP1, rclP2);
     if (len2 == 0) {
-        return rclP1;
+        return rclP1 - *this;
     }
 
     Vector3<float_type> p2p1 = rclP2 - rclP1;

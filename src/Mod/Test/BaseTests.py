@@ -245,6 +245,15 @@ class AlgebraTestCase(unittest.TestCase):
         self.assertTrue(math.isnan(v1.getAngle(v2)))
         self.assertTrue(math.isnan(v2.getAngle(v1)))
 
+    def testZeroLengthLineSegment(self):
+        # a segment whose end points coincide is a single point
+        pnt = FreeCAD.Vector(5, 5, 5)
+        vec = FreeCAD.Vector(1, 2, 3)
+        self.assertEqual(vec.distanceToLineSegment(pnt, pnt), FreeCAD.Vector(4, 3, 2))
+        self.assertEqual(pnt.distanceToLineSegment(pnt, pnt), FreeCAD.Vector(0, 0, 0))
+        self.assertFalse(vec.isOnLineSegment(pnt, pnt))
+        self.assertTrue(pnt.isOnLineSegment(pnt, pnt))
+
     def testMatrix(self):
         m = FreeCAD.Matrix(4, 2, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1)
         u = m.multiply(m.inverse())
