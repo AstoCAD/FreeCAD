@@ -301,6 +301,50 @@ class TestSketchGroups(unittest.TestCase):
             s.Geometry[mirroredLast].StartPoint,
             mirroredBefore + App.Vector(-delta.x, delta.y, 0),
         )
+    def testCarbonCopyKeepsWholeGroup(self):
+        # Carbon copy offset only the first three elements of each constraint: the later members
+        # of a group kept their source indices, so in a sketch that already had geometry they
+        # pointed at that sketch's own geometry, which the copied group then moved.
+        source = self.sketch
+        handle = self.line(10)
+        members = [
+            source.addGeometry(Part.LineSegment(App.Vector(12, 0, 0), App.Vector(15, 3, 0))),
+            source.addGeometry(Part.Circle(App.Vector(13, 6, 0), App.Vector(0, 0, 1), 1)),
+            source.addGeometry(Part.LineSegment(App.Vector(16, 0, 0), App.Vector(17, 3, 0))),
+            source.addGeometry(Part.Circle(App.Vector(19, 6, 0), App.Vector(0, 0, 1), 1)),
+        ]
+        source.addConstraint(self.group(handle, members))
+        self.assertEqual(source.solve(), 0)
+
+        target = self.doc.addObject("Sketcher::SketchObject", "Target")
+        own = [
+            target.addGeometry(Part.LineSegment(App.Vector(50, y, 0), App.Vector(60, y, 0)))
+            for y in range(6)
+        ]
+        self.doc.recompute()
+        target.carbonCopy(source.Name, False)
+        self.assertEqual(target.GeometryCount, len(own) + 5)
+
+        # Doubling the copied handle from its fixed start doubles every copied member and
+        # leaves the target's own geometry alone.
+        copy = len(own)
+        target.addConstraint(
+            [
+                Sketcher.Constraint("Vertical", copy),
+                Sketcher.Constraint("DistanceX", copy, 1, 10.0),
+                Sketcher.Constraint("DistanceY", copy, 1, 0.0),
+                Sketcher.Constraint("Distance", copy, 20.0),
+            ]
+        )
+        self.assertEqual(target.solve(), 0)
+        for y, geo in enumerate(own):
+            self.assertVector(target.Geometry[geo].StartPoint, App.Vector(50, y, 0))
+            self.assertVector(target.Geometry[geo].EndPoint, App.Vector(60, y, 0))
+        self.assertVector(target.Geometry[copy + 1].EndPoint, App.Vector(20, 6, 0))
+        self.assertVector(target.Geometry[copy + 2].Location, App.Vector(16, 12, 0))
+        self.assertVector(target.Geometry[copy + 3].EndPoint, App.Vector(24, 6, 0))
+        self.assertVector(target.Geometry[copy + 4].Location, App.Vector(28, 12, 0))
+        self.assertAlmostEqual(target.Geometry[copy + 4].Radius, 2)
 
     def assertValidIndices(self):
         count = self.sketch.GeometryCount

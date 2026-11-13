@@ -696,26 +696,26 @@ int SketchObject::carbonCopy(App::DocumentObject* pObj, bool construction)
         }
     };
 
+    // Source geometry follows the geometry already in this sketch, and source external geometry
+    // (other than the axes) follows this sketch's external geometry.
+    auto offsetGeoId = [nextgeoid, nextextgeoid](int geoId) {
+        if (geoId >= 0) {
+            return geoId + nextgeoid;
+        }
+        if (geoId < -2 && geoId != GeoEnum::GeoUndef) {
+            return geoId - (nextextgeoid - 2);
+        }
+        return geoId;
+    };
+
     for (const auto& constr : scvals) {
         Sketcher::Constraint* newConstr = constr->copy();
-        if (constr->First >= 0) {
-            newConstr->First += nextgeoid;
-        }
-        if (constr->Second >= 0) {
-            newConstr->Second += nextgeoid;
-        }
-        if (constr->Third >= 0) {
-            newConstr->Third += nextgeoid;
-        }
-
-        if (constr->First < -2 && constr->First != GeoEnum::GeoUndef) {
-            newConstr->First -= (nextextgeoid - 2);
-        }
-        if (constr->Second < -2 && constr->Second != GeoEnum::GeoUndef) {
-            newConstr->Second -= (nextextgeoid - 2);
-        }
-        if (constr->Third < -2 && constr->Third != GeoEnum::GeoUndef) {
-            newConstr->Third -= (nextextgeoid - 2);
+        newConstr->First = offsetGeoId(constr->First);
+        newConstr->Second = offsetGeoId(constr->Second);
+        newConstr->Third = offsetGeoId(constr->Third);
+        // Group and Text constraints list their further members past the first three elements.
+        for (int i = 3; constr->hasElement(i); ++i) {
+            newConstr->setGeoId(i, offsetGeoId(constr->getGeoId(i)));
         }
 
         if (xinv || yinv) {
