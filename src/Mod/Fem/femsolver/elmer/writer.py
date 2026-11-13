@@ -743,7 +743,7 @@ class Writer:
 
     def _writeSif(self):
         sifPath = os.path.join(self.directory, _SIF_NAME)
-        with open(sifPath, "w") as fstream:
+        with open(sifPath, "w", encoding="utf-8") as fstream:
             sif = sifio.Sif(self._builder)
             sif.write(fstream)
 
