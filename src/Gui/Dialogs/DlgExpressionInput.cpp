@@ -223,15 +223,15 @@ Base::Type DlgExpressionInput::determineTypeVarSet()
     // varset.  Since unit properties are derived from App::PropertyFloat, it
     // allows us to create a property and set the value.
 
-    std::string unitTypeString = impliedUnit.getTypeString();
-    if (unitTypeString.empty()) {
-        // no type was provided
+    if (impliedUnit == Base::Unit::One) {
+        // no unit was provided
         return Base::Type::BadType;
     }
 
-    std::string typeString = "App::Property" + unitTypeString;
-    // may return badType
-    return Base::Type::fromName(typeString.c_str());
+    // The rule of the user parameters: a length gets the signed App::PropertyDistance, as a
+    // coordinate or a sketch distance can be negative and App::PropertyLength clamps it to 0.
+    // May return badType.
+    return App::UserParameters::propertyTypeForUnit(impliedUnit);
 }
 
 bool DlgExpressionInput::typeOkForVarSet()

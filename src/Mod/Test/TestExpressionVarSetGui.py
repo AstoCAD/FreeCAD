@@ -226,6 +226,19 @@ class TestExpressionVarSetGui(unittest.TestCase):
     def testSketchRadiusExpressionImmediate(self):
         self.checkLiveHalfLength(self.sketch(radius=True))
 
+    def testPlacementCoordinateVariableIsSigned(self):
+        # A placement coordinate has no property of its own: the variable gets its type from the
+        # unit. For a length that was App::PropertyLength, which set a negative value to 0.
+        source = self.doc.addObject("App::FeaturePython", "Source")
+        source.addProperty("App::PropertyPlacement", "Placement")
+        self.doc.recompute()
+        self.assertAlmostEqual(self.store(source, "Placement.Base.x", "mm", "5 mm", "OffsetX"), 5)
+        self.assertEqual(self.variables.getTypeIdOfProperty("OffsetX"), "App::PropertyDistance")
+        self.variables.OffsetX = -5
+        self.doc.recompute()
+        self.assertAlmostEqual(self.variables.OffsetX.Value, -5)
+        self.assertAlmostEqual(source.Placement.Base.x, -5)
+
     def testFloatExpressionImmediate(self):
         source = self.doc.addObject("App::FeaturePython", "Source")
         source.addProperty("App::PropertyFloat", "Scale")
