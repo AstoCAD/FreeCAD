@@ -3670,6 +3670,10 @@ class DocumentPropertyCases(unittest.TestCase):
         self.Doc.recompute()
         self.Doc.UndoMode = 1
 
+        def bindings(obj):
+            # the path of a binding may be written with or without its leading dot
+            return [(path.lstrip("."), expr) for path, expr in obj.ExpressionEngine]
+
         self.Doc.openTransaction("Move property")
         source.moveProperty("Values", target)
         self.Doc.commitTransaction()
@@ -3677,17 +3681,17 @@ class DocumentPropertyCases(unittest.TestCase):
         self.assertFalse(hasattr(source, "Values"))
         self.assertEqual(target.Values, [1.0, 7.0, 3.0])
         self.assertEqual(source.ExpressionEngine, [])
-        self.assertEqual(target.ExpressionEngine, [(".Values[1]", "7")])
+        self.assertEqual(bindings(target), [("Values[1]", "7")])
 
         self.Doc.undo()
         self.assertFalse(hasattr(target, "Values"))
         self.assertEqual(source.Values, [1.0, 7.0, 3.0])
-        self.assertEqual(source.ExpressionEngine, [(".Values[1]", "7")])
+        self.assertEqual(bindings(source), [("Values[1]", "7")])
         self.assertEqual(target.ExpressionEngine, [])
 
         self.Doc.redo()
         self.assertFalse(hasattr(source, "Values"))
-        self.assertEqual(target.ExpressionEngine, [(".Values[1]", "7")])
+        self.assertEqual(bindings(target), [("Values[1]", "7")])
         target.Values = [1.0, 2.0, 3.0]
         self.Doc.recompute()
         self.assertEqual(target.Values, [1.0, 7.0, 3.0])
@@ -4140,6 +4144,25 @@ class DocumentExpressionCases(unittest.TestCase):
         obj.setExpression("Value", "sum(FL)")
         self.Doc.recompute()
         self.assertEqual(obj.Value, 10)
+
+    def testExpressionReferenceToSubObject(self):
+        # A path through a sub-object (Part.<<Inner.>>.Placement) did not resolve: the
+        # sub-object was looked up by its quoted name, "Sub-object ... not found"
+        part = self.Doc.addObject("App::Part", "Part")
+        inner = self.Doc.addObject("App::Part", "Inner")
+        part.addObject(inner)
+        part.Placement.Base.x = 100
+        inner.Placement.Base.x = 5
+        obj = self.Doc.addObject("App::FeaturePython", "Obj")
+        obj.addProperty("App::PropertyDistance", "Value")
+        self.assertAlmostEqual(obj.evalExpression("Part.<<Inner.>>.Placement.Base.x").Value, 5)
+        # _pla is the placement of the sub-object as seen from Part
+        self.assertAlmostEqual(obj.evalExpression("Part.<<Inner.>>._pla.Base.x"), 105)
+        self.assertAlmostEqual(part.evalExpression(".<<Inner.>>.Placement.Base.x").Value, 5)
+        obj.setExpression("Value", "Part.<<Inner.>>.Placement.Base.x * 2")
+        self.Doc.recompute()
+        self.assertTrue(obj.isValid())
+        self.assertAlmostEqual(obj.Value.Value, 10)
 
     def testLongNumberLiteral(self):
         # A decimal number of 40 characters or more overflowed the lexer's buffer

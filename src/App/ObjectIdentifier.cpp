@@ -1255,7 +1255,8 @@ Property* ObjectIdentifier::resolveProperty(const App::DocumentObject* obj,
                                             int& ptype) const
 {
     if (obj && !subObjectName.getString().empty()) {
-        sobj = obj->getSubObject(subObjectName.toString().c_str());
+        // The sub-object path itself, not its quoted form in the expression text (<<Sub.>>)
+        sobj = obj->getSubObject(subObjectName.getString().c_str());
         obj = sobj;
     }
     if (!obj) {
