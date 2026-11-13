@@ -288,6 +288,28 @@ class TestHole(unittest.TestCase):
             self.assertFalse(self.Hole.HoleCutCustomValues, msg=size)
             self.assertAlmostEqual(self.Hole.HoleCutDepth.Value, depth + thickness, msg=size)
 
+    def testIso12474CounterboreDepth(self):
+        """ISO 12474 screws have the ISO 4762 head, so their counterbores are the same"""
+        self.Hole.ThreadType = "ISOMetricFineProfile"
+        for size in ("M30x2.0", "M36x3.0", "M42x3.0"):
+            self.Hole.ThreadSize = size
+            self.Hole.HoleCutType = "ISO 4762"
+            diameter = self.Hole.HoleCutDiameter.Value
+            depth = self.Hole.HoleCutDepth.Value
+            self.Hole.HoleCutType = "ISO 12474"
+            self.assertFalse(self.Hole.HoleCutCustomValues, msg=size)
+            self.assertAlmostEqual(self.Hole.HoleCutDiameter.Value, diameter, msg=size)
+            self.assertAlmostEqual(self.Hole.HoleCutDepth.Value, depth, msg=size)
+        # the head of an M42 screw is 42 mm high
+        self.assertAlmostEqual(self.Hole.HoleCutDepth.Value, 43.0)
+
+    def testBspThreadDiameter(self):
+        """BSP thread sizes have the ISO 228-1 major diameter"""
+        self.Hole.ThreadType = "BSP"
+        for size, diameter in (("1 1/2", 47.803), ("1 3/4", 53.746), ("2", 59.614)):
+            self.Hole.ThreadSize = size
+            self.assertAlmostEqual(self.Hole.ThreadDiameter.Value, diameter, places=6, msg=size)
+
     def testHoleCutCustomValuesReadOnlyAfterThreadTypeChange(self):
         """Custom cut values are only editable for screw definition cut types"""
         for cut in ("None", "Counterbore", "Countersink"):
