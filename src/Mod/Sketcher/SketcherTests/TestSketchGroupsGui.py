@@ -277,3 +277,84 @@ class TestSketchGroupsGui(SketcherGuiTestCase):
         self.doc.undo()
         self.assertEqual(s.solve(), 0)
         self.assertEqual((s.GeometryCount, s.ConstraintCount), counts)
+
+    def testMirrorSketchKeepsWholeGroup(self):
+        # Mirror Sketch renumbered only the first three elements of the mirrored constraints:
+        # the last members of a group kept their index in the temporary sketch holding the
+        # original and the mirrored geometry, so the mirrored sketch was malformed.
+        Gui.activateWorkbench("SketcherWorkbench")
+        self.doc = App.newDocument("MirrorSketchGroup")
+        s = self.doc.addObject("Sketcher::SketchObject", "Sketch")
+        for x in (-50, -40):
+            s.addGeometry(Part.LineSegment(App.Vector(x, 0, 0), App.Vector(x, 7, 0)))
+        handle = s.addGeometry(
+            Part.LineSegment(App.Vector(10, 0, 0), App.Vector(10, 10, 0)), True
+        )
+        members = [
+            s.addGeometry(Part.LineSegment(App.Vector(12, 0, 0), App.Vector(15, 3, 0))),
+            s.addGeometry(Part.Circle(App.Vector(13, 6, 0), App.Vector(0, 0, 1), 1)),
+            s.addGeometry(Part.LineSegment(App.Vector(16, 0, 0), App.Vector(17, 3, 0))),
+            s.addGeometry(Part.LineSegment(App.Vector(18, 1, 0), App.Vector(19, 4, 0))),
+        ]
+        elements = [handle, 0]
+        for member in members:
+            elements.extend([member, 0])
+        s.addConstraint(Sketcher.Constraint("Group", elements))
+        self.assertEqual(s.solve(), 0)
+        self.doc.recompute()
+
+        errors = []
+
+        def mirror_about_y_axis():
+            dialog = QtGui.QApplication.activeModalWidget()
+            if dialog is None:
+                return
+            try:
+                self.assertEqual(dialog.objectName(), "SketcherGui::SketchMirrorDialog")
+                dialog.findChild(QtGui.QRadioButton, "YAxisRadioButton").click()
+                dialog.findChild(QtGui.QDialogButtonBox).button(QtGui.QDialogButtonBox.Ok).click()
+            except Exception:
+                import traceback
+
+                errors.append(traceback.format_exc())
+                dialog.reject()
+
+        closer = QtCore.QTimer(Gui.getMainWindow())
+        closer.timeout.connect(mirror_about_y_axis)
+        closer.start(25)
+        try:
+            Gui.Selection.clearSelection()
+            Gui.Selection.addSelection(s)
+            Gui.runCommand("Sketcher_MirrorSketch", 0)
+            self.flush_gui(50)
+        finally:
+            closer.stop()
+            closer.deleteLater()
+        self.assertEqual(errors, [])
+
+        mirrored = [o for o in self.doc.Objects if o.Name.startswith("MirroredSketch")]
+        self.assertEqual(len(mirrored), 1)
+        m = mirrored[0]
+        self.assertEqual(m.GeometryCount, s.GeometryCount)
+        self.assertEqual(sum(c.Type == "Group" for c in m.Constraints), 1)
+        self.assertEqual(m.solve(), 0)
+        self.assertLess((m.Geometry[members[1]].Center - App.Vector(-13, 6, 0)).Length, 1e-6)
+
+        # Keep the mirrored handle rigid: dragging it must translate every mirrored member,
+        # and nothing else.
+        m.addConstraint(Sketcher.Constraint("Vertical", handle))
+        m.addConstraint(Sketcher.Constraint("Distance", handle, 10.0))
+        self.assertEqual(m.solve(), 0)
+        others = [m.Geometry[g].StartPoint for g in range(handle)]
+        before = {g: m.Geometry[g] for g in members}
+        delta = App.Vector(-5, 4, 0)
+        m.moveGeometry(handle, 1, m.Geometry[handle].StartPoint + delta, 0)
+        self.assertEqual(m.solve(), 0)
+        for geo in members:
+            if geo == members[1]:
+                self.assertLess((m.Geometry[geo].Center - before[geo].Center - delta).Length, 1e-6)
+            else:
+                moved = m.Geometry[geo].StartPoint - before[geo].StartPoint
+                self.assertLess((moved - delta).Length, 1e-6, geo)
+        for geo, point in enumerate(others):
+            self.assertLess((m.Geometry[geo].StartPoint - point).Length, 1e-6, geo)
