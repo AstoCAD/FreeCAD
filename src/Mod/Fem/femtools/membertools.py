@@ -136,10 +136,11 @@ def get_mesh_to_solve(analysis):
     """Find one and only mesh object of *analysis*.
 
     :returns:
-     A tuple ``(object, message)``. If and only if the analysis contains
-     exactly one mesh object the first value of the tuple is the mesh document
-     object. Otherwise the first value is ``None`` and the second value is a
-     error message indicating what went wrong.
+     The mesh document object if the analysis contains exactly one mesh
+     object that is not suppressed.
+
+    :raises Base.FreeCADError:
+     If the analysis contains no such mesh object or more than one.
     """
     mesh_to_solve = None
     for m in analysis.Group:

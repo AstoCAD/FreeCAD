@@ -45,6 +45,7 @@ from femtest.app.test_security import TestPostDataObjectSecurity as FemTest17
 from femtest.app.test_post import TestPostGroups as FemTest18
 from femtest.app.test_object import TestConstraintReferences as FemTest19
 from femtest.app.test_mesh_nodes import TestMeshNodeSearch as FemTest20
+from femtest.app.test_solver_mystran import TestSolverMystranPrepare as FemTest21
 
 # dummy usage to get flake8 and lgtm quiet
 False if FemTest01.__name__ else True
@@ -66,3 +67,4 @@ False if FemTest17.__name__ else True
 False if FemTest18.__name__ else True
 False if FemTest19.__name__ else True
 False if FemTest20.__name__ else True
+False if FemTest21.__name__ else True
