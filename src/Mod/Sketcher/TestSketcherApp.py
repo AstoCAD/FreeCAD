@@ -68,6 +68,7 @@ from SketcherTests.TestSketchSplitTrimConstraints import TestSketchSplitTrimCons
 from SketcherTests.TestSketchSymmetricCopy import TestSketchSymmetricCopy
 from SketcherTests.TestSketchMoveUndo import TestSketchMoveUndo
 from SketcherTests.TestSketchExtendUndo import TestSketchExtendUndo
+from SketcherTests.TestSketchDeleteOnPointUndo import TestSketchDeleteOnPointUndo
 from SketcherTests.TestSketchReversedConicArcs import TestSketchReversedConicArcs
 from SketcherTests.TestSketchBSplineEndToEnd import TestSketchBSplineEndToEnd
 
@@ -113,6 +114,7 @@ __all__ = [
     "TestSketchSymmetricCopy",
     "TestSketchMoveUndo",
     "TestSketchExtendUndo",
+    "TestSketchDeleteOnPointUndo",
     "TestSketchReversedConicArcs",
     "TestSketchBSplineEndToEnd",
     "CreateCircleSketch",
