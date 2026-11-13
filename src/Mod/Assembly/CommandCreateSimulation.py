@@ -1014,7 +1014,9 @@ class TaskAssemblyCreateSimulation(QtCore.QObject):
 
     @staticmethod
     def reopen(simulation, tab=None):
-        if not simulation or not simulation.Document:
+        # A study removed meanwhile (deleted, or its creation undone) keeps its
+        # Document but is no longer attached to it.
+        if not simulation or not simulation.isAttachedToDocument():
             return
         # A deferred reopen must not build a panel (transaction, observer,
         # global task) when another dialog took the document in the meantime.

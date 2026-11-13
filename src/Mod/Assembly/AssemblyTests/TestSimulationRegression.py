@@ -508,6 +508,23 @@ class TestSimulationRegression(unittest.TestCase):
             self.assertIsNone(f.doc.getObject(name))
             self.assertEqual(errors, [])
 
+    def test_simulation_panel_is_not_reopened_on_a_removed_study(self):
+        # A child task reopens the simulation panel when it closes; undo may
+        # have removed the study meanwhile, which keeps its Document.
+        import CommandCreateSimulation
+        import UtilsAssembly
+        with self.mechanism() as f:
+            f.doc.UndoMode = 1
+            f.doc.openTransaction("Create Simulation")
+            group = UtilsAssembly.getSimulationGroup(f.assembly)
+            simulation = group.newObject("App::FeaturePython", "Simulation")
+            CommandCreateSimulation.Simulation(simulation)
+            f.doc.commitTransaction()
+            f.doc.undo()
+            self.assertIsNotNone(simulation.Document)
+            # Returns before touching the task view (none exists headless).
+            CommandCreateSimulation.TaskAssemblyCreateSimulation.reopen(simulation)
+
     def test_global_input_membership_invalidates_studies_and_undo_restores(self):
         # The tree moves inputs between a study and the Simulations group with
         # plain removeObject/addObject; the App group alone invalidates studies.
