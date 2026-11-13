@@ -166,6 +166,42 @@ class TestSketchJoinCurves(unittest.TestCase):
         self.assertTrue(poles)
         self._assertValid()
 
+    def _joinSplineWithControlPointsAndLine(self, splinePos):
+        # A B-spline with its control points and knots shown (as the GUI creates it) is joined
+        # at splinePos to a line that continues it. Solving must not change the joined curve.
+        spline = Part.BSplineCurve()
+        spline.buildFromPoles([V(0, 0, 0), V(2, 4, 0), V(6, 5, 0), V(9, 1, 0), V(12, 3, 0)], False, 3)
+        self.sketch.addGeometry(spline)  # 0
+        self.sketch.exposeInternalGeometry(0)
+        joint = self.sketch.getPoint(0, splinePos)
+        lineEnd = joint + V(-4, -3, 0) if splinePos == 1 else joint + V(4, -3, 0)
+        line = self._line((joint.x, joint.y, 0), (lineEnd.x, lineEnd.y, 0))
+        self.sketch.addConstraint(Sketcher.Constraint("Coincident", 0, splinePos, line, 1))
+        self.doc.recompute()
+        curves = [spline, Part.LineSegment(joint, lineEnd)]
+
+        self.sketch.join(0, splinePos, line, 1)
+
+        self._assertValid()
+        joined = [g for g in self.sketch.Geometry if isinstance(g, Part.BSplineCurve)]
+        self.assertEqual(len(joined), 1)
+        edge = joined[0].toShape()
+        for curve in curves:
+            for k in range(11):
+                point = curve.value(
+                    curve.FirstParameter + k * (curve.LastParameter - curve.FirstParameter) / 10
+                )
+                self.assertLess(edge.distToShape(Part.Vertex(point))[0], 1e-6, "the curve moved")
+
+    def testJoinAtStartOfSplineKeepsItsControlPoints(self):
+        # the spline is reversed to be joined at its start: its control points and knots must
+        # stay on the same poles and knots of the joined spline
+        self._joinSplineWithControlPointsAndLine(1)
+
+    def testJoinAtEndOfSplineKeepsItsControlPoints(self):
+        # control
+        self._joinSplineWithControlPointsAndLine(2)
+
     def _joinArcAndLine(self, arc, arcFirst, recompute=True):
         # the sketch end point of the arc (geometry 0) is joined to a line going down from it
         self.sketch.addGeometry(arc)  # 0

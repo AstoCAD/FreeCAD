@@ -1687,6 +1687,34 @@ int SketchObject::join(
     auto otherPosId2 = (Sketcher::PointPos::start == posId2) ? Sketcher::PointPos::end
                                                              : Sketcher::PointPos::start;
 
+    // A B-spline joined at its start point was reversed above: its poles and knots come in the
+    // opposite order in the new spline. Its exposed control points and knots stay where they
+    // are, so align each of them to the same pole or knot of the new spline.
+    if (Sketcher::PointPos::start == posId1 && geo1->is<Part::GeomBSplineCurve>()) {
+        const auto* bspline1 = static_cast<const Part::GeomBSplineCurve*>(geo1);
+        const int lastPole = bspline1->countPoles() - 1;
+        const int lastKnot = bspline1->countKnots() - 1;
+        const std::vector<Constraint*>& vals = Constraints.getValues();
+        std::vector<Constraint*> newVals(vals);
+        bool changed = false;
+        for (std::size_t i = 0; i < vals.size(); ++i) {
+            const Constraint* constr = vals[i];
+            if (constr->Type != InternalAlignment || constr->Second != geoId1
+                || (constr->AlignmentType != BSplineControlPoint
+                    && constr->AlignmentType != BSplineKnotPoint)) {
+                continue;
+            }
+            const int last = constr->AlignmentType == BSplineControlPoint ? lastPole : lastKnot;
+            Constraint* reversed = constr->clone();
+            reversed->InternalAlignmentIndex = last - constr->InternalAlignmentIndex;
+            newVals[i] = reversed;
+            changed = true;
+        }
+        if (changed) {
+            Constraints.setValues(std::move(newVals));
+        }
+    }
+
     // The new spline takes the place of geoId1, so the constraints of geoId1 stay on it.
     // Drop those that no longer make sense on the spline: the ones on the joined point (now
     // inside the curve), on the center and on the whole edge (length, horizontal, radius...),
@@ -1701,7 +1729,7 @@ int SketchObject::join(
         }
         if (constr->Type == InternalAlignment) {
             // The axes and foci of a conic do not belong to a B-spline. The poles and knots of
-            // a B-spline are matched again by exposeInternalGeometry() below.
+            // a B-spline (aligned above) are completed by exposeInternalGeometry() below.
             if (constr->Second == geoId1 && !geo1->is<Part::GeomBSplineCurve>()) {
                 obsoleteConstraints.push_back(i);
             }
