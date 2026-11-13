@@ -104,8 +104,8 @@ class TestDressupBoundaryDrill(PathTestUtils.PathTestBase):
     def tearDown(self):
         FreeCAD.closeDocument(self.doc.Name)
 
-    def _holes(self, x0, x1, inside):
-        boundary = Part.makeBox(x1 - x0, 100, 200, FreeCAD.Vector(x0, -50, -100))
+    def _holes(self, x0, x1, inside, z0=-100, z1=100):
+        boundary = Part.makeBox(x1 - x0, 100, z1 - z0, FreeCAD.Vector(x0, -50, z0))
         commands = PathDressupBoundary.PathBoundary(self.op, boundary, inside).execute()
         return [cmd.x for cmd in commands.Commands if cmd.Name == "G81"]
 
@@ -119,3 +119,19 @@ class TestDressupBoundaryDrill(PathTestUtils.PathTestBase):
         """Only the holes outside an excluding boundary are drilled."""
         self.assertEqual(self._holes(15, 25, False), [0, 40])
         self.assertEqual(self._holes(-10, 10, False), [20, 40])
+
+    def test02_boundary_below_the_tool(self):
+        """A boundary whose top is below the tool, as a stock boundary is, keeps its holes."""
+        self.assertGreater(self.op.SafeHeight.Value, 2)
+        self.assertEqual(self._holes(-10, 50, True, -10, 2), [0, 20, 40])
+        self.assertEqual(self._holes(30, 50, True, -10, 2), [40])
+        self.assertEqual(self._holes(15, 25, False, -10, 2), [0, 40])
+
+    def test03_hole_leaving_the_boundary(self):
+        """A hole that goes on below the boundary, or through a gap in it, is not drilled."""
+        self.assertEqual(self._holes(-10, 50, True, -3, 2), [])
+        boundary = Part.makeBox(60, 100, 3, FreeCAD.Vector(-10, -50, -7)).fuse(
+            Part.makeBox(60, 100, 4, FreeCAD.Vector(-10, -50, -2))
+        )
+        commands = PathDressupBoundary.PathBoundary(self.op, boundary, True).execute()
+        self.assertEqual([cmd.x for cmd in commands.Commands if cmd.Name == "G81"], [])
