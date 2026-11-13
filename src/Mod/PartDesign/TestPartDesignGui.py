@@ -39,7 +39,6 @@ from PySide.QtGui import QApplication
 from PartDesignTests.TestMaterial import TestMaterial
 from PartDesignTests.TestActiveObject import TestActiveObject
 from PartDesignTests.TestSuppressed import TestSuppressedStrikethrough
-from PartDesignTests.TestDeleteFeatureGui import TestDeleteFeatureGui
 from PartDesignTests.TestLoftSelectionGui import TestLoftSelectionGui
 from PartDesignTests.TestLoftVisibilityGui import TestLoftVisibilityGui
 from PartDesignTests.TestQuantityExpressionGui import (
@@ -64,6 +63,7 @@ from PartDesignTests.TestHoleThreadClipGui import TestHoleThreadClipGui
 from PartDesignTests.TestTransformedModeGui import TestTransformedModeGui
 from PartDesignTests.TestBodyLineWidthGui import TestBodyLineWidthGui
 from PartDesignTests.TestCloneColorGui import TestCloneColorGui
+from PartDesignTests.TestDeleteFeatureGui import TestDeleteFeatureGui
 from PartDesignTests.TestGroupCommandToolTipGui import TestGroupCommandToolTipGui
 from PartDesignTests.TestThicknessToolTipsGui import TestThicknessToolTipsGui
 from PartDesignTests.TestRememberLastLengthGui import TestRememberLastLengthGui
@@ -247,6 +247,29 @@ class PartDesignGuiTestCases(unittest.TestCase):
             self.assertAlmostEqual(feature.Shape.Volume, 60)
         finally:
             Gui.Selection.clearSelection()
+            Gui.getDocument(self.Doc.Name).resetEdit()
+            if Gui.Control.activeDialog():
+                Gui.Control.closeDialog()
+
+    def testPadShapeFaceButtonKeepsItsLabel(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/33888
+        feature, _ = self.makeLcsPlaneExtrusion("Pad")
+        try:
+            self.assertTrue(Gui.getDocument(self.Doc.Name).setEdit(feature.Name))
+            Gui.updateGui()
+            for name in ("buttonShapeFace", "buttonShapeFace2"):
+                with self.subTest(button=name):
+                    button = Gui.getMainWindow().findChild(QtGui.QToolButton, name)
+                    self.assertIsNotNone(button)
+                    self.assertFalse(button.isChecked())
+                    label = button.text()
+                    button.setChecked(True)
+                    Gui.updateGui()
+                    self.assertNotEqual(button.text(), label)
+                    button.setChecked(False)
+                    Gui.updateGui()
+                    self.assertEqual(button.text(), label)
+        finally:
             Gui.getDocument(self.Doc.Name).resetEdit()
             if Gui.Control.activeDialog():
                 Gui.Control.closeDialog()
