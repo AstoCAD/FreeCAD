@@ -267,6 +267,19 @@ class DraftDXF(test_base.DraftTestCaseDoc):
                 for name in set(App.listDocuments()) - docs_before:
                     App.closeDocument(name)
 
+    def test_legacy_deformat_special_characters(self):
+        """The legacy importer replaces \\U+XXXX and %% codes in texts by their characters."""
+        cases = {
+            "25\\U+00B0C": "25°C",
+            "\\U+2205 10 caf\\U+00e9": "∅ 10 café",
+            "%%c10 %%d %%C %%D": "Ø10 ° Ø °",
+            "{Plain text}": "Plain text",
+            "a\\U+ZZZZb": "a\\U+ZZZZb",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(importDXF.deformat(text), expected)
+
     def test_legacy_draw_invalid_ellipse(self):
         """The legacy importer reports an invalid ellipse instead of raising."""
         from unittest import mock
