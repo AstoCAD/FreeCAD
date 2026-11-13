@@ -622,6 +622,25 @@ class TestPathGeom(PathTestBase):
             self.assertRoughly(edge.Length, math.hypot(2 * math.pi, 2), 0.001)
             self.assertCoincide(edge.discretize(5)[1], quarter)
 
+    def test32(self):
+        """Verify an arc ending at its start is a full circle from there, in its direction."""
+        p1 = Vector(0, -5, 1)
+        lead_in = Path.Command("G1", {"X": 0, "Y": -5, "Z": 1})
+        for name, quarter in (("G2", Vector(-5, 0, 1)), ("G3", Vector(5, 0, 1))):
+            with self.subTest(name=name):
+                cmd = Path.Command(name, {"X": 0, "Y": -5, "Z": 1, "I": 0, "J": 5})
+                edge = Path.Geom.edgeForCmd(cmd, p1)
+                self.assertTrue(edge.isClosed())
+                self.assertRoughly(edge.Length, 10 * math.pi, 0.001)
+                self.assertCoincide(edge.valueAt(edge.FirstParameter), p1)
+                self.assertCoincide(edge.discretize(5)[1], quarter)
+                self.assertEqual(Path.Geom.cmdsForEdge(edge)[0].Name, name)
+
+                # the circle connects to the move leading to it
+                wire, _, _ = Path.Geom.wireForPath(Path.Path([lead_in, cmd]))
+                self.assertEqual(len(wire.Edges), 2)
+                self.assertRoughly(wire.Length, math.hypot(5, 1) + 10 * math.pi, 0.001)
+
     def test40(self):
         """Verify arc results in proper G2/G3 command."""
         p1 = Vector(0, -10, 0)

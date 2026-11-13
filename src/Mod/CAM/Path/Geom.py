@@ -515,7 +515,11 @@ def edgeForCmd(cmd, startPoint):
             # Path.Log.debug("EndPoint:{}".format(endPoint))
 
             if pointsCoincide(startPoint, endPoint, 0.001):
-                return Part.makeCircle(R, center, FreeCAD.Vector(0, 0, 1))
+                # A full circle starts and ends where the tool is and runs in
+                # the direction of the command, like any other arc.
+                circle = Part.Circle(center, Vector(0, 0, -1 if cw else 1), R)
+                start = circle.parameter(startPoint)
+                return Part.Edge(circle, start, start + 2 * math.pi)
             else:
                 return Part.Edge(Part.Arc(startPoint, midPoint, endPoint))
 
