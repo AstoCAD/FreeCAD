@@ -443,6 +443,9 @@ public:
 
 protected:
     void addModel(const QString& uuid);
+    void removeModel(const Model& model,
+                     QSet<QString>& modelUuids,
+                     std::map<QString, std::shared_ptr<MaterialProperty>>& properties);
     static void removeUUID(QSet<QString>& uuidList, const QString& uuid);
 
     static QVariant
