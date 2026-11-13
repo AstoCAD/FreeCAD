@@ -48,6 +48,7 @@ SET(OpenSCADTestsApp_SRCS
     OpenSCADTest/app/test_importCSGPolyhedron.py
     OpenSCADTest/app/test_exportCSGShapes.py
     OpenSCADTest/app/test_importCSGMeshFile.py
+    OpenSCADTest/app/test_importCSGTextEncoding.py
 )
 
 SET(OpenSCADTestsGui_SRCS
