@@ -83,10 +83,13 @@ def set_edge_crease(obj, edges, sharpness):
     reject_form_surface(obj, "Crease")
     cage = ControlCage.from_object(obj)
     encoded = str(getattr(obj, "TMeshData", "") or "")
+    # Only edges of the editable topology can carry a crease. A seam hidden
+    # inside a dissolved logical face is not one of them, as in the T-mesh
+    # branch, where a dissolved seam leaves the atomic edges.
     valid = (
         set(HierarchicalTMesh.decode(encoded).atomic_edges())
         if encoded
-        else set(cage.edge_counts())
+        else set(_materialized_edit_cage(obj).edge_counts())
     )
     selected = {tuple(sorted((int(edge[0]), int(edge[1])))) for edge in edges}
     axis = object_axis(obj)
