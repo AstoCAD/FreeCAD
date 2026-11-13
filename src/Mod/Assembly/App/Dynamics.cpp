@@ -1120,6 +1120,7 @@ size_t AssemblyObject::contactParts(std::vector<Object*> contacts, bool dynamics
     // A component's contact geometry does not depend on its pair: general and
     // set modes would otherwise rebuild it for every pair.
     std::map<Object*, std::shared_ptr<const ContactGeometry::Shape>> contactGeometry;
+    std::map<std::pair<Object*, Object*>, std::string> contactMarkers;
     const auto components = getAssemblyComponents(this);
     const std::set<Object*> membership(components.begin(), components.end());
     for (auto* contact : contacts) {
@@ -1217,23 +1218,28 @@ size_t AssemblyObject::contactParts(std::vector<Object*> contacts, bool dynamics
                     return geometry;
                 };
 
-                Base::Placement placementI = dataI.offsetPlc;
-                Base::Placement placementJ = dataJ.offsetPlc;
+                // A contact acts at the component's own frame, whichever its
+                // partner. Share one marker per component of a contact: a marker
+                // per pair made the solver update two more frames for every pair.
+                const auto marker = [&](Object* component, const MbDPartData& data) {
+                    auto& name = contactMarkers[{contact, component}];
+                    if (name.empty()) {
+                        std::string markerName = std::string("Contact_")
+                            + contact->getNameInDocument() + "_" + component->getNameInDocument();
+                        Base::Placement placement = data.offsetPlc;
+                        auto mbdMarker = makeMbdMarker(markerName, placement);
+                        data.part->addMarker(mbdMarker);
+                        name = mbdMarker->fullName("");
+                    }
+                    return name;
+                };
                 const std::string suffix = std::string("_")
                     + componentI->getNameInDocument() + "_" + componentJ->getNameInDocument();
-                std::string markerNameI = std::string("Contact_")
-                    + contact->getNameInDocument() + suffix + "_I";
-                std::string markerNameJ = std::string("Contact_")
-                    + contact->getNameInDocument() + suffix + "_J";
-                auto markerI = makeMbdMarker(markerNameI, placementI);
-                auto markerJ = makeMbdMarker(markerNameJ, placementJ);
-                dataI.part->addMarker(markerI);
-                dataJ.part->addMarker(markerJ);
 
                 auto load = MbD::ASMTForceTorque::With();
                 load->setName(contact->getFullName() + suffix);
-                load->setMarkerI(markerI->fullName(""));
-                load->setMarkerJ(markerJ->fullName(""));
+                load->setMarkerI(marker(componentI, dataI));
+                load->setMarkerJ(marker(componentJ, dataJ));
                 auto geometry = std::make_shared<ContactGeometry>(
                     prepared(componentI, shapeI), prepared(componentJ, shapeJ));
                 load->setContactStepValidator([geometry, stiffness,

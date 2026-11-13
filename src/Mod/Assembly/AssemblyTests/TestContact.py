@@ -318,6 +318,35 @@ class TestContact(unittest.TestCase):
                 self.assertLess(App.Vector(*velocity).Length, 0.01)
                 self.assertLess(App.Vector(*omega).Length, 1e-4)
 
+    def test_general_mode_matches_pairwise_contacts(self):
+        # A general contact acts at each component's own frame, whichever its
+        # partner, exactly like a separate contact for every pair.
+        ground = self.sphere("Ground", 0)
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        right = self.sphere("Right", 19.9)
+        far = self.sphere("Far", 39.8)
+        left = self.sphere("Left", -19.9)
+        components = [ground, right, far, left]
+        study = self.study("0.02 s")
+        general = Dynamics.create_contact(study, mode="General collision detection")
+        pairwise = [Dynamics.create_contact(study, components[i], components[j])
+                    for i in range(len(components)) for j in range(i + 1, len(components))]
+        for contact in [general] + pairwise:
+            contact.Stiffness = "1 N/mm"
+            contact.Damping = "0.1 kg/s"
+        results = []
+        for active in ([general], pairwise):
+            for contact in [general] + pairwise:
+                contact.Suppressed = contact not in active
+            results.append(Dynamics.run(study)["Bodies"])
+        for component in components[1:]:
+            for first, second in zip(results[0][component.Name]["Placements"],
+                                     results[1][component.Name]["Placements"]):
+                for a, b in zip(first, second):
+                    self.assertAlmostEqual(a, b, delta=1e-9)
+        self.assertGreater(results[0][far.Name]["Placements"][-1][0], 39.85)
+        self.assertLess(results[0][left.Name]["Placements"][-1][0], -19.95)
+
     def test_touching_free_components_fall_together(self):
         # Two free cubes touching face to face fall together. Their shared
         # motion is no contact travel: the run must not crawl in tiny steps.
