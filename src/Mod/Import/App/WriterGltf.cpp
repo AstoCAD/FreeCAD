@@ -20,17 +20,83 @@
  ******************************************************************************/
 
 
+#include <algorithm>
 #include <boost/core/ignore_unused.hpp>
 #include <Standard_Version.hxx>
+#include <BRep_Tool.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <Precision.hxx>
 #include <TColStd_IndexedDataMapOfStringString.hxx>
+#include <TDF_LabelSequence.hxx>
 #include <Message_ProgressRange.hxx>
 #include <RWGltf_CafWriter.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
 
 #include "WriterGltf.h"
+#include <App/Application.h>
 #include <Base/Exception.h>
+#include <Base/Tools.h>
 #include <Mod/Part/App/encodeFilename.h>
+#include <Mod/Part/App/Tools.h>
 
 using namespace Import;
+
+namespace
+{
+
+bool hasFaceWithoutTriangulation(const TopoDS_Shape& shape)
+{
+    for (TopExp_Explorer xp(shape, TopAbs_FACE); xp.More(); xp.Next()) {
+        TopLoc_Location location;
+        if (BRep_Tool::Triangulation(TopoDS::Face(xp.Current()), location).IsNull()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// glTF only stores triangle meshes and RWGltf_CafWriter skips every face without a
+// triangulation. In the GUI the view providers have usually triangulated the shapes already,
+// but hidden objects, transformed copies and shapes exported without GUI have none. Mesh those
+// with the parameters of the 3D view so that the result does not depend on the GUI. Shapes that
+// are completely triangulated are left untouched.
+void triangulateShapes(Handle(TDocStd_Document) hDoc)
+{
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/Part"
+    );
+    const double deviation = hGrp->GetFloat("MeshDeviation", 0.2);                  // NOLINT
+    const double angularDeflection = hGrp->GetFloat("MeshAngularDeflection", 28.5);  // NOLINT
+
+    Handle(XCAFDoc_ShapeTool) aShapeTool = XCAFDoc_DocumentTool::ShapeTool(hDoc->Main());
+    TDF_LabelSequence shapeLabels;
+    aShapeTool->GetShapes(shapeLabels);
+    for (Standard_Integer i = 1; i <= shapeLabels.Length(); i++) {
+        const TDF_Label& label = shapeLabels.Value(i);
+        // the components of an assembly refer to top-level shapes, which are meshed themselves
+        if (aShapeTool->IsAssembly(label)) {
+            continue;
+        }
+        TopoDS_Shape shape = aShapeTool->GetShape(label);
+        if (shape.IsNull() || !hasFaceWithoutTriangulation(shape)) {
+            continue;
+        }
+        const double deflection
+            = std::max(Part::Tools::getDeflection(shape, deviation), Precision::Confusion());
+        BRepMesh_IncrementalMesh(
+            shape,
+            deflection,
+            /*isRelative*/ Standard_False,
+            Base::toRadians(angularDeflection),
+            /*isInParallel*/ Standard_True
+        );
+    }
+}
+
+}  // namespace
 
 WriterGltf::WriterGltf(const Base::FileInfo& file)  // NOLINT
     : file {file}
@@ -38,6 +104,8 @@ WriterGltf::WriterGltf(const Base::FileInfo& file)  // NOLINT
 
 void WriterGltf::write(Handle(TDocStd_Document) hDoc) const  // NOLINT
 {
+    triangulateShapes(hDoc);
+
     std::string utf8Name = file.filePath();
     std::string name8bit = Part::encodeFilename(utf8Name);
 

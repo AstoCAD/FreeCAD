@@ -532,3 +532,42 @@ class StepMergeLinkGroupTest(unittest.TestCase):
                 self.assertEqual(feature.Name, features[0].Name)
         finally:
             App.closeDocument(doc.Name)
+
+
+class GltfExportTest(unittest.TestCase):
+    """glTF stores meshes only: shapes nobody has triangulated yet must be meshed on export."""
+
+    def setUp(self):
+        self.doc = App.newDocument()
+        self.fileName = os.path.join(tempfile.gettempdir(), "GltfExportTest.glb")
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+        if os.path.exists(self.fileName):
+            os.remove(self.fileName)
+
+    def testUntriangulatedShapesAreExported(self):
+        box = self.doc.addObject("Part::Box", "Box")
+        cylinder = self.doc.addObject("Part::Cylinder", "Cylinder")
+        cylinder.Placement.Base = App.Vector(20, 0, 0)
+        self.doc.recompute()
+        Import.export([box, cylinder], self.fileName)
+
+        doc = App.newDocument()
+        try:
+            Import.insert(self.fileName, doc.Name)
+            bounds = {
+                o.Label: o.Shape.BoundBox
+                for o in doc.Objects
+                if o.TypeId == "Part::Feature" and o.Shape.Faces
+            }
+        finally:
+            App.closeDocument(doc.Name)
+
+        self.assertEqual(sorted(bounds), ["Box", "Cylinder"])
+        self.assertAlmostEqual(bounds["Box"].Center.x, 5.0, places=3)
+        self.assertAlmostEqual(bounds["Box"].XLength, 10.0, places=3)
+        self.assertAlmostEqual(bounds["Box"].ZLength, 10.0, places=3)
+        self.assertAlmostEqual(bounds["Cylinder"].Center.x, 20.0, places=3)
+        self.assertAlmostEqual(bounds["Cylinder"].ZLength, 10.0, places=3)
+        self.assertAlmostEqual(bounds["Cylinder"].XLength, 4.0, delta=0.05)
