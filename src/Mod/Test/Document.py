@@ -1004,6 +1004,44 @@ class DocumentBasicCases(unittest.TestCase):
             self.Doc.recompute()
         self.assertEqual(obj.Base, obj)
 
+    def testXLinkHidden(self):
+        # App::PropertyXLinkHidden is to App::PropertyXLink what App::PropertyLinkHidden is
+        # to App::PropertyLink: a link, possibly to another document, that is hidden from
+        # dependency checking, so it can point back to an object that depends on its owner.
+        owner = self.Doc.addObject("App::FeaturePython", "Owner")
+        target = self.Doc.addObject("App::FeaturePython", "Target")
+        target.addProperty("App::PropertyLink", "Base")
+        target.Base = owner
+        owner.addProperty("App::PropertyXLinkHidden", "Hidden")
+        owner.addProperty("App::PropertyXLink", "Shown")
+        self.assertEqual(owner.getTypeIdOfProperty("Hidden"), "App::PropertyXLinkHidden")
+
+        owner.Hidden = target
+        self.assertEqual(owner.Hidden, target)
+        self.assertNotIn(target, owner.OutList)
+        self.assertNotIn(owner, target.InList)
+        # The same link through a plain App::PropertyXLink is a dependency.
+        owner.Shown = target
+        self.assertIn(target, owner.OutList)
+        owner.Shown = None
+
+        doc = self.saveAndRestore()
+        owner = doc.getObject("Owner")
+        self.assertEqual(owner.getTypeIdOfProperty("Hidden"), "App::PropertyXLinkHidden")
+        self.assertEqual(owner.Hidden, doc.getObject("Target"))
+        self.assertNotIn(doc.getObject("Target"), owner.OutList)
+
+        # A link to another document does not make the owner's document depend on it.
+        other = FreeCAD.newDocument("XLinkHiddenOther")
+        self.addCleanup(FreeCAD.closeDocument, other.Name)
+        external = other.addObject("App::FeaturePython", "External")
+        other.saveAs(tempfile.gettempdir() + os.sep + "XLinkHiddenOther.FCStd")
+        owner.Hidden = external
+        self.assertEqual(owner.Hidden, external)
+        self.assertNotIn(other, doc.getDependentDocuments())
+        owner.Shown = external
+        self.assertIn(other, doc.getDependentDocuments())
+
     def testLinkPropertyInfoByIndexAndName(self):
         # The index and name overloads ran after a failed PyArg_ParseTuple() without
         # clearing its error, so a valid call raised SystemError.

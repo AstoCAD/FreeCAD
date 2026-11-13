@@ -3808,6 +3808,7 @@ void PropertyLinkBase::breakLinks(App::DocumentObject* link,
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 TYPESYSTEM_SOURCE(App::PropertyXLink, App::PropertyLink)
+TYPESYSTEM_SOURCE(App::PropertyXLinkHidden, App::PropertyXLink)
 
 PropertyXLink::PropertyXLink(bool _allowPartial, PropertyLinkBase* parent)
     : parentProp(parent)
