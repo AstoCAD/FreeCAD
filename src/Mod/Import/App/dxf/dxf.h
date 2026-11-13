@@ -766,6 +766,8 @@ private:
     std::string m_encoding;  // A name for the encoding implied by m_version and m_CodePage
     bool UTF8ToUTF8(std::string& encoded) const;
     bool GeneralToUTF8(std::string& encoded) const;
+    // The name of a layer as given in the file, converted from the file encoding to UTF-8
+    std::string LayerNameToUTF8(const std::string& name) const;
 
     // Compare with specific object name for eObjectType records
     bool IsObjectName(const char* testName) const
