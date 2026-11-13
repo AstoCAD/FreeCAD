@@ -3482,6 +3482,25 @@ int Sketch::addAngleAtPointConstraint(
         ? *p2
         : p;
 
+    // An endpoint-to-endpoint angle between the two ends of the same B-spline joins them, so the
+    // coordinates of the point no longer tell GCS::BSpline::CalculateNormal(Point) which end it is
+    // asked about: it takes the normal at the start for both, and the angle between the two ends
+    // is lost. Take the normals at the end knots instead, for a clamped B-spline, whose ends are
+    // at the end knots.
+    double* endKnot1 = nullptr;
+    double* endKnot2 = nullptr;
+    if (e2e && geoId1 == geoId2 && Geoms[geoId1].type == BSpline) {
+        GCS::BSpline& bsp = BSplines[Geoms[geoId1].index];
+        if (!bsp.periodic && bsp.mult.front() > bsp.degree && bsp.mult.back() > bsp.degree) {
+            if (bsp.flattenedknots.empty()) {
+                bsp.setupFlattenedKnots();
+            }
+            endKnot1 = pos1 == PointPos::start ? bsp.knots.front() : bsp.knots.back();
+            endKnot2 = pos2 == PointPos::start ? bsp.knots.front() : bsp.knots.back();
+        }
+    }
+    const bool bsplineEndToEnd = endKnot1 && endKnot2;
+
     double* angle = value;
 
     // For tangency/perpendicularity, we don't just copy the angle.
@@ -3508,7 +3527,10 @@ int Sketch::addAngleAtPointConstraint(
         }
 
         if (*value == 0.0) {  // autodetect tangency internal/external (and same for perpendicularity)
-            double angleErr = GCSsys.calculateAngleViaPoint(*crv1, *crv2, pAngle) - angleDesire;
+            double angleErr = (bsplineEndToEnd
+                                   ? GCSsys.calculateAngleViaParams(*crv1, *crv2, endKnot1, endKnot2)
+                                   : GCSsys.calculateAngleViaPoint(*crv1, *crv2, pAngle))
+                - angleDesire;
             // bring angleErr to -pi..pi
             if (angleErr > pi) {
                 angleErr -= pi * 2;
@@ -3564,7 +3586,19 @@ int Sketch::addAngleAtPointConstraint(
     if (e2e) {
         tag = ++ConstraintsCounter;
         GCSsys.addConstraintP2PCoincident(p, *p2, tag, driving);
-        if (Geoms[geoId1].type == BSpline && Geoms[geoId2].type == BSpline) {
+        if (bsplineEndToEnd) {
+            GCSsys.addConstraintAngleViaPointAndTwoParams(
+                *crv1,
+                *crv2,
+                p,
+                endKnot1,
+                endKnot2,
+                angle,
+                tag,
+                driving
+            );
+        }
+        else if (Geoms[geoId1].type == BSpline && Geoms[geoId2].type == BSpline) {
             GCSsys.addConstraintAngleViaTwoPoints(*crv1, *crv2, p, *p2, angle, tag, driving);
         }
         else {
