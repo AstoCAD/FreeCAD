@@ -133,7 +133,7 @@ def getModelFromPath(filePath):
     """
     try:
         path = Path(filePath)
-        stream = open(path.absolute(), "r")
+        stream = open(path.absolute(), "r", encoding="utf-8")
         model = yaml.safe_load(stream)
 
         base = "Model"
