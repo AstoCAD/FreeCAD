@@ -1391,15 +1391,15 @@ def getSelectedComponents(assembly, selection):
 
     Takes an unresolved selection, Gui.Selection.getSelectionEx("*", 0). A pick
     inside a component (a face, a body feature, the content of a link) selects
-    that component occurrence, not the resolved sub-object or linked source.
+    that component occurrence, not the resolved sub-object or linked source. A
+    pick rooted at the component itself selects that component.
     """
     components = assembly.getComponents()
     selected = []
     for sel in selection:
         for sub in sel.SubElementNames or [""]:
-            if sub:
-                component, _ = getComponentReference(assembly, sel.Object, sub)
-            else:
+            component = getComponentReference(assembly, sel.Object, sub)[0] if sub else None
+            if component is None:
                 component = sel.Object
             if component in components and component not in selected:
                 selected.append(component)

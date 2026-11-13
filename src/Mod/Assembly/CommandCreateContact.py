@@ -45,20 +45,14 @@ def _assembly_for_owner(owner):
 
 
 def _selected_components(assembly, components):
-    """Components picked in the tree or the 3D view, in selection order.
-
-    The unresolved selection keeps the path from the root object, so a face
-    picked inside a Body or through a link still names its component.
-    """
-    selected = []
-    for entry in Gui.Selection.getSelectionEx("*", 0):
-        for path in entry.SubElementNames or [""]:
-            component, _ = UtilsAssembly.getComponentReference(assembly, entry.Object, path)
-            if component is None and entry.Object in components:
-                component = entry.Object
-            if component in components and component not in selected:
-                selected.append(component)
-    return selected
+    """Components picked in the tree or the 3D view, in selection order."""
+    return [
+        component
+        for component in UtilsAssembly.getSelectedComponents(
+            assembly, Gui.Selection.getSelectionEx("*", 0)
+        )
+        if component in components
+    ]
 
 
 def _show_task(contact, owner, resume_simulation=None):

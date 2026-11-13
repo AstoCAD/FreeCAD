@@ -267,6 +267,13 @@ class TestDynamics(unittest.TestCase):
         self.assertEqual(
             UtilsAssembly.getSelectedComponents(self.assembly, [pick(link)]), [link]
         )
+        # A pick rooted at the component itself names it, element included.
+        self.assertEqual(
+            UtilsAssembly.getSelectedComponents(
+                self.assembly, [pick(link, "Face1"), pick(box, "Edge2")]
+            ),
+            [link, box],
+        )
 
     def test_angular_stop_energy_and_damping_use_radians(self):
         ground = self.box("Ground", density=None)
