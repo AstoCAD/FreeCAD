@@ -694,7 +694,8 @@ class PathData:
             e
             for e in edges
             if Path.Geom.isRoughly(e.Vertexes[0].Point.z, minZ)
-            and Path.Geom.isRoughly(e.Vertexes[1].Point.z, minZ)
+            # a full circle is a closed edge with a single vertex
+            and Path.Geom.isRoughly(e.Vertexes[-1].Point.z, minZ)
         ]
         self.bottomEdges = Part.sortEdges(bottom)
         return [Part.Wire(se) for se in self.bottomEdges]

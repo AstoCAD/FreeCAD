@@ -26,6 +26,7 @@ import FreeCAD
 import math
 import Path.Dressup.Tags as PathDressupTag
 import Path.Main.Job as PathJob
+import Path.Op.Custom as PathCustom
 import Path.Op.Profile as PathProfile
 
 from FreeCAD import Vector
@@ -98,3 +99,38 @@ class TestHoldingTagsCreate(PathTestUtils.PathTestBase):
         group = self.job.Operations.Group
         self.assertIn(dressup, group)
         self.assertNotIn(self.profile, group)
+
+    def test11(self):
+        """Verify a full circle cut by one G2 is kept, tags or not."""
+        custom = PathCustom.Create("Custom")
+        custom.Gcode = [
+            "G0 Z10",
+            "G0 X50 Y45",
+            "G1 Z-1 F100",
+            "G2 X50 Y45 I0 J5 F200",
+            "G0 Z10",
+            "G0 X20 Y20",
+            "G1 Z-1 F100",
+            "G1 X40 Y20",
+            "G1 X40 Y30",
+            "G1 X20 Y30",
+            "G1 X20 Y20",
+            "G0 Z10",
+        ]
+        self.doc.recompute()
+
+        dressup = PathDressupTag.Create(custom)
+        self.doc.recompute()
+        dressup.Positions = [Vector(30, 20, 0), Vector(30, 30, 0)]
+        dressup.Disabled = []
+        self.doc.recompute()
+
+        commands = dressup.Path.Commands
+        circles = [c for c in commands if c.Name == "G2"]
+        self.assertEqual(len(circles), 1)
+        self.assertRoughly(circles[0].Parameters["X"], 50)
+        self.assertRoughly(circles[0].Parameters["Y"], 45)
+        self.assertRoughly(circles[0].Parameters["Z"], -1)
+        self.assertRoughly(circles[0].Parameters["J"], 5)
+        # the tags went onto the rectangle
+        self.assertTrue(any(c.Name == "G1" and c.Parameters.get("Z", -1) > 0 for c in commands))
