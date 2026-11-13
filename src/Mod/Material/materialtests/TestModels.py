@@ -346,3 +346,26 @@ class ModelTestCases(unittest.TestCase):
         self.assertEqual(prop.URL, "https://en.wikipedia.org/wiki/Young%27s_modulus")
         self.assertEqual(prop.Units, "kPa")
         self.assertEqual(prop.Description, "Young's modulus (or E-Module) in [FreeCAD Pressure unit]")
+
+    def testPythonModelReaderUsesUtf8(self):
+        """ materialtools.MaterialModels reads model files as UTF-8 whatever the locale """
+        import os
+        import tempfile
+        from materialtools import MaterialModels
+
+        # Greek letters and a dash as in the shipped models, plus U+014D whose UTF-8
+        # bytes cannot be decoded with the Windows cp1252 code page
+        description = "Ogden α μ – ō"
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "Utf8Model.yml")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(
+                    "Model:\n"
+                    '  Name: "Utf8 Model"\n'
+                    '  UUID: "5d4b0a8e-6c3f-4c55-9b7e-2a1f0e3c9d41"\n'
+                    '  URL: ""\n'
+                    '  Description: "' + description + '"\n'
+                )
+            data = MaterialModels.getModelFromPath(path)
+        self.assertIsNotNone(data)
+        self.assertEqual(data["model"]["Model"]["Description"], description)
