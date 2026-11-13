@@ -133,16 +133,24 @@ def process(filename):
     _regex = r"^\s*" + xval + r"\,?\s*" + yval + r"\s*$"
 
     regex = re.compile(_regex)
-    afile = pyopen(filename, "r")
+    # The coordinates are ASCII, but the name line and comments may be UTF-8
+    # or a legacy 8-bit encoding such as Latin-1. Files that are not valid
+    # UTF-8 are read as Latin-1, which decodes any byte sequence.
+    try:
+        with pyopen(filename, "r", encoding="utf-8-sig") as afile:
+            lines = afile.readlines()
+    except UnicodeDecodeError:
+        with pyopen(filename, "r", encoding="latin-1") as afile:
+            lines = afile.readlines()
     # read the airfoil name which is always in the first line
-    airfoilname = afile.readline().strip()
+    airfoilname = lines[0].strip() if lines else ""
 
     coords = []
     # upside = True
     # last_x = None
 
     # Collect the data
-    for lin in afile:
+    for lin in lines[1:]:
         curdat = regex.match(lin)
         if curdat is not None and curdat.group("xval") and curdat.group("yval"):
             x = float(curdat.group("xval"))
@@ -155,8 +163,6 @@ def process(filename):
             if x < 2 and y < 2:
                 # the normal processing
                 coords.append(Vector(x, y, 0))
-
-    afile.close()
 
     if len(coords) < 3:
         FCC.PrintError(translate("ImportAirfoilDAT", "Did not find enough coordinates") + "\n")
