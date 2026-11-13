@@ -146,5 +146,72 @@ class DraftOCARoundTrip(test_base.DraftTestCaseDoc):
         self._assert_points(area, [(50, 0, 0), (50, 10, 0), (60, 0, 0), (60, 10, 0)])
         self.assertAlmostEqual(Part.Face(area).Area, 100, places=6)
 
+    def _import(self, name, data):
+        """Write the bytes `data` to an OCA file and import it into a new document."""
+        import importOCA
+
+        path = os.path.join(self.tmpdir, name + ".oca")
+        with open(path, "wb") as f:
+            f.write(data)
+        dest = App.newDocument(name)
+        self.addCleanup(App.closeDocument, dest.Name)
+        importOCA.insert(path, dest.Name)
+        return dest
+
+    def test_import_circle_by_centre_and_point(self):
+        """A circle given by its centre and a point on it is imported."""
+        dest = self._import(
+            "OCACentrePoint",
+            b"P1=P(1 2 0)\r\nP2=P(4 6 0)\r\nC3=P1 P2\r\nC4=P(10 0 0) P(10 2 0)\r\n",
+        )
+        for name, center, radius in [("C3", (1, 2, 0), 5), ("C4", (10, 0, 0), 2)]:
+            edges = dest.getObject(name).Shape.Edges
+            self.assertEqual(len(edges), 1)
+            self.assertTrue(edges[0].isClosed())
+            self.assertAlmostEqual(edges[0].Curve.Radius, radius, places=9)
+            self.assertTrue(edges[0].Curve.Center.isEqual(App.Vector(center), 1e-9))
+
+    def test_export_line_ends(self):
+        """Every exported line ends with a single CR LF, on every platform."""
+        import importOCA
+
+        Vector = App.Vector
+        objs = [
+            self._add("Line", Part.makeLine(Vector(0, 0, 0), Vector(10, 0, 0))),
+            self._add("Circle", Part.makeCircle(5, Vector(40, 0, 0))),
+            self._add("Square", Part.makePlane(10, 10, Vector(50, 0, 0))),
+        ]
+        self.doc.recompute()
+        path = os.path.join(self.tmpdir, "line_ends.oca")
+        importOCA.export(objs, path)
+        with open(path, "rb") as f:
+            lines = f.read().split(b"\r\n")
+        self.assertEqual(lines[-1], b"")
+        self.assertEqual(len(lines), 7)
+        for line in lines[:-1]:
+            self.assertNotIn(b"\r", line)
+            self.assertNotIn(b"\n", line)
+
+    def test_import_line_ends(self):
+        """CR LF, CR CR LF (earlier exports on Windows) and LF line ends read the same."""
+        text = (
+            "#oca file generated from FreeCAD\n# edges\n"
+            "L1=P(0.0 0.0 0.0) P(10.0 0.0 0.0)\nC2= P(40.0 0.0 0.0) VAL(5.0)\n"
+            "# faces\nA3=S(POL P(50.0 0.0 0.0) P(60.0 0.0 0.0) P(60.0 10.0 0.0)"
+            " P(50.0 10.0 0.0) P(50.0 0.0 0.0))\n"
+        )
+        results = []
+        for name, eol in [("OCACRLF", "\r\n"), ("OCACRCRLF", "\r\r\n"), ("OCALF", "\n")]:
+            dest = self._import(name, text.replace("\n", eol).encode())
+            results.append(
+                sorted(
+                    (o.Name, o.Shape.ShapeType, [tuple(v.Point) for v in o.Shape.Vertexes])
+                    for o in dest.Objects
+                )
+            )
+        self.assertEqual([r[0] for r in results[0]], ["A3", "C2", "L1"])
+        self.assertEqual(results[1], results[0])
+        self.assertEqual(results[2], results[0])
+
 
 ## @}
