@@ -160,6 +160,7 @@ public:
     static double SnapDimensionsTextFactor();
     static double SnapDimensionsChainFactor();
 
+    static double cascadeSpacing();
 
     static Qt::KeyboardModifiers multiselectModifiers();
 

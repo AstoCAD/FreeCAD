@@ -24,6 +24,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
@@ -31,14 +33,15 @@
 
 
 class dimAttributes {
-    double cascadeSpacing;
+    // set for the session by the Select Line Attributes task, else the preference is used
+    std::optional<double> cascadeSpacing;
     double lineStretch;
 
     public:
 
     dimAttributes();
     void setCascadeSpacing(double);
-    double getCascadeSpacing() {return cascadeSpacing;}
+    double getCascadeSpacing() const;
     void setLineStretch(double);
     double getLineStretch() {return lineStretch;}
 
