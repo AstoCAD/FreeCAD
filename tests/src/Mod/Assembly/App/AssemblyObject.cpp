@@ -626,3 +626,89 @@ TEST_F(AssemblyObjectTest, dragAfterFailedSolveDoesNotThrow)  // NOLINT
     EXPECT_EQ(assembly->getLastSolverStatus(), 0);
     EXPECT_NO_THROW(assembly->postDrag());
 }
+
+// An ungrounded island is dragged through the solver (prepareMbdForIslandDrag): the dragged
+// part is a drag target although it is neither connected to ground nor rigid-clustered, so
+// the part jointed to it follows.
+TEST_F(AssemblyObjectTest, ungroundedIslandFollowsTheDraggedPart)  // NOLINT
+{
+    auto* assembly = getObject();
+    auto* doc = assembly->getDocument();
+    auto* joints = assembly->getJointGroup();
+    ASSERT_NE(joints, nullptr);
+
+    Base::Interpreter().runString(
+        "class _AssemblyIslandTestJointProxy:\n"
+        "    def setJointConnectors(self, *args):\n"
+        "        pass\n"
+        "_assemblyIslandTestJointProxy = _AssemblyIslandTestJointProxy()\n"
+    );
+
+    const auto box = [&](const char* name, double x) {
+        auto* object = doc->addObject<Part::Box>(name);
+        object->execute();
+        object->Placement.setValue(Base::Placement(Base::Vector3d(x, 0, 0), Base::Rotation()));
+        assembly->addObject(object);
+        return object;
+    };
+    auto* dragged = box("Dragged", 0);
+    auto* follower = box("Follower", 20);
+
+    auto* joint = doc->addObject("App::FeaturePython", "Revolute");
+    joints->addObject(joint);
+    auto* jointType = static_cast<App::PropertyEnumeration*>(
+        joint->addDynamicProperty("App::PropertyEnumeration", "JointType")
+    );
+    jointType->setEnums({"Fixed",
+                         "Revolute",
+                         "Cylindrical",
+                         "Slider",
+                         "Ball",
+                         "Distance",
+                         "Parallel",
+                         "Perpendicular",
+                         "Angle",
+                         "RackPinion",
+                         "Screw",
+                         "Gears",
+                         "Belt"});
+    jointType->setValue(static_cast<long>(Assembly::JointType::Revolute));
+    joint->addDynamicProperty("App::PropertyBool", "Suppressed");
+    joint->addDynamicProperty("App::PropertyFloat", "Distance");
+    joint->addDynamicProperty("App::PropertyFloat", "Distance2");
+    static_cast<App::PropertyXLinkSub*>(
+        joint->addDynamicProperty("App::PropertyXLinkSub", "Reference1")
+    )->setValue(dragged, std::vector<std::string> {""});
+    static_cast<App::PropertyXLinkSub*>(
+        joint->addDynamicProperty("App::PropertyXLinkSub", "Reference2")
+    )->setValue(follower, std::vector<std::string> {""});
+    // Both connectors sit at (20, 0, 0) in the assembly: the joint is satisfied as built.
+    static_cast<App::PropertyPlacement*>(
+        joint->addDynamicProperty("App::PropertyPlacement", "Placement1")
+    )->setValue(Base::Placement(Base::Vector3d(20, 0, 0), Base::Rotation()));
+    joint->addDynamicProperty("App::PropertyPlacement", "Placement2");
+    {
+        Base::PyGILStateLocker lock;
+        joint->getPropertyByName<App::PropertyPythonObject>("Proxy")->setValue(
+            Py::Module("__main__").getAttr("_assemblyIslandTestJointProxy")
+        );
+    }
+
+    ASSERT_EQ(assembly->getJoints().size(), 1U);
+    ASSERT_FALSE(assembly->isPartConnected(dragged));
+
+    assembly->preDrag({dragged});
+    dragged->Placement.setValue(Base::Placement(Base::Vector3d(0, 5, 0), Base::Rotation()));
+    assembly->doDragStep();
+    assembly->postDrag();
+
+    // The drag step holds the dragged part near the requested position and lets it turn;
+    // the follower is solved to keep the revolute connectors together.
+    const Base::Placement draggedPlc = dragged->Placement.getValue();
+    EXPECT_NEAR(draggedPlc.getPosition().y, 5.0, 1e-3);
+    Base::Vector3d connector1;
+    draggedPlc.multVec(Base::Vector3d(20, 0, 0), connector1);
+    const Base::Vector3d connector2 = follower->Placement.getValue().getPosition();
+    EXPECT_LT((connector1 - connector2).Length(), 1e-6);
+    EXPECT_GT((connector2 - Base::Vector3d(20, 0, 0)).Length(), 0.1);
+}
