@@ -817,6 +817,93 @@ TEST_F(SketchObjectTest, testReverseAngleConstraintToSupplementaryExpressionFunc
     EXPECT_EQ(std::string("atan(0.03)"), getObject()->getConstraintExpression(id));
 }
 
+namespace
+{
+// Adds a line with a distance constraint to the sketch, returns the index of the constraint.
+int addLineWithDistance(Sketcher::SketchObject* obj, const std::string& name = std::string())
+{
+    Part::GeomLineSegment line;
+    setupLineSegment(line);
+    auto constraint = std::make_unique<Sketcher::Constraint>();
+    constraint->Type = Sketcher::ConstraintType::Distance;
+    constraint->First = obj->addGeometry(&line);
+    constraint->setValue(2.0);
+    constraint->Name = name;
+    return obj->addConstraint(constraint.get());
+}
+
+// A sketch with three distance constraints, the second one named "len", whose expressions refer
+// to another sketch and to the other constraints of the sketch.
+Sketcher::SketchObject* setupSketchWithExpressions(App::Document* doc)
+{
+    auto other = static_cast<Sketcher::SketchObject*>(doc->addObject("Sketcher::SketchObject", "Other"));
+    addLineWithDistance(other);
+    auto source = static_cast<Sketcher::SketchObject*>(doc->addObject("Sketcher::SketchObject", "Source"));
+    addLineWithDistance(source);
+    addLineWithDistance(source, "len");
+    addLineWithDistance(source);
+    auto setExpression = [source](int id, const std::string& expr) {
+        source->setExpression(source->Constraints.createPath(id), App::Expression::parse(source, expr));
+    };
+    setExpression(0, "Other.Constraints[0] * 3");
+    setExpression(1, "Constraints[0] * 2");
+    setExpression(2, ".Constraints.len + 1 mm");
+    return source;
+}
+
+// The constraints of the source as Sketcher_MergeSketches copies them, after its geometry (the
+// copies keep the geometry indices of the source, all within the target here).
+int copyConstraints(Sketcher::SketchObject* target, const Sketcher::SketchObject* source)
+{
+    target->addGeometry(source->getInternalGeometry());
+    return target->addCopyOfConstraints(*source);
+}
+}  // namespace
+
+TEST_F(SketchObjectTest, testAddCopyOfConstraintsCopiesExpressions)
+{
+    // Arrange
+    auto target = getObject();
+    addLineWithDistance(target);
+    auto source = setupSketchWithExpressions(target->getDocument());
+
+    // Act
+    int last = copyConstraints(target, source);
+
+    // Assert
+    EXPECT_EQ(last, 3);
+    EXPECT_FALSE(target->constraintHasExpression(0));
+    // a reference to another object is kept, those to the source's constraints follow the copies
+    EXPECT_EQ(std::string("Other.Constraints[0] * 3"), target->getConstraintExpression(1));
+    EXPECT_EQ(std::string("Constraints[1] * 2"), target->getConstraintExpression(2));
+    EXPECT_EQ(std::string(".Constraints.len + 1 mm"), target->getConstraintExpression(3));
+    // the copies belong to the target
+    auto expr = target->getExpression(target->Constraints.createPath(3)).expression;
+    ASSERT_NE(expr, nullptr);
+    EXPECT_EQ(expr->getOwner(), target);
+    // the source is unchanged
+    EXPECT_EQ(std::string("Constraints[0] * 2"), source->getConstraintExpression(1));
+}
+
+TEST_F(SketchObjectTest, testAddCopyOfConstraintsKeepsExpressionsOfNamesInUse)
+{
+    // Arrange
+    auto target = getObject();
+    addLineWithDistance(target, "len");
+    auto source = setupSketchWithExpressions(target->getDocument());
+
+    // Act
+    copyConstraints(target, source);
+
+    // Assert
+    // The copy of "len" (2) has the name of constraint 0: its expression would be bound to
+    // constraint 0, so it is not copied, and a reference to it uses its index.
+    EXPECT_FALSE(target->constraintHasExpression(0));
+    EXPECT_EQ(std::string("Other.Constraints[0] * 3"), target->getConstraintExpression(1));
+    EXPECT_FALSE(target->constraintHasExpression(2));
+    EXPECT_EQ(std::string("Constraints[2] + 1 mm"), target->getConstraintExpression(3));
+}
+
 TEST_F(SketchObjectTest, testGetElementName)
 {
     // Arrange
