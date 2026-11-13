@@ -61,7 +61,7 @@ else:
 hassetcolor = []
 alreadyhidden = []
 original_root_objects = []
-# Objects whose shape was copied into a non-parametric feature: they stay
+# Objects whose geometry was copied into a non-parametric feature: they stay
 # orphaned root objects in the document but must remain hidden.
 consumed_objects = []
 
@@ -507,6 +507,7 @@ def p_resize_action(p):
 
     new_part=doc.addObject("Part::FeaturePython",'Matrix Deformation')
     new_part.Shape = part.Shape.transformGeometry(transform_matrix)
+    consumed_objects.append(part)
     if gui:
         if FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/OpenSCAD").\
             GetBool('useViewProviderTree'):
@@ -911,6 +912,7 @@ def process_mesh_file(fname,ext):
         if solid.Volume < 0:
             solid.complement()
         obj.Shape = solid
+        consumed_objects.append(mesh1)
     else: #mesh1 is None
         FreeCAD.Console.PrintError('Mesh not imported %s.%s %s\n' % \
                 (objname,ext,filename))
