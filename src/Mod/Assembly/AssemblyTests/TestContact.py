@@ -254,6 +254,54 @@ class TestContact(unittest.TestCase):
         self.assertAlmostEqual(force["TorqueX"][0], 0, delta=1e-6)
         self.assertAlmostEqual(force["TorqueY"][0], 0, delta=1e-6)
 
+    def test_finely_meshed_face_presses_at_its_centroid(self):
+        # The bottom face around an off-centre hole has many triangles. A
+        # uniformly pressed face must act at its centroid, whatever subset of
+        # triangles carries the quadrature.
+        holed = Part.makeBox(10, 10, 10, App.Vector(-5, -5, 0)).cut(
+            Part.makeCylinder(3, 12, App.Vector(1, 0.5, -1)))
+        body = self.centered_box("Body", (10, 10, 10))
+        body.Shape = holed
+        body.Placement.Base = App.Vector(0, 0, -0.01)
+        support = self.centered_box("Support", (40, 40, 10), (0, 0, -10))
+        support.setPropertyStatus("Placement", "ReadOnly")
+        study = self.study("0.000001 s")
+        study.OutputStep = study.EndTime
+        Dynamics.create_contact(study, body, support).Stiffness = "1 N/mm"
+        force = next(iter(Dynamics.run(study)["Loads"].values()))
+        actual = App.Vector(*(force["Force" + axis][0] for axis in "XYZ"))
+        moment = App.Vector(*(force["Torque" + axis][0] for axis in "XYZ"))
+        # Torque about the body frame, whose origin is on the pressed face.
+        bottom = next(face for face in holed.Faces if abs(face.CenterOfMass.z) < 1e-9)
+        self.assertLess((actual - App.Vector(0, 0, 0.01)).Length, 1e-7)
+        self.assertLess((moment - bottom.CenterOfMass.cross(actual)).Length, 1e-4)
+
+    def resting_cylinder(self, shape):
+        ground = self.centered_box("Ground", (60, 60, 10), (0, 0, -10))
+        ground.setPropertyStatus("Placement", "ReadOnly")
+        body = self.centered_box("Cylinder", (10, 10, 10))
+        body.Shape = shape
+        study = self.study("0.06 s")
+        study.GravityEnabled = True
+        contact = Dynamics.create_contact(study, body, ground)
+        contact.Stiffness = "1 N/mm"
+        contact.Damping = "0.5 kg/s"
+        return Dynamics.run(study)["Bodies"][body.Name]
+
+    def test_cylinder_standing_on_its_end_comes_to_rest(self):
+        result = self.resting_cylinder(Part.makeCylinder(5, 20))
+        # m*g/k: 0.00157 kg * 9.81 m/s^2 / (1 N/mm).
+        self.assertAlmostEqual(result["Placements"][-1][2], -math.pi * 25 * 20e-6 * 9.81, delta=1e-4)
+        self.assertLess(App.Vector(*result["Velocity"][-1]).Length, 0.01)
+        self.assertLess(App.Vector(*result["AngularVelocity"][-1]).Length, 1e-3)
+
+    def test_cylinder_lying_on_its_side_comes_to_rest_without_spinning(self):
+        # Frictionless normal forces cannot spin a cylinder about its axis.
+        result = self.resting_cylinder(
+            Part.makeCylinder(5, 20, App.Vector(-10, 0, 5), App.Vector(1, 0, 0)))
+        self.assertLess(App.Vector(*result["Velocity"][-1]).Length, 0.02)
+        self.assertLess(App.Vector(*result["AngularVelocity"][-1]).Length, 1e-3)
+
     def test_simulation_contact_is_local(self):
         first = self.sphere("First", -15)
         second = self.sphere("Second", 15)

@@ -27,7 +27,9 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
+#include <numeric>
 #include <stdexcept>
 #include <utility>
 #include <BRepAdaptor_Surface.hxx>
@@ -75,6 +77,21 @@ Vec transformed(const Base::Placement& placement, const Vec& value)
 TopoDS_Shape moved(const TopoDS_Shape& shape, const Base::Placement& delta)
 {
     return BRepBuilderAPI_Transform(shape, Part::TopoShape::convert(delta.toMatrix()), false).Shape();
+}
+
+// Interleaves the low 10 bits of three cell indices (Morton order), so that
+// consecutive keys are close in space.
+std::uint32_t mortonKey(std::uint32_t x, std::uint32_t y, std::uint32_t z)
+{
+    const auto spread = [](std::uint32_t v) {
+        v &= 0x3ffU;
+        v = (v | (v << 16U)) & 0x030000ffU;
+        v = (v | (v << 8U)) & 0x0300f00fU;
+        v = (v | (v << 4U)) & 0x030c30c3U;
+        v = (v | (v << 2U)) & 0x09249249U;
+        return v;
+    };
+    return spread(x) | (spread(y) << 1U) | (spread(z) << 2U);
 }
 
 struct Witness
@@ -142,28 +159,112 @@ struct ContactGeometry::Shape
             }
             // Keep a small, deterministic surface quadrature per face, in the
             // reference geometry frame (never a world-axis-aligned proxy).
+            // Its weights must reproduce the face's area and centroid: a
+            // biased centre of pressure makes a resting part rock, and a
+            // curved part spin, under normal forces alone.
             TopLoc_Location location;
             const auto mesh = BRep_Tool::Triangulation(face, location);
             if (!mesh.IsNull()) {
-                const int stride = std::max(1, mesh->NbTriangles() / 16);
-                for (int i = 1; i <= mesh->NbTriangles(); i += stride) {
-                    int a, b, c;
-                    mesh->Triangle(i).Get(a, b, c);
-                    const Vec pa = vector(mesh->Node(a).Transformed(location.Transformation()));
-                    const Vec pb = vector(mesh->Node(b).Transformed(location.Transformation()));
-                    const Vec pc = vector(mesh->Node(c).Transformed(location.Transformation()));
-                    const double weight = (pb - pa).Cross(pc - pa).Length() * stride / 8;
-                    // Interior quadrature points retain a face manifold even
-                    // when all topological vertices lie on shared side faces.
-                    for (const Vec& sample : {(pa + pb + pc) / 3.0,
-                            pa * 0.6 + pb * 0.2 + pc * 0.2,
-                            pa * 0.2 + pb * 0.6 + pc * 0.2,
-                            pa * 0.2 + pb * 0.2 + pc * 0.6}) {
-                        BRepExtrema_DistShapeShape projection(
-                            BRepBuilderAPI_MakeVertex(point(sample)), face
-                        );
-                        if (projection.IsDone() && projection.NbSolution() > 0)
-                            samples.push_back({vector(projection.PointOnShape2(1)), sampleNormal, weight});
+                const gp_Trsf& transformation = location.Transformation();
+                const int count = mesh->NbTriangles();
+                const bool planar = surface.GetType() == GeomAbs_Plane;
+                const auto project = [&](const Vec& sample, double weight) {
+                    BRepExtrema_DistShapeShape projection(
+                        BRepBuilderAPI_MakeVertex(point(sample)), face
+                    );
+                    if (projection.IsDone() && projection.NbSolution() > 0)
+                        samples.push_back({vector(projection.PointOnShape2(1)), sampleNormal, weight});
+                };
+                // Interior quadrature points retain a face manifold even
+                // when all topological vertices lie on shared side faces.
+                // Their equal weights integrate linear functions exactly.
+                constexpr std::array<std::array<double, 3>, 4> rule {{
+                    {1.0 / 3, 1.0 / 3, 1.0 / 3}, {0.6, 0.2, 0.2}, {0.2, 0.6, 0.2}, {0.2, 0.2, 0.6}}};
+                if (count <= 128) {
+                    // Every triangle. A planar face contains its interior
+                    // points; on a curved face, the triangulation's parameters
+                    // give the surface point without a projection.
+                    const bool parameters = !planar && mesh->HasUVNodes();
+                    for (int i = 1; i <= count; ++i) {
+                        int a, b, c;
+                        mesh->Triangle(i).Get(a, b, c);
+                        const Vec pa = vector(mesh->Node(a).Transformed(transformation));
+                        const Vec pb = vector(mesh->Node(b).Transformed(transformation));
+                        const Vec pc = vector(mesh->Node(c).Transformed(transformation));
+                        const double weight = (pb - pa).Cross(pc - pa).Length() / 8;
+                        for (size_t r = 0; r < rule.size(); ++r) {
+                            const auto& [la, lb, lc] = rule[r];
+                            const Vec sample = r == 0 ? (pa + pb + pc) / 3.0
+                                                      : pa * la + pb * lb + pc * lc;
+                            if (count < 32) {
+                                // Small faces keep their established samples.
+                                project(sample, weight);
+                            }
+                            else if (planar) {
+                                samples.push_back({sample, sampleNormal, weight});
+                            }
+                            else if (parameters) {
+                                const gp_XY uv = mesh->UVNode(a).XY() * la
+                                    + mesh->UVNode(b).XY() * lb + mesh->UVNode(c).XY() * lc;
+                                samples.push_back({vector(surface.Value(uv.X(), uv.Y())),
+                                                   sampleNormal, weight});
+                            }
+                            else {
+                                project(sample, weight);
+                            }
+                        }
+                    }
+                }
+                else {
+                    // A finely meshed face: one sample per spatially compact
+                    // cluster of triangles (consecutive in Morton order), at
+                    // the cluster's area centroid with the cluster's area.
+                    constexpr int clusters = 64;
+                    std::vector<Vec> centroids(count);
+                    std::vector<double> areas(count);
+                    Bnd_Box extent;
+                    for (int i = 1; i <= count; ++i) {
+                        int a, b, c;
+                        mesh->Triangle(i).Get(a, b, c);
+                        const Vec pa = vector(mesh->Node(a).Transformed(transformation));
+                        const Vec pb = vector(mesh->Node(b).Transformed(transformation));
+                        const Vec pc = vector(mesh->Node(c).Transformed(transformation));
+                        centroids[i - 1] = (pa + pb + pc) / 3.0;
+                        areas[i - 1] = (pb - pa).Cross(pc - pa).Length() / 2;
+                        extent.Add(point(centroids[i - 1]));
+                    }
+                    std::array<double, 6> limits {};
+                    extent.Get(limits[0], limits[1], limits[2], limits[3], limits[4], limits[5]);
+                    const Vec low(limits[0], limits[1], limits[2]);
+                    const Vec size(limits[3] - limits[0], limits[4] - limits[1], limits[5] - limits[2]);
+                    const auto cell = [](double offset, double length) {
+                        return length > 0
+                            ? static_cast<std::uint32_t>(std::clamp(offset / length, 0.0, 1.0) * 1023)
+                            : 0U;
+                    };
+                    std::vector<std::uint32_t> keys(count);
+                    for (int i = 0; i < count; ++i) {
+                        const Vec offset = centroids[i] - low;
+                        keys[i] = mortonKey(cell(offset.x, size.x), cell(offset.y, size.y),
+                                            cell(offset.z, size.z));
+                    }
+                    std::vector<int> order(count);
+                    std::iota(order.begin(), order.end(), 0);
+                    std::stable_sort(order.begin(), order.end(),
+                                     [&keys](int first, int second) { return keys[first] < keys[second]; });
+                    for (int cluster = 0; cluster < clusters; ++cluster) {
+                        const int begin = cluster * count / clusters;
+                        const int end = (cluster + 1) * count / clusters;
+                        double area = 0;
+                        Vec moment;
+                        for (int k = begin; k < end; ++k) {
+                            area += areas[order[k]];
+                            moment += centroids[order[k]] * areas[order[k]];
+                        }
+                        if (!(area > 0)) continue;
+                        const Vec centroid = moment / area;
+                        if (planar) samples.push_back({centroid, sampleNormal, area});
+                        else project(centroid, area);
                     }
                 }
             }
