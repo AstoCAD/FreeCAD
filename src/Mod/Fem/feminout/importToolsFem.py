@@ -363,7 +363,6 @@ def fill_femresult_mechanical(res_obj, result_set):
 
     if "time" in result_set:
         step_time = result_set["time"]
-        step_time = round(step_time, 2)
 
     disp = None
     # if disp exists, fill res_obj.NodeNumbers and

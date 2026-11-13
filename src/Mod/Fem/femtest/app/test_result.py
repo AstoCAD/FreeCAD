@@ -278,6 +278,53 @@ class TestResult(unittest.TestCase):
         self.assertEqual(len(frames), 2, f"unexpected frames: {frames}")
 
     # ********************************************************************************************
+    def test_frd_import_small_time_increments(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/13887
+        # the result object names were made from the increment time rounded to two decimals,
+        # all increments of a transient analysis with small time steps were named "Time_0.0"
+        import ObjectsFem
+        from feminout import importCcxFrdResults
+
+        frd_file = join(testtools.get_fem_test_home_dir(), "calculix", "box_static.frd")
+        with open(frd_file) as f:
+            lines = f.read().splitlines()
+        # mesh, then the result blocks of the only increment (from the first PSTEP) up to 9999
+        first_step = next(i for i, ln in enumerate(lines) if ln[4:10] == "1PSTEP")
+        mesh_part = lines[:first_step]
+        step_part = lines[first_step:-1]
+        frd_lines = list(mesh_part)
+        for step_time in ("1.00000E-04", "2.50000E-04"):
+            for ln in step_part:
+                if ln[2:7] == "100CL":
+                    ln = ln[:13] + step_time + ln[24:]
+                frd_lines.append(ln)
+        frd_lines.append(lines[-1])
+        test_frd = join(testtools.get_fem_test_tmp_dir("result_frd_time"), "box_transient.frd")
+        with open(test_frd, "w") as f:
+            f.write("\n".join(frd_lines) + "\n")
+
+        analysis = ObjectsFem.makeAnalysis(self.document, "Analysis")
+        importCcxFrdResults.importFrd(test_frd, analysis, "CCX_", "thermomech")
+
+        labels = sorted(
+            obj.Label for obj in analysis.Group if obj.isDerivedFrom("Fem::FemResultObject")
+        )
+        self.assertEqual(labels, ["CCX_Time_0_0001_Results", "CCX_Time_0_00025_Results"])
+
+    # ********************************************************************************************
+    def test_fill_result_keeps_exact_time(self):
+        # https://github.com/FreeCAD/FreeCAD/issues/13887
+        # the Time property of a result object was rounded to two decimals
+        import ObjectsFem
+        from feminout import importToolsFem
+
+        res_obj = ObjectsFem.makeResultMechanical(self.document, "Result")
+        result_set = {"time": 2.5e-4, "temp": {1: 293.15, 2: 300.0}}
+        importToolsFem.fill_femresult_mechanical(res_obj, result_set)
+        self.assertEqual(res_obj.Temperature, [293.15, 300.0])
+        self.assertEqual(res_obj.Time, 2.5e-4)
+
+    # ********************************************************************************************
     def test_frd_import_multistep_node_number_gap(self):
         # the result mesh of the first result set was compacted (node numbers from 1 without
         # gaps), the meshes of the next result sets were not, but got the compacted NodeNumbers
