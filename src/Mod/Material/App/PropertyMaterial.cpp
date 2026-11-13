@@ -117,6 +117,12 @@ void PropertyMaterial::Save(Base::Writer& writer) const
     auto card = embeddedCard();
     if (!card.empty()) {
         writer.Stream() << " card=\"" << encodeAttribute(card) << "\"";
+        // The card holds all the values, so it is saved without an Inherits section: keep the
+        // parent separately
+        auto parent = _material.getParentUUID();
+        if (!parent.isEmpty()) {
+            writer.Stream() << " parent=\"" << encodeAttribute(parent.toStdString()) << "\"";
+        }
     }
     writer.Stream() << "/>" << std::endl;
 }
@@ -134,6 +140,10 @@ void PropertyMaterial::Restore(Base::XMLReader& reader)
         try {
             auto material =
                 MaterialLoader::materialFromYAML(reader.getAttribute<const char*>("card"));
+            if (reader.hasAttribute("parent")) {
+                material->setParentUUID(
+                    QString::fromUtf8(reader.getAttribute<const char*>("parent")));
+            }
             setValue(*material);
             return;
         }

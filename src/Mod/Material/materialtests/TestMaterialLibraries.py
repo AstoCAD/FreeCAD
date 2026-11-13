@@ -403,3 +403,24 @@ class EmbeddedMaterialTestCases(unittest.TestCase):
         with zipfile.ZipFile(doc.FileName) as archive:
             xml = archive.read("Document.xml").decode("utf-8")
         self.assertIn('<PropertyMaterial uuid="{}"/>'.format(UUIDSteel), xml)
+
+    def testParentOfScriptMaterialSurvivesSaveAndReopen(self):
+        """A material built in a script keeps its parent and all its values"""
+        material = Materials.Material()
+        material.Name = "Derived steel"
+        material.Parent = UUIDSteel
+        material.addPhysicalModel(self.uuids.Density)
+        material.setPhysicalValue("Density", "7777 kg/m^3")
+
+        doc = self.newDocument()
+        box = doc.addObject("Part::Box", "Box")
+        box.ShapeMaterial = material
+        doc.recompute()
+
+        doc = self.saveAndReopen(doc)
+        restored = doc.getObject("Box").ShapeMaterial
+        self.assertEqual(restored.UUID, material.UUID)
+        self.assertEqual(restored.Parent, UUIDSteel)
+        self.assertAlmostEqual(
+            restored.getPhysicalValue("Density").getValueAs("kg/m^3").Value, 7777.0
+        )
