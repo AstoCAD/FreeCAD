@@ -35,8 +35,11 @@
 # @{
 
 import os
+import shutil
+import tempfile
 
 import FreeCAD as App
+import Part
 import Draft
 from drafttests import auxiliary as aux
 from drafttests import test_base
@@ -72,6 +75,76 @@ class DraftOCA(test_base.DraftTestCaseDoc):
 
         obj = aux.fake_function(out_file)
         self.assertTrue(obj, "'{}' failed".format(operation))
+
+
+class DraftOCARoundTrip(test_base.DraftTestCaseDoc):
+    """Test that the OCA importer reads what the OCA exporter writes."""
+
+    def setUp(self):
+        super().setUp()
+        self.tmpdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmpdir, True)
+        # areas are only imported with this preference
+        grp = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Draft")
+        if "ocaareas" in grp.GetBools():
+            self.addCleanup(grp.SetBool, "ocaareas", grp.GetBool("ocaareas"))
+        else:
+            self.addCleanup(grp.RemBool, "ocaareas")
+        grp.SetBool("ocaareas", True)
+
+    def _add(self, name, shape):
+        obj = self.doc.addObject("Part::Feature", name)
+        obj.Shape = shape
+        return obj
+
+    def _assert_points(self, shape, points):
+        found = sorted(tuple(round(c, 9) for c in v.Point) for v in shape.Vertexes)
+        self.assertEqual(found, sorted(points))
+
+    def test_export_import_round_trip(self):
+        """Lines, arcs, circles and faces survive an export and an import."""
+        import importOCA
+
+        Vector = App.Vector
+        objs = [
+            self._add("Line", Part.makeLine(Vector(0, 0, 0), Vector(10, 0, 0))),
+            self._add("Arc", Part.makeCircle(5, Vector(20, 0, 0), Vector(0, 0, 1), 0, 90)),
+            self._add("Circle", Part.makeCircle(5, Vector(40, 0, 0))),
+            self._add("Square", Part.makePlane(10, 10, Vector(50, 0, 0))),
+        ]
+        self.doc.recompute()
+        path = os.path.join(self.tmpdir, "round_trip.oca")
+        importOCA.export(objs, path)
+
+        dest = App.newDocument("OCARoundTrip")
+        self.addCleanup(App.closeDocument, dest.Name)
+        importOCA.insert(path, dest.Name)
+        self.assertEqual(sorted(o.Name for o in dest.Objects), ["A4", "C2", "C3", "L1"])
+
+        line = dest.getObject("L1").Shape
+        self._assert_points(line, [(0, 0, 0), (10, 0, 0)])
+
+        arc = dest.getObject("C2").Shape
+        self.assertEqual(len(arc.Edges), 1)
+        self.assertIsInstance(arc.Edges[0].Curve, Part.Circle)
+        self.assertAlmostEqual(arc.Edges[0].Curve.Radius, 5, places=6)
+        self.assertTrue(arc.Edges[0].Curve.Center.isEqual(Vector(20, 0, 0), 1e-6))
+        self._assert_points(arc, [(20, 5, 0), (25, 0, 0)])
+
+        circle = dest.getObject("C3").Shape
+        self.assertEqual(len(circle.Edges), 1)
+        self.assertTrue(circle.Edges[0].isClosed())
+        self.assertAlmostEqual(circle.Edges[0].Curve.Radius, 5, places=6)
+        self.assertTrue(circle.Edges[0].Curve.Center.isEqual(Vector(40, 0, 0), 1e-6))
+
+        # areas are imported as closed polygons; a wrong vertex order
+        # gives a self-intersecting polygon without the square's area
+        area = dest.getObject("A4").Shape
+        self.assertEqual(area.ShapeType, "Wire")
+        self.assertTrue(area.isClosed())
+        self.assertEqual(len(area.Edges), 4)
+        self._assert_points(area, [(50, 0, 0), (50, 10, 0), (60, 0, 0), (60, 10, 0)])
+        self.assertAlmostEqual(Part.Face(area).Area, 100, places=6)
 
 
 ## @}
