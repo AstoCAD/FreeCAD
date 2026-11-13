@@ -161,6 +161,36 @@ class TestTestPost(PathTestUtils.PathTestBase):
         # print(f"--------{nl}{gcode}--------{nl}")
         self.assertEqual(gcode.splitlines()[4], "G0 X10.000 Y30.000 Z30.000")
 
+    def test00101(self):
+        """Test that axis modal does not take the F of a rapid move as the feed rate."""
+        self.profile_op.Path = Path.Path(
+            [
+                Path.Command("G1 X1 F10"),
+                Path.Command("G0 X2 F20"),
+                Path.Command("G1 X3 F20"),
+            ]
+        )
+        self.job.PostProcessorArgs = "--axis-modal"
+        gcode = self.post.export()[0][1]
+        self.assertEqual(
+            gcode.splitlines()[3:],
+            ["G1 X1.000 F600.000", "G0 X2.000", "G1 X3.000 F1200.000"],
+        )
+
+    def test00102(self):
+        """Test that axis modal does not take the Z of a drill cycle as the current Z."""
+        self.profile_op.Path = Path.Path(
+            [
+                Path.Command("G0 X0 Y0 Z10"),
+                Path.Command("G81 X1 Y1 Z-5 R2 F5"),
+                Path.Command("G1 X1 Y1 Z-5 F5"),
+            ]
+        )
+        self.job.PostProcessorArgs = "--axis-modal"
+        gcode = self.post.export()[0][1]
+        # the cycle retracts to Z10, so the move to Z-5 needs its Z
+        self.assertEqual(gcode.splitlines()[-2:], ["G80", "G1 Z-5.000"])
+
     #############################################################################
 
     def test00110(self):
@@ -1170,6 +1200,26 @@ G0 Z8.000
         gcode = self.post.export()[0][1]
         # print(f"--------{nl}{gcode}--------{nl}")
         self.assertEqual(gcode.splitlines()[4], "G0 X10.000 Y30.000 Z30.000")
+
+    def test00181(self):
+        """Test that modal keeps repeated comments and non-modal commands."""
+        self.profile_op.Path = Path.Path(
+            [
+                Path.Command("(note)"),
+                Path.Command("(note)"),
+                Path.Command("G4 P1"),
+                Path.Command("G4 P1"),
+                Path.Command("G1 X1"),
+                Path.Command("G1 X2"),
+            ]
+        )
+        self.job.PostProcessorArgs = "--modal --comments"
+        split_gcode = self.post.export()[0][1].splitlines()
+        start = split_gcode.index("(note)")
+        self.assertEqual(
+            split_gcode[start : start + 6],
+            ["(note)", "(note)", "G4 P1.0", "G4 P1.0", "G1 X1.000", "X2.000"],
+        )
 
     #############################################################################
 
