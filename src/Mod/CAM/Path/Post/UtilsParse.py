@@ -46,6 +46,26 @@ Values = Dict[str, Any]
 
 ParameterFunction = Callable[[Values, str, str, PathParameter, PathParameters], str]
 
+# A value for the tracked location and feed rate that isn't likely to match any "real"
+# parameter value, so the next parameter value is always output
+UNKNOWN_LOCATION: float = 123456789.0
+
+# Non-modal G codes (modal group 0) act only on the line they are on,
+# so they have to be repeated on every line that uses them
+NON_MODAL_COMMANDS = (
+    "G4",
+    "G04",
+    "G10",
+    "G28",
+    "G30",
+    "G52",
+    "G53",
+    "G92",
+    "G92.1",
+    "G92.2",
+    "G92.3",
+)
+
 
 def check_for_an_adaptive_op(
     values: Values,
@@ -689,7 +709,7 @@ def parse_a_path(values: Values, gcode: Gcode, pathobj) -> None:
     # initialize currrent_location for tracking
     # the goal is to have initial values that aren't likely to match
     # any "real" first parameter values
-    current_location.update({k: 123456789.0 for k in "XYZUVWABCF"})
+    current_location.update({k: UNKNOWN_LOCATION for k in "XYZUVWABCF"})
 
     adaptive_op_variables = determine_adaptive_op(values, pathobj)
 
@@ -723,8 +743,14 @@ def parse_a_path(values: Values, gcode: Gcode, pathobj) -> None:
             command = cmd
         # Add the command name to the command line
         command_line.append(command)
-        # if modal: suppress the command if it is the same as the last one
-        if values["MODAL"] and command == lastcommand:
+        # if modal: suppress the command if it is the same as the last one,
+        # but never a comment or a non-modal command
+        if (
+            values["MODAL"]
+            and command == lastcommand
+            and not c.Name.startswith("(")
+            and command not in NON_MODAL_COMMANDS
+        ):
             command_line.pop(0)
 
         # Now add the remaining parameters in order
@@ -746,6 +772,10 @@ def parse_a_path(values: Values, gcode: Gcode, pathobj) -> None:
         lastcommand = command
         # Remember the current location
         current_location.update(c.Parameters)
+        if command in values["RAPID_MOVES"] and "F" in c.Parameters:
+            # The F of a rapid move is not output (see default_F_parameter),
+            # so it does not tell the feed rate of the machine
+            current_location["F"] = UNKNOWN_LOCATION
 
         if command in ("G90", "G91"):
             # Remember the motion mode
@@ -753,6 +783,10 @@ def parse_a_path(values: Values, gcode: Gcode, pathobj) -> None:
         elif command in ("G98", "G99"):
             # Remember the drill retract mode for drill_translate
             drill_retract_mode = command
+        elif command == "G80":
+            # A canned cycle ends at its retract height (G98 or G99),
+            # not at the Z of the cycle, so the Z position is not known
+            current_location["Z"] = UNKNOWN_LOCATION
         if command in values["MOTION_COMMANDS"]:
             # Remember the current location for drill_translate
             motion_location.update(c.Parameters)
