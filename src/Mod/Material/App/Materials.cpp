@@ -394,7 +394,7 @@ void MaterialProperty::setFloat(double value)
 
 void MaterialProperty::setFloat(const QString& value)
 {
-    _valuePtr->setValue(QVariant(value.toFloat()));
+    _valuePtr->setValue(QVariant(value.toDouble()));
 }
 
 void MaterialProperty::setQuantity(const Base::Quantity& value)
