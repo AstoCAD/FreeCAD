@@ -237,6 +237,36 @@ class DraftDXF(test_base.DraftTestCaseDoc):
                 if doc:
                     App.closeDocument(doc.Name)
 
+    def test_read_dxf_legacy_without_libraries(self):
+        """Without the DXF libraries the legacy importer imports nothing and creates no document."""
+        from unittest import mock
+
+        hGrp = App.ParamGet("User parameter:BaseApp/Preferences/Mod/Draft")
+        wasUseLegacyImporter = hGrp.GetBool("dxfUseLegacyImporter", False)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "no_libraries.dxf")
+            with open(in_file, "w", encoding="utf-8") as dxf_file:
+                dxf_file.write("0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n")
+            docs_before = set(App.listDocuments())
+            try:
+                hGrp.SetBool("dxfUseLegacyImporter", True)
+                with mock.patch.multiple(
+                    importDXF,
+                    getDXFlibs=mock.DEFAULT,
+                    errorDXFLib=mock.DEFAULT,
+                    dxfReader=None,
+                ) as mocks:
+                    self.assertIsNone(importDXF.open(in_file))
+                    self.assertEqual(set(App.listDocuments()), docs_before)
+                    importDXF.insert(in_file, self.doc.Name)
+                    self.assertFalse(self.doc.Objects)
+                    self.assertEqual(set(App.listDocuments()), docs_before)
+                    self.assertTrue(mocks["errorDXFLib"].called)
+            finally:
+                hGrp.SetBool("dxfUseLegacyImporter", wasUseLegacyImporter)
+                for name in set(App.listDocuments()) - docs_before:
+                    App.closeDocument(name)
+
     def test_legacy_draw_invalid_ellipse(self):
         """The legacy importer reports an invalid ellipse instead of raising."""
         from unittest import mock
