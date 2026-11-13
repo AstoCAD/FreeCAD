@@ -164,6 +164,8 @@ protected:
     void clearCopiedObjects();
 
     void checkPropertyStatus();
+    /// Removes the binding of a detached binder, keeping its shape
+    void detach();
 
     void collapseGeoChildren();
 

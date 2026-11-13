@@ -21,6 +21,8 @@
 # *                                                                         *
 # ***************************************************************************
 
+import os
+import tempfile
 import unittest
 import math
 
@@ -121,6 +123,70 @@ class TestSubShapeBinder(unittest.TestCase):
         # The 23 x 13 outline grows to 25.2 x 15.2, the 20 x 10 hole shrinks to 17.8 x 7.8
         self.assertTrue(binder.isValid())
         self.assertAlmostEqual(binder.Shape.Area, 25.2 * 15.2 - 17.8 * 7.8, places=6)
+
+    def testDetachedBinderKeepsNoLinkToItsSource(self):
+        """Issue #26474: a detached binder still linked its context, which loaded its source
+        document with any document the binder was copied to."""
+        source = FreeCAD.newDocument("PartDesignTestSubShapeBinderSource")
+        try:
+            body = source.addObject("PartDesign::Body", "Body")
+            body.newObject("PartDesign::AdditiveBox", "Box")
+            body2 = source.addObject("PartDesign::Body", "Body001")
+            source.recompute()
+
+            # Bound first, then detached
+            binder = body2.newObject("PartDesign::SubShapeBinder", "Binder")
+            binder.Support = [(body, "Box.Face6")]
+            source.recompute()
+            self.assertIsNotNone(binder.Context)
+            binder.BindMode = "Detached"
+            source.recompute()
+            self.assertEqual(binder.Support, [])
+            self.assertIsNone(binder.Context)
+            self.assertAlmostEqual(binder.Shape.Area, 100)
+
+            # Detached first, then bound
+            binder2 = body2.newObject("PartDesign::SubShapeBinder", "Binder001")
+            binder2.BindMode = "Detached"
+            binder2.Support = [(body, "Box.Face6")]
+            source.recompute()
+            self.assertEqual(binder2.Support, [])
+            self.assertIsNone(binder2.Context)
+            self.assertAlmostEqual(binder2.Shape.Area, 100)
+
+            # Binding it again restores the context
+            binder2.BindMode = "Synchronized"
+            binder2.Support = [(body, "Box.Face6")]
+            source.recompute()
+            self.assertIsNotNone(binder2.Context)
+
+            # A copy of the detached binder in another document must not load the source
+            with tempfile.TemporaryDirectory(prefix="freecad_binder_") as directory:
+                sourcePath = os.path.join(directory, "source.FCStd")
+                targetPath = os.path.join(directory, self.Doc.Name + ".FCStd")
+                source.saveAs(sourcePath)
+                self.Doc.saveAs(targetPath)
+                self.Doc.copyObject(binder)
+                self.Doc.save()
+                docName = self.Doc.Name
+                FreeCAD.closeDocument(docName)
+                FreeCAD.closeDocument(source.Name)
+                source = None
+
+                self.Doc = FreeCAD.openDocument(targetPath)
+                self.assertEqual(self.Doc.Name, docName)
+                loaded = [
+                    doc.Name
+                    for doc in FreeCAD.listDocuments().values()
+                    if os.path.normcase(doc.FileName) == os.path.normcase(sourcePath)
+                ]
+                for name in loaded:
+                    FreeCAD.closeDocument(name)
+                self.assertEqual(loaded, [])
+                self.assertAlmostEqual(self.Doc.getObject("Binder").Shape.Area, 100)
+        finally:
+            if source:
+                FreeCAD.closeDocument(source.Name)
 
     def testBinderBeforeOrAfterPad(self):
         """Test case for PR #8763"""
