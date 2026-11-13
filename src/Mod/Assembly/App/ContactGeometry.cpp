@@ -127,6 +127,9 @@ struct ContactGeometry::Shape
                 auto plane = surface.Plane();
                 auto axis = plane.Axis().Direction();
                 Vec normal(axis.X(), axis.Y(), axis.Z());
+                // The surface normal XDir x YDir opposes Direction() on a
+                // left-handed plane, as on mirrored faces.
+                if (!plane.Position().Direct()) normal = -normal;
                 if (face.Orientation() == TopAbs_REVERSED) normal = -normal;
                 sampleNormal = normal;
                 planes.push_back({vector(plane.Location()), normal, face});

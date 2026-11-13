@@ -20,6 +20,10 @@
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
+#include <BRepBuilderAPI_Transform.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <gp_Ax2.hxx>
+#include <gp_Trsf.hxx>
 #include <Mod/Assembly/App/AssemblyObject.h>
 #include <Mod/Assembly/App/BomObject.h>
 #include <Mod/Assembly/App/AssemblyUtils.h>
@@ -78,6 +82,31 @@ TEST(ContactGeometry, ConcavePassageIsNotReplacedByAConvexHull)
     const Base::Placement wallStart(Base::Vector3d(-3, 3, 0), Base::Rotation());
     const Base::Placement wallEnd(Base::Vector3d(3, 3, 0), Base::Rotation());
     EXPECT_NEAR(geometry.sweep(wallStart, wallEnd, {}, {}), 0.3, 1e-6);
+}
+
+TEST(ContactGeometry, MirroredFacesKeepOutwardSampleNormals)
+{
+    const auto plate = BRepPrimAPI_MakeBox(gp_Pnt(-50, -50, -10), 100, 100, 10).Shape();
+    const auto cube = BRepPrimAPI_MakeBox(gp_Pnt(0, -5, -1), 10, 10, 10).Shape();
+    gp_Trsf mirror;
+    mirror.SetMirror(gp_Ax2(gp_Pnt(), gp_Dir(1, 0, 0)));
+    const auto mirrored = BRepBuilderAPI_Transform(cube, mirror, true).Shape();
+    for (const auto& resting : {cube, mirrored}) {
+        BRepMesh_IncrementalMesh(resting, 0.1);
+        BRepMesh_IncrementalMesh(plate, 0.1);
+        Assembly::ContactGeometry geometry(resting, plate);
+        // The cube penetrates the plate by 1 mm. Its bottom face samples
+        // carry the area, so the weighted support covers the 10 x 10 face.
+        double area = 0;
+        for (const auto& contact : geometry.points({}, {})) {
+            if (contact.weight > 0) {
+                area += contact.weight;
+                EXPECT_NEAR(contact.normal.z, 1, 1e-9);
+                EXPECT_NEAR(contact.penetration, 1, 1e-6);
+            }
+        }
+        EXPECT_NEAR(area, 100, 1e-6);
+    }
 }
 
 class AssemblyObjectTest: public ::testing::Test
