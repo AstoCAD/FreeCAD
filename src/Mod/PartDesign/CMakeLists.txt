@@ -99,6 +99,7 @@ if(BUILD_GUI)
         PartDesignTests/TestTransformedModeGui.py
         PartDesignTests/TestBodyLineWidthGui.py
         PartDesignTests/TestCloneColorGui.py
+        PartDesignTests/TestDeleteFeatureGui.py
         PartDesignTests/TestGroupCommandToolTipGui.py
         PartDesignTests/TestThicknessToolTipsGui.py
         PartDesignTests/TestRememberLastLengthGui.py
