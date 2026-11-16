@@ -52,6 +52,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolButton>
 #include <QUrlQuery>
 #include <QWhatsThis>
 #include <QWindow>
@@ -356,10 +357,27 @@ struct MainWindowP
     std::string hiddenDockWindows;
     fastsignals::advanced_scoped_connection connParam;
     ParameterGrp::handle hGrp;
+    QPointer<QPushButton> logoButton;  // application button of the custom title bar
+    QPointer<QToolButton> menuPinButton;  // pins the folded menu bar of the custom title bar
     bool _restoring = false;
     QTime _showNormal;
     void restoreWindowState(const QByteArray&);
 };
+
+/// The application button of the custom title bar shows the icon of the window
+static void setTitleBarLogo(QPushButton* button, const QIcon& windowIcon)
+{
+    button->setIcon(windowIcon.isNull() ? BitmapFactory().iconFromTheme("freecad") : windowIcon);
+}
+
+/// The tool tip of the pin button of the custom title bar says what a click does
+static void updateMenuPinToolTip(QToolButton* button)
+{
+    button->setToolTip(
+        button->isChecked() ? MainWindow::tr("Folds the menu bar behind the application button")
+                            : MainWindow::tr("Keeps the menu bar shown in the title bar")
+    );
+}
 
 }  // namespace Gui
 
@@ -385,14 +403,45 @@ MainWindow::MainWindow(QWidget* parent, Qt::WindowFlags f)
     if (isCustomTitleBar()) {
         if (!property("backend").toString().startsWith("mac")) {
             auto* logoBtn = new QPushButton(this);
-            logoBtn->setObjectName("titleBarLogoBtn");
-            logoBtn->setIcon(Gui::BitmapFactory().iconFromTheme("freecad"));
+            logoBtn->setObjectName(QStringLiteral("titleBarLogoBtn"));
+            // Like a native title bar, it shows the window icon, which follows the branding
+            setTitleBarLogo(logoBtn, windowIcon());
+            d->logoButton = logoBtn;
             logoBtn->setIconSize(QSize(24, 24));
             logoBtn->setFixedSize(35, 35);
             logoBtn->setFlat(true);
             logoBtn->setCursor(Qt::PointingHandCursor);
 
-            setMenuIntegration(new FoldableMenuIntegration(logoBtn, this));
+            // Shown after the last menu: pins the menu bar in the title bar, or folds it again.
+            // Style sheets give the icons of their theme with qproperty-icon (off and on).
+            auto hMainWindow = App::GetApplication().GetParameterGroupByPath(
+                "User parameter:BaseApp/Preferences/MainWindow"
+            );
+            auto* pinBtn = new QToolButton(this);
+            pinBtn->setObjectName(QStringLiteral("titleBarPinBtn"));
+            QIcon pinIcon(QStringLiteral(":/icons/titlebar-menu-pin-black.svg"));
+            pinIcon.addFile(
+                QStringLiteral(":/icons/titlebar-menu-unpin-black.svg"),
+                QSize(),
+                QIcon::Normal,
+                QIcon::On
+            );
+            pinBtn->setIcon(pinIcon);
+            pinBtn->setIconSize(QSize(16, 16));
+            pinBtn->setAutoRaise(true);
+            pinBtn->setFocusPolicy(Qt::NoFocus);
+            pinBtn->setCheckable(true);
+            pinBtn->setChecked(hMainWindow->GetBool("CustomTitleBarMenuPinned", false));
+            updateMenuPinToolTip(pinBtn);
+            connect(pinBtn, &QToolButton::toggled, this, [pinBtn, hMainWindow](bool pinned) {
+                hMainWindow->SetBool("CustomTitleBarMenuPinned", pinned);
+                updateMenuPinToolTip(pinBtn);
+            });
+            d->menuPinButton = pinBtn;
+
+            auto* menuIntegration = new FoldableMenuIntegration(logoBtn, this);
+            menuIntegration->setPinButton(pinBtn);
+            setMenuIntegration(menuIntegration);
         }
     }
 
@@ -1285,6 +1334,11 @@ bool MainWindow::event(QEvent* e)
             if (action) {
                 action->setIcon(QApplication::windowIcon());
             }
+        }
+    }
+    else if (e->type() == QEvent::WindowIconChange) {
+        if (d->logoButton) {
+            setTitleBarLogo(d->logoButton.data(), windowIcon());
         }
     }
     else if (e->type() == Spaceball::ButtonEvent::ButtonEventType) {
@@ -2936,6 +2990,9 @@ void MainWindow::changeEvent(QEvent* e)
 {
     if (e->type() == QEvent::LanguageChange) {
         d->sizeLabel->setText(tr("Dimension"));
+        if (d->menuPinButton) {
+            updateMenuPinToolTip(d->menuPinButton.data());
+        }
 
         CommandManager& rclMan = Application::Instance->commandManager();
         std::vector<Command*> cmd = rclMan.getAllCommands();
