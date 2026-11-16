@@ -22,6 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <algorithm>
 #include <charconv>
 #include <utility>
 
@@ -382,6 +383,19 @@ void DressUp::onBaseFeatureRerouted(
 )
 {
     if (change == BaseFeatureChange::Removal && relinkToMatchingSubelements(Base, oldBase, newBase)) {
+        return;
+    }
+    // When this feature is moved, e.g. before a feature it was based on, the mapped names of
+    // the referenced elements carry the history of the old base and do not resolve in the new
+    // base. Find the elements in the new base by geometry, but only if its shape is up to date:
+    // a base that comes later in the Body still has the shape computed on top of this feature.
+    if (change == BaseFeatureChange::Move && newBase && !newBase->isTouched()
+        && !newBase->mustExecute()
+        && std::ranges::none_of(
+            newBase->getOutListRecursive(),
+            [](const App::DocumentObject* obj) { return obj->isTouched(); }
+        )
+        && relinkToMatchingSubelements(Base, oldBase, newBase)) {
         return;
     }
     if (newBase && Base.getValue() && Base.getValue() != newBase) {
