@@ -46,6 +46,17 @@ bool isInToolBar(const QWidget* widget)
     }
     return false;
 }
+
+// The widget that receives the key events of a shortcut. When no widget has the
+// focus (e.g. after the focused button of a closed task panel has been deleted),
+// Qt still dispatches window shortcuts to the active window, so use it instead.
+QWidget* shortcutTarget()
+{
+    if (auto focus = QApplication::focusWidget()) {
+        return focus;
+    }
+    return QApplication::activeWindow();
+}
 }  // namespace
 
 ShortcutManager::ShortcutManager()
@@ -222,7 +233,7 @@ void ShortcutManager::setShortcut(const char* cmdName, const char* accel)
 
 bool ShortcutManager::checkShortcut(QObject* o, const QKeySequence& key)
 {
-    auto focus = QApplication::focusWidget();
+    auto focus = shortcutTarget();
     if (!focus) {
         return false;
     }
@@ -515,7 +526,7 @@ void ShortcutManager::onTimer()
     lastFocus = nullptr;
     pendingSequence = QKeySequence();
 
-    if (focus && focus == QApplication::focusWidget()) {
+    if (focus && focus == shortcutTarget()) {
         // We are here because we have withheld some previous triggered action.
         // We then disabled the action, and faked the same key strokes in order
         // to wait for more potential match of longer key sequence. We use
