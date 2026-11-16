@@ -67,6 +67,11 @@ public:
     {
         return false;
     }
+    /// An SVG file imported while the sketch is edited becomes a group of the sketch
+    std::vector<std::string> importTypes() const override
+    {
+        return {"svg"};
+    }
     void autoClosedOnResetEdit() override;
     void autoClosedOnClosedView() override;
 
