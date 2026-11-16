@@ -112,6 +112,22 @@ TitleBarWidget QPushButton#titleBarLogoBtn:hover {
   background-color: #333333;
 }
 
+/* Pin button after the last menu: not under TitleBarWidget while the menu bar unfolds over it */
+QToolButton#titleBarPinBtn {
+  qproperty-icon: url(:/icons/titlebar-menu-pin-dark.svg) off, url(:/icons/titlebar-menu-unpin-dark.svg) on;
+  background-color: transparent;
+  border: none;
+  border-radius: 3px;
+  padding: 2px;
+  margin: 0px 2px;
+}
+QToolButton#titleBarPinBtn:hover {
+  background-color: #333333;
+}
+QToolButton#titleBarPinBtn:pressed {
+  background-color: #555555;
+}
+
 QPushButton#minimizeButton, 
 QPushButton#maximizeButton, 
 QPushButton#restoreButton, 
