@@ -1861,6 +1861,16 @@ int SketchObject::addSymmetric(
                 continue;
             }
 
+            // A group is copied whole or not at all, with or without symmetry constraints:
+            // its members follow the handle and are not driven by the solver.
+            if (constr->Type == Sketcher::Group || constr->Type == Sketcher::Text) {
+                if (Constraint* constNew = copyGroupConstraint(*constr, geoIdMap)) {
+                    constNew->Name = "";
+                    newconstrVals.push_back(constNew);
+                }
+                continue;
+            }
+
             // if First of constraint is in geoIdList
             if (addSymmetryConstraints && constr->Type != Sketcher::InternalAlignment) {
                 // If we are making symmetric constraints, we only want to copy topological
@@ -1880,14 +1890,6 @@ int SketchObject::addSymmetric(
                 if (!keepTopological) {
                     continue;
                 }
-            }
-
-            if (constr->Type == Sketcher::Group || constr->Type == Sketcher::Text) {
-                if (Constraint* constNew = copyGroupConstraint(*constr, geoIdMap)) {
-                    constNew->Name = "";
-                    newconstrVals.push_back(constNew);
-                }
-                continue;
             }
 
             if (constr->getElement(1).GeoId == GeoEnum::GeoUndef  //

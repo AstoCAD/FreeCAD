@@ -275,6 +275,33 @@ class TestSketchGroups(unittest.TestCase):
         self.assertVector(s.Geometry[mirroredLast].StartPoint, mirroredBefore + delta)
         self.assertVector(s.Geometry[last].StartPoint, before)
 
+    def testMirrorWithSymmetryConstraintsKeepsWholeGroup(self):
+        # The Mirror tool asks for symmetry constraints by default: the mirrored geometries
+        # must be a group then too, and follow the original through the handles.
+        s = self.sketch
+        geos = self.flatGroup()
+        mirrored = s.addSymmetric(geos, -2, 0, True)
+        self.assertEqual(sum(c.Type == "Group" for c in s.Constraints), 2)
+        self.assertEqual(s.solve(), 0)
+        self.assertEqual(s.MalformedConstraints, [])
+
+        last, mirroredLast = geos[-1], mirrored[-1]
+        before = s.Geometry[last].StartPoint
+        mirroredBefore = s.Geometry[mirroredLast].StartPoint
+        self.assertVector(mirroredBefore, App.Vector(-before.x, before.y, 0))
+        # Keep the handle rigid so dragging it translates its group.
+        s.addConstraint(Sketcher.Constraint("Vertical", geos[0]))
+        s.addConstraint(Sketcher.Constraint("Distance", geos[0], 10.0))
+        self.assertEqual(s.solve(), 0)
+        delta = App.Vector(3, 4, 0)
+        s.moveGeometry(geos[0], 1, s.Geometry[geos[0]].StartPoint + delta, 0)
+        self.assertEqual(s.solve(), 0)
+        self.assertVector(s.Geometry[last].StartPoint, before + delta)
+        self.assertVector(
+            s.Geometry[mirroredLast].StartPoint,
+            mirroredBefore + App.Vector(-delta.x, delta.y, 0),
+        )
+
     def testCarbonCopyKeepsWholeGroup(self):
         # Carbon copy offset only the first three elements of each constraint: the later members
         # of a group kept their source indices, so in a sketch that already had geometry they
