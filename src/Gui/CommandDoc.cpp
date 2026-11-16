@@ -65,6 +65,7 @@
 #include "MergeDocuments.h"
 #include "Navigation/NavigationStyle.h"
 #include "Placement.h"
+#include "TaskView/TaskDialog.h"
 #include "Tools.h"
 #include "Tree.h"
 #include "Transform.h"
@@ -264,24 +265,37 @@ void StdCmdOpen::activated(int iMsg)
 
 DEF_STD_CMD_A(StdCmdImport)
 
-StdCmdImport::StdCmdImport()
-    : Command("Std_Import")
+namespace
 {
-    // setting the
-    sGroup = "File";
-    sMenuText = QT_TR_NOOP("&Import…");
-    sToolTipText = QT_TR_NOOP("Imports a file into the active document");
-    sWhatsThis = "Std_Import";
-    sStatusTip = sToolTipText;
-    sPixmap = "Std_Import";
-    sAccel = "Ctrl+Shift+I";
+/// An open task dialog of \a doc keeps the other commands from altering it.
+bool isBlockedByTaskDialog(App::Document* doc)
+{
+    return !Gui::Control().isAllowedAlterDocument(doc) || !Gui::Control().isAllowedAlterView(doc)
+        || !Gui::Control().isAllowedAlterSelection(doc);
 }
 
-void StdCmdImport::activated(int iMsg)
+/// The filters of the importers for the file types that the open task dialog of \a doc takes.
+FileDialog::FilterList taskDialogImportFilters(App::Document* doc)
 {
-    Q_UNUSED(iMsg);
+    FileDialog::FilterList filters;
+    const Gui::TaskView::TaskDialog* dlg = Gui::Control().activeDialog(doc);
+    if (!dlg) {
+        return filters;
+    }
+    for (const std::string& type : dlg->importTypes()) {
+        for (const auto& [filter, module] : App::GetApplication().getImportFilters(type)) {
+            const auto entry = FileDialog::Filter::fromFilterString(QString::fromStdString(filter));
+            if (!filters.contains(entry)) {
+                filters.append(entry);
+            }
+        }
+    }
+    return filters;
+}
 
-    // fill the list of registered endings
+/// The filters of all the registered importers, after one for all their file types.
+FileDialog::FilterList allImportFilters()
+{
     FileDialog::FilterList formatList;
 
     FileDialog::Filter allSupportedFormats {QObject::tr("Supported formats"), {}};
@@ -301,6 +315,37 @@ void StdCmdImport::activated(int iMsg)
     }
 
     formatList.append(FileDialog::Filter::AllFiles());
+    return formatList;
+}
+}  // namespace
+
+StdCmdImport::StdCmdImport()
+    : Command("Std_Import")
+{
+    // setting the
+    sGroup = "File";
+    sMenuText = QT_TR_NOOP("&Import…");
+    sToolTipText = QT_TR_NOOP("Imports a file into the active document");
+    sWhatsThis = "Std_Import";
+    sStatusTip = sToolTipText;
+    sPixmap = "Std_Import";
+    sAccel = "Ctrl+Shift+I";
+    // An open task dialog can take the import of some file types: isActive() asks it
+    eType = eType | ForEdit;
+}
+
+void StdCmdImport::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+
+    // While a task dialog keeps the document, only the file types it takes are offered
+    App::Document* appDoc = getActiveGuiDocument()->getDocument();
+    const bool forTaskDialog = isBlockedByTaskDialog(appDoc);
+    const FileDialog::FilterList formatList = forTaskDialog ? taskDialogImportFilters(appDoc)
+                                                            : allImportFilters();
+    if (formatList.isEmpty()) {
+        return;
+    }
 
     Base::Reference<ParameterGrp> hPath = App::GetApplication()
                                               .GetUserParameter()
@@ -325,7 +370,9 @@ void StdCmdImport::activated(int iMsg)
     );
     if (!fileList.isEmpty()) {
         const auto& selectedFilter = formatList[selectedFilterIndex];
-        hPath->SetASCII("FileImportFilter", selectedFilter.name.toUtf8());
+        if (!forTaskDialog) {
+            hPath->SetASCII("FileImportFilter", selectedFilter.name.toUtf8());
+        }
         SelectModule::Dict dict
             = SelectModule::importHandler(fileList, selectedFilter.toFilterString());
 
@@ -354,7 +401,12 @@ void StdCmdImport::activated(int iMsg)
 
 bool StdCmdImport::isActive()
 {
-    return (getActiveGuiDocument() ? true : false);
+    const Gui::Document* doc = getActiveGuiDocument();
+    if (!doc) {
+        return false;
+    }
+    return !isBlockedByTaskDialog(doc->getDocument())
+        || !taskDialogImportFilters(doc->getDocument()).isEmpty();
 }
 
 
