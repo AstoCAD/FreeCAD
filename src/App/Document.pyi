@@ -458,8 +458,9 @@ class Document(PropertyContainer):
         The parameter is created on the variable set 'UserParameters' of the
         document, which is created when the document has none. 'owner' is the
         object in which the parameter is typed: 'value' is an expression parsed
-        with it as owner, e.g. '23 mm' or '2 * otherParameter'. A literal is
-        assigned as value, other expressions are bound to the new property.
+        with it as owner, e.g. '23 mm', '2 * otherParameter' or '<<text>>'. A
+        literal is assigned as value, other expressions are bound to the new
+        property. The value is a number, a quantity or a text.
         """
         ...
 

@@ -114,6 +114,15 @@ AppExport Base::Type propertyTypeForUnit(const Base::Unit& unit);
 AppExport Property*
 addParameter(DocumentObject* owner, const std::string& name, const Base::Unit& unit);
 
+/// What the value of a new user parameter may be.
+enum class ValueKind
+{
+    /// A number or a quantity: what the input of a quantity can use.
+    Number,
+    /// Also a text (`<<text>>`), which is stored in a PropertyString.
+    NumberOrText
+};
+
 /**
  * Create the user parameter @p name from @p value, on the holder of the document of @p owner.
  *
@@ -121,15 +130,17 @@ addParameter(DocumentObject* owner, const std::string& name, const Base::Unit& u
  * owner. A literal value is assigned as value, any other expression is bound to the new property,
  * with what it names from @p owner written as seen from the holder (`Length` typed in a Pad is
  * `Pad.Length`). A dimensionless value takes @p impliedUnit. The holder is created when the
- * document has none.
- * Throws (Base::NameError, Base::ValueError, Base::RuntimeError) and leaves the document unchanged
- * on failure.
+ * document has none. A text is a value only where @p accepted says so: a parameter typed in the
+ * input of a quantity has to be one.
+ * Throws (Base::NameError, Base::TypeError, Base::ValueError, Base::RuntimeError) and leaves the
+ * document unchanged on failure.
  */
 AppExport Property* createParameter(
     DocumentObject* owner,
     const std::string& name,
     const std::shared_ptr<Expression>& value,
-    const Base::Unit& impliedUnit = Base::Unit::One
+    const Base::Unit& impliedUnit = Base::Unit::One,
+    ValueKind accepted = ValueKind::Number
 );
 
 /// An expression of @p owner that is the user parameter @p parameter, to bind a property of

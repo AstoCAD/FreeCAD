@@ -466,21 +466,27 @@ Base::Type UserParameters::propertyTypeForUnit(const Base::Unit& unit)
     return Base::Type::BadType;
 }
 
-Property*
-UserParameters::addParameter(DocumentObject* owner, const std::string& name, const Base::Unit& unit)
+namespace
+{
+
+/// Throw unless a user parameter @p name can be typed in @p owner.
+void checkNewParameter(const DocumentObject* owner, const std::string& name)
 {
     // A deleted object kept for undo still knows its document but is no longer part of it.
     if (!owner || !owner->isAttachedToDocument() || !owner->getDocument()) {
         throw Base::RuntimeError("Invalid owner for a user parameter");
     }
-    const NameStatus status = checkName(owner->getDocument(), name, owner);
-    if (status != NameStatus::Available) {
-        throw Base::NameError(nameStatusMessage(status, name));
+    const auto status = UserParameters::checkName(owner->getDocument(), name, owner);
+    if (status != UserParameters::NameStatus::Available) {
+        throw Base::NameError(UserParameters::nameStatusMessage(status, name));
     }
-    const Base::Type type = propertyTypeForUnit(unit);
-    if (type.isBad()) {
-        throw Base::TypeError("No property type for the unit '" + unit.getString() + "'");
-    }
+}
+
+/// Add the empty user parameter @p name of the property type @p type, see checkNewParameter().
+Property*
+addCheckedParameter(DocumentObject* owner, const std::string& name, const Base::Type& type)
+{
+    using namespace UserParameters;
     Document* doc = owner->getDocument();
     const bool hadHolder = findHolder(doc) != nullptr;
     DocumentObject* target = holder(doc);
@@ -504,11 +510,25 @@ UserParameters::addParameter(DocumentObject* owner, const std::string& name, con
     }
 }
 
+}  // namespace
+
+Property*
+UserParameters::addParameter(DocumentObject* owner, const std::string& name, const Base::Unit& unit)
+{
+    checkNewParameter(owner, name);
+    const Base::Type type = propertyTypeForUnit(unit);
+    if (type.isBad()) {
+        throw Base::TypeError("No property type for the unit '" + unit.getString() + "'");
+    }
+    return addCheckedParameter(owner, name, type);
+}
+
 Property* UserParameters::createParameter(
     DocumentObject* owner,
     const std::string& name,
     const std::shared_ptr<Expression>& value,
-    const Base::Unit& impliedUnit
+    const Base::Unit& impliedUnit,
+    ValueKind accepted
 )
 {
     if (!value) {
@@ -517,18 +537,35 @@ Property* UserParameters::createParameter(
     // Evaluate first: a failing value must leave the owner unchanged.
     const ExpressionPtr result = value->eval();
     const auto* number = freecad_cast<NumberExpression*>(result.get());
-    if (!number) {
-        throw Base::TypeError("A user parameter needs a numeric value");
+    const auto* text = accepted == ValueKind::NumberOrText
+        ? freecad_cast<StringExpression*>(result.get())
+        : nullptr;
+    if (!number && !text) {
+        throw Base::TypeError(
+            accepted == ValueKind::NumberOrText
+                ? "A user parameter needs a number, a quantity or a text"
+                : "A user parameter needs a numeric value"
+        );
     }
-    const Base::Quantity quantity = number->getQuantity();
-    const Base::Unit unit = quantity.isDimensionless() ? impliedUnit : quantity.getUnit();
 
     Document* doc = owner ? owner->getDocument() : nullptr;
     const bool hadHolder = findHolder(doc) != nullptr;
-    Property* prop = addParameter(owner, name, unit);
+    Property* prop = nullptr;
+    bool literal = false;
+    if (number) {
+        const Base::Quantity quantity = number->getQuantity();
+        const Base::Unit unit = quantity.isDimensionless() ? impliedUnit : quantity.getUnit();
+        prop = addParameter(owner, name, unit);
+        literal = isLiteral(value.get());
+    }
+    else {
+        checkNewParameter(owner, name);
+        prop = addCheckedParameter(owner, name, PropertyString::getClassTypeId());
+        literal = freecad_cast<StringExpression*>(value.get()) != nullptr;
+    }
     auto* target = freecad_cast<DocumentObject*>(prop->getContainer());
     try {
-        if (!isLiteral(value.get())) {
+        if (!literal) {
             const ObjectIdentifier path(*prop);
             const std::shared_ptr<Expression> expr = expressionFor(target, owner, *value);
             if (!expr) {
@@ -540,8 +577,14 @@ Property* UserParameters::createParameter(
             }
             target->setExpression(path, expr);
         }
-        // Every parameter type derives from PropertyFloat; the value is in internal units.
-        static_cast<PropertyFloat*>(prop)->setValue(quantity.getValue());
+        if (number) {
+            // Every numeric parameter type derives from PropertyFloat; the value is in
+            // internal units.
+            static_cast<PropertyFloat*>(prop)->setValue(number->getQuantity().getValue());
+        }
+        else {
+            static_cast<PropertyString*>(prop)->setValue(text->getText());
+        }
     }
     catch (...) {
         target->ExpressionEngine.setValue(ObjectIdentifier(*prop), std::shared_ptr<Expression>());
@@ -856,11 +899,23 @@ Base::Quantity quantityOf(const Property* prop)
     return {};
 }
 
+/// The value of the parameter @p prop as shown to the user.
+std::string valueText(const Property* prop)
+{
+    if (const auto* text = freecad_cast<const PropertyString*>(prop)) {
+        return text->getStrValue();
+    }
+    return quantityOf(prop).getUserString();
+}
+
 /// True when the parameter @p pasted cannot stand for @p existing: another type or value.
 bool differs(const Property* existing, const Property* pasted)
 {
     if (existing->getTypeId() != pasted->getTypeId()) {
         return true;
+    }
+    if (const auto* text = freecad_cast<const PropertyString*>(existing)) {
+        return text->getStrValue() != static_cast<const PropertyString*>(pasted)->getStrValue();
     }
     const double a = quantityOf(existing).getValue();
     const double b = quantityOf(pasted).getValue();
@@ -945,9 +1000,7 @@ UserParameters::pastedConflicts(const std::vector<DocumentObject*>& pasted)
         const Property* existing = target->getPropertyByName(name.c_str());
         const Property* source = copy->getDynamicPropertyByName(name.c_str());
         if (existing && source && differs(existing, source)) {
-            conflicts.push_back(
-                {name, quantityOf(existing).getUserString(), quantityOf(source).getUserString()}
-            );
+            conflicts.push_back({name, valueText(existing), valueText(source)});
         }
     }
     return conflicts;

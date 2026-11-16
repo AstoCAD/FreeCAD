@@ -87,6 +87,26 @@ class TestUserParameters(unittest.TestCase):
         )
         self.assertAlmostEqual(self.holder().computed.Value, 6000.0)
 
+    def test_text(self):
+        # https://github.com/AstoCAD/FreeCAD/issues/171
+        self.doc.addUserParameter(self.typed, "material", "<<Steel>>")
+        holder = self.holder()
+        self.assertEqual(holder.getTypeIdOfProperty("material"), "App::PropertyString")
+        self.assertEqual(holder.getGroupOfProperty("material"), "UserParameters")
+        self.assertEqual(holder.material, "Steel")
+        self.assertEqual(holder.ExpressionEngine, [])
+        # A computed text stays an expression
+        self.doc.addUserParameter(self.typed, "grade", "material + <<-S235>>")
+        self.assertEqual([path for path, _ in holder.ExpressionEngine], ["grade"])
+        self.assertEqual(holder.grade, "Steel-S235")
+        self.assertEqual(
+            self.doc.getUserParameters(), [(holder, "material"), (holder, "grade")]
+        )
+        # What is neither a number nor a text is refused and leaves nothing behind
+        with self.assertRaises(TypeError):
+            self.doc.addUserParameter(self.typed, "items", "list(1, 2)")
+        self.assertNotIn("items", holder.PropertiesList)
+
     def test_unit_without_property_type_is_refused(self):
         # No property type stores a concentration: refused before anything is created
         with self.assertRaises(TypeError):

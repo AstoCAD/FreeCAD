@@ -607,6 +607,23 @@ class TestDocumentParametersGui(unittest.TestCase):
         self.assertEqual(holder.getGroupOfProperty("offset"), "UserParameters")
         self.assertAlmostEqual(holder.offset.Value, -5)
 
+    def testUserParameterCanBeAText(self):
+        # https://github.com/AstoCAD/FreeCAD/issues/171
+        self.assertTrue(self.addDialogState("UserParameters", "material!", "<<Steel>>"))
+        holder = self.doc.getObject("UserParameters")
+        self.assertEqual(holder.getTypeIdOfProperty("material"), "App::PropertyString")
+        self.assertEqual(holder.getGroupOfProperty("material"), "UserParameters")
+        self.assertEqual(holder.material, "Steel")
+        self.assertIsNotNone(self.item("material"))
+        # A text can be written in quotes too, and is a value then, not an expression.
+        self.assertTrue(self.addDialogState("UserParameters", "grade!", '"S235 JR"'))
+        self.assertTrue(self.addDialogState("UserParameters", "finish!", "'raw'"))
+        self.assertEqual((holder.grade, holder.finish), ("S235 JR", "raw"))
+        self.assertEqual(holder.ExpressionEngine, [])
+        self.assertFalse(self.addDialogState("UserParameters", "broken", '"a" + "b"'))
+        self.assertTrue(self.addDialogState("VarSet", "note!", '"in a variable set"'))
+        self.assertEqual(self.varset.note, "in a variable set")
+
     def testUnitWithoutPropertyTypeIsRefused(self):
         # a plain App::PropertyQuantity would lose the unit on save
         self.assertFalse(self.addDialogState("VarSet", "odd", "2 mm * 1 N * 1 N"))

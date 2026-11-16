@@ -1007,7 +1007,13 @@ PyObject* DocumentPy::addUserParameter(PyObject* args)
             throw Base::ValueError("Invalid value for the user parameter");
         }
         UserParameters::qualifyReferences(owner, *expr);
-        auto* prop = UserParameters::createParameter(owner, name, expr);
+        auto* prop = UserParameters::createParameter(
+            owner,
+            name,
+            expr,
+            Base::Unit::One,
+            UserParameters::ValueKind::NumberOrText
+        );
         return Py::new_reference_to(Py::String(prop->getName()));
     }
     PY_CATCH

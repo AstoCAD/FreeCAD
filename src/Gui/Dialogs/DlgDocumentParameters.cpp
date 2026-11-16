@@ -229,12 +229,9 @@ QString nameError(
 }
 
 /// The error for a new parameter with the value of \a expr, empty if its type can hold it.
-QString valueTypeError(const App::Expression& expr, bool userParameter)
+QString valueTypeError(const App::Expression& expr)
 {
     const std::string type = Parameters::propertyTypeForExpression(expr);
-    if (type == "App::PropertyString" && userParameter) {
-        return DlgDocumentParameters::tr("A user parameter needs a numeric value");
-    }
     if (!type.empty()) {
         return {};
     }
@@ -246,26 +243,47 @@ QString valueTypeError(const App::Expression& expr, bool userParameter)
     return DlgDocumentParameters::tr("The value must be a number, a quantity or a string");
 }
 
+/**
+ * The expression typed as \a text in the dialog for \a owner, nullptr or an exception if it is
+ * not one.
+ *
+ * A text can be written in quotes ("Steel" or 'Steel'), for those who do not know the `<<Steel>>`
+ * of the expressions. Quotes have no other meaning in an expression.
+ */
+std::shared_ptr<App::Expression>
+parseInput(const App::DocumentObject* owner, const QString& text, const QLocale& locale)
+{
+    const QString trimmed = text.trimmed();
+    if (trimmed.size() >= 2) {
+        const QChar quote = trimmed.front();
+        if ((quote == QLatin1Char('"') || quote == QLatin1Char('\'')) && trimmed.back() == quote) {
+            const QString quoted = trimmed.mid(1, trimmed.size() - 2);
+            if (!quoted.contains(quote)) {
+                return std::make_shared<App::StringExpression>(owner, quoted.toStdString());
+            }
+        }
+    }
+    return App::ExpressionParser::parseUserInput(
+        owner,
+        trimmed.toUtf8().constData(),
+        numericLocaleContextFor(locale)
+    );
+}
+
 /// The value typed as \a text for a new parameter of \a owner. Throws when it cannot be one.
 std::shared_ptr<App::Expression> newParameterValue(
     const App::DocumentObject* owner,
     const QString& text,
-    const QLocale& locale,
-    bool userParameter
+    const QLocale& locale
 )
 {
-    const auto formatting = numericLocaleContextFor(locale);
-    std::shared_ptr<App::Expression> expr = App::ExpressionParser::parseUserInput(
-        owner,
-        text.trimmed().toUtf8().constData(),
-        formatting
-    );
+    std::shared_ptr<App::Expression> expr = parseInput(owner, text, locale);
     if (!expr) {
         throw Base::ValueError(DlgDocumentParameters::tr("Invalid expression").toStdString());
     }
     // user parameters typed by their bare name, as offered by the completer
     App::UserParameters::qualifyReferences(owner, *expr);
-    const QString typeError = valueTypeError(*expr, userParameter);
+    const QString typeError = valueTypeError(*expr);
     if (!typeError.isEmpty()) {
         throw Base::TypeError(typeError.toStdString());
     }
@@ -969,8 +987,7 @@ bool DlgDocumentParameters::setParameterExpression(QTreeWidgetItem* item, const 
     std::shared_ptr<App::Expression> expr;
     if (!trimmed.isEmpty()) {
         try {
-            const auto formatting = numericLocaleContextFor(locale());
-            expr = App::ExpressionParser::parseUserInput(obj, trimmed.toUtf8().constData(), formatting);
+            expr = parseInput(obj, trimmed, locale());
             if (!expr) {
                 throw Base::ValueError(tr("Invalid expression").toStdString());
             }
@@ -1135,9 +1152,15 @@ bool DlgDocumentParameters::addUserParameter(
         App::DocumentObject* holder = App::UserParameters::holder(doc);
         try {
             const std::shared_ptr<App::Expression> expr
-                = newParameterValue(holder, expression, locale(), true);
+                = newParameterValue(holder, expression, locale());
             // the same creation as for `name = value` typed in an input
-            App::Property* prop = App::UserParameters::createParameter(holder, nameStd, expr);
+            App::Property* prop = App::UserParameters::createParameter(
+                holder,
+                nameStd,
+                expr,
+                Base::Unit::One,
+                App::UserParameters::ValueKind::NumberOrText
+            );
             if (!comment.isEmpty()) {
                 holder->changeDynamicProperty(prop, nullptr, comment.toUtf8().constData());
             }
@@ -1191,7 +1214,7 @@ bool DlgDocumentParameters::addParameter(
         }
 
         const std::shared_ptr<App::Expression> expr
-            = newParameterValue(varSet, expression, locale(), false);
+            = newParameterValue(varSet, expression, locale());
         const std::string type = Parameters::propertyTypeForExpression(*expr);
         App::Property* prop = varSet->addDynamicProperty(
             type.c_str(),
@@ -1282,7 +1305,7 @@ void DlgDocumentParameters::onAdd()
     lineEditName->setObjectName(QStringLiteral("lineEditName"));
     auto* lineEditExpression = new ExpressionLineEdit(&dlg);
     lineEditExpression->setObjectName(QStringLiteral("lineEditExpression"));
-    lineEditExpression->setPlaceholderText(tr("For example: 23 mm"));
+    lineEditExpression->setPlaceholderText(tr("For example: 23 mm, or \"text\""));
     auto* lineEditComment = new QLineEdit(&dlg);
     lineEditComment->setObjectName(QStringLiteral("lineEditComment"));
     auto* labelError = new QLabel(&dlg);
@@ -1364,12 +1387,11 @@ void DlgDocumentParameters::onAdd()
         const QString text = lineEditExpression->text().trimmed();
         if (error.isEmpty() && !text.isEmpty()) {
             try {
-                const auto formatting = numericLocaleContextFor(lineEditExpression->locale());
-                App::ExpressionPtr expr
-                    = App::ExpressionParser::parseUserInput(owner, text.toUtf8().constData(), formatting);
+                const std::shared_ptr<App::Expression> expr
+                    = parseInput(owner, text, lineEditExpression->locale());
                 if (expr) {
                     App::UserParameters::qualifyReferences(owner, *expr);
-                    error = valueTypeError(*expr, userParameter);
+                    error = valueTypeError(*expr);
                 }
                 else {
                     error = tr("The value must be a number, a quantity or a string");

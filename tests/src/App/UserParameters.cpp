@@ -334,6 +334,49 @@ TEST_F(UserParameters, createExpressionParameterAndFailureLeavesOwnerUnchanged)
     EXPECT_THROW(UP::createParameter(other, "base", parse(other, "1 mm")), Base::NameError);
 }
 
+TEST_F(UserParameters, createTextParameter)
+{
+    const auto text = UP::ValueKind::NumberOrText;
+    // A text is a value only where it is accepted: not in the input of a quantity.
+    EXPECT_THROW(UP::createParameter(holder, "label", parse(holder, "<<abc>>")), Base::TypeError);
+
+    const Base::Unit none = Base::Unit::One;
+    auto* label = UP::createParameter(holder, "label", parse(holder, "<<abc>>"), none, text);
+    ASSERT_TRUE(label->is<App::PropertyString>());
+    EXPECT_TRUE(UP::isUserParameter(label));
+    EXPECT_STREQ(static_cast<App::PropertyString*>(label)->getValue(), "abc");
+    EXPECT_EQ(holder->getExpression(App::ObjectIdentifier(*label)).expression, nullptr);
+    EXPECT_EQ(UP::findParameter(doc(), "label"), label);
+
+    // A computed text is bound, and follows what it is computed from.
+    auto* computed
+        = UP::createParameter(holder, "full", parse(holder, "label + <<def>>"), none, text);
+    ASSERT_TRUE(computed->is<App::PropertyString>());
+    EXPECT_NE(holder->getExpression(App::ObjectIdentifier(*computed)).expression, nullptr);
+    EXPECT_STREQ(static_cast<App::PropertyString*>(computed)->getValue(), "abcdef");
+    static_cast<App::PropertyString*>(label)->setValue("xyz");
+    doc()->recompute();
+    EXPECT_STREQ(static_cast<App::PropertyString*>(computed)->getValue(), "xyzdef");
+
+    // Numbers are created as without it, and the names follow the same rules.
+    const Base::Unit length = Base::Unit::Length;
+    auto* width = UP::createParameter(holder, "width", parse(holder, "4"), length, text);
+    EXPECT_TRUE(width->is<App::PropertyDistance>());
+    EXPECT_THROW(
+        UP::createParameter(other, "label", parse(other, "<<again>>"), none, text),
+        Base::NameError
+    );
+    EXPECT_THROW(
+        UP::createParameter(holder, "list", parse(holder, "list(1, 2)"), none, text),
+        Base::TypeError
+    );
+    EXPECT_EQ(holder->getPropertyByName("list"), nullptr);
+
+    EXPECT_TRUE(UP::rename(label, "title"));
+    EXPECT_EQ(UP::findParameter(doc(), "title"), holder->getPropertyByName("title"));
+    EXPECT_TRUE(UP::removeParameter(holder->getPropertyByName("title")));
+}
+
 TEST_F(UserParameters, qualifyReferencesOnlyAsFallback)
 {
     auto* prop = UP::createParameter(holder, "myVar", parse(holder, "23 mm"));
