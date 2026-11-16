@@ -352,7 +352,7 @@ void Body::setBaseProperty(App::DocumentObject* feature)
         pdFeature->onBaseFeatureRerouted(
             oldBase,
             prevSolidFeature,
-            PartDesign::Feature::BaseFeatureChange::Insertion
+            PartDesign::Feature::BaseFeatureChange::Move
         );
 
         // Reroute the next solid feature's BaseFeature property to this feature

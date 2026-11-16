@@ -171,6 +171,50 @@ class TestFillet(unittest.TestCase):
         self.Doc.recompute(None, False, True)
         self.assertFalse(fillet.isValid())
 
+    def testMoveFilletBeforePocketRelinksUnchangedBaseEdge(self):
+        # Moving a fillet before the feature it was based on must find its edges again in
+        # the new base, where they exist unchanged (AstoCAD issue #165)
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        box = body.newObject("PartDesign::AdditiveBox", "Box")
+        box.Length = 10
+        box.Width = 10
+        box.Height = 10
+        hole = body.newObject("PartDesign::SubtractiveCylinder", "Hole")
+        hole.Radius = 2
+        hole.Height = 12
+        hole.Placement = FreeCAD.Placement(FreeCAD.Vector(5, 5, -1), FreeCAD.Rotation())
+        self.Doc.recompute()
+        self.assertTrue(hole.isValid())
+
+        def top_front_edge(shape):
+            # The edge from (0, 0, 10) to (10, 0, 10), on the face pierced by the hole
+            return next(
+                f"Edge{index}"
+                for index, edge in enumerate(shape.Edges, 1)
+                if edge.BoundBox.ZMin >= 10 - 1e-6
+                and edge.BoundBox.YMax <= 1e-6
+                and edge.BoundBox.XLength > 10 - 1e-6
+            )
+
+        fillet = body.newObject("PartDesign::Fillet", "Fillet")
+        fillet.Base = (hole, [top_front_edge(hole.Shape)])
+        fillet.Radius = 1
+        self.Doc.recompute()
+        self.assertTrue(fillet.isValid())
+
+        body.removeObject(fillet)
+        body.insertObject(fillet, box, True)
+
+        self.assertEqual(fillet.BaseFeature.Name, box.Name)
+        self.assertEqual(fillet.Base[0].Name, box.Name)
+        self.assertEqual(list(fillet.Base[1]), [top_front_edge(box.Shape)])
+        self.assertEqual(hole.BaseFeature.Name, fillet.Name)
+        self.Doc.recompute()
+        self.assertTrue(fillet.isValid())
+        self.assertTrue(hole.isValid())
+        self.assertLess(fillet.Shape.Volume, 1000)
+        self.assertLess(hole.Shape.Volume, fillet.Shape.Volume)
+
     def testInsertPadBeforeFilletPreservesBaseThroughEditAndUndo(self):
         body, box, fillet = self._create_box_with_fillet()
         original_volume = fillet.Shape.Volume

@@ -117,8 +117,13 @@ public:
 
     enum class BaseFeatureChange
     {
+        /// Another feature was inserted right before this one
         Insertion,
-        Removal
+        /// The feature right before this one was removed
+        Removal,
+        /// This feature itself was inserted, e.g. moved to another position in the Body;
+        /// its previous BaseFeature, if any, is still part of the model
+        Move
     };
 
     /// Called by Body after assigning BaseFeature during insertion or removal.
