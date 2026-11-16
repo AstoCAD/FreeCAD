@@ -145,7 +145,7 @@ fi
 
 if [[ "${MACOS_SIGN_RELEASE}" == "true" ]]; then
     # create the signed dmg
-    ../../scripts/macos_sign_and_notarize.zsh -p "AstoCAD" -k ${MACOS_SIGNING_KEY_ID} -o "${version_name}.dmg"
+    ../../scripts/macos_sign_and_notarize.zsh -p "FreeCAD" -k ${MACOS_SIGNING_KEY_ID} -o "${version_name}.dmg"
 else
     # Ad-hoc sign for local builds (required for QuickLook extensions to register)
     if [ -d "AstoCAD.app/Contents/PlugIns" ]; then
