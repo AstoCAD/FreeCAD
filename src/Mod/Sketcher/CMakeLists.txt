@@ -100,6 +100,7 @@ if(BUILD_GUI)
           SketcherTests/TestExternalInAssemblyGui.py
           SketcherTests/TestSplitContinuousModeGui.py
           SketcherTests/TestElementsExternalFilterGui.py
+          SketcherTests/TestImportInEditGui.py
     )
 endif(BUILD_GUI)
 

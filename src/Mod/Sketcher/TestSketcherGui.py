@@ -43,6 +43,7 @@ from SketcherTests.TestAutoConstraintRedundancyGui import TestAutoConstraintRedu
 from SketcherTests.TestExternalInAssemblyGui import TestExternalInAssemblyGui
 from SketcherTests.TestSplitContinuousModeGui import TestSplitContinuousModeGui
 from SketcherTests.TestElementsExternalFilterGui import TestElementsExternalFilterGui
+from SketcherTests.TestImportInEditGui import TestImportInEditGui
 
 # Use the module so that code checkers don't complain (flake8)
 (
@@ -87,5 +88,6 @@ from SketcherTests.TestElementsExternalFilterGui import TestElementsExternalFilt
     and TestExternalInAssemblyGui
     and TestSplitContinuousModeGui
     and TestElementsExternalFilterGui
+    and TestImportInEditGui
     else False
 )

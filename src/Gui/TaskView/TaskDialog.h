@@ -188,6 +188,16 @@ public:
     {
         return true;
     }
+    /*!
+      The file types (extensions without the dot) that this task dialog takes from the
+      import command while it is open, although it does not allow other commands to modify
+      the document: the importer of such a file brings it into what the dialog edits.
+      The import command then offers these types only. None by default.
+    */
+    virtual std::vector<std::string> importTypes() const
+    {
+        return {};
+    }
     virtual bool needsFullSpace() const
     {
         return false;
