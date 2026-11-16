@@ -112,6 +112,33 @@ TitleBarWidget QPushButton#titleBarLogoBtn:hover {
   background-color: #333333;
 }
 
+/* Menus of the custom title bar: on the background of the title bar */
+QMenuBar[foldable="true"] {
+  background-color: transparent;
+}
+
+/* Line between the pinned menus and the toolbars of the title bar */
+QFrame#titleBarMenuSeparator {
+  border: none;  /* the themes frame a QFrame without shape */
+  background-color: #4A4A4A;
+}
+
+/* Pin button after the last menu: not under TitleBarWidget while the menu bar unfolds over it */
+QToolButton#titleBarPinBtn {
+  qproperty-icon: url(:/icons/titlebar-menu-pin-white.svg) off, url(:/icons/titlebar-menu-unpin-white.svg) on;
+  background-color: transparent;
+  border: none;
+  border-radius: 3px;
+  padding: 2px;
+  margin: 0px 2px;
+}
+QToolButton#titleBarPinBtn:hover {
+  background-color: #333333;
+}
+QToolButton#titleBarPinBtn:pressed {
+  background-color: #555555;
+}
+
 QPushButton#minimizeButton, 
 QPushButton#maximizeButton, 
 QPushButton#restoreButton, 
