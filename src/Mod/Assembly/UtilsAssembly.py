@@ -1486,6 +1486,38 @@ def createPart(partName, doc):
     return part, body
 
 
+def replaceComponentByLinkArray(component, array):
+    """Make a link array take the place of a component of an assembly that is a link.
+
+    The array links to the object that the component links to and takes the placement of
+    the component, so its first element is where the component was. The joints of the
+    component, and its grounding, then refer to this first element, and the component is
+    removed. To the user, the component became the first instance of the pattern.
+
+    component: an App::Link, a component of the assembly that holds the array.
+    array: a Part::LinkArray without linked object yet.
+    """
+    array.LinkedObject = component.LinkedObject
+    array.LinkTransform = component.LinkTransform
+    array.ScaleVector = component.ScaleVector
+    array.Placement = component.Placement
+    # The elements exist once the array is computed
+    array.recompute()
+
+    elements = array.ElementList
+    first = (elements[0].Name if elements else "0") + "."
+
+    for obj in component.InList:
+        for prop in ("Reference1", "Reference2"):
+            ref = getattr(obj, prop, None)
+            if ref and len(ref) == 2 and ref[0] == component:
+                setattr(obj, prop, (array, [first + sub for sub in ref[1]]))
+        if getattr(obj, "ObjectToGround", None) == component:
+            obj.ObjectToGround = array
+
+    component.Document.removeObject(component.Name)
+
+
 def getLinkGroup(linkElement):
     if linkElement.TypeId == "App::LinkElement":
         for obj in linkElement.InList:
