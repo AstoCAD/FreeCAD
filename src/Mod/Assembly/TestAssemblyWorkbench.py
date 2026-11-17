@@ -24,6 +24,7 @@
 import TestApp
 
 from AssemblyTests.TestCore import TestCore
+from AssemblyTests.TestFastenerLink import TestFastenerLink
 from AssemblyTests.TestHeadlessJointRestore import (
     TestHeadlessJointSerialization,
     TestHeadlessJointRestoreGui,
@@ -57,6 +58,7 @@ from AssemblyTests.TestViewProviderAssembly import TestViewProviderAssembly
 
 # Use the modules so that code checkers don't complain (flake8)
 True if TestCore else False
+True if TestFastenerLink else False
 True if TestHeadlessJointSerialization else False
 True if TestHeadlessJointRestoreGui else False
 True if TestDynamics else False
