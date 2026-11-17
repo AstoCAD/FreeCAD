@@ -371,6 +371,21 @@ bool TaskView::event(QEvent* event)
     return QWidget::event(event);
 }
 
+bool TaskView::eventFilter(QObject* watched, QEvent* event)
+{
+    // The width of the task panel is adapted to its content when a dialog or a watcher is
+    // shown. The content can need more width later, e.g. when a dialog switches to a wider
+    // page of a tab widget or shows more widgets. The panel has no horizontal scroll bar,
+    // so grow it then instead of clipping the content. It is not shrunk here, to keep a
+    // width the user has set.
+    if (event->type() == QEvent::LayoutRequest && isIndexValid(currentIndex())
+        && watched == taskInfos[currentIndex()].taskPanel->actionPanel
+        && minimumSizeHint().width() > width()) {
+        triggerMinimumSizeHint();
+    }
+    return QStackedWidget::eventFilter(watched, event);
+}
+
 void TaskView::keyPressEvent(QKeyEvent* ke)
 {
     if (isIndexValid(currentIndex()) && taskInfos[currentIndex()].ActiveCtrl
@@ -486,6 +501,7 @@ void TaskView::slotActiveDocument(const App::Document& doc)
             }
         );
         addWidget(taskInfos.back().taskPanel);
+        taskInfos.back().taskPanel->actionPanel->installEventFilter(this);
         taskInfo = std::prev(taskInfos.end());
     }
     setShownTaskInfo(taskInfo);
@@ -659,6 +675,7 @@ bool TaskView::showDialog(TaskDialog* dlg, App::Document* doc)
         taskInfos.emplace_back(TaskInfo {.taskPanel = new TaskPanel(this), .Document = doc});
         taskInfo = std::prev(taskInfos.end());
         addWidget(taskInfo->taskPanel);
+        taskInfo->taskPanel->actionPanel->installEventFilter(this);
     }
 
 

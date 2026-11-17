@@ -397,6 +397,8 @@ protected:
     void onAnimationStateChanged();
     void setupLayout();
     void onSizeGripMove(const QPoint&);
+    /// Show the size grip of the inner edge where it is needed, on that edge
+    void updateEdgeGrip();
 
 private:
     friend class OverlayProxyWidget;
@@ -412,6 +414,8 @@ private:
     OverlayProxyWidget* proxyWidget;
     QSplitter* splitter = nullptr;
     QWidget* titleBar = nullptr;
+    /// Size grip along the inner edge, over the splitter. See updateEdgeGrip()
+    OverlaySizeGrip* edgeGrip = nullptr;
     QAction actNoAutoMode;
     QAction actAutoHide;
     QAction actEditHide;
@@ -508,7 +512,13 @@ class OverlaySizeGrip: public QWidget
 {
     Q_OBJECT
 public:
-    OverlaySizeGrip(QWidget* parent, bool vertical);
+    /** Constructor
+     * @param vertical: the grip resizes vertically, and lies horizontally
+     * @param edge: the grip runs along an edge of the overlay, over its content. It shows
+     * and sets the cursor only while it gets the mouse, which a transparent overlay passes
+     * to the view below where the content is transparent.
+     */
+    OverlaySizeGrip(QWidget* parent, bool vertical, bool edge = false);
 
 Q_SIGNALS:
     void dragMove(const QPoint& globalPos);
@@ -518,10 +528,15 @@ protected:
     void mouseMoveEvent(QMouseEvent* ev) override;
     void mousePressEvent(QMouseEvent* ev) override;
     void mouseReleaseEvent(QMouseEvent* ev) override;
+    void leaveEvent(QEvent* ev) override;
     const QPixmap& pixmap() const;
 
 private:
+    void setActive(bool active);
+
     bool vertical;
+    bool edge;
+    bool active = false;
 };
 
 /// Splitter for OverlayTabWidget

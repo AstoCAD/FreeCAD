@@ -222,6 +222,7 @@ private:
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     bool event(QEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
     void addTaskWatcher(TaskIndex index);
     void removeActiveTaskWatcher();
