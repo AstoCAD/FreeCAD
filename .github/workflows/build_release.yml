@@ -283,6 +283,20 @@ jobs:
           esac
           pixi run --locked bash -c "cd $OSFOLDER && bash create_bundle.sh"
 
+      # The same files as the AppImage, as a single-file Flatpak bundle. It is an extra:
+      # a failure here does not hold back the AppImage.
+      - name: Build the Flatpak bundle
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        shell: bash
+        env:
+          BUILD_TAG: ${{ needs.upload_src.outputs.build_tag }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y flatpak
+          cd package/bundle/linux
+          bash create_flatpak.sh
+
       ## Needed if running on a self-hosted runner:
       # - name: Clean up keychain and provisioning profile
       #   if: ${{ always() }}
@@ -322,14 +336,14 @@ jobs:
             sudo apt-get update -qq && sudo apt-get install -y lftp
 
             cd linux
-            write_sha256 AstoCAD_*.AppImage
+            write_sha256 AstoCAD_*.AppImage AstoCAD_*.flatpak
 
             lftp -e "
             set ssl:verify-certificate no;
             open $FTP_HOST;
             user $FTP_USER $FTP_PASSWORD;
             cd /www/builds/;
-            mput AstoCAD_*.AppImage AstoCAD_*.txt;
+            mput AstoCAD_*.AppImage AstoCAD_*.flatpak AstoCAD_*.txt;
             bye
             "
 
