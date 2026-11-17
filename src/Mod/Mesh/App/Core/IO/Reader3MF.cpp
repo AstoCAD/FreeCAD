@@ -52,6 +52,8 @@ Reader3MF::Reader3MF(std::istream& str)
     }
 }
 
+Reader3MF::~Reader3MF() = default;
+
 Reader3MF::Reader3MF(const std::string& filename)
 {
     file = std::make_unique<zipios::ZipFile>(filename);
