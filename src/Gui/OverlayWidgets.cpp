@@ -367,6 +367,14 @@ OverlayTabWidget::OverlayTabWidget(QWidget* parent, Qt::DockWidgetArea pos)
 
     splitter = new OverlaySplitter(this);
 
+    edgeGrip = new OverlaySizeGrip(
+        this,
+        pos == Qt::TopDockWidgetArea || pos == Qt::BottomDockWidgetArea,
+        true
+    );
+    edgeGrip->hide();
+    connect(edgeGrip, &OverlaySizeGrip::dragMove, this, &OverlayTabWidget::onSizeGripMove);
+
     _graphicsEffect = new OverlayGraphicsEffect(splitter);
     splitter->setGraphicsEffect(_graphicsEffect);
 
@@ -1225,6 +1233,7 @@ void OverlayTabWidget::setState(State state)
                 tabBar()->show();
                 titleBar->hide();
                 splitter->hide();
+                edgeGrip->hide();
                 _graphicsEffectTab->setEnabled(true);
                 show();
                 raise();
@@ -1834,6 +1843,7 @@ void OverlayTabWidget::addWidget(QDockWidget* dock, const QString& title)
     if (count() == 1) {
         adjustSizeToWidget(dock);
     }
+    updateEdgeGrip();
 
     saveTabs();
 }
@@ -1915,6 +1925,7 @@ void OverlayTabWidget::removeWidget(QDockWidget* dock, QDockWidget* lastDock)
     dock->setFeatures(dock->features() | QDockWidget::DockWidgetFloatable);
 
     setOverlayMode(dock, OverlayOption::Disable);
+    updateEdgeGrip();
 
     saveTabs();
 }
@@ -2006,6 +2017,43 @@ void OverlayTabWidget::setupLayout()
     }
     splitter->setGeometry(rect);
     titleBar->setGeometry(rectTitle);
+    updateEdgeGrip();
+}
+
+void OverlayTabWidget::updateEdgeGrip()
+{
+    // The size grip of the title bar is the only way to resize the overlay by hand. The
+    // title bar of the task view is not drawn (see OverlayTitleBar::paintEvent()), so that
+    // grip cannot be found there: give the edge of the task view a grip of its own.
+    bool needed = false;
+    if (_state <= State::Normal && splitter->isVisibleTo(this)) {
+        for (int i = 0, count = splitter->count(); i < count && !needed; ++i) {
+            needed = splitter->widget(i)->findChild<TaskView::TaskView*>() != nullptr;
+        }
+    }
+    if (!needed) {
+        edgeGrip->hide();
+        return;
+    }
+
+    QRect rect = splitter->geometry();
+    switch (dockArea) {
+        case Qt::LeftDockWidgetArea:
+            rect.setLeft(rect.right() - edgeGrip->width() + 1);
+            break;
+        case Qt::RightDockWidgetArea:
+            rect.setWidth(edgeGrip->width());
+            break;
+        case Qt::TopDockWidgetArea:
+            rect.setTop(rect.bottom() - edgeGrip->height() + 1);
+            break;
+        default:
+            rect.setHeight(edgeGrip->height());
+            break;
+    }
+    edgeGrip->setGeometry(rect);
+    edgeGrip->show();
+    edgeGrip->raise();
 }
 
 void OverlayTabWidget::setCurrent(QDockWidget* widget)
@@ -2455,25 +2503,66 @@ QSize OverlayDragFrame::minimumSizeHint() const
 
 // -----------------------------------------------------------
 
-OverlaySizeGrip::OverlaySizeGrip(QWidget* parent, bool vertical)
+OverlaySizeGrip::OverlaySizeGrip(QWidget* parent, bool vertical, bool edge)
     : QWidget(parent)
     , vertical(vertical)
+    , edge(edge)
 {
     if (vertical) {
         this->setFixedHeight(6);
-        this->setMinimumWidth(widgetMinSize(this, true));
-        this->setCursor(Qt::SizeVerCursor);
     }
     else {
         this->setFixedWidth(6);
-        this->setMinimumHeight(widgetMinSize(this, true));
-        this->setCursor(Qt::SizeHorCursor);
+    }
+    // The grip of an edge takes the cursor of its parent, to which a transparent overlay
+    // gives the cursor of the view below while it passes the mouse through. See setActive()
+    if (!edge) {
+        if (vertical) {
+            this->setMinimumWidth(widgetMinSize(this, true));
+            this->setCursor(Qt::SizeVerCursor);
+        }
+        else {
+            this->setMinimumHeight(widgetMinSize(this, true));
+            this->setCursor(Qt::SizeHorCursor);
+        }
     }
     setMouseTracking(true);
 }
 
+void OverlaySizeGrip::setActive(bool on)
+{
+    if (!edge || active == on) {
+        return;
+    }
+    active = on;
+    if (auto parent = parentWidget()) {
+        if (on) {
+            parent->setCursor(vertical ? Qt::SizeVerCursor : Qt::SizeHorCursor);
+        }
+        else {
+            parent->unsetCursor();
+        }
+    }
+    update();
+}
+
+void OverlaySizeGrip::leaveEvent(QEvent* ev)
+{
+    setActive(false);
+    QWidget::leaveEvent(ev);
+}
+
 void OverlaySizeGrip::paintEvent(QPaintEvent*)
 {
+    if (edge) {
+        // Over the content: only shown while the mouse can use it
+        if (active) {
+            QPainter painter(this);
+            painter.setOpacity(0.6);
+            painter.fillRect(this->rect(), palette().color(QPalette::Highlight));
+        }
+        return;
+    }
     QPainter painter(this);
     painter.setPen(Qt::transparent);
     painter.setOpacity(0.5);
@@ -2486,6 +2575,7 @@ void OverlaySizeGrip::mouseMoveEvent(QMouseEvent* me)
 {
     QPoint point = me->globalPosition().toPoint();
 
+    setActive(true);
     if ((me->buttons() & Qt::LeftButton)) {
         Q_EMIT dragMove(point);
     }
