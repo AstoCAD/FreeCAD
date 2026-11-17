@@ -2856,6 +2856,12 @@ QToolButton#titleBarPinBtn:pressed {
     background-color: @AccentColor;
 }
 
+/* Line between the pinned menus and the toolbars of the title bar */
+QFrame#titleBarMenuSeparator {
+    border: none;  /* the themes frame a QFrame without shape */
+    background-color: @GeneralBorderColor;
+}
+
 /* Generic backend: red close button (Windows-style convention) */
 CustomTitleBarWindow[backend="generic"] WindowDecorationButton#closeButton:hover {
     background-color: #e81123;

@@ -5,6 +5,7 @@
 
 #include <QAbstractButton>
 #include <QActionEvent>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QMenu>
 #include <QMenuBar>
@@ -20,6 +21,7 @@ struct FoldableMenuBar::Impl {
     QWidget *menuContainer = nullptr;
     QWidget *menuWrapper = nullptr;   // inside container, has border trick for centering
     QPointer<QAbstractButton> pinButton;   // inside container, right after menuWrapper
+    QWidget *pinnedSeparator = nullptr;    // in the layout after the pinned container
     QTimer *collapseTimer = nullptr;
     QPropertyAnimation *animation = nullptr;
     QList<QWidget *> maskTargets;
@@ -130,6 +132,19 @@ struct FoldableMenuBar::Impl {
         menuContainer->setGeometry(x, origin.y(), width, self->height());
     }
 
+    /// Pinned menu items are followed by what the menu bar covers when it unfolds:
+    /// a line tells them apart. It ends the layout, after the container.
+    void updatePinnedSeparator() {
+        layout->removeWidget(pinnedSeparator);
+        if (foldable && pinned) {
+            layout->addWidget(pinnedSeparator);
+            pinnedSeparator->show();
+        }
+        else {
+            pinnedSeparator->hide();
+        }
+    }
+
     /// Pinned: the container leaves the overlay for the layout, after the brand,
     /// and shows the menu items whole, without mask and without folding.
     /// Returns whether the menu items were folded.
@@ -143,6 +158,7 @@ struct FoldableMenuBar::Impl {
             layout->addWidget(menuContainer);
         menuContainer->setMaximumWidth(QWIDGETSIZE_MAX);
         menuContainer->show();
+        updatePinnedSeparator();
         revealWidth = contentWidth();
         updateClip();
         bool wasFolded = !expanded;
@@ -154,6 +170,7 @@ struct FoldableMenuBar::Impl {
     /// In overlay mode, the container goes back from the layout to the overlay first,
     /// so that the widgets after it take their place again under the folding menu.
     void releasePinned(FoldableMenuBar *self) {
+        updatePinnedSeparator();
         if (overlayExpand) {
             layout->removeWidget(menuContainer);
             if (QWidget *win = self->window()) {
@@ -243,6 +260,22 @@ FoldableMenuBar::FoldableMenuBar(QWidget *parent)
     wrapperLayout->setSpacing(0);
     wrapperLayout->addWidget(d->menuBar, 0, Qt::AlignVCenter);
     containerLayout->addWidget(d->menuWrapper);
+
+    // Line after the pinned menu items (updatePinnedSeparator()), over the whole height
+    // of the title bar. Its holder spaces it; style sheets colour the line by its name.
+    d->pinnedSeparator = new QWidget(this);
+    auto *separatorLayout = new QHBoxLayout(d->pinnedSeparator);
+    separatorLayout->setContentsMargins(4, 0, 6, 0);
+    separatorLayout->setSpacing(0);
+    auto *separatorLine = new QFrame(d->pinnedSeparator);
+    separatorLine->setObjectName(QStringLiteral("titleBarMenuSeparator"));
+    separatorLine->setFrameShape(QFrame::NoFrame);
+    separatorLine->setFixedWidth(1);
+    separatorLine->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+    separatorLine->setBackgroundRole(QPalette::Mid);
+    separatorLine->setAutoFillBackground(true);
+    separatorLayout->addWidget(separatorLine);
+    d->pinnedSeparator->hide();
 
     // Overlay is default — menuContainer is NOT in the layout (floats over content).
     // In non-overlay mode it gets added to the layout in setOverlayExpand(false).
@@ -399,6 +432,8 @@ void FoldableMenuBar::setFoldable(bool foldable)
         d->pinButton->setVisible(foldable);
     if (foldable && d->pinned)
         d->applyPinned(this);
+    else
+        d->updatePinnedSeparator();
 }
 
 bool FoldableMenuBar::isFoldable() const
