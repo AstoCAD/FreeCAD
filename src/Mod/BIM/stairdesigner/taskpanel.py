@@ -23,7 +23,8 @@ from .taskpanel_stringers import StringerPanelMixin
 
 from .taskpanel_handrails import HandrailPanelMixin
 
-from .taskpanel_position import PositionPanelMixin
+from .taskpanel_position import _AUTO_UPDATE, _PARAMETERS, PositionPanelMixin
+from .taskpanel_bom import BomPanelMixin
 from .object_utils import get_flights
 
 class StairDesignerTaskPanel(
@@ -32,6 +33,7 @@ class StairDesignerTaskPanel(
     FlightPanelMixin,
     StringerPanelMixin,
     HandrailPanelMixin,
+    BomPanelMixin,
 ):
     """Edit one or more Stair Designer parameter sections."""
 
@@ -51,11 +53,12 @@ class StairDesignerTaskPanel(
             "steps",
             "stringers",
             "handrails",
+            "bom",
         )
         self.sections = tuple(
             section
             for section in requested_sections
-            if section in {"stairs", "steps", "stringers", "handrails"}
+            if section in {"stairs", "steps", "stringers", "handrails", "bom"}
         )
         self._loading = True
         self._closed = False
@@ -76,6 +79,25 @@ class StairDesignerTaskPanel(
         self.section_tabs.setObjectName("section_tabs")
         tabs_layout.addWidget(self.section_tabs)
         old_tabs.deleteLater()
+        regenerate_row = QtGui.QHBoxLayout()
+        self.auto_update = QtGui.QCheckBox(translate("BIM", "Auto update"))
+        self.auto_update.setToolTip(
+            translate(
+                "BIM",
+                "Rebuilds the stair after every change. Unchecked, changes wait "
+                "for Regenerate",
+            )
+        )
+        self.auto_update.setChecked(
+            FreeCAD.ParamGet(_PARAMETERS).GetBool(_AUTO_UPDATE, True)
+        )
+        self.regenerate_button = QtGui.QPushButton(translate("BIM", "Regenerate"))
+        self.regenerate_button.setToolTip(translate("BIM", "Rebuilds the stair now"))
+        regenerate_row.addWidget(self.auto_update)
+        regenerate_row.addStretch(1)
+        regenerate_row.addWidget(self.regenerate_button)
+        tabs_layout.addLayout(regenerate_row)
+        self.stair.Proxy.defer_rebuilds(self.stair, not self.auto_update.isChecked())
         self._component_sections_hidden = False
         self._loading_override = False
         self._selection_observer_registered = False
@@ -91,12 +113,14 @@ class StairDesignerTaskPanel(
             "steps": translate("BIM", "Step"),
             "stringers": translate("BIM", "Stringer"),
             "handrails": translate("BIM", "Handrail"),
+            "bom": translate("BIM", "BOM"),
         }
         section_icons = {
             "stairs": QtGui.QIcon(":/icons/Arch_Stairs.svg"),
             "steps": QtGui.QIcon(":/icons/Arch_Stairs.svg"),
             "stringers": QtGui.QIcon(":/icons/Arch_Stringer.svg"),
             "handrails": QtGui.QIcon(":/icons/Arch_Handrail.svg"),
+            "bom": QtGui.QIcon(":/icons/Arch_Schedule.svg"),
         }
         for section in self.sections:
             if section == "stairs":
@@ -107,6 +131,8 @@ class StairDesignerTaskPanel(
                 panel = self._make_stringer_panel()
             elif section == "handrails":
                 panel = self._make_handrail_panel()
+            elif section == "bom":
+                panel = self._make_bom_panel()
             else:
                 continue
             self.section_widgets[section] = panel
@@ -121,6 +147,13 @@ class StairDesignerTaskPanel(
             self.section_tabs.setCurrentWidget(
                 self.section_widgets[active_section]
             )
+
+        # Typed values apply once entered, not on every keystroke.
+        for spin in self.form.findChildren(QtGui.QAbstractSpinBox):
+            spin.setKeyboardTracking(False)
+        self.auto_update.toggled.connect(self._auto_update_toggled)
+        self.regenerate_button.clicked.connect(self._regenerate)
+        self._update_regenerate_button()
 
         self._loading = False
         if {"stairs", "steps", "stringers", "handrails"}.intersection(
@@ -142,9 +175,45 @@ class StairDesignerTaskPanel(
         self._update_step_selection()
         self._update_stringer_selection()
 
+    def _auto_update_toggled(self, checked):
+        FreeCAD.ParamGet(_PARAMETERS).SetBool(_AUTO_UPDATE, bool(checked))
+        pending = self.stair.Proxy.rebuild_pending()
+        self.stair.Proxy.defer_rebuilds(self.stair, not checked)
+        if checked and pending:
+            self.stair.Document.recompute()
+            self._after_rebuild()
+        self._update_regenerate_button()
+
+    def _regenerate(self, *args):
+        self.stair.Proxy.regenerate(self.stair)
+        self.stair.Document.recompute()
+        self._after_rebuild()
+
+    def _update_regenerate_button(self):
+        pending = self.stair.Proxy.rebuild_pending()
+        font = self.regenerate_button.font()
+        font.setBold(pending)
+        self.regenerate_button.setFont(font)
+        self.regenerate_button.setToolTip(
+            translate("BIM", "The stair has changes to rebuild")
+            if pending
+            else translate("BIM", "Rebuilds the stair now")
+        )
+
+    def _end_deferral(self):
+        """Leave manual mode as the panel closes, keeping pending changes."""
+
+        try:
+            proxy = getattr(self.stair, "Proxy", None)
+        except ReferenceError:
+            return
+        if proxy is not None and hasattr(proxy, "defer_rebuilds"):
+            proxy._deferred = False
+
     def _form_destroyed(self, *args):
         self._closed = True
         self._loading = True
+        self._end_deferral()
         self._remove_position_dragger()
         self._remove_selection_observer()
 
@@ -250,7 +319,21 @@ class StairDesignerTaskPanel(
                 self.stair.StringerNosingOffset = (
                     self.stringer_nosing_offset.value()
                 )
+                self.stair.StringerUndersideOffsetDirection = str(
+                    self.stringer_underside_direction.itemData(
+                        self.stringer_underside_direction.currentIndex()
+                    )
+                )
+                self.stair.StringerUndersideOffset = (
+                    self.stringer_underside_offset.value()
+                )
                 self.stair.StringerJoinery = self.stringer_joinery.isChecked()
+                self.stair.StringerOpenHousings = (
+                    self.stringer_open_housings.isChecked()
+                )
+                self.stair.StringerWedgedHousings = (
+                    self.stringer_wedged_housings.isChecked()
+                )
             if "handrails" in self.sections:
                 for record in self.handrail_flight_editors:
                     flight = record["flight"]
@@ -383,12 +466,29 @@ class StairDesignerTaskPanel(
                                 record["exit_direction"].currentIndex()
                             )
                         )
+                    if (
+                        record.get("exit_width") is not None
+                        and "ExitWidth" in flight.PropertiesList
+                    ):
+                        # 0 follows the flight width.
+                        flight.ExitWidth = (
+                            0.0
+                            if record.get("exit_width_auto")
+                            else record["exit_width"].value()
+                        )
+                    flight_proxy._update_dimension_visibility(flight)
                 finally:
                     flight_proxy._updating = was_updating
         finally:
             proxy._updating = False
         proxy.rebuild(self.stair, allow_structure_changes=True)
         self.stair.Document.recompute()
+        self._after_rebuild()
+
+    def _after_rebuild(self):
+        """Refresh what the panel shows of the rebuilt stair."""
+
+        self._update_regenerate_button()
         if "steps" in self.sections:
             self._update_overlap_label()
         if "stringers" in self.sections:
@@ -487,6 +587,10 @@ class StairDesignerTaskPanel(
         self._loading = True
         self._remove_position_dragger()
         self._remove_selection_observer()
+        # Changes left waiting for Regenerate are kept.
+        if self.stair.Proxy.rebuild_pending():
+            self.stair.Proxy.regenerate(self.stair)
+        self._end_deferral()
         doc = self.stair.Document
         doc.recompute()
         gui_doc = FreeCADGui.ActiveDocument
@@ -503,6 +607,7 @@ class StairDesignerTaskPanel(
         self._loading = True
         self._remove_position_dragger()
         self._remove_selection_observer()
+        self._end_deferral()
         doc = self.stair.Document
         gui_doc = FreeCADGui.ActiveDocument
         if self.is_creating:

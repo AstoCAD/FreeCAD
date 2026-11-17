@@ -20,72 +20,61 @@ from .geometry_helical import (
 )
 
 from .geometry_stringer_path import (
+    PROFILE_MAXIMUM_PITCH,
+    STRINGER_TIMBER_BELOW_STEPS,
+    EdgeBlock,
     _circular_stringer_data,
+    _edges_above_floor,
     _make_planar_housed_stringer_shape,
     _stringer_cross_section,
     _stringer_elevations,
     _stringer_inward,
     _stringer_section_runs,
     _stringer_slope,
-    profile_value,
-    stringer_bottom_lines,
+    notched_board_edges,
+    stringer_straight_pitch,
 )
 
 
-def _straight_profile(sections, elevations, side):
+def _local_pitches(sections, elevations, side, rear_edge=False):
+    """Return the board pitch at each nosing of a planar board.
+
+    Winders make the nosings climb faster at one end of a board than at the
+    other, so the position above the nosings follows the local pitch. Fan
+    treads carried by a newel post, and the final tread's ``rear_edge``,
+    take the pitch of the nearest nosing that bears on the board. Returns
+    ``None`` when fewer than two nosings do.
+
+    A straight board profiles most nosings where their tips cross it, but
+    its ends at the riser lines. Mixing both would bend the pitch near the
+    ends, so the tip crossings alone set it when the board has them.
+    """
+
     points = [section.left if side == "Left" else section.right for section in sections]
     distances = [math.dist(points[0], point) for point in points]
-    # The fan elevations at a newel are carried by the post. Including them
-    # in the board fit raises the entire upper edge far above the straight
-    # nosings. Fit those nosings and extend their pitch into the posts.
-    samples = [
-        (x, z)
-        for section, x, z in zip(sections, distances, elevations)
+    borne = [
+        index
+        for index, section in enumerate(sections)
         if not section.profile_at_newel
+        and not (rear_edge and index == len(sections) - 1)
     ]
-    if len(samples) < 2:
-        samples = list(zip(distances, elevations))
-    mean_x = sum(x for x, _ in samples) / len(samples)
-    mean_z = sum(z for _, z in samples) / len(samples)
-    variance = sum((x - mean_x) ** 2 for x, _ in samples)
-    slope = sum((x - mean_x) * (z - mean_z) for x, z in samples) / max(variance, 1e-9)
-    intercept = max(z - slope * x for x, z in samples)
-    return distances, [intercept + slope * x for x in distances], slope
-
-
-def newel_stringer_width(
-    sections,
-    riser_height,
-    side,
-    step_thickness,
-    nosing,
-    back_extension,
-    nosing_offset,
-    offset_direction,
-):
-    """Size a straight newel board below every tread back, with 50 mm of timber."""
-    elevations = _stringer_elevations(sections, riser_height)
-    profile = list(elevations)
-    if abs(profile[-1] - profile[-2]) < 1e-9:
-        profile[-1] += float(riser_height)
-    _distances, fitted, slope = _straight_profile(sections, profile, side)
-    cosine = 1.0 / math.sqrt(1.0 + slope * slope)
-    offset = max(float(nosing_offset), 0.0)
-    if str(offset_direction) == "Perpendicular":
-        offset /= cosine
-    compensation = slope * max(float(nosing), 0.0)
-    # A housed tread continues behind the next riser. Its underside must
-    # remain above the lower board edge there, not just at its front nosing.
-    depth = max(
-        fitted[index + 1]
-        + slope * max(float(back_extension), 0.0)
-        + offset
-        + compensation
-        - elevation
-        + max(float(step_thickness), 0.0)
-        for index, elevation in enumerate(elevations[:-1])
-    )
-    return depth * cosine + 50.0
+    aligned = [index for index in borne if sections[index].profile_nosing_aligned]
+    if len(aligned) >= 2:
+        borne = aligned
+    if len(borne) < 2:
+        return None
+    borne_pitches = []
+    for position, index in enumerate(borne):
+        previous = borne[max(position - 1, 0)]
+        following = borne[min(position + 1, len(borne) - 1)]
+        run = distances[following] - distances[previous]
+        if run < 1e-6:
+            return None
+        borne_pitches.append((elevations[following] - elevations[previous]) / run)
+    return [
+        borne_pitches[min(range(len(borne)), key=lambda position: abs(borne[position] - index))]
+        for index in range(len(sections))
+    ]
 
 
 def make_housed_stringer_shape(
@@ -100,9 +89,26 @@ def make_housed_stringer_shape(
     nosing_offset,
     offset_direction="Perpendicular",
     nosing=0.0,
-    straight_profile=False,
+    single_pitch=False,
+    supports=(),
+    underside_offset=STRINGER_TIMBER_BELOW_STEPS,
+    underside_direction="Perpendicular",
+    final_riser=True,
+    start_block=None,
+    end_block=None,
 ):
-    """Create one smooth closed stringer housing the tread and riser ends."""
+    """Create one smooth closed stringer housing the tread and riser ends.
+
+    ``single_pitch`` keeps the upper edge to one straight pitch, for a board
+    too short to follow its nosings. ``supports`` are housing corners,
+    from ``housed_board_supports``, that the lower edge clears by
+    ``underside_offset``, measured as ``underside_direction`` says.
+    ``final_riser`` tells whether a riser rises behind the board's last
+    tread; without one, as at the top of a stair ending on its last tread,
+    that tread is the floor and the board runs on level over it.
+    ``start_block`` and ``end_block`` are the ``EdgeBlock`` a flat board's
+    ends run level into, see ``level_board_corners``.
+    """
 
     if len(sections) < 2:
         return Part.Shape()
@@ -121,7 +127,13 @@ def make_housed_stringer_shape(
                 nosing_offset,
                 offset_direction,
                 nosing,
-                straight_profile,
+                single_pitch,
+                supports,
+                underside_offset,
+                underside_direction,
+                final_riser or index < len(runs) - 1,
+                start_block if index == 0 else None,
+                end_block if index == len(runs) - 1 else None,
             )
             for index, run in enumerate(runs)
         ]
@@ -140,7 +152,13 @@ def make_housed_stringer_shape(
         nosing_offset,
         offset_direction,
         nosing,
-        straight_profile,
+        single_pitch,
+        supports,
+        underside_offset,
+        underside_direction,
+        final_riser,
+        start_block,
+        end_block,
     )
 
 
@@ -156,7 +174,13 @@ def _make_housed_stringer_run(
     nosing_offset,
     offset_direction,
     nosing,
-    straight_profile=False,
+    single_pitch=False,
+    supports=(),
+    underside_offset=STRINGER_TIMBER_BELOW_STEPS,
+    underside_direction="Perpendicular",
+    final_riser=True,
+    start_block=None,
+    end_block=None,
 ):
     """Create one continuous housed-stringer run."""
 
@@ -165,15 +189,19 @@ def _make_housed_stringer_run(
     start_extension = max(float(start_extension), 0.0)
     end_extension = max(float(end_extension), 0.0)
     elevations = _stringer_elevations(sections, riser_height)
-    if (
+    rear_edge = (
         len(elevations) >= 2
         and abs(elevations[-1] - elevations[-2]) < 1e-9
         and not any(section.landing_to_next for section in sections)
         and math.dist(sections[-1].center, sections[-2].center) > 1e-6
-    ):
-        # The last section is the rear edge of the final tread, rather than
-        # another nosing. Continue the board at the stair pitch through it;
-        # otherwise a smooth loft flattens and overshoots before its extension.
+    )
+    # The last section is the rear edge of the final tread, rather than
+    # another nosing.
+    level_end = rear_edge and not final_riser
+    if rear_edge and final_riser:
+        # A riser rises behind it: continue the board at the stair pitch
+        # through it; otherwise a smooth loft flattens and overshoots before
+        # its extension.
         elevations[-1] = elevations[-2] + float(riser_height)
     circular = _circular_stringer_data(
         sections,
@@ -193,29 +221,71 @@ def _make_housed_stringer_run(
         )
     else:
         slope = _stringer_slope(sections, elevations)
-    if straight_profile:
-        # Winders meeting a newel do not need a vertical sweep in the board.
-        # Fit its pitch to the remaining nosings, keeping the upper edge above
-        # each one. Use distances on the board, not the varying tread centres.
-        _distances, elevations, slope = _straight_profile(sections, elevations, side)
     slope_cosine = 1.0 / math.sqrt(1.0 + slope * slope)
     vertical_width = width / max(slope_cosine, 0.01)
-    nosing_compensation = slope * max(float(nosing), 0.0)
-    vertical_offset = max(float(nosing_offset), 0.0)
-    if str(offset_direction) == "Perpendicular":
-        vertical_offset /= max(slope_cosine, 0.01)
+    pitches = (
+        None
+        if circular is not None
+        else _local_pitches(sections, elevations, side, rear_edge)
+    )
+
+    def top_above(section, elevation, pitch):
+        # The offset is square to the board edge, measured from the nosing
+        # tip, which lies ``nosing`` further down that pitch than the riser.
+        # A fan of winders around a newel can climb almost vertically along
+        # a short board; an offset square to that would rise without bound.
+        steepest = 2.0 * PROFILE_MAXIMUM_PITCH
+        pitch = max(-steepest, min(pitch, steepest))
+        vertical_offset = max(float(nosing_offset), 0.0)
+        if str(offset_direction) == "Perpendicular":
+            vertical_offset *= math.sqrt(1.0 + pitch * pitch)
+        compensation = (
+            0.0 if section.profile_nosing_aligned else pitch * max(float(nosing), 0.0)
+        )
+        return elevation + compensation + vertical_offset
+
+    if pitches is None:
+        pitches = [slope] * len(sections)
+    else:
+        # When the nosings fit one straight pitch, the board edge has that
+        # pitch everywhere: measure every offset square to it, keeping the
+        # board parallel to the rail fitted over the same nosings.
+        # A uniform offset leaves the fitted pitch unchanged, so this settles
+        # on the second pass.
+        points = [section.left if side == "Left" else section.right for section in sections]
+        distances = [math.dist(points[0], point) for point in points]
+        carried = [bool(section.profile_at_newel) for section in sections]
+        for _attempt in range(3):
+            straight = stringer_straight_pitch(
+                distances,
+                [
+                    top_above(section, elevation, pitch)
+                    for section, elevation, pitch in zip(sections, elevations, pitches)
+                ],
+                single_pitch,
+                carried,
+            )
+            if straight is None or all(abs(pitch - straight) < 1e-12 for pitch in pitches):
+                break
+            pitches = [straight] * len(sections)
 
     stations = list(sections)
     tops = [
-        elevation
-        + (
-            0.0
-            if section.profile_nosing_aligned
-            else nosing_compensation
-        )
-        + vertical_offset
-        for section, elevation in zip(sections, elevations)
+        top_above(section, elevation, pitch)
+        for section, elevation, pitch in zip(sections, elevations, pitches)
     ]
+    if level_end:
+        # The final tread is the floor: the board runs on level over it, at
+        # the height it has above the last nosing, rather than climbing a
+        # riser that is not there.
+        tops[-1] = tops[-2]
+        pitches = list(pitches)
+        pitches[-1] = 0.0
+        if end_block is None:
+            # Its upper edge arrives level at the last nosing; nothing
+            # asks the lower one to.
+            last_nosing = sections[-2].left if side == "Left" else sections[-2].right
+            end_block = EdgeBlock(last_nosing, bottom=False)
     if circular is not None:
         profile = circular["profile"]
         direction = 1.0 if profile.sweep > 0.0 else -1.0
@@ -248,12 +318,13 @@ def _make_housed_stringer_run(
                 + profile.sweep
                 + direction * end_angle_extension
             )
-            circular_tops.append(tops[-1] + slope * end_extension)
+            end_slope = 0.0 if level_end else slope
+            circular_tops.append(tops[-1] + end_slope * end_extension)
             circular_bottoms.append(
                 max(
                     tops[-1]
                     - vertical_width
-                    + slope * end_extension,
+                    + end_slope * end_extension,
                     0.0,
                 )
             )
@@ -268,10 +339,10 @@ def _make_housed_stringer_run(
 
     if start_extension > 1e-9:
         stations.insert(0, _translated_section(sections[0], -start_extension))
-        tops.insert(0, tops[0] - slope * start_extension)
+        tops.insert(0, tops[0] - pitches[0] * start_extension)
     if end_extension > 1e-9:
         stations.append(_translated_section(sections[-1], end_extension))
-        tops.append(tops[-1] + slope * end_extension)
+        tops.append(tops[-1] + pitches[-1] * end_extension)
 
     planar_shape = _make_planar_housed_stringer_shape(
         stations,
@@ -280,7 +351,12 @@ def _make_housed_stringer_run(
         thickness,
         penetration,
         width,
-        straight_profile,
+        single_pitch,
+        supports,
+        underside_offset,
+        underside_direction,
+        start_block,
+        end_block,
     )
     if planar_shape is not None:
         return planar_shape
@@ -317,6 +393,483 @@ def _make_housed_stringer_run(
         return result
 
 
+def housed_board_supports(
+    board, sections, side, thickness, penetration, steps, newel_reach=0.0
+):
+    """Return the lowest corners of the steps housed in a planar board.
+
+    ``board`` is a housed board built over ``sections`` and ``steps`` are the
+    tread and riser solids, in the same coordinates. Each step gives the
+    lowest corner of the part of it inside the board's thickness, furthest
+    up the board: the lower edge is fitted under these as the upper edge is
+    fitted over the nosings. Winders turning a corner, or
+    converging on a newel, sink those corners far below the edge of a
+    regular board. Corners on the floor are left out, where the board is cut
+    level, and so are those within ``newel_reach`` of a newel the board's
+    fan treads meet: the post carries them. Returns an empty list when the
+    board is not planar.
+    """
+
+    if board.isNull() or len(sections) < 2:
+        return []
+    points = [section.left if side == "Left" else section.right for section in sections]
+    span = (points[-1][0] - points[0][0], points[-1][1] - points[0][1])
+    length = math.hypot(*span)
+    if length < 1e-6:
+        return []
+    tangent = (span[0] / length, span[1] / length)
+    if any(
+        abs((point[0] - points[0][0]) * tangent[1] - (point[1] - points[0][1]) * tangent[0]) > 1e-3
+        for point in points
+    ):
+        return []
+    inward = _stringer_inward(sections[0], side)
+    normal = FreeCAD.Vector(inward[0], inward[1], 0.0)
+    along = FreeCAD.Vector(tangent[0], tangent[1], 0.0)
+    origin = FreeCAD.Vector(points[0][0], points[0][1], 0.0)
+    projections = [(vertex.Point - origin).dot(along) for vertex in board.Vertexes]
+    low = min(projections) - 1.0
+    high = max(projections) + 1.0
+    bottom = min(board.BoundBox.ZMin, 0.0) - 1.0
+    corners = [
+        origin + along * u + normal * v + FreeCAD.Vector(0.0, 0.0, bottom)
+        for u, v in (
+            (low, float(penetration)),
+            (high, float(penetration)),
+            (high, float(penetration) - float(thickness)),
+            (low, float(penetration) - float(thickness)),
+        )
+    ]
+    slab = Part.Face(Part.makePolygon(corners + corners[:1])).extrude(
+        FreeCAD.Vector(0.0, 0.0, board.BoundBox.ZMax - bottom + 1.0)
+    )
+    supports = []
+    for step in steps:
+        if not step.BoundBox.intersect(slab.BoundBox):
+            continue
+        housing = step.common(slab)
+        if housing.Volume < 1e-6:
+            continue
+        lowest = min(vertex.Point.z for vertex in housing.Vertexes)
+        if lowest < 1.0:
+            continue
+        # The lower edge climbs along the board, so the underside's end
+        # furthest up it comes closest to the edge.
+        supports.append(
+            max(
+                (vertex.Point for vertex in housing.Vertexes if vertex.Point.z < lowest + 1e-6),
+                key=lambda point: (point - origin).dot(along),
+            )
+        )
+    newels = [
+        (FreeCAD.Vector(point[0], point[1], 0.0) - origin).dot(along)
+        for point, section in zip(points, sections)
+        if section.profile_at_newel
+    ]
+    return [
+        point
+        for point in supports
+        if all(abs((point - origin).dot(along) - newel) >= newel_reach for newel in newels)
+    ]
+
+
+# How deep a corner's level block is where one of its boards stands on the
+# floor, and so gives the block no underside of its own.
+CORNER_BLOCK_DEPTH = 60.0
+
+
+def _board_frame(piece, side):
+    sections = piece["sections"]
+    points = [section.left if side == "Left" else section.right for section in sections]
+    span = (points[-1][0] - points[0][0], points[-1][1] - points[0][1])
+    length = math.hypot(*span)
+    if length < 1e-6:
+        return None
+    along = FreeCAD.Vector(span[0] / length, span[1] / length, 0.0)
+    inward = FreeCAD.Vector(*_stringer_inward(sections[0], side), 0.0)
+    # Only a flat board has one plane to meet its neighbour on.
+    if abs(inward.dot(along)) > 1e-6 or any(
+        abs((point[0] - points[0][0]) * along.y - (point[1] - points[0][1]) * along.x) > 1e-3
+        for point in points
+    ):
+        return None
+    inner = float(piece["penetration"])
+    outer = inner - float(piece["thickness"])
+    return {
+        "origin": FreeCAD.Vector(points[0][0], points[0][1], 0.0),
+        "along": along,
+        "inward": inward,
+        "length": length,
+        "inner": inner,
+        "outer": outer,
+        "centre": (inner + outer) / 2.0,
+        "thickness": float(piece["thickness"]),
+    }
+
+
+def _board_point(frame, u, v, z=0.0):
+    return frame["origin"] + frame["along"] * u + frame["inward"] * v + FreeCAD.Vector(0.0, 0.0, z)
+
+
+def _band_corner(first, first_offset, second, second_offset):
+    """Return where two boards' faces, at the given offsets, cross in plan."""
+
+    a, b = first["inward"], second["inward"]
+    rhs_a = first_offset + first["origin"].dot(a)
+    rhs_b = second_offset + second["origin"].dot(b)
+    determinant = a.x * b.y - a.y * b.x
+    return FreeCAD.Vector(
+        (rhs_a * b.y - rhs_b * a.y) / determinant,
+        (a.x * rhs_b - b.x * rhs_a) / determinant,
+        0.0,
+    )
+
+
+def _edge_at(shape, point, lower=False):
+    """Return the board's upper, or ``lower``, edge height above ``point``."""
+
+    probe = Part.makeLine(
+        FreeCAD.Vector(point.x, point.y, shape.BoundBox.ZMin - 1.0),
+        FreeCAD.Vector(point.x, point.y, shape.BoundBox.ZMax + 1.0),
+    )
+    crossing = shape.common(probe)
+    if not crossing.Edges:
+        return None
+    return crossing.BoundBox.ZMin if lower else crossing.BoundBox.ZMax
+
+
+# Side outlines of the boards being joined, by shape: probing an outline is
+# far cheaper than a boolean with the whole solid.
+_SIDE_OUTLINES = {}
+
+
+def _side_outline(shape, frame):
+    """Return a flat board's side outline as ``(u, z)`` segments, or ``None``.
+
+    Before joinery a board is its side profile extruded through its
+    thickness, so its edges are the same anywhere across it. Lines are kept
+    exact; curves are sampled to a thousandth of a millimetre.
+    """
+
+    key = (
+        shape.hashCode(),
+        round(frame["origin"].x, 6),
+        round(frame["origin"].y, 6),
+        round(frame["along"].x, 9),
+        round(frame["along"].y, 9),
+    )
+    if key in _SIDE_OUTLINES:
+        return _SIDE_OUTLINES[key]
+    plane = frame["origin"].dot(frame["inward"]) + frame["inner"]
+    side = None
+    for face in shape.Faces:
+        if face.Surface.TypeId != "Part::GeomPlane":
+            continue
+        normal = face.normalAt(0.0, 0.0)
+        if abs(abs(normal.dot(frame["inward"])) - 1.0) > 1e-9:
+            continue
+        if abs(face.Vertexes[0].Point.dot(frame["inward"]) - plane) < 1e-6:
+            side = face
+            break
+    segments = None
+    if side is not None and len(side.Wires) == 1:
+        segments = []
+        for edge in side.OuterWire.Edges:
+            if edge.Curve.TypeId in ("Part::GeomLine", "Part::GeomLineSegment"):
+                points = [vertex.Point for vertex in edge.Vertexes]
+            else:
+                points = edge.discretize(Deflection=1e-3)
+            coordinates = [((point - frame["origin"]).dot(frame["along"]), point.z) for point in points]
+            segments.extend(zip(coordinates, coordinates[1:]))
+    if len(_SIDE_OUTLINES) > 64:
+        _SIDE_OUTLINES.clear()
+    _SIDE_OUTLINES[key] = segments
+    return segments
+
+
+def _board_edge(shape, frame, u, lower=False):
+    """Return a flat board's upper, or ``lower``, edge height at ``u``."""
+
+    segments = _side_outline(shape, frame)
+    if segments is None:
+        return _edge_at(shape, _board_point(frame, u, frame["centre"]), lower)
+    heights = []
+    for (u0, z0), (u1, z1) in segments:
+        if min(u0, u1) - 1e-9 <= u <= max(u0, u1) + 1e-9:
+            if abs(u1 - u0) < 1e-9:
+                heights.extend((z0, z1))
+            else:
+                heights.append(z0 + (z1 - z0) * (u - u0) / (u1 - u0))
+    if not heights:
+        return None
+    return min(heights) if lower else max(heights)
+
+
+def _reshaped(shape, removed=None, added=None):
+    """Cut ``removed`` from a board and fuse ``added``, or leave it.
+
+    Booleans over near-coincident faces can fail silently and return an
+    empty or gutted shape. A corner block only trims a little or adds a
+    little, so a result losing more than ``removed`` is retried with a fuzzy
+    tolerance, then dropped. The volume of a board with curved edges is
+    only integrated to some ten-thousandth of itself, which the comparison
+    allows for.
+    """
+
+    def checked(operation, other, lost):
+        for tolerance in (None, 1e-4):
+            result = (
+                operation(other) if tolerance is None else operation([other], tolerance)
+            )
+            slack = 1e-4 * shape_volume + 1.0
+            if not result.isNull() and result.Volume >= shape_volume - lost - slack:
+                return result
+        return None
+
+    result = shape
+    if removed is not None:
+        shape_volume = result.Volume
+        cut = checked(result.cut, removed, result.common(removed).Volume)
+        if cut is None:
+            return shape
+        result = cut
+    if added is not None:
+        shape_volume = result.Volume
+        fused = checked(result.fuse, added, 0.0)
+        if fused is None:
+            return shape
+        result = fused
+    return result
+
+
+def _outer_corner(first, second, side):
+    """Return the block two housed boards turning an outer corner meet on.
+
+    ``first`` and ``second`` are consecutive boards of one stair side. The
+    block is the square where their bands cross: its plan corners as
+    ``square``, the boards' ``frames``, and where the first board enters it
+    and the second one leaves it, along each. ``None`` when the boards do
+    not turn an outer corner together; on the inner side of a turn the
+    corner is the newel's, which carries the joint.
+    """
+
+    frame_a, frame_b = _board_frame(first, side), _board_frame(second, side)
+    if frame_a is None or frame_b is None:
+        return None
+    turn = frame_a["along"].cross(frame_b["along"]).z
+    if abs(turn) < math.sin(math.radians(10.0)):
+        return None
+    if (turn > 0.0) == (side == "Left"):
+        return None
+    square = [
+        _band_corner(frame_a, offset_a, frame_b, offset_b)
+        for offset_a, offset_b in (
+            (frame_a["inner"], frame_b["inner"]),
+            (frame_a["inner"], frame_b["outer"]),
+            (frame_a["outer"], frame_b["outer"]),
+            (frame_a["outer"], frame_b["inner"]),
+        )
+    ]
+    along_a = [(point - frame_a["origin"]).dot(frame_a["along"]) for point in square]
+    along_b = [(point - frame_b["origin"]).dot(frame_b["along"]) for point in square]
+    # The square must end the first board and start the second one.
+    reach = 3.0 * max(frame_a["thickness"], frame_b["thickness"])
+    if (
+        abs(frame_a["length"] - sum(along_a) / 4.0) > reach
+        or abs(sum(along_b) / 4.0) > reach
+    ):
+        return None
+    return {
+        "frames": (frame_a, frame_b),
+        "square": square,
+        "enter": min(along_a),
+        "leave": max(along_b),
+    }
+
+
+def _corner_levels(shapes, corner, halfway=False):
+    """Return a corner block's ``(top, underside, level underside)``.
+
+    ``shapes`` are the two boards, whose edges already run level into the
+    block: it stands as high as the higher upper edge and as deep as the
+    lower underside, so that neither board loses the timber over its
+    nosings or under its housings. Boards not built for the block,
+    ``halfway``, meet between their edges instead. A board standing on the
+    floor at the corner is a base the other one simply meets: the block
+    then has no level underside. ``None`` when an edge cannot be probed.
+    """
+
+    frame_a, frame_b = corner["frames"]
+
+    def edge_at(shape, frame, edge, direction, lower=False):
+        # Probe just off the square, on the board's own side, and carry its
+        # pitch back to the edge.
+        near = _board_edge(shape, frame, edge + direction, lower)
+        far = _board_edge(shape, frame, edge + 2.0 * direction, lower)
+        return None if near is None or far is None else 2.0 * near - far
+
+    top_a = edge_at(shapes[0], frame_a, corner["enter"], -1.0)
+    top_b = edge_at(shapes[1], frame_b, corner["leave"], 1.0)
+    bottom_a = edge_at(shapes[0], frame_a, corner["enter"], -1.0, True)
+    bottom_b = edge_at(shapes[1], frame_b, corner["leave"], 1.0, True)
+    if None in (top_a, top_b, bottom_a, bottom_b):
+        return None
+    level = (top_a + top_b) / 2.0 if halfway else max(top_a, top_b)
+    level_underside = min(bottom_a, bottom_b) > 1.0
+    if not level_underside:
+        return level, level - CORNER_BLOCK_DEPTH, False
+    return level, (bottom_a + bottom_b) / 2.0 if halfway else min(bottom_a, bottom_b), True
+
+
+def _join_corner(shapes, corner, level, floor, level_underside):
+    """Give two boards their common corner block, between ``floor`` and
+    ``level``: one board owns it, the other only meets it, face to face."""
+
+    square = corner["square"]
+
+    def prism(bottom, height):
+        outline = [point + FreeCAD.Vector(0.0, 0.0, bottom) for point in square]
+        return Part.Face(Part.makePolygon(outline + outline[:1])).extrude(
+            FreeCAD.Vector(0.0, 0.0, height)
+        )
+
+    shape_a, shape_b = shapes
+    top = max(shape_a.BoundBox.ZMax, shape_b.BoundBox.ZMax, level) + 10.0
+    base = min(shape_a.BoundBox.ZMin, shape_b.BoundBox.ZMin, floor) - 10.0
+    outside = prism(level, top - level)
+    if level_underside:
+        outside = outside.fuse(prism(base, floor - base))
+    block = prism(floor, level - floor)
+    whole = prism(base, top - base)
+    if shape_a.common(block).Volume >= shape_b.common(block).Volume:
+        shape_a = _reshaped(shape_a, outside, block)
+        shape_b = _reshaped(shape_b, whole)
+    else:
+        shape_b = _reshaped(shape_b, outside, block)
+        shape_a = _reshaped(shape_a, whole)
+    return shape_a.removeSplitter(), shape_b.removeSplitter()
+
+
+def _sound(pair, fused):
+    """Tell whether two joined boards are sound solids, ``fused`` into one
+    part afterwards or not: curved faces meeting at a block can make that
+    fuse self-intersect."""
+
+    try:
+        (pair[0].fuse(pair[1]) if fused else pair[0]).check(True)
+        if not fused:
+            pair[1].check(True)
+    except Exception:
+        return False
+    return True
+
+
+def level_board_corners(pieces, side):
+    """Join the housed boards of one stair side on level blocks at the
+    outer corners they turn.
+
+    ``pieces`` are the boards in order, each a dict with the board
+    ``shape``, its ``sections``, ``thickness`` and ``penetration``, whether
+    it is ``housed``, the ``part`` it belongs to, and ``build``, which
+    returns the board's shape for a start and an end ``EdgeBlock``. Their
+    shapes are replaced by the joined ones.
+
+    The stair rises through a corner, so two sloping boards cannot be
+    flush across their thickness there. The square where their bands cross
+    becomes one level block, and each board is rebuilt with its edges
+    running level into it: not a ramp added to a finished edge, but the
+    one fair curve of that edge, sprung to arrive there level. The block
+    takes the higher of the two upper edges and the lower of the two
+    undersides. Where boards cannot be rebuilt or joined soundly, they
+    keep their own edges and meet the block halfway between them.
+    """
+
+    corners = {}
+    for index, (first, second) in enumerate(zip(pieces, pieces[1:])):
+        if first["housed"] and second["housed"]:
+            corner = _outer_corner(first, second, side)
+            if corner is not None:
+                corners[index] = corner
+    if not corners:
+        return
+    plain = [piece["shape"] for piece in pieces]
+
+    def plan(frame, u):
+        point = _board_point(frame, u, 0.0)
+        return (point.x, point.y)
+
+    def built(active, levels):
+        """Return every board built for its ``active`` corners, or the
+        corner whose board cannot be."""
+
+        shapes = list(plain)
+        for index, piece in enumerate(pieces):
+            start = end = None
+            if index - 1 in active:
+                corner = corners[index - 1]
+                start = EdgeBlock(
+                    plan(corner["frames"][1], corner["leave"]),
+                    *levels.get(index - 1, (None, None)),
+                )
+            if index in active:
+                corner = corners[index]
+                end = EdgeBlock(
+                    plan(corner["frames"][0], corner["enter"]),
+                    *levels.get(index, (None, None)),
+                )
+            if start is None and end is None:
+                continue
+            shape = piece["build"](start, end)
+            if shape.isNull() or not shape.isValid() or len(shape.Solids) != 1:
+                return None, index if end is not None else index - 1
+            shapes[index] = shape
+        return shapes, None
+
+    def levelled(active):
+        """Return the boards joined at their ``active`` corners, or the
+        corner that cannot be."""
+
+        shapes, failed = built(active, {})
+        if shapes is None:
+            return None, failed
+        found = {}
+        for index in sorted(active):
+            found[index] = _corner_levels(shapes[index : index + 2], corners[index])
+            if found[index] is None:
+                return None, index
+        shapes, failed = built(
+            active,
+            {
+                index: (level, floor if level_underside else False)
+                for index, (level, floor, level_underside) in found.items()
+            },
+        )
+        if shapes is None:
+            return None, failed
+        for index in sorted(active):
+            pair = _join_corner(shapes[index : index + 2], corners[index], *found[index])
+            if not _sound(pair, pieces[index]["part"] is pieces[index + 1]["part"]):
+                return None, index
+            shapes[index : index + 2] = pair
+        return shapes, None
+
+    active = set(corners)
+    shapes = None
+    while active and shapes is None:
+        shapes, failed = levelled(active)
+        active.discard(failed)
+    if shapes is None:
+        shapes = list(plain)
+    for index in sorted(set(corners) - active):
+        found = _corner_levels(shapes[index : index + 2], corners[index], halfway=True)
+        if found is not None:
+            shapes[index : index + 2] = _join_corner(
+                shapes[index : index + 2], corners[index], *found
+            )
+    for piece, shape in zip(pieces, shapes):
+        piece["shape"] = shape
+
+
 def make_notched_stringer_shape(
     sections,
     riser_height,
@@ -327,8 +880,13 @@ def make_notched_stringer_shape(
     lateral_offset,
     end_extension,
     riser_clearance=0.0,
+    throat=0.0,
 ):
-    """Create one notched board supporting the undersides of the treads."""
+    """Create one notched board supporting the undersides of the treads.
+
+    ``throat`` is the timber a flat board keeps under each of its cuts, see
+    ``notched_stringer_throat``.
+    """
 
     if len(sections) < 2:
         return Part.Shape()
@@ -345,6 +903,7 @@ def make_notched_stringer_shape(
                 lateral_offset,
                 end_extension if index == len(runs) - 1 else 0.0,
                 riser_clearance,
+                throat,
             )
             for index, run in enumerate(runs)
         ]
@@ -361,6 +920,7 @@ def make_notched_stringer_shape(
         lateral_offset,
         end_extension,
         riser_clearance,
+        throat,
     )
 
 
@@ -506,8 +1066,12 @@ def _planar_notched_stringer_shape(
     lateral_offset,
     end_extension,
     riser_clearance,
+    throat=0.0,
 ):
-    """Extrude one sawtooth side profile for a straight-flight board."""
+    """Extrude one sawtooth side profile for a straight-flight board.
+
+    Its lower edge keeps ``throat`` of timber under every cut.
+    """
 
     first_rail = sections[0].left if side == "Left" else sections[0].right
     tangent_length = math.hypot(*sections[0].tangent)
@@ -557,20 +1121,8 @@ def _planar_notched_stringer_shape(
         return (rail[0] - first_rail[0]) * tangent[0] + (rail[1] - first_rail[1]) * tangent[1]
 
     distances = [rail_distance(section) for section in sections]
-    # The lower edge runs square below straight pitches; the floor is
-    # trimmed afterwards with a level cut rather than bending the board.
-    if max(distances) - min(distances) < 1.0:
-        # A board with no run, e.g. across a side-entry landing, has no pitch.
-        bottom_lines = None
-        bottoms = [max(elevation - width, 0.0) for elevation in elevations]
-    else:
-        bottom_lines = stringer_bottom_lines(distances, elevations, width)
-        bottoms = [profile_value(bottom_lines, distance) for distance in distances]
-
-    def bottom_at(distance):
-        if bottom_lines is None:
-            return bottoms[-1]
-        return profile_value(bottom_lines, distance)
+    # A board with no run, e.g. across a side-entry landing, has no pitch.
+    level = max(distances) - min(distances) < 1.0
 
     inward = _stringer_inward(sections[0], side)
 
@@ -604,6 +1156,9 @@ def _planar_notched_stringer_shape(
         return min(riser_clearance, max(available - 0.01, 0.0))
 
     points = []
+    # The inner corner of each cut, along the board: where it comes
+    # closest to the lower edge.
+    cuts = []
 
     def append(point_to_add):
         if not points or (point_to_add - points[-1]).Length > 1e-7:
@@ -622,6 +1177,7 @@ def _planar_notched_stringer_shape(
             points[-1] = point(sections[0], lower_top)
             append(point(sections[0], lower_top, start_clearance))
             append(point(sections[0], first_top, start_clearance))
+            cuts.append((distances[0] + start_clearance, lower_top))
 
     cell_count = len(sections) - 1
     for index, rear in enumerate(sections[1:]):
@@ -634,6 +1190,7 @@ def _planar_notched_stringer_shape(
             append(point(rear, tread_bottom, clearance))
         next_tread_bottom = elevations[index + 1] - step_thickness
         append(point(rear, next_tread_bottom, clearance))
+        cuts.append((distances[index + 1] + clearance, tread_bottom))
 
     end_extension = max(float(end_extension), 0.0)
     if end_extension > 1e-9:
@@ -647,33 +1204,63 @@ def _planar_notched_stringer_shape(
             )
         )
 
-    bottom_points = [
-        point(section, bottom)
-        for section, bottom in zip(sections, bottoms)
-    ]
-    if shifted_start:
-        bottom_points[0] = point(
-            sections[0],
-            bottom_at(distances[0] + start_clearance),
-            start_clearance,
-        )
-    if end_extension > 1e-9:
-        bottom_points.append(
-            point(
-                sections[-1],
-                bottom_at(distances[-1] + end_extension),
-                end_extension,
-            )
-        )
-    for bottom_point in reversed(bottom_points):
-        append(bottom_point)
-
-    if len(points) < 3:
-        return None
-    if (points[0] - points[-1]).Length > 1e-7:
-        points.append(points[0])
+    origin = (
+        first_rail[0] + inward[0] * lateral_offset,
+        first_rail[1] + inward[1] * lateral_offset,
+    )
+    start = distances[0] + (start_clearance if shifted_start else 0.0)
+    end = distances[-1] + end_extension
     try:
-        side_face = Part.Face(Part.makePolygon(points))
+        if level:
+            bottoms = [max(elevation - width, 0.0) for elevation in elevations]
+            bottom_points = [
+                point(section, bottom) for section, bottom in zip(sections, bottoms)
+            ]
+            if shifted_start:
+                bottom_points[0] = point(sections[0], bottoms[-1], start_clearance)
+            if end_extension > 1e-9:
+                bottom_points.append(point(sections[-1], bottoms[-1], end_extension))
+            for bottom_point in reversed(bottom_points):
+                append(bottom_point)
+            if len(points) < 3:
+                return None
+            if (points[0] - points[-1]).Length > 1e-7:
+                points.append(points[0])
+            side_face = Part.Face(Part.makePolygon(points))
+        elif len(points) < 2:
+            return None
+        else:
+            # The lower edge keeps the same timber under every cut; where
+            # it dips under the floor it is cut level rather than bending
+            # the board.
+            upper_line, lower_line = notched_board_edges(
+                distances,
+                elevations,
+                width,
+                start,
+                end,
+                cuts,
+                throat,
+                [bool(section.profile_at_newel) for section in sections],
+            )
+            lower = _edges_above_floor(origin, tangent, upper_line, lower_line, start, end)
+            lower_start = lower[0].Vertexes[0].Point
+            lower_end = lower[-1].Vertexes[-1].Point
+            returning = []
+            for edge in reversed(lower):
+                edge = edge.copy()
+                edge.reverse()
+                returning.append(edge)
+            side_face = Part.Face(
+                Part.Wire(
+                    [
+                        *Part.makePolygon(points).Edges,
+                        Part.makeLine(points[-1], lower_end),
+                        *returning,
+                        Part.makeLine(lower_start, points[0]),
+                    ]
+                )
+            )
         result = side_face.extrude(
             FreeCAD.Vector(
                 inward[0] * thickness,
@@ -681,7 +1268,7 @@ def _planar_notched_stringer_shape(
                 0.0,
             )
         )
-    except Part.OCCError:
+    except (Part.OCCError, ValueError):
         return None
     if not result.isValid() or len(result.Solids) != 1:
         return None
@@ -715,6 +1302,7 @@ def _make_notched_stringer_run(
     lateral_offset,
     end_extension,
     riser_clearance,
+    throat=0.0,
 ):
     """Create one continuous notched-stringer run."""
 
@@ -742,6 +1330,7 @@ def _make_notched_stringer_run(
         lateral_offset,
         end_extension,
         riser_clearance,
+        throat,
     )
     if planar is not None:
         return planar

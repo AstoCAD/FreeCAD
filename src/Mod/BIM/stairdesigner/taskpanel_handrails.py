@@ -14,6 +14,7 @@ translate = FreeCAD.Qt.translate
 
 from .taskpanel_widgets import (
     _load_task_form,
+    _prepare_item_editor,
     _value,
 )
 
@@ -29,7 +30,10 @@ class HandrailPanelMixin:
                 "handrail_height",
                 "handrail_offset",
                 "handrail_picket_spacing",
-                "picket_group",
+                "handrail_member_tabs",
+                "picket_tab",
+                "post_tab",
+                "top_rail_tab",
                 "handrail_picket_shape",
                 "handrail_picket_width",
                 "handrail_picket_thickness",
@@ -47,6 +51,14 @@ class HandrailPanelMixin:
             ),
         )
         widget.setWindowIcon(QtGui.QIcon(":/icons/Arch_Handrail.svg"))
+        for tab, icon in (
+            (self.picket_tab, ":/icons/Arch_HandrailPickets.svg"),
+            (self.post_tab, ":/icons/Arch_HandrailPosts.svg"),
+            (self.top_rail_tab, ":/icons/Arch_HandrailTopRail.svg"),
+        ):
+            self.handrail_member_tabs.setTabIcon(
+                self.handrail_member_tabs.indexOf(tab), QtGui.QIcon(icon)
+            )
         self.handrail_tree.setToolTip(
             translate(
                 "BIM",
@@ -138,11 +150,12 @@ class HandrailPanelMixin:
             label = widget.ui.picketForm.labelForField(editor)
             if label is not None:
                 label.setToolTip(help_text)
-        self.picket_group.setToolTip(
+        self.handrail_member_tabs.setTabToolTip(
+            self.handrail_member_tabs.indexOf(self.picket_tab),
             translate(
                 "BIM",
                 "Pickets are distributed evenly using the fewest members that respect the maximum clear spacing",
-            )
+            ),
         )
         self.handrail_post_width.setValue(
             _value(self.stair.HandrailPostWidth)
@@ -270,6 +283,7 @@ class HandrailPanelMixin:
                 )
                 child = QtGui.QTreeWidgetItem(root)
                 child.setText(0, label)
+                _prepare_item_editor(self.handrail_tree, editor)
                 self.handrail_tree.setItemWidget(child, 1, editor)
                 self.handrail_all_editors[side] = editor
                 editor.stateChanged.connect(
@@ -292,6 +306,7 @@ class HandrailPanelMixin:
                 )
                 child = QtGui.QTreeWidgetItem(root)
                 child.setText(0, label)
+                _prepare_item_editor(self.handrail_tree, editor)
                 self.handrail_tree.setItemWidget(child, 1, editor)
                 record[f"{side.lower()}_enabled"] = editor
                 editor.toggled.connect(self._handrail_enabled_changed)

@@ -250,6 +250,12 @@ class StairStepsMixin:
                 for side in ("left", "right")
                 if getattr(front, side) == getattr(rear, side)
             }
+            # Ends on a newel post: their bands stop at the post too.
+            | {
+                getattr(section, side)
+                for section in sections
+                for side in getattr(section, "post_ends", ())
+            }
             if not concrete_dressing
             else set()
         )

@@ -8,6 +8,7 @@ from PySide import QtGui
 
 from .geometry_core import BLONDEL_MAXIMUM, BLONDEL_MINIMUM
 from .object_components import _set_tread_properties
+from .taskpanel_position import _show_dragger_preference
 
 
 translate = FreeCAD.Qt.translate
@@ -42,6 +43,7 @@ class StepPanelMixin:
                 "blondel_label",
                 "blondel_value",
                 "snap_position",
+                "show_dragger",
             ),
         )
         widget.setWindowIcon(QtGui.QIcon(":/icons/Arch_Stairs.svg"))
@@ -56,7 +58,8 @@ class StepPanelMixin:
         self.walking_line_offset.setToolTip(
             translate(
                 "BIM",
-                "Distance from the outside of balanced turns; limited to half the flight width",
+                "Distance of the walking line from the inner side of the steps; "
+                "it runs in the middle of steps narrower than twice this",
             )
         )
         widget.ui.dimensionForm.addRow(
@@ -74,7 +77,15 @@ class StepPanelMixin:
 
         self._connect_stair_controls()
         self.snap_position.clicked.connect(self._snap_position)
+        self.show_dragger.setChecked(_show_dragger_preference())
+        self.show_dragger.toggled.connect(self._show_dragger_toggled)
         return widget
+
+    def _show_walking_line_toggled(self, checked):
+        # Only the view changes: the stair is not rebuilt.
+        view = getattr(self.stair, "ViewObject", None)
+        if view is not None and "ShowWalkingLine" in view.PropertiesList:
+            view.ShowWalkingLine = bool(checked)
 
     def _make_step_panel(self):
         widget = _load_task_form(
@@ -105,6 +116,21 @@ class StepPanelMixin:
         widget.ui.selected_step_layout.addWidget(
             self._make_selected_step_widget()
         )
+        self.show_walking_line = QtGui.QCheckBox(translate("BIM", "Show walking line"))
+        self.show_walking_line.setObjectName("show_walking_line")
+        self.show_walking_line.setToolTip(
+            translate(
+                "BIM",
+                "Shows the walking line on the steps, with each step's going along it",
+            )
+        )
+        view = getattr(self.stair, "ViewObject", None)
+        self.show_walking_line.setChecked(bool(getattr(view, "ShowWalkingLine", False)))
+        widget.ui.verticalLayout.insertWidget(
+            widget.ui.verticalLayout.indexOf(widget.ui.selected_step_container),
+            self.show_walking_line,
+        )
+        self.show_walking_line.toggled.connect(self._show_walking_line_toggled)
         self.risers_group.setChecked(self.stair.RisersEnabled)
         self.riser_thickness.setValue(_value(self.stair.RiserThickness))
         self.priority_to_riser.setChecked(self.stair.PriorityToRiser)
@@ -153,13 +179,29 @@ class StepPanelMixin:
             translate("BIM", "Extra height"),
             self.selected_step_extra_height,
         )
+        self.selected_step_left_offset = _length_spin(0.0, -1000000.0, 1000000.0)
+        self.selected_step_right_offset = _length_spin(0.0, -1000000.0, 1000000.0)
+        for spin, label in (
+            (self.selected_step_left_offset, translate("BIM", "Left offset")),
+            (self.selected_step_right_offset, translate("BIM", "Right offset")),
+        ):
+            spin.setToolTip(
+                translate(
+                    "BIM",
+                    "Moves where this step's front and its riser meet that side "
+                    "of a winding stair, along it, without moving the other "
+                    "steps; positive values move it up the stair",
+                )
+            )
+            form.addRow(label, spin)
         layout.addLayout(form)
-        self.selected_step_extra_width.valueChanged.connect(
-            self._apply_selected_step
-        )
-        self.selected_step_extra_height.valueChanged.connect(
-            self._apply_selected_step
-        )
+        for spin in (
+            self.selected_step_extra_width,
+            self.selected_step_extra_height,
+            self.selected_step_left_offset,
+            self.selected_step_right_offset,
+        ):
+            spin.valueChanged.connect(self._apply_selected_step)
         self.selected_step_widget = group
         group.hide()
         return group
@@ -204,6 +246,8 @@ class StepPanelMixin:
             self.selected_step.ExtraHeight = (
                 self.selected_step_extra_height.value()
             )
+            self.selected_step.LeftOffset = self.selected_step_left_offset.value()
+            self.selected_step.RightOffset = self.selected_step_right_offset.value()
         except ReferenceError:
             self._update_step_selection()
             return
@@ -212,6 +256,7 @@ class StepPanelMixin:
         )
         self.stair.Document.recompute()
         self._update_step_selection()
+        self._update_regenerate_button()
 
     def _update_step_selection(self):
         if "steps" not in self.sections:
@@ -264,7 +309,7 @@ class StepPanelMixin:
         try:
             if any(
                 name not in selected.PropertiesList
-                for name in ("ExtraWidth", "ExtraHeight")
+                for name in ("ExtraWidth", "ExtraHeight", "LeftOffset", "RightOffset")
             ):
                 _set_tread_properties(selected)
             self.selected_step_name.setText(
@@ -278,6 +323,8 @@ class StepPanelMixin:
             self.selected_step_extra_height.setValue(
                 _value(selected.ExtraHeight)
             )
+            self.selected_step_left_offset.setValue(_value(selected.LeftOffset))
+            self.selected_step_right_offset.setValue(_value(selected.RightOffset))
         except ReferenceError:
             self.selected_step_component = None
             self.selected_step = None
