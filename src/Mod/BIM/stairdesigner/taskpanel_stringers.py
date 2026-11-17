@@ -44,6 +44,7 @@ class StringerPanelMixin:
                 "stringer_underside_direction",
                 "stringer_underside_offset",
                 "stringer_joinery",
+                "stringer_joint_type",
                 "stringer_open_housings",
                 "stringer_wedged_housings",
             ),
@@ -107,6 +108,20 @@ class StringerPanelMixin:
                 "tenons the stringers into posts and into each other",
             )
         )
+        self.stringer_joint_type.addItem(
+            translate("BIM", "Mortise and tenon"), "Mortise and tenon"
+        )
+        self.stringer_joint_type.addItem(translate("BIM", "Finger joint (CNC)"), "Finger joint")
+        self._select_data(self.stringer_joint_type, str(self.stair.StringerJointType))
+        joint_type_help = translate(
+            "BIM",
+            "How stringers are joined to each other: by a mortise and tenon, "
+            "or by a finger joint a CNC router cuts with the stringer's outline",
+        )
+        self.stringer_joint_type.setToolTip(joint_type_help)
+        joint_type_label = widget.ui.stringerForm.labelForField(self.stringer_joint_type)
+        if joint_type_label is not None:
+            joint_type_label.setToolTip(joint_type_help)
         self.stringer_open_housings.setChecked(self.stair.StringerOpenHousings)
         self.stringer_open_housings.setToolTip(
             translate(
@@ -200,6 +215,7 @@ class StringerPanelMixin:
         self.stringer_underside_direction.currentIndexChanged.connect(
             self._apply
         )
+        self.stringer_joint_type.currentIndexChanged.connect(self._apply)
         return widget
 
     def _make_stringer_override_widget(self):
@@ -442,6 +458,7 @@ class StringerPanelMixin:
 
     def _update_housing_option_states(self):
         joinery = self.stringer_joinery.isChecked()
+        self.stringer_joint_type.setEnabled(joinery)
         self.stringer_open_housings.setEnabled(joinery)
         self.stringer_wedged_housings.setEnabled(
             joinery and self.stringer_open_housings.isChecked()

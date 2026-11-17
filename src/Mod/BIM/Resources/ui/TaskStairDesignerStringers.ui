@@ -226,14 +226,24 @@
        </property>
       </widget>
      </item>
-     <item row="8" column="0" colspan="2">
+     <item row="8" column="0">
+      <widget class="QLabel" name="stringerJointTypeLabel">
+       <property name="text">
+        <string>Joint type</string>
+       </property>
+      </widget>
+     </item>
+     <item row="8" column="1">
+      <widget class="QComboBox" name="stringer_joint_type"/>
+     </item>
+     <item row="9" column="0" colspan="2">
       <widget class="QCheckBox" name="stringer_open_housings">
        <property name="text">
         <string>Open housings at the back</string>
        </property>
       </widget>
      </item>
-     <item row="9" column="0" colspan="2">
+     <item row="10" column="0" colspan="2">
       <widget class="QCheckBox" name="stringer_wedged_housings">
        <property name="text">
         <string>Wedged housings</string>

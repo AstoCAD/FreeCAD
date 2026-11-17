@@ -314,6 +314,16 @@
          </property>
         </widget>
        </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="postCapLabel">
+         <property name="text">
+          <string>Top end</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QComboBox" name="handrail_post_cap"/>
+       </item>
       </layout>
      </widget>
      <widget class="QWidget" name="top_rail_tab">

@@ -5998,6 +5998,277 @@ class TestArchStairDesigner(TestArchBase.TestArchBase):
             tops.append(board.Shape.common(probe).BoundBox.ZMax)
         self.assertAlmostEqual(tops[0], tops[1], delta=60.0)
 
+    def test_square_top_rail_keeps_its_thickness_on_any_pitch(self):
+        from stairdesigner.geometry_handrails import make_handrail_top_rail_shape
+
+        for rise in (0.0, 500.0, 1000.0):
+            path = {
+                "kind": "Linear",
+                "start": (0.0, 0.0),
+                "end": (1000.0, 0.0),
+                "tangent": (1.0, 0.0),
+                "length": 1000.0,
+                "top_elevations": [900.0, 900.0 + rise],
+                "support_elevations": [0.0, rise],
+                "cell_count": 1,
+            }
+            # A 50 x 40 rail between the centres of two 70 mm posts.
+            rail = make_handrail_top_rail_shape(path, "Square", 50.0, 40.0, 35.0, 70.0)
+            self.assertTrue(rail.isValid())
+            run = math.hypot(1000.0, rise)
+            # 40 mm square to the rail: its section is 50 x 40 whatever
+            # the pitch, and it stands deeper plumb as the pitch steepens.
+            self.assertAlmostEqual(rail.Volume, 50.0 * 40.0 * run, places=3)
+            probe = Part.makeLine(
+                FreeCAD.Vector(500.0, 0.0, 0.0), FreeCAD.Vector(500.0, 0.0, 3000.0)
+            )
+            crossing = rail.common(probe).BoundBox
+            self.assertAlmostEqual(crossing.ZMax, 900.0 + rise / 2.0, places=6)
+            self.assertAlmostEqual(crossing.ZLength, 40.0 * run / 1000.0, places=6)
+
+    def test_classic_rail_sections_stand_square_within_their_size(self):
+        from stairdesigner.geometry_handrails import make_handrail_top_rail_shape
+        from stairdesigner.geometry_profiles import RAIL_PROFILES
+
+        path = {
+            "kind": "Linear",
+            "start": (0.0, 0.0),
+            "end": (1000.0, 0.0),
+            "tangent": (1.0, 0.0),
+            "length": 1000.0,
+            "top_elevations": [900.0, 1600.0],
+            "support_elevations": [0.0, 700.0],
+            "cell_count": 1,
+        }
+        run = math.hypot(1000.0, 700.0)
+        # Section areas of a 60 x 45 rail, by construction.
+        areas = {
+            "Square": 60.0 * 45.0,
+            "Circular": math.pi * 30.0**2,
+            "Rounded": 60.0 * 45.0 - 2.0 * (1.0 - math.pi / 4.0) * 15.0**2,
+            "Oval": math.pi * 30.0 * 22.5,
+        }
+        self.assertEqual(RAIL_PROFILES[:2], ("Square", "Circular"))
+        for profile in RAIL_PROFILES:
+            with self.subTest(profile=profile):
+                rail = make_handrail_top_rail_shape(path, profile, 60.0, 45.0, 35.0, 70.0)
+                self.assertTrue(rail.isValid())
+                self.assertEqual(len(rail.Solids), 1)
+                # Cut plumb at both ends where the square rail is, and no
+                # wider than asked...
+                if profile != "Circular":
+                    for corner in (
+                        FreeCAD.Vector(-500.0, -500.0, 0.0),
+                        FreeCAD.Vector(1000.0, -500.0, 0.0),
+                        FreeCAD.Vector(-500.0, -530.0, 0.0),
+                        FreeCAD.Vector(-500.0, 30.0, 0.0),
+                    ):
+                        size = (
+                            (500.0, 1000.0) if corner.y == -500.0 else (2000.0, 500.0)
+                        )
+                        outside = Part.makeBox(size[0], size[1], 3000.0, corner)
+                        self.assertLess(rail.common(outside).Volume, 1e-3)
+                    for x in (0.5, 999.5):
+                        self.assertTrue(rail.slice(FreeCAD.Vector(1.0, 0.0, 0.0), x))
+                # ... its top on the rail's line whatever the pitch ...
+                probe = Part.makeLine(
+                    FreeCAD.Vector(500.0, 0.0, 0.0), FreeCAD.Vector(500.0, 0.0, 3000.0)
+                )
+                crossing = rail.common(probe).BoundBox
+                self.assertAlmostEqual(crossing.ZMax, 1250.0, places=4)
+                # ... and its section square to the rail, inside its size.
+                area = rail.Volume / run
+                self.assertLess(area, math.pi * 30.0**2 + 1e-3)
+                self.assertGreater(area, 0.7 * 60.0 * 45.0)
+                if profile in areas:
+                    self.assertAlmostEqual(area, areas[profile], delta=0.5)
+                if profile != "Circular":
+                    self.assertAlmostEqual(crossing.ZLength, 45.0 * run / 1000.0, places=3)
+
+    def test_worked_posts_keep_square_blocks_for_their_joints(self):
+        from stairdesigner.geometry_profiles import MEMBER_SHAPES, POST_CAPS, make_member_shape
+
+        def section(shape, elevation):
+            return Part.Face(shape.slice(FreeCAD.Vector(0.0, 0.0, 1.0), elevation)).Area
+
+        plain = 70.0 * 70.0
+        for shape in MEMBER_SHAPES:
+            for cap in POST_CAPS:
+                with self.subTest(shape=shape, cap=cap):
+                    post = make_member_shape(
+                        (0.0, 0.0), (1.0, 0.0), 0.0, 1300.0, shape, 70.0, 70.0, (350.0, 950.0), cap
+                    )
+                    self.assertTrue(post.isValid())
+                    self.assertEqual(len(post.Solids), 1)
+                    self.assertAlmostEqual(post.BoundBox.ZMin, 0.0, places=6)
+                    full = math.pi * 35.0**2 if shape == "Circular" else plain
+                    # Whole where the joints are cut, below and above.
+                    self.assertAlmostEqual(section(post, 200.0), full, delta=1.0)
+                    self.assertAlmostEqual(section(post, 1100.0), full, delta=1.0)
+                    middle = section(post, 650.0)
+                    if shape == "Chamfered":
+                        # Four 14 mm chamfers along the shaft.
+                        self.assertAlmostEqual(middle, plain - 2.0 * 14.0**2, delta=1.0)
+                    elif shape == "Turned":
+                        self.assertLess(middle, math.pi * 35.0**2)
+                        self.assertGreater(middle, math.pi * 12.0**2)
+                    else:
+                        self.assertAlmostEqual(middle, full, delta=1.0)
+                    # A ball or an acorn stands on the post; the other ends
+                    # are worked within its length.
+                    if cap in ("Ball", "Acorn"):
+                        self.assertGreater(post.BoundBox.ZMax, 1300.0 + 50.0)
+                    else:
+                        self.assertLess(post.BoundBox.ZMax, 1300.0 + 1e-6)
+                        tip = section(post, 1299.0)
+                        if cap == "Flat":
+                            self.assertAlmostEqual(tip, full, delta=1.0)
+                        else:
+                            self.assertLess(tip, 0.95 * full)
+        # Too short for a shaft between its blocks, a member stays square.
+        stub = make_member_shape((0.0, 0.0), (1.0, 0.0), 0.0, 400.0, "Turned", 70.0, 70.0, (150.0, 250.0))
+        self.assertAlmostEqual(stub.Volume, plain * 400.0, places=3)
+
+    def test_stair_takes_classic_handrail_shapes(self):
+        stair = self._joinery_stair()
+        self.assertEqual(stair.HandrailPostCap, "Flat")
+        stair.Proxy.defer_rebuilds(stair, True)
+        stair.HandrailPostShape = "Turned"
+        stair.HandrailPostCap = "Ball"
+        stair.HandrailPicketShape = "Chamfered"
+        stair.HandrailTopRailShape = "Moulded"
+        stair.Proxy.defer_rebuilds(stair, False)
+        members = {}
+        for part in stair.HandrailsGroup.Group:
+            members.setdefault(part.StairDesignerRole, []).append(part.Shape)
+            self.assertTrue(part.Shape.isValid(), part.Label)
+            self.assertEqual(len(part.Shape.Solids), 1, part.Label)
+        self.assertEqual(len(members["HandrailPost"]), 4)
+        plain = stair.HandrailPostWidth.Value * stair.HandrailPostThickness.Value
+        for post in members["HandrailPost"]:
+            # Turned, with its ball above the rail.
+            self.assertLess(post.Volume, 0.95 * plain * post.BoundBox.ZLength)
+        for rail in members["HandrailTopRail"]:
+            for post in members["HandrailPost"]:
+                self.assertLess(rail.common(post).Volume, 1e-3)
+            for picket in members["HandrailPicket"]:
+                self.assertLess(rail.common(picket).Volume, 1e-3)
+        for stringer in stair.StringersGroup.Group:
+            self.assertTrue(stringer.Shape.isValid())
+            self.assertEqual(len(stringer.Shape.Solids), 1)
+            for post in members["HandrailPost"]:
+                self.assertLess(stringer.Shape.common(post).Volume, 1e-3)
+
+    def test_handrail_joinery_tenons_the_rail_and_houses_the_pickets(self):
+        from stairdesigner.geometry_handrails import make_handrail_top_rail_shape
+        from stairdesigner.geometry_joinery import make_handrail_joinery
+
+        path = {
+            "kind": "Linear",
+            "start": (0.0, 0.0),
+            "end": (1000.0, 0.0),
+            "tangent": (1.0, 0.0),
+            "length": 1000.0,
+            "top_elevations": [900.0, 1400.0],
+            "support_elevations": [0.0, 500.0],
+            "cell_count": 1,
+        }
+        # A 50 x 40 rail entering 35 mm into two 70 mm posts, over two
+        # 20 mm pickets standing 10 mm into it.
+        rail = make_handrail_top_rail_shape(path, "Square", 50.0, 40.0, 35.0, 70.0)
+        posts = [
+            Part.makeBox(70.0, 70.0, 1600.0, FreeCAD.Vector(x - 35.0, -35.0, 0.0))
+            for x in (0.0, 1000.0)
+        ]
+        plumb = 40.0 * math.hypot(1000.0, 500.0) / 1000.0
+        pickets = [
+            Part.makeBox(
+                20.0, 20.0, 900.0 + 0.5 * x - plumb + 10.0, FreeCAD.Vector(x - 10.0, -10.0, 0.0)
+            )
+            for x in (330.0, 660.0)
+        ]
+        (jointed,), mortised = make_handrail_joinery([rail], posts, pickets)
+        self.assertTrue(jointed.isValid())
+        self.assertEqual(len(jointed.Solids), 1)
+        for post, original in zip(mortised, posts):
+            self.assertTrue(post.isValid())
+            self.assertEqual(len(post.Solids), 1)
+            self.assertLess(jointed.common(post).Volume, 1e-6)
+            # A tenon a third of the rail's width, as long as the rail went
+            # in, with a shoulder above and below it.
+            tenon = jointed.common(original)
+            self.assertAlmostEqual(tenon.BoundBox.YLength, 50.0 / 3.0, places=6)
+            self.assertAlmostEqual(tenon.BoundBox.XLength, 35.0, places=6)
+            self.assertAlmostEqual(tenon.Volume, 35.0 * 50.0 / 3.0 * plumb / 2.0, places=3)
+            self.assertAlmostEqual(original.Volume - post.Volume, tenon.Volume, places=3)
+        for picket in pickets:
+            self.assertLess(jointed.common(picket).Volume, 1e-6)
+            self.assertLess(jointed.distToShape(picket)[0], 1e-6)
+        # A rail running right through a post is no end joint: left alone.
+        through = Part.makeBox(70.0, 70.0, 1600.0, FreeCAD.Vector(465.0, -35.0, 0.0))
+        (same,), (untouched,) = make_handrail_joinery([rail], [through], [])
+        self.assertAlmostEqual(same.Volume, rail.Volume, places=6)
+        self.assertAlmostEqual(untouched.Volume, through.Volume, places=6)
+
+    def test_stair_joinery_finger_joints_boards_into_each_other(self):
+        from stairdesigner.geometry_joinery import make_stair_joinery
+
+        # A 40 mm board whose end butts the side of another 40 mm board,
+        # both 250 mm high: seven courses, three of them fingers.
+        incoming = Part.makeBox(1000.0, 40.0, 250.0)
+        crossing = Part.makeBox(40.0, 1000.0, 250.0, FreeCAD.Vector(1000.0, -480.0, 0.0))
+        (joined, housed), _posts, _steps = make_stair_joinery(
+            [incoming, crossing], [], [], finger_joints=True
+        )
+        for shape in (joined, housed):
+            self.assertTrue(shape.isValid())
+            self.assertEqual(len(shape.Solids), 1)
+        self.assertLess(joined.common(housed).Volume, 1e-6)
+        fingers = joined.Volume - incoming.Volume
+        self.assertAlmostEqual(fingers, 3.0 * 40.0 * 40.0 * 250.0 / 7.0, places=3)
+        self.assertAlmostEqual(crossing.Volume - housed.Volume, fingers, places=3)
+        # The fingers run right through the other board, which keeps the
+        # top and the bottom of the joint.
+        self.assertAlmostEqual(joined.BoundBox.XMax, 1040.0, places=6)
+        course = 250.0 / 7.0
+        for index in range(7):
+            point = FreeCAD.Vector(1020.0, 20.0, (index + 0.5) * course)
+            self.assertEqual(joined.isInside(point, 1e-6, False), index % 2 == 1, index)
+            self.assertEqual(housed.isInside(point, 1e-6, False), index % 2 == 0, index)
+
+    def test_finger_joint_type_interlocks_the_wall_boards(self):
+        stair, flights = self._short_inner_side_stair("Housed stringer", handrails=False)
+        self.assertEqual(stair.StringerJointType, "Mortise and tenon")
+        thickness = stair.StringerThickness.Value
+
+        def shares():
+            # How much of the corner block at the flight seam each of the
+            # two wall boards meeting there holds.
+            left = [part for part in stair.StringersGroup.Group if part.Side == "Left"]
+            first = next(part.Shape for part in left if part.SourceFlight == flights[0])
+            second = max(
+                (part.Shape for part in left if part.SourceFlight == flights[1]),
+                key=lambda shape: shape.Volume,
+            )
+            for shape in (first, second):
+                self.assertTrue(shape.isValid())
+                self.assertEqual(len(shape.Solids), 1)
+            self.assertLess(first.common(second).Volume, 1e-3)
+            bounds = first.BoundBox
+            square = Part.makeBox(
+                thickness,
+                bounds.YLength,
+                5000.0,
+                FreeCAD.Vector(bounds.XMax - thickness, bounds.YMin, -100.0),
+            )
+            held = [shape.common(square).Volume for shape in (first, second)]
+            return [volume / sum(held) for volume in held]
+
+        # A stub tenon is a small part of the block; fingers share it.
+        self.assertLess(min(shares()), 0.25)
+        stair.StringerJointType = "Finger joint"
+        self.assertGreater(min(shares()), 0.3)
+
     def test_stair_joinery_butts_a_board_running_past_another(self):
         from stairdesigner.geometry_joinery import make_stair_joinery
 

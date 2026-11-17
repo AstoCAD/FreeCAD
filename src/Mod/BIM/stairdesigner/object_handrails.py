@@ -12,10 +12,12 @@ from .geometry_handrails import (
     handrail_picket_fractions,
     fit_handrail_to_nosings,
     make_handrail_path,
+    handrail_plumb_depth,
     make_handrail_top_rail_shape,
     make_handrail_vertical_member_shape,
     sample_handrail_path,
 )
+from .geometry_joinery import make_handrail_joinery
 from .geometry_steps import _local_step_expansion_faces, _section_band_faces
 from .geometry_stringer_path import (
     straight_stringer_sections,
@@ -37,6 +39,7 @@ from .object_stringers import (
     _housed_start_extension,
     _line_intersection,
     _planar_stringer_runs,
+    _set_global_shape,
     _straight_flight_plane,
     _stringer_center_line,
 )
@@ -257,6 +260,30 @@ def _sync_handrail_parts(
 class StairHandrailMixin:
     """Implementation methods grouped by responsibility."""
 
+    def _update_handrail_joinery(self, stair):
+        """Tenon the top rails into their posts and house the pickets in
+        the rails, once all handrail members exist."""
+
+        group = stair.HandrailsGroup
+        if not group:
+            return
+        members = {"HandrailTopRail": [], "HandrailPost": [], "HandrailPicket": []}
+        for part in group.Group:
+            role = getattr(part, "StairDesignerRole", "")
+            if role in members and not part.Shape.isNull():
+                members[role].append(part)
+        rails, posts = members["HandrailTopRail"], members["HandrailPost"]
+        if not rails:
+            return
+        rail_shapes, post_shapes = make_handrail_joinery(
+            [part.Shape for part in rails],
+            [part.Shape for part in posts],
+            [part.Shape for part in members["HandrailPicket"]],
+        )
+        for part, shape in zip(rails + posts, rail_shapes + post_shapes):
+            if not shape.isSame(part.Shape):
+                _set_global_shape(part, shape)
+
     def _update_handrails(
         self,
         stair,
@@ -331,6 +358,7 @@ class StairHandrailMixin:
             else picket_thickness
         )
         post_shape = str(stair.HandrailPostShape)
+        post_cap = str(getattr(stair, "HandrailPostCap", "Flat"))
         post_width = _quantity_value(stair.HandrailPostWidth)
         post_thickness = _quantity_value(stair.HandrailPostThickness)
         post_path_size = (
@@ -670,10 +698,8 @@ class StairHandrailMixin:
                 if path["length"] > 1e-9
                 else 0.0
             )
-            rail_depth = (
-                rail_width / math.sqrt(1.0 + path_slope * path_slope)
-                if rail_shape == "Circular"
-                else rail_thickness
+            rail_depth = handrail_plumb_depth(
+                rail_width if rail_shape == "Circular" else rail_thickness, path_slope
             )
             top_rail_shape = make_handrail_top_rail_shape(
                 path,
@@ -869,6 +895,10 @@ class StairHandrailMixin:
                     bottom = sample["support"]
                 top = max(sample["top"], path.get("post_tops", (sample["top"],) * 2)[post_index])
                 top += _quantity_value(stair.HandrailPostAboveTopRail)
+                # A worked post stays square where its joints are cut: up
+                # past the boards, and down from under the rail, by a rise
+                # for the neighbouring flight's board and rail.
+                block = max(float(riser_height), post_width, post_thickness) + 20.0
                 placed_post["shape"] = make_handrail_vertical_member_shape(
                     sample["point"],
                     sample["tangent"],
@@ -877,6 +907,11 @@ class StairHandrailMixin:
                     post_shape,
                     post_width,
                     post_thickness,
+                    blocks=(
+                        (span[1] if span else bottom) + block,
+                        sample["top"] - rail_depth - block,
+                    ),
+                    cap=post_cap,
                 )
                 desired.append(
                     {
@@ -939,6 +974,16 @@ class StairHandrailMixin:
                                 picket_shape,
                                 picket_width,
                                 picket_thickness,
+                                # Square where it enters the board and the
+                                # rail, and a little beyond.
+                                blocks=(
+                                    bottom
+                                    + _quantity_value(stair.HandrailPicketStringerPenetration)
+                                    + 2.5 * max(picket_width, picket_thickness),
+                                    top
+                                    - _quantity_value(stair.HandrailPicketTopRailPenetration)
+                                    - 2.5 * max(picket_width, picket_thickness),
+                                ),
                             )
                         ),
                         "label": (

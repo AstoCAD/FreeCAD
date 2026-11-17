@@ -12,6 +12,7 @@ from .object_utils import get_flights
 
 translate = FreeCAD.Qt.translate
 
+from .geometry_profiles import MEMBER_SHAPES, POST_CAPS, RAIL_PROFILES
 from .taskpanel_widgets import (
     _load_task_form,
     _prepare_item_editor,
@@ -40,6 +41,7 @@ class HandrailPanelMixin:
                 "handrail_picket_stringer_penetration",
                 "handrail_picket_top_rail_penetration",
                 "handrail_post_shape",
+                "handrail_post_cap",
                 "handrail_post_width",
                 "handrail_post_thickness",
                 "handrail_post_above",
@@ -101,18 +103,37 @@ class HandrailPanelMixin:
             label = widget.ui.generalForm.labelForField(editor)
             if label is not None:
                 label.setToolTip(help_text)
+        shape_labels = {
+            "Square": translate("BIM", "Square"),
+            "Circular": translate("BIM", "Circular"),
+            "Chamfered": translate("BIM", "Chamfered"),
+            "Turned": translate("BIM", "Turned"),
+            "Rounded": translate("BIM", "Rounded"),
+            "Mopstick": translate("BIM", "Mopstick"),
+            "Oval": translate("BIM", "Oval"),
+            "Moulded": translate("BIM", "Moulded"),
+            "Flat": translate("BIM", "Flat"),
+            "Pyramid": translate("BIM", "Pyramid"),
+            "Ball": translate("BIM", "Ball"),
+            "Acorn": translate("BIM", "Acorn"),
+        }
         shape_editors = (
-            (self.handrail_picket_shape, str(self.stair.HandrailPicketShape)),
-            (self.handrail_post_shape, str(self.stair.HandrailPostShape)),
+            (self.handrail_picket_shape, str(self.stair.HandrailPicketShape), MEMBER_SHAPES),
+            (self.handrail_post_shape, str(self.stair.HandrailPostShape), MEMBER_SHAPES),
+            (self.handrail_post_cap, str(self.stair.HandrailPostCap), POST_CAPS),
             (
                 self.handrail_top_rail_shape,
                 str(self.stair.HandrailTopRailShape),
+                RAIL_PROFILES,
             ),
         )
-        for editor, value in shape_editors:
-            editor.addItem(translate("BIM", "Square"), "Square")
-            editor.addItem(translate("BIM", "Circular"), "Circular")
+        for editor, value, choices in shape_editors:
+            for choice in choices:
+                editor.addItem(shape_labels[choice], choice)
             self._select_data(editor, value)
+        self.handrail_post_cap.setToolTip(
+            translate("BIM", "How the top end of each post is worked")
+        )
         self.handrail_picket_width.setValue(
             _value(self.stair.HandrailPicketWidth)
         )
@@ -250,6 +271,7 @@ class HandrailPanelMixin:
             editor.currentIndexChanged.connect(
                 self._handrail_shape_changed
             )
+        self.handrail_post_cap.currentIndexChanged.connect(self._apply)
         self._update_handrail_shape_editors()
         return widget
 

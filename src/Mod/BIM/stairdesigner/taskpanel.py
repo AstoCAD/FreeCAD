@@ -328,6 +328,11 @@ class StairDesignerTaskPanel(
                     self.stringer_underside_offset.value()
                 )
                 self.stair.StringerJoinery = self.stringer_joinery.isChecked()
+                self.stair.StringerJointType = str(
+                    self.stringer_joint_type.itemData(
+                        self.stringer_joint_type.currentIndex()
+                    )
+                )
                 self.stair.StringerOpenHousings = (
                     self.stringer_open_housings.isChecked()
                 )
@@ -380,6 +385,11 @@ class StairDesignerTaskPanel(
                 self.stair.HandrailPostShape = str(
                     self.handrail_post_shape.itemData(
                         self.handrail_post_shape.currentIndex()
+                    )
+                )
+                self.stair.HandrailPostCap = str(
+                    self.handrail_post_cap.itemData(
+                        self.handrail_post_cap.currentIndex()
                     )
                 )
                 self.stair.HandrailPostWidth = (

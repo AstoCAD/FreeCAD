@@ -891,6 +891,7 @@ class StairStringerMixin:
                 *getattr(self, "_first_step_cutters", ()),
             ],
             slots,
+            finger_joints=str(getattr(stair, "StringerJointType", "")) == "Finger joint",
         )
         for index, (part, shape) in enumerate(zip(stringers, stringer_shapes)):
             _set_global_shape(part, shape)

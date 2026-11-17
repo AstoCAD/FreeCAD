@@ -4,11 +4,14 @@
 
 The generated parts first overlap or merely touch. This module turns those
 contacts into manufactured joints: stringers are trimmed at posts and tenoned
-into them, abutting stringers are tenoned into each other, and every tread,
-riser and picket end is housed into the board or post that carries it. A
-step crossing a post is notched around it instead. The
-resulting solids can be drawn on their own with all their cuts.
+into them, abutting stringers are tenoned or finger-jointed into each other,
+and every tread, riser and picket end is housed into the board or post that
+carries it. A step crossing a post is notched around it instead. Top rails
+are tenoned into their posts and housed for their pickets. The resulting
+solids can be drawn on their own with all their cuts.
 """
+
+import math
 
 import FreeCAD
 import Part
@@ -22,10 +25,18 @@ TENON_SHOULDER_RATIO = 0.15
 TENON_MINIMUM_SHOULDER = 15.0
 TENON_MAXIMUM_DEPTH = 60.0
 TENON_DEPTH_RATIO = 2.0 / 3.0
+# A rail's tenon into a post leaves this share of the rail's depth as a
+# shoulder above and below it.
+RAIL_SHOULDER_RATIO = 0.25
 _TOLERANCE = 1e-4
 # Pieces smaller than both limits are offcuts, not parts of a member.
 DEBRIS_VOLUME = 50000.0
 DEBRIS_RATIO = 0.01
+# The fingers of a finger joint are about as tall as their board is thick,
+# the usual proportion of a box joint, and at least one runs between two
+# shoulders.
+FINGER_HEIGHT_RATIO = 1.0
+FINGER_MINIMUM_COUNT = 3
 # The end a butting board leaves beyond the board it meets is an offcut, up
 # to this share of the board.
 BUTT_OFFCUT_RATIO = 0.1
@@ -148,16 +159,66 @@ def _tenon_from_face(face, normal, depth):
     return footprint.Faces[0].extrude(normal * depth)
 
 
-def _tenon_into(member, other):
-    """Return a tenon from ``member`` into ``other``, or ``None``."""
+def _fingers_from_face(face, normal, depth):
+    """Extrude the fingers of a finger joint from a plumb end face.
+
+    The face is divided up its height into an odd number of courses, about
+    as tall as the board is thick. Every other course runs on as a finger;
+    the first and the last do not, so the board it enters keeps the top and
+    the bottom of the joint. The fingers pass right through that board,
+    ``depth`` thick, as on a corner; let into a board lying on along them,
+    as at a joint in line, they are as long as their own board is thick.
+    """
+
+    across = FreeCAD.Vector(-normal.y, normal.x, 0.0)
+    offsets = [vertex.Point.dot(across) for vertex in face.Vertexes]
+    width = max(offsets) - min(offsets)
+    bottom = face.BoundBox.ZMin
+    height = face.BoundBox.ZMax - bottom
+    if width < 1e-6 or height < FINGER_MINIMUM_COUNT * 5.0:
+        return None
+    count = max(FINGER_MINIMUM_COUNT, int(round(height / (width * FINGER_HEIGHT_RATIO))))
+    count += 1 - count % 2
+    course = height / count
+    length = depth if depth <= 3.0 * width else width
+    try:
+        prism = face.extrude(normal * length)
+        bounds = prism.BoundBox
+        fingers = []
+        for index in range(1, count, 2):
+            layer = Part.makeBox(
+                bounds.XLength + 2.0,
+                bounds.YLength + 2.0,
+                course,
+                FreeCAD.Vector(bounds.XMin - 1.0, bounds.YMin - 1.0, bottom + index * course),
+            )
+            fingers.extend(prism.common(layer).Solids)
+    except (Part.OCCError, ValueError):
+        return None
+    if not fingers:
+        return None
+    return fingers[0] if len(fingers) == 1 else Part.makeCompound(fingers)
+
+
+def _tenon_into(member, other, fingers=False):
+    """Return a tenon from ``member`` into ``other``, or ``None``.
+
+    With ``fingers`` it is the fingers of a finger joint instead, see
+    ``_fingers_from_face``.
+    """
 
     tenons = []
     for face, normal in _contact_faces(member, other):
         depth = _depth_through(other, face.CenterOfMass, normal)
-        depth = min(TENON_MAXIMUM_DEPTH, depth * TENON_DEPTH_RATIO)
+        if not fingers:
+            depth = min(TENON_MAXIMUM_DEPTH, depth * TENON_DEPTH_RATIO)
         if depth < 5.0:
             continue
-        tenon = _tenon_from_face(face, normal, depth)
+        tenon = (
+            _fingers_from_face(face, normal, depth)
+            if fingers
+            else _tenon_from_face(face, normal, depth)
+        )
         if tenon is None:
             continue
         try:
@@ -242,7 +303,9 @@ def _butted(shape, expected):
     return kept[0] if len(kept) == 1 else Part.makeCompound(kept)
 
 
-def make_stair_joinery(stringers, posts, housed, step_cutters=(), slots=None):
+def make_stair_joinery(
+    stringers, posts, housed, step_cutters=(), slots=None, finger_joints=False
+):
     """Return joined ``(stringers, posts, housed)`` shapes.
 
     ``slots`` opens the step housings of some boards at the back, see
@@ -256,7 +319,10 @@ def make_stair_joinery(stringers, posts, housed, step_cutters=(), slots=None):
     is tenoned into a later one where both are cut square. A housed member
     passing right through a post is returned notched around it.
     ``step_cutters`` are the regions beside newels that step ends overhang;
-    housed members are trimmed back out of them.
+    housed members are trimmed back out of them. With ``finger_joints``
+    boards meeting each other interlock by fingers running through the
+    board they meet, which a router cuts along with the board's outline,
+    instead of a stub tenon; a post still takes a tenon.
     """
 
     stringers = list(stringers)
@@ -293,10 +359,10 @@ def make_stair_joinery(stringers, posts, housed, step_cutters=(), slots=None):
             if not _touches(stringer, other):
                 continue
             source, target = index, other_index
-            tenon = _tenon_into(stringer, other)
+            tenon = _tenon_into(stringer, other, finger_joints)
             if tenon is None:
                 source, target = other_index, index
-                tenon = _tenon_into(other, stringer)
+                tenon = _tenon_into(other, stringer, finger_joints)
             if tenon is None:
                 continue
             stringers[source] = _join(stringers[source], tenon)
@@ -344,6 +410,109 @@ def make_stair_joinery(stringers, posts, housed, step_cutters=(), slots=None):
     ]
     posts = [_cut(post, housed, keep_pieces=False) for post in posts]
     return stringers, posts, housed
+
+
+def _rail_tenon(inside, normal):
+    """Return the tenon a rail keeps of the part of it ``inside`` a post.
+
+    The rail entered the post along ``normal``. Its tenon follows the
+    rail's own pitch and is as long as the rail went in: a third of the
+    rail's width, never under the minimum, and half its depth, which leaves
+    a shoulder all round to hide the mortise.
+    """
+
+    aligned = inside.copy()
+    aligned.rotate(
+        FreeCAD.Vector(), FreeCAD.Vector(0.0, 0.0, 1.0), -math.degrees(math.atan2(normal.y, normal.x))
+    )
+    bounds = aligned.BoundBox
+    width = bounds.YLength
+    thickness = max(width * TENON_THICKNESS_RATIO, TENON_MINIMUM_THICKNESS)
+    if thickness >= width - 1e-6:
+        return None
+    across = FreeCAD.Vector(-normal.y, normal.x, 0.0)
+    corners = [
+        normal * along + across * (bounds.Center.y + side * thickness / 2.0)
+        + FreeCAD.Vector(0.0, 0.0, bounds.ZMin - 1.0)
+        for along, side in (
+            (bounds.XMin - 1.0, -1.0),
+            (bounds.XMax + 1.0, -1.0),
+            (bounds.XMax + 1.0, 1.0),
+            (bounds.XMin - 1.0, 1.0),
+        )
+    ]
+    # The rail's depth where it meets the post, taken plumb.
+    depth = min(
+        (aligned.common(Part.makeLine(
+            FreeCAD.Vector(along, bounds.Center.y, bounds.ZMin - 1.0),
+            FreeCAD.Vector(along, bounds.Center.y, bounds.ZMax + 1.0),
+        )).Length for along in (bounds.XMin + 0.5, bounds.XMax - 0.5)),
+        default=0.0,
+    )
+    shoulder = depth * RAIL_SHOULDER_RATIO
+    if shoulder < 1.0:
+        return None
+    try:
+        slab = Part.Face(Part.makePolygon(corners + corners[:1])).extrude(
+            FreeCAD.Vector(0.0, 0.0, bounds.ZLength + 2.0)
+        )
+        core = inside.translated(FreeCAD.Vector(0.0, 0.0, -shoulder)).common(
+            inside.translated(FreeCAD.Vector(0.0, 0.0, shoulder))
+        )
+        tenon = core.common(slab)
+    except (Part.OCCError, ValueError):
+        return None
+    if len(tenon.Solids) != 1 or tenon.Volume <= _TOLERANCE:
+        return None
+    return tenon.Solids[0]
+
+
+def make_handrail_joinery(rails, posts, pickets):
+    """Return jointed ``(rails, posts)`` shapes.
+
+    The generated rails run into their posts and the pickets into the
+    rails. A rail entering a post is cut back to the post's face and keeps
+    a tenon as long as it went in, which the post is mortised for; a rail
+    running right through a post is left alone. Every picket head is housed
+    into the rail above it. All shapes are in one coordinate system.
+    """
+
+    rails = list(rails)
+    posts = list(posts)
+    for index, rail in enumerate(rails):
+        for post_index, post in enumerate(posts):
+            if not _overlaps(rail, post):
+                continue
+            try:
+                inside = rail.common(post)
+            except (Part.OCCError, ValueError):
+                continue
+            trimmed = _cut(rail, [post])
+            if trimmed is rail or _solid_count(trimmed) != _solid_count(rail):
+                continue
+            for face, normal in _contact_faces(trimmed, post):
+                piece = next(
+                    (
+                        solid
+                        for solid in inside.Solids
+                        if solid.distToShape(face)[0] < 1e-3
+                    ),
+                    None,
+                )
+                tenon = None if piece is None else _rail_tenon(piece, normal)
+                if tenon is None:
+                    continue
+                try:
+                    tenon = tenon.common(post)
+                except (Part.OCCError, ValueError):
+                    continue
+                if tenon.Volume <= _TOLERANCE:
+                    continue
+                trimmed = _join(trimmed, tenon)
+                posts[post_index] = post = _cut(post, [tenon])
+            rails[index] = rail = trimmed
+    rails = [_cut(rail, pickets, keep_pieces=False) for rail in rails]
+    return rails, posts
 
 
 def _vertical_planes(shape, minimum_area=0.0):

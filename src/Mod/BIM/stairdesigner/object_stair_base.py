@@ -37,6 +37,7 @@ from .geometry_plan import (
     translated_plan,
     walking_line_treads,
 )
+from .geometry_profiles import MEMBER_SHAPES, POST_CAPS, RAIL_PROFILES
 from .geometry_stringer_path import automatic_stringer_width
 from .geometry_tangent import tangent_flight_sections
 from .geometry_winders import balanced_winder_sections
@@ -573,6 +574,23 @@ class StairBaseMixin:
             ),
             True,
         )
+        added = _add_property(
+            obj,
+            "App::PropertyEnumeration",
+            "StringerJointType",
+            "Stringers",
+            QT_TRANSLATE_NOOP(
+                "App::Property",
+                "How stringers are joined to each other: by a mortise and tenon, "
+                "or by a finger joint a CNC router cuts with the stringer's outline",
+            ),
+        )
+        joint_type = "Mortise and tenon" if added else str(obj.StringerJointType)
+        joint_types = ["Mortise and tenon", "Finger joint"]
+        obj.StringerJointType = joint_types
+        obj.StringerJointType = (
+            joint_type if joint_type in joint_types else "Mortise and tenon"
+        )
         if "BomPlankWidth" in obj.PropertiesList:
             # Replaced by the tread material's stock width.
             obj.removeProperty("BomPlankWidth")
@@ -805,7 +823,8 @@ class StairBaseMixin:
             obj,
             "HandrailPicketShape",
             "Pickets",
-            "Cross-section shape of the pickets",
+            "Shape of the pickets",
+            MEMBER_SHAPES,
         )
         _add_property(
             obj,
@@ -847,7 +866,15 @@ class StairBaseMixin:
             obj,
             "HandrailPostShape",
             "Posts",
-            "Cross-section shape of the posts",
+            "Shape of the posts",
+            MEMBER_SHAPES,
+        )
+        self._set_shape_property(
+            obj,
+            "HandrailPostCap",
+            "Posts",
+            "Shape of the top end of the posts",
+            POST_CAPS,
         )
         _add_property(
             obj,
@@ -890,6 +917,7 @@ class StairBaseMixin:
             "HandrailTopRailShape",
             "Top rail",
             "Cross-section shape of the top rail",
+            RAIL_PROFILES,
         )
         _add_property(
             obj,
@@ -939,7 +967,10 @@ class StairBaseMixin:
             )
 
     @staticmethod
-    def _set_shape_property(obj, name, group, description):
+    def _set_shape_property(obj, name, group, description, choices):
+        """Add a shape choice, or give an older one its new ``choices``:
+        the first is the default."""
+
         added = _add_property(
             obj,
             "App::PropertyEnumeration",
@@ -947,10 +978,10 @@ class StairBaseMixin:
             group,
             QT_TRANSLATE_NOOP("App::Property", description),
         )
-        current = "Square" if added else str(getattr(obj, name))
-        choices = ["Square", "Circular"]
+        choices = list(choices)
+        current = choices[0] if added else str(getattr(obj, name))
         setattr(obj, name, choices)
-        setattr(obj, name, current if current in choices else "Square")
+        setattr(obj, name, current if current in choices else choices[0])
 
     def onDocumentRestored(self, obj):
         self._updating = True
@@ -1042,6 +1073,7 @@ class StairBaseMixin:
             "StringerUndersideOffsetDirection",
             "StringerUndersideOffset",
             "StringerJoinery",
+            "StringerJointType",
             "StringerOpenHousings",
             "StringerWedgedHousings",
         } or prop.startswith("Handrail"):
@@ -1654,6 +1686,7 @@ class StairBaseMixin:
                 riser_height,
                 allow_structure_changes,
             )
+            self._update_handrail_joinery(obj)
             if obj.StairType != "Concrete" and getattr(obj, "StringerJoinery", True):
                 self._update_stringer_joinery(obj)
         finally:
