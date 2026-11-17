@@ -2114,6 +2114,77 @@ class TestCore(AssemblyTestBase):
         self._move(inner, App.Placement(App.Vector(0, 70, 15), rotation))
         self._assert_stored(self._point(full), target, ref, 1e-6, 1e-5)
 
+    def test_link_array_replaces_link_component(self):
+        """A link array made from a component that is a link takes its place: same linked
+        object and placement, and the joints of the component go to the first element"""
+        _msg("  Test 'Link array replaces a link component'")
+        source = self._box(
+            self.doc, "Source", 10, 20, 30, App.Placement(App.Vector(0, 80, 15), App.Rotation())
+        )
+        target = self._box(self.assembly, "Target", 10, 20, 30, App.Placement())
+        plain = self.assembly.newObject("App::Link", "Plain")
+        plain.LinkedObject = source
+        plain.Placement = App.Placement(
+            App.Vector(50, 0, 0), App.Rotation(App.Vector(0, 0, 1), 30)
+        )
+        other = self.assembly.newObject("App::Link", "Other")
+        other.LinkedObject = source
+        self.doc.recompute()
+
+        comp, rel = self._component(plain.Name + ".Vertex1")
+        self._fixed_to_target(target, comp, rel)
+        joint = self.doc.getObject("FixedJoint")
+        otherComp, otherRel = self._component(other.Name + ".Vertex1")
+        otherJoint = self.jointgroup.newObject("App::FeaturePython", "OtherJoint")
+        JointObject.Joint(otherJoint, 0)
+        targetComp, targetRel = self._component(target.Name + ".Vertex2")
+        otherJoint.Proxy.setJointConnectors(
+            otherJoint,
+            [(targetComp, [targetRel, targetRel]), (otherComp, [otherRel, otherRel])],
+        )
+        self.doc.recompute()
+        self.assertEqual(self.assembly.solve(), 0)
+        placement = plain.Placement
+        point = self._point(plain.Name + ".Vertex1")
+
+        array = self.assembly.newObject("Part::LinkArrayLinear", "Array")
+        array.Occurrences = 3
+        array.Offset = 100
+        UtilsAssembly.replaceComponentByLinkArray(plain, array)
+        self.doc.recompute()
+
+        self.assertIsNone(self.doc.getObject("Plain"))
+        self.assertEqual(array.LinkedObject, source)
+        self.assertTrue(array.Placement.isSame(placement, 1e-9))
+        first = array.ElementList[0].Name
+        self.assertEqual(joint.Reference2[0], array)
+        self.assertEqual(list(joint.Reference2[1]), [first + ".Vertex1"] * 2)
+        # The joint of another component is left alone
+        self.assertEqual(otherJoint.Reference2[0], other)
+        self.assertEqual(list(otherJoint.Reference2[1]), ["Vertex1", "Vertex1"])
+
+        self.assertEqual(self.assembly.solve(), 0)
+        moved = self._point("{}.{}.Vertex1".format(array.Name, first))
+        self.assertLess((moved - point).Length, 1e-5)
+        self.assertLess((moved - self._point(target.Name + ".Vertex1")).Length, 1e-5)
+
+    def test_link_array_replaces_grounded_link_component(self):
+        """The grounding of a link component goes to the link array that replaces it"""
+        _msg("  Test 'Link array replaces a grounded link component'")
+        source = self._box(self.doc, "Source", 10, 20, 30, App.Placement())
+        plain = self.assembly.newObject("App::Link", "Plain")
+        plain.LinkedObject = source
+        ground = self.jointgroup.newObject("App::FeaturePython", "GroundedJoint")
+        JointObject.GroundedJoint(ground, plain)
+        self.doc.recompute()
+
+        array = self.assembly.newObject("Part::LinkArrayLinear", "Array")
+        UtilsAssembly.replaceComponentByLinkArray(plain, array)
+        self.doc.recompute()
+
+        self.assertIsNone(self.doc.getObject("Plain"))
+        self.assertEqual(ground.ObjectToGround, array)
+
     def test_link_array_joint_on_polar_pattern(self):
         self._check_pattern_array_joint("Polar")
 

@@ -34,6 +34,7 @@
 #include <App/Application.h>
 #include <App/Document.h>
 #include <App/GeoFeature.h>
+#include <App/GeoFeatureGroupExtension.h>
 #include <App/DocumentObjectGroup.h>
 #include <Base/Console.h>
 #include <Base/Exception.h>
@@ -2524,6 +2525,29 @@ elif activePart and activeAsm:
         .arg(PARTKEY, ASSEMBLYKEY);
 }
 
+/// A component of the active assembly that the array replaces, instead of linking to it.
+/// A user who patterns a link placed in an assembly expects this link to become the first
+/// instance of the pattern. A link array links to its source without the placement of the
+/// source, so this takes an array that links to what the component links to, at the place
+/// of the component. Only for a plain link directly in the assembly that gets the array.
+App::DocumentObject* getAssemblyComponentToReplace(App::DocumentObject* source)
+{
+    auto* view = Gui::Application::Instance->activeView();
+    if (!source || !view || source->getTypeId() != App::Link::getClassTypeId()) {
+        return nullptr;
+    }
+    auto* link = static_cast<App::Link*>(source);
+    if (link->ElementCount.getValue() != 0 || !link->LinkedObject.getValue()) {
+        return nullptr;
+    }
+    auto* assembly = view->getActiveObject<App::DocumentObject*>(ASSEMBLYKEY);
+    if (!assembly || view->getActiveObject<App::DocumentObject*>(PARTKEY)
+        || App::GeoFeatureGroupExtension::getGroupOfObject(source) != assembly) {
+        return nullptr;
+    }
+    return source;
+}
+
 void activateLinkArrayCommand(
     Gui::Command& command,
     const char* transactionName,
@@ -2564,7 +2588,8 @@ void activateLinkArrayCommand(
         objectType,
         objectName
     );
-    if (source) {
+    App::DocumentObject* component = getAssemblyComponentToReplace(source);
+    if (source && !component) {
         Gui::Command::_doCommand(
             __FILE__,
             __LINE__,
@@ -2579,6 +2604,17 @@ void activateLinkArrayCommand(
         Gui::Command::Gui,
         getAutoAssemblyOrPartGroupCommandStr().toUtf8()
     );
+    if (component) {
+        // The assembly owns the joints of the component, so it does the replacement
+        const std::string componentCmd = Gui::Command::getObjectCmd(component);
+        Gui::Command::_doCommand(
+            __FILE__,
+            __LINE__,
+            Gui::Command::Doc,
+            "import UtilsAssembly\nUtilsAssembly.replaceComponentByLinkArray(%s, obj)",
+            componentCmd.c_str()
+        );
+    }
 
     App::DocumentObject* array = App::GetApplication().getActiveDocument()->getActiveObject();
     if (!array) {
