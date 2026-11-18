@@ -1118,21 +1118,15 @@ void QGIViewPart::drawAllEdges()
             } else {
                 if (!(*itGeom)->getHlrVisible()) {
                     // hidden line without a format
-                    if (dvp->hiddenEdgesAreSolid()) {
-                        item->setLinePen(
-                            m_dashedLineGenerator->getLinePen(
-                                1, vp->LineWidth.getValue()));
-                    }
-                    else {
-                        item->setLinePen(
-                            m_dashedLineGenerator->getLinePen(
-                                Preferences::HiddenLineStyle(),
-                                vp->HiddenWidth.getValue()));
-                    }
+                    // "All Edges" draws hidden lines like visible ones: continuous and thick.
+                    const bool solidHidden = dvp->hiddenEdgesAreSolid();
+                    const double hiddenWidth = solidHidden ? vp->LineWidth.getValue()
+                                                           : vp->HiddenWidth.getValue();
+                    item->setLinePen(
+                        m_dashedLineGenerator->getLinePen(
+                            solidHidden ? 1 : Preferences::HiddenLineStyle(),
+                            hiddenWidth));
                     item->setHiddenEdge(true);
-                    const double hiddenWidth = dvp->hiddenEdgesAreSolid()
-                        ? vp->LineWidth.getValue()
-                        : vp->HiddenWidth.getValue();
                     item->setWidth(Rez::guiX(hiddenWidth));
                     item->setZValue(ZVALUE::HIDEDGE);
                 } else {
