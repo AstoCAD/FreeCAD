@@ -61,6 +61,10 @@ public:
        add_varargs_method("exportPageAsPdf", &Module::exportPageAsPdf,
             "exportPageAsPdf(DrawPageObject, FilePath) -- print page as Pdf to file."
         );
+        add_varargs_method("exportPagesAsPdf", &Module::exportPagesAsPdf,
+            "exportPagesAsPdf([DrawPageObject, ...], FilePath) -- print the pages to one Pdf file,\n"
+            "a sheet each, in the given order."
+        );
         add_varargs_method("exportPageAsSvg", &Module::exportPageAsSvg,
             "exportPageAsSvg(DrawPageObject, FilePath) -- print page as Svg to file."
         );
@@ -207,6 +211,53 @@ private:
             }
         }
         catch (Base::Exception &e) {
+            e.setPyException();
+            throw Py::Exception();
+        }
+
+        return Py::None();
+    }
+
+//!exportPagesAsPdf([PageObject, ...], FullPath)
+    Py::Object exportPagesAsPdf(const Py::Tuple& args)
+    {
+        PyObject* pagesObj;
+        char* name;
+        if (!PyArg_ParseTuple(args.ptr(), "Oet", &pagesObj, "utf-8", &name)) {
+            throw Py::TypeError("expected ([Page, ...], path)");
+        }
+
+        std::string filePath = std::string(name);
+        PyMem_Free(name);
+
+        if (!PySequence_Check(pagesObj)) {
+            throw Py::TypeError("expected a sequence of Pages");
+        }
+        std::vector<ViewProviderPage*> vpPages;
+        Py::Sequence pages(pagesObj);
+        for (Py::Sequence::iterator it = pages.begin(); it != pages.end(); ++it) {
+            PyObject* item = (*it).ptr();
+            if (!PyObject_TypeCheck(item, &(App::DocumentObjectPy::Type))) {
+                throw Py::TypeError("expected a sequence of Pages");
+            }
+            App::DocumentObject* obj =
+                static_cast<App::DocumentObjectPy*>(item)->getDocumentObjectPtr();
+            auto* vpPage = freecad_cast<ViewProviderPage*>(
+                Gui::Application::Instance->getViewProvider(obj)
+            );
+            if (!vpPage) {
+                throw Py::TypeError("Page not available! Is it Hidden?");
+            }
+            vpPages.push_back(vpPage);
+        }
+        if (vpPages.empty()) {
+            throw Py::ValueError("expected at least one Page");
+        }
+
+        try {
+            PagePrinter::savePDF(vpPages, filePath);
+        }
+        catch (Base::Exception& e) {
             e.setPyException();
             throw Py::Exception();
         }

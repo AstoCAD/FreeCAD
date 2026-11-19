@@ -243,6 +243,7 @@ SET(TDTest_SRCS
     TDTest/DrawImportFilenameTest.py
     TDTest/DrawPagePdfFilenameTest.py
     TDTest/DrawPageUnshownExportTest.py
+    TDTest/DrawPagesPdfExportTest.py
     TDTest/HatchFaceLastUsedGuiTest.py
     TDTest/CascadeSpacingPreferenceGuiTest.py
     TDTest/DrawSvgzSymbolTest.py
