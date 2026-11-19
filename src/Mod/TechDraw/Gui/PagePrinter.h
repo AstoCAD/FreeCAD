@@ -113,6 +113,7 @@ public:
 
     static void print(ViewProviderPage* vpPage, QPrinter* printer);
     static void printPdf(ViewProviderPage* vpPage, const std::string& file);
+    static void printPdf(const std::vector<ViewProviderPage*>& vpPages, const std::string& file);
     static void printAll(QPrinter* printer, App::Document* doc);
     static void printAllPdf(QPrinter* printer, App::Document* doc);
 
@@ -120,6 +121,7 @@ public:
     static void saveDXF(ViewProviderPage* vpPage, const std::string& file);
     static bool confirmDXFExport(TechDraw::DrawPage* page);
     static void savePDF(ViewProviderPage* vpPage, const std::string& file);
+    static void savePDF(const std::vector<ViewProviderPage*>& vpPages, const std::string& file);
 
     static void postRenderCleanUp(QGSPage* ourScene,
                                     TechDraw::DrawPage* dPage,

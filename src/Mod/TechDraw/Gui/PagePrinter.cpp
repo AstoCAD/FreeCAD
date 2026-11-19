@@ -392,7 +392,15 @@ void PagePrinter::print(ViewProviderPage* vpPage, QPrinter* printer)
 /// print the Page associated with the ViewProvider as a Pdf file
 void PagePrinter::printPdf(ViewProviderPage* vpPage, const std::string& file)
 {
-    if (file.empty()) {
+    printPdf(std::vector<ViewProviderPage*> {vpPage}, file);
+}
+
+
+/// print the Pages associated with the ViewProviders to one Pdf file, a sheet each, in the given
+/// order. Each sheet takes the size and the orientation of its own Page.
+void PagePrinter::printPdf(const std::vector<ViewProviderPage*>& vpPages, const std::string& file)
+{
+    if (file.empty() || vpPages.empty()) {
         return;
     }
 
@@ -410,7 +418,12 @@ void PagePrinter::printPdf(ViewProviderPage* vpPage, const std::string& file)
     // set up the pdfwriter
     QPdfWriter pdfWriter(outputFile);
     pdfWriter.setPdfVersion(Gui::Dialog::DlgSettingsPDF::evaluatePDFVersion());
-    QString documentName = QString::fromUtf8(vpPage->getDrawPage()->getNameInDocument());
+    // a single page names the file's contents, several pages are their document's
+    auto firstPage = vpPages.front()->getDrawPage();
+    QString documentName = QString::fromUtf8(
+        vpPages.size() == 1 ? firstPage->getNameInDocument()
+                            : firstPage->getDocument()->getName()
+    );
     pdfWriter.setTitle(documentName);
     // default pdfWriter dpi is 1200. no need to set?
     pdfWriter.setCreator(QString::fromStdString(App::Application::getNameWithVersion())
@@ -418,35 +431,46 @@ void PagePrinter::printPdf(ViewProviderPage* vpPage, const std::string& file)
 
     // set up the page layout by modifying the default
     QPageLayout pageLayout = pdfWriter.pageLayout();
-    auto dPage = vpPage->getDrawPage();
-    double width = dPage->getPageWidth();
-    double height = dPage->getPageHeight();
-    makePageLayout(dPage, pageLayout, width, height);
+    double width = firstPage->getPageWidth();
+    double height = firstPage->getPageHeight();
+    makePageLayout(firstPage, pageLayout, width, height);
     pdfWriter.setPageLayout(pageLayout);
 
     // first page does not respect page layout unless painter is created after
-    // pdfWriter layout is established.
+    // pdfWriter layout is established. To get several pages into the same pdf, the same painter
+    // serves them all, with no begin() or end() until the last one is printed.
     QPainter painter(&pdfWriter);
 
     auto restoreScreenMode = PagePrinter::suspendScreenMode();
 
-    auto ourDoc = Gui::Application::Instance->getDocument(dPage->getDocument());
-    auto docModifiedState = ourDoc->isModified();
-
-    QGISVGTemplate* ourTemplate{nullptr};
-    QGSPage* ourScene{nullptr};
-    preRenderSetUp(vpPage, ourScene, ourTemplate);
-
-    // render the page
-    QRectF sourceRect(0.0, Rez::guiX(-height), Rez::guiX(width), Rez::guiX(height));
     double dpmm = pdfWriter.resolution() / mmPerInch;
-    int twide = int(std::round(width * dpmm));
-    int thigh = int(std::round(height * dpmm));
-    QRect targetRect(0, 0, twide, thigh);
-    renderPage(vpPage, painter, sourceRect, targetRect);
+    bool firstTime = true;
+    for (auto* vpPage : vpPages) {
+        auto dPage = vpPage->getDrawPage();
+        if (!firstTime) {
+            makePageLayout(dPage, pageLayout, width, height);
+            pdfWriter.setPageLayout(pageLayout);
+            pdfWriter.newPage();
+        }
+        firstTime = false;
 
-    postRenderCleanUp(ourScene, dPage, ourTemplate);
-    ourDoc->setModified(docModifiedState);
+        auto ourDoc = Gui::Application::Instance->getDocument(dPage->getDocument());
+        auto docModifiedState = ourDoc->isModified();
+
+        QGISVGTemplate* ourTemplate{nullptr};
+        QGSPage* ourScene{nullptr};
+        preRenderSetUp(vpPage, ourScene, ourTemplate);
+
+        // render the page
+        QRectF sourceRect(0.0, Rez::guiX(-height), Rez::guiX(width), Rez::guiX(height));
+        int twide = int(std::round(width * dpmm));
+        int thigh = int(std::round(height * dpmm));
+        QRect targetRect(0, 0, twide, thigh);
+        renderPage(vpPage, painter, sourceRect, targetRect);
+
+        postRenderCleanUp(ourScene, dPage, ourTemplate);
+        ourDoc->setModified(docModifiedState);
+    }
 }
 
 void PagePrinter::preRenderSetUp(TechDrawGui::ViewProviderPage* vpp,
@@ -558,6 +582,11 @@ bool PagePrinter::confirmDXFExport(TechDraw::DrawPage* page)
 void PagePrinter::savePDF(ViewProviderPage* vpPage, const std::string& file)
 {
     printPdf(vpPage, file);
+}
+
+void PagePrinter::savePDF(const std::vector<ViewProviderPage*>& vpPages, const std::string& file)
+{
+    printPdf(vpPages, file);
 }
 
 
