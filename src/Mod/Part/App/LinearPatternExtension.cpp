@@ -103,7 +103,7 @@ LinearPatternExtension::LinearPatternExtension()
     );
     EXTENSION_ADD_PROPERTY_TYPE(
         SpacingPattern,
-        ({}),
+        (),
         "Direction 1",
         App::Prop_None,
         "(Experimental and subject to change. To enable "
@@ -171,7 +171,7 @@ LinearPatternExtension::LinearPatternExtension()
     );
     EXTENSION_ADD_PROPERTY_TYPE(
         Spacings2,
-        ({}),
+        (),
         "Direction 2",
         App::Prop_None,
         "A list of custom spacings for the second direction. If a value is -1, the global 'Offset' "
@@ -179,7 +179,7 @@ LinearPatternExtension::LinearPatternExtension()
     );
     EXTENSION_ADD_PROPERTY_TYPE(
         SpacingPattern2,
-        ({}),
+        (),
         "Direction 2",
         App::Prop_None,
         "(Experimental and subject to change. To enable "

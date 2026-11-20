@@ -146,7 +146,7 @@ PolarPatternExtension::PolarPatternExtension()
     );
     EXTENSION_ADD_PROPERTY_TYPE(
         SpacingPattern,
-        ({}),
+        (),
         "PolarPattern",
         App::Prop_None,
         "(Experimental and subject to change. To enable "
