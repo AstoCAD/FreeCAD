@@ -180,7 +180,6 @@ endif(BUILD_GUI)
 #unit test files
 SET(TDTest_SRCS
     TDTest/__init__.py
-    TDTest/DrawBrokenOutSectionDepthTest.py
     TDTest/DrawCosmeticCircleRadiusTest.py
     TDTest/DrawCosmeticVertex3dTest.py
     TDTest/DrawCosmeticArcTest.py
@@ -193,11 +192,13 @@ SET(TDTest_SRCS
     TDTest/DrawCosmeticRemoveUndoTest.py
     TDTest/DrawCenterLineFlipRestoreTest.py
     TDTest/DrawCosmeticTagRestoreTest.py
+    TDTest/DrawCosmeticRemoveRefreshTest.py
     TDTest/DrawEdgeWalkerNullEdgeTest.py
     TDTest/DrawNearestFractionTest.py
     TDTest/DrawMakeCanonicalPointTest.py
     TDTest/DrawClosedDocumentViewTest.py
     TDTest/DrawViewSectionCycleTest.py
+    TDTest/DrawBrokenOutSectionDepthTest.py
     TDTest/DrawLeaderParentLoopTest.py
     TDTest/SketchAnnotationsTest.py
     TDTest/SketchAnnotationsGuiTest.py
@@ -205,12 +206,12 @@ SET(TDTest_SRCS
     TDTest/DrawDimensionApiTest.py
     TDTest/DrawDimensionShapeNameTest.py
     TDTest/DrawDimensionEdgeVertexTest.py
-    TDTest/DrawDimensionViewBreakTest.py
     TDTest/DrawDimensionBSplineCircle3dTest.py
     TDTest/DrawDimensionAngleReferenceTest.py
     TDTest/DrawDimensionCircleAlignmentTest.py
     TDTest/DrawDimension3dReferenceViewTest.py
     TDTest/DrawDimensionFilledAreaTest.py
+    TDTest/DrawDimensionViewBreakTest.py
     TDTest/DrawDxfRadialDimTest.py
     TDTest/DrawDxfAngle3PtDimTest.py
     TDTest/DrawViewScaledLinkTest.py
@@ -281,8 +282,8 @@ SET(TDTest_SRCS
     TDTest/DrawViewDetailOfDetailTest.py
     TDTest/HoleShaftFitTest.py
     TDTest/DrawViewScaleTypeTest.py
-    TDTest/DrawViewBreakRemovalTest.py
     TDTest/DrawViewRemovalTest.py
+    TDTest/DrawViewBreakRemovalTest.py
     TDTest/DrawViewDimensionSavedGeometryTest.py
     TDTest/TechDrawModuleApiTest.py
     TDTest/ProjectToSVGTest.py
