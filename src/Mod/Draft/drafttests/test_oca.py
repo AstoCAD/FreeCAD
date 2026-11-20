@@ -192,6 +192,23 @@ class DraftOCARoundTrip(test_base.DraftTestCaseDoc):
             self.assertNotIn(b"\r", line)
             self.assertNotIn(b"\n", line)
 
+    def test_export_skips_objects_without_shape(self):
+        """Texts and layers in the export list are skipped, the other objects are written."""
+        import importOCA
+
+        line = self._add("Line", Part.makeLine(App.Vector(0, 0, 0), App.Vector(10, 0, 0)))
+        text = Draft.make_text(["Text"], App.Vector(20, 20, 0))
+        layer = Draft.make_layer("Layer")
+        self.doc.recompute()
+        files = []
+        for name, objs in [("line", [line]), ("all", [text, line, layer])]:
+            path = os.path.join(self.tmpdir, name + ".oca")
+            importOCA.export(objs, path)
+            with open(path, "rb") as f:
+                files.append(f.read())
+        self.assertIn(b"L1=", files[0])
+        self.assertEqual(files[1], files[0])
+
     def test_import_line_ends(self):
         """CR LF, CR CR LF (earlier exports on Windows) and LF line ends read the same."""
         text = (

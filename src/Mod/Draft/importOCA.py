@@ -398,6 +398,9 @@ def export(exportList, filename):
 
     # getting faces and edges
     for ob in exportList:
+        if not hasattr(ob, "Shape"):
+            # texts, layers...: nothing to write
+            continue
         if ob.Shape.Faces:
             for f in ob.Shape.Faces:
                 faces.append(f)

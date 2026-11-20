@@ -1415,10 +1415,14 @@ def export(exportList, filename):
     for obj in exportList:
         if hasattr(obj, "Shape") and obj.Shape and obj.Shape.BoundBox.isValid():
             bb.add(obj.Shape.BoundBox)
-        else:
+        elif FreeCAD.GuiUp:
             # if utils.get_type(obj) in ("Text", "LinearDimension", ...)
             _wrn("'{}': no Shape, " "calculate manual bounding box".format(obj.Label))
-            bb.add(gui_utils.get_bbox(obj))
+            obj_bb = gui_utils.get_bbox(obj)
+            if obj_bb is not None:
+                bb.add(obj_bb)
+        # Without the GUI there is no view provider to take a bounding box from
+        # (get_svg does not draw texts and dimensions then either).
 
     if not bb.isValid():
         _err(
