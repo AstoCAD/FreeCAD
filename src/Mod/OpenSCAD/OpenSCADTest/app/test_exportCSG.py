@@ -68,3 +68,28 @@ class TestExportCSGBooleanPlacement(unittest.TestCase):
 
     def test_identity_placement_control(self):
         self._check_all(App.Placement())
+
+
+class TestExportCSGUnsupportedObjects(unittest.TestCase):
+    """Objects the exporter cannot write do not stop the export of the others."""
+
+    def setUp(self):
+        self.doc = App.newDocument("ExportCSGUnsupportedObjects")
+        self.temp = tempfile.TemporaryDirectory(prefix="freecad-csg-export-")
+        self.addCleanup(self.temp.cleanup)
+        self.addCleanup(App.closeDocument, self.doc.Name)
+
+    def _export(self, name, objs):
+        path = Path(self.temp.name) / (name + ".csg")
+        exportCSG.export(objs, str(path))
+        return path.read_bytes()
+
+    def test_group_and_object_without_shape_are_skipped(self):
+        box = self.doc.addObject("Part::Box", "Box")
+        group = self.doc.addObject("App::DocumentObjectGroup", "Group")
+        group.addObject(self.doc.addObject("Part::Sphere", "Sphere"))
+        plain = self.doc.addObject("App::FeaturePython", "Plain")
+        self.doc.recompute()
+        box_only = self._export("box", [box])
+        self.assertIn(b"cube", box_only)
+        self.assertEqual(self._export("all", [group, box, plain]), box_only)
