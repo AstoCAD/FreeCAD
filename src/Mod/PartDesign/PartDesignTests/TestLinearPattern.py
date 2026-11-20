@@ -186,6 +186,39 @@ class TestLinearPattern(unittest.TestCase):
             self.assertEqual(pattern.SuppressedIndices, [6])
             self.assertAlmostEqual(pattern.Shape.Volume, 11000)
 
+    def testSecondDirectionSpacingsStartEmpty(self):
+        # The custom spacings of the second direction used to start as [0.0], also after reopening
+        # a document saved with an empty list: in Spacing mode the second instance then landed on
+        # the original instead of one Offset2 away.
+        body = self.Doc.addObject("PartDesign::Body", "Body")
+        box = body.newObject("PartDesign::AdditiveBox", "Box")
+        box.Length = box.Width = box.Height = 10
+        pattern = body.newObject("PartDesign::LinearPattern", "LinearPattern")
+        self.assertEqual(pattern.Spacings2, [])
+        self.assertEqual(pattern.SpacingPattern, [])
+        self.assertEqual(pattern.SpacingPattern2, [])
+        pattern.Originals = [box]
+        pattern.Direction = (self.Doc.X_Axis, [""])
+        pattern.Direction2 = (self.Doc.Y_Axis, [""])
+        pattern.Mode = pattern.Mode2 = "Spacing"
+        pattern.Offset = pattern.Offset2 = 20
+        pattern.Occurrences = 2
+        self.Doc.recompute()
+        self.assertEqual(pattern.Spacings2, [])
+
+        with tempfile.TemporaryDirectory(prefix="freecad_linear_pattern_") as directory:
+            path = os.path.join(directory, "pattern.FCStd")
+            self.Doc.saveAs(path)
+            FreeCAD.closeDocument(self.Doc.Name)
+            self.Doc = FreeCAD.openDocument(path)
+            pattern = self.Doc.getObject("LinearPattern")
+            self.assertEqual(pattern.Spacings2, [])
+            pattern.Occurrences2 = 3
+            self.Doc.recompute()
+            self.assertEqual(pattern.Spacings2, [-1.0, -1.0])
+            self.assertAlmostEqual(pattern.Shape.Volume, 6000)
+            self.assertAlmostEqual(pattern.Shape.BoundBox.YMax, 50)
+
     # https://github.com/FreeCAD/FreeCAD/issues/10442
     def testSymmetricLinearPatternReplicatesOnBothSides(self):
         pattern = self.makeSuppressionPattern()
