@@ -127,6 +127,9 @@ def plane_extrusion_height(ob):
 
 
 def process_object(csg,ob):
+    if not ob.isDerivedFrom('Part::Feature'):
+        # groups, parts, links, annotations...: nothing written for them
+        return
     print("Placement")
     print("Pos   : "+str(ob.Placement.Base))
     print("axis  : "+str(ob.Placement.Rotation.Axis))
@@ -304,7 +307,7 @@ def export(exportList, filename):
         print("Name : " + ob.Name)
         print("Type : " + ob.TypeId)
         print("Shape : ")
-        print(ob.Shape)
+        print(getattr(ob, "Shape", None))
         process_object(csg, ob)
 
     # write closing group braces
