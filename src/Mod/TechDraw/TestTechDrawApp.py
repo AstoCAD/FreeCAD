@@ -32,10 +32,8 @@ from TDTest.DrawViewSymbolTest import DrawViewSymbolTest  # noqa: F401
 from TDTest.DrawProjectionGroupTest import DrawProjectionGroupTest  # noqa: F401
 from TDTest.DrawViewScaleTypeTest import DrawViewScaleTypeTest  # noqa: F401
 from TDTest.PythonFeatureTest import PythonFeatureTest  # noqa: F401
-from TDTest.DrawViewBreakRemovalTest import DrawViewBreakRemovalTest  # noqa: F401
-from TDTest.DrawBrokenOutSectionDepthTest import DrawBrokenOutSectionDepthTest  # noqa: F401
-from TDTest.DrawDimensionViewBreakTest import DrawDimensionViewBreakTest  # noqa: F401
 from TDTest.DrawViewRemovalTest import DrawViewRemovalTest  # noqa: F401
+from TDTest.DrawViewBreakRemovalTest import DrawViewBreakRemovalTest  # noqa: F401
 from TDTest.DrawViewDimensionSavedGeometryTest import DrawViewDimensionSavedGeometryTest  # noqa: F401
 from TDTest.DrawCosmeticCircleRadiusTest import DrawCosmeticCircleRadiusTest  # noqa: F401
 from TDTest.DrawCosmeticVertex3dTest import DrawCosmeticVertex3dTest  # noqa: F401
@@ -45,6 +43,7 @@ from TDTest.DrawDimensionAngleReferenceTest import DrawDimensionAngleReferenceTe
 from TDTest.DrawDimensionCircleAlignmentTest import DrawDimensionCircleAlignmentTest  # noqa: F401
 from TDTest.DrawDimension3dReferenceViewTest import DrawDimension3dReferenceViewTest  # noqa: F401
 from TDTest.DrawDimensionFilledAreaTest import DrawDimensionFilledAreaTest  # noqa: F401
+from TDTest.DrawDimensionViewBreakTest import DrawDimensionViewBreakTest  # noqa: F401
 from TDTest.DrawDxfRadialDimTest import DrawDxfRadialDimTest  # noqa: F401
 from TDTest.DrawDxfAngle3PtDimTest import DrawDxfAngle3PtDimTest  # noqa: F401
 from TDTest.DrawViewScaledLinkTest import DrawViewScaledLinkTest  # noqa: F401
@@ -58,11 +57,14 @@ from TDTest.DrawCosmeticRefreshNoGeometryTest import DrawCosmeticRefreshNoGeomet
 from TDTest.DrawCosmeticRemoveUndoTest import DrawCosmeticRemoveUndoTest  # noqa: F401
 from TDTest.DrawCenterLineFlipRestoreTest import DrawCenterLineFlipRestoreTest  # noqa: F401
 from TDTest.DrawCosmeticTagRestoreTest import DrawCosmeticTagRestoreTest  # noqa: F401
+from TDTest.DrawCosmeticRemoveRefreshTest import DrawCosmeticRemoveRefreshTest  # noqa: F401
+from TDTest.DrawCosmeticRemoveRefreshTest import DrawCosmeticNonFiniteInputTest  # noqa: F401
 from TDTest.DrawEdgeWalkerNullEdgeTest import DrawEdgeWalkerNullEdgeTest  # noqa: F401
 from TDTest.DrawNearestFractionTest import DrawNearestFractionTest  # noqa: F401
 from TDTest.DrawMakeCanonicalPointTest import DrawMakeCanonicalPointTest  # noqa: F401
 from TDTest.DrawClosedDocumentViewTest import DrawClosedDocumentViewTest  # noqa: F401
 from TDTest.DrawViewSectionCycleTest import DrawViewSectionCycleTest  # noqa: F401
+from TDTest.DrawBrokenOutSectionDepthTest import DrawBrokenOutSectionDepthTest  # noqa: F401
 from TDTest.DrawLeaderParentLoopTest import DrawLeaderParentLoopTest  # noqa: F401
 from TDTest.DrawViewDetailConsoleTest import DrawViewDetailConsoleTest  # noqa: F401
 from TDTest.DrawDxfLinearDimBlockTest import DrawDxfLinearDimBlockTest  # noqa: F401

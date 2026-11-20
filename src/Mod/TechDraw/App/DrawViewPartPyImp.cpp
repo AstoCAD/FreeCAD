@@ -23,6 +23,9 @@
  ***************************************************************************/
 
 
+#include <cmath>
+#include <initializer_list>
+
 # include <BRepBuilderAPI_MakeVertex.hxx>
 # include <gp_Pnt.hxx>
 # include <TopoDS.hxx>
@@ -61,6 +64,18 @@ namespace
 {
 // marks an omitted optional lineNumber argument: the line number then follows the Qt style
 constexpr int NoLineNumberArgument{-1};
+
+//! returns true if all values are finite numbers, otherwise sets a Python ValueError with message
+bool checkFinite(std::initializer_list<double> values, const char* message)
+{
+    for (const double value : values) {
+        if (!std::isfinite(value)) {
+            PyErr_SetString(PyExc_ValueError, message);
+            return false;
+        }
+    }
+    return true;
+}
 }  // namespace
 
 // returns a string which represents the object e.g. when printed in python
@@ -206,6 +221,8 @@ PyObject* DrawViewPartPy::clearCosmeticVertices(PyObject *args)
 
     DrawViewPart* item = getDrawViewPartPtr();
     item->clearCosmeticVertexes();
+    item->refreshCVGeoms();
+    item->requestPaint();
 
     Py_Return;
 }
@@ -218,6 +235,8 @@ PyObject* DrawViewPartPy::clearCosmeticEdges(PyObject *args)
 
     DrawViewPart* item = getDrawViewPartPtr();
     item->clearCosmeticEdges();
+    item->refreshCEGeoms();
+    item->requestPaint();
 
     Py_Return;
 }
@@ -278,6 +297,8 @@ PyObject* DrawViewPartPy::clearCenterLines(PyObject *args)
 
     DrawViewPart* item = getDrawViewPartPtr();
     item->clearCenterLines();
+    item->refreshCLGeoms();
+    item->requestPaint();
 
     Py_Return;
 }
@@ -301,13 +322,16 @@ PyObject* DrawViewPartPy::makeCosmeticVertex(PyObject *args)
     if (!PyArg_ParseTuple(args, "O!", &(Base::VectorPy::Type), &pPnt1)) {
         return nullptr;
     }
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
+    if (!checkFinite({pnt1.x, pnt1.y, pnt1.z}, "Coordinates must be finite numbers")) {
+        return nullptr;
+    }
 
     DrawViewPart* dvp = getDrawViewPartPtr();
     if (!dvp->hasGeometry()) {
         Base::Console().error("{} has no geometry yet. Can not add cosmetic vertex.\n", dvp->Label.getValue());
         Py_Return;
     }
-    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
     std::string id = dvp->addCosmeticVertex(pnt1);
     dvp->add1CVToGV(id);
     dvp->requestPaint();
@@ -322,13 +346,16 @@ PyObject* DrawViewPartPy::makeCosmeticVertex3d(PyObject *args)
     if (!PyArg_ParseTuple(args, "O!", &(Base::VectorPy::Type), &pPnt1)) {
         return nullptr;
     }
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
+    if (!checkFinite({pnt1.x, pnt1.y, pnt1.z}, "Coordinates must be finite numbers")) {
+        return nullptr;
+    }
 
     DrawViewPart* dvp = getDrawViewPartPtr();
     if (!dvp->hasGeometry()) {
         Base::Console().error("{} has no geometry yet. Can not add cosmetic vertex.\n", dvp->Label.getValue());
         Py_Return;
     }
-    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
     Base::Vector3d centroid = dvp->getOriginalCentroid();
     // center the point
     pnt1 = pnt1 - centroid;
@@ -451,6 +478,12 @@ PyObject* DrawViewPartPy::makeCosmeticLine(PyObject *args)
                                         &lineNumber)) {
         return nullptr;
     }
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
+    Base::Vector3d pnt2 = static_cast<Base::VectorPy*>(pPnt2)->value();
+    if (!checkFinite({pnt1.x, pnt1.y, pnt1.z, pnt2.x, pnt2.y, pnt2.z},
+                     "Coordinates must be finite numbers")) {
+        return nullptr;
+    }
 
     DrawViewPart* dvp = getDrawViewPartPtr();
     if (!dvp->hasGeometry()) {
@@ -458,8 +491,6 @@ PyObject* DrawViewPartPy::makeCosmeticLine(PyObject *args)
         Py_Return;
     }
 
-    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
-    Base::Vector3d pnt2 = static_cast<Base::VectorPy*>(pPnt2)->value();
     std::string newTag = dvp->addCosmeticEdge(DU::invertY(pnt1), DU::invertY(pnt2));
     TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
     if (ce) {
@@ -500,6 +531,12 @@ PyObject* DrawViewPartPy::makeCosmeticLine3D(PyObject *args)
                                         &lineNumber)) {
         return nullptr;
     }
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
+    Base::Vector3d pnt2 = static_cast<Base::VectorPy*>(pPnt2)->value();
+    if (!checkFinite({pnt1.x, pnt1.y, pnt1.z, pnt2.x, pnt2.y, pnt2.z},
+                     "Coordinates must be finite numbers")) {
+        return nullptr;
+    }
 
     DrawViewPart* dvp = getDrawViewPartPtr();
     if (!dvp->hasGeometry()) {
@@ -508,11 +545,9 @@ PyObject* DrawViewPartPy::makeCosmeticLine3D(PyObject *args)
     }
     Base::Vector3d centroid = dvp->getOriginalCentroid();
 
-    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
     pnt1 = pnt1 - centroid;
     pnt1 = dvp->projectPoint(pnt1);
 
-    Base::Vector3d pnt2 = static_cast<Base::VectorPy*>(pPnt2)->value();
     pnt2 = pnt2 - centroid;
     pnt2 = dvp->projectPoint(pnt2);
 
@@ -564,6 +599,11 @@ PyObject* DrawViewPartPy::makeCosmeticCircle(PyObject *args)
         PyErr_SetString(PyExc_ValueError, "Radius must be greater than zero");
         return nullptr;
     }
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
+    if (!checkFinite({pnt1.x, pnt1.y, pnt1.z, radius},
+                     "Center and radius must be finite numbers")) {
+        return nullptr;
+    }
 
     DrawViewPart* dvp = getDrawViewPartPtr();
     if (!dvp->hasGeometry()) {
@@ -571,7 +611,6 @@ PyObject* DrawViewPartPy::makeCosmeticCircle(PyObject *args)
         Py_Return;
     }
 
-    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
     TechDraw::BaseGeomPtr bg = std::make_shared<TechDraw::Circle> (pnt1, radius);
     std::string newTag = dvp->addCosmeticEdge(bg->inverted());
     TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
@@ -620,6 +659,11 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc(PyObject *args)
         PyErr_SetString(PyExc_ValueError, "Radius must be greater than zero");
         return nullptr;
     }
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
+    if (!checkFinite({pnt1.x, pnt1.y, pnt1.z, radius, angle1, angle2},
+                     "Center, radius and angles must be finite numbers")) {
+        return nullptr;
+    }
 
     //from here on is almost duplicate of makeCosmeticCircle
     DrawViewPart* dvp = getDrawViewPartPtr();
@@ -628,7 +672,6 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc(PyObject *args)
         Py_Return;
     }
 
-    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
     TechDraw::BaseGeomPtr bg = std::make_shared<TechDraw::AOC> (pnt1, radius, angle1, angle2);
     std::string newTag = dvp->addCosmeticEdge(bg->inverted());
     TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
@@ -681,6 +724,11 @@ PyObject* DrawViewPartPy::makeCosmeticCircle3d(PyObject *args)
         PyErr_SetString(PyExc_ValueError, "Radius must be greater than zero");
         return nullptr;
     }
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
+    if (!checkFinite({pnt1.x, pnt1.y, pnt1.z, radius},
+                     "Center and radius must be finite numbers")) {
+        return nullptr;
+    }
 
     DrawViewPart* dvp = getDrawViewPartPtr();
     if (!dvp->hasGeometry()) {
@@ -688,7 +736,6 @@ PyObject* DrawViewPartPy::makeCosmeticCircle3d(PyObject *args)
         Py_Return;
     }
 
-    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
     // center, project and invert the 3d point
     Base::Vector3d centroid = dvp->getOriginalCentroid();
     pnt1 = DrawUtil::invertY(dvp->projectPoint(pnt1 - centroid));
@@ -740,6 +787,11 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc3d(PyObject *args)
         PyErr_SetString(PyExc_ValueError, "Radius must be greater than zero");
         return nullptr;
     }
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
+    if (!checkFinite({pnt1.x, pnt1.y, pnt1.z, radius, angle1, angle2},
+                     "Center, radius and angles must be finite numbers")) {
+        return nullptr;
+    }
 
     //from here on is almost duplicate of makeCosmeticCircle
     DrawViewPart* dvp = getDrawViewPartPtr();
@@ -748,7 +800,6 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc3d(PyObject *args)
         Py_Return;
     }
 
-    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
     // center, project and invert the 3d point
     Base::Vector3d centroid = dvp->getOriginalCentroid();
     pnt1 = DrawUtil::invertY(dvp->projectPoint(pnt1 - centroid));
@@ -828,6 +879,8 @@ PyObject* DrawViewPartPy::removeCosmeticEdge(PyObject *args)
 
     DrawViewPart* dvp = getDrawViewPartPtr();
     dvp->removeCosmeticEdge(tag);
+    dvp->refreshCEGeoms();
+    dvp->requestPaint();
 
     Py_Return;
 }
@@ -924,6 +977,8 @@ PyObject* DrawViewPartPy::removeCenterLine(PyObject *args)
 
     DrawViewPart* dvp = getDrawViewPartPtr();
     dvp->removeCenterLine(tag);
+    dvp->refreshCLGeoms();
+    dvp->requestPaint();
 
     Py_Return;
 }
