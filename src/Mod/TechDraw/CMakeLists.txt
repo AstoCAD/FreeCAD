@@ -281,6 +281,7 @@ SET(TDTest_SRCS
     TDTest/DrawViewDetailConsoleTest.py
     TDTest/DrawViewDetailOfDetailTest.py
     TDTest/HoleShaftFitTest.py
+    TDTest/TemplateFolderLayoutTest.py
     TDTest/DrawViewScaleTypeTest.py
     TDTest/DrawViewRemovalTest.py
     TDTest/DrawViewBreakRemovalTest.py
