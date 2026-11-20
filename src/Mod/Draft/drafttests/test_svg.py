@@ -658,6 +658,29 @@ class DraftSVGExportLabelRegression(test_base.DraftTestCaseDoc):
         self.assertEqual(len(titles), 1)
         self.assertEqual(titles[0].firstChild.data, label)
 
+    @unittest.skipIf(App.GuiUp, "Without the GUI, texts have no bounding box")
+    def test_export_svg_with_text_without_gui(self):
+        """A text in the export list does not stop the export of the other objects."""
+        import re
+
+        obj = self.doc.addObject("Part::Feature", "Face")
+        obj.Shape = Part.makePlane(10, 10)
+        Draft.make_text(["Text"], App.Vector(100, 100, 0))
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_file = os.path.join(temp_dir, "face.svg")
+            importSVG.export([obj], out_file)
+            with open(out_file, "rb") as svg_file:
+                face_only = svg_file.read()
+            out_file = os.path.join(temp_dir, "face_and_text.svg")
+            importSVG.export(self.doc.Objects, out_file)
+            with open(out_file, "rb") as svg_file:
+                with_text = svg_file.read()
+        # the text adds an empty group and does not change the page size
+        text_group = re.compile(rb'<g id="Text" [^>]*>\r?\n<title>Text</title>\r?\n</g>\r?\n')
+        self.assertEqual(len(text_group.findall(with_text)), 1)
+        self.assertEqual(text_group.sub(b"", with_text), face_only)
+
 
 class DraftSVGImportContentRegression(test_base.DraftTestCaseDoc):
     """Regression tests for how the SVG importer reads the content of a file."""
