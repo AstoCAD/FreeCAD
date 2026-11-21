@@ -188,6 +188,7 @@ SET(TDTest_SRCS
     TDTest/DrawDistanceDim3dTest.py
     TDTest/DrawCosmeticEdgeLineNumberTest.py
     TDTest/DrawDecorateLineInvalidEdgeTest.py
+    TDTest/DrawGeomFormatDeletedWrapperTest.py
     TDTest/DrawCosmeticRefreshNoGeometryTest.py
     TDTest/DrawCosmeticRemoveUndoTest.py
     TDTest/DrawCenterLineFlipRestoreTest.py

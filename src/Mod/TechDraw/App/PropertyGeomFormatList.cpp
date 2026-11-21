@@ -102,6 +102,19 @@ PyObject *PropertyGeomFormatList::getPyObject()
     return list;
 }
 
+namespace
+{
+//! returns the format of the wrapper, refuses a wrapper whose format was deleted (e.g. by
+//! clearGeomFormats() or by an earlier change of the list, which replaces all its entries)
+GeomFormat* getFormatOfWrapper(GeomFormatPy* formatPy)
+{
+    if (!formatPy->isValid()) {
+        throw Base::ReferenceError("Cannot assign a GeomFormat object that was deleted");
+    }
+    return formatPy->getGeomFormatPtr();
+}
+}  // namespace
+
 void PropertyGeomFormatList::setPyObject(PyObject *value)
 {
     // check container of this property to notify about changes
@@ -121,7 +134,7 @@ void PropertyGeomFormatList::setPyObject(PyObject *value)
                 throw Base::TypeError(error);
             }
 
-            values[i] = static_cast<GeomFormatPy*>(item.ptr())->getGeomFormatPtr();
+            values[i] = getFormatOfWrapper(static_cast<GeomFormatPy*>(item.ptr()));
         }
 
         setValues(values);
@@ -130,7 +143,7 @@ void PropertyGeomFormatList::setPyObject(PyObject *value)
     }
     else if (PyObject_TypeCheck(value, &(GeomFormatPy::Type))) {
         GeomFormatPy  *pcObject = static_cast<GeomFormatPy*>(value);
-        setValue(pcObject->getGeomFormatPtr());
+        setValue(getFormatOfWrapper(pcObject));
     }
     else {
         std::string error = std::string("type must be 'GeomFormat' or list of 'GeomFormat', not ");
