@@ -201,6 +201,7 @@ SET(TDTest_SRCS
     TDTest/DrawComplexSectionAlignedHeadlessTest.py
     TDTest/DrawViewSectionDisplayPropertyTest.py
     TDTest/DrawBrokenOutSectionDepthTest.py
+    TDTest/DrawBrokenOutSectionTest.py
     TDTest/DrawLeaderParentLoopTest.py
     TDTest/SketchAnnotationsTest.py
     TDTest/SketchAnnotationsGuiTest.py

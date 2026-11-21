@@ -78,6 +78,7 @@
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
+#include <Geom_BSplineCurve.hxx>
 #include <GeomAPI_Interpolate.hxx>
 #include <GeomAbs_SurfaceType.hxx>
 #include <Precision.hxx>
@@ -634,20 +635,25 @@ TopoDS_Shape DrawViewPart::applyBrokenOutSections(const TopoDS_Shape& shape)
                 Base::convertTo<gp_Pnt>(point + viewDirection * shift));
         }
 
-        GeomAPI_Interpolate interpolate(interpolationPoints, true, Precision::Confusion());
+        Handle(Geom_BSplineCurve) outlineCurve;
         try {
+            // the constructor already throws for coincident consecutive points
+            GeomAPI_Interpolate interpolate(interpolationPoints, true, Precision::Confusion());
             interpolate.Perform();
+            if (interpolate.IsDone()) {
+                outlineCurve = interpolate.Curve();
+            }
         }
         catch (const Standard_Failure&) {
             Base::Console().warning("{}: failed to interpolate broken-out section outline.\n",
                                     getNameInDocument());
             continue;
         }
-        if (!interpolate.IsDone()) {
+        if (outlineCurve.IsNull()) {
             continue;
         }
 
-        BRepBuilderAPI_MakeEdge edge(interpolate.Curve());
+        BRepBuilderAPI_MakeEdge edge(outlineCurve);
         if (!edge.IsDone()) {
             continue;
         }
@@ -1084,10 +1090,12 @@ GeometryObjectPtr DrawViewPart::makeGeometryForShape(const TopoDS_Shape& shape)
     TopoDS_Shape localShape = copier.Shape();
 
     gp_Pnt gCentroid = ShapeUtils::findCentroid(localShape, getProjectionCS());
-    if (!BrokenOutSections.getValues().empty() || getBreakCount() > 0) {
+    if (m_viewBreaksApplied || !m_brokenOutSectionPlanes.empty()) {
         // Broken and broken-out views intentionally alter the projected shape.
         // Recentring on that result would move the view underneath the tools'
         // stored coordinates, so use the stable centroid established in execute().
+        // Only DrawViewPart::execute() applies them and sets that centroid; a view
+        // with its own execute(), such as DrawBrokenView, keeps its own centring.
         gCentroid = Base::convertTo<gp_Pnt>(m_breakResultCentroid);
     }
     m_saveCentroid = Base::convertTo<Base::Vector3d>(gCentroid);
