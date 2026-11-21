@@ -820,6 +820,8 @@ TaskSectionView::TaskSectionView(TechDraw::DrawViewSection* section) :
         restoreModernProfileState();
     }
     updateParallelToVisibility();
+    // No page view yet: initializeEditPreview() shows the line controls when it has one.
+    setPositioningActive(false);
 }
 
 void TaskSectionView::setUiPrimary()
@@ -1337,12 +1339,18 @@ TaskSectionView::PositionMode TaskSectionView::positionMode() const
 
 void TaskSectionView::setPositioningActive(bool active)
 {
-    ui->sectionLinePositionButtons->setVisible(active);
-    ui->pbResetSectionLine->setVisible(!active);
+    // A new line is picked on the page view. Without one, these buttons would only
+    // clear the section line and its base view, leaving a task that cannot be accepted.
+    const bool canPlace = !m_graphicsView.isNull();
+    ui->sectionLinePositionButtons->setVisible(canPlace && active);
+    ui->pbResetSectionLine->setVisible(canPlace && !active);
 }
 
 void TaskSectionView::resetInteractivePreview()
 {
+    // The base item is dropped below, so show the generated section that the preview
+    // replaced while it is still known where it was hidden.
+    setGeneratedSectionVisible(true);
     if (m_customComplexSection) {
         setCustomComplexSection(false);
     }
@@ -3475,9 +3483,9 @@ void TaskSectionView::slotViewDirectionChanged(Base::Vector3d newDirection)
     if (!m_base) {
         return;
     }
-    Base::Vector3d projectedViewDirection = m_base->projectPoint(newDirection, false);
-    projectedViewDirection.Normalize();
-    double viewAngle = atan2(projectedViewDirection.y, projectedViewDirection.x);
+    // The vector is already in BaseView coordinates, like the compass angle
+    // (see setUiEdit() and localVectorToCS()), so it must not be projected.
+    double viewAngle = atan2(newDirection.y, newDirection.x);
     m_compass->setDialAngle(Base::toDegrees(viewAngle));
     directionChanged(true);
     showUnappliedPreview();
@@ -4603,6 +4611,10 @@ bool TaskSectionView::restoreModernProfileState()
             Base::toDegrees(std::atan2(baseDirection.y,
                                       baseDirection.x)));
     }
+    // Likewise for the center fields: setUiEdit() filled them from
+    // SectionOrigin, which a generated profile section does not use (it is
+    // the model origin), while the path is centered on the stored center.
+    setCenterUi(sectionOriginToView(m_modernCenterOrigin));
     return true;
 }
 
@@ -4874,7 +4886,7 @@ bool TaskSectionView::reject()
     return false;
 }
 
-//! Undo was used while editing. It has already rolled back this task's transaction and
+//! Undo was used while the task was open. It has already rolled back this task's transaction and
 //! may have deleted the section or its base view, so drop pointers to deleted objects.
 void TaskSectionView::rejectAfterUndo()
 {
@@ -6222,6 +6234,9 @@ TaskDlgSectionView::TaskDlgSectionView(TechDraw::DrawPage* page, QGVPage* graphi
                                    widget->windowTitle(), true, nullptr);
     taskbox->groupLayout()->addWidget(widget);
     Content.push_back(taskbox);
+    // Undo commits and rolls back the open "Create Section View" transaction, removing an
+    // applied section the task still points to, so close the task.
+    setAutoCloseOnTransactionChange(true);
     suppressFaceSelection(true);
 }
 
@@ -6233,6 +6248,9 @@ TaskDlgSectionView::TaskDlgSectionView(TechDraw::DrawViewPart* base) : TaskDialo
                                    widget->windowTitle(), true, nullptr);
     taskbox->groupLayout()->addWidget(widget);
     Content.push_back(taskbox);
+    // Undo commits and rolls back the open "Create Section View" transaction, removing an
+    // applied section the task still points to, so close the task.
+    setAutoCloseOnTransactionChange(true);
 
     auto* mdi = qobject_cast<MDIViewPage*>(
         Gui::getMainWindow()->activeWindow());
@@ -6297,17 +6315,17 @@ void TaskDlgSectionView::restartPositioningHandler()
 
 void TaskDlgSectionView::suppressFaceSelection(bool suppress)
 {
-    if (!m_graphicsView || !m_graphicsView->getScene()) {
-        return;
-    }
-    auto* scene = m_graphicsView->getScene();
     constexpr auto propertyName =
         "TechDrawSuppressFaceSelection";
     if (suppress) {
-        if (!m_faceSelectionSuppressionSet) {
+        if (!m_graphicsView || !m_graphicsView->getScene()) {
+            return;
+        }
+        auto* scene = m_graphicsView->getScene();
+        if (!m_faceSelectionScene) {
             m_previousFaceSelectionSuppression =
                 scene->property(propertyName);
-            m_faceSelectionSuppressionSet = true;
+            m_faceSelectionScene = scene;
         }
         scene->setProperty(propertyName, true);
         Gui::Selection().rmvPreselect();
@@ -6318,10 +6336,10 @@ void TaskDlgSectionView::suppressFaceSelection(bool suppress)
             }
         }
     }
-    else if (m_faceSelectionSuppressionSet) {
-        scene->setProperty(
+    else if (m_faceSelectionScene) {
+        m_faceSelectionScene->setProperty(
             propertyName, m_previousFaceSelectionSuppression);
-        m_faceSelectionSuppressionSet = false;
+        m_faceSelectionScene = nullptr;
     }
 }
 

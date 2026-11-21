@@ -77,6 +77,10 @@ from TDTest.TestInsertSymbolStackTopGui import TestInsertSymbolStackTopGui  # no
 from TDTest.TestDimensionLabelSnapGui import TestDimensionLabelSnapGui  # noqa: F401
 from TDTest.DrawTaskUndoGuiTest import DrawTaskUndoGuiTest  # noqa: F401
 from TDTest.DrawSectionTabOrderGuiTest import DrawSectionTabOrderGuiTest  # noqa: F401
+from TDTest.DrawSectionPageClosedGuiTest import DrawSectionPageClosedGuiTest  # noqa: F401
+from TDTest.DrawSectionResetCancelGuiTest import DrawSectionResetCancelGuiTest  # noqa: F401
+from TDTest.DrawSectionDirectionVectorGuiTest import DrawSectionDirectionVectorGuiTest  # noqa: F401
+from TDTest.DrawComplexSectionCenterFieldsGuiTest import DrawComplexSectionCenterFieldsGuiTest  # noqa: F401
 from TDTest.DrawLeaderOptionsGuiTest import DrawLeaderOptionsGuiTest  # noqa: F401
 from TDTest.DrawWeldSymbolOnePointLeaderGuiTest import DrawWeldSymbolOnePointLeaderGuiTest  # noqa: F401
 from TDTest.DrawCtrlClickJitterGuiTest import DrawCtrlClickJitterGuiTest  # noqa: F401

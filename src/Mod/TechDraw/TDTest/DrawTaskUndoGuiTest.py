@@ -142,6 +142,29 @@ class DrawTaskUndoGuiTest(unittest.TestCase):
 
         self._edit_then_undo(make)
 
+    def test_undo_closes_section_create_task(self):
+        self._base_view()
+        self.doc.openTransaction("Change box")
+        self.box.Length = 20
+        self.doc.commitTransaction()
+        self.doc.recompute()
+        self.page.ViewObject.show()
+        self._pump(300)
+
+        Gui.Selection.clearSelection()
+        Gui.runCommand("TechDraw_SectionView")
+        self.assertTrue(self._wait(Gui.Control.activeDialog), "The section task did not open")
+        self._pump(300)
+
+        # Undo ends the task's open transaction; Cancel could no longer revert what the
+        # task creates afterwards, so the task must close.
+        Gui.runCommand("Std_Undo")
+        self._pump(300)
+
+        self.assertEqual(self.box.Length.Value, 10, "Undo must revert the last change")
+        self.assertFalse(Gui.Control.activeDialog(),
+                         "The section creation task must close on undo")
+
     def test_undo_closes_leader_edit_task(self):
         base = self._base_view()
 

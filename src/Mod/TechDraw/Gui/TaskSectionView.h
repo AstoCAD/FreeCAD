@@ -305,7 +305,8 @@ private:
     std::string m_baseName;
     App::Document* m_doc;
     TechDraw::DrawPage* m_page;
-    QGVPage* m_graphicsView;
+    // The page's QGVPage is destroyed when its tab is closed while the task is open.
+    QPointer<QGVPage> m_graphicsView;
     int m_transactionId{0};
 
     bool m_createMode;
@@ -446,10 +447,12 @@ private:
     void suppressFaceSelection(bool suppress);
     TaskSectionView * widget;
     Gui::TaskView::TaskBox* taskbox;
-    QGVPage* m_graphicsView{nullptr};
+    // The page's QGVPage is destroyed when its tab is closed while the task is open.
+    QPointer<QGVPage> m_graphicsView;
     bool m_startInteractiveHandler{false};
     QVariant m_previousFaceSelectionSuppression;
-    bool m_faceSelectionSuppressionSet{false};
+    // The scene outlives the QGVPage, so restore the suppression on the scene it was set on.
+    QPointer<QGraphicsScene> m_faceSelectionScene;
 };
 
 } //namespace TechDrawGui

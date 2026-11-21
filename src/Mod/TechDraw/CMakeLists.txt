@@ -267,6 +267,10 @@ SET(TDTest_SRCS
     TDTest/TestDimensionLabelSnapGui.py
     TDTest/DrawTaskUndoGuiTest.py
     TDTest/DrawSectionTabOrderGuiTest.py
+    TDTest/DrawSectionPageClosedGuiTest.py
+    TDTest/DrawSectionResetCancelGuiTest.py
+    TDTest/DrawSectionDirectionVectorGuiTest.py
+    TDTest/DrawComplexSectionCenterFieldsGuiTest.py
     TDTest/DrawLeaderOptionsGuiTest.py
     TDTest/DrawWeldSymbolOnePointLeaderGuiTest.py
     TDTest/DrawCtrlClickJitterGuiTest.py
