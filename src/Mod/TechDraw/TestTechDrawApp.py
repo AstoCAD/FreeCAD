@@ -64,6 +64,7 @@ from TDTest.DrawNearestFractionTest import DrawNearestFractionTest  # noqa: F401
 from TDTest.DrawMakeCanonicalPointTest import DrawMakeCanonicalPointTest  # noqa: F401
 from TDTest.DrawClosedDocumentViewTest import DrawClosedDocumentViewTest  # noqa: F401
 from TDTest.DrawViewSectionCycleTest import DrawViewSectionCycleTest  # noqa: F401
+from TDTest.DrawComplexSectionAlignedHeadlessTest import DrawComplexSectionAlignedHeadlessTest  # noqa: F401
 from TDTest.DrawBrokenOutSectionDepthTest import DrawBrokenOutSectionDepthTest  # noqa: F401
 from TDTest.DrawLeaderParentLoopTest import DrawLeaderParentLoopTest  # noqa: F401
 from TDTest.DrawViewDetailConsoleTest import DrawViewDetailConsoleTest  # noqa: F401

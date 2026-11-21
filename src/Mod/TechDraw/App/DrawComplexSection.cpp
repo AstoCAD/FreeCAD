@@ -538,6 +538,19 @@ void DrawComplexSection::makeSectionCut(const TopoDS_Shape& baseShape)
         return DrawViewSection::makeSectionCut(baseShape);
     }
 
+    if (!DU::isGuiUp()) {
+        // Without the gui there is no event loop to deliver the align watcher's
+        // finished signal, so onSectionCutFinished would never see the aligned
+        // pieces. Make them in this thread, as sectionExec does for the cut.
+        try {
+            makeAlignedPieces(baseShape);
+        }
+        catch (...) {
+            Base::Console().warning("{} failed to make alignedPieces\n", Label.getValue());
+        }
+        return DrawViewSection::makeSectionCut(baseShape);
+    }
+
     try {
         connectAlignWatcher =
             QObject::connect(&m_alignWatcher, &QFutureWatcherBase::finished, &m_alignWatcher,
