@@ -180,11 +180,25 @@ class TestLineParallelEmptySelectionGui(unittest.TestCase):
         self.assertEqual(redone["undo"], [UNDO_NAME])
         self.assertEqual(redone["redo"], [])
 
-    def _preserve_pending(self, command_name, subnames=(), kind=None):
+    def _add_cosmetic_circle(self, fx):
+        # Returns an edge + vertex selection whose edge is a circle, not a line.
+        import Part
+        view = fx["view"]
+        base_count = len(view.getVisibleEdges(True)) + len(view.getHiddenEdges(True))
+        view.makeCosmeticCircle(App.Vector(0, 0, 0), 3.0)
+        fx["doc"].recompute()
+        self.fixture._wait(view.isProjectionReady, "Cosmetic circle projection did not settle")
+        require(isinstance(view.getEdgeByIndex(base_count).Curve, Part.Circle),
+                "The added cosmetic circle is not the next edge")
+        return ("Edge%d" % base_count, VERTEX_NAME)
+
+    def _preserve_pending(self, command_name, subnames=(), kind=None, prepare=None):
         if kind is None:
             kind = "PendingControl" if command_name == "Std_ViewFitAll" else (
                 "ParallelEmpty" if command_name == PARALLEL else "PerpendicularEmpty")
         fx = self.fixture._fixture(kind)
+        if prepare:
+            subnames = prepare(fx)
         self._select(fx, list(subnames))
         self.assertEqual(self._selection()[0][2], tuple(subnames))
         pristine = self._snapshot(fx)
@@ -248,6 +262,15 @@ class TestLineParallelEmptySelectionGui(unittest.TestCase):
 
     def test_parallel_edge_only_preserves_pending_edit(self):
         self._preserve_pending(PARALLEL, (EDGE_NAME,), "ParallelEdgeOnly")
+
+    # A circle edge is not a line: the command adds nothing (it used to read the
+    # circle as a line through an invalid cast).
+    def test_parallel_circle_edge_preserves_pending_edit(self):
+        self._preserve_pending(PARALLEL, kind="ParallelCircleEdge", prepare=self._add_cosmetic_circle)
+
+    def test_perpendicular_circle_edge_preserves_pending_edit(self):
+        self._preserve_pending(PERPENDICULAR, kind="PerpendicularCircleEdge",
+                               prepare=self._add_cosmetic_circle)
 
     def test_parallel_tooltip_describes_parallel_line(self):
         self.assertEqual(Gui.Command.get(PERPENDICULAR).getInfo()["toolTip"], PERPENDICULAR_TIP)

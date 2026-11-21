@@ -1443,13 +1443,17 @@ void execLineParallelPerpendicular(Gui::Command* cmd, bool isParallel)
             return;
         }
         TechDraw::BaseGeomPtr geom1 = objFeat->getGeomByIndex(EdgeId);
+        TechDraw::VertexPtr vert = objFeat->getProjVertexByIndex(VertId);
+        if (!geom1 || geom1->getGeomType() != GeomType::GENERIC || !vert) {
+            // the edge is not a line, or the selection is stale
+            return;
+        }
         TechDraw::GenericPtr lineGen = std::static_pointer_cast<TechDraw::Generic>(geom1);
         // ends are scaled and rotated
         Base::Vector3d lineStart = lineGen->points.at(0);
         lineStart = CosmeticVertex::makeCanonicalPointInverted(objFeat, lineStart);
         Base::Vector3d lineEnd = lineGen->points.at(1);
         lineEnd = CosmeticVertex::makeCanonicalPointInverted(objFeat, lineEnd);
-        TechDraw::VertexPtr vert = objFeat->getProjVertexByIndex(VertId);
         Base::Vector3d vertexPoint(vert->point().x, vert->point().y, 0.0);
         vertexPoint = CosmeticVertex::makeCanonicalPointInverted(objFeat, vertexPoint);
 
