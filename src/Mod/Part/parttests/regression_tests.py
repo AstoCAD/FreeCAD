@@ -401,6 +401,19 @@ class RegressionTests(unittest.TestCase):
             self.assertAlmostEqual(arc.LastParameter, 1)
             self.assertTrue(arc.toShape().isValid())
 
+    def test_line_segment_constructor_nan_parameters_raise(self):
+        "LineSegment(line, u1, u2) with a NaN parameter crashed FreeCAD"
+        nan = float("nan")
+        line = Part.Line()
+        segment = Part.LineSegment(Vector(0, 0, 0), Vector(1, 0, 0))
+        for base in (line, segment):
+            for args in ((0, nan), (nan, 1), (nan, nan)):
+                with self.subTest(base=type(base).__name__, args=args):
+                    with self.assertRaises(ValueError):
+                        Part.LineSegment(base, *args).length()
+        self.assertAlmostEqual(Part.LineSegment(line, -1, 2).length(), 3)
+        self.assertAlmostEqual(Part.LineSegment(segment, 0, 3).length(), 3)
+
     def test_revolve_non_finite_angle_raises(self):
         "Shape.revolve() with an infinite angle never returned"
         face = Part.makePlane(1, 1, Vector(1, 0, 0))

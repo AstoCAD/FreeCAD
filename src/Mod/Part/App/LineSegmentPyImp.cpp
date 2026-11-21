@@ -89,6 +89,11 @@ int LineSegmentPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     PyErr_Clear();
     double first, last;
     if (PyArg_ParseTuple(args, "O!dd", &(LineSegmentPy::Type), &pLine, &first, &last)) {
+        // NaN passes the range checks of the trimmed curve and crashes
+        if (std::isnan(first) || std::isnan(last)) {
+            PyErr_SetString(PyExc_ValueError, "Curve parameter must not be NaN");
+            return -1;
+        }
         // Copy line
         LineSegmentPy* pcLine = static_cast<LineSegmentPy*>(pLine);
         // get Geom_Line of line segment
@@ -108,6 +113,11 @@ int LineSegmentPy::PyInit(PyObject* args, PyObject* /*kwd*/)
 
     PyErr_Clear();
     if (PyArg_ParseTuple(args, "O!dd", &(LinePy::Type), &pLine, &first, &last)) {
+        // NaN passes the range checks of the trimmed curve and crashes
+        if (std::isnan(first) || std::isnan(last)) {
+            PyErr_SetString(PyExc_ValueError, "Curve parameter must not be NaN");
+            return -1;
+        }
         // Copy line
         LinePy* pcLine = static_cast<LinePy*>(pLine);
         // get Geom_Line of line segment
