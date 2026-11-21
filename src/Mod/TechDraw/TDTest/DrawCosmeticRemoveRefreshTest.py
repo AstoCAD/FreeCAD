@@ -10,6 +10,8 @@ were off.
 The makeCosmetic* methods accepted infinite or NaN coordinates, radii and
 angles: makeCosmeticCircle with an infinite radius crashed with an access
 violation, an arc with a NaN angle made the view Invalid on the next recompute.
+The CosmeticEdge Radius, Center, Start and End setters accepted them too, and
+the next recompute of the view crashed with an access violation.
 """
 
 import math
@@ -195,6 +197,43 @@ class DrawCosmeticNonFiniteInputTest(unittest.TestCase):
         self.assertEqual(len(self.view.CosmeticEdges) + len(self.view.CosmeticVertexes),
                          len(calls) + 2)
         self.assertNotIn("Invalid", self.view.State)
+
+    def testSettersRefuseNonFiniteValues(self):
+        """CosmeticEdge.Radius/Center/Start/End crashed the next recompute when not finite."""
+        view = self.view
+        circle = view.getCosmeticEdge(view.makeCosmeticCircle(Vector(1, 2, 0), 5.0))
+        arc = view.getCosmeticEdge(view.makeCosmeticCircleArc(Vector(1, 2, 0), 5.0, 0.0, 90.0))
+        line = view.getCosmeticEdge(view.makeCosmeticLine(Vector(1, 2, 0), Vector(5, 6, 0)))
+        for value in (math.nan, math.inf, -math.inf):
+            for name, edge, attribute, newValue in (
+                ("circle", circle, "Radius", value),
+                ("circle", circle, "Center", Vector(1, value, 0)),
+                ("arc", arc, "Radius", value),
+                ("arc", arc, "Center", Vector(value, 2, 0)),
+                ("line", line, "Start", Vector(value, 2, 0)),
+                ("line", line, "End", Vector(5, 6, value)),
+            ):
+                with self.subTest(edge=name, attribute=attribute, value=value):
+                    with self.assertRaises(ValueError):
+                        setattr(edge, attribute, newValue)
+        for edge in (circle, arc):
+            self.assertAlmostEqual(edge.Radius, 5.0)
+            self.assertEqual(edge.Center, Vector(1, 2, 0))
+        self.assertEqual(line.Start, Vector(1, 2, 0))
+        self.assertEqual(line.End, Vector(5, 6, 0))
+        view.touch()
+        self.doc.recompute()
+        self.assertNotIn("Invalid", view.State)
+        # finite values are still accepted
+        circle.Radius = 4.0
+        arc.Center = Vector(-3, 4, 0)
+        line.End = Vector(7, 8, 0)
+        view.touch()
+        self.doc.recompute()
+        self.assertNotIn("Invalid", view.State)
+        self.assertAlmostEqual(circle.Radius, 4.0)
+        self.assertEqual(arc.Center, Vector(-3, 4, 0))
+        self.assertEqual(line.End, Vector(7, 8, 0))
 
 
 if __name__ == "__main__":

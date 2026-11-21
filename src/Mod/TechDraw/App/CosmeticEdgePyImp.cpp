@@ -23,6 +23,7 @@
  ***************************************************************************/
 
 
+# include <cmath>
 # include <BRepBuilderAPI_MakeEdge.hxx>
 # include <BRepBuilderAPI_Transform.hxx>
 # include <gp_Pnt.hxx>
@@ -41,6 +42,17 @@
 
 
 using namespace TechDraw;
+
+namespace
+{
+//! raises a Python ValueError unless all coordinates of point are finite numbers
+void checkFinite(const Base::Vector3d& point)
+{
+    if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)) {
+        throw Py::ValueError("Coordinates must be finite numbers");
+    }
+}
+}  // namespace
 
 // returns a string which represents the object e.g. when printed in python
 std::string CosmeticEdgePy::representation() const
@@ -206,6 +218,7 @@ Py::Vector CosmeticEdgePy::getStart() const
 void CosmeticEdgePy::setStart(Py::Vector arg)
 {
     Base::Vector3d pNew = static_cast<Base::Vector3d>(arg);
+    checkFinite(pNew);
 
     pNew = DrawUtil::invertY(pNew);
     Base::Vector3d pEnd = getCosmeticEdgePtr()->permaEnd;
@@ -228,6 +241,7 @@ Py::Vector CosmeticEdgePy::getEnd() const
 void CosmeticEdgePy::setEnd(Py::Vector arg)
 {
     Base::Vector3d pNew = static_cast<Base::Vector3d>(arg);
+    checkFinite(pNew);
 
     pNew = DrawUtil::invertY(pNew);
     Base::Vector3d pStart = getCosmeticEdgePtr()->permaStart;
@@ -262,6 +276,9 @@ void CosmeticEdgePy::setRadius(Py::Float arg)
     double r = static_cast<double>(arg);
     if (!(r > 0.0)) {
         throw Py::ValueError("Radius must be greater than zero");
+    }
+    if (!std::isfinite(r)) {
+        throw Py::ValueError("Radius must be a finite number");
     }
     if (gt == GeomType::ARCOFCIRCLE) {
         // keep the arc: scale it about its center instead of replacing it with a full circle
@@ -304,6 +321,7 @@ void CosmeticEdgePy::setCenter(Py::Vector arg)
     }
 
     Base::Vector3d pNew = static_cast<Base::Vector3d>(arg);
+    checkFinite(pNew);
     pNew = DrawUtil::invertY(pNew);
     auto oldGeom = getCosmeticEdgePtr()->m_geometry;
     TechDraw::CirclePtr oldCircle = std::dynamic_pointer_cast<TechDraw::Circle> (oldGeom);
