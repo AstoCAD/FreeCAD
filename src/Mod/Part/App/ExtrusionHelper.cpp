@@ -91,7 +91,7 @@ bool makeCircleOffset(const TopoDS_Wire& wire, double offset, TopoDS_Shape& resu
     }
 
     // BRepOffsetAPI_MakeOffsetFix rebuilds the wire from its edges and only then applies the
-    // wire orientation, so the sign follows the edge orientation within the wire. The explorer
+    // wire orientation, so the edge keeps its orientation within the wire. The explorer
     // composes both orientations, hence remove the wire's own orientation again.
     bool reversed = (edge.Orientation() == TopAbs_REVERSED)
         != (wire.Orientation() == TopAbs_REVERSED);
@@ -115,7 +115,11 @@ bool makeCircleOffset(const TopoDS_Wire& wire, double offset, TopoDS_Shape& resu
     if (std::fabs(axisDotNormal) < 0.5) {
         return false;  // not in the plane OCC would use, leave it to OCC
     }
-    bool shrinks = reversed != (axisDotNormal < 0.0);
+    // OCC grows the circle when its axis points along the normal of that plane. Without a
+    // pcurve the fitted normal already follows the edge orientation, so a reversed edge
+    // shrinks through the normal alone and its orientation must not be counted again. An
+    // existing surface has its own normal, so there the edge orientation flips the direction.
+    bool shrinks = (axisDotNormal < 0.0) != (reversed && findPlane.Existed());
 
     gp_Circ circ = curve.Circle();
     double newRadius = circ.Radius() + (shrinks ? -offset : offset);

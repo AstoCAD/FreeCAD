@@ -1893,6 +1893,35 @@ class PartExtrusionTests(unittest.TestCase):
         self.assertEqual(len(extrusion.Shape.Solids), 0)
         self.assertEqual(len(extrusion.Shape.Faces), 1)
 
+    def testExtrudeTaperCircleWireFollowsEdgeOrientation(self):
+        """A tapered wire made of one circle is offset like OCC offsets that wire: the
+        circle grows when its edge is forward and shrinks when it is reversed."""
+        offset = 10 * math.tan(math.radians(5))
+        circle = Part.makeCircle(10)
+        for name, wire, expected_radius in (
+            ("forward edge", Part.Wire(circle), 10 + offset),
+            ("reversed edge", Part.Wire(circle.reversed()), 10 - offset),
+        ):
+            with self.subTest(wire=name):
+                occ_edge = wire.makeOffset2D(offset).Edges[0]
+                occ_point = occ_edge.valueAt(occ_edge.FirstParameter)
+                self.assertAlmostEqual(occ_point.Length, expected_radius, places=6)
+
+                base_feature = self.Doc.addObject("Part::Feature", "Base")
+                base_feature.Shape = wire
+                extrusion = self.Doc.addObject("Part::Extrusion", "Extrude")
+                extrusion.Base = base_feature
+                extrusion.LengthFwd = 10
+                extrusion.Solid = False
+                extrusion.TaperAngle = 5
+                self.Doc.recompute()
+
+                self.assertNotIn("Invalid", extrusion.State)
+                top = [e for e in extrusion.Shape.Edges if e.BoundBox.ZMin > 10 - 1e-6]
+                self.assertEqual(len(top), 1)
+                point = top[0].valueAt(top[0].FirstParameter)
+                self.assertAlmostEqual(math.hypot(point.x, point.y), expected_radius, places=6)
+
     def testExtrudeAlongFacePlaneFails(self):
         """Extruding a face, or wires made into a solid, along their own plane gave a
         flat solid without volume and no error."""
