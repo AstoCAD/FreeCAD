@@ -924,6 +924,54 @@ class TestSketcherSolver(unittest.TestCase):
         self.assertSuccessfulSolve(sketch)
         self.assertVectorAlmostEqual(sketch.Geometry[circle].Center, expected)
 
+    def _flagSetters(self):
+        return (
+            ("SketchGeometryExtension", Sketcher.SketchGeometryExtension(),
+             "setGeometryMode", "testGeometryMode", ("Blocked", "Construction")),
+            ("ExternalGeometryExtension", Sketcher.ExternalGeometryExtension(),
+             "setFlag", "testFlag", ("Defining", "Frozen", "Detached", "Missing", "Sync")),
+            ("ExternalGeometryFacade",
+             Sketcher.ExternalGeometryFacade(Part.LineSegment(vec(2, 3), vec(7, 8))),
+             "setFlag", "testFlag", ("Defining", "Frozen", "Detached", "Missing", "Sync")),
+        )
+
+    def testFlagSetterValidArguments(self):
+        for name, target, setter_name, getter_name, flags in self._flagSetters():
+            setter = getattr(target, setter_name)
+            getter = getattr(target, getter_name)
+            for flag in flags:
+                with self.subTest(wrapper=name, flag=flag):
+                    self.assertIsNone(setter(flag, True))
+                    self.assertIs(getter(flag), True)
+                    self.assertIsNone(setter(flag, False))
+                    self.assertIs(getter(flag), False)
+                    self.assertIsNone(setter(flag))
+                    self.assertIs(getter(flag), True)
+                    self.assertIsNone(setter(flag, False))
+                    self.assertIs(getter(flag), False)
+
+    def testFlagSetterRejectsInvalidArguments(self):
+        for name, target, setter_name, getter_name, flags in self._flagSetters():
+            setter = getattr(target, setter_name)
+            getter = getattr(target, getter_name)
+            for index, flag in enumerate(flags):
+                setter(flag, index == 0)
+                self.assertIs(getter(flag), index == 0)
+            before = {flag: getter(flag) for flag in flags}
+            for case, arguments in (
+                ("MissingFlag", ()),
+                ("WrongBooleanType", (flags[0], 0)),
+            ):
+                with self.subTest(wrapper=name, case=case):
+                    error = None
+                    try:
+                        setter(*arguments)
+                    except Exception as caught:
+                        error = caught
+                    self.assertEqual({flag: getter(flag) for flag in flags}, before)
+                    self.assertIs(type(error), TypeError,
+                                  "Invalid arguments must report the intended TypeError")
+
     def testSymmetricKeepsConstraintOnTheMirroredSide(self):
         # Mirroring reverses handedness, so a copied signed constraint has to be re-derived from
         # the mirrored geometry. Carrying the original side over pins the copy to the wrong side
