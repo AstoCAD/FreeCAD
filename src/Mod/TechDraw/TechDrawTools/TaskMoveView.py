@@ -66,7 +66,12 @@ class TaskMoveView:
         view = App.ActiveDocument.getObject(self.viewName)
         fromPage = App.ActiveDocument.getObject(self.fromPageName)
         toPage = App.ActiveDocument.getObject(self.toPageName)
-        TDToolsMovers.moveView(view, fromPage, toPage)
+        try:
+            TDToolsMovers.moveView(view, fromPage, toPage)
+        except Exception:
+            # e.g. no target page: leave the document as it was, not half moved
+            App.ActiveDocument.abortTransaction()
+            raise
         App.ActiveDocument.commitTransaction()
         return True
 

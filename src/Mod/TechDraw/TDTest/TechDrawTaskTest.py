@@ -63,6 +63,28 @@ class TechDrawTaskTest(unittest.TestCase):
         finally:
             task.form.deleteLater()
 
+    def testMoveViewWithoutTargetPage(self):
+        """A move that fails leaves the view on its page and no open transaction."""
+        from TechDrawTools.TaskMoveView import TaskMoveView
+
+        self.doc.UndoMode = 1
+        source_page = createPageWithSVGTemplate(self.doc)
+        view = self.doc.addObject("TechDraw::DrawViewAnnotation", "Annotation")
+        view.Text = ["Stay here"]
+        source_page.addView(view)
+        self.doc.recompute()
+        self.doc.clearUndos()
+
+        task = TaskMoveView()
+        try:
+            task.setValues(view.Name, source_page.Name, "")
+            with self.assertRaises(Exception):
+                task.accept()
+            self.assertIn(view, source_page.Views)
+            self.assertFalse(self.doc.HasPendingTransaction)
+        finally:
+            task.form.deleteLater()
+
     def testLockDraftAndArchViews(self):
         """The view lock command works for SVG-based views and records undo."""
         FreeCADGui.activateWorkbench("TechDrawWorkbench")
