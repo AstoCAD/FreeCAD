@@ -87,6 +87,42 @@ class DrawDimensionViewBreakTest(unittest.TestCase):
         self.assertAlmostEqual(self.dimension(view, "DistanceX", vertices), 100, places=6)
         self.assertAlmostEqual(self.dimension(view, "DistanceY", vertices), 20, places=6)
 
+    def testDistanceToBreakEdge(self):
+        """A vertex at the cut edge of the moved piece maps back to the end of the break.
+
+        With a gap small against the removed length (800 removed, gap 10) the mapping
+        back to the model gave 453.18 instead of 100 for the left end to that edge.
+        """
+        self.box.Length = 1000
+        view = self.doc.addObject("TechDraw::DrawViewPart", "View")
+        self.page.addView(view)
+        view.Source = [self.box]
+        view.Direction = App.Vector(0, 0, 1)
+        view.XDirection = App.Vector(1, 0, 0)
+        view.ScaleType = "Custom"
+        view.Scale = 1
+        viewBreak = self.doc.addObject("TechDraw::DrawViewBreak", "Break")
+        viewBreak.StartPoint = App.Vector(100, 0, 0)
+        viewBreak.EndPoint = App.Vector(900, 0, 0)
+        viewBreak.Direction = App.Vector(1, 0, 0)
+        viewBreak.Gap = 10
+        view.Breaks = [viewBreak]
+        self.recomputeView(view, 8)
+
+        # the vertices of the lower edge, from left to right: left end, the two cut
+        # edges, right end
+        vertices = view.getVisibleVertexes()
+        lowest = min(vertex.y for vertex in vertices)
+        row = sorted(
+            (index for index, vertex in enumerate(vertices) if abs(vertex.y - lowest) < 1e-6),
+            key=lambda index: vertices[index].x,
+        )
+        self.assertEqual(len(row), 4)
+        leftEnd, lowCut, highCut, rightEnd = row
+        self.assertAlmostEqual(self.dimension(view, "DistanceX", (leftEnd, lowCut)), 100, places=6)
+        self.assertAlmostEqual(self.dimension(view, "DistanceX", (lowCut, rightEnd)), 900, places=6)
+        self.assertAlmostEqual(self.dimension(view, "DistanceX", (highCut, rightEnd)), 100, places=6)
+
     def testSuppressedBreak(self):
         """Without an applied break the drawing length is the model length."""
         view = self.brokenView(0)

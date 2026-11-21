@@ -323,6 +323,26 @@ Base::Vector3d breakShift(const Base::Vector3d& point,
     return result;
 }
 
+//! the shift along item.direction that breakShift gives to a point for this break, from the
+//! point's coordinate along item.direction once shifted: the exact inverse of one break
+double inverseBreakShift(double shiftedCoordinate, const ViewBreakDefinition& item)
+{
+    const double removed = item.high - item.low;
+    const double netRemoved = removed - item.gap;
+    if (shiftedCoordinate >= item.high) {
+        // at or beyond the high end: not moved
+        return 0.0;
+    }
+    if (shiftedCoordinate <= item.high - item.gap) {
+        // at or before the low end: moved by the whole net removed length
+        return netRemoved;
+    }
+    // inside the gap (so the gap is not null): the removed length is spread over the gap
+    const double coordinate =
+        item.high + (shiftedCoordinate - item.high) * removed / item.gap;
+    return shiftedCoordinate - coordinate;
+}
+
 //! Names of the objects of type T that the link list `links` of `view` lists and that belong to
 //! the view alone: objects of the view's document that no other view lists in its own `links`
 //! (a view pasted without its dependencies shares them).
@@ -868,16 +888,40 @@ Base::Vector3d DrawViewPart::mapPointFromBrokenView(const Base::Vector3d& point2
     const Base::Vector3d yAxis = Base::convertTo<Base::Vector3d>(axes.YDirection());
     const Base::Vector3d compressed = m_breakResultCentroid + xAxis * point2d.x + yAxis * point2d.y;
     const auto breaks = viewBreakDefinitions(*this);
-    Base::Vector3d candidate = compressed;
+    // Each break moves a point along its own direction by an amount that depends only on the
+    // point's coordinate along that direction (breakShift). Undo each break exactly, knowing
+    // the shifts of the others, until the shifts settle: a single break, or breaks with
+    // perpendicular directions, settle in one pass. A plain fixed-point iteration on
+    // breakShift converges too slowly near a break whose gap is small against the removed
+    // length, and maps points there far from their model position.
+    std::vector<double> shifts(breaks.size(), 0.0);
     for (int iteration = 0; iteration < 64; ++iteration) {
-        const Base::Vector3d next = compressed - breakShift(candidate, breaks);
-        if ((next - candidate).Sqr() < 1.0e-18) {
-            candidate = next;
+        bool settled = true;
+        for (std::size_t index = 0; index < breaks.size(); ++index) {
+            const auto& item = breaks[index];
+            double shiftedCoordinate = compressed.Dot(item.direction);
+            for (std::size_t other = 0; other < breaks.size(); ++other) {
+                if (other != index) {
+                    shiftedCoordinate -=
+                        shifts[other] * breaks[other].direction.Dot(item.direction);
+                }
+            }
+            const double shift = inverseBreakShift(shiftedCoordinate, item);
+            if (std::abs(shift - shifts[index]) > 1.0e-9) {
+                settled = false;
+            }
+            shifts[index] = shift;
+        }
+        if (settled) {
             break;
         }
-        candidate = next;
     }
-    return candidate;
+
+    Base::Vector3d result = compressed;
+    for (std::size_t index = 0; index < breaks.size(); ++index) {
+        result -= breaks[index].direction * shifts[index];
+    }
+    return result;
 }
 
 Base::Vector3d DrawViewPart::mapPointToBrokenView(const Base::Vector3d& point3d) const
