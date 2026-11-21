@@ -147,9 +147,11 @@ class TestInsertSymbolStackTopGui(unittest.TestCase):
         return path
 
     def _assert_on_top(self, view):
-        self.assertTrue(self._wait(lambda: view.ViewObject.StackOrder > RAISED),
-                        "New view StackOrder {} is not above {}".format(
-                            view.ViewObject.StackOrder, RAISED))
+        # Exactly one above the highest view: the template the page also holds has no
+        # stack order and must not take part
+        self.assertTrue(self._wait(lambda: view.ViewObject.StackOrder == RAISED + 1),
+                        "New view StackOrder {} is not {}".format(
+                            view.ViewObject.StackOrder, RAISED + 1))
         self.assertEqual(self.annotation.ViewObject.StackOrder, RAISED)
 
     def test_symbol_command_stacks_on_top(self):

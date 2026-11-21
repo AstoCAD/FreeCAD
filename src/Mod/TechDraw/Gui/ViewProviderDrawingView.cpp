@@ -464,8 +464,11 @@ void ViewProviderDrawingView::stackTop()
         std::vector<App::DocumentObject*> peerObjects = getViewProviderPage()->claimChildren();
         Gui::Document* gDoc = getDocument();
         for (auto& peer: peerObjects) {
-            auto vpPeer = gDoc->getViewProvider(peer);
-            ViewProviderDrawingView* vpdv = static_cast<ViewProviderDrawingView*>(vpPeer);
+            // the page also claims its template and loose sketches, which have no stack order
+            auto* vpdv = freecad_cast<ViewProviderDrawingView*>(gDoc->getViewProvider(peer));
+            if (!vpdv) {
+                continue;
+            }
             int z = vpdv->StackOrder.getValue();
             if (z > maxZ) {
                 maxZ = z;
@@ -500,8 +503,11 @@ void ViewProviderDrawingView::stackBottom()
         std::vector<App::DocumentObject*> peerObjects = getViewProviderPage()->claimChildren();
         Gui::Document* gDoc = getDocument();
         for (auto& peer: peerObjects) {
-            auto vpPeer = gDoc->getViewProvider(peer);
-            ViewProviderDrawingView* vpdv = static_cast<ViewProviderDrawingView*>(vpPeer);
+            // the page also claims its template and loose sketches, which have no stack order
+            auto* vpdv = freecad_cast<ViewProviderDrawingView*>(gDoc->getViewProvider(peer));
+            if (!vpdv) {
+                continue;
+            }
             int z = vpdv->StackOrder.getValue();
             if (z < minZ) {
                 minZ = z;
