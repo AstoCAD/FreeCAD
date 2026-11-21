@@ -170,3 +170,22 @@ class DrawCreationDocumentTest(unittest.TestCase):
 
     def testDistance3dUnicodeOwnerActive(self):
         self._checkCreation("makeDistanceDim3d", "active", unicode_owner=True)
+
+    def testDistanceDimensionLabelIsTranslated(self):
+        """The dimension made by makeDistanceDim gets the translated label."""
+        if QtCore.QCoreApplication.instance() is None:
+            self.skipTest("needs a Qt application to install a translator")
+
+        class Translator(QtCore.QTranslator):
+            def translate(self, context, source, disambiguation=None, n=-1):
+                if (context, source) == ("DrawViewDimension", "Dimension"):
+                    return "Translated"
+                return ""
+
+        translator = Translator()
+        QtCore.QCoreApplication.installTranslator(translator)
+        self.addCleanup(QtCore.QCoreApplication.removeTranslator, translator)
+        view = self._drawing("CreationLabel")["view"]
+        dimension = TechDraw.makeDistanceDim(view, "Distance", App.Vector(0, 0, 0),
+                                             App.Vector(10, 0, 0))
+        self.assertEqual(dimension.Label, "Translated" + dimension.Name[len("Dimension"):])

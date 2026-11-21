@@ -484,7 +484,7 @@ DrawDimHelper::makeDistDim(DrawViewPart* dvp, std::string dimType,
         Base::Interpreter().runStringArg(
             "%s.addObject('TechDraw::DrawViewDimension', '%s')", documentRef.c_str(), dimName.c_str());
         Base::Interpreter().runStringArg(
-            "%s.translateLabel('DrawViewDimimension', 'Dimension', '%s')",
+            "%s.translateLabel('DrawViewDimension', 'Dimension', '%s')",
             dimensionRef.c_str(), dimName.c_str());
     }
 
