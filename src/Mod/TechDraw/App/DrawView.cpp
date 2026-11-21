@@ -453,7 +453,10 @@ std::vector<DrawPage*> DrawView::findAllParentPages() const
         }
         else if (parent->isDerivedFrom<DrawViewCollection>()) {
             auto* collection = static_cast<TechDraw::DrawViewCollection*>(parent);
-            pages.emplace_back(collection->findParentPage());
+            // a collection need not be on a page yet
+            if (auto* page = collection->findParentPage()) {
+                pages.emplace_back(page);
+            }
         }
     }
 

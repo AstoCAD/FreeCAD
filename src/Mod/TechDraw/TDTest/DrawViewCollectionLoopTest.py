@@ -52,6 +52,19 @@ class DrawViewCollectionLoopTest(unittest.TestCase):
         self.assertEqual(collection.findParentPage(), page)
         self.assertEqual(view.findParentPage(), page)
 
+    def testOwnerSetInCollectionWithoutPage(self):
+        """Setting the owner of a view whose collection is on no page touches no page"""
+        page = createPageWithSVGTemplate(self.doc)
+        owner = self.doc.addObject("TechDraw::DrawViewSymbol", "Owner")
+        page.addView(owner)
+        collection = self.doc.addObject("TechDraw::DrawViewCollection", "Collection")
+        annotation = self.doc.addObject("TechDraw::DrawViewAnnotation", "Annotation")
+        collection.Views = [annotation]
+        # crashed with an access violation: the parent pages listed a null page
+        annotation.Owner = owner
+        self.assertEqual(annotation.Owner, owner)
+        self.assertIsNone(annotation.findParentPage())
+
 
 if __name__ == "__main__":
     unittest.main()
