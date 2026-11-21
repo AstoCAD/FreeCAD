@@ -950,6 +950,34 @@ class TestAdditiveForm(unittest.TestCase):
             form.Shape.BoundBox.Center.sub(box.Shape.BoundBox.Center).Length, 1.0e-7
         )
 
+    def testRefineAppliesToTheCombinedForm(self):
+        form = Forms.create_additive_form(
+            self.body,
+            self.source,
+            "Box",
+            placement=App.Placement(App.Vector(20, 10, 5), App.Rotation()),
+        )
+        form.Length = 10
+        form.Width = 10
+        form.Height = 10
+        form.Refine = False
+        self.document.recompute()
+        unrefined = form.Shape.copy()
+        expected = unrefined.removeSplitter()
+        # The Form splits faces of the base that refine merges again
+        self.assertLess(len(expected.Faces), len(unrefined.Faces))
+
+        form.Refine = True
+        self.document.recompute()
+
+        self.assertEqual(form.CombinationStatus, "Valid fused additive form")
+        self.assertEqual(len(form.Shape.Faces), len(expected.Faces))
+        self.assertEqual(len(form.Shape.Solids), 1)
+        self.assertTrue(form.Shape.isValid())
+        self.assertAlmostEqual(
+            form.Shape.Volume, unrefined.Volume, delta=unrefined.Volume * 1.0e-6
+        )
+
     def _patternedSubtractiveForm(self):
         form = Forms.create_subtractive_form(
             self.body,

@@ -328,6 +328,8 @@ class PartDesignFormProxy(FormFeatureProxy):
             # additive Form is meant to add, e.g. while its face is open.
             obj.Shape = shown
             return
+        if "Refine" in obj.PropertiesList and obj.Refine:
+            result = self._refined(obj, result)
         obj.Shape = result
         if operation == "Additive":
             obj.CombinationStatus = App.Qt.translate(
@@ -337,6 +339,24 @@ class PartDesignFormProxy(FormFeatureProxy):
             obj.CombinationStatus = App.Qt.translate(
                 "Forms_PartDesign", "Valid cut subtractive form"
             )
+
+    @staticmethod
+    def _refined(obj, shape):
+        """Refine *shape* as PartDesign::FeatureRefine does for the native
+        features, whose Refine property the Form has: keep the unrefined
+        shape when refining fails or makes it invalid."""
+        try:
+            refined = shape.removeSplitter()
+        except Part.OCCError as error:
+            App.Console.PrintWarning(f"{obj.FullName}: Refine failed: {error}\n")
+            return shape
+        if refined.isNull() or not refined.isValid():
+            App.Console.PrintWarning(
+                f"{obj.FullName}: Refine produced an invalid shape; "
+                "keeping the unrefined shape.\n"
+            )
+            return shape
+        return refined
 
     def show_edit_shape(self, obj, enabled):
         """Expose the selectable control patches of a profile Form Face while
