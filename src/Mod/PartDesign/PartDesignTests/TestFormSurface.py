@@ -921,6 +921,35 @@ class TestAdditiveForm(unittest.TestCase):
         self.assertTrue(form.Shape.isValid())
         self.assertLess(form.Shape.Volume, self.source.Shape.Volume)
 
+    def testFailedCutKeepsAPlacedBaseInPlace(self):
+        body = self.document.addObject("PartDesign::Body", "PlacedBody")
+        box = body.newObject("PartDesign::AdditiveBox", "PlacedBox")
+        box.Length = 20
+        box.Width = 20
+        box.Height = 10
+        box.Placement = App.Placement(App.Vector(30, 0, 0), App.Rotation())
+        self.document.recompute()
+        form = Forms.create_subtractive_form(
+            body,
+            box,
+            "Box",
+            placement=App.Placement(App.Vector(40, 10, 5), App.Rotation()),
+        )
+        # A slab through the whole box would split it in two solids
+        form.Length = 2
+        form.Width = 40
+        form.Height = 40
+        self.document.recompute()
+
+        self.assertIn("Invalid", form.State)
+        self.assertIn("single-solid", form.CombinationStatus)
+        # The result is the base, unchanged and where the base is
+        self.assertEqual(len(form.Shape.Solids), 1)
+        self.assertAlmostEqual(form.Shape.Volume, box.Shape.Volume, places=6)
+        self.assertLess(
+            form.Shape.BoundBox.Center.sub(box.Shape.BoundBox.Center).Length, 1.0e-7
+        )
+
     def _patternedSubtractiveForm(self):
         form = Forms.create_subtractive_form(
             self.body,

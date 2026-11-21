@@ -319,8 +319,10 @@ class PartDesignFormProxy(FormFeatureProxy):
                 # fails is an error: the base and the tool shown together
                 # would make the tool material for the following features.
                 # Nothing is removed; AddSubShape keeps the tool for the
-                # preview.
-                obj.Shape = base
+                # preview. The base is placed by the base feature's own
+                # placement, which a shape set during the recompute loses for
+                # the Form's placement: in a compound it keeps it.
+                obj.Shape = Part.makeCompound([base])
                 raise RuntimeError(status)
             # The base and the tool shown together are the material the
             # additive Form is meant to add, e.g. while its face is open.
