@@ -76,6 +76,7 @@ from TDTest.DrawViewDeleteWhileRunningGuiTest import DrawViewDeleteWhileRunningG
 from TDTest.TestInsertSymbolStackTopGui import TestInsertSymbolStackTopGui  # noqa: F401
 from TDTest.TestDimensionLabelSnapGui import TestDimensionLabelSnapGui  # noqa: F401
 from TDTest.DrawTaskUndoGuiTest import DrawTaskUndoGuiTest  # noqa: F401
+from TDTest.DrawProjGroupTaskCancelGuiTest import DrawProjGroupTaskCancelGuiTest  # noqa: F401
 from TDTest.DrawSectionTabOrderGuiTest import DrawSectionTabOrderGuiTest  # noqa: F401
 from TDTest.DrawSectionPageClosedGuiTest import DrawSectionPageClosedGuiTest  # noqa: F401
 from TDTest.DrawSectionResetCancelGuiTest import DrawSectionResetCancelGuiTest  # noqa: F401

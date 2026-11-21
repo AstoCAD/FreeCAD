@@ -486,6 +486,7 @@ void TaskProjGroup::turnViewToProjGroup()
 
     m_page->requestPaint();
     view = multiView;
+    m_viewName = multiView->getNameInDocument();
     m_page->removeView(viewPart);   // prevent multiple entries in tree
 
     updateUi();
@@ -519,6 +520,7 @@ void TaskProjGroup::turnProjGroupToView()
     }
 
     view = viewPart;
+    m_viewName = viewPart->getNameInDocument();
     multiView = nullptr;
 
     updateUi();
@@ -970,15 +972,20 @@ bool TaskProjGroup::reject()
         return false;
     }
 
+    // The abort deletes the objects created since the task opened (the new view in create mode,
+    // or a projection group made from the edited view), so drop the pointers to them before:
+    // the selection observer uses them while the abort removes the objects from the selection.
+    view = nullptr;
+    multiView = nullptr;
+
     doc->abortCommand();
 
     if (!getCreateMode()) {
-        if (multiView) {
-            multiView->autoPositionChildren();
-        }
         // Restore views to initial spacing
-        if (multiView) {
-            multiView->autoPositionChildren();
+        auto* group = dynamic_cast<TechDraw::DrawProjGroup*>(
+            m_page->getDocument()->getObject(m_viewName.c_str()));
+        if (group) {
+            group->autoPositionChildren();
         }
     }
     Gui::Command::runCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
