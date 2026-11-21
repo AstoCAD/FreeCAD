@@ -256,22 +256,22 @@ DrawViewSection::DrawViewSection()
     ADD_PROPERTY_TYPE(SectionCutOnly,
                       (false),
                       sgroup,
-                      App::Prop_None,
+                      App::Prop_Output,
                       "Show only the geometry intersected by the section plane");
     ADD_PROPERTY_TYPE(ShowOutsidePartialBoundaries,
                       (true),
                       sgroup,
-                      App::Prop_None,
+                      App::Prop_Output,
                       "Show projected geometry outside partial section boundaries");
     ADD_PROPERTY_TYPE(ConnectionLine,
                       (false),
                       sgroup,
-                      App::Prop_None,
+                      App::Prop_Output,
                       "Show a line connecting the section line to the section view");
     ADD_PROPERTY_TYPE(LockRelativePositionToSource,
                       (false),
                       sgroup,
-                      App::Prop_None,
+                      App::Prop_Output,
                       "Move this section view with its source view after snapping");
 
     // properties related to the display of the cut surface
@@ -400,7 +400,11 @@ void DrawViewSection::onChanged(const App::Property* prop)
         || prop == &ShowOutsidePartialBoundaries
         || prop == &ConnectionLine
         || prop == &LockRelativePositionToSource) {
+        // Display only: as output properties they do not touch the section for a
+        // recompute, but the base class still notifies the view provider and the
+        // document of the change.
         requestPaint();
+        DrawView::onChanged(prop);      //NOLINT
         return;
     }
 
