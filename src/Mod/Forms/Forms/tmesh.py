@@ -407,14 +407,21 @@ class HierarchicalTMesh:
         if not math.isclose(fraction, 0.5, rel_tol=0.0, abs_tol=1.0e-10):
             raise ValueError("The requested split is not dyadic on this T-edge")
         first, second = side[position], side[position + 1]
-        vertex_id = self.next_vertex_id
-        self.next_vertex_id += 1
-        self.vertices[vertex_id] = tuple(
-            self.vertices[first][axis] * (1.0 - fraction)
-            + self.vertices[second][axis] * fraction
-            for axis in range(3)
+        start = face.parameters[int(side_index)]
+        end = face.parameters[(int(side_index) + 1) % 4]
+        vertex_id = self._retained_control(
+            face.root, (start[0] + end[0]) * 0.5, (start[1] + end[1]) * 0.5
         )
-        self.vertex_levels[vertex_id] = int(level)
+        created = vertex_id is None
+        if created:
+            vertex_id = self.next_vertex_id
+            self.next_vertex_id += 1
+            self.vertices[vertex_id] = tuple(
+                self.vertices[first][axis] * (1.0 - fraction)
+                + self.vertices[second][axis] * fraction
+                for axis in range(3)
+            )
+            self.vertex_levels[vertex_id] = int(level)
         neighbors = self._faces_for_atomic_edge(face.id, first, second)
         self._split_interval(first, vertex_id, second)
         self._insert_side_vertex(face.id, side_index, position, vertex_id)
@@ -422,7 +429,37 @@ class HierarchicalTMesh:
             self._insert_side_vertex(
                 neighbor_id, neighbor_side, neighbor_position, vertex_id
             )
-        return vertex_id, True
+        return vertex_id, created
+
+    def _retained_control(self, root, u_value, v_value):
+        """Return the retained control at a root parameter location, if any.
+
+        A dissolve keeps the controls inside the merged leaf as evaluator
+        controls without a leaf. Splitting that leaf again through one of
+        their locations must expose that control: a second control at the
+        same evaluator point would override it, leaving a control that no
+        longer shapes the surface.
+        """
+        matches = [
+            vertex
+            for vertex, locations in self.control_locations.items()
+            if any(
+                item_root == root
+                and math.isclose(item_u, u_value, abs_tol=1.0e-12)
+                and math.isclose(item_v, v_value, abs_tol=1.0e-12)
+                for item_root, item_u, item_v in locations
+            )
+        ]
+        if not matches:
+            return None
+        referenced = {
+            vertex for face in self.faces.values() for side in face.sides for vertex in side
+        }
+        retained = [vertex for vertex in matches if vertex not in referenced]
+        # A document saved before retained controls were reused can hold
+        # several at one location. The evaluator writes controls by level,
+        # then by ID, so the last of them is the one that shapes the surface.
+        return max(retained, key=lambda vertex: (self.vertex_levels[vertex], vertex), default=None)
 
     def insert_edge(self, face_id, edge, position=0.5):
         """Return a locally split mesh plus its new vertex and face IDs.
@@ -747,7 +784,7 @@ class HierarchicalTMesh:
     def decode(cls, value):
         try:
             return cls._decode(value)
-        except (AttributeError, IndexError, KeyError, TypeError) as error:
+        except (AttributeError, IndexError, KeyError, OverflowError, TypeError) as error:
             # TMeshData comes from the document. Report a malformed record as
             # the ValueError that conversion turns into a failed status.
             raise ValueError("Invalid T-mesh data") from error

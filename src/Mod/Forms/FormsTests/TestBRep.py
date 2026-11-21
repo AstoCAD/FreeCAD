@@ -1028,7 +1028,13 @@ class BRepConversionTest(unittest.TestCase):
         cage = ControlCage.from_object(surface)
         edge = tuple(cage.faces[0][:2])
         boundary = cage.boundary_edges[0]
+        support = document.addObject("Part::Feature", "MatchSupport")
+        support.Shape = Part.makeBox(30, 30, 1, App.Vector(-10, -10, 20))
+        document.recompute()
         operations = {
+            "Match": lambda: match_boundary(
+                surface, cage.boundary_edges, (support, ["Face5"]), "Tangent"
+            ),
             "Crease": lambda: set_edge_crease(surface, [edge], 10.0),
             "Insert Edge": lambda: insert_edge(surface, edge),
             "Insert Edge Loop": lambda: insert_edge_loop(surface, edge),
@@ -1056,6 +1062,8 @@ class BRepConversionTest(unittest.TestCase):
                     surface.TMeshData,
                 )
                 self.assertEqual(after, before)
+        self.assertEqual(list(surface.MatchBoundary), [])
+        self.assertIsNone(surface.MatchSupport)
         document.recompute()
         self.assertTrue(surface.ConversionStatus.startswith("Valid"))
         self.assertEqual(len(surface.Shape.Solids), 1)
@@ -1109,6 +1117,17 @@ class BRepConversionTest(unittest.TestCase):
             ("TMeshData", "[1, 2]"),
             ("LocalEdgeInserts", ['{"face": [0, 1, 2, 3]}']),
             ("LocalEdgeInserts", ["[1, 2]"]),
+            # Python's JSON reader accepts Infinity and unbounded integers;
+            # converting them to int or float raises OverflowError.
+            ("TMeshData", '{"version": Infinity}'),
+            (
+                "LocalEdgeInserts",
+                ['{"face": [Infinity, 1, 2, 3], "edge": [0, 1], "position": 0.5}'],
+            ),
+            (
+                "LocalEdgeInserts",
+                ['{"face": [0, 1, 2, 3], "edge": [0, 1], "position": 1' + "0" * 400 + "}"],
+            ),
         ):
             with self.subTest(name=name, value=value):
                 setattr(obj, name, value)
@@ -1431,6 +1450,16 @@ class BRepConversionTest(unittest.TestCase):
         # A stored infinite sample count is skipped like other invalid records,
         # instead of escaping the recompute and leaving a stale shape.
         pipe.SegmentSamples = ['{"segment": "%s", "samples": Infinity}' % key]
+        document.recompute()
+        self.assertIn("Up-to-date", pipe.State)
+        self.assertFalse(pipe.Shape.isNull(), pipe.ConversionStatus)
+        self.assertTrue(pipe.ConversionStatus.startswith("Valid"), pipe.ConversionStatus)
+
+        # So is a stored diameter integer too large to convert to a float.
+        pipe.SegmentSamples = []
+        pipe.SegmentDiameters = [
+            '{"diameter": 1%s, "segment": "%s"}' % ("0" * 400, key)
+        ]
         document.recompute()
         self.assertIn("Up-to-date", pipe.State)
         self.assertFalse(pipe.Shape.isNull(), pipe.ConversionStatus)
@@ -2195,6 +2224,57 @@ class BRepConversionTest(unittest.TestCase):
         self.assertEqual(len(obj.Shape.Faces), 1)
         self.assertTrue(obj.Shape.isValid(), obj.ConversionStatus)
 
+    def test_locally_refined_surface_keeps_a_single_leaf_component(self):
+        document = App.newDocument("FormsTestTMeshSingleLeafComponent")
+        obj = create_face(document)
+        obj.XSegments = 3
+        obj.YSegments = 1
+        document.recompute()
+        subdivide_faces(obj, [0], 2, 1)
+        document.recompute()
+
+        # Leaf 1 is the middle patch: deleting it leaves leaf 2 on its own.
+        delete_faces(obj, [1])
+        document.recompute()
+
+        mesh = HierarchicalTMesh.decode(obj.TMeshData)
+        lone = set(mesh.faces[2].boundary)
+        self.assertFalse(
+            any(lone & set(face.boundary) for face_id, face in mesh.faces.items() if face_id != 2)
+        )
+        self.assertTrue(obj.ConversionStatus.startswith("Valid"), obj.ConversionStatus)
+        self.assertTrue(obj.Shape.isValid())
+        self.assertEqual(len(obj.Shape.Faces), 3)
+
+    def test_locally_refined_unwelded_surfaces_stay_separate(self):
+        document = App.newDocument("FormsTestTMeshUnweldedComponents")
+        obj = create_cylinder(document)
+        obj.HeightSegments = 3
+        document.recompute()
+        original = ControlCage.from_object(obj)
+        seam = None
+        for edge in cage_edges(original.faces):
+            candidate = cage_edge_loop(original.faces, edge)
+            try:
+                original.split_along_edges(candidate)
+            except ValueError:
+                continue
+            seam = candidate
+            break
+        self.assertIsNotNone(seam)
+        unweld_segment(obj, seam, separate_forms=False)
+        document.recompute()
+        area = obj.Shape.Area
+
+        # Both halves stay in one Form, with coincident open boundaries.
+        subdivide_faces(obj, [0])
+        document.recompute()
+
+        self.assertTrue(obj.ConversionStatus.startswith("Valid"), obj.ConversionStatus)
+        self.assertTrue(obj.Shape.isValid())
+        self.assertEqual(len(obj.Shape.Shells), 2)
+        self.assertAlmostEqual(obj.Shape.Area, area, delta=area * 1.0e-3)
+
     def test_local_refinement_refuses_a_form_with_dissolved_edges(self):
         document = App.newDocument("FormsTestDissolveThenRefine")
         obj = create_box(document)
@@ -2603,6 +2683,34 @@ class BRepConversionTest(unittest.TestCase):
         self.assertIn("Up-to-date", obj.State)
         self.assertIn("Up-to-date", offset.State)
 
+    def test_match_refuses_a_support_in_another_document(self):
+        document = App.newDocument("FormsTestMatchForm")
+        other = App.newDocument("FormsTestMatchOtherSupport")
+        try:
+            obj = create_face(document)
+            document.recompute()
+            support = other.addObject("Part::Feature", "Support")
+            support.Shape = Part.makePlane(30, 30, App.Vector(-15, -15, 3))
+            other.recompute()
+            boundary = ControlCage.from_object(obj).boundary_edges
+            points = list(obj.ControlPoints)
+
+            for continuity in ("Connected", "Curvature"):
+                with self.subTest(continuity=continuity):
+                    with self.assertRaisesRegex(ValueError, "same document as the Form"):
+                        match_boundary(
+                            obj, boundary, (support, ["Face1"]), continuity, "SelectedFace"
+                        )
+                    self.assertIsNone(obj.MatchSupport)
+                    self.assertEqual(list(obj.MatchBoundary), [])
+                    self.assertEqual(list(obj.ControlPoints), points)
+            obj.touch()
+            document.recompute()
+            self.assertFalse(obj.Shape.isNull(), obj.ConversionStatus)
+        finally:
+            App.closeDocument(other.Name)
+            App.closeDocument(document.Name)
+
     def test_standalone_form_matches_whole_closed_wire(self):
         document = App.newDocument("FormsTestExternalWireMatch")
         obj = create_box(document)
@@ -2738,6 +2846,86 @@ class BRepConversionTest(unittest.TestCase):
             expected = self._connected_match_boundary(document, "Forward", forward, [])
             actual = self._connected_match_boundary(document, "Reversed", reversed_edge, [])
             self.assertSamePoints(actual, expected, 1.0e-7)
+        finally:
+            App.closeDocument(document.Name)
+
+    @staticmethod
+    def _wire_point_before_version_2(wire, fraction):
+        """Read a stored wire fraction as Match did before MatchParametersVersion 2."""
+        edges = list(wire.OrderedEdges)
+        distance = (float(fraction) % 1.0) * sum(edge.Length for edge in edges)
+        for edge in edges:
+            if distance <= edge.Length or edge is edges[-1]:
+                return edge.valueAt(edge.getParameterByLength(min(distance, edge.Length)))
+            distance -= edge.Length
+        return None
+
+    def test_saved_wire_match_keeps_its_result_after_restore(self):
+        from Forms.match_support import MATCH_PARAMETERS_VERSION, _linked_support, _wire_point
+
+        corners = [App.Vector(x, y, 0) for x, y in ((-10, -10), (10, -10), (10, 10), (-10, 10))]
+        segments = [
+            Part.LineSegment(corners[index], corners[(index + 1) % 4]).toShape()
+            for index in range(4)
+        ]
+        segments[1] = Part.LineSegment(corners[2], corners[1]).toShape()
+        supports = {
+            # The top circle of a cylinder: one closed edge that runs against its wire.
+            "Circle": (Part.makeCylinder(14, 20), ["Edge1"]),
+            # A square with one edge drawn the other way.
+            "Square": (Part.Wire(segments), []),
+        }
+        document = App.newDocument("FormsTestSavedWireMatch")
+        handle, path = tempfile.mkstemp(suffix=".FCStd")
+        os.close(handle)
+        self.addCleanup(os.remove, path)
+        fresh = {}
+        saved = {}
+        try:
+            for name, (shape, names) in supports.items():
+                fresh[name] = self._connected_match_boundary(document, name, shape, names)
+                obj = document.getObject(name + "Support").InList[0]
+                wire = _linked_support(obj.MatchSupport, obj)[0]
+                self.assertIn("Reversed", [edge.Orientation for edge in wire.OrderedEdges])
+                # A document saved before MatchParametersVersion existed: its
+                # parameters were read without following reversed edges.
+                if "MatchParametersVersion" in obj.PropertiesList:
+                    obj.removeProperty("MatchParametersVersion")
+                parameters = list(obj.MatchParameters)
+                expected = [self._wire_point_before_version_2(wire, value) for value in parameters]
+                current = [_wire_point(wire, value) for value in parameters]
+                # The two readings differ here, so the check below can tell them apart.
+                self.assertGreater(
+                    max(a.distanceToPoint(b) for a, b in zip(current, expected)), 1.0
+                )
+                saved[name] = (obj.Name, expected)
+            document.saveAs(path)
+        finally:
+            App.closeDocument(document.Name)
+
+        document = App.openDocument(path)
+        try:
+            for name, (object_name, expected) in saved.items():
+                obj = document.getObject(object_name)
+                for _recompute in range(2):
+                    obj.touch()
+                    document.recompute()
+                    self.assertFalse(obj.Shape.isNull(), obj.ConversionStatus)
+                    boundary = [App.Vector(obj.ControlPoints[index]) for index in obj.MatchBoundary]
+                    self.assertSamePoints(boundary, expected, 1.0e-7)
+                self.assertEqual(obj.MatchParametersVersion, MATCH_PARAMETERS_VERSION)
+
+                # Matching again uses the current meaning.
+                match_boundary(
+                    obj,
+                    ControlCage.from_object(obj).boundary_edges,
+                    (obj.MatchSupport[0], supports[name][1]),
+                    "Connected",
+                )
+                document.recompute()
+                boundary = [App.Vector(obj.ControlPoints[index]) for index in obj.MatchBoundary]
+                self.assertSamePoints(boundary, fresh[name], 1.0e-7)
+                self.assertEqual(obj.MatchParametersVersion, MATCH_PARAMETERS_VERSION)
         finally:
             App.closeDocument(document.Name)
 

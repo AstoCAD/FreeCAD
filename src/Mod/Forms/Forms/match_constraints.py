@@ -28,12 +28,14 @@ import FreeCAD as App
 from .brep import ConversionError
 from .controlcage import ControlCage
 from .match_support import (
+    MATCH_PARAMETERS_VERSION,
     _support_shape,
     _linked_support,
     _face_match_parameters,
     _face_point,
     _wire_point,
     _wire_match_parameters,
+    _upgrade_wire_match_parameters,
     _apply_match_corner_sharpness,
     _apply_match_corner_creases,
     _surface_tangent_plane,
@@ -97,6 +99,9 @@ def apply_match_constraints(obj):
     vertices = [App.Vector(point) for point in free]
     boundary_points = [vertices[index] for index in boundary]
     parameters = list(getattr(obj, "MatchParameters", ()))
+    # Documents saved before MatchParametersVersion existed get version 1 when
+    # they are restored; Forms and previews made since have the current one.
+    version = int(getattr(obj, "MatchParametersVersion", MATCH_PARAMETERS_VERSION))
     expected = len(boundary) * 2 if support_kind == "Face" else len(boundary)
     if len(parameters) != expected:
         parameters = (
@@ -105,6 +110,13 @@ def apply_match_constraints(obj):
             else _wire_match_parameters(support, boundary_points)
         )
         obj.MatchParameters = parameters
+    elif version < MATCH_PARAMETERS_VERSION and support_kind == "Wire":
+        # Converted here rather than on restore: the support geometry is only
+        # certain to be up to date when the Form is recomputed.
+        parameters = _upgrade_wire_match_parameters(support, parameters, version)
+        obj.MatchParameters = parameters
+    if version < MATCH_PARAMETERS_VERSION:
+        obj.MatchParametersVersion = MATCH_PARAMETERS_VERSION
     projected = {}
     for position, index in enumerate(boundary):
         if support_kind == "Face":

@@ -83,10 +83,10 @@ std::unordered_set<std::string> SelectionFilterGate::getGatedTypes(
 ) const
 {
     std::unordered_set<std::string> allowedTypes;
-    // Gates that implement allow() themselves are built without a filter: they have no
-    // filter expression to derive types from, so they restrict nothing here, like the
-    // base class.
-    if (!Filter) {
+    // Gates that implement allow() themselves are built without a filter, and an empty
+    // filter string has no syntax tree: there is no filter expression to derive types
+    // from, so they restrict nothing here, like the base class.
+    if (!Filter || !Filter->isValid()) {
         return allowedTypes;
     }
     std::ranges::copy_if(
@@ -106,6 +106,19 @@ std::unordered_set<std::string> SelectionFilterGate::getGatedTypes(
         }
     );
     return allowedTypes;
+}
+
+bool SelectionFilterGate::allowsOnlySubElements() const
+{
+    if (!Filter || !Filter->isValid()) {
+        return false;
+    }
+    // A filter entry without SUBELEMENT lets whole objects of its type through
+    const auto ast = Filter->getAst();
+    const auto namesSubElement = [](const Node_ObjectPtr& node) {
+        return !node->SubName.empty();
+    };
+    return !ast->Objects.empty() && std::ranges::all_of(ast->Objects, namesSubElement);
 }
 
 // ----------------------------------------------------------------------------

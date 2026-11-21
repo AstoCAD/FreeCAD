@@ -179,6 +179,24 @@ class BlendExportTest(unittest.TestCase):
             self.assertEqual(destination.read_bytes(), b"previous blend contents")
             self.assertEqual(list(Path(temporary).glob(".*.tmp")), [])
 
+    def test_blender_older_than_4_is_rejected_instead_of_dropping_creases(self):
+        import importlib
+        import sys
+        from types import SimpleNamespace
+
+        with patch.dict(sys.modules, {"bpy": SimpleNamespace()}):
+            create = importlib.import_module("Forms.blender_create")
+        # Blender 3.x ignores the crease_edge/crease_vert attributes, so the
+        # exported Forms would be smooth there: the export must fail instead.
+        old = SimpleNamespace(app=SimpleNamespace(version=(3, 6, 5), version_string="3.6.5"))
+        with patch.object(create, "bpy", old):
+            with self.assertRaisesRegex(RuntimeError, r"Blender 4\.0 or newer.*3\.6\.5"):
+                create.create("unused.json", "unused.blend")
+        for version in ((4, 0, 0), (5, 0, 1)):
+            supported = SimpleNamespace(app=SimpleNamespace(version=version))
+            with patch.object(create, "bpy", supported):
+                create._require_supported_blender()
+
     def test_exported_view_does_not_clip_metre_sized_parts(self):
         import json
 

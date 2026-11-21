@@ -38,6 +38,15 @@ import bpy
 FORMAT_VERSION = 1
 
 
+def _require_supported_blender():
+    # Creases are read from the generic crease_edge/crease_vert attributes that
+    # Blender 4.0 introduced; an older Blender would make every cage smooth.
+    if tuple(bpy.app.version) < (4, 0, 0):
+        raise RuntimeError(
+            f"Blender 4.0 or newer is required (found Blender {bpy.app.version_string})"
+        )
+
+
 def _sharpness(crease):
     """Convert Blender's normalized crease to OpenSubdiv semi-sharpness."""
     crease = float(crease)
@@ -197,6 +206,7 @@ def _extract_object(obj, depsgraph, millimeters_per_unit):
 
 
 def export(output_path):
+    _require_supported_blender()
     scene = bpy.context.scene
     scale_length = float(scene.unit_settings.scale_length or 1.0)
     millimeters_per_unit = scale_length * 1000.0

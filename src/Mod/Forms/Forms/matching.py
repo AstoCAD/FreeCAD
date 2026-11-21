@@ -28,9 +28,11 @@ import FreeCAD as App
 import Part
 from .brep import ConversionError
 from .cage import ControlCage, update_object_shape
+from .capabilities import reject_form_surface
 from .placement import global_placement
 from .match_constraints import apply_match_constraints
 from .match_support import (
+    MATCH_PARAMETERS_VERSION,
     _support_shape,
     _linked_support,
     _linked_face,
@@ -63,11 +65,14 @@ def _require_independent_support(obj, support):
 
     MatchSupport makes the Form depend on the support. If the support also
     depends on the Form, the document gets a dependency cycle and neither
-    object can be recomputed any more.
+    object can be recomputed any more. MatchSupport is a PropertyLinkSub,
+    which cannot link to an object of another document.
     """
     source = support[0] if support else None
     if source is not None and (source == obj or obj in source.OutListRecursive):
         raise ValueError("A Match support must not be the Form or depend on it")
+    if source is not None and source.Document != obj.Document:
+        raise ValueError("A Match support must be in the same document as the Form")
 
 
 def _match_preview(
@@ -78,6 +83,7 @@ def _match_preview(
     tangent_mode="AdjacentFaces",
 ):
     """Build a Match result without modifying the document object."""
+    reject_form_surface(obj, "Match")
     _require_independent_support(obj, support)
     target, tangent_face, _support_kind = _linked_support(support, obj)
     if target is None:
@@ -97,6 +103,7 @@ def _match_preview(
         MatchContinuity=continuity,
         MatchTangentMode=tangent_mode,
         MatchParameters=[],
+        MatchParametersVersion=MATCH_PARAMETERS_VERSION,
         MatchCornerVertices=list(getattr(obj, "MatchCornerVertices", ())),
         MatchCornerEdges=list(getattr(obj, "MatchCornerEdges", ())),
         MatchFreeControlPoints=list(getattr(obj, "MatchFreeControlPoints", ())),
@@ -138,6 +145,7 @@ def match_boundary(
     """Associatively align one complete cage opening with a face or closed wire."""
     if not str(getattr(obj, "FormType", "")).startswith("Forms::"):
         raise TypeError("Match requires a Forms object")
+    reject_form_surface(obj, "Match")
     from .feature import FormFeatureProxy
     FormFeatureProxy._ensure_match_properties(obj)
     _require_independent_support(obj, support)
@@ -155,8 +163,8 @@ def match_boundary(
         preview = _match_preview(obj, boundary_edges, support, continuity, tangent_mode)
         for name in ("ControlPoints", "VertexSharpness", "EdgeSharpness", "MatchBoundary",
                      "MatchSupport", "MatchContinuity", "MatchTangentMode", "MatchParameters",
-                     "MatchCornerVertices", "MatchCornerEdges", "MatchFreeControlPoints",
-                     "MatchSolvedControlPoints", "MatchPositionError",
+                     "MatchParametersVersion", "MatchCornerVertices", "MatchCornerEdges",
+                     "MatchFreeControlPoints", "MatchSolvedControlPoints", "MatchPositionError",
                      "MatchAngularError", "MatchCurvatureError", "MatchStatus"):
             setattr(obj, name, getattr(preview, name))
         obj.CageMode = "Editable"

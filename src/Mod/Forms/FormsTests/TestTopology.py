@@ -886,6 +886,69 @@ class DyadicTMeshTest(unittest.TestCase):
         self.assertEqual(max(mesh.vertex_levels.values()), 2)
         self.assertTrue(mesh.is_closed)
 
+    def test_splitting_a_dissolved_leaf_exposes_its_retained_control(self):
+        mesh = DyadicTMesh.from_quad_cage(
+            [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)], [(0, 1, 2, 3)]
+        )
+        subdivided, _children = mesh.subdivide([0])
+        seams = [edge for edge, count in subdivided.edge_counts().items() if count == 2]
+        dissolved = subdivided.dissolve_edges(seams)
+        (merged,) = dissolved.faces
+        centre = next(
+            vertex
+            for vertex in subdivided.vertices
+            if not any(vertex in side for side in dissolved.faces[merged].sides)
+        )
+        dissolved.set_vertex(centre, (0.5, 0.5, 0.25))
+
+        resplit, _children = dissolved.subdivide([merged])
+
+        self.assertEqual(set(resplit.vertices), set(subdivided.vertices))
+        self.assertEqual(resplit.next_vertex_id, dissolved.next_vertex_id)
+        self.assertTrue(
+            any(centre in side for face in resplit.faces.values() for side in face.sides)
+        )
+        self.assertEqual(resplit.vertices[centre], (0.5, 0.5, 0.25))
+        located = [
+            (root, round(u_value, 9), round(v_value, 9))
+            for locations in resplit.parameter_locations().values()
+            for root, u_value, v_value in locations
+        ]
+        self.assertEqual(len(located), len(set(located)))
+
+    def test_splitting_a_dissolved_leaf_exposes_the_live_duplicate_control(self):
+        import json
+
+        mesh = DyadicTMesh.from_quad_cage(
+            [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)], [(0, 1, 2, 3)]
+        )
+        subdivided, _children = mesh.subdivide([0])
+        seams = [edge for edge, count in subdivided.edge_counts().items() if count == 2]
+        dissolved = subdivided.dissolve_edges(seams)
+        (merged,) = dissolved.faces
+        centre = next(
+            vertex
+            for vertex in subdivided.vertices
+            if not any(vertex in side for side in dissolved.faces[merged].sides)
+        )
+        # A document saved before retained controls were reused can hold a
+        # second control at the same location and level. The later one is the
+        # control the evaluator uses.
+        data = json.loads(dissolved.encode())
+        duplicate = data["next_vertex_id"]
+        data["next_vertex_id"] = duplicate + 1
+        data["vertices"].append([duplicate, 0.5, 0.5, 0.75])
+        data["vertex_levels"].append([duplicate, dissolved.vertex_levels[centre]])
+        data["control_locations"][str(duplicate)] = data["control_locations"][str(centre)]
+        legacy = DyadicTMesh.decode(json.dumps(data))
+
+        resplit, _children = legacy.subdivide([merged])
+
+        exposed = {vertex for face in resplit.faces.values() for side in face.sides for vertex in side}
+        self.assertIn(duplicate, exposed)
+        self.assertNotIn(centre, exposed)
+        self.assertEqual(resplit.vertices[duplicate], (0.5, 0.5, 0.75))
+
 
 class CatmullClarkTest(unittest.TestCase):
     def test_closed_box_refinement_counts(self):

@@ -43,6 +43,13 @@ class FormProxy(FormFeatureProxy):
     def _topology(self, _obj):
         raise RuntimeError("An editable Form does not have parametric primitive topology")
 
+    def onChanged(self, obj, prop):
+        super().onChanged(obj, prop)
+        if prop == "CageMode":
+            # Without primitive parameters there is no parametric cage to go
+            # back to: "Parametric" would make every recompute fail.
+            obj.setEditorMode("CageMode", 1)
+
     def onDocumentRestored(self, obj):
         # Development builds briefly used this name. Normalize saved objects.
         if getattr(obj, "FormType", "") == "Forms::Imported":

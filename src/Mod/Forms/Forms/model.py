@@ -100,6 +100,9 @@ def form_preview_object(obj, points):
         "ConversionStatus",
     ):
         setattr(preview, name, str(getattr(obj, name, "") or ""))
+    if hasattr(obj, "MatchParametersVersion"):
+        # The preview reads the stored MatchParameters with their meaning.
+        preview.MatchParametersVersion = int(obj.MatchParametersVersion)
     preview.Placement = global_placement(obj)
     preview.MatchSupport = getattr(obj, "MatchSupport", None)
     preview.FormType = str(getattr(obj, "FormType", ""))

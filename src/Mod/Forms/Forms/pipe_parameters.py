@@ -36,7 +36,9 @@ def decode_segment_overrides(values):
             diameter = float(record["diameter"])
             if diameter > 0.0 and math.isfinite(diameter):
                 result[key] = diameter
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        except (KeyError, TypeError, ValueError, OverflowError, json.JSONDecodeError):
+            # OverflowError: an integer too large for a float, like any other
+            # invalid record.
             continue
     return result
 

@@ -106,6 +106,7 @@ class ViewProviderForm:
         self._overlay_root = root
         self.updateData(view_object.Object, "ControlPoints")
         self.onChanged(view_object, "CageColor")
+        self.onChanged(view_object, "CageLineWidth")
         self.onChanged(view_object, "ShowControlCage")
 
     def detach(self):
@@ -147,8 +148,12 @@ class ViewProviderForm:
         indices = []
         for start, end in cage_edges(faces):
             indices.extend((start, end, -1))
+        # setValues() only overwrites and grows a Coin multi-field; truncate it
+        # so that a smaller cage does not keep drawing the previous edges.
         self._cage_coordinates.point.setValues(0, len(points), points)
+        self._cage_coordinates.point.setNum(len(points))
         self._lines.coordIndex.setValues(0, len(indices), indices)
+        self._lines.coordIndex.setNum(len(indices))
 
     def onChanged(self, view_object, prop):
         if (

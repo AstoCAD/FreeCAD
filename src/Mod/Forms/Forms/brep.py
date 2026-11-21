@@ -73,7 +73,7 @@ class LocalEdgeInsert:
             edge = tuple(sorted(int(index) for index in data["edge"]))
             position = float(data["position"])
             points = tuple(int(index) for index in data.get("points", ()))
-        except (AttributeError, KeyError, TypeError) as error:
+        except (AttributeError, KeyError, OverflowError, TypeError) as error:
             raise ValueError("Invalid local edge-insert record") from error
         if (
             len(face) != 4
@@ -480,27 +480,26 @@ def _shape_from_tmesh_surfaces(surfaces, mesh, closed, tolerance):
     from .elementmap import name_patch_face
 
     _require_patch_area({leaf.root: surfaces[leaf.root] for leaf in mesh.faces.values()}.values())
-    faces = []
+    faces = {}
     for face_id in sorted(mesh.faces):
         leaf = mesh.faces[face_id]
         u_values = [point[0] for point in leaf.parameters]
         v_values = [point[1] for point in leaf.parameters]
-        faces.append(
-            name_patch_face(
-                surfaces[leaf.root].toShape(
-                    min(u_values), max(u_values), min(v_values), max(v_values)
-                ),
-                face_id,
-            )
+        faces[face_id] = name_patch_face(
+            surfaces[leaf.root].toShape(
+                min(u_values), max(u_values), min(v_values), max(v_values)
+            ),
+            face_id,
         )
     if not closed and len(faces) == 1:
-        if faces[0].isNull() or not faces[0].isValid():
+        face = next(iter(faces.values()))
+        if face.isNull() or not face.isValid():
             raise ConversionError("OCCT rejected the dissolved T-mesh face")
-        return faces[0]
-    compound = Part.makeCompound(faces)
-    compound.sewShape(max(float(tolerance), 1.0e-7))
-    # Compare against logical connectivity: multiple intentional components are
-    # valid, while accidental gaps between neighboring trims remain errors.
+        return face
+    # Sew each logical component on its own. Multiple intentional components
+    # are valid: a single-leaf component has nothing to sew, and coincident
+    # free boundaries of separate components (Unweld) must stay apart. Within
+    # a component, accidental gaps between neighboring trims remain errors.
     adjacency = {face_id: set() for face_id in mesh.faces}
     owners = {}
     for face_id, leaf in mesh.faces.items():
@@ -514,26 +513,36 @@ def _shape_from_tmesh_surfaces(surfaces, mesh, closed, tolerance):
                 else:
                     owners[edge] = face_id
     unseen = set(adjacency)
-    component_count = 0
-    while unseen:
-        pending = [unseen.pop()]
-        component_count += 1
+    shapes = []
+    for start in sorted(adjacency):
+        if start not in unseen:
+            continue
+        unseen.discard(start)
+        component = {start}
+        pending = [start]
         while pending:
             neighbors = adjacency[pending.pop()] & unseen
             unseen.difference_update(neighbors)
+            component.update(neighbors)
             pending.extend(neighbors)
-    shells = compound.Shells
-    if (len(shells) != component_count
-            or sum(len(shell.Faces) for shell in shells) != len(faces)):
-        raise ConversionError("T-mesh trims did not preserve logical shell connectivity")
-    shapes = []
-    for shell in shells:
-        if closed and not shell.isClosed():
-            raise ConversionError("T-mesh trims opened the solid")
-        shape = Part.makeSolid(shell) if shell.isClosed() else shell
+        component_faces = [faces[face_id] for face_id in sorted(component)]
+        if len(component_faces) == 1:
+            if closed:
+                raise ConversionError("T-mesh trims opened the solid")
+            shape = component_faces[0]
+        else:
+            compound = Part.makeCompound(component_faces)
+            compound.sewShape(max(float(tolerance), 1.0e-7))
+            shells = compound.Shells
+            if len(shells) != 1 or len(shells[0].Faces) != len(component_faces):
+                raise ConversionError("T-mesh trims did not preserve logical shell connectivity")
+            shell = shells[0]
+            if closed and not shell.isClosed():
+                raise ConversionError("T-mesh trims opened the solid")
+            shape = Part.makeSolid(shell) if shell.isClosed() else shell
         if shape.isNull() or not shape.isValid():
             raise ConversionError("OCCT rejected the trimmed T-mesh component")
-        shapes.append(shape.Faces[0] if not shell.isClosed() and len(shape.Faces) == 1 else shape)
+        shapes.append(shape)
     return shapes[0] if len(shapes) == 1 else Part.makeCompound(shapes)
 
 

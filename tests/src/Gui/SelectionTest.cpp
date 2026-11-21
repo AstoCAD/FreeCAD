@@ -11,6 +11,7 @@
 #include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <Gui/Selection/Selection.h>
+#include <Gui/Selection/SelectionFilter.h>
 #include <Gui/Selection/SoFCUnifiedSelection.h>
 
 namespace
@@ -108,6 +109,36 @@ TEST_F(SelectionTest, testSelectionUsesActiveGateWithoutKeepingRejectionReason)
     EXPECT_EQ(gate->notAllowedReason, "existing reason");
     EXPECT_FALSE(Gui::Selection().hasPreselection());
     EXPECT_FALSE(Gui::Selection().hasSelection(_docName.c_str(), Gui::ResolveMode::NoResolve));
+}
+
+TEST(SelectionFilterGateTest, emptyFilterGatesNoGeometryType)
+{
+    // An empty filter string has no syntax tree; box selection asks the gate for its types
+    Gui::SelectionFilterGate gate("");
+
+    EXPECT_TRUE(gate.getGatedTypes({"Vertex", "Edge", "Face"}).empty());
+}
+
+TEST(SelectionFilterGateTest, allowsOnlySubElementsWhenEveryEntryNamesOne)
+{
+    // A filter entry without SUBELEMENT lets whole objects through: box selection must keep
+    // selecting objects with such a gate, although getGatedTypes() reports every type for it
+    Gui::SelectionFilterGate objectGate("SELECT App::FeatureTest");
+    Gui::SelectionFilterGate mixedGate(
+        "SELECT App::FeatureTest SUBELEMENT Edge SELECT App::DocumentObjectGroup"
+    );
+    Gui::SelectionFilterGate edgeGate("SELECT App::FeatureTest SUBELEMENT Edge");
+    Gui::SelectionFilterGate edgeFaceGate(
+        "SELECT App::FeatureTest SUBELEMENT Edge SELECT App::FeatureTest SUBELEMENT Face"
+    );
+    Gui::SelectionFilterGate emptyGate("");
+
+    EXPECT_FALSE(objectGate.getGatedTypes({"Vertex", "Edge", "Face"}).empty());
+    EXPECT_FALSE(objectGate.allowsOnlySubElements());
+    EXPECT_FALSE(mixedGate.allowsOnlySubElements());
+    EXPECT_TRUE(edgeGate.allowsOnlySubElements());
+    EXPECT_TRUE(edgeFaceGate.allowsOnlySubElements());
+    EXPECT_FALSE(emptyGate.allowsOnlySubElements());
 }
 
 TEST(SelectionPickPolicyTest, canFinalizeSinglePickWhenNoGateIsInstalled)

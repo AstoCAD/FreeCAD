@@ -26,6 +26,7 @@
 import FreeCAD as App
 from .cage import update_object_shape
 from .controlcage import clear_match_data
+from .match_support import MATCH_PARAMETERS_VERSION
 
 
 def reset_cage(obj, vertices, faces):
@@ -149,6 +150,18 @@ class FormFeatureProxy:
                 "Match",
                 "Normalized support coordinates for the matched boundary",
             )
+        if "MatchParametersVersion" not in obj.PropertiesList:
+            obj.addProperty(
+                "App::PropertyInteger",
+                "MatchParametersVersion",
+                "Match",
+                "Meaning of MatchParameters; older ones are converted at the next recompute",
+            )
+            # Parameters saved before this property existed have the first
+            # meaning. A new or unmatched Form starts with the current one.
+            obj.MatchParametersVersion = (
+                1 if obj.MatchParameters else MATCH_PARAMETERS_VERSION
+            )
         if "MatchCornerVertices" not in obj.PropertiesList:
             obj.addProperty(
                 "App::PropertyIntegerList",
@@ -181,6 +194,7 @@ class FormFeatureProxy:
         obj.setEditorMode("MatchSolvedControlPoints", 2)
         obj.setEditorMode("MatchBoundary", 2)
         obj.setEditorMode("MatchParameters", 2)
+        obj.setEditorMode("MatchParametersVersion", 2)
         obj.setEditorMode("MatchCornerVertices", 2)
         obj.setEditorMode("MatchCornerEdges", 2)
 

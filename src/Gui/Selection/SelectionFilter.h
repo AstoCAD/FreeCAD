@@ -127,6 +127,11 @@ public:
     std::unordered_set<std::string> getGatedTypes(
         const std::vector<const char*>& allTypesForGeometry
     ) const override;
+    /** @brief tells whether the filter lets only sub-elements through, never whole objects
+     *  True when every filter entry names a SUBELEMENT. False for a gate without a valid
+     *  filter (gates that implement allow() themselves, empty filter string).
+     */
+    bool allowsOnlySubElements() const;
 
 protected:
     static SelectionFilter* nullPointer()

@@ -60,6 +60,18 @@ class FormKeyFilter(QtCore.QObject):
             ),
         )
 
+    def _focus_edits_text_outside_editor(self):
+        """Return whether the focus widget edits text outside this editor's panels.
+
+        The editor's own task panels only hold numeric or read-only fields, so
+        its shortcuts stay available there.
+        """
+        if not self._focus_edits_text():
+            return False
+        focus = QtWidgets.QApplication.focusWidget()
+        panels = getattr(self.session, "form", None) or ()
+        return not any(panel.isAncestorOf(focus) for panel in panels if panel is not None)
+
     def eventFilter(self, _watched, event):
         session = self.session
         if (
@@ -122,7 +134,13 @@ class FormKeyFilter(QtCore.QObject):
             and event.type() == QtCore.QEvent.KeyPress
             and not event.isAutoRepeat()
         ):
-            if event.key() == QtCore.Qt.Key_M:
+            # The filter sees the whole application: a letter typed into a
+            # text field elsewhere (for example "mm" in the property editor)
+            # belongs to that field.
+            if (
+                event.key() == QtCore.Qt.Key_M
+                and not self._focus_edits_text_outside_editor()
+            ):
                 return session.toggle_surface_tool_orientation()
             if event.key() == QtCore.Qt.Key_Escape:
                 session.stop_surface_tool()

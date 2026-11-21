@@ -31,6 +31,12 @@ from .errors import ConversionError
 
 MATCH_CORNER_SHARPNESS = 10.0
 
+# Meaning of the wire fractions stored in MatchParameters (MatchParametersVersion).
+# 1: the length inside each edge is measured from its curve's first parameter,
+#    also on an edge that runs against the wire.
+# 2: fractions grow in the wire's direction on every edge.
+MATCH_PARAMETERS_VERSION = 2
+
 
 def _support_shape(reference, obj=None):
     source = reference[0] if reference else None
@@ -151,7 +157,11 @@ def _nearest_period(value, low, high, period):
     return middle + (value - middle + period * 0.5) % period - period * 0.5
 
 
-def _wire_point(wire, fraction):
+def _wire_point(wire, fraction, version=MATCH_PARAMETERS_VERSION):
+    """Return the point at *fraction* of the wire's length.
+
+    *version* is the MatchParametersVersion the fraction was stored with.
+    """
     edges = list(wire.OrderedEdges)
     total = sum(edge.Length for edge in edges)
     if total <= 1.0e-12:
@@ -162,7 +172,7 @@ def _wire_point(wire, fraction):
             # Lengths along an edge are measured from its curve's first
             # parameter; a reversed edge is walked from its last one.
             along = min(distance, edge.Length)
-            if edge.Orientation == "Reversed":
+            if edge.Orientation == "Reversed" and version >= 2:
                 along = edge.Length - along
             parameter = edge.getParameterByLength(along)
             return edge.valueAt(parameter)
@@ -229,6 +239,20 @@ def _wire_match_parameters(wire, points):
     else:
         direction = 1.0
     return [(phase + direction * value) % 1.0 for value in relative]
+
+
+def _upgrade_wire_match_parameters(wire, parameters, version):
+    """Return wire fractions stored with an older *version* in today's meaning.
+
+    Each fraction is converted through the point it gives on *wire*, so the
+    matched boundary stays exactly where the older reading put it.
+    """
+    if version >= MATCH_PARAMETERS_VERSION:
+        return list(parameters)
+    if not any(edge.Orientation == "Reversed" for edge in wire.OrderedEdges):
+        # Both meanings are the same on a wire without reversed edges.
+        return list(parameters)
+    return [_wire_fraction(wire, _wire_point(wire, value, version)) for value in parameters]
 
 
 def _edge_direction_from_vertex(edge, point):

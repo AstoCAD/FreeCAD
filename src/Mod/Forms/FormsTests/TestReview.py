@@ -710,6 +710,69 @@ class ReviewTest(unittest.TestCase):
         self.assertAlmostEqual(form.Shape.Volume, combined_volume, places=6)
         self.assertFalse(getattr(face.Proxy, "_show_edit_shape", False))
 
+    def test_cage_overlay_drops_the_controls_of_a_smaller_cage(self):
+        from pivy import coin
+        from Forms.topology import cage_edges
+        from Forms.viewprovider import ViewProviderForm
+
+        obj = Forms.create_box(self.doc)
+        self.doc.recompute()
+        view_object = SimpleNamespace(
+            RootNode=coin.SoSeparator(), Object=obj,
+            PropertiesList=["CageColor", "CageLineWidth", "ShowControlCage", "SelectionPickRadius"],
+            CageColor=(0.2, 0.8, 1.0, 0.0), CageLineWidth=2.0, ShowControlCage=True)
+        provider = object.__new__(ViewProviderForm)
+        provider.attach(view_object)
+        obj.XSegments = 1
+        self.doc.recompute()
+        provider.updateData(obj, "ControlPoints")
+        provider.updateData(obj, "ControlFaces")
+        faces = [tuple(int(index) for index in face.split()) for face in obj.ControlFaces]
+        self.assertEqual(provider._cage_coordinates.point.getNum(), len(obj.ControlPoints))
+        self.assertEqual(provider._lines.coordIndex.getNum(), 3 * len(cage_edges(faces)))
+
+    def test_cage_overlay_uses_the_stored_line_width(self):
+        from pivy import coin
+        from Forms.viewprovider import ViewProviderForm
+
+        obj = Forms.create_box(self.doc)
+        self.doc.recompute()
+        # attach() is also how a view provider restored from a file builds
+        # its overlay, so every stored display property must reach it there.
+        view_object = SimpleNamespace(
+            RootNode=coin.SoSeparator(), Object=obj,
+            PropertiesList=["CageColor", "CageLineWidth", "ShowControlCage", "SelectionPickRadius"],
+            CageColor=(0.2, 0.8, 1.0, 0.0), CageLineWidth=5.0, ShowControlCage=True)
+        provider = object.__new__(ViewProviderForm)
+        provider.attach(view_object)
+        self.assertEqual(provider._draw_style.lineWidth.getValue(), 5.0)
+
+    def test_surface_tool_m_key_leaves_text_fields_alone(self):
+        from PySide import QtCore, QtWidgets
+        from Forms.interaction import FormKeyFilter
+
+        editor_field, other_field = object(), object()
+        panel = SimpleNamespace(isAncestorOf=lambda widget: widget is editor_field)
+        session = SimpleNamespace(
+            cleaned=False, pivot_tool_active=False, straighten_tool_active=False,
+            flatten_tool_active=False, match_tool_active=False, weld_tool_active=False,
+            thicken_tool_active=False, surface_tool_active=True, form=[panel, None],
+            toggle_surface_tool_orientation=Mock(return_value=True))
+        event = SimpleNamespace(type=lambda: QtCore.QEvent.KeyPress,
+                                key=lambda: QtCore.Qt.Key_M, isAutoRepeat=lambda: False)
+        key_filter = FormKeyFilter(session)
+        # The filter is installed on the application, so it also sees the
+        # keys typed into the property editor, the console or the tree search.
+        for focus, edits_text, consumed in ((other_field, True, False),
+                                            (editor_field, True, True),
+                                            (other_field, False, True)):
+            with self.subTest(editor=focus is editor_field, edits_text=edits_text):
+                session.toggle_surface_tool_orientation.reset_mock()
+                with patch.object(FormKeyFilter, "_focus_edits_text", return_value=edits_text), \
+                        patch.object(QtWidgets.QApplication, "focusWidget", return_value=focus):
+                    self.assertEqual(key_filter.eventFilter(None, event), consumed)
+                self.assertEqual(session.toggle_surface_tool_orientation.call_count, int(consumed))
+
     def test_moving_a_form_into_a_body_keeps_its_expressions(self):
         sheet = self.doc.addObject("Spreadsheet::Sheet", "Sheet")
         sheet.set("A1", "30 mm")

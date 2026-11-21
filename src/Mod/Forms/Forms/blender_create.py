@@ -31,6 +31,15 @@ import traceback
 import bpy
 
 
+def _require_supported_blender():
+    # Creases are written to the generic crease_edge/crease_vert attributes that
+    # Blender 4.0 introduced; an older Blender would ignore them.
+    if tuple(bpy.app.version) < (4, 0, 0):
+        raise RuntimeError(
+            f"Blender 4.0 or newer is required (found Blender {bpy.app.version_string})"
+        )
+
+
 def _crease(sharpness):
     """Convert OpenSubdiv semi-sharpness to Blender's normalized crease."""
     sharpness = max(0.0, float(sharpness))
@@ -116,6 +125,7 @@ def _scale_view_clipping(scale_length):
 
 
 def create(input_path, output_path):
+    _require_supported_blender()
     with open(input_path, "r", encoding="utf-8") as stream:
         payload = json.load(stream)
     if payload.get("format") != "AstoCAD Blender export" or payload.get("version") != 1:

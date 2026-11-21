@@ -167,6 +167,18 @@ class BlendImportTest(unittest.TestCase):
         self.assertNotIn("SourceObject", obj.PropertiesList)
         self.assertNotIn("BlenderVersion", obj.PropertiesList)
 
+    def test_generic_form_cage_mode_cannot_be_made_parametric_in_the_editor(self):
+        document = App.newDocument("FormsTestBlendGenericMode")
+        obj = create_form(document)
+
+        self.assertEqual(obj.CageMode, "Editable")
+        self.assertIn("ReadOnly", obj.getEditorMode("CageMode"))
+
+        obj.setEditorMode("CageMode", 0)
+        obj.Proxy.onDocumentRestored(obj)
+
+        self.assertIn("ReadOnly", obj.getEditorMode("CageMode"))
+
     def test_nan_creases_are_rejected_instead_of_read_as_smooth(self):
         document = App.newDocument("FormsTestBlendNaNCrease")
         data = _box_data()
@@ -184,6 +196,20 @@ class BlendImportTest(unittest.TestCase):
             extract = importlib.import_module("Forms.blender_extract")
         with self.assertRaisesRegex(ValueError, "non-finite crease"):
             extract._sharpness(float("nan"))
+
+    def test_blender_older_than_4_is_rejected_instead_of_dropping_creases(self):
+        with patch.dict(sys.modules, {"bpy": SimpleNamespace()}):
+            extract = importlib.import_module("Forms.blender_extract")
+        # Blender 3.x has no crease_edge/crease_vert attributes: every crease
+        # would be read as 0, so the import must fail instead.
+        old = SimpleNamespace(app=SimpleNamespace(version=(3, 6, 5), version_string="3.6.5"))
+        with patch.object(extract, "bpy", old):
+            with self.assertRaisesRegex(RuntimeError, r"Blender 4\.0 or newer.*3\.6\.5"):
+                extract.export("unused.json")
+        for version in ((4, 0, 0), (5, 0, 1)):
+            supported = SimpleNamespace(app=SimpleNamespace(version=version))
+            with patch.object(extract, "bpy", supported):
+                extract._require_supported_blender()
 
     def test_validate_cage_rejects_triangles(self):
         data = _box_data()

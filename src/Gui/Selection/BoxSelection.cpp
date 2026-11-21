@@ -37,6 +37,7 @@
 
 #include "Application.h"
 #include "Selection.h"
+#include "SelectionFilter.h"
 #include "Utilities.h"
 #include "View3DInventorViewer.h"
 #include "ViewProviderDocumentObject.h"
@@ -262,6 +263,19 @@ std::vector<std::string> getBoxSelection(
     return ret;
 }
 
+// A gate that names geometry types and rejects whole objects is asking for subelement
+// selection. getGatedTypes() also reports every type for a selection filter entry without
+// SUBELEMENT, which accepts whole objects too, so such a filter keeps object selection.
+bool gateAsksForSubElementSelection(const SelectionGate& gate)
+{
+    const auto* filterGate = dynamic_cast<const SelectionFilterGate*>(&gate);
+    if (filterGate && !filterGate->allowsOnlySubElements()) {
+        return false;
+    }
+    const std::vector<const char*> geometryTypes {"Vertex", "Edge", "Face"};
+    return !gate.getGatedTypes(geometryTypes).empty();
+}
+
 }  // namespace
 
 void Gui::applyBoxSelection(
@@ -281,14 +295,13 @@ void Gui::applyBoxSelection(
         return;
     }
 
-    // A gate that explicitly exposes geometry types is asking for subelement
-    // selection. Honor that for ordinary box selection as well as the
-    // dedicated Box Element Selection command; otherwise an object-only box
-    // selection can produce no result when the gate rejects whole objects.
+    // Honor a gate asking for subelement selection for ordinary box selection as
+    // well as the dedicated Box Element Selection command; otherwise an
+    // object-only box selection produces no result because the gate rejects
+    // whole objects.
     if (!selectElement) {
         const auto* gate = Gui::Selection().getSelectionGate(doc);
-        const std::vector<const char*> geometryTypes {"Vertex", "Edge", "Face"};
-        if (gate && !gate->getGatedTypes(geometryTypes).empty()) {
+        if (gate && gateAsksForSubElementSelection(*gate)) {
             selectElement = true;
         }
     }
