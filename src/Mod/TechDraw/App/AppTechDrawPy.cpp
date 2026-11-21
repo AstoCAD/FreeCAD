@@ -58,6 +58,7 @@
 #include <Mod/Part/App/TopoShapeWirePy.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
+#include "ArrowPropEnum.h"
 #include "DimensionGeometry.h"
 #include "DrawDimHelper.h"
 #include "DrawGeomHatch.h"
@@ -1425,6 +1426,13 @@ private:
         if (!PyArg_ParseTuple(args.ptr(), "O!O!|ii", &(TechDraw::DrawViewPartPy::Type), &pDvp,
                              &(PyList_Type), &pPointList, &iStartSymbol, &iEndSymbol)) {
             throw Py::TypeError("expected (DrawViewPart, listofpoints, startsymbolindex, endsymbolindex");
+        }
+        // StartSymbol and EndSymbol would otherwise store an index outside their enumeration
+        for (int symbol : {iStartSymbol, iEndSymbol}) {
+            if (symbol < 0 || symbol >= ArrowPropEnum::ArrowCount) {
+                throw Py::ValueError("Leader symbols must be arrow type indexes from 0 to "
+                                     + std::to_string(ArrowPropEnum::ArrowCount - 1));
+            }
         }
         App::DocumentObject* obj = objectFromPy<App::DocumentObject>(pDvp);
         dvp = static_cast<TechDraw::DrawViewPart*>(obj);

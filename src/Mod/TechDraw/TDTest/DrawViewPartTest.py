@@ -353,6 +353,26 @@ class DrawViewPartTest(unittest.TestCase):
         self.assertEqual(leader.LeaderParent.findParentPage(), self.page)
         self.assertEqual(len(leader.WayPoints), 2)
 
+    def testLeaderSymbolValidation(self):
+        """makeLeader refuses symbol indexes outside the arrow types before creating an object."""
+        import TechDraw
+
+        document = FreeCAD.ActiveDocument
+        view = document.addObject("TechDraw::DrawViewPart", "LeaderSymbolView")
+        view.Source = [document.Box]
+        self.page.addView(view)
+        points = [FreeCAD.Vector(10, 10, 0), FreeCAD.Vector(20, 20, 0)]
+        previous_objects = [obj.Name for obj in document.Objects]
+        for symbols in ((8, 0), (0, 8), (-1, 0), (0, -1)):
+            with self.subTest(symbols=symbols):
+                with self.assertRaises(ValueError):
+                    TechDraw.makeLeader(view, points, *symbols)
+        self.assertEqual([obj.Name for obj in document.Objects], previous_objects)
+
+        leader = TechDraw.makeLeader(view, points, 6, 7)
+        self.assertEqual(leader.StartSymbol, "Filled triangle")
+        self.assertEqual(leader.EndSymbol, "None")
+
     def testBreakDocumentObject(self):
         """A view owns editable, suppressible break document objects."""
         view = FreeCAD.ActiveDocument.addObject("TechDraw::DrawViewPart", "BreakableView")
