@@ -162,6 +162,29 @@ class TestEnumerationIntegerBoundary(unittest.TestCase):
     def test_empty_enumeration_reports_failed_integer_conversion(self):
         self._overflow_rejection("EmptyMode")
 
+    def test_items_and_index_overflow_rejected_before_notification(self):
+        # The (items, index) form: the failed conversion gave -1 ("no index"), so the
+        # new items were set, the index was dropped and no error was raised.
+        observer = self._observer("Mode")
+        for value in _OVERFLOW:
+            with self.subTest(value=str(value), native_long_bits=_LONG_BITS):
+                self._reset(observer)
+                self.doc.openTransaction("Rejected enumeration items")
+                error = self._assign(self.obj, "Mode", (["A", "B", "C"], value))
+                self.doc.commitTransaction()
+                self.assertIsInstance(error, OverflowError, repr(error))
+                self.assertEqual(self.obj.Mode, "One")
+                self.assertEqual(self.obj.getEnumerationsOfProperty("Mode"), self.choices)
+                self.assertEqual(observer.before, [])
+                self.assertEqual(observer.after, [])
+                self.assertEqual(self.doc.UndoNames, [])
+                self.assertFalse(self.doc.HasPendingTransaction)
+        # an index in range is unchanged
+        self._reset(observer)
+        self.assertIsNone(self._assign(self.obj, "Mode", (["A", "B", "C"], 2)))
+        self.assertEqual(self.obj.Mode, "C")
+        self.assertEqual(self.obj.getEnumerationsOfProperty("Mode"), ["A", "B", "C"])
+
     def test_successful_scalar_indices_bool_and_int_subclass_undo_control(self):
         observer = self._observer("Mode")
         for value, expected in (

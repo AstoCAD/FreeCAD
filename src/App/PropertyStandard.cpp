@@ -539,13 +539,19 @@ void PropertyEnumeration::setPyObject(PyObject* value)
         try {
             std::vector<std::string> values;
 
-            int idx = -1;
+            long idx = -1;
             Py::Sequence seq(value);
 
             if (seq.size() == 2) {
                 Py::Object v(seq[0].ptr());
                 if (!v.isString() && v.isSequence()) {
-                    idx = Py::Long(seq[1].ptr());
+                    // Check the conversion as for an int index alone: a failed one gave
+                    // -1 ("no index") and the new items were set without an error
+                    int overflow = 0;
+                    idx = PyLong_AsLongAndOverflow(Py::Long(seq[1].ptr()).ptr(), &overflow);
+                    if (overflow) {
+                        throw Base::OverflowError("Python int too large to convert to C long");
+                    }
                     seq = v;
                 }
             }
