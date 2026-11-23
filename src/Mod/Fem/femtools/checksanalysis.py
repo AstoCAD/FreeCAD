@@ -122,6 +122,7 @@ def check_member_for_solver_calculix(analysis, solver, mesh, member):
         if (
             solver.AnalysisType == "frequency"
             or (solver.AnalysisType == "thermomech" and not solver.ThermoMechSteadyState)
+            or (solver.AnalysisType == "thermomech" and mat_obj.Category == "Fluid")
             or member.cons_centrif
             or member.cons_selfweight
         ):

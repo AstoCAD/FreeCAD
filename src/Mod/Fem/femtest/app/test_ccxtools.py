@@ -137,6 +137,52 @@ class TestCcxTools(unittest.TestCase):
         self.assertTrue(density_message())
 
     # ********************************************************************************************
+    def test_fluid_material_density_steady_thermomech(self):
+        # the fluid constants of a fluid material hold the dynamic viscosity, computed with the
+        # density: in a steady state thermomechanical analysis (the default) the density was not
+        # read, writing the material failed with UnboundLocalError and the check did not ask for it
+        import io
+        from types import SimpleNamespace
+        import ObjectsFem
+        from femsolver.calculix.write_femelement_material import write_femelement_material
+        from femtools import checksanalysis
+        from femtools import membertools
+
+        analysis = ObjectsFem.makeAnalysis(self.document, "Analysis")
+        solver = ObjectsFem.makeSolverCalculiXCcxTools(self.document)
+        solver.AnalysisType = "thermomech"
+        solver.ThermoMechSteadyState = True
+        analysis.addObject(solver)
+        mat_obj = ObjectsFem.makeMaterialFluid(self.document, "FluidMaterial")
+        mat = mat_obj.Material
+        mat["Name"] = "Water"
+        mat["Density"] = "1000 kg/m^3"
+        mat["KinematicViscosity"] = "1.75 mm^2/s"
+        mat["ThermalConductivity"] = "0.59 W/m/K"
+        mat["SpecificHeat"] = "4217 J/kg/K"
+        mat_obj.Material = mat
+        analysis.addObject(mat_obj)
+
+        member = membertools.AnalysisMember(analysis)
+        ccxwriter = SimpleNamespace(analysis_type="thermomech", solver_obj=solver, member=member)
+        f = io.StringIO()
+        write_femelement_material(f, ccxwriter)
+        written = f.getvalue()
+        self.assertIn("*DENSITY\n1E-09\n", written)
+        self.assertIn("*FLUID CONSTANTS\n4217000000,1.75E-09\n", written)
+
+        def density_message():
+            message = checksanalysis.check_member_for_solver_calculix(
+                analysis, solver, None, membertools.AnalysisMember(analysis)
+            )
+            return "No Density defined" in message
+
+        self.assertFalse(density_message())
+        mat.pop("Density")
+        mat_obj.Material = mat
+        self.assertTrue(density_message())
+
+    # ********************************************************************************************
     def test_prerequisites_displacement_empty_references(self):
         # a displacement constraint whose geometry was deleted has no references left,
         # the prerequisites must name it (and not fail when there is no fixed constraint)
