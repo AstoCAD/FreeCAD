@@ -528,6 +528,31 @@ class DraftModification(test_base.DraftTestCaseDoc):
             self.assertEqual(line.Points, [c, d])
             self.assertTrue(closed.Shape.isValid())
 
+    def test_join_in_inactive_document(self):
+        """Joining wires of a document that is not the active one removes the joined
+        wire from that document, not an object with the same name in the active one."""
+        a = Vector(0, 0, 0)
+        b = Vector(4, 0, 0)
+        c = Vector(4, 4, 0)
+        line_1 = Draft.make_line(a, b)
+        line_2 = Draft.make_line(b, c)
+        self.doc.recompute()
+        other_doc = App.newDocument("DraftJoinOtherDoc")
+        try:
+            other_1 = Draft.make_line(a, c)
+            other_2 = Draft.make_line(a, c)
+            self.assertEqual(other_2.Name, line_2.Name)
+            App.setActiveDocument(other_doc.Name)
+            self.assertTrue(Draft.join_two_wires(line_1, line_2))
+            self.assertEqual([obj.Name for obj in self.doc.Objects], [line_1.Name])
+            self.assertEqual(line_1.Points, [a, b, c])
+            self.assertEqual(
+                [obj.Name for obj in other_doc.Objects], [other_1.Name, other_2.Name]
+            )
+        finally:
+            App.closeDocument(other_doc.Name)
+            App.setActiveDocument(self.doc.Name)
+
     def test_split(self):
         """Split a Draft Wire into two Draft Wires."""
         operation = "Draft_Split"

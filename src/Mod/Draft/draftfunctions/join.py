@@ -30,7 +30,6 @@
 
 ## \addtogroup draftfunctions
 # @{
-import FreeCAD as App
 import DraftVecUtils
 
 
@@ -94,7 +93,8 @@ def join_two_wires(wire1, wire2):
     wire1.Points = [wire1.Placement.inverse().multVec(point) for point in wire1AbsPoints] + [
         wire1.Placement.inverse().multVec(point) for point in wire2AbsPoints
     ]
-    App.ActiveDocument.removeObject(wire2.Name)
+    # wire2 is removed from its own document, which need not be the active one
+    wire2.Document.removeObject(wire2.Name)
     return True
 
 
