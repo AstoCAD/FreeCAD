@@ -183,6 +183,40 @@ class TestCcxTools(unittest.TestCase):
         self.assertTrue(density_message())
 
     # ********************************************************************************************
+    def test_prerequisites_fluid_kinematic_viscosity(self):
+        # the input file writer reads the kinematic viscosity of a fluid material in a
+        # thermomechanical analysis, the prerequisites must report a fluid material without it
+        # instead of letting the writer stop with KeyError
+        import ObjectsFem
+        from femtools import checksanalysis
+        from femtools import membertools
+
+        analysis = ObjectsFem.makeAnalysis(self.document, "Analysis")
+        solver = ObjectsFem.makeSolverCalculiXCcxTools(self.document)
+        solver.AnalysisType = "thermomech"
+        analysis.addObject(solver)
+        mat_obj = ObjectsFem.makeMaterialFluid(self.document, "FluidMaterial")
+        mat = mat_obj.Material
+        mat["Name"] = "Water"
+        mat["Density"] = "1000 kg/m^3"
+        mat["KinematicViscosity"] = "1.75 mm^2/s"
+        mat["ThermalConductivity"] = "0.59 W/m/K"
+        mat["SpecificHeat"] = "4217 J/kg/K"
+        mat_obj.Material = mat
+        analysis.addObject(mat_obj)
+
+        def viscosity_message():
+            message = checksanalysis.check_member_for_solver_calculix(
+                analysis, solver, None, membertools.AnalysisMember(analysis)
+            )
+            return "No KinematicViscosity defined" in message
+
+        self.assertFalse(viscosity_message())
+        mat.pop("KinematicViscosity")
+        mat_obj.Material = mat
+        self.assertTrue(viscosity_message())
+
+    # ********************************************************************************************
     def test_prerequisites_displacement_empty_references(self):
         # a displacement constraint whose geometry was deleted has no references left,
         # the prerequisites must name it (and not fail when there is no fixed constraint)

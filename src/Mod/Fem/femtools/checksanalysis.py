@@ -147,6 +147,11 @@ def check_member_for_solver_calculix(analysis, solver, mesh, member):
                     "Thermomechanical analysis: No SpecificHeat "
                     "defined for at least one material.\n"  # allowed to be 0.0 (in ccx)
                 )
+            if "KinematicViscosity" not in mat_map and mat_obj.Category == "Fluid":
+                message += (
+                    "Thermomechanical analysis: No KinematicViscosity defined "
+                    "for at least one fluid material.\n"
+                )
         if femutils.is_of_type(mat_obj, "Fem::MaterialReinforced"):
             # additional tests for reinforced materials,
             # they are needed for result calculation, not for ccx analysis
