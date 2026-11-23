@@ -312,7 +312,9 @@ PyObject* QuantityPy::number_int_handler(PyObject* self)
     }
 
     QuantityPy* q = static_cast<QuantityPy*>(self);
-    return PyLong_FromLong(long(q->getValue()));
+    // as int(float): a cast to long gave a wrong number beyond the range of long (2**31 on
+    // Windows) and undefined behavior for inf and nan, which now raise
+    return PyLong_FromDouble(q->getValue());
 }
 
 PyObject* QuantityPy::number_negative_handler(PyObject* self)

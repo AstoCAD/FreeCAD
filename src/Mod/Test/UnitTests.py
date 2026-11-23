@@ -316,6 +316,18 @@ class UnitBasicCases(unittest.TestCase):
         self.assertTrue(one < 2**70)
         self.assertTrue(one >= 0.5)
 
+    def testIntOfQuantity(self):
+        # int() cast the value to a C long: beyond its range (2**31 on Windows) it gave
+        # a wrong number, and inf and nan gave a number too
+        q = FreeCAD.Units.Quantity
+        for value in (3e9, -3e9, 1e20, 2.0**70, 12.7, -12.7, 0.5, -0.0):
+            with self.subTest(value=value):
+                self.assertEqual(int(q(value, FreeCAD.Units.Length)), int(value))
+        with self.assertRaises(OverflowError):
+            int(q(float("inf")))
+        with self.assertRaises(ValueError):
+            int(q(float("nan")))
+
     def testPowerUnitExponentOutOfRangeRaises(self):
         # Unit::pow cast the new exponents to int8 unchecked: 1 mm ** 256 gave a
         # dimensionless result, 1 mm ** 200 an underflow
