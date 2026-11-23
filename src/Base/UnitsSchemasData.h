@@ -878,6 +878,11 @@ inline std::string toFractional(const double value, std::size_t denominator)
     constexpr auto inchPerFoot {12};
     constexpr auto mmPerInch {25.4};
 
+    if (!std::isfinite(value)) {
+        // inf and nan have no feet and inches (the cast below is undefined for them)
+        return std::format("{}\"", value);
+    }
+
     auto numFractUnits = static_cast<std::size_t>(
         std::round(std::abs(value) / mmPerInch * denominator)
     );
@@ -930,19 +935,21 @@ inline std::string toDms(const double value)
 {
     constexpr auto dmsRatio {60.0};
 
-    auto calc = [&](const double total) -> std::pair<int, double> {
+    // The whole part stays a double: a cast to int gave -2147483648 for inf, nan and any angle
+    // beyond the range of int. These are now written inf°, nan° and with all their digits.
+    auto calc = [&](const double total) -> std::pair<double, double> {
         const double whole = std::floor(total);
-        return {static_cast<int>(whole), dmsRatio * (total - whole)};
+        return {whole, dmsRatio * (total - whole)};
     };
 
     // One sign for the whole angle, as for feet and inches: the quantity parser reads -10°30′
     // as -(10°30′), so -10.5° must not be written -11°30′ (-11° + 30′).
     auto [degrees, totalMinutes] = calc(std::fabs(value));
-    std::string out = std::format("{}{}°", value < 0 ? "-" : "", degrees);
+    std::string out = std::format("{}{:.0f}°", value < 0 ? "-" : "", degrees);
 
     if (totalMinutes > 0) {
         auto [minutes, totalSeconds] = calc(totalMinutes);
-        out += std::format("{}′", minutes);
+        out += std::format("{:.0f}′", minutes);
 
         if (totalSeconds > 0) {
             out += std::format("{}″", std::round(totalSeconds));

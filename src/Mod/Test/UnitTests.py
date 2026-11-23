@@ -500,6 +500,32 @@ class UnitBasicCases(unittest.TestCase):
                 text = FreeCAD.Units.schemaTranslate(angle, civil)[0]
                 self.assertAlmostEqual(q(text).Value, degrees, msg=text)
 
+    def testNonFiniteAndHugeInFeetInchesAndDms(self):
+        # The feet-inch and degree-minute-second formats cast to integers: inf and nan
+        # were written 96076792050570576' 64" or -2147483648°, -inf --2147483648°
+        q = FreeCAD.Units.Quantity
+        translate = FreeCAD.Units.schemaTranslate
+        schemas = FreeCAD.Units.listSchemas()
+        building = schemas.index("ImperialBuilding")
+        civil = schemas.index("ImperialCivil")
+        inf = float("inf")
+        length = FreeCAD.Units.Length
+        angle = FreeCAD.Units.Angle
+        self.assertEqual(translate(q(inf, length), building)[0], 'inf"')
+        self.assertEqual(translate(q(-inf, length), building)[0], '-inf"')
+        self.assertRegex(translate(q(float("nan"), length), building)[0], '^-?nan"$')
+        self.assertEqual(translate(q(inf, angle), civil)[0], "inf°")
+        self.assertEqual(translate(q(-inf, angle), civil)[0], "-inf°")
+        self.assertEqual(translate(q(float("nan"), angle), civil)[0], "nan°")
+        # whole degrees beyond the range of int keep their value
+        for degrees in (3.3e9, -3.3e9):
+            with self.subTest(degrees=degrees):
+                text = translate(q(degrees, angle), civil)[0]
+                self.assertEqual(q(text).Value, degrees, msg=text)
+        # ordinary values are written as before
+        self.assertEqual(translate(q(10.5, angle), civil)[0], "10°30′")
+        self.assertEqual(translate(q(-317.5, length), building)[0], "-1' 1/2\"")
+
     def testQuantityFromNonFiniteOrLargestFloat(self):
         # The float constructor took the largest double as "no argument": inf, nan and
         # the largest double itself silently gave 0 (and dropped the unit exponents)
