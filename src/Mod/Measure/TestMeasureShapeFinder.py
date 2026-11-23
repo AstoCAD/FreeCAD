@@ -251,3 +251,60 @@ class TestMeasureGetLocatedTopoShape(unittest.TestCase):
 
     def testNoDocumentObject(self):
         self.assertIsNone(Measure.getLocatedTopoShape(None, ""))
+
+
+class TestMeasureLocatedPointObject(unittest.TestCase):
+    """The shape of a point object (a single vertex) is located like any
+    other shape, whatever the name of the object, and including the placement
+    of the groups that contain it."""
+
+    def setUp(self):
+        previous = App.activeDocument()
+        self.previous_document = previous.Name if previous else None
+        self.doc = App.newDocument("MeasureLocatedPointObject")
+        self.part = self.doc.addObject("App::Part", "Part")
+        self.part.Placement = App.Placement(
+            App.Vector(100, 0, 0), App.Rotation(App.Vector(0, 0, 1), 90)
+        )
+        self.local = App.Placement(App.Vector(0, 10, 0), App.Rotation(App.Vector(1, 0, 0), 90))
+        self.doc.recompute()
+
+    def tearDown(self):
+        App.closeDocument(self.doc.Name)
+        if self.previous_document in App.listDocuments():
+            App.setActiveDocument(self.previous_document)
+
+    def _addPoint(self, name):
+        point = self.doc.addObject("Part::Vertex", name)
+        point.X, point.Y, point.Z = 1, 2, 3
+        point.Placement = self.local
+        self.part.addObject(point)
+        self.doc.recompute()
+        # The located point, from the vertex coordinates and the placements
+        return point, self.part.Placement.multVec(self.local.multVec(App.Vector(1, 2, 3)))
+
+    def _checkVertex(self, shape, expected):
+        self.assertIsInstance(shape, Part.Shape)
+        self.assertEqual(shape.ShapeType, "Vertex")
+        actual = shape.Vertexes[0].Point
+        self.assertLess((actual - expected).Length, 1e-7, f"got {actual}, expected {expected}")
+
+    def testPointObjectInPart(self):
+        for name in ("Vertex", "Point", "Pin"):
+            with self.subTest(name=name):
+                point, expected = self._addPoint(name)
+                self._checkVertex(Measure.getLocatedTopoShape(point, "Vertex1"), expected)
+                self._checkVertex(Measure.getLocatedTopoShape(point, ""), expected)
+
+    def testPointObjectThroughPath(self):
+        point, expected = self._addPoint("Pin")
+        self._checkVertex(Measure.getLocatedTopoShape(self.part, "Pin.Vertex1"), expected)
+
+    def testRemovedObject(self):
+        # An object removed by an undoable transaction is no longer in the
+        # document but is still alive: the lookup finds no shape, it must not crash
+        point, expected = self._addPoint("Point")
+        self.doc.openTransaction("Remove point")
+        self.doc.removeObject(point.Name)
+        self.doc.commitTransaction()
+        self.assertTrue(Measure.getLocatedTopoShape(point, "Vertex1").isNull())

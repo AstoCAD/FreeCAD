@@ -106,19 +106,6 @@ ResolveResult ShapeFinder::resolveSelection(
 //       and ShapeFinder::getLinkAttachParent()
 TopoDS_Shape ShapeFinder::getLocatedShape(const App::DocumentObject& rootObject, const std::string& leafSub)
 {
-    // point objects are weird.
-    const std::string VertexTag {"Vertex"};
-    const std::string PointTag {"Point"};
-    std::string objName {rootObject.getNameInDocument()};
-    if (objName.find(VertexTag) != std::string::npos || objName.find(PointTag) != std::string::npos) {
-        auto shape = Part::Feature::getShape(&rootObject, Part::ShapeOption::Transform);
-        // Other features can also have Point or Vertex in their names. Only
-        // point shapes need to bypass the usual subelement lookup.
-        if (shape.IsNull() || shape.ShapeType() == TopAbs_VERTEX) {
-            return shape;
-        }
-    }
-
     // Resolve the object path from the root so that Part applies every placement and link scale
     // along it exactly once, as it does for the 3d view. Re-applying a transform on top of the
     // shape of the resolved object would count the transform of a link twice, as that shape
@@ -329,8 +316,10 @@ TopoDS_Shape ShapeFinder::stripInfiniteShapes(const TopoDS_Shape& inShape)
 // Note: the same code exists in TechDraw::ShapeUtils
 bool ShapeFinder::isShapeReallyNull(const TopoDS_Shape& shape)
 {
-    // if the shape is null or it has no subshapes, then it is really null
-    return shape.IsNull() || !TopoDS_Iterator(shape).More();
+    // if the shape is null or it has no subshapes, then it is really null. A vertex has no
+    // subshapes but is not empty: it is the shape of point objects.
+    return shape.IsNull()
+        || (shape.ShapeType() != TopAbs_VERTEX && !TopoDS_Iterator(shape).More());
 }
 
 
