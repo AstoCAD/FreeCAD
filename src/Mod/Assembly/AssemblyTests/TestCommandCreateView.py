@@ -583,3 +583,36 @@ class TestCommandCreateView(unittest.TestCase):
             )
         finally:
             App.closeDocument(doc.Name)
+
+    def test_explosion_skips_step_without_valid_references(self):
+        """A step whose references are not valid (no object left) is skipped like in the
+        exploded shape: it does not stop the explosion after the previous steps moved
+        their parts, which would then never be put back."""
+        doc = App.newDocument("ExplodedInvalidStep")
+        try:
+            assembly = doc.addObject("Assembly::AssemblyObject", "Assembly")
+            box = assembly.newObject("Part::Box", "Box")
+            doc.recompute()
+
+            stepProxy = CommandCreateView.ExplodedViewStep.__new__(
+                CommandCreateView.ExplodedViewStep
+            )
+            moves = []
+            for references in ((box, ["Face1"]), None):
+                move = _Move("Normal", App.Placement(App.Vector(10, 0, 0), App.Rotation()))
+                move.References = references
+                move.ViewObject = None
+                move.Visibility = False
+                move.Proxy = stepProxy
+                moves.append(move)
+            viewObj = SimpleNamespace(InList=[assembly], Group=moves)
+
+            proxy = CommandCreateView.ExplodedView.__new__(CommandCreateView.ExplodedView)
+            proxy.explodeTemporarily(viewObj)
+            self.assertEqual(box.Placement.Base, App.Vector(10, 0, 0))
+
+            proxy.restoreAssembly(viewObj)
+            self.assertEqual(box.Placement.Base, App.Vector(0, 0, 0))
+            self.assertEqual(stepProxy.applyStep(moves[1]), [])
+        finally:
+            App.closeDocument(doc.Name)

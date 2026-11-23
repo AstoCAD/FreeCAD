@@ -650,10 +650,10 @@ class ExplodedViewStep:
         pass
 
     def applyStep(self, move, com=App.Vector(), size=100):
-        if not UtilsAssembly.isRefValid(move.References, 1):
-            return
-
         positions = []
+        if not UtilsAssembly.isRefValid(move.References, 1):
+            return positions
+
         if move.MoveType == "Radial":
             distance = move.MovementTransform.Base.Length
             factor = 4 * distance / size
