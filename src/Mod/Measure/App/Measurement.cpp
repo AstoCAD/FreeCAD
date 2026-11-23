@@ -759,8 +759,9 @@ double Measurement::angle(const Base::Vector3d& /*param*/) const
     else if (measureType == MeasureType::Invalid) {
         throw Base::RuntimeError("MeasureType is Invalid for angle measurement");
     }
-    else if (measureType == MeasureType::TwoLines) {
-        // Only case that is supported is edge to edge
+    else if (measureType == MeasureType::TwoLines || measureType == MeasureType::TwoParallelLines) {
+        // Only case that is supported is edge to edge. Parallel lines are a type of their own
+        // for the distance between them; their angle is 0.
         // The angle between two skew lines is measured by the angle between one line (A)
         // and a line (B) with the direction of the second through a point on the first line.
         // Since we don't know if the directions of the lines point in the same general direction

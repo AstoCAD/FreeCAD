@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""Measure.Measurement reports the angle between two circle or cylinder axes as a line angle."""
+"""Measure.Measurement reports the angle between two lines or two circle or cylinder axes as a
+line angle."""
 
 import math
 import unittest
@@ -63,6 +64,19 @@ class TestMeasurementAxisAngle(unittest.TestCase):
         ]
         angle = self._angle(shapes, ["Face1", "Edge4"])
         self.assertAlmostEqual(angle, 20, places=6)
+
+    def testTwoLines(self):
+        # Parallel lines, in the same or the opposite direction, are 0 degrees
+        # apart, like the axes of parallel circles
+        for degrees, expected in ((30, 30), (150, 30), (0, 0), (180, 0)):
+            with self.subTest(degrees=degrees):
+                start = App.Vector(3, 0, 0)
+                lines = [
+                    Part.LineSegment(App.Vector(0, 0, 0), App.Vector(0, 0, 5)).toShape(),
+                    Part.LineSegment(start, start + self._direction(degrees) * 5).toShape(),
+                ]
+                angle = self._angle(lines, ["Edge1", "Edge2"])
+                self.assertAlmostEqual(angle, expected, places=6)
 
 
 if __name__ == "__main__":
