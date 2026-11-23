@@ -585,6 +585,30 @@ class TestCAMSanity(PathTestBase):
             f"Expected squawk mentioning post-processing, got: {squawks}",
         )
 
+    def test241_post_output_line_count_utf8(self):
+        """The line count of the last post-processed file reads it as the UTF-8 the posts write.
+
+        A comment with a non-ASCII character, e.g. from an operation label, must not make
+        _outputData() fail in a locale whose encoding cannot decode it.
+        """
+        fd, gcode = tempfile.mkstemp(suffix=".nc")
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write("(Poche \u00c1 \u00e9)\nG0 X0 Y0\nG1 Z-1\n")
+        self.addCleanup(os.remove, gcode)
+
+        mock_job = MagicMock()
+        mock_job.LastPostProcessDate = ""
+        mock_job.LastPostProcessOutput = gcode
+        mock_job.PostProcessor = "linuxcnc"
+        mock_job.PostProcessorArgs = ""
+        mock_job.PostProcessorOutputFile = ""
+        mock_job.Operations.Group = []
+
+        S = self._make_sanity_with_mock_job(mock_job)
+        data = S._outputData()
+
+        self.assertEqual(data["linecount"], "3")
+
     def test242_deprecated_operation_squawk(self):
         """An operation with a deprecation notice produces a NOTE in _outputData().
 
