@@ -252,6 +252,14 @@ class TestMeasureGetLocatedTopoShape(unittest.TestCase):
     def testNoDocumentObject(self):
         self.assertIsNone(Measure.getLocatedTopoShape(None, ""))
 
+    def testSubnameMustBeText(self):
+        # A subname that is not text, or has no UTF-8 form, is rejected
+        # instead of being ignored or crashing
+        for subname in (None, 5, b"Solid1", "\ud800"):
+            with self.subTest(subname=subname):
+                with self.assertRaises(TypeError):
+                    Measure.getLocatedTopoShape(self.box, subname)
+
 
 class TestMeasureLocatedPointObject(unittest.TestCase):
     """The shape of a point object (a single vertex) is located like any

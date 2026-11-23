@@ -136,19 +136,16 @@ private:
     Py::Object getLocatedTopoShape(const Py::Tuple& args)
     {
         PyObject* pyRootObject {nullptr};
-        PyObject* pyLeafSubName {nullptr};
+        const char* leafSubName {nullptr};
         App::DocumentObject* rootObject {nullptr};
-        std::string leafSub;
-        if (!PyArg_ParseTuple(args.ptr(), "OO", &pyRootObject, &pyLeafSubName)) {
+        // "s" accepts only a str that has a UTF-8 form
+        if (!PyArg_ParseTuple(args.ptr(), "Os", &pyRootObject, &leafSubName)) {
             throw Py::TypeError("expected (rootObject, subname");
         }
+        std::string leafSub {leafSubName};
 
         if (PyObject_TypeCheck(pyRootObject, &(App::DocumentObjectPy::Type))) {
             rootObject = static_cast<App::DocumentObjectPy*>(pyRootObject)->getDocumentObjectPtr();
-        }
-
-        if (PyUnicode_Check(pyLeafSubName)) {
-            leafSub = PyUnicode_AsUTF8(pyLeafSubName);
         }
 
         if (!rootObject) {
