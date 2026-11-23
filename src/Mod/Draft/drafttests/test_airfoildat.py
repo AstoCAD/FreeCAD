@@ -122,4 +122,32 @@ class DraftAirfoilDATEncoding(test_base.DraftTestCaseDoc):
         self._read("utf-8-sig")
 
 
+class DraftAirfoilDATNumbers(test_base.DraftTestCaseDoc):
+    """Test reading the number formats of airfoil DAT files."""
+
+    def test_read_signed_numbers_and_exponents(self):
+        """Coordinates like 1.0e+00 (numpy.savetxt) or +0.08 are read, not skipped."""
+        import importAirfoilDAT
+
+        tmpdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmpdir, True)
+        path = os.path.join(tmpdir, "airfoil.dat")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "Profile\n"
+                "1.000000000000000000e+00 0.000000000000000000e+00\n"
+                "5.000000000000000000e-01 +8.000000000000000167e-02\n"
+                "0.000000000000000000e+00 0.000000000000000000e+00\n"
+                "+5.0E-01 -4.0E-02\n"
+                "1.0E+00 0.0E+00\n"
+            )
+        wire = importAirfoilDAT.process(path)
+        self.assertIsNotNone(wire)
+        self.doc.recompute()
+        self.assertEqual(len(wire.Shape.Vertexes), 4)
+        expected = [(1, 0), (0.5, 0.08), (0, 0), (0.5, -0.04)]
+        for point, (x, y) in zip(wire.Points, expected):
+            self.assertTrue(point.isEqual(App.Vector(x, y, 0), 1e-9), point)
+
+
 ## @}

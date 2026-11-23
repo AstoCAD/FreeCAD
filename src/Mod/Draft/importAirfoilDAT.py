@@ -128,8 +128,9 @@ def process(filename):
         than 3 points.
     """
     # Regex to identify data rows and throw away unused metadata
-    xval = r"(?P<xval>\-?\s*\d*\.*\d*([Ee]\-?\d+)?)"
-    yval = r"(?P<yval>\-?\s*\d*\.*\d*([Ee]\-?\d+)?)"
+    # (numbers may have an explicit sign, also in the exponent: 1.0e+00)
+    xval = r"(?P<xval>[-+]?\s*\d*\.*\d*([Ee][-+]?\d+)?)"
+    yval = r"(?P<yval>[-+]?\s*\d*\.*\d*([Ee][-+]?\d+)?)"
     _regex = r"^\s*" + xval + r"\,?\s*" + yval + r"\s*$"
 
     regex = re.compile(_regex)
