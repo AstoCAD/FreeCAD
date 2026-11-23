@@ -166,7 +166,7 @@ void TaskExtrudeParameters::setupSideDialog(SideController& side)
     side.taperEdit->bind(*side.TaperAngle);
 
     // Keep nested datum paths, such as an LCS plane, when reopening the task.
-    updateReferenceName(side.lineFaceName, *side.UpToFace, QString());
+    updateReferenceName(side.lineFaceName, *side.UpToFace, tr("No face selected"));
 
     // --- Update shape-related UI ---
     updateShapeName(side.lineShapeName, *side.UpToShape);

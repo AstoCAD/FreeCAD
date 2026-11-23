@@ -251,6 +251,25 @@ class PartDesignGuiTestCases(unittest.TestCase):
             if Gui.Control.activeDialog():
                 Gui.Control.closeDialog()
 
+    def testPadEmptyUpToFaceKeepsPlaceholder(self):
+        feature, _ = self.makeLcsPlaneExtrusion("Pad")
+        feature.Type = "Length"
+        feature.UpToFace = None
+        self.Doc.recompute()
+        try:
+            self.assertTrue(Gui.getDocument(self.Doc.Name).setEdit(feature.Name))
+            Gui.updateGui()
+            for name in ("lineFaceName", "lineFaceName2"):
+                with self.subTest(field=name):
+                    field = Gui.getMainWindow().findChild(QtGui.QLineEdit, name)
+                    self.assertIsNotNone(field)
+                    self.assertEqual(field.text(), "")
+                    self.assertTrue(field.placeholderText(), "Empty face field lost its hint")
+        finally:
+            Gui.getDocument(self.Doc.Name).resetEdit()
+            if Gui.Control.activeDialog():
+                Gui.Control.closeDialog()
+
     def testPadShapeFaceButtonKeepsItsLabel(self):
         # https://github.com/FreeCAD/FreeCAD/issues/33888
         feature, _ = self.makeLcsPlaneExtrusion("Pad")
