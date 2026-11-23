@@ -695,6 +695,12 @@ class MeshFacetIndexRange(unittest.TestCase):
             Mesh.Mesh().meshFromSegment([0])
         self.assertEqual(self.mesh.meshFromSegment([0, 1]).CountFacets, 2)
 
+    def testAddSegmentSkipsInvalidIndices(self):
+        # addSegment() skips out-of-range indices, also negative or huge ones
+        self.mesh.addSegment([-1, 0, 2**40, 12, 2**70, 1])
+        self.assertEqual(self.mesh.countSegments(), 1)
+        self.assertEqual(self.mesh.getSegment(0), [0, 1])
+
     def testStaleFacet(self):
         facet = self.mesh.Facets[11]
         self.assertGreater(facet.Area, 0.0)

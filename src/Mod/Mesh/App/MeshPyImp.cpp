@@ -997,7 +997,12 @@ PyObject* MeshPy::addSegment(PyObject* args)
     segment.reserve(list.size());
     for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
         Py::Long value(*it);
-        Mesh::FacetIndex index = static_cast<Mesh::FacetIndex>(value);
+        Mesh::FacetIndex index = PyLong_AsUnsignedLong(value.ptr());
+        if (index == static_cast<Mesh::FacetIndex>(-1) && PyErr_Occurred()) {
+            // negative or too large for unsigned long: skipped like any other invalid index
+            PyErr_Clear();
+            continue;
+        }
         if (index < numFacets) {
             segment.push_back(index);
         }
