@@ -1244,13 +1244,13 @@ def p_circle_action(p) :
     # in the modules preferences
     import Draft
     if n < 3 or fnmax != 0 and n >= fnmax:
-        mycircle = FreeCAD.ActiveDocument.addObject("Part::Part2DObjectPython",'circle')
+        mycircle = doc.addObject("Part::Part2DObjectPython",'circle')
         Draft._Circle(mycircle)
         mycircle.Radius = r
         mycircle.MakeFace = True
-        FreeCAD.ActiveDocument.recompute()
+        doc.recompute()
     else :
-        mycircle = FreeCAD.ActiveDocument.addObject("Part::Part2DObjectPython",'polygon')
+        mycircle = doc.addObject("Part::Part2DObjectPython",'polygon')
         Draft._Polygon(mycircle)
         mycircle.FacesNumber = n
         mycircle.Radius = r

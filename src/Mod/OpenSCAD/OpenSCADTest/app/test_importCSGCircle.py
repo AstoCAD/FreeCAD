@@ -67,6 +67,28 @@ class TestCsgCircle(unittest.TestCase):
         self.assertEqual(len(roots), 1)
         self.assertAlmostEqual(roots[0].Shape.BoundBox.Center.x, 10.0, places=6)
 
+    def test_insert_into_document_that_is_not_active(self):
+        """Circles and polygons are made in the document imported into: made in
+        the active one, the extrusion could not link them (the import aborted)."""
+        active = App.newDocument("CircleActive")
+        path = Path(self.temp.name) / "Circle.csg"
+        for fn in (0, 6):
+            with self.subTest(fn=fn):
+                target = App.newDocument("CircleTarget")
+                App.setActiveDocument(active.Name)
+                path.write_text(
+                    "linear_extrude(height = 2, center = false, convexity = 10, scale = [1, 1],"
+                    " $fn = 0, $fa = 12, $fs = 2) {\n"
+                    " circle($fn = %d, $fa = 12, $fs = 2, r = 5);\n}\n" % fn,
+                    encoding="utf-8",
+                )
+                importCSG.insert(str(path), target.Name)
+                target.recompute()
+                self.assertEqual(active.Objects, [])
+                roots = [obj for obj in target.RootObjects if hasattr(obj, "Shape")]
+                self.assertEqual(len(roots), 1)
+                self.assertGreater(roots[0].Shape.Volume, 100.0)
+
 
 if __name__ == "__main__":
     unittest.main()
