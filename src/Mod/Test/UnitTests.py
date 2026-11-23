@@ -296,6 +296,26 @@ class UnitBasicCases(unittest.TestCase):
         with self.assertRaises(OverflowError):
             one + 10**400
 
+    def testCompareWithNonFloatOperand(self):
+        # Comparing with a number that has no float value returned a result with the
+        # conversion error still set (SystemError)
+        one = FreeCAD.Units.Quantity(1.0)
+        vector = FreeCAD.Vector(1, 0, 0)
+        self.assertFalse(one == vector)
+        self.assertTrue(one != vector)
+        self.assertFalse(one == 1j)
+        self.assertNotIn(one, [vector, FreeCAD.Matrix(), FreeCAD.Units.Unit()])
+        with self.assertRaises(TypeError):
+            one < 1j
+        with self.assertRaises(OverflowError):
+            one < 10**400
+        with self.assertRaises(OverflowError):
+            10**400 > one
+        # numbers with a float value are compared as before
+        self.assertTrue(one == 1)
+        self.assertTrue(one < 2**70)
+        self.assertTrue(one >= 0.5)
+
     def testPowerUnitExponentOutOfRangeRaises(self):
         # Unit::pow cast the new exponents to int8 unchecked: 1 mm ** 256 gave a
         # dimensionless result, 1 mm ** 200 an underflow

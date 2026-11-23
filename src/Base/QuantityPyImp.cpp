@@ -627,7 +627,18 @@ PyObject* QuantityPy::richCompare(PyObject* v, PyObject* w, int op)
     else if (PyNumber_Check(v) && PyNumber_Check(w)) {
         // Try to get floating numbers
         double u1 = PyFloat_AsDouble(v);
-        double u2 = PyFloat_AsDouble(w);
+        double u2 = PyErr_Occurred() ? 0.0 : PyFloat_AsDouble(w);
+        if (PyErr_Occurred()) {
+            // An int beyond the float range raises, as with the arithmetic operators. Any other
+            // operand without a float value (a complex, a Vector, a Unit...) is not comparable:
+            // return NotImplemented, so that Python decides (== is then False).
+            if (PyErr_ExceptionMatches(PyExc_OverflowError)) {
+                return nullptr;
+            }
+            PyErr_Clear();
+            Py_INCREF(Py_NotImplemented);
+            return Py_NotImplemented;
+        }
         PyObject* res = nullptr;
         switch (op) {
             case Py_NE:
