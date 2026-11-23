@@ -10,6 +10,7 @@
 #include <App/Application.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
+#include <Base/Interpreter.h>
 #include <Gui/Selection/Selection.h>
 #include <Gui/Selection/SelectionFilter.h>
 #include <Gui/Selection/SoFCUnifiedSelection.h>
@@ -35,6 +36,16 @@ public:
 
 private:
     std::string _allowedName;
+};
+
+// The functions of the FreeCADGui.Selection Python module are protected members
+class SelectionModuleAccess: public Gui::SelectionSingleton
+{
+public:
+    static PyObject* addSelectionGate(PyObject* args)
+    {
+        return sAddSelectionGate(nullptr, args);
+    }
 };
 
 class SelectionTest: public ::testing::Test
@@ -117,6 +128,35 @@ TEST(SelectionFilterGateTest, emptyFilterGatesNoGeometryType)
     Gui::SelectionFilterGate gate("");
 
     EXPECT_TRUE(gate.getGatedTypes({"Vertex", "Edge", "Face"}).empty());
+}
+
+TEST_F(SelectionTest, testRemovingPythonGateWithoutGilReleasesIt)
+{
+    PyObject* gateRef = nullptr;
+    {
+        Base::PyGILStateLocker lock;
+        Py::Object gate = Base::Interpreter().runStringObject(
+            "type('Gate', (), {'allow': lambda self, doc, obj, sub: True})()"
+        );
+        gateRef = PyWeakref_NewRef(gate.ptr(), nullptr);
+        ASSERT_NE(gateRef, nullptr);
+        PyObject* args = Py_BuildValue("(O)", gate.ptr());
+        PyObject* result = SelectionModuleAccess::addSelectionGate(args);
+        Py_DECREF(args);
+        ASSERT_NE(result, nullptr);
+        Py_DECREF(result);
+    }
+    // The selection gate now holds the only reference to the Python gate. C++ code removes
+    // the active gate without holding the GIL, e.g. the task view when another document is
+    // activated.
+    ASSERT_FALSE(PyGILState_Check());
+    Gui::Selection().rmvSelectionGate();
+
+    Base::PyGILStateLocker lock;
+    PyObject* referent = PyObject_CallObject(gateRef, nullptr);
+    EXPECT_EQ(referent, Py_None);
+    Py_XDECREF(referent);
+    Py_DECREF(gateRef);
 }
 
 TEST(SelectionFilterGateTest, allowsOnlySubElementsWhenEveryEntryNamesOne)

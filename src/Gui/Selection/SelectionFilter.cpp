@@ -127,7 +127,14 @@ SelectionGatePython::SelectionGatePython(const Py::Object& obj)
     : gate(obj)
 {}
 
-SelectionGatePython::~SelectionGatePython() = default;
+SelectionGatePython::~SelectionGatePython()
+{
+    // The gate may hold the last reference to the Python object, and C++ code removes the
+    // active gate without holding the GIL, e.g. the task view when another document is
+    // activated: release the object with the GIL held.
+    Base::PyGILStateLocker lock;
+    gate = Py::None();
+}
 
 bool SelectionGatePython::allow(App::Document* doc, App::DocumentObject* obj, const char* sub)
 {
