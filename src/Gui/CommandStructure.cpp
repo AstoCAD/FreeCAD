@@ -153,7 +153,8 @@ void StdCmdNewPart::activated(int iMsg)
 
 bool StdCmdNewPart::isActive()
 {
-    return true;  // Always allow this command
+    // Also without a document, but the task panel would replace an open task dialog
+    return !Gui::Control().activeDialog();
 }
 
 //===========================================================================
@@ -181,7 +182,8 @@ void StdCmdNewAssembly::activated(int iMsg)
 
 bool StdCmdNewAssembly::isActive()
 {
-    return true;  // Always allow this command
+    // Also without a document, but the task panel would replace an open task dialog
+    return !Gui::Control().activeDialog();
 }
 
 

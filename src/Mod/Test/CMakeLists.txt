@@ -80,6 +80,7 @@ SET(Test_SRCS
     TestActivateViewGui.py
     TestRecomputeAllGui.py
     TestAddonManagerProxyGui.py
+    TestNewObjectTaskDialogGui.py
     TestPropertyGroupIndicatorGui.py
     TestRecordedCommandImportsGui.py
     TestWorkbenchSelectorGui.py

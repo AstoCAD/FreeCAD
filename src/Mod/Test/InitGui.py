@@ -167,5 +167,6 @@ FreeCAD.__unit_test__ += [
     "TestNewPartNameGui",
     "TestRecomputeAllGui",
     "TestAddonManagerProxyGui",
+    "TestNewObjectTaskDialogGui",
     "TestPropertyGroupIndicatorGui",
 ]
