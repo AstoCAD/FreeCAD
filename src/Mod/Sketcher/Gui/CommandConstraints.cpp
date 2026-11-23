@@ -10361,6 +10361,7 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
         Gui::TranslatedUserWarning(getActiveGuiDocument()->getDocument(),
                                    QObject::tr("Wrong selection"),
                                    std::move(strError));
+        return;
     }
 
     // get the needed lists and objects
@@ -10529,6 +10530,7 @@ void CmdSketcherConstrainGroup::activated(int iMsg)
         Gui::TranslatedUserWarning(getActiveGuiDocument()->getDocument(),
                                    QObject::tr("Wrong selection"),
                                    std::move(strError));
+        return;
     }
 
     // get the needed lists and objects

@@ -102,3 +102,29 @@ class TestSnellsLawCommandGui(SketcherGuiTestCase):
         found = self._runCommand(lambda dialog: dialog.reject())
         self.assertFalse(found.get("dialog"))
         self.assertAlmostEqual(self._snellsLaw().Value, 1.5)
+
+    def testRefusedWhenAnotherObjectIsSelected(self):
+        # The command warns that the selection is not just geometry from one sketch: it must
+        # stop there instead of adding the constraint anyway.
+        self.prefs.SetBool("ShowDialogOnDistanceConstraint", False)
+        box = self.doc.addObject("Part::Box", "Box")
+        self.doc.recompute()
+        state = {}
+
+        def closeDialogs():
+            if state.get("done"):
+                return
+            dialog = QtWidgets.QApplication.activeModalWidget()
+            if dialog is not None:
+                dialog.reject()
+            QtCore.QTimer.singleShot(50, closeDialogs)
+
+        QtCore.QTimer.singleShot(0, closeDialogs)
+        Gui.Selection.clearSelection()
+        for name in ("Vertex2", "Vertex3", "Edge3"):
+            Gui.Selection.addSelection(self.sketch, name)
+        Gui.Selection.addSelection(box)
+        Gui.runCommand("Sketcher_ConstrainSnellsLaw")
+        self.flush_gui(100)
+        state["done"] = True
+        self.assertEqual(self.sketch.ConstraintCount, 0)

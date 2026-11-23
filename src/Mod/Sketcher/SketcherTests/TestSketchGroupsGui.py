@@ -90,6 +90,37 @@ class TestSketchGroupsGui(SketcherGuiTestCase):
         self.assertAlmostEqual(s.Geometry[1].Radius, 4)
         self.assertEqual(s.Geometry[2].Content, untouched)
 
+    def testGroupRefusedWhenAnotherObjectIsSelected(self):
+        # The command warns that the selection is not just geometry from one sketch: it must
+        # stop there instead of grouping anyway.
+        Gui.activateWorkbench("SketcherWorkbench")
+        self.doc = App.newDocument("GroupForeignSelection")
+        s = self.doc.addObject("Sketcher::SketchObject", "Sketch")
+        for x in (0, 10, 20):
+            s.addGeometry(Part.Circle(App.Vector(x, 0, 0), App.Vector(0, 0, 1), 2))
+        box = self.doc.addObject("Part::Box", "Box")
+        self.doc.recompute()
+        Gui.activeDocument().setEdit(s.Name)
+        state = {}
+
+        def closeDialogs():
+            if state.get("done"):
+                return
+            dialog = QtGui.QApplication.activeModalWidget()
+            if dialog is not None:
+                dialog.reject()
+            QtCore.QTimer.singleShot(50, closeDialogs)
+
+        QtCore.QTimer.singleShot(0, closeDialogs)
+        Gui.Selection.clearSelection()
+        for edge in ("Edge1", "Edge2"):
+            Gui.Selection.addSelection(s, edge)
+        Gui.Selection.addSelection(box)
+        Gui.runCommand("Sketcher_ConstrainGroup")
+        self.flush_gui(100)
+        state["done"] = True
+        self.assertEqual((s.GeometryCount, s.ConstraintCount), (3, 0))
+
     def testGroupTransforms(self):
         Gui.activateWorkbench("SketcherWorkbench")
         for command in ("Rotate", "Translate", "Scale"):
