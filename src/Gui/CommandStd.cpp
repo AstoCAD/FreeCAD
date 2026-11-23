@@ -391,7 +391,7 @@ public:
 // Std_AddonManager - Proxy to python defined Std_AddonMgr
 //===========================================================================
 
-DEF_STD_CMD(StdCmdAddonManager)
+DEF_STD_CMD_A(StdCmdAddonManager)
 
 StdCmdAddonManager::StdCmdAddonManager()
     : Command("Std_AddonManager")
@@ -407,8 +407,16 @@ StdCmdAddonManager::StdCmdAddonManager()
 void StdCmdAddonManager::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    doCommand(Gui, "import AddonManager");
-    doCommand(Gui, "AddonManager.CommandAddonManager().Activated()");
+    // Run the command that the Addon Manager registered: a new CommandAddonManager would
+    // register its preference page once more
+    Application::Instance->commandManager().runCommandByName("Std_AddonMgr");
+}
+
+bool StdCmdAddonManager::isActive()
+{
+    // The Addon Manager is an optional module
+    Command* cmd = Application::Instance->commandManager().getCommandByName("Std_AddonMgr");
+    return cmd && cmd->isActive();
 }
 
 //===========================================================================

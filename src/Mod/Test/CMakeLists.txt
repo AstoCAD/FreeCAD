@@ -79,6 +79,7 @@ SET(Test_SRCS
     TestEditorFontPreferenceGui.py
     TestActivateViewGui.py
     TestRecomputeAllGui.py
+    TestAddonManagerProxyGui.py
     TestPropertyGroupIndicatorGui.py
     TestRecordedCommandImportsGui.py
     TestWorkbenchSelectorGui.py
