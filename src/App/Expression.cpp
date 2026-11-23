@@ -3375,6 +3375,30 @@ ExpressionPtr ConditionalExpression::simplify() const
     return falseExpr->simplify();
 }
 
+// A comparison or a conditional in a branch of a conditional is written in parentheses:
+// "a ? (b == c) : (d ? e : f)"
+static bool isParenthesizedBranch(const Expression* branch)
+{
+    if (freecad_cast<ConditionalExpression*>(branch)) {
+        return true;
+    }
+    auto op = freecad_cast<OperatorExpression*>(branch);
+    if (!op) {
+        return false;
+    }
+    switch (op->getOperator()) {
+        case OperatorExpression::EQ:
+        case OperatorExpression::NEQ:
+        case OperatorExpression::LT:
+        case OperatorExpression::GT:
+        case OperatorExpression::LTE:
+        case OperatorExpression::GTE:
+            return true;
+        default:
+            return false;
+    }
+}
+
 void ConditionalExpression::_toString(std::ostream &ss, bool persistent,int) const
 {
     // '?' is right-associative: "a ? b : c ? d : e" reads back as "a ? b : (c ? d : e)",
@@ -3386,7 +3410,7 @@ void ConditionalExpression::_toString(std::ostream &ss, bool persistent,int) con
     } else
         condition->toString(ss,persistent);
     ss << " ? ";
-    if (trueExpr->priority() <= priority()) {
+    if (isParenthesizedBranch(trueExpr)) {
         ss << '(';
         trueExpr->toString(ss,persistent);
         ss << ')';
@@ -3395,7 +3419,7 @@ void ConditionalExpression::_toString(std::ostream &ss, bool persistent,int) con
 
     ss << " : ";
 
-    if (falseExpr->priority() <= priority()) {
+    if (isParenthesizedBranch(falseExpr)) {
         ss << '(';
         falseExpr->toString(ss,persistent);
         ss << ')';
@@ -3415,7 +3439,10 @@ Expression *ConditionalExpression::_copy() const
 
 int ConditionalExpression::priority() const
 {
-    return 2;
+    // '?' binds loosest in the grammar, below the comparisons (priority 1): a conditional
+    // used as an operand must keep its parentheses, "(a ? b : c) == d" is not
+    // "a ? b : (c == d)"
+    return 0;
 }
 
 void ConditionalExpression::_visit(ExpressionVisitor &v)

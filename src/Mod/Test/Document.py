@@ -4268,6 +4268,28 @@ class DocumentExpressionCases(unittest.TestCase):
                 written = dict(obj.ExpressionEngine)["Value"]
                 self.assertEqual(obj.evalExpression(written), expected, written)
 
+    def testConditionalInComparisonKeepsParentheses(self):
+        # "?" binds loosest, but a conditional used as an operand of a comparison lost
+        # its parentheses when written back: "(1 ? 2 : 3) == 3" was saved as
+        # "1 ? 2 : 3 == 3", which reads back as "1 ? 2 : (3 == 3)"
+        obj = self.Doc.addObject("App::FeaturePython", "Obj")
+        obj.addProperty("App::PropertyFloat", "Value")
+        for expr, expected in (
+            ("(1 ? 2 : 3) == 3", 0),
+            ("3 == (1 ? 2 : 3)", 0),
+            ("(1 ? 2 : 3) < 3", 1),
+            ("(1 == 1 ? 2 : 3) != 2", 0),
+        ):
+            with self.subTest(expr=expr):
+                obj.setExpression("Value", expr)
+                self.Doc.recompute()
+                self.assertEqual(obj.Value, expected)
+                written = dict(obj.ExpressionEngine)["Value"]
+                self.assertEqual(obj.evalExpression(written), expected, written)
+        # comparisons in the branches keep the form they are written with
+        obj.setExpression("Value", "1 ? 2 == 2 : 3 != 3")
+        self.assertEqual(dict(obj.ExpressionEngine)["Value"], "1 ? (2 == 2) : (3 != 3)")
+
     def testAggregateFunctionsOverLists(self):
         # Aggregate functions skipped a list argument: sum(FL) and sum(list(1; 2; 3))
         # gave 0, average(FL) nan
