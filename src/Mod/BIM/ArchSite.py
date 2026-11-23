@@ -1843,8 +1843,9 @@ class _ViewProviderSite:
                 else:
                     self.diagramswitch.whichChild = -1
             if prop == "SolarDiagramScale":
-                # the wind rose is drawn at the solar diagram scale
+                # the wind rose and the sun path are drawn at the solar diagram scale
                 self.onChanged(vobj, "WindRose")
+                self.onChanged(vobj, "ShowSunPosition")
         elif prop in [
             "ShowSunPosition",
             "SunDateMonth",

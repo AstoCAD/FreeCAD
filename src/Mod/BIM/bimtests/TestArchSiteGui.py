@@ -161,6 +161,20 @@ class TestArchSiteGui(TestArchBaseGui.TestArchBaseGui):
             except Exception:
                 pass
 
+    def test_sun_path_follows_solar_diagram_scale(self):
+        """Changing SolarDiagramScale must redraw the sun path and sphere at the new radius."""
+        from unittest import mock
+
+        site = Arch.makeSite()
+        self.document.recompute()
+        self.pump_gui_events()
+        vobj = site.ViewObject
+
+        # The real update needs the optional ladybug or pysolar module
+        with mock.patch.object(vobj.Proxy, "updateSunPosition") as update:
+            vobj.SolarDiagramScale = 5000.0
+        self.assertTrue(update.called, "Sun path was not redrawn at the new scale")
+
     def test_legacy_site_migration(self):
         """Legacy migration test (<=1.0.0 -> newer)
 
