@@ -81,6 +81,31 @@ class TestExportCSGShapes(unittest.TestCase):
         cut.Tool = feat
         self._roundtrip(cut)
 
+    def test_link_operands_in_booleans(self):
+        """An operand that is a link is written too: the difference used to
+        be written without its base, which gave the tool."""
+        box = self.doc.addObject("Part::Box", "Box")
+        box.Length = box.Width = box.Height = 4
+        link = self.doc.addObject("App::Link", "Link")
+        link.LinkedObject = box
+        link.Placement = App.Placement(App.Vector(2, 0, 0), App.Rotation())
+        tool = self.doc.addObject("Part::Box", "Tool")
+        tool.Length = tool.Width = 1
+        tool.Height = 6
+        tool_link = self.doc.addObject("App::Link", "ToolLink")
+        tool_link.LinkedObject = tool
+        # the link's placement is the one of its shape, through the linked box
+        tool_link.Placement = App.Placement(App.Vector(3, 1, -1), App.Rotation())
+        for type_id in ("Part::Cut", "Part::Fuse", "Part::Common"):
+            with self.subTest(type_id=type_id):
+                boolean = self.doc.addObject(type_id, "Boolean")
+                boolean.Base = link
+                boolean.Tool = tool_link
+                self._roundtrip(boolean)
+        fuse = self.doc.addObject("Part::MultiFuse", "MultiFuse")
+        fuse.Shapes = [link, tool]
+        self._roundtrip(fuse)
+
     def test_extruded_plane(self):
         plane = self.doc.addObject("Part::Plane", "Plane")
         plane.Length = 4

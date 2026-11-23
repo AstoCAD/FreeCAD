@@ -143,6 +143,20 @@ def is_whole_primitive(ob):
     return True
 
 
+def process_operand(csg,ob):
+    '''Write an operand of a boolean. Unlike a selected object, an operand
+    can't be left out: a difference without its base would give the tool.
+    An operand that is not a Part feature (e.g. a link) is written as a
+    polyhedron of its placed shape, the shape the boolean itself uses.'''
+    if ob.isDerivedFrom('Part::Feature'):
+        process_object(csg,ob)
+        return
+    import Part
+    shape = Part.getShape(ob)
+    if not shape.isNull():
+        csg.write('%s\n' % shape2polyhedron(shape))
+
+
 def process_object(csg,ob):
     if not ob.isDerivedFrom('Part::Feature'):
         # groups, parts, links, annotations...: nothing written for them
@@ -263,8 +277,8 @@ def process_object(csg,ob):
         print("Cut")
         mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("difference() {\n")
-        process_object(csg,ob.Base)
-        process_object(csg,ob.Tool)
+        process_operand(csg,ob.Base)
+        process_operand(csg,ob.Tool)
         csg.write("}\n")
         if mm == 1: csg.write("}\n")
 
@@ -272,8 +286,8 @@ def process_object(csg,ob):
         print("union")
         mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("union() {\n")
-        process_object(csg,ob.Base)
-        process_object(csg,ob.Tool)
+        process_operand(csg,ob.Base)
+        process_operand(csg,ob.Tool)
         csg.write("}\n")
         if mm == 1: csg.write("}\n")
 
@@ -281,8 +295,8 @@ def process_object(csg,ob):
         print("intersection")
         mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("intersection() {\n")
-        process_object(csg,ob.Base)
-        process_object(csg,ob.Tool)
+        process_operand(csg,ob.Base)
+        process_operand(csg,ob.Tool)
         csg.write("}\n")
         if mm == 1: csg.write("}\n")
 
@@ -291,7 +305,7 @@ def process_object(csg,ob):
         mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("union() {\n")
         for subobj in ob.Shapes:
-            process_object(csg,subobj)
+            process_operand(csg,subobj)
         csg.write("}\n")
         if mm == 1: csg.write("}\n")
 
@@ -300,7 +314,7 @@ def process_object(csg,ob):
         mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("intersection() {\n")
         for subobj in ob.Shapes:
-            process_object(csg,subobj)
+            process_operand(csg,subobj)
         csg.write("}\n")
         if mm == 1: csg.write("}\n")
 
