@@ -1537,8 +1537,8 @@ int SketchObject::join(
 
     Base::StateLocker lock(managedoperation, true);
 
-    if (Sketcher::PointPos::start != posId1 && Sketcher::PointPos::end != posId1
-        && Sketcher::PointPos::start != posId2 && Sketcher::PointPos::end != posId2) {
+    if ((Sketcher::PointPos::start != posId1 && Sketcher::PointPos::end != posId1)
+        || (Sketcher::PointPos::start != posId2 && Sketcher::PointPos::end != posId2)) {
         THROWM(ValueError, "Invalid positions: points must be start or end points of a curve.");
         return -1;
     }

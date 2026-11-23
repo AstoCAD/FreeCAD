@@ -266,6 +266,23 @@ class TestSketchJoinCurves(unittest.TestCase):
         arc = Part.ArcOfCircle(Part.Circle(V(0, 0, 0), V(0, 0, 1), 5), 0.3, 2.5)
         self._joinArcAndLine(arc, True)
 
+    def testJoinRefusesAPositionThatIsNotAnEnd(self):
+        # One edge or center position used to pass the check: the curves were joined at other
+        # points than the given ones, and the constraints of the wrong ends moved to the spline.
+        self._line((0, 0, 0), (4, 0, 0))  # 0
+        self._line((4, 0, 0), (10, 0, 0))  # 1
+        self.sketch.addConstraint(Sketcher.Constraint("Coincident", 0, 2, 1, 1))
+        self.doc.recompute()
+
+        for pos1, pos2 in ((3, 1), (2, 3), (0, 1), (2, 0)):
+            with self.subTest(pos1=pos1, pos2=pos2):
+                with self.assertRaises(ValueError):
+                    self.sketch.join(0, pos1, 1, pos2)
+                self.assertEqual(self.sketch.GeometryCount, 2)
+                self.assertIsInstance(self.sketch.Geometry[0], Part.LineSegment)
+                self.assertIsInstance(self.sketch.Geometry[1], Part.LineSegment)
+                self.assertEqual(len(self.sketch.Constraints), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
