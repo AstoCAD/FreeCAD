@@ -72,7 +72,10 @@ void ArrayDelegate::paint(QPainter* painter,
         if (!tableModel->newRow(index)) {
             QVariant item = tableModel->data(index);
             auto quantity = item.value<Base::Quantity>();
-            text = QString::fromStdString(quantity.getUserString());
+            // An unset value is an empty cell, as in the property tree (BaseDelegate::paint())
+            if (quantity.isValid()) {
+                text = QString::fromStdString(quantity.getUserString());
+            }
         }
         painter->drawText(option.rect, 0, text);
         painter->restore();
