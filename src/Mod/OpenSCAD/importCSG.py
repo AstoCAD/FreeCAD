@@ -427,7 +427,9 @@ def p_offset_action(p):
     'offset_action : offset LPAREN keywordargument_list RPAREN OBRACE block_list EBRACE'
     subobj = None
     if len(p[6]) == 0:
-        newobj = placeholder('group',[],'{}')
+        # nothing to offset (e.g. only empty groups)
+        p[0] = [placeholder('group',[],'{}')]
+        return
     elif (len(p[6]) == 1 ): #single object
         subobj = p[6][0]
     else:
@@ -637,7 +639,7 @@ def p_difference_action(p):
     if printverbose: print(len(p[5]))
     if printverbose: print(p[5])
     if (len(p[5]) == 0 ): #nochild
-        mycut_unused = placeholder('group',[],'{}')
+        p[0] = [placeholder('group',[],'{}')]
     elif (len(p[5]) == 1 ): #single object
         p[0] = p[5]
     else:
@@ -733,6 +735,10 @@ def p_rotate_extrude_action(p):
     fnmax = FreeCAD.ParamGet(\
         "User parameter:BaseApp/Preferences/Mod/OpenSCAD").\
         GetInt('useMaxFN', 16)
+    # Test if null object like from null text
+    if (len(p[6]) == 0) :
+        p[0] = []
+        return
     if (len(p[6]) > 1) :
         part = fuse(p[6],"Rotate Extrude Union")
     else :
@@ -1398,6 +1404,10 @@ def p_polyhedron_action(p) :
 def p_projection_action(p) :
     'projection_action : projection LPAREN keywordargument_list RPAREN OBRACE block_list EBRACE'
     if printverbose: print('Projection')
+    # Test if null object like from null text
+    if (len(p[6]) == 0) :
+        p[0] = []
+        return
 
     doc.recompute()
     p[6][0].Shape.tessellate(0.05) # Ensure the bounding box calculation is not done with the splines, which can give a bad result

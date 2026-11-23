@@ -37,6 +37,7 @@ from OpenSCADTest.app.test_exportCSGShapes import TestExportCSGShapes as OpenSCA
 from OpenSCADTest.app.test_importCSGMeshFile import TestCsgImportMeshFile as OpenSCADTestCsgImportMeshFile
 from OpenSCADTest.app.test_importCSGTextEncoding import TestCsgTextEncoding as OpenSCADTestCsgTextEncoding
 from OpenSCADTest.app.test_importCSGSvgFile import TestCsgImportSvgFile as OpenSCADTestCsgImportSvgFile
+from OpenSCADTest.app.test_importCSGEmptyChildren import TestCsgEmptyChildren as OpenSCADTestCsgEmptyChildren
 
 # dummy usage to get flake8 and lgtm quiet
 False if OpenSCADTestImportCSG.__name__ else True
