@@ -381,6 +381,18 @@ class UnitBasicCases(unittest.TestCase):
         self.assertEqual(FreeCAD.Units.Quantity(1, 3).Unit, FreeCAD.Units.Volume)
         self.assertEqual(FreeCAD.Units.parseQuantity("1 m^3").Value, 1e9)
 
+    def testUnitProductExponentOutOfRangeRaises(self):
+        # The C++ OverflowError/UnderflowError of Unit * Unit escaped from the
+        # multiplication slot and aborted the running script.
+        unit = FreeCAD.Units.Unit
+        with self.assertRaises(OverflowError):
+            unit(4) * unit(4)
+        with self.assertRaises(ArithmeticError):
+            unit(-5) * unit(-4)
+        # products in range are unchanged
+        self.assertEqual(unit(4) * unit(3), unit(7))
+        self.assertEqual(unit(1) * unit(1), FreeCAD.Units.Area)
+
     def testSetSchemaInvalidArgument(self):
         # an argument that is not an int returned None with the parse error
         # still set (SystemError) instead of raising it

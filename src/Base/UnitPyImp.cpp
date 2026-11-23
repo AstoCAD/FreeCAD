@@ -164,7 +164,13 @@ PyObject* UnitPy::number_multiply_handler(PyObject* self, PyObject* other)
         Unit* a = static_cast<UnitPy*>(self)->getUnitPtr();
         Unit* b = static_cast<UnitPy*>(other)->getUnitPtr();
 
-        return new UnitPy(new Unit((*a) * (*b)));
+        // the product can exceed the exponent range (Unit(4) * Unit(4)); this is the
+        // nb_multiply slot, so the C++ exception must become a Python error here
+        PY_TRY
+        {
+            return new UnitPy(new Unit((*a) * (*b)));
+        }
+        PY_CATCH
     }
     PyErr_SetString(PyExc_TypeError, "A Unit can only be multiplied by a Unit");
     return nullptr;
