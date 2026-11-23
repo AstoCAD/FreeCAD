@@ -148,7 +148,7 @@ class ElmerTools(ObjectTools):
         except Exception:
             # do nothing
             pass
-        if create:
+        if create and FreeCAD.GuiUp:
             # default display mode
             pipeline.ViewObject.DisplayMode = "Surface"
             pipeline.ViewObject.SelectionStyle = "BoundBox"

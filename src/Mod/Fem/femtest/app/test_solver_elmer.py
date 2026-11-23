@@ -229,6 +229,28 @@ class TestSolverElmer(unittest.TestCase):
             self.assertIn('Name = String "Acier Ωμέγα 日本"', f.read())
 
     # ********************************************************************************************
+    def test_load_results_without_gui(self):
+        # after a run, the result pipeline is created and its default display mode set. Without
+        # GUI (scripts, FreeCADCmd) there is no view object: loading the results failed with
+        # AttributeError after the pipeline had been added
+        if "BUILD_FEM_VTK" not in FreeCAD.__cmake__:
+            self.skipTest("FEM was built without VTK, there is no result pipeline")
+        import ObjectsFem
+        from femsolver.elmer import elmertools
+
+        analysis = ObjectsFem.makeAnalysis(self.document, "Analysis")
+        solver = ObjectsFem.makeSolverElmer(self.document, "SolverElmer")
+        analysis.addObject(solver)
+        solver.WorkingDirectory = testtools.get_fem_test_tmp_dir(self.pre_dir_name + "results")
+
+        tool = elmertools.ElmerTools(solver)
+        tool._load_vtk_results()
+
+        pipelines = [r for r in solver.Results if r.isDerivedFrom("Fem::FemPostPipeline")]
+        self.assertEqual(len(pipelines), 1)
+        self.assertIn(pipelines[0], analysis.Group)
+
+    # ********************************************************************************************
     def input_file_writing_test(self, base_name):
         self.document.recompute()
 
