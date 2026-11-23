@@ -3380,6 +3380,14 @@ QString PropertyFloatListItem::toString(const QVariant& prop) const
         list = list.mid(0, size);
         list.append(QStringLiteral("..."));
     }
+    // the value holds all digits, the cell shows the numbers with the user's decimals
+    for (QString& text : list) {
+        bool ok = false;
+        const double number = text.toDouble(&ok);
+        if (ok) {
+            text = QString::number(number, 'f', decimals());
+        }
+    }
     return QStringLiteral("[%1]").arg(list.join(QLatin1Char(',')));
 }
 
@@ -3387,10 +3395,12 @@ QVariant PropertyFloatListItem::value(const App::Property* prop) const
 {
     assert(prop && prop->isDerivedFrom<App::PropertyFloatList>());
 
+    // All digits: the list editor edits this text and setValue() writes it back for every
+    // element, so with the display decimals an edit rounded the others (1234.56789 -> 1234.57).
     QStringList list;
     const std::vector<double>& value = static_cast<const App::PropertyFloatList*>(prop)->getValues();
     for (double jt : value) {
-        list << QString::number(jt, 'f', decimals());
+        list << QString::number(jt, 'g', QLocale::FloatingPointShortest);
     }
 
     return {list};

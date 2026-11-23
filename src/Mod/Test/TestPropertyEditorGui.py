@@ -151,6 +151,38 @@ class TestPropertyEditorFileStrings(PropertyEditorGuiTestCase):
         self.check_round_trip("Map", value)
 
 
+class TestPropertyEditorFloatList(PropertyEditorGuiTestCase):
+    """The float list editor edited the numbers rounded to the display decimals and wrote
+    them all back: changing one element rounded the others."""
+
+    def setUp(self):
+        super().setUp()
+        self.obj = self.doc.addObject("App::FeaturePython", "ListObject")
+        self.obj.addProperty("App::PropertyFloatList", "Values", "IssueAudit")
+        self.obj.Values = [0.125, 1234.56789, 1e-07]
+        self.doc.recompute()
+        self.model, _ = self.property_model(self.obj, "Label")
+        self.index = self.find_property_index(self.model, "Values")
+        self.assertTrue(self.index.isValid())
+
+    def test_editing_one_element_keeps_the_others(self):
+        values = list(self.model.data(self.index, QtCore.Qt.EditRole))
+        self.assertEqual(len(values), 3)
+        values[1] = "2"  # what the list editor gives back when the user changes one line
+        self.assertTrue(self.model.setData(self.index, values, QtCore.Qt.EditRole))
+        Gui.updateGui()
+        self.assertEqual(list(self.obj.Values), [0.125, 2.0, 1e-07])
+
+    def test_cell_shows_the_display_decimals(self):
+        text = self.model.data(self.index, QtCore.Qt.DisplayRole)
+        self.assertTrue(text.startswith("[") and text.endswith("]"), text)
+        numbers = text[1:-1].split(",")
+        self.assertEqual(len(numbers), 3, text)
+        self.assertNotIn("e", text)
+        # one number of decimals for all, as before: the user's display decimals
+        self.assertEqual(len({len(number.partition(".")[2]) for number in numbers}), 1, text)
+
+
 class TestPropertyEditorEnums(PropertyEditorGuiTestCase):
     def setUp(self):
         super().setUp()
