@@ -389,3 +389,64 @@ class TestSketchGroupsGui(SketcherGuiTestCase):
                 self.assertLess((moved - delta).Length, 1e-6, geo)
         for geo, point in enumerate(others):
             self.assertLess((m.Geometry[geo].StartPoint - point).Length, 1e-6, geo)
+
+    def testMergeSketchesKeepsWholeGroup(self):
+        # Merge Sketches renumbered only the first three elements of the merged constraints: the
+        # last members of a group of the second sketch kept their index in that sketch, so they
+        # named geometry of the first sketch in the merged one.
+        Gui.activateWorkbench("SketcherWorkbench")
+        self.doc = App.newDocument("MergeSketchesGroup")
+        first = self.doc.addObject("Sketcher::SketchObject", "Sketch")
+        for x in (-50, -40, -30, -20, -10):
+            first.addGeometry(Part.LineSegment(App.Vector(x, 0, 0), App.Vector(x, 7, 0)))
+        second = self.doc.addObject("Sketcher::SketchObject", "Sketch")
+        handle = second.addGeometry(
+            Part.LineSegment(App.Vector(10, 0, 0), App.Vector(10, 10, 0)), True
+        )
+        members = [
+            second.addGeometry(Part.LineSegment(App.Vector(12, 0, 0), App.Vector(15, 3, 0))),
+            second.addGeometry(Part.Circle(App.Vector(13, 6, 0), App.Vector(0, 0, 1), 1)),
+            second.addGeometry(Part.LineSegment(App.Vector(16, 0, 0), App.Vector(17, 3, 0))),
+            second.addGeometry(Part.LineSegment(App.Vector(18, 1, 0), App.Vector(19, 4, 0))),
+        ]
+        elements = [handle, 0]
+        for member in members:
+            elements.extend([member, 0])
+        second.addConstraint(Sketcher.Constraint("Group", elements))
+        self.assertEqual(second.solve(), 0)
+        self.doc.recompute()
+
+        before = set(self.doc.Objects)
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(first)
+        Gui.Selection.addSelection(second)
+        Gui.runCommand("Sketcher_MergeSketches", 0)
+        self.flush_gui(50)
+        merged = [o for o in self.doc.Objects if o not in before]
+        self.assertEqual(len(merged), 1)
+        m = merged[0]
+        offset = first.GeometryCount
+        self.assertEqual(m.GeometryCount, offset + second.GeometryCount)
+        self.assertEqual(sum(c.Type == "Group" for c in m.Constraints), 1)
+        self.assertEqual(m.solve(), 0)
+
+        # Keep the merged handle rigid: dragging it must translate every member of the group,
+        # and nothing of the first sketch.
+        mergedHandle = offset + handle
+        mergedMembers = [offset + member for member in members]
+        m.addConstraint(Sketcher.Constraint("Vertical", mergedHandle))
+        m.addConstraint(Sketcher.Constraint("Distance", mergedHandle, 10.0))
+        self.assertEqual(m.solve(), 0)
+        others = [m.Geometry[g].StartPoint for g in range(offset)]
+        moved = {g: m.Geometry[g] for g in mergedMembers}
+        delta = App.Vector(-5, 4, 0)
+        m.moveGeometry(mergedHandle, 1, m.Geometry[mergedHandle].StartPoint + delta, 0)
+        self.assertEqual(m.solve(), 0)
+        for geo in mergedMembers:
+            if geo == offset + members[1]:
+                shift = m.Geometry[geo].Center - moved[geo].Center
+            else:
+                shift = m.Geometry[geo].StartPoint - moved[geo].StartPoint
+            self.assertLess((shift - delta).Length, 1e-6, geo)
+        for geo, point in enumerate(others):
+            self.assertLess((m.Geometry[geo].StartPoint - point).Length, 1e-6, geo)

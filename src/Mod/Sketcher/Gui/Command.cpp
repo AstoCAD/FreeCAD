@@ -1361,9 +1361,22 @@ void CmdSketcherMergeSketches::activated(int iMsg)
             for (int i = 0; i < addedConstraints; i++) {
                 int index = i + baseConstraints;
                 auto* constraint = mergeSketch->Constraints.getValues()[index];
+                // Group and Text constraints list their further members past the first three
+                // elements.
+                auto remapFurtherElements = [&]() {
+                    for (int element = 3; constraint->hasElement(element); ++element) {
+                        int geoId = constraint->getGeoId(element);
+                        if (!remapGeoId(geoId, extGeoIdMap)) {
+                            return false;
+                        }
+                        constraint->setGeoId(element, geoId);
+                    }
+                    return true;
+                };
                 if (!remapGeoId(constraint->First, extGeoIdMap)
                     || !remapGeoId(constraint->Second, extGeoIdMap)
-                    || !remapGeoId(constraint->Third, extGeoIdMap)) {
+                    || !remapGeoId(constraint->Third, extGeoIdMap)
+                    || !remapFurtherElements()) {
                     constraintsToDelete.push_back(index);
                     QString msg = qApp->translate(
                         "CmdSketcherMergeSketches",
