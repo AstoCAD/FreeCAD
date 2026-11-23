@@ -97,7 +97,8 @@ Facet& Facet::operator=(Facet&& f)
 
 Edge Facet::getEdge(int index) const
 {
-    index = index % 3;
+    // wrap any index into 0..2, also a negative one (-1 is the last edge)
+    index = ((index % 3) + 3) % 3;
     Edge edge;
     // geometric coordinates
     edge._aclPoints[0] = this->_aclPoints[index];

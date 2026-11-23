@@ -701,6 +701,17 @@ class MeshFacetIndexRange(unittest.TestCase):
         self.assertEqual(self.mesh.countSegments(), 1)
         self.assertEqual(self.mesh.getSegment(0), [0, 1])
 
+    def testFacetEdgeNegativeIndex(self):
+        # like an index above 2, a negative edge index wraps around: -1 is the last edge
+        facet = self.mesh.Facets[0]
+        for index, expected in ((-1, 2), (-2, 1), (-3, 0), (-4, 2), (3, 0), (5, 2)):
+            with self.subTest(index=index):
+                edge = facet.getEdge(index)
+                other = facet.getEdge(expected)
+                self.assertEqual(edge.PointIndices, other.PointIndices)
+                self.assertEqual(edge.NeighbourIndices, other.NeighbourIndices)
+                self.assertEqual(edge.Points, other.Points)
+
     def testStaleFacet(self):
         facet = self.mesh.Facets[11]
         self.assertGreater(facet.Area, 0.0)
