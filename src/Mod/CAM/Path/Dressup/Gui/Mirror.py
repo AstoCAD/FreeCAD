@@ -196,6 +196,10 @@ class ObjectDressup:
                     # process Z move
                     cmd.z += offsetZ
 
+                if cmd.r is not None and cmd.Name not in Constants.GCODE_MOVE_ARC:
+                    # the R of a canned cycle is the Z of its retract plane
+                    cmd.r += offsetZ
+
                 if cmd.i is not None and obj.MirrorAxis in ("Y", "XY"):
                     # process I (X offset) from Arc move
                     cmd.i = -cmd.i
