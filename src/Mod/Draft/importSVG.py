@@ -834,16 +834,20 @@ class svgHandler(xml.sax.ContentHandler):
             self._msg("data: {}".format(data))
 
             if "freecad:basepoint1" in data:
-                p1 = data["freecad:basepoint1"]
-                p1 = Vector(float(p1[0]), -float(p1[1]), 0)
-                p2 = data["freecad:basepoint2"]
-                p2 = Vector(float(p2[0]), -float(p2[1]), 0)
-                p3 = data["freecad:dimpoint"]
-                p3 = Vector(float(p3[0]), -float(p3[1]), 0)
-                obj = make_dimension.make_dimension(p1, p2, p3)
-                self.applyTrans(obj)
-                self.format(obj)
-                self.lastdim = obj
+                # A headless handler only reads shapes, into a document that is not
+                # the active one (readShapes), and make_dimension adds the dimension
+                # to the active document: a dimension has no shape to read anyway.
+                if not self.headless:
+                    p1 = data["freecad:basepoint1"]
+                    p1 = Vector(float(p1[0]), -float(p1[1]), 0)
+                    p2 = data["freecad:basepoint2"]
+                    p2 = Vector(float(p2[0]), -float(p2[1]), 0)
+                    p3 = data["freecad:dimpoint"]
+                    p3 = Vector(float(p3[0]), -float(p3[1]), 0)
+                    obj = make_dimension.make_dimension(p1, p2, p3)
+                    self.applyTrans(obj)
+                    self.format(obj)
+                    self.lastdim = obj
                 data["d"] = []
 
             if "d" in data:

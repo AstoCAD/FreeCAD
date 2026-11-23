@@ -416,6 +416,29 @@ class DraftSVGImportRegression(test_base.DraftTestCaseDoc):
         labels = [o.LabelText for o in self.doc.Objects if o.isDerivedFrom("App::Annotation")]
         self.assertEqual(labels, [[text] for text in texts])
 
+    def test_read_shapes_leaves_active_document_unchanged(self):
+        """readShapes of an SVG with a FreeCAD dimension adds nothing to the active document."""
+        svg = (
+            '<?xml version="1.0"?>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'xmlns:freecad="https://www.freecad.org/wiki/index.php?title=Svg_Namespace" '
+            'width="100mm" height="100mm" viewBox="0 0 100 100">'
+            '<path d="M 0 0 L 10 0" freecad:basepoint1="0 0" freecad:basepoint2="10 0" '
+            'freecad:dimpoint="5 5" stroke="#000000"/>'
+            '<rect x="20" y="20" width="10" height="5" stroke="#000000" fill="none"/>'
+            "</svg>\n"
+        )
+        self.assertEqual(App.ActiveDocument, self.doc)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_file = os.path.join(temp_dir, "dimension.svg")
+            with open(in_file, "w", encoding="utf-8") as svg_file:
+                svg_file.write(svg)
+            shapes = importSVG.readShapes(in_file)
+        self.assertEqual(len(shapes), 1)
+        self.assertEqual(len(shapes[0].Edges), 4)
+        self.assertEqual(self.doc.Objects, [])
+        self.assertEqual(App.ActiveDocument, self.doc)
+
 
 class DraftSVGExportRegression(test_base.DraftTestCaseDoc):
     """Regression tests for SVG export edge cases."""
