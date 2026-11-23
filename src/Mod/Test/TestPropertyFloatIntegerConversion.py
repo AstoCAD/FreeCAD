@@ -172,3 +172,64 @@ class TestPropertyFloatIntegerBoundary(unittest.TestCase):
             self.assertFalse(self.doc.isTouched())
         self.assertEqual(self.doc.UndoNames, [])
         self.assertFalse(self.doc.HasPendingTransaction)
+
+
+class TestPropertyVectorIntegerConversion(unittest.TestCase):
+    """An int in a vector tuple is a coordinate, converted like a float property's int."""
+
+    def setUp(self):
+        self.doc = App.newDocument("VectorIntegerBoundary_" + uuid4().hex[:10])
+        self.doc_name = self.doc.Name
+        self.addCleanup(self._cleanup)
+        self.obj = self.doc.addObject("App::VarSet", "Variables")
+        self.obj.addProperty("App::PropertyVector", "Vector", "Values")
+        self.obj.addProperty("App::PropertyVectorList", "Points", "Values")
+        self.obj.Vector = App.Vector(1, 2, 3)
+        self.obj.Points = [App.Vector(1, 2, 3)]
+
+    def _cleanup(self):
+        if self.doc_name in App.listDocuments():
+            App.closeDocument(self.doc_name)
+
+    @staticmethod
+    def _assign(owner, name, value):
+        try:
+            setattr(owner, name, value)
+            _checked_error_boundary()
+        except BaseException as error:
+            return error
+        return None
+
+    def test_integer_beyond_c_long_keeps_its_value(self):
+        for index in range(3):
+            for value in (2 ** 40, -(2 ** 40), 2 ** 80):
+                coordinates = [1, 2, 3]
+                coordinates[index] = value
+                expected = App.Vector(*[float(c) for c in coordinates])
+                with self.subTest(index=index, value=value, property="Vector"):
+                    error = self._assign(self.obj, "Vector", tuple(coordinates))
+                    self.assertIsNone(error, repr(error))
+                    self.assertEqual(self.obj.Vector, expected)
+                with self.subTest(index=index, value=value, property="Points"):
+                    error = self._assign(self.obj, "Points", [tuple(coordinates)])
+                    self.assertIsNone(error, repr(error))
+                    self.assertEqual(self.obj.Points, [expected])
+
+    def test_unrepresentable_integer_rejected_without_mutation(self):
+        for index in range(3):
+            coordinates = [4, 5, 6]
+            coordinates[index] = 10 ** 400
+            with self.subTest(index=index, property="Vector"):
+                error = self._assign(self.obj, "Vector", tuple(coordinates))
+                self.assertIsInstance(error, OverflowError, repr(error))
+                self.assertEqual(self.obj.Vector, App.Vector(1, 2, 3))
+            with self.subTest(index=index, property="Points"):
+                error = self._assign(self.obj, "Points", [tuple(coordinates)])
+                self.assertIsInstance(error, OverflowError, repr(error))
+                self.assertEqual(self.obj.Points, [App.Vector(1, 2, 3)])
+
+    def test_small_integers_control(self):
+        self.assertIsNone(self._assign(self.obj, "Vector", (-1, 0, True)))
+        self.assertEqual(self.obj.Vector, App.Vector(-1, 0, 1))
+        self.assertIsNone(self._assign(self.obj, "Points", [(7, -8, 9), (0.5, 1, 2)]))
+        self.assertEqual(self.obj.Points, [App.Vector(7, -8, 9), App.Vector(0.5, 1, 2)])

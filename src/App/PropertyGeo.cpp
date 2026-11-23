@@ -137,7 +137,11 @@ Base::Vector3d PropertyVector::vectorFromPy(PyObject* value)
             cVec.x = PyFloat_AsDouble(item);
         }
         else if (PyLong_Check(item)) {
-            cVec.x = (double)PyLong_AsLong(item);
+            // a Python int may exceed a C long but still be a valid coordinate
+            cVec.x = PyLong_AsDouble(item);
+            if (PyErr_Occurred()) {
+                throw Py::Exception();
+            }
         }
         else {
             throw Base::TypeError("Not allowed type used in tuple (float expected)...");
@@ -148,7 +152,10 @@ Base::Vector3d PropertyVector::vectorFromPy(PyObject* value)
             cVec.y = PyFloat_AsDouble(item);
         }
         else if (PyLong_Check(item)) {
-            cVec.y = (double)PyLong_AsLong(item);
+            cVec.y = PyLong_AsDouble(item);
+            if (PyErr_Occurred()) {
+                throw Py::Exception();
+            }
         }
         else {
             throw Base::TypeError("Not allowed type used in tuple (float expected)...");
@@ -159,7 +166,10 @@ Base::Vector3d PropertyVector::vectorFromPy(PyObject* value)
             cVec.z = PyFloat_AsDouble(item);
         }
         else if (PyLong_Check(item)) {
-            cVec.z = (double)PyLong_AsLong(item);
+            cVec.z = PyLong_AsDouble(item);
+            if (PyErr_Occurred()) {
+                throw Py::Exception();
+            }
         }
         else {
             throw Base::TypeError("Not allowed type used in tuple (float expected)...");
