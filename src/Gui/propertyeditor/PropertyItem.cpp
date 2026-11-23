@@ -1454,12 +1454,9 @@ namespace Gui::PropertyEditor
 {
 class VectorLineEdit: public Gui::ExpLineEdit
 {
-    int decimals;
-
 public:
-    explicit VectorLineEdit(int decimals, QWidget* parent = nullptr, bool expressionOnly = false)
+    explicit VectorLineEdit(QWidget* parent = nullptr, bool expressionOnly = false)
         : Gui::ExpLineEdit(parent, expressionOnly)
-        , decimals(decimals)
     {}
 
     bool apply(const std::string& propName) override
@@ -1470,10 +1467,13 @@ public:
             if (data.canConvert<Base::Vector3d>()) {
                 const Base::Vector3d& value = data.value<Base::Vector3d>();
 
+                // All digits, as PropertyVectorItem::setValue(): with the display decimals,
+                // discarding the expression rounded the vector it leaves (12.3456 -> 12.35).
+                auto number = [](double v) {
+                    return QString::number(v, 'g', QLocale::FloatingPointShortest);
+                };
                 QString str = QStringLiteral("(%1, %2, %3)")
-                                  .arg(value.x, 0, 'f', decimals)
-                                  .arg(value.y, 0, 'f', decimals)
-                                  .arg(value.z, 0, 'f', decimals);
+                                  .arg(number(value.x), number(value.y), number(value.z));
 
                 Gui::Command::doCommand(
                     Gui::Command::Doc,
@@ -1553,7 +1553,7 @@ QWidget* PropertyVectorItem::createEditor(
     FrameOption frameOption
 ) const
 {
-    auto le = new VectorLineEdit(decimals(), parent);
+    auto le = new VectorLineEdit(parent);
     le->setFrame(static_cast<bool>(frameOption));
     le->setReadOnly(true);
 
@@ -1873,7 +1873,7 @@ QWidget* PropertyVectorDistanceItem::createEditor(
     FrameOption frameOption
 ) const
 {
-    auto le = new VectorLineEdit(decimals(), parent);
+    auto le = new VectorLineEdit(parent);
     le->setFrame(static_cast<bool>(frameOption));
     le->setReadOnly(true);
 

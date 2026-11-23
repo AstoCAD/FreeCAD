@@ -183,6 +183,40 @@ class TestPropertyEditorFloatList(PropertyEditorGuiTestCase):
         self.assertEqual(len({len(number.partition(".")[2]) for number in numbers}), 1, text)
 
 
+class TestPropertyEditorVectorApply(PropertyEditorGuiTestCase):
+    """The vector editor wrote its vector with the display decimals when it was applied
+    without an expression, e.g. when the expression of the vector was discarded."""
+
+    def test_apply_keeps_all_digits(self):
+        value = App.Vector(12.3456789, -0.000123456, 1e-07)
+        obj = self.doc.addObject("App::FeaturePython", "VectorObject")
+        obj.addProperty("App::PropertyVector", "Offset", "IssueAudit")
+        obj.Offset = value
+        self.doc.recompute()
+        model, _ = self.property_model(obj, "Label")
+        index = self.find_property_index(model, "Offset")
+        self.assertTrue(index.isValid())
+        tree = next(
+            tree for tree in Gui.getMainWindow().findChildren(
+                QtWidgets.QTreeView, "propertyEditorData"
+            ) if tree.model() == model
+        )
+        tree.scrollTo(index)
+        Gui.updateGui()
+        QtTest.QTest.mouseClick(tree.viewport(), QtCore.Qt.LeftButton,
+                               QtCore.Qt.NoModifier, tree.visualRect(index).center())
+        Gui.updateGui()
+        editor = QtWidgets.QApplication.focusWidget()
+        self.assertIsInstance(editor, QtWidgets.QLineEdit)
+        self.assertTrue(tree.isAncestorOf(editor))
+        binding = Gui.ExpressionBinding(editor)
+        self.assertTrue(binding.isBound())
+        # what discarding the expression of the vector runs, without an expression to discard
+        binding.apply("App.getDocument('{}').{}.Offset".format(self.doc.Name, obj.Name))
+        Gui.updateGui()
+        self.assertEqual(obj.Offset, value)
+
+
 class TestPropertyEditorEnums(PropertyEditorGuiTestCase):
     def setUp(self):
         super().setUp()
