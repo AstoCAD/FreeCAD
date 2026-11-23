@@ -374,7 +374,7 @@ void PropertyFileIncluded::setPyObject(PyObject* value)
         else if (PyBytes_Check(file)) {
             fileStr = PyBytes_AsString(file);
         }
-        else if (isIOFile(value)) {
+        else if (isIOFile(file)) {
             fileStr = getNameFromFile(file);
         }
         else {

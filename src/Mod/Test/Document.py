@@ -3658,6 +3658,21 @@ class DocumentFileIncludeCases(unittest.TestCase):
         self.assertTrue(os.path.exists(L7.File))
         FreeCAD.closeDocument("Doc2")
 
+    def testFileObjectWithNewName(self):
+        # An open file was accepted alone but not in a (file, new name) tuple: the
+        # tuple was tested for being a file instead of its first item.
+        source_path = os.path.join(tempfile.gettempdir(), "FileIncludeFileObject.txt")
+        with open(source_path, "w") as file:
+            file.write("from a file object")
+        obj = self.Doc.addObject("App::DocumentObjectFileIncluded", "FromFileObject")
+        with open(source_path, "r") as file:
+            obj.File = (file, "Renamed.txt")
+        self.assertEqual(obj.File.split("/")[-1], "Renamed.txt")
+        with open(obj.File, "r") as file:
+            self.assertEqual(file.read(), "from a file object")
+        with self.assertRaises(TypeError):
+            obj.File = (1, "Other.txt")
+
     def testBinarySaveRestore(self):
         payload = bytes((i % 251 for i in range(150000))) + b"\x00FreeCAD\x00restore\x00"
         source_path = os.path.join(tempfile.gettempdir(), "FileIncludeBinarySource.bin")
