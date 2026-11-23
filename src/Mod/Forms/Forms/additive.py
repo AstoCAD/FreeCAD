@@ -77,6 +77,12 @@ _NATIVE_OPERATIONS = {
 
 MATCH_CORNER_SHARPNESS = 10.0
 
+# Version of the data of a Part Design Form, stored in PartDesignFormVersion.
+# A Form restored with an older version is upgraded by onDocumentRestored().
+# 0: written before the version was stored; the result was never refined.
+# 1: the combined result is refined when Refine is set.
+PARTDESIGN_FORM_VERSION = 1
+
 
 def _primitive_proxy(obj):
     form_type = str(obj.FormType).removeprefix("Forms::")
@@ -143,6 +149,7 @@ class PartDesignFormProxy(FormFeatureProxy):
             PRIMITIVES[primitive][0](obj)
         obj.Proxy = self
         self._ensure_partdesign_properties(obj, operation)
+        obj.PartDesignFormVersion = PARTDESIGN_FORM_VERSION
         obj.BaseFeature = base_feature
         obj.PrimitiveKind = primitive
         self.onChanged(obj, "CageMode")
@@ -217,6 +224,15 @@ class PartDesignFormProxy(FormFeatureProxy):
                 group,
                 "Result of combining the Form with the preceding feature",
             )
+        if "PartDesignFormVersion" not in obj.PropertiesList:
+            # Absent from a document written before the version was stored:
+            # version 0 until onDocumentRestored() upgrades the Form.
+            obj.addProperty(
+                "App::PropertyInteger",
+                "PartDesignFormVersion",
+                group,
+                "Part Design Form data version",
+            )
         for name in (
             "Operation",
             "PrimitiveKind",
@@ -224,9 +240,21 @@ class PartDesignFormProxy(FormFeatureProxy):
             "EditingForm",
             "MatchBoundary",
             "CombinationStatus",
+            "PartDesignFormVersion",
         ):
             obj.setEditorMode(name, 2)
         return migrated
+
+    @staticmethod
+    def _upgrade_partdesign_data(obj):
+        """Bring a restored Form to PARTDESIGN_FORM_VERSION without changing
+        its saved result."""
+        if obj.PartDesignFormVersion < 1 and "Refine" in obj.PropertiesList:
+            # The Form did not refine its result before version 1, whatever
+            # its Refine value. Show the value it was computed with.
+            obj.Refine = False
+        if obj.PartDesignFormVersion < PARTDESIGN_FORM_VERSION:
+            obj.PartDesignFormVersion = PARTDESIGN_FORM_VERSION
 
     def _topology(self, obj):
         proxy = _primitive_proxy(obj)
@@ -379,6 +407,7 @@ class PartDesignFormProxy(FormFeatureProxy):
         self._ensure_sharpness_properties(obj)
         self._ensure_local_edit_properties(obj)
         migrated = self._ensure_partdesign_properties(obj, _partdesign_operation(obj))
+        self._upgrade_partdesign_data(obj)
         obj.Proxy = self
         self.onChanged(obj, "CageMode")
         if migrated:

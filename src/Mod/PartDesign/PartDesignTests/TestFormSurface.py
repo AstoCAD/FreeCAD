@@ -978,6 +978,75 @@ class TestAdditiveForm(unittest.TestCase):
             form.Shape.Volume, unrefined.Volume, delta=unrefined.Volume * 1.0e-6
         )
 
+    def testRestoreKeepsTheUnrefinedResultOfAFormSavedBeforeRefine(self):
+        def form_across_the_source_edge(body, source):
+            form = Forms.create_additive_form(
+                body,
+                source,
+                "Box",
+                placement=App.Placement(App.Vector(20, 10, 5), App.Rotation()),
+            )
+            form.Length = 10
+            form.Width = 10
+            form.Height = 10
+            return form
+
+        handle, path = tempfile.mkstemp(suffix=".FCStd")
+        os.close(handle)
+        try:
+            preference = App.ParamGet(
+                "User parameter:BaseApp/Preferences/Mod/PartDesign"
+            ).GetBool("RefineModel", True)
+            old = form_across_the_source_edge(self.body, self.source)
+            # As for a native feature, the preference sets the default
+            self.assertEqual(old.Refine, preference)
+            old.Refine = False
+            self.document.recompute()
+            unrefined_faces = len(old.Shape.Faces)
+            refined_faces = len(old.Shape.removeSplitter().Faces)
+            self.assertLess(refined_faces, unrefined_faces)
+            # A Form saved before it refined its result: no data version, and
+            # Refine set while its saved result is not refined.
+            old.removeProperty("PartDesignFormVersion")
+            old.Refine = True
+            old.purgeTouched()
+            old_name = old.Name
+
+            new_body = self.document.addObject("PartDesign::Body", "NewBody")
+            new_source = new_body.newObject("PartDesign::Feature", "NewSource")
+            new_source.Shape = Part.makeBox(20, 20, 10)
+            new = form_across_the_source_edge(new_body, new_source)
+            new.Refine = True
+            self.document.recompute()
+            self.assertEqual(len(new.Shape.Faces), refined_faces)
+            new_name = new.Name
+
+            self.document.saveAs(path)
+            App.closeDocument(self.document.Name)
+            self.document = App.openDocument(path)
+            old = self.document.getObject(old_name)
+            new = self.document.getObject(new_name)
+
+            self.assertFalse(old.Refine)
+            self.assertEqual(old.PartDesignFormVersion, new.PartDesignFormVersion)
+            self.assertNotIn("Touched", old.State)
+            self.assertEqual(len(old.Shape.Faces), unrefined_faces)
+            self.assertTrue(new.Refine)
+            old.touch()
+            new.touch()
+            self.document.recompute()
+            self.assertEqual(old.CombinationStatus, "Valid fused additive form")
+            self.assertEqual(len(old.Shape.Faces), unrefined_faces)
+            self.assertEqual(len(new.Shape.Faces), refined_faces)
+
+            # The restored Form refines once Refine is set again
+            old.Refine = True
+            self.document.recompute()
+            self.assertEqual(len(old.Shape.Faces), refined_faces)
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
     def _patternedSubtractiveForm(self):
         form = Forms.create_subtractive_form(
             self.body,
