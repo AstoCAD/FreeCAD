@@ -35,6 +35,7 @@
 #include <App/Expression.h>
 #include <App/ObjectIdentifier.h>
 #include <App/PropertyGeo.h>
+#include <Base/StringUtils.h>
 #include <Base/Tools.h>
 
 
@@ -205,7 +206,14 @@ bool ExpressionBinding::assignToProperty(const std::string& propName, double val
         }
     }
 
-    Gui::Command::doCommand(Gui::Command::Doc, "%s = %f", propName.c_str(), value);
+    // All digits: "%f" keeps only 6 decimals (1e-07 mm became 0, and an angle written in
+    // radians lost its last digits). The shortest locale-independent text of the double.
+    Gui::Command::doCommand(
+        Gui::Command::Doc,
+        "%s = %s",
+        propName.c_str(),
+        Base::StringUtils::formatDouble(value).c_str()
+    );
     return true;
 }
 

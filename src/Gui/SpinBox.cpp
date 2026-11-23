@@ -31,6 +31,7 @@
 
 #include <App/ExpressionParser.h>
 #include <App/PropertyUnits.h>
+#include <Base/StringUtils.h>
 
 #include "SpinBox.h"
 #include "Command.h"
@@ -631,7 +632,13 @@ DoubleSpinBox::~DoubleSpinBox() = default;
 bool DoubleSpinBox::apply(const std::string& propName)
 {
     if (!ExpressionBinding::apply(propName)) {
-        Gui::Command::doCommand(Gui::Command::Doc, "%s = %f", propName.c_str(), value());
+        // all digits: "%f" keeps only 6 decimals
+        Gui::Command::doCommand(
+            Gui::Command::Doc,
+            "%s = %s",
+            propName.c_str(),
+            Base::StringUtils::formatDouble(value()).c_str()
+        );
         return true;
     }
 

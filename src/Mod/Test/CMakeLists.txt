@@ -39,6 +39,7 @@ SET(Test_SRCS
     TestDocumentParametersGui.py
     TestExpressionVarSetGui.py
     TestUserParametersGui.py
+    TestBoundFieldApplyGui.py
     TestPropertyEditorGui.py
     TestPropertyEditorCancelGui.py
     TestPropertyViewDocumentActivationGui.py

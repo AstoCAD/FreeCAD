@@ -104,6 +104,7 @@ FreeCAD.__unit_test__ += [
     "TestDocumentParametersGui",
     "TestExpressionVarSetGui",
     "TestUserParametersGui",
+    "TestBoundFieldApplyGui",
     "TestPropertyEditorGui",
     "TestPropertyEditorCancelGui",
     "TestPropertyViewDocumentActivationGui",

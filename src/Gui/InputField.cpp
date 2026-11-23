@@ -33,6 +33,7 @@
 #include <App/QuantityInput.h>
 #include <Base/Exception.h>
 #include <Base/Quantity.h>
+#include <Base/StringUtils.h>
 #include <Base/UnitsApi.h>
 
 #include "InputField.h"
@@ -143,7 +144,13 @@ void InputField::bind(const App::ObjectIdentifier& _path)
 bool InputField::apply(const std::string& propName)
 {
     if (!ExpressionBinding::apply(propName)) {
-        Gui::Command::doCommand(Gui::Command::Doc, "%s = %f", propName.c_str(), getQuantity().getValue());
+        // all digits: "%f" keeps only 6 decimals
+        Gui::Command::doCommand(
+            Gui::Command::Doc,
+            "%s = %s",
+            propName.c_str(),
+            Base::StringUtils::formatDouble(getQuantity().getValue()).c_str()
+        );
         return true;
     }
     else {
