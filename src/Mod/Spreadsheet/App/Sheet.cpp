@@ -284,7 +284,7 @@ static bool splitFields(
  * @param escapeChar The escape character used, if any (set to '0' to disable).
  *
  * @returns True if successful, false if something failed. The sheet is left as it was when
- *          the file cannot be opened or read.
+ *          the file cannot be opened or read, or has values beyond the last row or column.
  */
 
 bool Sheet::importFromFile(const std::string& filename, char delimiter, char quoteChar, char escapeChar)
@@ -314,6 +314,23 @@ bool Sheet::importFromFile(const std::string& filename, char delimiter, char quo
         }
     }
     file.close();
+
+    // A value beyond the last row or column of a sheet has no cell to go to: a cell made there
+    // could not be named or saved, and would be lost when the document is saved
+    for (std::size_t row = 0; row < rows.size(); ++row) {
+        for (std::size_t col = 0; col < rows[row].size(); ++col) {
+            if (!rows[row][col].empty()
+                && (row >= static_cast<std::size_t>(CellAddress::MAX_ROWS)
+                    || col >= static_cast<std::size_t>(CellAddress::MAX_COLUMNS))) {
+                FC_ERR(
+                    "Cannot import " << filename << ": it has values beyond the "
+                                     << CellAddress::MAX_ROWS << " rows and "
+                                     << CellAddress::MAX_COLUMNS << " columns of a spreadsheet"
+                );
+                return false;
+            }
+        }
+    }
 
     PropertySheet::AtomicPropertyChange signaller(cells);
 

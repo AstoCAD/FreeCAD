@@ -881,6 +881,34 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.get("A1"), "keep")
         self.assertEqual(sheet.get("B2"), 42)
 
+    def testImportBeyondLastRowOrColumn(self):
+        """A CSV file with values beyond the last row (16384) or column (ZZ) of a sheet is not
+        imported and leaves the sheet as it was; the import made cells there, which got invalid
+        names ("[A1") or were lost when the document was saved"""
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "Spreadsheet")
+        sheet.set("A1", "keep")
+        self.doc.recompute()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "large.csv")
+            for data in (
+                b"x\n" + b"\n" * 16383 + b"y\n",  # y in row 16385
+                b",".join(b"%d" % (col + 1) for col in range(703)) + b"\n",
+            ):
+                with open(path, "wb") as csv_file:
+                    csv_file.write(data)
+                self.assertFalse(sheet.importFile(path, ",", '"', "\\"))
+                self.doc.recompute()
+                self.assertEqual(sheet.getNonEmptyCells(), ["A1"])
+                self.assertEqual(sheet.get("A1"), "keep")
+
+            # Empty fields and lines beyond the sheet hold nothing to import
+            with open(path, "wb") as csv_file:
+                csv_file.write(b"x" + b"," * 702 + b"\n" + b"\n" * 16384)
+            self.assertTrue(sheet.importFile(path, ",", '"', "\\"))
+        self.doc.recompute()
+        self.assertEqual(sheet.getNonEmptyCells(), ["A1"])
+        self.assertEqual(sheet.get("A1"), "x")
+
     def testImportDoubledQuoteChar(self):
         """In a quoted CSV field, a doubled quote character is one quote character (RFC 4180,
         as Excel and LibreOffice write it); the import dropped both"""
