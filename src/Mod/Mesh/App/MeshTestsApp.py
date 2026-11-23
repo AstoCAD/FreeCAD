@@ -763,6 +763,19 @@ class MeshSmoothNegativeIteration(unittest.TestCase):
         mesh.smooth(Iteration=2)
         self.assertEqual(mesh.CountFacets, 12)
 
+    def testFeatureNegativeIteration(self):
+        doc = FreeCAD.newDocument("MeshSmoothNegativeIteration")
+        try:
+            feature = doc.addObject("Mesh::Feature", "Box")
+            feature.Mesh = Mesh.createBox(1.0, 1.0, 1.0)
+            with self.assertRaises(ValueError):
+                feature.smooth(-1)
+            feature.smooth(0)
+            feature.smooth(2)
+            self.assertEqual(feature.Mesh.CountFacets, 12)
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
 
 class MeshOptimizeTopology(unittest.TestCase):
     def testSwapsEdgeWithBenefit(self):
