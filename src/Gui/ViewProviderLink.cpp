@@ -3237,12 +3237,20 @@ void ViewProviderLink::_setupContextMenu(
     if (ext->getScaleProperty() && !ext->getScaleProperty()->isReadOnly()) {
         Gui::Document* doc = getDocument();
         auto prop = ext->getScaleProperty();
-        auto action = menu->addAction(QObject::tr("Mirror link"), [prop, doc] {
+        // Scale only holds a uniform scale: negate the scale vector when there is one, so a
+        // non-uniform scale is kept. The link keeps Scale in sync when the vector is uniform.
+        auto vectorProp = ext->getScaleVectorProperty();
+        auto action = menu->addAction(QObject::tr("Mirror link"), [prop, vectorProp, doc] {
             try {
                 App::AutoTransaction guard(
                     doc->openCommand(QT_TRANSLATE_NOOP("Command", "Mirror link"))
                 );
-                prop->setValue(prop->getValue() * -1.0);
+                if (vectorProp) {
+                    vectorProp->setValue(vectorProp->getValue() * -1.0);
+                }
+                else {
+                    prop->setValue(prop->getValue() * -1.0);
+                }
                 Command::updateActive();
             }
             catch (Base::Exception& e) {
@@ -3250,7 +3258,9 @@ void ViewProviderLink::_setupContextMenu(
             }
         });
         action->setCheckable(true);
-        action->setChecked(prop->getValue() < 0.0);
+        // Mirrored when the scale reverses the orientation (negative determinant)
+        const Base::Vector3d scale = ext->getScaleVector();
+        action->setChecked(scale.x * scale.y * scale.z < 0.0);
         action->setToolTip(QObject::tr("This affect only the selected link. The original object remains unchanged."));
     }
 

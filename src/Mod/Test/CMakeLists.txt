@@ -110,6 +110,7 @@ SET(Test_SRCS
     TestTreeLinkActiveObjectGui.py
     TestTreeLayerInPartSelectionGui.py
     TestLinkGroupToolTipsGui.py
+    TestLinkMirrorGui.py
     TestImagePlaneDraggerGui.py
     TestCameraSettingsNestingGui.py
     TestTaskDialogGateGui.py
