@@ -3038,6 +3038,13 @@ void AssemblyObject::ensureIdentityPlacements()
                 continue;
             }
 
+            // Only elements that are objects are components that the solver places. A link
+            // group that does not show its elements has none: it keeps its placement.
+            std::vector<App::DocumentObject*> elts = link->ElementList.getValues();
+            if (elts.empty()) {
+                continue;
+            }
+
             Base::Placement plc = pPlc->getValue();
             if (plc.isIdentity()) {
                 continue;
@@ -3047,7 +3054,6 @@ void AssemblyObject::ensureIdentityPlacements()
             obj->purgeTouched();
 
             // To keep the LinkElement positions, we apply plc to their placements
-            std::vector<App::DocumentObject*> elts = link->ElementList.getValues();
             for (auto* elt : elts) {
                 pPlc = elt->getPlacementProperty();
                 pPlc->setValue(plc * pPlc->getValue());

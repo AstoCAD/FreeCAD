@@ -1066,6 +1066,28 @@ class TestCore(AssemblyTestBase):
         self.doc.recompute()
         self.assertEqual(UtilsAssembly.number_of_components_in(self.assembly), 3)
 
+    def test_solve_keeps_link_array_with_hidden_elements_in_place(self):
+        """A link array that does not show its elements as objects has no element for the
+        solver to place: solve() moved it to the origin by resetting its placement, as it does
+        for a link array whose elements it places."""
+        source = self.doc.addObject("Part::Box", "ArraySource")
+        array = self.assembly.newObject("App::Link", "Array")
+        array.LinkedObject = source
+        array.ElementCount = 2
+        array.ShowElement = False
+        array.PlacementList = [App.Placement(), App.Placement(App.Vector(30, 0, 0), App.Rotation())]
+        placement = App.Placement(App.Vector(0, 0, 100), App.Rotation(App.Vector(0, 0, 1), 30))
+        array.Placement = placement
+        self.doc.recompute()
+        bound = Part.getShape(self.assembly, array.Name + ".", App.Matrix(), True).BoundBox
+
+        self.assembly.solve()
+        self.doc.recompute()
+
+        self.assertTrue(array.Placement.isSame(placement, 1e-9), str(array.Placement))
+        solved = Part.getShape(self.assembly, array.Name + ".", App.Matrix(), True).BoundBox
+        self.assertLess((solved.Center - bound.Center).Length, 1e-6, f"{bound} -> {solved}")
+
     def test_generated_array_is_one_component(self):
         source = self.doc.addObject("Part::Box", "ArraySource")
         array = self.assembly.newObject("Part::LinkArrayLinear", "Array")
