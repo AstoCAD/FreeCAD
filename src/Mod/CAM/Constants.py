@@ -114,6 +114,15 @@ GCODE_RETURN_INITIAL = ["G98"]  # Return to initial Z level
 GCODE_RETURN_R = ["G99"]  # Return to R level
 GCODE_RETURN_MODE = GCODE_RETURN_INITIAL + GCODE_RETURN_R
 
+# Non-modal G-codes (modal group 0): they act only on the line they are on,
+# so their word has to be on every line that uses them
+GCODE_NON_MODAL = (
+    GCODE_DWELL
+    + ["G10", "G28", "G30", "G52", "G53"]
+    + GCODE_OFFSET
+    + ["G92.1", "G92.2", "G92.3"]
+)
+
 # =============================================================================
 # Work Coordinate Systems (Fixtures)
 # =============================================================================

@@ -93,8 +93,12 @@ def modal_gcode(command: Path.Command, previous_command: Path.Command) -> Path.C
     """
 
     def modal_fn(previous_command, command):
-        # Same .Name as previously?
-        if previous_command and command.Name == previous_command.Name:
+        # Same .Name as previously? A non-modal command keeps its word.
+        if (
+            previous_command
+            and command.Name == previous_command.Name
+            and command.Name not in Constants.GCODE_NON_MODAL
+        ):
             new_command = Path.Command("", command.Parameters, command.Annotations)
 
             # we only signal "eliding" for a deduped situation

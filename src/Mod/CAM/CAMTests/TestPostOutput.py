@@ -2260,6 +2260,46 @@ G1 X20.000 Y10.000 F6000.000
                 f"Both comments should be output, in\n{gcode}",
             )
 
+    def test129e_duplicate_commands_keep_the_word_of_non_modal_commands(self):
+        """
+        Test that suppressing duplicate commands keeps the word of a non-modal
+        command such as the G4 dwell.
+
+        G4 acts only on its own line: a line "P2.000" without it is not a
+        dwell.
+
+        Expected:
+            G4 P1.000
+            G4 P2.000
+        """
+        machine = self._create_machine(
+            commands=False,
+            parameters=False,
+            line_numbers=False,
+            comments_enabled=False,
+            output_header=False,
+        )
+
+        with self._modify_operation_path(
+            [
+                Path.Command("G0", {"X": 0.0, "Y": 0.0, "Z": 5.0}),
+                Path.Command("G4", {"P": 1.0}),
+                Path.Command("G4", {"P": 2.0}),
+                Path.Command("G1", {"X": 10.0, "F": 100.0}),
+            ]
+        ):
+            results = self._run_export2(machine)
+            gcode = self._get_all_gcode(results)
+            lines = [l.strip() for l in gcode.split("\n")]
+
+            self.assertIn("G4 P1.000", lines, f"in\n{gcode}")
+            self.assertIn("G4 P2.000", lines, f"The second dwell should keep G4, in\n{gcode}")
+            self.assertEqual(
+                [l for l in lines if l.startswith("P")],
+                [],
+                f"No line should be a P word without its command, in\n{gcode}",
+            )
+
     def test130_modal_state_reset_after_tool_change(self):
         """
         Test that modal state resets after tool change so parameters are not

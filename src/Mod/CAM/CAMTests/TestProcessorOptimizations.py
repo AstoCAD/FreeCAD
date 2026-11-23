@@ -702,6 +702,25 @@ class TestModalGCode(unittest.TestCase):
             _pathcommand_eq(new_commands, expected), f"\nExpected\n{expected}\nSaw:\n{new_commands}"
         )
 
+    def test_modal_non_modal_commands(self):
+        """Test that non-modal commands (modal group 0) keep their command word."""
+        commands = [
+            Path.Command("G4 P1"),
+            Path.Command("G4 P2"),
+            Path.Command("G92 X0"),
+            Path.Command("G92 Y0"),
+        ]
+        _, new_commands = _modal_gcode_list(commands, None)
+        expected = [
+            Path.Command("G4 P1"),
+            Path.Command("G4 P2"),  # not "P2": that is no dwell
+            Path.Command("G92 X0"),
+            Path.Command("G92 Y0"),  # not "Y0": that would be a move
+        ]
+        self.assertTrue(
+            _pathcommand_eq(new_commands, expected), f"\nExpected\n{expected}\nSaw:\n{new_commands}"
+        )
+
     def test_modal_mixed_commands(self):
         """Test realistic G-code with mixed commands."""
         commands = [
