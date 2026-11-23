@@ -741,6 +741,15 @@ void AssemblyLink::synchronizeJoints()
 
         copyPropertyIfDifferent<App::PropertyBool>(joint, lJoint, "Detach1");
         copyPropertyIfDifferent<App::PropertyBool>(joint, lJoint, "Detach2");
+        // A detached JCS is not computed from its reference: its placement is set by the user.
+        auto copyDetachedPlacement = [&](const char* detachName, const char* placementName) {
+            auto* detach = freecad_cast<App::PropertyBool*>(joint->getPropertyByName(detachName));
+            if (detach && detach->getValue()) {
+                copyPropertyIfDifferent<App::PropertyPlacement>(joint, lJoint, placementName);
+            }
+        };
+        copyDetachedPlacement("Detach1", "Placement1");
+        copyDetachedPlacement("Detach2", "Placement2");
 
         copyPropertyIfDifferent<App::PropertyFloat>(joint, lJoint, "AngleMax");
         copyPropertyIfDifferent<App::PropertyFloat>(joint, lJoint, "AngleMin");

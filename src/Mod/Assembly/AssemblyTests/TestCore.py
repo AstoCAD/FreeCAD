@@ -1282,6 +1282,39 @@ class TestCore(AssemblyTestBase):
         self.doc.recompute()
         self.assertAlmostEqual(local_joint.Angle.Value, 60)
 
+    def test_flexible_assembly_link_synchronizes_detached_joint_placements(self):
+        """The copy of a joint in a flexible assembly link keeps the placements of the
+        detached JCS of the joint: they are not computed from the references. They stayed
+        at the value of the copy, so the parent assembly solved with stale JCS."""
+        box1 = self.assembly.newObject("Part::Box", "Box1")
+        box2 = self.assembly.newObject("Part::Box", "Box2")
+        box2.Placement.Base = App.Vector(0, 0, 20)
+        self.doc.recompute()
+        joint = self.jointgroup.newObject("App::FeaturePython", "Joint")
+        JointObject.Joint(joint, JointObject.JointTypes.index("Fixed"))
+        joint.Reference1 = (box1, ["Face6", "Vertex6"])
+        joint.Reference2 = (box2, ["Face6", "Vertex6"])
+        joint.Detach1 = True
+        joint.Placement1 = App.Placement(App.Vector(1, 2, 3), App.Rotation())
+        parent = self.doc.addObject("Assembly::AssemblyObject", "ParentAssembly")
+        instance = parent.newObject("Assembly::AssemblyLink", "Instance")
+        instance.LinkedObject = self.assembly
+        instance.Rigid = False
+        self.doc.recompute()
+        local_group = next(obj for obj in instance.Group if obj.TypeId == "Assembly::JointGroup")
+        local_joint = local_group.Group[0]
+        self.assertTrue(local_joint.Placement1.isSame(joint.Placement1, 1e-9))
+
+        joint.Placement1 = App.Placement(App.Vector(5, 6, 7), App.Rotation(30, 0, 0))
+        joint.Detach2 = True
+        joint.Placement2 = App.Placement(App.Vector(-5, 0, 0), App.Rotation(0, 0, 45))
+        instance.touch()
+        self.doc.recompute()
+        self.assertTrue(local_joint.Detach2)
+        for prop in ("Placement1", "Placement2"):
+            local, source = getattr(local_joint, prop), getattr(joint, prop)
+            self.assertTrue(local.isSame(source, 1e-9), f"{prop}: {local}")
+
     def _make_nested_sub_assembly(self, rigid_hinge):
         """A "Door" assembly with a panel joined to a part of its "Hinge" sub-assembly,
         used as a flexible sub-assembly of a parent assembly."""
