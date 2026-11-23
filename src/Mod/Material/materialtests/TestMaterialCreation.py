@@ -27,6 +27,7 @@ import unittest
 import FreeCAD
 import Materials
 
+import math
 import os
 import shutil
 import tempfile
@@ -198,6 +199,26 @@ class MaterialValueTestCases(unittest.TestCase):
         material.setPhysicalValue("Density", "")
         self.assertFalse(material.isPhysicalModelComplete(uuids.Density))
         self.assertTrue(material.PropertyObjects["Density"].Empty)
+
+    def testEmptyStringClearsArrayValue(self):
+        """An empty string unsets a value of an array, as it does for a quantity property"""
+        array2d = Materials.Array2D()
+        array2d.Columns = 1
+        array2d.Rows = 1
+        array2d.setValue(0, 0, "1 mm")
+        array2d.setValue(0, 0, "")
+        self.assertTrue(math.isnan(array2d.getValue(0, 0).Value))
+
+        array3d = Materials.Array3D()
+        array3d.Columns = 1
+        array3d.Depth = 1
+        array3d.setDepthValue(0, "1 MPa")
+        array3d.setRows(0, 1)
+        array3d.setValue(0, 0, 0, "1 mm")
+        array3d.setDepthValue(0, " ")
+        array3d.setValue(0, 0, 0, "")
+        self.assertTrue(math.isnan(array3d.getDepthValue(0).Value))
+        self.assertTrue(math.isnan(array3d.getValue(0, 0, 0).Value))
 
     def testUnknownPropertyRaises(self):
         """Setting a property that no model of the material has raises, physical or appearance"""
@@ -511,6 +532,34 @@ class MaterialSaveTestCases(unittest.TestCase):
         self.assertEqual(saved.PhysicalModels, [uuids.LinearElastic])
         density = saved.getPhysicalValue("Density").getValueAs("kg/m^3").Value
         self.assertAlmostEqual(density, 7850.0)
+
+    def testSaveArrayWithUnsetValues(self):
+        """A card with unset values in an array can be read back, and the values stay unset"""
+        uuids = Materials.UUIDs()
+        material = Materials.Material()
+        material.addPhysicalModel(uuids.TestModel)
+        array = Materials.Array3D()
+        array.Columns = 2
+        array.Depth = 2  # the depth values are unset
+        array.setDepthValue(0, "10 MPa")
+        array.setRows(0, 1)  # cells are unset
+        array.setValue(0, 0, 0, "1 mm")
+        array.setRows(1, 1)
+        material.setValue("TestArray3D", array)
+
+        self.MaterialManager.save("Custom", material, "Unset.FCMat")
+        self.MaterialManager.refresh()
+        saved = self.MaterialManager.getMaterialByPath("Unset.FCMat", "Custom")
+        savedArray = saved.getPhysicalValue("TestArray3D")
+        self.assertEqual(savedArray.Depth, 2)
+        self.assertEqual(savedArray.getRows(0), 1)
+        self.assertEqual(savedArray.getRows(1), 1)
+        self.assertAlmostEqual(savedArray.getDepthValue(0).getValueAs("MPa").Value, 10.0)
+        self.assertAlmostEqual(savedArray.getValue(0, 0, 0).getValueAs("mm").Value, 1.0)
+        self.assertTrue(math.isnan(savedArray.getValue(0, 0, 1).Value))
+        self.assertTrue(math.isnan(savedArray.getDepthValue(1).Value))
+        self.assertTrue(math.isnan(savedArray.getValue(1, 0, 0).Value))
+        self.assertTrue(math.isnan(savedArray.getValue(1, 0, 1).Value))
 
     def testSaveIntoReadOnlyLibraryRaises(self):
         """A read-only library (as the System one) does not accept saves"""

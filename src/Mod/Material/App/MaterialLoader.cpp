@@ -113,9 +113,8 @@ std::shared_ptr<Array2D> MaterialYamlEntry::read2DArray(const YAML::Node& node, 
 
             auto row = std::make_shared<QList<QVariant>>();
             for (std::size_t j = 0; j < yamlRow.size(); j++) {
-                Base::Quantity qq = Base::Quantity::parse(yamlRow[j].as<std::string>());
-                qq.setFormat(MaterialValue::getQuantityFormat());
-                row->push_back(QVariant::fromValue(qq));
+                row->push_back(QVariant::fromValue(
+                    MaterialValue::quantityFromString(yamlRow[j].as<std::string>())));
             }
             array2d->addRow(row);
         }
@@ -139,9 +138,8 @@ std::shared_ptr<Array3D> MaterialYamlEntry::read3DArray(const YAML::Node& node, 
         for (std::size_t depth = 0; depth < yamlArray.size(); depth++) {
             auto yamlDepth = yamlArray[depth];
             for (auto it = yamlDepth.begin(); it != yamlDepth.end(); it++) {
-                auto depthValue = Base::Quantity::parse(it->first.as<std::string>());
-                depthValue.setFormat(MaterialValue::getQuantityFormat());
-                array3d->addDepth(depth, depthValue);
+                array3d->addDepth(depth,
+                                  MaterialValue::quantityFromString(it->first.as<std::string>()));
 
                 auto yamlTable = it->second;
                 for (std::size_t i = 0; i < yamlTable.size(); i++) {
@@ -149,9 +147,8 @@ std::shared_ptr<Array3D> MaterialYamlEntry::read3DArray(const YAML::Node& node, 
 
                     auto row = std::make_shared<QList<Base::Quantity>>();
                     for (std::size_t j = 0; j < yamlRow.size(); j++) {
-                        auto qq = Base::Quantity::parse(yamlRow[j].as<std::string>());
-                        qq.setFormat(MaterialValue::getQuantityFormat());
-                        row->push_back(qq);
+                        row->push_back(
+                            MaterialValue::quantityFromString(yamlRow[j].as<std::string>()));
                     }
                     array3d->addRow(depth, row);
                 }

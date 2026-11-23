@@ -324,6 +324,13 @@ QString MaterialValue::getYAMLStringMultiLine() const
 
 QString MaterialValue::getYAMLStringQuantity(const Base::Quantity& quantity)
 {
+    if (!quantity.isValid()) {
+        // An unset value, e.g. a cell of an array that was never filled in. It is written empty,
+        // like an unset quantity property: "nan" can't be read back and the whole card would be
+        // skipped.
+        return {};
+    }
+
     // A card stores the value, not its display: getUserString() rounds it to the display
     // precision and formats it for the user's unit schema and locale. Use the units of the
     // default schema, as a card written with the default preferences does, and the C locale,
@@ -388,6 +395,20 @@ QString MaterialValue::getYAMLString() const
 const Base::QuantityFormat MaterialValue::getQuantityFormat()
 {
     return Base::QuantityFormat(Base::QuantityFormat::NumberFormat::Default, PRECISION);
+}
+
+Base::Quantity MaterialValue::quantityFromString(const std::string& text)
+{
+    Base::Quantity quantity;
+    if (QString::fromStdString(text).trimmed().isEmpty()) {
+        // Unset, as an empty quantity property (see MaterialProperty::setValue())
+        quantity.setInvalid();
+    }
+    else {
+        quantity = Base::Quantity::parse(text);
+    }
+    quantity.setFormat(getQuantityFormat());
+    return quantity;
 }
 
 //===

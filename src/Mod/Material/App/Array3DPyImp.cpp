@@ -162,8 +162,7 @@ PyObject* Array3DPy::setDepthValue(PyObject* args)
     if (PyArg_ParseTuple(args, "iO!", &depth, &PyUnicode_Type, &valueObj)) {
         Py::String item(valueObj);
         try {
-            auto quantity = Base::Quantity::parse(item.as_string());
-            quantity.setFormat(MaterialValue::getQuantityFormat());
+            auto quantity = MaterialValue::quantityFromString(item.as_string());
             getArray3DPtr()->setDepthValue(depth, quantity);
         }
         catch (const Base::ParserError& e) {
@@ -190,8 +189,7 @@ PyObject* Array3DPy::setValue(PyObject* args)
     if (PyArg_ParseTuple(args, "iiiO!", &depth, &row, &column, &PyUnicode_Type, &valueObj)) {
         Py::String item(valueObj);
         try {
-            auto quantity = Base::Quantity::parse(item.as_string());
-            quantity.setFormat(MaterialValue::getQuantityFormat());
+            auto quantity = MaterialValue::quantityFromString(item.as_string());
             getArray3DPtr()->setValue(depth, row, column, quantity);
         }
         catch (const Base::ParserError& e) {

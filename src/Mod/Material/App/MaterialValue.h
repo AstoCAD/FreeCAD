@@ -108,6 +108,11 @@ public:
     static ValueType mapType(const QString& stringType);
 
     static const Base::QuantityFormat getQuantityFormat();
+    /* The quantity of a text, e.g. an array value given in a card or from Python. An empty text
+     * is an unset value: Base::Quantity::parse() would return its placeholder, the smallest
+     * double. Throws Base::ParserError for a text that is not a quantity.
+     */
+    static Base::Quantity quantityFromString(const std::string& text);
 
     // The precision is based on the value from the original materials editor
     static const int PRECISION = 6;
