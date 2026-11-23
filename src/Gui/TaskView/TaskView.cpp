@@ -1058,6 +1058,12 @@ void TaskView::accept(App::Document* doc)
     // the dialog leaves the 'accept' method
     foundTaskInfo->ActiveDialog->setProperty("taskview_accept_or_reject", true);
     bool success = foundTaskInfo->ActiveDialog->accept();
+    // The dialog can add task panels meanwhile (e.g. it creates a document), which
+    // invalidates the iterator, or close the document
+    foundTaskInfo = std::ranges::find(taskInfos, doc, &TaskInfo::Document);
+    if (foundTaskInfo == taskInfos.end()) {
+        return;
+    }
     foundTaskInfo->ActiveDialog->setProperty("taskview_accept_or_reject", QVariant());
     if (success || foundTaskInfo->ActiveDialog->property("taskview_remove_dialog").isValid()) {
         removeDialog(doc);
@@ -1076,6 +1082,12 @@ void TaskView::reject(App::Document* doc)
     // the dialog leaves the 'reject' method
     foundTaskInfo->ActiveDialog->setProperty("taskview_accept_or_reject", true);
     bool success = foundTaskInfo->ActiveDialog->reject();
+    // The dialog can add task panels meanwhile (e.g. it creates a document), which
+    // invalidates the iterator, or close the document
+    foundTaskInfo = std::ranges::find(taskInfos, doc, &TaskInfo::Document);
+    if (foundTaskInfo == taskInfos.end()) {
+        return;
+    }
     foundTaskInfo->ActiveDialog->setProperty("taskview_accept_or_reject", QVariant());
     if (success || foundTaskInfo->ActiveDialog->property("taskview_remove_dialog").isValid()) {
         removeDialog(doc);
