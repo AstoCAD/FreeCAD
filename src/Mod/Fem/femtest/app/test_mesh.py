@@ -603,6 +603,46 @@ class TestMeshCommon(unittest.TestCase):
         self.assertIn(repr(tool.brep_file), source.decode("utf-8"))
 
     # ********************************************************************************************
+    def test_nastran_export_script_any_path(self):
+        # the Nastran mesh export writes a pyNastran script next to the bdf file, which holds the
+        # path of the bdf file it writes. The path was written between single quotes and the file
+        # in the locale encoding: a backslash (Windows paths, "C:\Users" is an escape), a quote or
+        # a character outside the code page made a script that does not compile or is not written
+        import os
+        import sys
+        from unittest import mock
+        from feminout import exportNastranMesh
+
+        tetra4 = Fem.FemMesh()
+        for i, (x, y, z) in enumerate([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]):
+            tetra4.addNode(x, y, z, i + 1)
+        tetra4.addVolume([1, 2, 3, 4], 1)
+
+        base_dir = testtools.get_fem_test_tmp_dir("mesh_common_nastran_script")
+        work_dir = join(base_dir, "Bolt's Pièce Ωμέγα")
+        os.makedirs(work_dir)
+        bdf_file = join(work_dir, "tetra4_mesh.bdf")
+
+        # pyNastran is optional, the script is written without it
+        pynastran = mock.MagicMock()
+        modules = {
+            "pyNastran": pynastran,
+            "pyNastran.bdf": pynastran.bdf,
+            "pyNastran.bdf.bdf": pynastran.bdf.bdf,
+        }
+        with mock.patch.dict(sys.modules, modules), mock.patch.object(
+            exportNastranMesh, "BDF", pynastran.bdf.bdf.BDF, create=True
+        ):
+            exportNastranMesh.write(tetra4, bdf_file)
+
+        script_file = join(work_dir, "tetra4_mesh.py")
+        with open(script_file, "rb") as script:
+            source = script.read()
+        compile(source, script_file, "exec")
+        expected = repr(join(work_dir, "tetra4_mesh_pyNas.bdf"))
+        self.assertIn(f"model.write_bdf({expected}, enddata=True)", source.decode("utf-8"))
+
+    # ********************************************************************************************
     def test_stl_dat_non_ascii_path(self):
         # SMESH writes and reads STL and DAT files with narrow file functions too: on Windows
         # nothing was written (or a file under a garbled name) and an STL file read back empty

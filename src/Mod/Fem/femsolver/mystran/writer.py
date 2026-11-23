@@ -84,7 +84,8 @@ class FemInputWriterMystran(writerbase.FemInputWriter):
 
         model = BDF()
 
-        pynasf = open(self.pynasinput_file, "w")
+        # the file is Python source: UTF-8, and the path is written as a Python string literal
+        pynasf = open(self.pynasinput_file, "w", encoding="utf-8")
 
         # comment and model init
         pynasf.write("# written by FreeCAD\n\n")
@@ -99,7 +100,7 @@ class FemInputWriterMystran(writerbase.FemInputWriter):
         model = add_solver_control.add_solver_control(pynasf, model, self)
 
         pynasf.write(
-            "\n\nmodel.write_bdf('{}', enddata=True)\n".format(
+            "\n\nmodel.write_bdf({!r}, enddata=True)\n".format(
                 join(self.dir_name, self.basename + "_pyNas.bdf")
             )
         )

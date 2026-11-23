@@ -186,3 +186,52 @@ class TestSolverMystranPrepare(unittest.TestCase):
         self.assertFalse(machine.failed, machine.status)
         writer_class.assert_called_once()
         self.assertEqual(writer_class.call_args.args[2].Name, meshes[0].Name)
+
+    # ********************************************************************************************
+    def test_pynastran_script_any_working_directory(self):
+        # the writer also writes the pyNastran script it runs, which holds the path of the bdf
+        # file it writes. The path was written between single quotes and the file in the locale
+        # encoding: a backslash (Windows paths, "C:\Users" is an escape), a quote or a character
+        # outside the code page made a script that does not compile or is not written
+        import os
+        import sys
+        from unittest import mock
+        from femexamples.mystran_plate import setup
+        from femmesh import meshsetsgetter
+        from femsolver.mystran import writer
+        from femtools import membertools
+
+        setup(self.document, "mystran")
+        self.document.recompute()
+        solver = self.document.SolverMystran
+        analysis = solver.getParentGroup()
+        mesh_obj = membertools.get_mesh_to_solve(analysis)
+        meshdatagetter = meshsetsgetter.MeshSetsGetter(
+            analysis, solver, mesh_obj, membertools.AnalysisMember(analysis)
+        )
+        meshdatagetter.get_mesh_sets()
+
+        base_dir = testtools.get_fem_test_tmp_dir("solver_mystran_script")
+        working_dir = join(base_dir, "Bolt's Pièce Ωμέγα")
+        os.makedirs(working_dir)
+
+        # pyNastran is optional, the script is written without it
+        pynastran = mock.MagicMock()
+        modules = {
+            "pyNastran": pynastran,
+            "pyNastran.bdf": pynastran.bdf,
+            "pyNastran.bdf.bdf": pynastran.bdf.bdf,
+        }
+        with mock.patch.dict(sys.modules, modules), mock.patch.object(
+            writer, "BDF", pynastran.bdf.bdf.BDF, create=True
+        ):
+            w = writer.FemInputWriterMystran(
+                analysis, solver, mesh_obj, meshdatagetter.member, working_dir
+            )
+            w.write_solver_input()
+
+        with open(w.pynasinput_file, "rb") as script:
+            source = script.read()
+        compile(source, w.pynasinput_file, "exec")
+        expected = repr(join(working_dir, mesh_obj.Name + "_pyNas.bdf"))
+        self.assertIn(f"model.write_bdf({expected}, enddata=True)", source.decode("utf-8"))

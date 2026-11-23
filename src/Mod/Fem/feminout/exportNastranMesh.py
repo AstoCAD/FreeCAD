@@ -88,13 +88,14 @@ def write(fem_mesh, filename):
 
     # pynas file
     basefilename = filename[: len(filename) - 4]  # TODO basename is more failsafe
-    pynasf = open(basefilename + ".py", "w")
+    # the file is Python source: UTF-8, and the path is written as a Python string literal
+    pynasf = open(basefilename + ".py", "w", encoding="utf-8")
     pynasf.write("# written by FreeCAD\n\n\n")
     pynasf.write("from pyNastran.bdf.bdf import BDF\n")
     pynasf.write("model = BDF()\n\n\n")
     pynasf.write(mesh_pynas_code)
 
-    pynasf.write("model.write_bdf('{}', enddata=True)\n".format(basefilename + "_pyNas.bdf"))
+    pynasf.write("model.write_bdf({!r}, enddata=True)\n".format(basefilename + "_pyNas.bdf"))
     pynasf.close()
 
     # execute pyNastran code to add grid to the model
