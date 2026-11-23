@@ -777,6 +777,15 @@ class MeshSmoothNegativeIteration(unittest.TestCase):
             FreeCAD.closeDocument(doc.Name)
 
 
+class MeshSegmentsByCurvature(unittest.TestCase):
+    def testHugeMinimumFacetCount(self):
+        """A count beyond the C long range raises OverflowError, not SystemError"""
+        mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        with self.assertRaises(OverflowError):
+            mesh.getSegmentsByCurvature([(0.0, 0.0, 0.1, 0.1, 2**70)])
+        self.assertIsInstance(mesh.getSegmentsByCurvature([(0.0, 0.0, 0.1, 0.1, 1)]), list)
+
+
 class MeshOptimizeTopology(unittest.TestCase):
     def testSwapsEdgeWithBenefit(self):
         a = FreeCAD.Vector(0, 0, 0)

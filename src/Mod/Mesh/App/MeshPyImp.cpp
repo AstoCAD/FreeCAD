@@ -2245,7 +2245,11 @@ PyObject* MeshPy::getSegmentsByCurvature(PyObject* args) const
         float c2 = Py::Float(t[1]);
         float tol1 = Py::Float(t[2]);
         float tol2 = Py::Float(t[3]);
-        int num = (int)Py::Long(t[4]);
+        long value = PyLong_AsLong(Py::Long(t[4]).ptr());
+        if (value == -1 && PyErr_Occurred()) {
+            throw Py::Exception();  // OverflowError: too large for a C long
+        }
+        int num = static_cast<int>(value);
         segm.emplace_back(
             std::make_shared<MeshCore::MeshCurvatureFreeformSegment>(
                 meshCurv.GetCurvature(),
