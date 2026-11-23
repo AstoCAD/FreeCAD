@@ -3211,6 +3211,41 @@ class SpreadsheetCases(unittest.TestCase):
         finally:
             FreeCAD.closeDocument(doc.Name)
 
+    def testExportXLSXAliasLikeCellReference(self):
+        """A formula using an alias that Excel reads as a cell reference (not
+        exported as a name) is exported as its value, not as a formula reading
+        another cell"""
+        import zipfile
+        import importXLSX
+
+        sheet = self.doc.addObject("Spreadsheet::Sheet", "LikeCells")
+        sheet.set("A1", "5")
+        sheet.setAlias("A1", "DIA1")
+        sheet.set("B1", "=DIA1*2")
+        sheet.set("A2", "7")
+        sheet.setAlias("A2", "A0")
+        sheet.set("B2", "=A0 + 1")
+        sheet.set("C1", "=A1*3")
+        self.doc.recompute()
+
+        filename = os.path.join(self.TempPath, "SpreadsheetAliasLikeCell.xlsx")
+        importXLSX.export([sheet], filename)
+        with zipfile.ZipFile(filename) as z:
+            worksheet = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
+        self.assertIn('<c r="B1"><v>10.0</v></c>', worksheet)
+        self.assertIn('<c r="B2"><v>8.0</v></c>', worksheet)
+        # Cell references are still exported as formulas
+        self.assertIn('<c r="C1"><f>A1*3</f><v>15.0</v></c>', worksheet)
+
+        doc = FreeCAD.newDocument("ExportXLSXAliasLikeCell")
+        try:
+            importXLSX.insert(filename, doc.Name)
+            back = doc.getObject("LikeCells")
+            self.assertEqual(back.B1, 10)
+            self.assertEqual(back.B2, 8)
+        finally:
+            FreeCAD.closeDocument(doc.Name)
+
     def testImportXLSXDefinedNamesOtherThanCells(self):
         """Defined names that are not one cell (print area, filter, ranges,
         rows, constants, other workbooks) or not valid aliases are skipped,

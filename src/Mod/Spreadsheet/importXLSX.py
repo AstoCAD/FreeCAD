@@ -981,7 +981,13 @@ def _excelFormula(sheet, expression, aliases):
         text = match.group(0)
         if text.isspace():
             continue
-        if match.group("ref") or match.group("num"):
+        if match.group("ref"):
+            if not isSheetCell(text.replace("$", "")):
+                # Not a cell for FreeCAD (column after ZZ, row 0 or after the last
+                # row) but an alias, like "DIA1", that Excel would read as a cell
+                return None
+            out.append(text)
+        elif match.group("num"):
             out.append(text)
         elif match.group("name"):
             following = next((t.group(0) for t in tokens[index + 1 :] if not t.group(0).isspace()), "")
