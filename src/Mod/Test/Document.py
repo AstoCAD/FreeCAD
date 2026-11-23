@@ -999,6 +999,30 @@ class DocumentBasicCases(unittest.TestCase):
         obj.Floats = [2, 10**12]
         self.assertEqual(obj.Floats, [2.0, 1e12])
 
+    def testPropertyListDictIndexOutOfLongRange(self):
+        # {index: value} with an index that does not fit a C long appended the value
+        # (the failed conversion gave -1, the append index) and left OverflowError set
+        obj = self.Doc.addObject("App::FeaturePython", "DictIndex")
+        obj.addProperty("App::PropertyFloatList", "Floats")
+        obj.addProperty("App::PropertyIntegerList", "Integers")
+        obj.Floats = [1.0, 2.0]
+        obj.Integers = [1, 2]
+        for index in (2**70, -(2**70), 2**64 - 1):
+            with self.subTest(index=index):
+                with self.assertRaises(ValueError):
+                    obj.Floats = {index: 9.0}
+                self.assertEqual(obj.Floats, [1.0, 2.0])
+                with self.assertRaises(ValueError):
+                    obj.Integers = {index: 9}
+                self.assertEqual(obj.Integers, [1, 2])
+        # in range indices, and -1 or the size to append, are unchanged
+        obj.Floats = {0: 5.0, -1: 6.0}
+        self.assertEqual(obj.Floats, [5.0, 2.0, 6.0])
+        obj.Integers = {1: 7, 2: 8}
+        self.assertEqual(obj.Integers, [1, 7, 8])
+        with self.assertRaises(ValueError):
+            obj.Integers = {-2: 0}
+
     def testIntegerSetTakesSet(self):
         # The property returns a set but only took a list or an int, so assigning
         # its own value back (or copying it to another object) raised TypeError.
