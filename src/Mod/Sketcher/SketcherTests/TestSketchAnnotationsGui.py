@@ -52,6 +52,29 @@ class TestSketchAnnotationsGui(SketcherGuiTestCase):
         self.flush_gui(100)
         self.assertEqual(self.scene().getNumChildren(), 1)
 
+    def testHoverOutlinesTextOfSketchInPart(self):
+        part = self.doc.addObject("App::Part", "Part")
+        part.addObject(self.s)
+        self.doc.recompute()
+        self.flush_gui(100)
+
+        def outlined():
+            item = self.scene().getChild(0)
+            return any(
+                item.getChild(i).isOfType(coin.SoLineSet.getClassTypeId())
+                for i in range(item.getNumChildren())
+            )
+
+        self.assertEqual(self.scene().getNumChildren(), 1)
+        self.assertFalse(outlined())
+        # Outside edit mode a pick in the view preselects the parent's path to the cosmetic.
+        Gui.Selection.setPreselection(part, self.s.Name + ".Annotation" + str(self.text), tp=2)
+        self.flush_gui(100)
+        self.assertTrue(outlined(), "Hovering the text of a sketch in a Part outlines it")
+        Gui.Selection.clearPreselection()
+        self.flush_gui(100)
+        self.assertFalse(outlined())
+
     def text_editor(self):
         scene = Gui.activeDocument().activeView().graphicsView().scene()
         for item in scene.items():

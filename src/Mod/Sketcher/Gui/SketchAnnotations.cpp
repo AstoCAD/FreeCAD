@@ -2171,6 +2171,12 @@ void AnnotationManager::update()
     selectionColor.setPackedValue(viewParameters->GetUnsigned("SelectionColor", 0x00ff00ff));
     Base::Color preselectionColor;
     preselectionColor.setPackedValue(viewParameters->GetUnsigned("HighlightColor", 0xffff00ff));
+    // Outside edit mode the preselection names the top parent (the Body of a sketch in one),
+    // as the selection does; resolve it to this sketch and its element.
+    const auto& preselection = Gui::Selection().getPreselection();
+    const AnnotationId hoveredId = preselection.Object.getSubObject() == view.getObject()
+        ? annotationIdFromSubName(preselection.Object.getElementName())
+        : Annotation::NoId;
     std::set<AnnotationId> live;
     auto displayed = sketch->Annotations.getValues();
     if (editorPreview) {
@@ -2192,11 +2198,8 @@ void AnnotationManager::update()
         auto* item = new SoSeparator;
         item->setName(annotationNodeName(a.id).c_str());
         scene->addChild(item);
-        const auto subname = annotationSubName(a.id);
         const bool selected = isAnnotationSelected(view, a.id);
-        const auto& preselection = Gui::Selection().getPreselection();
-        const bool hovered = preselection.Object.getObject() == view.getObject()
-            && preselection.Object.getSubName() == subname;
+        const bool hovered = hoveredId != Annotation::NoId && a.id == hoveredId;
         const auto color = a.construction ? constructionColor
                                           : view.getLayerColor(a.layer, view.LineColor.getValue());
         auto* pickStyle = new SoPickStyle;
