@@ -136,8 +136,8 @@ def _deduplicate(
     See modal_gcode() for overall behavior
     """
 
-    # comments unchanged
-    if command.Name == "(":
+    # comments unchanged, and they are not the previous command
+    if command.Name.startswith("("):
         return previous_command, command
 
     # Things that are modal barriers:

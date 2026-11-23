@@ -194,6 +194,16 @@ class TestModalAxis(unittest.TestCase):
             _pathcommand_eq(new_commands, expected), f"\nExpected\n{expected}\nSaw:\n{new_commands}"
         )
 
+    def test_comment_keeps_the_modal_state(self):
+        """Test that a comment does not become the previous command."""
+        previous, _ = modal_axis(Path.Command("G1 X10 Y20"), None)
+        next_previous, new_command = modal_axis(Path.Command("(Inline comment)"), previous)
+        self.assertTrue(
+            _pathcommand_eq(next_previous, Path.Command("G1 X10 Y20")),
+            f"\nExpected the G1 to stay the previous command\nSaw:\n{next_previous}",
+        )
+        self.assertTrue(_pathcommand_eq(new_command, Path.Command("(Inline comment)")))
+
 
 class TestCollapseG0(unittest.TestCase):
     """Test the collaps_g0 function."""

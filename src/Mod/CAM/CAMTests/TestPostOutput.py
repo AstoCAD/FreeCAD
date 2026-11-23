@@ -2224,6 +2224,42 @@ G1 X20.000 Y10.000 F6000.000
                 f"Only the G1 word should be dropped, in\n{gcode}",
             )
 
+    def test129d_duplicate_commands_keep_repeated_comments(self):
+        """
+        Test that suppressing duplicate commands never drops a comment.
+
+        A comment is not a command, so a comment equal to the one before it
+        is still output.
+
+        Expected:
+            G1 X10.000 F6000.000
+            (Check the clamps)
+            (Check the clamps)
+            X20.000
+        """
+        machine = self._create_machine(
+            commands=False, parameters=False, line_numbers=False, output_header=False
+        )
+
+        with self._modify_operation_path(
+            [
+                Path.Command("G0", {"X": 0.0, "Y": 0.0, "Z": 5.0}),
+                Path.Command("G1", {"X": 10.0, "F": 100.0}),
+                Path.Command("(Check the clamps)"),
+                Path.Command("(Check the clamps)"),
+                Path.Command("G1", {"X": 20.0}),
+            ]
+        ):
+            results = self._run_export2(machine)
+            gcode = self._get_all_gcode(results)
+            lines = [l.strip() for l in gcode.split("\n")]
+
+            self.assertEqual(
+                lines.count("(Check the clamps)"),
+                2,
+                f"Both comments should be output, in\n{gcode}",
+            )
+
     def test130_modal_state_reset_after_tool_change(self):
         """
         Test that modal state resets after tool change so parameters are not
