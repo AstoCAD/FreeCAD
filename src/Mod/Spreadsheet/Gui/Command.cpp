@@ -965,6 +965,29 @@ bool CmdSpreadsheetStyleUnderline::isActive()
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+// The number of decimals the view shows for the cell at \a address: those of
+// the cell, none for an integer without number format or display unit (see
+// SheetModel::data()), otherwise those of the unit preferences.
+static int shownDecimals(Sheet* sheet, const CellAddress& address)
+{
+    const Cell* cell = sheet->getCell(address);
+    if (!cell) {
+        return Base::UnitsApi::getDecimals();
+    }
+    int decimals = 0;
+    if (cell->getDecimals(decimals)) {
+        return decimals;
+    }
+    const auto* prop = sheet->getPropertyByName(address.toString().c_str());
+    Cell::NumberFormat numberFormat {};
+    DisplayUnit displayUnit;
+    if (prop && prop->isDerivedFrom<App::PropertyInteger>() && !cell->getNumberFormat(numberFormat)
+        && !cell->getDisplayUnit(displayUnit)) {
+        return 0;
+    }
+    return cell->getDisplayDecimals();
+}
+
 // Show one decimal more (delta 1) or less (delta -1) in the selected cells,
 // starting from the decimals shown in the first selected cell.
 static void changeDecimals(Gui::Command* command, int delta)
@@ -978,8 +1001,7 @@ static void changeDecimals(Gui::Command* command, int delta)
     if (ranges.empty()) {
         return;
     }
-    const Cell* cell = sheet->getCell(ranges.front().from());
-    const int current = cell ? cell->getDisplayDecimals() : Base::UnitsApi::getDecimals();
+    const int current = shownDecimals(sheet, ranges.front().from());
     const int decimals = std::clamp(current + delta, 0, 15);
 
     command->openCommand(

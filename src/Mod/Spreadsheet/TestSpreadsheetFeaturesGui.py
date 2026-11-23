@@ -136,6 +136,24 @@ class TestSpreadsheetFeaturesGui(unittest.TestCase):
         text = table.model().data(table.model().index(1, 0))
         self.assertEqual(text.count("0"), max(decimals - 1, 0))
 
+    def testDecimalsCommandsStartFromAnIntegerWithoutDecimals(self):
+        # An integer is shown without decimals, whatever the unit preferences:
+        # Increase Decimals shows one, Decrease Decimals keeps none
+        self.sheet.set("A1", "7")
+        self.sheet.set("A2", "8")
+        self.doc.recompute()
+        table = self._tableView()
+        self.assertEqual(table.model().data(table.model().index(0, 0)), "7")
+        self._select(table, 0, 0, 0, 0)
+        FreeCADGui.runCommand("Spreadsheet_IncreaseDecimals")
+        self._process()
+        self.assertEqual(self.sheet.getDecimals("A1"), 1)
+        self._select(table, 1, 0, 1, 0)
+        FreeCADGui.runCommand("Spreadsheet_DecreaseDecimals")
+        self._process()
+        self.assertEqual(self.sheet.getDecimals("A2"), 0)
+        self.assertEqual(table.model().data(table.model().index(1, 0)), "8")
+
     def testPasteFormattingAndClearFormat(self):
         self.sheet.set("A1", "1")
         self.sheet.setStyle("A1", "bold")
