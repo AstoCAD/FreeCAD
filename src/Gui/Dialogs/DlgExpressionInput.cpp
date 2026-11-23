@@ -1125,7 +1125,9 @@ bool DlgExpressionInput::reportName()
     QString nameVarSet = getValue(ui->comboBoxVarSet, VarSetNameRole);
     QString nameDoc = getValue(ui->comboBoxVarSet, DocRole);
     App::Document* doc = App::GetApplication().getDocument(nameDoc.toUtf8());
-    App::DocumentObject* obj = doc->getObject(nameVarSet.toUtf8());
+    // The dialog is not modal: the document of the chosen variable set may have been closed
+    // since it was listed. A missing variable set is reported as an unknown object.
+    App::DocumentObject* obj = doc ? doc->getObject(nameVarSet.toUtf8()) : nullptr;
     QString message;
     if (!isPropertyNameValid(nameProp, obj, message)) {
         setErrorState(ui->lineEditPropNew, true);

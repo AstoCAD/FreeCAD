@@ -446,3 +446,51 @@ class TestExpressionVarSetGui(unittest.TestCase):
         self.doc.recompute()
         self.assertAlmostEqual(self.variables.Existing, 28)
         self.assertAlmostEqual(self.variables.StoredScale, 6)
+
+    def testClosedDocumentOfChosenVariableSet(self):
+        # The dialog is not modal: the document of the chosen variable set can be closed while
+        # it is open. OK then crashed (null document) instead of reporting the missing set.
+        other = App.newDocument("StoreVariableLibrary")
+        library = other.addObject("App::VarSet", "Library")
+        library.addProperty("App::PropertyFloat", "Existing", "Variables")
+        otherName = other.Name
+
+        def closeOther():
+            # by name: the test closes the document itself, the cleanup runs again afterwards
+            if otherName in App.listDocuments():
+                App.closeDocument(otherName)
+
+        self.addCleanup(closeOther)
+        source = self.valueSource()
+        self.spin.setProperty("unit", "")
+        self.spin.setProperty("binding", self.doc.Name + "#" + source.Name + ".Scale")
+        icons = [widget for widget in self.spin.findChildren(QtWidgets.QLabel)
+                 if widget.inherits("ExpressionLabel")]
+        self.assertEqual(len(icons), 1)
+        self.assertTrue(QtCore.QMetaObject.invokeMethod(
+            icons[0], "clicked", QtCore.Qt.DirectConnection))
+        Gui.updateGui()
+        self.dialog = self.spin.findChild(QtWidgets.QDialog, "DlgExpressionInput")
+        self.assertIsNotNone(self.dialog)
+        self.dialog.findChild(QtWidgets.QPlainTextEdit, "expression").setPlainText("2")
+        self.dialog.findChild(QtWidgets.QCheckBox, "checkBoxVarSets").setChecked(True)
+        combo = self.dialog.findChild(QtWidgets.QComboBox, "comboBoxVarSet")
+        candidates = [index for index in range(combo.count())
+                      if combo.itemData(index, QtCore.Qt.UserRole + 1) == library.Name]
+        self.assertEqual(len(candidates), 1)
+        combo.setCurrentIndex(candidates[0])
+        self.dialog.findChild(QtWidgets.QComboBox, "comboBoxGroup").setCurrentText("Variables")
+        self.dialog.findChild(QtWidgets.QLineEdit, "lineEditPropNew").setText("Stored")
+        Gui.updateGui()
+        button = self.dialog.findChild(QtWidgets.QDialogButtonBox, "buttonBox").button(
+            QtWidgets.QDialogButtonBox.Ok)
+        self.assertTrue(button.isEnabled())
+        closeOther()
+        Gui.updateGui()
+        accepted = []
+        self.dialog.accepted.connect(lambda: accepted.append(True))
+        button.click()
+        Gui.updateGui()
+        self.assertFalse(accepted)
+        # the missing variable set is reported, as for a deleted one
+        self.assertFalse(self.dialog.findChild(QtWidgets.QFrame, "errorFrame").isHidden())
