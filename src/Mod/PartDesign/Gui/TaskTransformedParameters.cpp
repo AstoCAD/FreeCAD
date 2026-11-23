@@ -225,7 +225,7 @@ void TaskTransformedParameters::onFeatureItemChanged(QListWidgetItem* item)
         return;
     }
     App::DocumentObject* changedObj = pcTransformed->getDocument()->getObject(
-        name.toLatin1().constData()
+        name.toUtf8().constData()
     );
     if (!changedObj) {
         return;

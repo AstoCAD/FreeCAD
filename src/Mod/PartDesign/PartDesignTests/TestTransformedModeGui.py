@@ -80,3 +80,31 @@ class TestTransformedModeGui(unittest.TestCase):
         self.assertEqual(pattern.TransformMode, "Features")
         self.assertEqual(self.checkedItems(group), [self.box.Label])
         self.assertEqual(pattern.Originals, [self.box])
+
+    def testCheckingFeatureWithUnicodeNameAddsIt(self):
+        # The list stores the internal name as UTF-8; it must be looked up as UTF-8
+        name = "W\u00fcrfel\u7acb\u65b9"
+        other = self.body.newObject("PartDesign::AdditiveBox", name)
+        self.assertEqual(other.Name, name)
+        pattern = self.body.newObject("PartDesign::LinearPattern", "LinearPattern")
+        pattern.Originals = [self.box]
+        x_axis = [f for f in self.body.Origin.OriginFeatures if f.Role == "X_Axis"][0]
+        pattern.Direction = (x_axis, [""])
+        pattern.Length = 10
+        pattern.Occurrences = 2
+        self.doc.recompute()
+
+        self.gui_doc.setEdit(pattern.Name)
+        self.pump()
+        group = self.featureGroup()
+        widget = group.findChild(QtWidgets.QListWidget, "listWidgetFeatures")
+        items = [
+            widget.item(row)
+            for row in range(widget.count())
+            if widget.item(row).text() == other.Label
+        ]
+        self.assertEqual(len(items), 1)
+
+        items[0].setCheckState(QtCore.Qt.Checked)
+        self.pump()
+        self.assertEqual(pattern.Originals, [self.box, other])
