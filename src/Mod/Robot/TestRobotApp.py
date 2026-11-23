@@ -29,6 +29,19 @@ class TestRobotTrajectory(unittest.TestCase):
         self.assertEqual(trac.position(0.0).Base, App.Vector(0, 0, 0))
         self.assertTrue(trac.position(trac.Duration).Base.isEqual(App.Vector(100, 0, 0), 1e-7))
 
+    def test_continuous_motion_followed_by_wait(self):
+        """A continuous block followed only by WAIT waypoints must keep its motion."""
+        for cont_points, length in ((1, 10.0), (2, 20.0)):
+            waypoints = [_waypoint(0, type="LIN")]
+            for i in range(1, cont_points + 1):
+                waypoints.append(_waypoint(10 * i, type="LIN", cont=True))
+            waypoints.append(_waypoint(100, type="WAIT"))
+            trac = Robot.Trajectory(waypoints)
+            self.assertAlmostEqual(trac.Length, length, places=6)
+            self.assertGreater(trac.Duration, 0.0)
+            end = trac.position(trac.Duration).Base
+            self.assertTrue(end.isEqual(App.Vector(length, 0, 0), 1e-7), end)
+
     def test_delete_last_out_of_range(self):
         """deleteLast() must not crash when it removes more waypoints than there are."""
         self.assertEqual(len(Robot.Trajectory().deleteLast().Waypoints), 0)

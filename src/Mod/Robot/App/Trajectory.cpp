@@ -256,6 +256,16 @@ void Trajectory::generateTrajectory()
                 }
             }
         }
+
+        // a continuous block followed only by WAIT waypoints, which do not move,
+        // ends at its last point
+        if (pcRoundComp) {
+            pcRoundComp->Finish();
+            pcVelPrf->SetProfile(0, pcRoundComp->PathLength());
+            pcTrajectory->Add(
+                new KDL::Trajectory_Segment(pcRoundComp.release(), pcVelPrf.release())
+            );
+        }
     }
     catch (KDL::Error& e) {
         throw Base::RuntimeError(e.Description());
