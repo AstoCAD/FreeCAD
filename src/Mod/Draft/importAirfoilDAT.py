@@ -103,6 +103,8 @@ def insert(filename, docname):
         doc = FreeCAD.getDocument(docname)
     except NameError:
         doc = FreeCAD.newDocument(docname)
+    # process() makes the profile in the active document
+    FreeCAD.setActiveDocument(doc.Name)
     obj = process(filename)
     if obj is not None:
         importgroup = doc.addObject("App::DocumentObjectGroup", groupname)

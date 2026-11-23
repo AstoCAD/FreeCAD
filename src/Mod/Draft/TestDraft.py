@@ -121,6 +121,7 @@ from drafttests.test_oca import DraftOCARoundTrip as DraftTest08b
 # from drafttests.test_airfoildat import DraftAirfoilDAT as DraftTest09
 from drafttests.test_airfoildat import DraftAirfoilDATEncoding as DraftTest09b
 from drafttests.test_airfoildat import DraftAirfoilDATNumbers as DraftTest09c
+from drafttests.test_airfoildat import DraftAirfoilDATInsert as DraftTest09d
 from drafttests.test_array import DraftArray as DraftTest10
 from drafttests.test_grid_settings import DraftGridSettings as DraftTest11
 from drafttests.test_insertion_point import DraftInsertionPoint as DraftTest12
@@ -144,6 +145,7 @@ True if DraftTest08b else False
 # True if DraftTest09 else False
 True if DraftTest09b else False
 True if DraftTest09c else False
+True if DraftTest09d else False
 True if DraftTest10 else False
 True if DraftTest11 else False
 True if DraftTest12 else False

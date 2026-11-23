@@ -150,4 +150,29 @@ class DraftAirfoilDATNumbers(test_base.DraftTestCaseDoc):
             self.assertTrue(point.isEqual(App.Vector(x, y, 0), 1e-9), point)
 
 
+class DraftAirfoilDATInsert(test_base.DraftTestCaseDoc):
+    """Test inserting an airfoil DAT file into a given document."""
+
+    def test_insert_into_other_document(self):
+        """The profile and its group are made in the given document, not the active one."""
+        import importAirfoilDAT
+
+        tmpdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmpdir, True)
+        path = os.path.join(tmpdir, "profile.dat")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("Profile\n1.0 0.0\n0.5 0.08\n0.0 0.0\n0.5 -0.04\n1.0 0.0\n")
+        target = App.newDocument("AirfoilTarget")
+        self.addCleanup(App.closeDocument, target.Name)
+        App.setActiveDocument(self.doc.Name)
+
+        importAirfoilDAT.insert(path, target.Name)
+        self.assertEqual(self.doc.Objects, [])
+        groups = [o for o in target.Objects if o.isDerivedFrom("App::DocumentObjectGroup")]
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(len(groups[0].Group), 1)
+        self.assertEqual(groups[0].Group[0].Document, target)
+        self.assertEqual(len(groups[0].Group[0].Shape.Vertexes), 4)
+
+
 ## @}
