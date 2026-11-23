@@ -126,6 +126,23 @@ def plane_extrusion_height(ob):
     return forward
 
 
+def is_whole_primitive(ob):
+    '''False for a partial (Angle) or skewed (FirstAngle, SecondAngle) sphere,
+    cylinder, cone, prism or torus: the CSG primitives written for them have
+    no such parameters.'''
+    if ob.TypeId == "Part::Sphere":
+        return ob.Angle1.Value <= -90 and ob.Angle2.Value >= 90 and \
+            ob.Angle3.Value >= 360
+    if ob.TypeId == "Part::Torus":
+        return ob.Angle1.Value <= -180 and ob.Angle2.Value >= 180 and \
+            ob.Angle3.Value >= 360
+    if ob.TypeId in ("Part::Cylinder", "Part::Cone") and ob.Angle.Value < 360:
+        return False
+    if ob.TypeId in ("Part::Cylinder", "Part::Prism"):
+        return ob.FirstAngle.Value == 0 and ob.SecondAngle.Value == 0
+    return True
+
+
 def process_object(csg,ob):
     if not ob.isDerivedFrom('Part::Feature'):
         # groups, parts, links, annotations...: nothing written for them
@@ -135,7 +152,13 @@ def process_object(csg,ob):
     print("axis  : "+str(ob.Placement.Rotation.Axis))
     print("angle : "+str(ob.Placement.Rotation.Angle))
 
-    if ob.TypeId == "Part::Sphere":
+    if not is_whole_primitive(ob):
+        # no CSG primitive describes it, so best effort is a polyhedron of the
+        # placed shape, as for any other Part feature
+        print("Partial or skewed primitive")
+        csg.write('%s\n' % shape2polyhedron(ob.Shape))
+
+    elif ob.TypeId == "Part::Sphere":
         print("Sphere Radius : "+str(ob.Radius))
         mm = check_multmatrix(csg, ob, 0, 0, 0)
         csg.write("sphere($fn = 0, "+fafs+", r = "+str(ob.Radius.Value)+");\n")
@@ -165,14 +188,11 @@ def process_object(csg,ob):
         print("Torus")
         print(ob.Radius1)
         print(ob.Radius2)
-        if ob.Angle3 == 360.00:
-            mm = check_multmatrix(csg, ob, 0, 0, 0)
-            csg.write("rotate_extrude("+convexity+", $fn = 0, "+fafs+") {\n")
-            csg.write("multmatrix([[1, 0, 0, "+str(ob.Radius1.Value)+"], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]) {\n")
-            csg.write("circle($fn = 0, "+fafs+", r = "+str(ob.Radius2.Value)+");\n}\n}\n")
-            if mm == 1 : csg.write("}\n")
-        else: # Cannot convert to rotate extrude so best effort is polyhedron
-            csg.write('%s\n' % shape2polyhedron(ob.Shape))
+        mm = check_multmatrix(csg, ob, 0, 0, 0)
+        csg.write("rotate_extrude("+convexity+", $fn = 0, "+fafs+") {\n")
+        csg.write("multmatrix([[1, 0, 0, "+str(ob.Radius1.Value)+"], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]) {\n")
+        csg.write("circle($fn = 0, "+fafs+", r = "+str(ob.Radius2.Value)+");\n}\n}\n")
+        if mm == 1 : csg.write("}\n")
 
     elif ob.TypeId == "Part::Prism":
         import math
