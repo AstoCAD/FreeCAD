@@ -1206,8 +1206,15 @@ class Joint:
 
         jpl1 = UtilsAssembly.getJcsGlobalPlc(plc1, joint.Reference1)
         jpl2 = UtilsAssembly.getJcsGlobalPlc(plc2, joint.Reference2)
+
+        # Replace both offsets while the joint is incomplete: an offset change on a complete
+        # joint solves the assembly, and the solve between the two changes would join the new
+        # Offset2 with the old Offset1 and move the part. The caller solves the joint after.
+        ref2 = joint.Reference2
+        joint.Reference2 = None
         joint.Offset2 = jpl2.inverse() * jpl1
         joint.Offset1 = App.Placement()
+        joint.Reference2 = ref2
 
 
 class ViewProviderJoint:

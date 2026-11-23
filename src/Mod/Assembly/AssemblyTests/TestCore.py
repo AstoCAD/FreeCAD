@@ -538,6 +538,27 @@ class TestCore(AssemblyTestBase):
         self.assertTrue(joint.Offset1.isIdentity(), str(joint.Offset1))
         self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
 
+    def _check_preserve_position_replaces_first_offset(self, joint_type):
+        """Preserve position replaces an Offset1 set before without moving the part, also for
+        the joints that only the solver places. The new Offset2 was solved with the old Offset1
+        before Offset1 was reset, which moved or turned the part."""
+        moving, joint, refs = self._fixed_joint_between_boxes()
+        joint.JointType = joint_type
+        before = App.Placement(moving.Placement)
+        joint.Proxy.setJointConnectors(joint, refs[:1])
+        joint.Offset1 = App.Placement(App.Vector(3, -7, 5), App.Rotation(25, 35, 15))
+
+        joint.Proxy.setJointConnectors(joint, refs, True)
+
+        self.assertTrue(joint.Offset1.isIdentity(), str(joint.Offset1))
+        self.assertTrue(moving.Placement.isSame(before, 1e-6), str(moving.Placement))
+
+    def test_preserve_position_replaces_first_offset_of_distance_joint(self):
+        self._check_preserve_position_replaces_first_offset("Distance")
+
+    def test_preserve_position_replaces_first_offset_of_parallel_joint(self):
+        self._check_preserve_position_replaces_first_offset("Parallel")
+
     def test_preserve_position_when_moving_part_is_picked_first(self):
         """Picking the moving part first swaps the references; Preserve position must still
         keep the part where it is."""
