@@ -460,6 +460,24 @@ class TestMacroShortcutReplacement14824Gui(unittest.TestCase):
             self.assertGreater(self._priority_value(replaced), self._priority_value(before))
         self.assertEqual(after["priority"], replaced["priority"])
 
+    def test_removal_forgets_shortcut_and_priority(self):
+        # A removed macro left its shortcut and priority behind, and the next new macro, which
+        # gets the same free Std_Macro_<n> name, silently took that shortcut.
+        self._add()
+        before = self._observe()
+        listing = self._listing()
+        listing.setCurrentItem(listing.topLevelItem(0))
+        listing = None
+        self._button("buttonRemoveAction").click()
+        self._events(200)
+        removed = (self._entry(self.shortcuts), self._entry(self.priorities))
+        self._cleanup()
+        self.assertEqual(
+            before["override"], (("String", self.command_name, self.old_key.toString()),)
+        )
+        self.assertGreater(self._priority_value(before), 0)
+        self.assertEqual(removed, ((), ()))
+
     def _cleanup(self):
         if self.cleaned:
             return

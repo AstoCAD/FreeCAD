@@ -419,6 +419,9 @@ void DlgCustomActionsImp::onButtonRemoveActionClicked()
         if (actionName == aclCurMacro->getName()) {
             // emit signal to notify the container widget
             Q_EMIT removeMacroAction(actionName);
+            // forget its shortcut and priority: the next new macro can get the same name.
+            // The page's slot does it; event() does not connect it to the dialog's signal.
+            onRemoveMacroAction(actionName);
             // remove from manager and delete it immediately
             rclMan.removeCommand(aclCurMacro);
             break;
