@@ -54,3 +54,28 @@ class PivyTestCases(unittest.TestCase):
 
     def tearDown(self):
         FreeCAD.closeDocument("MeshTest")
+
+
+class ViewProviderSelectionTestCases(unittest.TestCase):
+    """Out-of-range facet indices must raise instead of writing outside the mesh"""
+
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("MeshSelectionTest")
+        self.feature = self.doc.addObject("Mesh::Feature", "Box")
+        self.feature.Mesh = Mesh.createBox(1.0, 1.0, 1.0)
+        self.doc.recompute()
+
+    def testOutOfRangeIndices(self):
+        view = self.feature.ViewObject
+        for method in (view.setSelection, view.addSelection, view.removeSelection):
+            for index in (12, -1, 2**70):
+                with self.subTest(method=method.__name__, index=index):
+                    with self.assertRaises(IndexError):
+                        method([0, index])
+        view.setSelection([0, 11])
+        self.assertEqual(self.feature.Mesh.getFacetSelection(), [0, 11])
+        view.removeSelection([0])
+        self.assertEqual(self.feature.Mesh.getFacetSelection(), [11])
+
+    def tearDown(self):
+        FreeCAD.closeDocument(self.doc.Name)

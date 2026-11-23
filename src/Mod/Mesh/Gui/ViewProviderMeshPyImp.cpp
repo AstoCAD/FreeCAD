@@ -25,6 +25,8 @@
 #include <sstream>
 
 
+#include <Mod/Mesh/App/MeshFeature.h>
+
 #include "ViewProvider.h"
 // inclusion of the generated files (generated out of ViewProviderMeshPy.xml)
 #include "ViewProviderMeshPy.h"
@@ -32,6 +34,31 @@
 
 
 using namespace MeshGui;
+
+namespace
+{
+// Converts a sequence of facet indices of the mesh shown by the view provider.
+// An index outside the mesh raises IndexError, as the selection flags are set without a check.
+std::vector<Mesh::FacetIndex> facetIndicesFromPy(PyObject* obj, ViewProviderMesh* vp)
+{
+    auto feature = freecad_cast<Mesh::Feature*>(vp->getObject());
+    const unsigned long numFacets = feature ? feature->Mesh.getValue().countFacets() : 0;
+
+    Py::Sequence list(obj);
+    std::vector<Mesh::FacetIndex> selection;
+    selection.reserve(list.size());
+    for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
+        Py::Long index(*it);
+        unsigned long value = PyLong_AsUnsignedLong(index.ptr());
+        if ((value == static_cast<unsigned long>(-1) && PyErr_Occurred()) || value >= numFacets) {
+            PyErr_Clear();
+            throw Py::IndexError("Facet index out of range");
+        }
+        selection.push_back(value);
+    }
+    return selection;
+}
+}  // namespace
 
 // returns a string which represents the object e.g. when printed in python
 std::string ViewProviderMeshPy::representation() const
@@ -49,16 +76,8 @@ PyObject* ViewProviderMeshPy::setSelection(PyObject* args)
         return nullptr;
     }
 
-    Py::Sequence list(obj);
-    std::vector<Mesh::FacetIndex> selection;
-    selection.reserve(list.size());
-    for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-        Py::Long index(*it);
-        auto value = static_cast<Mesh::FacetIndex>(index);
-        selection.push_back(value);
-    }
-
     ViewProviderMesh* vp = getViewProviderMeshPtr();
+    std::vector<Mesh::FacetIndex> selection = facetIndicesFromPy(obj, vp);
     vp->setSelection(selection);
     Py_Return;
 }
@@ -70,16 +89,8 @@ PyObject* ViewProviderMeshPy::addSelection(PyObject* args)
         return nullptr;
     }
 
-    Py::Sequence list(obj);
-    std::vector<Mesh::FacetIndex> selection;
-    selection.reserve(list.size());
-    for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-        Py::Long index(*it);
-        auto value = static_cast<Mesh::FacetIndex>(index);
-        selection.push_back(value);
-    }
-
     ViewProviderMesh* vp = getViewProviderMeshPtr();
+    std::vector<Mesh::FacetIndex> selection = facetIndicesFromPy(obj, vp);
     vp->addSelection(selection);
     Py_Return;
 }
@@ -91,16 +102,8 @@ PyObject* ViewProviderMeshPy::removeSelection(PyObject* args)
         return nullptr;
     }
 
-    Py::Sequence list(obj);
-    std::vector<Mesh::FacetIndex> selection;
-    selection.reserve(list.size());
-    for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-        Py::Long index(*it);
-        auto value = static_cast<Mesh::FacetIndex>(index);
-        selection.push_back(value);
-    }
-
     ViewProviderMesh* vp = getViewProviderMeshPtr();
+    std::vector<Mesh::FacetIndex> selection = facetIndicesFromPy(obj, vp);
     vp->removeSelection(selection);
     Py_Return;
 }
