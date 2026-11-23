@@ -2472,6 +2472,50 @@ class DocumentRecomputeCases(unittest.TestCase):
         self.assertIn(doc.Name, FreeCAD.listDocuments())
         self.assertIsNotNone(doc.getObject("Closer"))
 
+    def testCloseDocumentFromExecuteOfObjectRecomputeIsRefused(self):
+        # DocumentObject.recompute() runs execute() outside Document::recompute(): closing the
+        # document there destroyed it while the feature was still used (access violation).
+        doc = self.Doc
+
+        class Closer:
+            error = None
+
+            def __init__(self, obj):
+                obj.Proxy = self
+
+            def execute(self, obj):
+                try:
+                    FreeCAD.closeDocument(doc.Name)
+                except RuntimeError as e:
+                    Closer.error = e
+
+        closer = doc.addObject("App::FeaturePython", "Closer")
+        Closer(closer)
+        self.assertTrue(closer.recompute())
+        self.assertIsInstance(Closer.error, RuntimeError)
+        self.assertIn(doc.Name, FreeCAD.listDocuments())
+        self.assertFalse(doc.Recomputing)
+
+    def testRemoveObjectFromExecuteOfObjectRecomputeIsDeferred(self):
+        # Removing the feature from its execute() run by DocumentObject.recompute() destroyed it
+        # while it was still used (access violation). As in Document::recompute(), the removal
+        # is done once the feature is recomputed.
+        doc = self.Doc
+
+        class Remover:
+            def __init__(self, obj):
+                obj.Proxy = self
+
+            def execute(self, obj):
+                obj.Document.removeObject(obj.Name)
+                Remover.removedDuringExecute = obj.Document.getObject(obj.Name) is None
+
+        remover = doc.addObject("App::FeaturePython", "Remover")
+        Remover(remover)
+        self.assertTrue(remover.recompute())
+        self.assertFalse(Remover.removedDuringExecute)
+        self.assertIsNone(doc.getObject("Remover"))
+
     def tearDown(self):
         # closing doc
         FreeCAD.closeDocument("RecomputeTests")

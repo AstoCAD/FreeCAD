@@ -3433,9 +3433,50 @@ bool Document::recomputeFeature(DocumentObject* feature, bool recursive)
         recompute({feature}, true, &hasError);
         return !hasError;
     }
-    _recomputeFeature(feature);
-    signalRecomputedObject(*feature);
-    return feature->isValid();
+
+    // The feature's execute() and the observers may run Python that closes the document or
+    // removes the feature, both used below. Protect them as recompute() does: a recomputing
+    // document cannot be closed, and the removal of an object pending recompute is deferred.
+    const bool nested = testStatus(Document::Recomputing);
+    const auto pendingCount = d->pendingRemove.size();
+    bool valid = false;
+    {
+        Base::ObjectStatusLocker<Document::Status, Document> recomputing(Document::Recomputing,
+                                                                        this);
+        Base::ObjectStatusLocker<ObjectStatus, DocumentObject> pending(
+            ObjectStatus::PendingRecompute,
+            feature);
+        _recomputeFeature(feature);
+        signalRecomputedObject(*feature);
+        valid = feature->isValid();
+    }
+
+    // Removals deferred by a recompute of this document that encloses this one, or for an object
+    // that another recompute still has pending, are done at the end of that recompute.
+    if (!nested && d->pendingRemove.size() > pendingCount) {
+        const auto first = d->pendingRemove.begin() + static_cast<std::ptrdiff_t>(pendingCount);
+        std::vector<DocumentObjectT> objects(first, d->pendingRemove.end());
+        d->pendingRemove.erase(first, d->pendingRemove.end());
+        for (auto& o : objects) {
+            auto obj = o.getObject();
+            if (!obj) {
+                continue;
+            }
+            if (obj->testStatus(ObjectStatus::PendingRecompute)) {
+                d->pendingRemove.push_back(o);
+                continue;
+            }
+            try {
+                removeObject(obj->getNameInDocument());
+            }
+            catch (Base::Exception& e) {
+                e.reportException();
+                FC_ERR("error when removing object " << o.getDocumentName() << '#'
+                                                     << o.getObjectName());
+            }
+        }
+    }
+    return valid;
 }
 
 DocumentObject* Document::addObject(
