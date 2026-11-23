@@ -1097,8 +1097,13 @@ def p_sphere_action(p):
     'sphere_action : sphere LPAREN keywordargument_list RPAREN SEMICOL'
     if printverbose: print("Sphere : ",p[3])
     r = float(p[3]['r'])
-    mysphere = doc.addObject("Part::Sphere",p[1])
-    mysphere.Radius = r
+    if r > 0:
+        mysphere = doc.addObject("Part::Sphere",p[1])
+        mysphere.Radius = r
+    else:
+        FreeCAD.Console.PrintWarning('sphere with radius zero\n')
+        mysphere = doc.addObject("Part::Feature","emptysphere")
+        mysphere.Shape = Part.Compound([])
     if printverbose: print("Push Sphere")
     p[0] = [mysphere]
     if printverbose: print("End Sphere")
@@ -1267,9 +1272,14 @@ def p_square_action(p) :
     size = p[3]['size']
     x = float(size[0])
     y = float(size[1])
-    mysquare = doc.addObject('Part::Plane',p[1])
-    mysquare.Length=x
-    mysquare.Width=y
+    if x > 0 and y > 0:
+        mysquare = doc.addObject('Part::Plane',p[1])
+        mysquare.Length=x
+        mysquare.Width=y
+    else:
+        FreeCAD.Console.PrintWarning('square with size zero\n')
+        mysquare = doc.addObject("Part::Feature","emptysquare")
+        mysquare.Shape = Part.Compound([])
     if p[3].get('center','false')=='true' :
         center(mysquare,x,y,0)
     p[0] = [mysquare]
