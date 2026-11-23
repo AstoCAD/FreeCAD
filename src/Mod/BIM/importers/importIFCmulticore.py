@@ -42,6 +42,7 @@ objects = {}  # ifcid : Arch_Component
 subs = {}  # host_ifcid: [child_ifcid,...]
 adds = {}  # host_ifcid: [child_ifcid,...]
 colors = {}  # objname : (r,g,b)
+ifcscale = 1.0  # file length unit to mm
 
 
 def open(filename):
@@ -62,6 +63,7 @@ def insert(filename, docname=None, preferences=None):
     global objects
     global adds
     global subs
+    global ifcscale
     layers = {}
     materials = {}
     objects = {}
@@ -88,6 +90,7 @@ def insert(filename, docname=None, preferences=None):
 
     # open the file
     ifcfile = ifcopenshell.open(filename)
+    ifcscale = importIFCHelper.getScaling(ifcfile)
     progressbar = Base.ProgressIndicator()
     productscount = len(ifcfile.by_type("IfcProduct"))
     progressbar.start("Importing " + str(productscount) + " products...", productscount)
@@ -110,7 +113,6 @@ def insert(filename, docname=None, preferences=None):
     annotations = ifcfile.by_type("IfcAnnotation")
     if annotations:
         print("Processing", str(len(annotations)), "annotations...")
-        ifcscale = importIFCHelper.getScaling(ifcfile)
         for annotation in annotations:
             importIFCHelper.createAnnotation(
                 annotation, FreeCAD.ActiveDocument, ifcscale, preferences
@@ -187,6 +189,13 @@ def setAttributes(obj, ifcproduct):
         if attr in obj.PropertiesList:
             value = getattr(ifcproduct, attr)
             if value:
+                current = getattr(obj, attr)
+                if (
+                    isinstance(current, FreeCAD.Units.Quantity)
+                    and current.Unit == FreeCAD.Units.Length
+                ):
+                    # length attributes are in file units, FreeCAD lengths in mm
+                    value = value * ifcscale
                 try:
                     setattr(obj, attr, value)
                 except Exception:

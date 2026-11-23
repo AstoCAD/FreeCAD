@@ -72,6 +72,47 @@ def _make_wall_file():
     return model, wall
 
 
+def _make_length_attributes_file():
+    """Returns the path of an IFC4 file in meters with length attributes:
+    an IfcBuilding (ElevationOfRefHeight 2.5 m) and an IfcReinforcingMesh (3 x 2 m)"""
+
+    run = ifcopenshell.api.run
+    model = run("project.create_file", version="IFC4")
+    project = run("root.create_entity", model, ifc_class="IfcProject", name="Project")
+    length_unit = run("unit.add_si_unit", model, unit_type="LENGTHUNIT")
+    run("unit.assign_unit", model, units=[length_unit])
+    ctx = run("context.add_context", model, context_type="Model")
+    body = run(
+        "context.add_context",
+        model,
+        context_type="Model",
+        context_identifier="Body",
+        target_view="MODEL_VIEW",
+        parent=ctx,
+    )
+    site = run("root.create_entity", model, ifc_class="IfcSite")
+    building = run("root.create_entity", model, ifc_class="IfcBuilding", name="Building")
+    building.ElevationOfRefHeight = 2.5
+    run("aggregate.assign_object", model, relating_object=project, products=[site])
+    run("aggregate.assign_object", model, relating_object=site, products=[building])
+    mesh = run("root.create_entity", model, ifc_class="IfcReinforcingMesh", name="Mesh")
+    mesh.MeshLength = 3.0
+    mesh.MeshWidth = 2.0
+    rep = run(
+        "geometry.add_wall_representation",
+        model,
+        context=body,
+        length=2,
+        height=1,
+        thickness=1,
+    )
+    run("geometry.assign_representation", model, product=mesh, representation=rep)
+    run("spatial.assign_container", model, relating_structure=building, products=[mesh])
+    path = os.path.join(tempfile.mkdtemp(), "length_attributes.ifc")
+    model.write(path)
+    return path
+
+
 @unittest.skipUnless(_HAS_IFCOPENSHELL, "ifcopenshell not available")
 class TestArchIfc(TestArchBase.TestArchBase):
 
@@ -603,6 +644,46 @@ class TestArchIfc(TestArchBase.TestArchBase):
                 self.assertAlmostEqual(
                     attributes["BarLength"], rebar.Length.Value * 0.001, places=9
                 )
+
+    def test_legacy_import_length_attributes_in_mm(self):
+        """Length IFC attributes read by the legacy importer from a file in meters are
+        converted to mm, so that exporting them again gives the original values (3 m was
+        read as 3 mm and written back as 0.003 m)."""
+        from importers import importIFC, importIFCHelper
+
+        path = _make_length_attributes_file()
+        prefs = importIFCHelper.getPreferences()
+        prefs["MULTICORE"] = 0
+        importIFC.insert(path, self.document.Name, preferences=prefs)
+        self.document.recompute()
+        self._check_length_attributes()
+
+    def test_legacy_import_multicore_length_attributes_in_mm(self):
+        """Same as test_legacy_import_length_attributes_in_mm with the multicore importer."""
+        from importers import importIFCmulticore, importIFCHelper
+
+        path = _make_length_attributes_file()
+        prefs = importIFCHelper.getPreferences()
+        prefs["MULTICORE"] = 1
+        importIFCmulticore.insert(path, self.document.Name, preferences=prefs)
+        self.document.recompute()
+        self._check_length_attributes()
+
+    def _check_length_attributes(self):
+        from importers import exportIFC
+
+        meshes = [o for o in self.document.Objects if hasattr(o, "MeshLength")]
+        buildings = [o for o in self.document.Objects if hasattr(o, "ElevationOfRefHeight")]
+        self.assertEqual((len(meshes), len(buildings)), (1, 1))
+        self.assertAlmostEqual(meshes[0].MeshLength.Value, 3000, places=6)
+        self.assertAlmostEqual(meshes[0].MeshWidth.Value, 2000, places=6)
+        self.assertAlmostEqual(buildings[0].ElevationOfRefHeight.Value, 2500, places=6)
+
+        attributes = exportIFC.exportIfcAttributes(meshes[0], {}, 0.001)
+        self.assertAlmostEqual(attributes["MeshLength"], 3, places=9)
+        self.assertAlmostEqual(attributes["MeshWidth"], 2, places=9)
+        attributes = exportIFC.exportIfcAttributes(buildings[0], {}, 0.001)
+        self.assertAlmostEqual(attributes["ElevationOfRefHeight"], 2.5, places=9)
 
     def test_export_classification_codes(self):
         """Objects with the same classification code share one reference, and a code

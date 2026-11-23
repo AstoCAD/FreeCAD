@@ -766,7 +766,16 @@ def insert(srcfile, docname, skip=[], only=[], root=None, preferences=None):
                         and hasattr(obj, attribute["name"])
                     ):
                         # print("Setting attribute",attribute["name"],"to",getattr(product, attribute["name"]))
-                        setattr(obj, attribute["name"], getattr(product, attribute["name"]))
+                        value = getattr(product, attribute["name"])
+                        current = getattr(obj, attribute["name"])
+                        if (
+                            isinstance(current, FreeCAD.Units.Quantity)
+                            and current.Unit == FreeCAD.Units.Length
+                        ):
+                            # length attributes are in file units, FreeCAD lengths in mm
+                            # (the exporter writes them back with its scale factor)
+                            value = value * ifcscale
+                        setattr(obj, attribute["name"], value)
                         # TODO: ArchIFCSchema.IfcProducts uses the IFC version from the FreeCAD prefs.
                         # This might not coincide with the file being opened, hence some attributes are not properly read.
 
