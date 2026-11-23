@@ -686,6 +686,11 @@ def handleCells(cellList, actCellSheet, sList, sharedFormulas=None):
         cellAtts = cell.attributes
         refRef = cellAtts.getNamedItem("r")
         ref = getText(refRef.childNodes)
+        if not isSheetCell(ref):
+            # Beyond column ZZ or row 16384 there is no cell to put the value in
+            if any(cell.getElementsByTagName(tag) for tag in ("v", "f", "is")):
+                print(f"Cell {ref} is outside the spreadsheet, not imported")
+            continue
 
         refType = cellAtts.getNamedItem("t")
         if refType:

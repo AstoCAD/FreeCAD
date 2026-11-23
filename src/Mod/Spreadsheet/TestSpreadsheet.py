@@ -2754,6 +2754,52 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.A1, 5)
         self.assertEqual(sheet.getStyle("A1"), {"bold"})
 
+    def testImportXLSXValuesOutsideSheet(self):
+        """Values beyond column ZZ or row 16384 are skipped; they stopped the
+        import half-way, leaving the following cells and worksheets empty"""
+        import zipfile
+        import importXLSX
+
+        main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        workbook = (
+            f'<workbook xmlns="{main}" xmlns:r="{rels}"><sheets>'
+            '<sheet name="Wide" sheetId="1" r:id="rId1"/>'
+            '<sheet name="Next" sheetId="2" r:id="rId2"/></sheets></workbook>'
+        )
+        workbookRels = (
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            f'<Relationship Id="rId1" Type="{rels}/worksheet" Target="worksheets/sheet1.xml"/>'
+            f'<Relationship Id="rId2" Type="{rels}/worksheet" Target="worksheets/sheet2.xml"/>'
+            "</Relationships>"
+        )
+        wide = (
+            f'<worksheet xmlns="{main}"><sheetData>'
+            '<row r="1"><c r="A1"><v>1</v></c><c r="AAA1"><v>2</v></c>'
+            '<c r="ZZ1"><f>A1*3</f><v>3</v></c><c r="AAB1"><f>A1*4</f><v>4</v></c></row>'
+            '<row r="2"><c r="B2" t="inlineStr"><is><t>text</t></is></c></row>'
+            '<row r="16385"><c r="A16385" t="inlineStr"><is><t>far</t></is></c></row>'
+            "</sheetData></worksheet>"
+        )
+        following = (
+            f'<worksheet xmlns="{main}"><sheetData>'
+            '<row r="1"><c r="A1"><v>5</v></c></row>'
+            "</sheetData></worksheet>"
+        )
+        filename = os.path.join(self.TempPath, "SpreadsheetValuesOutside.xlsx")
+        with zipfile.ZipFile(filename, "w") as z:
+            z.writestr("xl/workbook.xml", workbook)
+            z.writestr("xl/_rels/workbook.xml.rels", workbookRels)
+            z.writestr("xl/worksheets/sheet1.xml", wide)
+            z.writestr("xl/worksheets/sheet2.xml", following)
+        importXLSX.insert(filename, self.doc.Name)
+        sheet = self.doc.getObject("Wide")
+        self.assertEqual(sorted(sheet.getUsedCells()), ["A1", "B2", "ZZ1"])
+        self.assertEqual(sheet.A1, 1)
+        self.assertEqual(sheet.ZZ1, 3)
+        self.assertEqual(sheet.B2, "text")
+        self.assertEqual(self.doc.getObject("Next").A1, 5)
+
     def testImportXLSXCellFormats(self):
         """Bold, italic, underline, RGB colors and alignment of XLSX cells are imported"""
         import zipfile
