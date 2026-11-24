@@ -23,6 +23,7 @@
 
 #include <list>
 
+#include <QMenuBar>
 
 #include <Base/TypePy.h>
 
